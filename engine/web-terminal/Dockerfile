@@ -69,12 +69,24 @@ RUN set -eux; \
     # container having no network route out, not something this trim
     # causes or fixes -- harmless, and unrelated to whether Copilot itself
     # is present.
+    #
+    # Full removed/kept list + rationale + how to add something back:
+    # see vscode-extensions.md in this directory. Keep that file in sync
+    # with this list whenever it changes.
     rm -rf \
         /usr/lib/code-server/lib/vscode/extensions/copilot \
         /usr/lib/code-server/lib/vscode/extensions/copilot-chat \
         /usr/lib/code-server/lib/vscode/extensions/mermaid-markdown-features \
         /usr/lib/code-server/lib/vscode/extensions/microsoft-authentication \
-        /usr/lib/code-server/lib/vscode/extensions/github-authentication
+        /usr/lib/code-server/lib/vscode/extensions/github-authentication \
+        /usr/lib/code-server/lib/vscode/extensions/debug-auto-launch \
+        /usr/lib/code-server/lib/vscode/extensions/debug-server-ready \
+        /usr/lib/code-server/lib/vscode/extensions/npm \
+        /usr/lib/code-server/lib/vscode/extensions/simple-browser \
+        /usr/lib/code-server/lib/vscode/extensions/php \
+        /usr/lib/code-server/lib/vscode/extensions/php-language-features \
+        /usr/lib/code-server/lib/vscode/extensions/ipynb \
+        /usr/lib/code-server/lib/vscode/extensions/notebook-renderers
 
 # ttyd: alternate plain-terminal workspace. Statically linked release
 # binary -- no libc dependency, works the same regardless of base image.

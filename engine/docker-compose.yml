@@ -81,6 +81,12 @@ services:
     container_name: workshop_presentation
     volumes:
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
+      # Shared slide CSS (workshops/assets/themes/*.css), mounted as a
+      # subdirectory of the served root so slides can reference it with a
+      # plain relative @import (e.g. 'assets/themes/hub.css') -- one file
+      # edited once, used by every workshop. Not workshop-specific, so it
+      # lives here rather than under any single workshops/<name>/.
+      - ../workshops/assets:/home/marp/app/assets:ro
     environment:
       - MARP_USER=1000:1000
     command: -s --http --html .

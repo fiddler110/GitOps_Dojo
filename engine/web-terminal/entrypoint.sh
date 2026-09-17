@@ -83,13 +83,11 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   cat > "$code_server_settings_dir/settings.json" <<'EOF'
 {
   "workbench.colorTheme": "GitHub Dark",
-  "markdown-preview-enhanced.automaticallyShowPreviewOfMarkdownBeingEdited": true,
-  "markdown-preview-enhanced.previewTheme": "vscode.css",
-  "markdown-preview-enhanced.codeBlockTheme": "vscode.css",
   "workbench.startupEditor": "none",
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
-  "task.allowAutomaticTasks": "on"
+  "task.allowAutomaticTasks": "on",
+  "extensions.ignoreRecommendations": true
 }
 EOF
 fi
@@ -174,13 +172,11 @@ EOF
     cat > "$student_code_server_settings_dir/settings.json" <<'EOF'
 {
   "workbench.colorTheme": "GitHub Dark",
-  "markdown-preview-enhanced.automaticallyShowPreviewOfMarkdownBeingEdited": true,
-  "markdown-preview-enhanced.previewTheme": "vscode.css",
-  "markdown-preview-enhanced.codeBlockTheme": "vscode.css",
   "workbench.startupEditor": "none",
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
+  "extensions.ignoreRecommendations": true,
   "terminal.integrated.profiles.linux": {
     "dojo-shell": {
       "path": "/opt/dojo-shell/tmux-terminal.sh"
