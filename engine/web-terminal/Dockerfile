@@ -59,6 +59,16 @@ RUN set -eux; \
     # layer's `rm` only adds an OCI whiteout on top of the original layer
     # and doesn't shrink the image; the bytes it's "deleting" are already
     # permanently baked into that earlier layer either way.
+    #
+    # Note: removing github-authentication does NOT fix the "Timed out
+    # waiting for authentication provider 'github' to register" error
+    # visible in the browser console -- confirmed present on a stock,
+    # unmodified image too (Copilot's own AgentHost feature repeatedly
+    # polls api.github.com for a session regardless of which auth
+    # extensions are installed). It's an existing side effect of this
+    # container having no network route out, not something this trim
+    # causes or fixes -- harmless, and unrelated to whether Copilot itself
+    # is present.
     rm -rf \
         /usr/lib/code-server/lib/vscode/extensions/copilot \
         /usr/lib/code-server/lib/vscode/extensions/copilot-chat \

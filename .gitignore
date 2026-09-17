@@ -5,4 +5,4 @@ infra/**/.terraform/
 infra/**/*.tfstate*
 __pycache__/
 *.pyc
-CLAUDE.mdinfra/
+CLAUDE.md
