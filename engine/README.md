@@ -1,0 +1,610 @@
+# Workshop Engine
+
+The reusable runtime for every workshop in this repo. Nothing in this
+directory should need editing to run a *different* workshop — only the
+content it's pointed at, the account settings in `.env`, and (for a
+workshop that needs different tooling than the default) a Compose overlay
+file the workshop itself supplies. See [`../workshops/README.md`](../workshops/README.md)
+for how a workshop is put together and how to add a new one; that's the
+doc to read before touching anything in here.
+
+It runs six services by default (a workshop's overlay can add more — see
+`../workshops/dns-as-code/` for an example that adds a PowerDNS backend):
+
+| Service         | Image                           | Purpose                                                                    |
+| ---------------- | --------------------------------- | ----------------------------------------------------------------------------- |
+| `gateway`        | built from `gateway/` (Caddy)     | The **only** service exposed to students. One hostname, TLS, routing, auth |
+| `git-server`     | `codeberg.org/forgejo/forgejo`    | Git hosting (branches, PRs, review)                                        |
+| `bootstrap`      | same, one-shot                    | Creates the admin user, org, sample repo, and student accounts on Forgejo  |
+| `presentation`   | `marpteam/marp-cli`               | Serves `WORKSHOP_CONTENT_DIR/slides`                                       |
+| `allocator`      | built from `allocator/`           | Assigns each browser session a student account, drives the facilitator dashboard (name/IP/status/Release) |
+| `web-terminal`   | built from `web-terminal/`        | Hosts each assigned student's code-server + ttyd processes, spawned on demand |
+
+Everything runtime-related lives in Docker/Podman **named volumes** — there
+are no host bind mounts for account data or Forgejo's database. Nothing
+persists once you tear the stack down.
+
+## Architecture
+
+Only `gateway` is reachable from outside the stack. `git-server`,
+`presentation`, `allocator`, and `web-terminal` sit on internal-only Compose
+networks and publish no ports of their own — the gateway is the sole entry
+point and the only thing that needs a hole in a firewall/NSG.
+
+```mermaid
+graph TB
+    Browser(["Browser<br/>(student or facilitator)"])
+
+    subgraph pub["public network"]
+        GW["gateway (Caddy)<br/>:80 / :443"]
+    end
+
+    subgraph workshoplab["workshop_lab network — internal"]
+        AL["allocator<br/>(name entry, /auth-check,<br/>facilitator dashboard + watch)"]
+        WT["web-terminal<br/>(workspace-control.py +<br/>per-student code-server/ttyd)"]
+        GS["git-server (Forgejo)<br/>:3000"]
+        BS["bootstrap<br/>(one-shot)"]
+    end
+
+    subgraph weblab["web_lab network — internal"]
+        PR["presentation (Marp)<br/>:8080"]
+    end
+
+    FD[("forgejo_data<br/>volume")]
+    TH[("terminal_home<br/>volume")]
+
+    Browser -->|PUBLIC_BASE_URL| GW
+    GW -->|"/  (shared auth)"| AL
+    GW -->|"/admin/*  (own facilitator auth)"| AL
+    GW -->|"/admin/watch/studentNN  (own auth +<br/>forward_auth → allocator, keyed by student)"| WT
+    GW -->|"/ide/*, /term/*  (shared auth +<br/>forward_auth → allocator)"| WT
+    GW -->|"/git/*  (shared auth,<br/>Authorization header stripped)"| GS
+    GW -->|"/slides/*  (open)"| PR
+    AL -.->|"POST /start, /stop<br/>GET /status (internal only)"| WT
+    WT -->|"git clone / push<br/>git-server:3000, direct"| GS
+    BS -->|"provisions admin,<br/>org, repo, students"| GS
+    GS -.-> FD
+    WT -.-> TH
+```
+
+`web-terminal` and `allocator` sit only on `workshop_lab`, not `web_lab` — from
+inside a student's shell, `git-server:3000` is reachable but
+`presentation:8080` is not (deliberately; slides are a browser-only
+concern). `gateway` is the one service that joins every network, since it
+has to reach every backend and also be the thing with a published port.
+`allocator` holds no persistent state (in-memory only, same ephemeral
+design as everything else) and never touches Docker itself — it only ever
+calls `web-terminal`'s internal control port, never a docker.sock.
+
+### How a request gets routed and authenticated
+
+```mermaid
+sequenceDiagram
+    actor S as Student's browser
+    participant GW as gateway
+    participant AL as allocator
+    participant WT as web-terminal
+    participant GS as git-server
+
+    S->>GW: GET / (no credentials)
+    GW-->>S: 401 + WWW-Authenticate
+    S->>GW: GET / (Basic: TTYD_USERNAME/PASSWORD)
+    GW->>AL: proxy /
+    AL-->>S: name-entry form (browser now caches the shared credential for this origin)
+
+    S->>AL: POST /assign (name)
+    AL-->>S: 303 + Set-Cookie (first free studentNN slot claimed, atomically)
+    AL-->>S: "You're student05" + Open VS Code / Open Terminal
+
+    S->>GW: GET /ide/ (cookie attached)
+    GW->>AL: forward_auth /auth-check?tool=ide
+    AL->>WT: POST /start/ide/student05 (idempotent)
+    AL-->>GW: 200 + X-Upstream-Port: 9005
+    GW->>WT: proxy /ide/* → web-terminal:9005
+    WT-->>S: code-server, already running as student05 — no login prompt
+
+    S->>GW: GET /forgejo-login (cookie attached, opened in a new tab)
+    GW->>AL: proxy /forgejo-login
+    AL->>GS: POST /user/login (studentNN / STUDENT_PASSWORD — server-side, no CSRF token needed)
+    GS-->>AL: Set-Cookie: session=... (Forgejo's own login)
+    AL-->>S: 303 + Set-Cookie (relayed verbatim) → /git/<org>/<repo>
+
+    S->>GW: GET /git/<org>/<repo> (Forgejo session cookie attached)
+    GW->>GS: proxy /git/* → / (Authorization header stripped first)
+    GS-->>S: repo page, already signed in as studentNN — no login prompt
+```
+
+A released or never-assigned session gets a `303` back to `/` at the
+`/auth-check` step instead — see **Facilitator operations** below for
+Release.
+
+The `Authorization` header gets stripped before Forgejo ever sees it because
+Forgejo's own API hard-fails if it sees a Basic Auth credential that isn't a
+real Forgejo account (it doesn't fall back to the session cookie). Without
+that strip, the shared gateway credential would break Forgejo's web UI —
+this was found and fixed by testing the actual pull-request flow end to end,
+not assumed.
+
+### How bootstrap provisions Forgejo
+
+Runs once per `compose up`, waits for `git-server` to report healthy, and is
+safe to re-run — every step checks for existing state first.
+
+```mermaid
+sequenceDiagram
+    participant C as docker compose
+    participant GS as git-server
+    participant BS as bootstrap
+
+    C->>GS: start
+    GS-->>C: healthy (GET /api/healthz)
+    C->>BS: start (depends_on: service_healthy)
+    BS->>GS: forgejo admin user create (CLI, shared /data volume)
+    BS->>GS: POST /api/v1/orgs (FORGEJO_ORG, if missing)
+    BS->>GS: POST /api/v1/orgs/.../repos (FORGEJO_REPO, if missing)
+    BS->>GS: git push seed content (only if the repo is empty)
+    BS->>GS: POST /api/v1/orgs/.../teams ("students", write access)
+    loop student01 .. studentNN (STUDENT_COUNT)
+        BS->>GS: POST /api/v1/admin/users (if missing)
+        BS->>GS: PUT /api/v1/teams/.../members/studentNN
+    end
+    opt BOT_COUNT > 0 (--test)
+        loop testuser1 .. testuserN (BOT_COUNT)
+            BS->>GS: POST /api/v1/admin/users (if missing)
+            BS->>GS: PUT /api/v1/teams/.../members/testuserN
+        end
+    end
+    BS-->>C: exit 0
+```
+
+## How requests are routed
+
+Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
+
+| Path            | Goes to        | Auth                                                              |
+| ---------------- | --------------- | -------------------------------------------------------------------- |
+| `/slides/*`      | `presentation`  | None — open, read-only content                                    |
+| `/`              | `allocator`     | Shared gate (`TTYD_USERNAME`/`TTYD_PASSWORD` **or** `FACILITATOR_USERNAME`/`PASSWORD`) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
+| `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
+| `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
+
+The shared gate is one Caddy `basic_auth` block covering everything except
+`/slides/*`, and it accepts **either** the shared student credential or the
+facilitator's own — so a facilitator only ever needs to remember one
+credential (theirs) to reach anything in the stack, including `/ide`,
+`/term`, and `/git`, all of which still sit behind this same gate after
+`/admin` routes them there. Both `basic_auth` blocks use Caddy's same
+default realm (this Caddy version has no Caddyfile option to change it),
+which works in our favor: a browser that's already authenticated as the
+facilitator on either block transparently reuses that cached credential on
+the other too, rather than prompting twice.
+
+Whichever basic_auth account actually matched is forwarded to `allocator`
+on every request as `X-Auth-User` (`header_up {http.auth.user.id}` in
+`gateway/Caddyfile` — this always *overwrites* any client-supplied header
+of the same name, so it can't be spoofed). `allocator/server.py` trusts
+this to recognize the facilitator immediately, on the very first request —
+typing the facilitator credential once, anywhere, is enough; there's no
+separate login step and no dependency on a cookie existing yet. This is
+also what stops a facilitator from ever being accidentally assigned a
+student slot: entering the facilitator credential at `/` renders their own
+page instead of the name-entry form. Reaching `/ide` or `/term` is a
+deliberate second step, gated by having actually been assigned an account
+through `/` (or being the facilitator) rather than typed credentials —
+direct navigation to `/ide` or `/term` with no valid assignment bounces
+straight back to `/`.
+
+**Forgejo SSO.** The Open Forgejo button doesn't link straight to `/git/*`
+— it links to `/forgejo-login`, which resolves the browser's identity
+exactly like `/ide`/`/term` do, then has `allocator` POST Forgejo's own
+login form itself, server-side, over the internal network (`studentNN` +
+`STUDENT_PASSWORD` for a student, `FORGEJO_ADMIN_USER` +
+`FORGEJO_ADMIN_PASSWORD` for the facilitator — matching whatever
+`bootstrap.sh` actually seeded those accounts with), then relays Forgejo's
+own `Set-Cookie` response straight onto the browser and redirects into the
+repo. No Forgejo reverse-proxy-auth config, no header-trust surface across
+the internal network (which would have been a real problem here — students
+have shell access on `web-terminal`, the same internal network Forgejo
+sits on, so trusting any header-based identity from that network would let
+a student forge one for another account). A student can only ever land in
+their own resolved identity's Forgejo account through this route, the same
+guarantee `/auth-check` already relies on for `/ide`/`/term`. Separately,
+note that `bootstrap.sh` gives every `studentNN` Forgejo account the *same*
+`STUDENT_PASSWORD` (matching their shared Linux/ttyd password) — a student
+who knows another student's account name could already sign into that
+account manually on Forgejo's own login form; this route doesn't change
+that, since it only ever authenticates the caller as their own resolved
+identity. Forgejo's
+login form needs no CSRF token to POST (verified against the running
+instance), which is what makes this possible without `allocator` holding a
+live Forgejo session of its own.
+
+Git operations (`clone`/`push`) never go through the gateway or this SSO
+route at all — students run them from inside the terminal, straight to
+`git-server:3000` on the internal network. That matters because git's
+protocol sends its own
+Basic Auth credential per-request; layering the shared gate's credential on
+top of it would collide. `gateway/Caddyfile` explicitly strips the
+`Authorization` header before proxying to Forgejo for exactly this reason —
+don't remove that when editing it.
+
+## Setup
+
+```sh
+cd engine
+cp .env.example .env
+# edit .env: PUBLIC_BASE_URL, passwords, STUDENT_COUNT, LAB_HOST_IP
+```
+
+`.env` now holds only account/secret/network settings — the same for every
+workshop. Which workshop to run (content, Forgejo org/repo, any extra
+services) is selected separately, by name, via `./run.sh` below.
+
+| Variable                                          | Purpose                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `WORKSHOP_CONTENT_DIR`                             | Path to a `workshops/<name>/content` folder (slides, lab, sample-repo) |
+| `WORKSHOP_NAME`                                    | Name shown in the terminal welcome message                     |
+| `PUBLIC_BASE_URL`                                  | What students type into their browser. See **Deployment scenarios** below |
+| `LAB_HOST_IP`                                      | Interface the gateway binds to on this machine — see below     |
+| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 80/443)               |
+| `TTYD_USERNAME`, `TTYD_PASSWORD`                   | Shared gate in front of the terminal and Forgejo browsing       |
+| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD` | Linux terminal accounts *and* matching Forgejo accounts (1-99) |
+| `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`     | Facilitator's Linux login, sudo-capable                        |
+| `FORGEJO_ADMIN_USER`, `FORGEJO_ADMIN_PASSWORD`, `FORGEJO_ADMIN_EMAIL` | Forgejo admin created by `bootstrap` (avoid the reserved name `admin`) |
+| `FORGEJO_ORG`, `FORGEJO_REPO`                      | Where the seeded sample repo lives                              |
+
+These are workshop credentials, not production secrets — rotate them for
+every session. `.env` is gitignored.
+
+### Deployment scenarios
+
+**Local laptop (default):**
+```
+PUBLIC_BASE_URL=http://localhost
+LAB_HOST_IP=127.0.0.1
+```
+Plain HTTP, no TLS, reachable only from this machine.
+
+**Azure VM, internal workshop:** bind the gateway to all interfaces and let
+Azure's free per-public-IP DNS label give you a real hostname — Caddy then
+gets a trusted Let's Encrypt certificate automatically, no custom domain
+needed:
+```
+PUBLIC_BASE_URL=https://<your-label>.<region>.cloudapp.azure.com
+LAB_HOST_IP=0.0.0.0
+```
+Set the DNS label on the VM's public IP in the Azure portal (or
+`az network public-ip update --dns-name <label> ...`) before starting the
+stack, since Caddy requests the certificate on first boot and needs that
+hostname to already resolve.
+
+`LAB_HOST_IP=0.0.0.0` is fine here — the actual access boundary on a VM
+should be the **NSG**, scoped to your corporate network/VPN range for the
+workshop's duration, not this setting. This repo doesn't manage the NSG;
+that's an Azure-side step you control per-deployment.
+
+## Start
+
+```sh
+cd engine
+./run.sh <workshop-name>       # e.g. ./run.sh git-fundamentals, ./run.sh dns-as-code
+./run.sh list                  # see available workshops
+```
+
+`run.sh` picks the workshop's content/org/repo from
+`workshops/<name>/workshop.env`, builds the base terminal image, layers on
+that workshop's Compose overlay if it has one, and brings the stack up —
+see [`../workshops/README.md`](../workshops/README.md) for the full
+mechanism. (Running `docker compose up -d --build` directly still works
+too, using whatever's in `.env` — useful for quick iteration on the engine
+itself, but `run.sh` is the normal path.)
+
+Needs a container engine on `PATH`: real `docker` (with the `compose`
+plugin) if you have it, otherwise `run.sh`/`scripts/teardown.sh` fall back
+to `podman build`/`podman-compose` automatically — there's no flag to set,
+they just detect whichever is actually installed. Confirmed working
+end-to-end on Podman (`podman-compose`) as well as Docker; the Azure VM
+path (`infra/corp-dev/gdojo-cc`) always installs real Docker via cloud-init
+regardless of what you use locally.
+
+This builds the terminal and gateway images, starts Forgejo, waits for it to
+report healthy, then runs `bootstrap` once to create the admin account, the
+configured Forgejo organization, the seeded sample repo, and one Forgejo
+account per configured student (added to a `students` team with write
+access — no public self-registration is needed or allowed).
+
+Open `PUBLIC_BASE_URL` in a browser. Students pass the shared gate
+(`TTYD_USERNAME`/`TTYD_PASSWORD`), type their name, and are automatically
+assigned the next free `${STUDENT_PREFIX}NN` account — no second password
+to type, no picking their own account. They land straight in code-server
+(or ttyd, their choice) as that account. Their Open Forgejo link SSOs them
+straight into their matching Forgejo account with no login prompt (see
+**Forgejo SSO** above); `STUDENT_PASSWORD` is only something they'd need to
+type themselves for a `git clone`/`push` from inside the terminal.
+`/slides` is reachable from the same address too. The facilitator sees every
+assigned student (name, account, IP, live active/inactive status) at
+`/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
+**Facilitator operations** below.
+
+**Capacity**: code-server instances run meaningfully heavier than a bare
+shell (roughly 150–300MB+ RAM each once a student is actively connected),
+but they're spawned lazily on first `/ide` visit and killed on Release —
+cost scales with concurrently-*active* students, not `STUDENT_COUNT`. Two
+independent knobs bound this:
+
+- `web-terminal`'s container-wide `mem_limit`/`pids_limit`
+  (`docker-compose.yml`, set via `WEB_TERMINAL_MEM_LIMIT`/`WEB_TERMINAL_PIDS_LIMIT`
+  in `.env`) is the ceiling for every student's code-server/ttyd process
+  combined. Size roughly `(expected concurrent students) × 400MB + 1GB`
+  for RAM and `(expected concurrent students) × 30 + 100` for pids.
+- `CODE_SERVER_MAX_HEAP_MB` (default 384) caps each individual
+  code-server's own V8 heap via `NODE_OPTIONS`
+  (`workspace-control.py`) — a safety net under the container ceiling so
+  one student can't quietly eat the whole budget alone.
+
+On the Azure delivery path (`infra/corp-dev/gdojo-cc`), both the VM's own
+size and these two container limits are computed automatically from
+`student_count` — see that module's `main.tf` (`vm_sizing_*` locals) and
+`README.md`. For a local/manual `engine/` run, set them yourself in
+`.env` using the same math.
+
+Extensions: code-server ships with a small, curated extension set —
+`redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
+`shd101wyy.markdown-preview-enhanced`, `hashicorp.terraform`, `golang.Go`,
+`ms-python.python` — pinned + sha256-verified and fetched via `wget` at
+build time (`web-terminal/Dockerfile`, same pattern as ttyd/zoxide/glow),
+not installed live by ID and not committed to this repo as binaries. All
+seven were checked on open-vsx.org and are published by the extension's
+real/verified namespace owner. Installed into one shared, read-only
+directory every student's instance points at — add or remove one by
+adding/removing a `fetch_ext` line in the Dockerfile, not per-student.
+Two caveats worth knowing: `ms-python.python`'s IntelliSense depends on
+Pylance, which is proprietary and unavailable on Open VSX/code-server, so
+it runs with reduced language features; `golang.Go` has no Go toolchain
+baked into this image, so it's syntax-highlighting only unless a workshop
+actually adds one. Students can't reach the Marketplace/Open VSX to
+install anything else regardless: `web-terminal` sits only on the
+internal-only `workshop_lab` network (see `docker-compose.yml`), with no route
+to the internet at all once the stack is up.
+
+**Facilitator ops below use plain `docker compose ...` commands.** If the
+running workshop has a Compose overlay (check its `workshop.env`'s
+`COMPOSE_OVERLAY`), add the same `-f docker-compose.yml -f <overlay>` flags
+to those commands too — a bare `docker compose ...` with no `-f` flags only
+sees the base file, and e.g. `--force-recreate web-terminal` would rebuild
+it *without* that workshop's extra tooling. Simplest fix: re-run
+`./run.sh <workshop-name>` instead, which always passes the right flags and
+is safe to run again on an already-running stack.
+
+## Update workshop content mid-session
+
+Changes to `slides/` and `lab/` under `WORKSHOP_CONTENT_DIR` are visible
+through bind mounts without rebuilding. A new file placed in `lab/` reaches
+every student's `~/lab` on their next terminal restart (`docker compose up
+-d --force-recreate web-terminal`); files a student has already edited are
+never overwritten. `lab/README.md` always reflects the current instructions.
+
+Rebuild is only required when `.env`, this Compose file, an image's
+Dockerfile, or `web-terminal/entrypoint.sh` / `gateway/Caddyfile` changes:
+
+```sh
+docker compose up -d --build --force-recreate
+```
+
+## Facilitator operations
+
+**See who's connected, watch their terminal, and free up a stuck
+account** — open `/admin` (gated by `FACILITATOR_USERNAME`/`PASSWORD`,
+no separate "log in as facilitator" hop — visiting `/admin` sets your
+session automatically). This is a single tabbed page: **Roster** is the
+default tab and shows a live grid of tiles, one per held student slot,
+each embedding a read-only view of that student's actual terminal
+(`/admin/watch/<studentId>`, an iframe onto their tmux session via its own
+`forward_auth`-gated route — see **How requests are routed** above) behind
+an account/name/IP/status header. The status dot is polled from
+`web-terminal` every few seconds — green means a process for that account
+is actually running, not just "was assigned at some point." **VS Code**,
+**Terminal**, **Forgejo**, and **Slides** are further tabs holding the
+facilitator's own session in each tool (lazily loaded on first click, kept
+alive when switching tabs). Clicking **Release** on a roster tile
+immediately kills that student's code-server/ttyd process and frees the
+account; their next visit to `/` gets reassigned automatically (the same
+account if it's still free, otherwise the next open one). Your own
+workspace never consumes a student slot.
+
+## Demo bots (`--test`)
+
+```sh
+./run.sh git-fundamentals --test
+```
+
+Spins up three simulated "students" alongside the real stack — no extra
+Compose service, just three extra accounts (`testuser1`..`testuser3` by
+default) provisioned the same way `student01`..`studentNN` are, plus a
+script (`web-terminal/bot-runner.sh`) that drives each one through the
+git-fundamentals lab on its own: clone, branch, edit, commit, push, open a
+pull request, then the Lab 2-5 review/stash/history/conflict/undo
+exercises — all for real, against the actual Forgejo instance, on branches
+named `testuserN/round<N>-...` so anything they push is unambiguously
+traceable back to a bot, never confusable with real student work. Useful
+for demoing the whole workshop solo, or for exercising the facilitator
+dashboard (`/admin`) — watch tiles, Release, the live roster — without
+needing real students connected.
+
+**Three personas, not three copies of the same script.** Which persona a
+bot plays is derived from its own number (`testuser1` → expert, `testuser2`
+→ intermediate, `testuser3` → novice — see `bot-runner.sh`'s `PERSONA`
+block), and it changes more than just typing speed:
+
+| | Expert (`testuser1`) | Intermediate (`testuser2`) | Novice (`testuser3`) |
+| --- | --- | --- | --- |
+| Pacing | Fast, brief pauses | Moderate | Slow, hesitant |
+| Extra commands | Rare (`git status -sb`) | Occasional (`ls`, `pwd`, `git status`) | Frequent (`pwd`, `ls -la`, `whoami`, `cat`, re-reading the lab file) |
+| Mistakes | Rare | Occasional (forgets to stage, deletes the branch it's on) | Frequent, plus wrong-directory `git status`, typo'd commands |
+| How far into the labs | All of Lab 1-5, every round | Lab 1-4 | Lab 1-2 only |
+
+That last row is deliberate, not just slower pacing: the novice's round
+never includes the Lab 3-5 steps at all, no matter how long it runs. Over a
+roughly 10-minute demo window the expert cycles through the whole
+curriculum a couple of times, the intermediate bot gets through Lab 4 once
+or twice, and the novice is still visibly working through Lab 1/Lab 2 —
+exactly the kind of spread you'd see facilitating a real cohort.
+
+**Resumable, and self-healing after Release.** Each bot persists its
+progress (`~/.dojo-bot-state`: round + step) after every single step, and a
+small supervisor loop (`bot-supervisor.sh`, backgrounded by
+`entrypoint.sh`) restarts a bot's tmux session any time it's missing —
+including right after you click **Release** on its roster tile, which
+kills its process like it would a real student's. The bot comes back
+within `BOT_SUPERVISOR_INTERVAL` seconds (15 by default) and resumes
+exactly where it left off, so Release is safe to use on a bot to test that
+flow without losing its progress.
+
+**Config** (all optional, in `.env` — see `.env.example`): `BOT_COUNT`
+(`--test` defaults this to 3 if unset), `BOT_PREFIX` (default `testuser`),
+`BOT_PASSWORD` (default `testuser123`). A bot's Forgejo account uses the
+same `FORGEJO_ORG`/`FORGEJO_REPO` as everything else, and is added to the
+`students` team by `bootstrap.sh` exactly like a real student account, so
+it can push and open pull requests.
+
+**Only meaningful for the git-fundamentals content** — `bot-runner.sh` is
+written against that workshop's `roster/team.yaml` file specifically (it
+falls back to editing a generic `NOTES-<bot>.md` if that file doesn't
+exist, so it won't crash against a different workshop's content, but it
+won't do anything workshop-specific for one either).
+
+**Stop the bots** without tearing down the rest of the stack: set
+`BOT_COUNT=0` in `.env` and re-run `./run.sh <workshop-name>` (without
+`--test`), then remove the leftover accounts/state the same way you'd reset
+a student's home directory (see below).
+
+## Facilitator maintenance
+
+**Change student count or passwords** — edit `.env`, then re-run `./run.sh
+<workshop-name>` (or `docker compose up -d --build` with no service names)
+to pick up the change. Don't pass a subset of service names to `up` on
+Podman — `podman-compose` re-derives the whole pod from whatever you list
+and silently removes any running container you *didn't* name, which takes
+down the rest of the stack as a side effect.
+
+**Reset a student's terminal home** without a full teardown:
+
+```sh
+docker compose exec web-terminal sh -c 'rm -rf /home/student01/* /home/student01/.[!.]*'
+docker compose up -d --force-recreate web-terminal
+```
+
+**Inspect provisioned accounts:**
+
+```sh
+docker compose exec web-terminal getent passwd student01
+docker compose logs bootstrap
+```
+
+**Reset all assignments** (e.g. between back-to-back workshop sessions on
+the same running stack) without touching student home directories:
+
+```sh
+docker compose restart allocator
+```
+
+The allocator's slot table is in-memory only; a restart clears every
+assignment (documented, expected behavior — see **Architecture** above).
+Any student whose browser still has an old session cookie is simply
+reprompted for their name on their next request.
+
+## End of workshop: cleanup
+
+Nothing here is meant to survive past the session. Run this when the
+workshop ends:
+
+```sh
+./scripts/teardown.sh
+```
+
+This is `docker compose down --volumes` — it deletes every student's
+terminal home *and* all Forgejo data (repos, accounts, PRs) in one step.
+There is no undo and no archive step; if you ever want to keep a record of
+a session's PRs or the roster file, export it manually before running this.
+
+To have cleanup happen automatically without you remembering, schedule the
+same command on the host, e.g.:
+
+```sh
+# four hours from now
+echo "cd $(pwd) && ./scripts/teardown.sh" | at now + 4 hours
+```
+
+On a VM, deallocating/deleting the VM after the session is the cleanest
+option of all.
+
+## Troubleshooting
+
+**Browser reaches `/ide` or `/term` but gets bounced straight back to `/`**
+— that's `/auth-check` reporting no live assignment for that browser's
+session cookie (expected after a Release, an allocator restart, or if the
+URL was opened directly without going through `/` first). Check the
+allocator's view of things:
+
+```sh
+docker compose logs --tail 80 allocator
+```
+
+**code-server/ttyd loads slowly or 502s right after clicking "Open"** —
+the process is spawned on first request and needs a moment to bind its
+port; a reload a couple of seconds later should succeed. If it doesn't,
+check `web-terminal`:
+
+```sh
+docker compose logs --tail 80 web-terminal
+docker compose exec web-terminal pgrep -a -u student01
+```
+
+**`./run.sh` fails building `web-terminal` with a `wget`/TLS error while
+fetching the pinned extensions** (`certificate ... not trusted` or
+`unable to get local issuer certificate`) — you're on a network with TLS
+inspection (a corporate proxy that re-signs outbound HTTPS), and `wget`
+needs to trust that proxy's CA to reach `open-vsx.org`. Point
+`CORP_CA_BUNDLE` (or `REQUESTS_CA_BUNDLE`, if your shell already sets it
+for other tools) at a PEM file and re-run `./run.sh` — it's passed through
+as a BuildKit build secret (`--secret id=corp_ca_cert`), mounted only for
+that one build step and never written into the image. Try whatever
+CA/combined-bundle file your shell already uses for other HTTPS tools
+first (e.g. `$REQUESTS_CA_BUNDLE`, if pip/curl already need one on your
+network) — in practice this is usually enough, since it's your system's
+general trust store plus whatever your org added to it, not something
+that has to specifically single out `open-vsx.org`. If it still fails,
+get your org's actual inspection CA from your network/security team. This
+only affects the build step; the running container has no network route
+out at all (`web-terminal` is internal-only, see **Capacity** above), so
+it's never a concern for students.
+
+**A student can't log in to the terminal** — confirm the account was
+provisioned:
+
+```sh
+docker compose exec web-terminal getent passwd student01
+```
+
+**A student can't clone/push, or can't sign into Forgejo in the browser** —
+confirm their Forgejo account exists and `bootstrap` finished:
+
+```sh
+docker compose logs bootstrap
+```
+
+Inside the terminal, use `git-server:3000`, not `localhost:3000` —
+`localhost` refers to the terminal container itself. The terminal network is
+intentionally restricted: it can reach `git-server` but not `presentation`
+or the public internet.
+
+**Gateway won't get a TLS certificate on the VM** — confirm `PUBLIC_BASE_URL`'s
+hostname actually resolves to the VM's public IP already, and that the NSG
+allows inbound 80/443 from the internet (Let's Encrypt's HTTP-01 challenge
+needs to reach the gateway on port 80 to issue the cert, even though the
+final result is served on 443):
+
+```sh
+docker compose logs gateway
+```

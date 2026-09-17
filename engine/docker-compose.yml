@@ -1,0 +1,222 @@
+version: '3.8'
+
+# Reusable workshop engine. Nothing here should need editing per-workshop —
+# point WORKSHOP_CONTENT_DIR (in .env, or a workshops/<name>/workshop.env
+# picked up by run.sh) at a workshops/<name>/content folder and configure
+# accounts/ports/PUBLIC_BASE_URL in .env. See README.md.
+#
+# A workshop that needs more than different content (a different terminal
+# image, an extra backend service) layers a Compose override file on top of
+# this one instead of editing it — see workshops/README.md and run.sh.
+#
+# The gateway is the only service with a published port. Everything else
+# sits on the internal network, unreachable from outside the stack.
+#
+# Every volume below is ephemeral by design: named volumes only, no host
+# bind mounts for runtime data. `./scripts/teardown.sh` (or
+# `docker compose down --volumes`) always returns to a clean slate.
+
+services:
+  # 1. Git server (Forgejo)
+  git-server:
+    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    container_name: workshop_forge
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=sqlite3
+      - FORGEJO__server__LANDING_PAGE=explore
+      - FORGEJO__server__ROOT_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}/git/
+      - FORGEJO__security__INSTALL_LOCK=true
+      - FORGEJO__service__DISABLE_REGISTRATION=true
+      - FORGEJO__service__SHOW_REGISTRATION_BUTTON=false
+    volumes:
+      - forgejo_data:/data
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/healthz" ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  # 2. One-shot bootstrap: admin user, org, sample repo, and one Forgejo
+  #    account per configured student. Safe to re-run; exits after it's done.
+  bootstrap:
+    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    container_name: workshop_bootstrap
+    depends_on:
+      git-server:
+        condition: service_healthy
+    user: "1000:1000"
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - FORGEJO_ADMIN_EMAIL=${FORGEJO_ADMIN_EMAIL:-admin@example.com}
+      - FORGEJO_ORG=${FORGEJO_ORG:-training}
+      - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
+      - FORGEJO_SEED_DIR=/seed
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
+      # Demo/test bots (--test) -- see run.sh and README.md. 0 (disabled)
+      # unless a facilitator opted in.
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
+    volumes:
+      - forgejo_data:/data
+      - ./git-server/bootstrap.sh:/bootstrap.sh:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/seed:ro
+    entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
+    networks:
+      - workshop_lab
+    restart: "no"
+
+  # 3. Interactive presentation layer (Marp)
+  presentation:
+    image: marpteam/marp-cli:v3.4.0
+    container_name: workshop_presentation
+    volumes:
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
+    environment:
+      - MARP_USER=1000:1000
+    command: -s --http --html .
+    networks:
+      - web_lab
+    restart: unless-stopped
+
+  # 4. Workspace host: per-account code-server + ttyd processes, spawned on
+  # demand by workspace-control.py once the allocator (service 5a below)
+  # assigns a browser session an account. No per-account login prompt any
+  # more -- the account's Linux user, home dir, and shell are still
+  # provisioned exactly as before by entrypoint.sh.
+  web-terminal:
+    build:
+      context: ./web-terminal
+    # Stable local tag so a workshop overlay's terminal image (see
+    # workshops/<name>/compose/) can `FROM gitopsdojo/web-terminal:base`
+    # instead of duplicating this Dockerfile's package list. run.sh builds
+    # this image first for exactly that reason.
+    image: gitopsdojo/web-terminal:base
+    container_name: workshop_terminal
+    environment:
+      - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
+      # Demo/test bots (--test) -- see run.sh and README.md's "Demo bots"
+      # section. BOT_COUNT=0 (the default) disables this entirely.
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
+      - FORGEJO_ORG=${FORGEJO_ORG:-training}
+      - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      # FACILITATOR_PASSWORD:-toor is the last-resort fallback for a .env
+      # that omits it entirely. On the Azure delivery path this arrives
+      # already set in .env (cloud-init writes it from the Terraform
+      # facilitator_password var, itself sourced from the pipeline's secure
+      # ADO Library group — see infra/corp-dev/gdojo-cc), so "toor" is never
+      # actually used there. Set a real value in .env for local/manual runs.
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:-toor}
+      # Per-process V8 heap cap for each spawned code-server -- see
+      # workspace-control.py. A safety net under mem_limit below, not a
+      # replacement for it.
+      - CODE_SERVER_MAX_HEAP_MB=${CODE_SERVER_MAX_HEAP_MB:-384}
+    volumes:
+      - terminal_home:/home
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/lab:/opt/lab:ro
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+    # Container-wide backstop for the per-account ulimits set in
+    # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
+    # the per-process NODE_OPTIONS heap cap above -- this is the ceiling
+    # for all of them combined. The Azure delivery path (infra/corp-dev/
+    # gdojo-cc) computes WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT from
+    # student_count automatically (see that module's main.tf) so this
+    # tracks class size instead of staying fixed; the defaults below only
+    # apply to local/manual runs that don't set them.
+    pids_limit: ${WEB_TERMINAL_PIDS_LIMIT:-2048}
+    mem_limit: ${WEB_TERMINAL_MEM_LIMIT:-4g}
+
+  # 5a. Allocator: assigns each browser session a student01..NN account
+  # (or the facilitator's own), tracks name/IP for the facilitator
+  # dashboard, and gates /ide + /term via Caddy's forward_auth (see
+  # gateway/Caddyfile and allocator/server.py). Internal-only, like
+  # dns-server in the dns-as-code overlay -- no published port, no
+  # docker.sock, no persistent storage (in-memory, resets with the
+  # container like everything else in this stack).
+  allocator:
+    build:
+      context: ./allocator
+    container_name: workshop_allocator
+    environment:
+      - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # Demo/test bots (--test): included as always-on roster rows (see
+      # /admin/api/sessions) so a facilitator can watch/Release them like
+      # any student, without ever competing with real students for a
+      # studentNN slot -- see README.md's "Demo bots (--test)" section.
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # Must match web-terminal's FACILITATOR_USERNAME below -- used to
+      # recognize the facilitator's own (non-student-slot) sessions.
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      # Deep-links the landing page's Forgejo button at the org/repo
+      # bootstrap.sh actually seeds -- must match its own FORGEJO_ORG/
+      # FORGEJO_REPO defaults below.
+      - FORGEJO_ORG=${FORGEJO_ORG:-training}
+      - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
+      - DEMO_APP_ENABLED=${DEMO_APP_ENABLED:-0}
+      - DEMO_APP_ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
+      # SSO into Forgejo (see /forgejo-login in allocator/server.py): the
+      # allocator logs the browser straight into the Forgejo account
+      # matching whatever identity it already resolved (studentNN or the
+      # facilitator's own admin account) by POSTing Forgejo's login form
+      # itself, server-side, over the internal network -- these must match
+      # bootstrap.sh's own credentials for the accounts it actually seeded.
+      - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+
+  # 5b. Gateway: the only service exposed to students. Single hostname,
+  # path-based routing (/slides, /git, /admin, /ide, /term, / ->
+  # allocator), one shared login for the terminal + Forgejo. See
+  # gateway/Caddyfile.
+  gateway:
+    build:
+      context: ./gateway
+    container_name: workshop_gateway
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
+      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:-toor}
+    ports:
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:80"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:443"
+    networks:
+      - public
+      - workshop_lab
+      - web_lab
+    restart: unless-stopped
+
+volumes:
+  terminal_home:
+  forgejo_data:
+
+networks:
+  public:
+  workshop_lab:
+    internal: true
+  web_lab:
+    internal: true

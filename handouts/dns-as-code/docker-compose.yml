@@ -1,0 +1,39 @@
+# Local PowerDNS stack for self-practice after the DNS-as-Code workshop.
+# See 01-local-powerdns-stack.md for the full setup walkthrough.
+#
+# This is a deliberately small slice of what the workshop ran: just the
+# PowerDNS authoritative server, the one piece you need locally to run
+# `dnscontrol preview`/`push` against something real. It does not include
+# Forgejo, CI runners, or any of the workshop's multi-student account
+# plumbing — you already have that for free from GitHub (see
+# 00-github-setup.md), and you're the only user of this stack.
+#
+# Ephemeral by design: the sqlite backend lives inside the container, not
+# a named volume, so it resets every time you `docker compose down` or
+# rebuild. That's normal for a practice zone — dnsconfig.js is always the
+# real source of truth; just `dnscontrol push` again after a reset.
+
+services:
+  dns-server:
+    image: powerdns/pdns-auth-49:latest
+    container_name: dns_dojo_powerdns
+    environment:
+      # Matches the apiKey in starter-repo/creds.json. Change both together
+      # if you want a different value - this is a local practice key, not
+      # a real secret, so the default is fine to leave as-is.
+      - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-local-practice-key}
+    # PowerDNS binds DNS's standard port 53 as a non-root process in this
+    # image - without this capability it fails at startup with "Unable to
+    # bind UDP socket ... Permission denied".
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      # Host 5353 -> container 53: avoids fighting over port 53 with your
+      # OS's own resolver (systemd-resolved on many Linux desktops binds
+      # it already). Query it with: dig @127.0.0.1 -p 5353 <name> <type> +short
+      - "5353:53/udp"
+      - "5353:53/tcp"
+      # PowerDNS's HTTP API - what dnscontrol actually talks to (creds.json
+      # points at this). Not DNS traffic itself.
+      - "8081:8081"
+    restart: unless-stopped

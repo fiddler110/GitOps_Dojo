@@ -1,0 +1,23 @@
+# Adds a TLS server block to the port-80 vhost from vhost-http.conf.template,
+# once you have a certificate. Keep the port-80 server block too — it's
+# still what answers renewal's next http-01 challenge, and step-ca's
+# provisioner here issues short-lived certs specifically so you'll see that
+# happen (see Lab 4).
+#
+# Append this block to your existing
+# /srv/webroot/studentNN/conf.d/studentNN.conf (with studentNN replaced by
+# your own account name everywhere it appears) — see Lab 2.
+
+server {
+    listen 443 ssl;
+    server_name studentNN.certs.dojo.test;
+
+    ssl_certificate     /srv/webroot/studentNN/certs/fullchain.pem;
+    ssl_certificate_key /srv/webroot/studentNN/certs/privkey.pem;
+
+    root /srv/webroot/studentNN/html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

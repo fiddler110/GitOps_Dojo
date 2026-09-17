@@ -1,0 +1,73 @@
+# Shared .zshrc for the facilitator account, used by both the ttyd
+# web-terminal and code-server's integrated terminal (same account, same
+# container -- see entrypoint.sh, which symlinks the facilitator's
+# ~/.zshrc to this file on every container start, so edits here take
+# effect on the next restart without touching entrypoint.sh).
+#
+# Edit this file directly to add aliases, tool init, etc.
+
+autoload -Uz compinit
+compinit
+
+setopt auto_cd
+setopt correct
+setopt interactive_comments
+
+# Per-account ceiling so this account can't starve the shared container --
+# see the matching comment in zshrc.student for rationale.
+ulimit -Hu 256 -Su 256
+ulimit -Hf 2097152 -Sf 2097152
+
+eval "$(zoxide init zsh)"
+
+# Modifying Terminal Prompt to Start on NewLine
+PS1=$'\n%n@%m %~\n$ '
+
+
+# Colourised `ls` (by file type/extension) in both this shell (ttyd) and
+# code-server's integrated terminal, since both run against this same file.
+eval "$(dircolors -b)"
+
+# General Aliases
+alias ls="ls -GF --color=auto"
+alias ll="ls -lGFa --color=auto"
+alias la="ls -aGF --color=auto"
+alias l="ls -GF --color=auto"
+alias lla="ls -alGF --color=auto"
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# RipGrep Alias for Case-Insensitive by Default
+alias rg="rg -i"
+
+# Bat Alias for Colours 
+alias bat="bat --color=always --paging=auto"
+
+alias aliases="bat ~/.zshrc_aliases | rg alias"
+
+# ── Search ────────────────────────────────────────────────────────────────────
+# fk <keyword>  — find keyword in files under the current directory
+unalias fk 2>/dev/null
+fk() {
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: fk <keyword> [extra rg/grep options]"
+    return 1
+  fi
+  if command -v rg &>/dev/null; then
+    rg --color=always --heading --line-number "$@" .
+  else
+    grep -rn --color=always "$@" .
+  fi
+}
+alias fk='nocorrect fk'
+
+# ZSH Sort by Type
+# Define a function that grabs the file extension
+by_ext() {
+  local ext="${1:e}"
+  # If no extension, treat it as empty space so it groups together
+  REPLY="${ext:- }"
+}
+# Create an alias that uses the function to sort
+alias lse="ls -G *(oe:by_ext:)"

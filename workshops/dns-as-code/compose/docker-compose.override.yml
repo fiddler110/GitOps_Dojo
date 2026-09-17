@@ -1,0 +1,101 @@
+# Overlay for the dns-as-code workshop, layered on top of engine/docker-compose.yml
+# via `docker compose -f docker-compose.yml -f <this file>` (see engine/run.sh).
+#
+# IMPORTANT: because this file is merged with a base file, Compose resolves
+# every relative path in BOTH files relative to the base file's directory —
+# engine/, not this file's own directory. That's why `build.context` below
+# is `../workshops/dns-as-code/compose/terminal`, not `./terminal`.
+#
+# Adds dns-server (a PowerDNS authoritative server students push real
+# records to and `dig` against), swaps the web-terminal image for one with
+# dnscontrol + python3 preinstalled, turns on Forgejo Actions on the
+# existing git-server (additive env var - see the merge rules linked
+# below, base git-server config is otherwise untouched), and adds a
+# runner-setup + forgejo-runner pair so the sample repo's .forgejo/
+# workflows/ actually run — everything else (gateway, bootstrap,
+# presentation) is untouched.
+#
+# `environment:` entries added here for a service the base file already
+# defines (git-server) merge key-by-key with the base's own list rather
+# than replacing it: https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
+
+services:
+  git-server:
+    environment:
+      - FORGEJO__actions__ENABLED=true
+  # PowerDNS authoritative server. Ephemeral by design, same as every other
+  # service in this stack: sqlite backend lives in the container's own
+  # filesystem (no volume), so it resets on every `docker compose down` /
+  # rebuild. Internal-only — students never reach it through the gateway,
+  # only from inside their terminal (dnscontrol push, dig).
+  #
+  # PDNS_AUTH_API_KEY enables PowerDNS's built-in HTTP API + webserver on
+  # :8081 (see https://github.com/PowerDNS/pdns/blob/master/Docker-README.md).
+  # This is a workshop-only key with no access to anything but this
+  # single-container, internal-only PowerDNS instance — not a real secret,
+  # same tier as TTYD_PASSWORD/STUDENT_PASSWORD (see engine/.env.example).
+  dns-server:
+    image: powerdns/pdns-auth-49:latest
+    container_name: workshop_powerdns
+    environment:
+      - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-workshop-not-a-secret}
+    # PowerDNS binds DNS's standard port 53 (< 1024) as a non-root process
+    # in this image — without this capability it fails at startup with
+    # "Unable to bind UDP socket ... Permission denied" (confirmed by
+    # actually running this container; not a guess).
+    cap_add:
+      - NET_BIND_SERVICE
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+
+  web-terminal:
+    build:
+      context: ../workshops/dns-as-code/compose/terminal
+    depends_on:
+      - dns-server
+
+  # One-shot: registers a Forgejo Actions runner (server-side, via the
+  # `forgejo` CLI already used by engine/git-server/bootstrap.sh) and
+  # writes its config.yaml to the dns_runner_config volume. See
+  # compose/runner/register.sh. Uses the same image/admin volume access
+  # bootstrap.sh already has - no new credentials needed.
+  runner-setup:
+    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    container_name: workshop_dns_runner_setup
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    user: "1000:1000"
+    environment:
+      - FORGEJO_ORG=${FORGEJO_ORG:-training}
+      - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
+    volumes:
+      - forgejo_data:/data
+      - ../workshops/dns-as-code/compose/runner/register.sh:/register.sh:ro
+      - dns_runner_config:/runner-config
+    entrypoint: ["/bin/sh", "/register.sh"]
+    networks:
+      - workshop_lab
+    restart: "no"
+
+  # The Actions runner itself - built from compose/runner/Dockerfile
+  # (dnscontrol/git/curl/jq baked in, since jobs run directly in this
+  # container via a `host` label rather than in spun-up Docker
+  # containers - no docker.sock is mounted anywhere in this stack).
+  forgejo-runner:
+    build:
+      context: ../workshops/dns-as-code/compose/runner
+    container_name: workshop_dns_runner
+    depends_on:
+      runner-setup:
+        condition: service_completed_successfully
+    volumes:
+      - dns_runner_config:/runner-config:ro
+    command: ["/bin/forgejo-runner", "daemon", "--config", "/runner-config/config.yaml"]
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+
+volumes:
+  dns_runner_config:
