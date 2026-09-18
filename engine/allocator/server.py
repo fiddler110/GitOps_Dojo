@@ -10,6 +10,7 @@ single accept loop means they can't interleave. No lock, no DB transaction.
 All state is in-memory and reset on container restart, matching this
 project's ephemeral-by-design stack (see engine/docker-compose.yml).
 """
+import hmac
 import html
 import http.client
 import http.server
@@ -53,6 +54,25 @@ FORGEJO_REPO = os.environ.get("FORGEJO_REPO", "sample-training-repo")
 STUDENT_PASSWORD = os.environ.get("STUDENT_PASSWORD", "student123")
 FORGEJO_ADMIN_USER = os.environ["FORGEJO_ADMIN_USER"]
 FORGEJO_ADMIN_PASSWORD = os.environ["FORGEJO_ADMIN_PASSWORD"]
+# Shared secret sent on every call to web-terminal's control API (see
+# control_request() below) -- proves these calls actually come from the
+# allocator, not some other container on the internal workshop_lab network.
+# Must match web-terminal's own CONTROL_TOKEN (workspace-control.py).
+CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
+# Shared secret gateway/Caddyfile sends (via header_up X-Gateway-Token) on
+# EVERY request it proxies to this process -- proves the request actually
+# came through Caddy, not directly from some other container on the shared
+# workshop_lab network (allocator must share that network with web-terminal
+# and git-server for its own legitimate outbound calls -- see
+# control_request()/forgejo_login_request() below -- and Docker/Podman
+# bridge networks are not directional, so anything reachable BY allocator
+# can equally reach allocator back). Without this check, resolve_identity()
+# below trusting X-Auth-User would be forgeable by any process inside
+# web-terminal (e.g. a student's own shell) simply by sending its own
+# X-Auth-User: root header straight to http://allocator:8080/. Required, no
+# default -- same fail-fast pattern as CONTROL_TOKEN above. Must match
+# gateway's own GATEWAY_TOKEN (gateway/Caddyfile).
+GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
 DEMO_APP_ENABLED = os.environ.get("DEMO_APP_ENABLED", "0") == "1"
 DEMO_APP_ZONE = os.environ.get("DEMO_APP_ZONE", "certs.dojo.test")
 
@@ -74,6 +94,13 @@ WATCH_PORT_BASE = 9600
 # Same, for demo bots -- must match BOT_WATCH_PORT_BASE in
 # web-terminal/workspace-control.py.
 BOT_WATCH_PORT_BASE = 9800
+# Same collision fix as watch_port() below, mirrored here for ide_port()/
+# term_port() -- must match BOT_IDE_PORT_BASE/BOT_TERM_PORT_BASE in
+# web-terminal/workspace-control.py. Not currently reachable (resolve_identity()
+# never returns a bot id as `username` -- only a real student id or the
+# facilitator), but kept symmetric per this file's own "must match" comments.
+BOT_IDE_PORT_BASE = 9700
+BOT_TERM_PORT_BASE = 9750
 
 COOKIE_NAME = "dojo_session"
 
@@ -94,11 +121,19 @@ def bot_number(bot_id):
 
 
 def ide_port(username):
-    return FACILITATOR_IDE_PORT if username == FACILITATOR_USERNAME else IDE_PORT_BASE + student_number(username)
+    if username == FACILITATOR_USERNAME:
+        return FACILITATOR_IDE_PORT
+    if username in BOT_IDS:
+        return BOT_IDE_PORT_BASE + bot_number(username)
+    return IDE_PORT_BASE + student_number(username)
 
 
 def term_port(username):
-    return FACILITATOR_TERM_PORT if username == FACILITATOR_USERNAME else TERM_PORT_BASE + student_number(username)
+    if username == FACILITATOR_USERNAME:
+        return FACILITATOR_TERM_PORT
+    if username in BOT_IDS:
+        return BOT_TERM_PORT_BASE + bot_number(username)
+    return TERM_PORT_BASE + student_number(username)
 
 
 def watch_port(sid):
@@ -120,7 +155,7 @@ def control_request(method, path):
     gracefully instead of blocking the single-threaded allocator."""
     try:
         conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=CONTROL_TIMEOUT)
-        conn.request(method, path)
+        conn.request(method, path, headers={"X-Control-Token": CONTROL_TOKEN})
         resp = conn.getresponse()
         body = resp.read()
         conn.close()
@@ -241,6 +276,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def gateway_authorized(self):
+        """True only if this request carries the shared secret Caddy alone
+        knows (see GATEWAY_TOKEN above) -- mirrors workspace-control.py's
+        own authorized()/CONTROL_TOKEN check byte for byte. Checked first,
+        in do_GET/do_POST, before any path parsing or resolve_identity()
+        call: resolve_identity() trusts X-Auth-User, and this is the only
+        thing standing between that trust and any other container on the
+        shared workshop_lab network forging it."""
+        token = self.headers.get("X-Gateway-Token", "")
+        return hmac.compare_digest(token, GATEWAY_TOKEN)
 
     def get_cookie(self):
         cookie_header = self.headers.get("Cookie", "")
@@ -736,6 +782,10 @@ setInterval(refresh, 5000);
 
     # -- GET routes ----------------------------------------------------
     def do_GET(self):
+        if not self.gateway_authorized():
+            self.send_response(403)
+            self.end_headers()
+            return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
 
@@ -913,6 +963,10 @@ setInterval(refresh, 5000);
 
     # -- POST routes -----------------------------------------------------
     def do_POST(self):
+        if not self.gateway_authorized():
+            self.send_response(403)
+            self.end_headers()
+            return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
 

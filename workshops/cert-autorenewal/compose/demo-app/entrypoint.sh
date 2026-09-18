@@ -11,6 +11,14 @@ set -eu
 # content at the same path, depending on the container engine/version, so
 # this makes the permission correct unconditionally rather than relying on
 # that behavior alone.
+#
+# Sticky bit alone only protects an *existing* entry from deletion/rename
+# by another user — it does nothing to stop a different student from
+# creating a not-yet-existing studentNN/ subdirectory first and becoming
+# its owner. Actual per-student write isolation for a directory that
+# doesn't exist yet comes from compose/terminal/entrypoint-wrapper.sh
+# pre-creating and chown'ing every student's subdirectory before any
+# student can log in.
 mkdir -p /srv/webroot
 chmod 1777 /srv/webroot
 

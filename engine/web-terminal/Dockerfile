@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         fzf \
         git \
+        iptables \
         nano \
         openssh-client \
         procps \
@@ -235,5 +236,5 @@ RUN chmod 644 /etc/tmux.conf
 
 EXPOSE 7682
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:7682/status || exit 1
+    CMD wget -q -O /dev/null --header="X-Control-Token: ${CONTROL_TOKEN}" http://127.0.0.1:7682/status || exit 1
 ENTRYPOINT ["/usr/local/bin/web-terminal-entrypoint"]

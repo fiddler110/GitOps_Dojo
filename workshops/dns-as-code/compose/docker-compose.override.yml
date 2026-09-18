@@ -23,6 +23,12 @@ services:
   git-server:
     environment:
       - FORGEJO__actions__ENABLED=true
+    # workshop_lab for the gateway/allocator/bootstrap/students, runner_net
+    # so the (student-code-executing) Forgejo Actions runner can poll it
+    # for jobs without also reaching the control plane.
+    networks:
+      - workshop_lab
+      - runner_net
   # PowerDNS authoritative server. Ephemeral by design, same as every other
   # service in this stack: sqlite backend lives in the container's own
   # filesystem (no volume), so it resets on every `docker compose down` /
@@ -45,8 +51,12 @@ services:
     # actually running this container; not a guess).
     cap_add:
       - NET_BIND_SERVICE
+    # workshop_lab for students' own terminal sessions (dig/dnscontrol),
+    # runner_net so CI workflow runs (dnscontrol push from forgejo-runner)
+    # can reach it too, without forgejo-runner needing the rest of workshop_lab.
     networks:
       - workshop_lab
+      - runner_net
     restart: unless-stopped
 
   web-terminal:
@@ -82,8 +92,10 @@ services:
       - ../workshops/dns-as-code/compose/runner/register.sh:/register.sh:ro
       - dns_runner_config:/runner-config
     entrypoint: ["/bin/sh", "/register.sh"]
+    # Only needs git-server (for the config.yaml URL the runner daemon will
+    # use), not the rest of workshop_lab.
     networks:
-      - workshop_lab
+      - runner_net
     restart: "no"
 
   # The Actions runner itself - built from compose/runner/Dockerfile
@@ -100,9 +112,20 @@ services:
     volumes:
       - dns_runner_config:/runner-config:ro
     command: ["/bin/forgejo-runner", "daemon", "--config", "/runner-config/config.yaml"]
+    # Runs student-authored CI directly on this container's own filesystem
+    # (host label, no sandbox) - isolated to runner_net so a compromised
+    # runner can only reach git-server and dns-server, never allocator or
+    # web-terminal (the control plane).
     networks:
-      - workshop_lab
+      - runner_net
     restart: unless-stopped
 
 volumes:
   dns_runner_config:
+
+networks:
+  # Isolates the Forgejo Actions runner (which executes student-authored
+  # CI) from the control plane (allocator, web-terminal) - it can only
+  # reach git-server and dns-server.
+  runner_net:
+    internal: true

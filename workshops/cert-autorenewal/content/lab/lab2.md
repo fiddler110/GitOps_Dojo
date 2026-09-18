@@ -15,10 +15,11 @@ host="${me}.certs.dojo.test"
 mkdir -p "/srv/webroot/${me}/conf.d" "/srv/webroot/${me}/html" "/srv/webroot/${me}/certs"
 ```
 
-`/srv/webroot` is shared with `demo-app`, but sticky-bit permissions (the
-same mechanism `/tmp` uses) mean only you can write inside
-`/srv/webroot/${me}/` — no other student can touch it, and you can't touch
-theirs.
+`/srv/webroot` is shared with `demo-app`, but your `${me}/` subdirectory
+was already created for you, owned by your own account, before you ever
+logged in — so the command above just confirms it's there. Normal file
+permissions are what keep other students out of it: no other student can
+write inside `/srv/webroot/${me}/`, and you can't write inside theirs.
 
 Add something to actually serve:
 

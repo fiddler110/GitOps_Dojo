@@ -56,6 +56,7 @@
 			forward_auth allocator:8080 {
 				uri /auth-check-watch?student={re.watch.1}
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 				copy_headers X-Upstream-Port
 			}
 			uri strip_prefix /admin/watch/{re.watch.1}
@@ -65,6 +66,7 @@
 		handle {
 			reverse_proxy allocator:8080 {
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}
 		}
 	}
@@ -91,6 +93,7 @@
 			forward_auth allocator:8080 {
 				uri /auth-check?tool=ide
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 				copy_headers X-Upstream-Port
 			}
 			uri strip_prefix /ide
@@ -102,6 +105,7 @@
 			forward_auth allocator:8080 {
 				uri /auth-check?tool=term
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 				copy_headers X-Upstream-Port
 			}
 			uri strip_prefix /term
@@ -113,6 +117,7 @@
 			forward_auth allocator:8080 {
 				uri /auth-check?tool=demo
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 				copy_headers X-Demo-Host
 			}
 			uri strip_prefix /demo
@@ -126,8 +131,13 @@
 			# appending to it, so a client can't just send its own
 			# X-Auth-User to spoof an identity -- Caddy always overwrites
 			# it with whichever account actually passed basic_auth above.
+			# X-Gateway-Token, added the same way, is the allocator-side
+			# proof that this request actually came through Caddy (see
+			# allocator/server.py's gateway_authorized()) -- a plain client
+			# has no way to set it either, for the same reason.
 			reverse_proxy allocator:8080 {
 				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}
 		}
 	}

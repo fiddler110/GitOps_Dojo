@@ -15,6 +15,7 @@ shared mutable state here is `running`, guarded by a lock, and each
 handler's real work is a short-lived subprocess/pgrep call -- serializing
 those on one thread would make Release feel laggy for no benefit.
 """
+import hmac
 import http.server
 import os
 import re
@@ -42,6 +43,12 @@ WATCH_PORT_BASE = 9600
 # (see entrypoint.sh), so WATCH_PORT_BASE's range never reaches here.
 BOT_WATCH_PORT_BASE = 9800
 
+# Same collision, same fix, for port_for()'s IDE/term ports -- without
+# these, a bot (e.g. testuser1) and a same-numbered student (student01)
+# would resolve to the exact same IDE_PORT_BASE/TERM_PORT_BASE port.
+BOT_IDE_PORT_BASE = 9700
+BOT_TERM_PORT_BASE = 9750
+
 # tmux session name every `term` ttyd process runs inside. Fixed and shared
 # across accounts on purpose: tmux sessions are namespaced per-uid (each
 # account gets its own socket under /tmp/tmux-<uid>/), so this never
@@ -60,6 +67,14 @@ STUDENT_PREFIX = os.environ.get("STUDENT_PREFIX", "student")
 # start/stop/status calls for a botN account validate the same way a
 # studentNN one does.
 BOT_PREFIX = os.environ.get("BOT_PREFIX", "testuser")
+
+# Shared secret proving a request actually came from the allocator, not some
+# other container reachable on the internal workshop_lab network (e.g. a
+# workshop's own Forgejo Actions runner executing student-authored CI --
+# see docker-compose.yml). Required, no default -- fail fast at startup if
+# unset, same pattern as allocator/server.py's own required secrets.
+CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
+
 USERNAME_RE = re.compile(
     rf"^({re.escape(FACILITATOR_USERNAME)}|{re.escape(STUDENT_PREFIX)}\d+|{re.escape(BOT_PREFIX)}\d+)$"
 )
@@ -93,6 +108,8 @@ def student_number(username):
 def port_for(tool, username):
     if username == FACILITATOR_USERNAME:
         return FACILITATOR_IDE_PORT if tool == "ide" else FACILITATOR_TERM_PORT
+    if username.startswith(BOT_PREFIX):
+        return (BOT_IDE_PORT_BASE if tool == "ide" else BOT_TERM_PORT_BASE) + student_number(username)
     n = student_number(username)
     return (IDE_PORT_BASE if tool == "ide" else TERM_PORT_BASE) + n
 
@@ -266,7 +283,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def authorized(self):
+        token = self.headers.get("X-Control-Token", "")
+        return hmac.compare_digest(token, CONTROL_TOKEN)
+
     def do_GET(self):
+        if not self.authorized():
+            self.send_response(403)
+            self.end_headers()
+            return
         parsed = urllib.parse.urlsplit(self.path)
         if parsed.path == "/status":
             qs = urllib.parse.parse_qs(parsed.query)
@@ -286,6 +311,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not self.authorized():
+            self.send_response(403)
+            self.end_headers()
+            return
         parsed = urllib.parse.urlsplit(self.path)
         parts = parsed.path.strip("/").split("/")
 

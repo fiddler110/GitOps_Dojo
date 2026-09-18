@@ -34,6 +34,11 @@ services:
       - forgejo_data:/data
     networks:
       - workshop_lab
+      # Also reachable from bootstrap_net so the one-shot bootstrap service
+      # (which lives on bootstrap_net only -- see below) can still reach it;
+      # git-server keeps workshop_lab too, since gateway, allocator, and
+      # web-terminal's bot-runner.sh all still need to reach it there.
+      - bootstrap_net
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/healthz" ]
@@ -76,8 +81,14 @@ services:
       - ./git-server/bootstrap.sh:/bootstrap.sh:ro
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/seed:ro
     entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
+    # Isolated to its own network, not workshop_lab -- bootstrap only ever
+    # calls git-server (see bootstrap.sh), it never needs to reach allocator
+    # or web-terminal, so it genuinely can be denied any path to either
+    # (unlike allocator, which must share workshop_lab with web-terminal/
+    # git-server for its own legitimate outbound calls, and is instead
+    # protected by the GATEWAY_TOKEN check above).
     networks:
-      - workshop_lab
+      - bootstrap_net
     restart: "no"
 
   # 3. Interactive presentation layer (Marp)
@@ -128,23 +139,37 @@ services:
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
-      # FACILITATOR_PASSWORD:-toor is the last-resort fallback for a .env
-      # that omits it entirely. On the Azure delivery path this arrives
+      # No weak fallback -- entrypoint.sh grants this account passwordful
+      # sudo, so a missing value must fail closed instead of defaulting to
+      # a guessable password. On the Azure delivery path this arrives
       # already set in .env (cloud-init writes it from the Terraform
       # facilitator_password var, itself sourced from the pipeline's secure
-      # ADO Library group — see infra/corp-dev/gdojo-cc), so "toor" is never
-      # actually used there. Set a real value in .env for local/manual runs.
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:-toor}
+      # ADO Library group — see infra/corp-dev/gdojo-cc). Set a real value
+      # in .env for local/manual runs.
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       # Per-process V8 heap cap for each spawned code-server -- see
       # workspace-control.py. A safety net under mem_limit below, not a
       # replacement for it.
       - CODE_SERVER_MAX_HEAP_MB=${CODE_SERVER_MAX_HEAP_MB:-384}
+      # Shared secret workspace-control.py checks on every request -- proves
+      # a start/stop/status call actually came from the allocator, not some
+      # other container on this internal network. Must match allocator's
+      # own CONTROL_TOKEN below (allocator/server.py's control_request()).
+      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in engine/.env}
     volumes:
       - terminal_home:/home
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/lab:/opt/lab:ro
     networks:
       - workshop_lab
     restart: unless-stopped
+    # Grants only what entrypoint.sh's iptables DOJO_ISOLATION chain needs
+    # to firewall loopback traffic between accounts inside this container's
+    # own network stack (see that file) -- every student/bot shares one
+    # netns here, so without this a student's shell can curl straight into
+    # another student's code-server/ttyd with zero auth. Scoped to this
+    # container's own interfaces/netns only, not the host's.
+    cap_add:
+      - NET_ADMIN
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
     # the per-process NODE_OPTIONS heap cap above -- this is the ceiling
@@ -203,6 +228,18 @@ services:
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      # Shared secret allocator's control_request() sends on every call to
+      # web-terminal's control API -- must match web-terminal's own
+      # CONTROL_TOKEN above (workspace-control.py checks it on every
+      # request).
+      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in engine/.env}
+      # Shared secret allocator requires on EVERY request (checked before
+      # resolve_identity() ever trusts X-Auth-User) -- proves the request
+      # actually came through Caddy, not directly from some other
+      # container on the shared workshop_lab network. Must match
+      # gateway's own GATEWAY_TOKEN below (gateway/Caddyfile's header_up
+      # X-Gateway-Token on every block that proxies to allocator:8080).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
     networks:
       - workshop_lab
     restart: unless-stopped
@@ -226,7 +263,11 @@ services:
       - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
       - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:-toor}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
+      # Shared secret the Caddyfile sends as X-Gateway-Token on every block
+      # that proxies to allocator:8080 -- must match allocator's own
+      # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
     ports:
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:80"
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:443"
@@ -248,4 +289,10 @@ networks:
   workshop_lab:
     internal: true
   web_lab:
+    internal: true
+  # Isolates the one-shot bootstrap service (only ever calls git-server) so
+  # it has no network path to allocator or web-terminal at all -- those two
+  # stay on workshop_lab only. See the bootstrap/git-server service blocks
+  # above.
+  bootstrap_net:
     internal: true

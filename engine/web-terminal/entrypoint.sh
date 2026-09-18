@@ -6,7 +6,7 @@ student_password="${STUDENT_PASSWORD:-student123}"
 student_prefix="${STUDENT_PREFIX:-student}"
 workshop_name="${WORKSHOP_NAME:-Workshop Lab}"
 facilitator_username="${FACILITATOR_USERNAME:-root}"
-facilitator_password="${FACILITATOR_PASSWORD:-toor}"
+facilitator_password="${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}"
 lab_seed_dir="${LAB_SEED_DIR:-/opt/lab}"
 student_shell="${STUDENT_SHELL:-/bin/zsh}"
 
@@ -123,6 +123,51 @@ fi
 
 chown -R "$facilitator_username:$facilitator_username" "$facilitator_home"
 
+# -- Per-UID loopback isolation ---------------------------------------------
+# All accounts' code-server/ttyd processes live in this one container, bound
+# to 0.0.0.0, on deterministic ports, with --auth none / ttyd -W (writable,
+# no auth) -- see workspace-control.py. The intended access-control point is
+# Caddy + the allocator's forward_auth, sitting in front of this container.
+# But because every account shares this one network namespace, student01's
+# own shell can `curl 127.0.0.1:9002` and get full read/write access to
+# student02's IDE/terminal, completely bypassing Caddy/allocator. This
+# iptables chain is what actually enforces "your own ports only" at the OS
+# level, matching the trust boundary the rest of the stack assumes exists.
+#
+# FACILITATOR_IDE_PORT/FACILITATOR_TERM_PORT here must match the same-named
+# constants in workspace-control.py.
+facilitator_ide_port=9099
+facilitator_term_port=9599
+
+echo "Setting up per-account loopback isolation (DOJO_ISOLATION iptables chain)..." >&2
+
+# Idempotent: re-running entrypoint.sh (e.g. a container restart without
+# recreation) must not accumulate duplicate rules, so flush an existing
+# chain instead of erroring on -N, and only add the OUTPUT jump if it isn't
+# already there.
+iptables -N DOJO_ISOLATION 2>/dev/null || iptables -F DOJO_ISOLATION
+iptables -C OUTPUT -j DOJO_ISOLATION 2>/dev/null || iptables -A OUTPUT -j DOJO_ISOLATION
+
+# Root/PID1 always needs to reach every account's ports for its own
+# readiness probes (workspace-control.py's port_open()/start_workspace()).
+iptables -A DOJO_ISOLATION -p tcp -m owner --uid-owner 0 -j ACCEPT
+
+# Reusable for the facilitator, each student, and each bot below: allows
+# only the given account's own uid to reach its own IDE/term ports.
+add_isolation_rule() {
+  user="$1"
+  ide_port="$2"
+  term_port="$3"
+  uid="$(id -u "$user")"
+  iptables -A DOJO_ISOLATION -p tcp --dport "$ide_port" -m owner --uid-owner "$uid" -j ACCEPT
+  iptables -A DOJO_ISOLATION -p tcp --dport "$term_port" -m owner --uid-owner "$uid" -j ACCEPT
+}
+
+# Mostly a no-op when FACILITATOR_USERNAME defaults to "root" (uid 0 is
+# already allowed above), but must still work correctly if a deployment sets
+# a non-root facilitator username.
+add_isolation_rule "$facilitator_username" "$facilitator_ide_port" "$facilitator_term_port"
+
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
@@ -148,6 +193,10 @@ while [ "$counter" -le "$student_count" ]; do
   fi
 
   chown -R "$username:$username" "/home/$username"
+
+  # 9000+counter/9500+counter must match IDE_PORT_BASE/TERM_PORT_BASE in
+  # workspace-control.py.
+  add_isolation_rule "$username" "$((9000 + counter))" "$((9500 + counter))"
 
   # Keep the authored instructions current while preserving student work.
   if [ -f "$lab_seed_dir/README.md" ]; then
@@ -277,8 +326,29 @@ EOF
 
   chown -R "$bot_username:$bot_username" "/home/$bot_username"
 
+  # 9700+bot_counter/9750+bot_counter must match BOT_IDE_PORT_BASE/
+  # BOT_TERM_PORT_BASE in workspace-control.py -- a separate range from the
+  # student ports above so a bot's trailing digit never collides with a
+  # same-numbered student's IDE/term port (see change 2 in this file's
+  # accompanying commit/PR, and workspace-control.py's BOT_IDE_PORT_BASE
+  # comment).
+  add_isolation_rule "$bot_username" "$((9700 + bot_counter))" "$((9750 + bot_counter))"
+
   bot_counter=$((bot_counter + 1))
 done
+
+# Default-deny catch-all: must be the LAST rule appended to DOJO_ISOLATION,
+# after every add_isolation_rule call above (facilitator + all students +
+# all bots) -- iptables evaluates rules in order and the first match wins,
+# so anything not already ACCEPTed by uid above falls through to this DROP.
+# Range covers every control-plane port range in the stack: student/
+# facilitator IDE (9000-9099), student/facilitator term (9500-9599),
+# facilitator watch-mirror ports (9600-9699), bot IDE/term (9700-9799), and
+# bot watch-mirror ports (9800-9899). This only filters packets originating
+# from processes inside this container (the OUTPUT chain) -- traffic
+# arriving from the Caddy gateway container over the docker network is
+# unaffected.
+iptables -A DOJO_ISOLATION -p tcp -m multiport --dports 9000:9099,9500:9599,9600:9699,9700:9799,9800:9899 -j DROP
 
 if [ "$bot_count" -gt 0 ]; then
   echo "Provisioned $bot_count demo bot account(s) with prefix '$bot_prefix'."
