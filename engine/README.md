@@ -233,9 +233,26 @@ don't remove that when editing it.
 
 ```sh
 cd engine
-cp .env.example .env
-# edit .env: PUBLIC_BASE_URL, passwords, STUDENT_COUNT, LAB_HOST_IP
+./scripts/env-setup.sh
+# or, non-interactive with fixed lazy credentials for local/throwaway use:
+./scripts/env-setup.sh --default
 ```
+
+`./scripts/env-setup.sh` walks through every setting below, showing its
+current default in `[brackets]` (Enter accepts it) and auto-generating a
+strong random value for passwords/tokens on a bare Enter. It also offers to
+run `./scripts/capacity-calc.sh` for you to size `WEB_TERMINAL_MEM_LIMIT`/
+`WEB_TERMINAL_PIDS_LIMIT`/`CODE_SERVER_MAX_HEAP_MB` to this machine. Prefer
+this path for a real workshop, since it gives every session unique
+credentials. `--default` skips all of that and fills in fixed, easy values
+instead (`student`/`student123`/`admin`/`admin` — see the script's header
+for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
+`GATEWAY_TOKEN`) are still randomly generated even in `--default` mode,
+since nobody ever types those. Either way it still tries to auto-size the
+resource-ceiling settings via `capacity-calc.sh`.
+
+Prefer to do it by hand instead? `cp .env.example .env` and edit directly —
+same settings, same file.
 
 `.env` now holds only account/secret/network settings — the same for every
 workshop. Which workshop to run (content, Forgejo org/repo, any extra
