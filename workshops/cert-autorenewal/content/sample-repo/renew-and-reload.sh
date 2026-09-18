@@ -32,7 +32,7 @@ mkdir -p "${DEST}"
 #   --no-random-sleep-on-renew \
 #   --deploy-hook "cp -f $HOME/certbot/config/live/${YOUR_STUDENT_ID}.certs.dojo.test/fullchain.pem ${DEST}/fullchain.pem && cp -f $HOME/certbot/config/live/${YOUR_STUDENT_ID}.certs.dojo.test/privkey.pem ${DEST}/privkey.pem"
 #
-# --no-random-sleep-on-renew turns off certbot's default 0-8h random delay
+# --no-random-sleep-on-renew turns off certbot's default 0-8min random delay
 # before an unattended renewal actually runs (real thundering-herd
 # protection for Let's Encrypt at Internet scale) — without it, cron firing
 # every minute could still sit idle past this cert's whole 5-10 minute

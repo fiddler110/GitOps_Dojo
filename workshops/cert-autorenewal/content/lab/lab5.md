@@ -33,7 +33,14 @@ certbot certonly --manual --preferred-challenges dns-01 \
   --agree-tos --email "${me}@example.com"
 ```
 
-certbot pauses and prints something like:
+`--manual` is what makes certbot stop and show you the challenge instead of
+completing it itself — certbot has no built-in way to talk to PowerDNS, so
+a real dns-01 setup would use a DNS-provider plugin instead; here, you're
+standing in for that plugin. `--preferred-challenges dns-01` is what tells
+it to request a dns-01 challenge from `step-ca` instead of the http-01 one
+Labs 2-3 used — same ACME order and finalize steps underneath, just a
+different way of proving control in the middle. certbot pauses and prints
+something like:
 
 ```text
 Please deploy a DNS TXT record under the name:
@@ -54,7 +61,12 @@ in the next step.
 
 ## 2. Deploy the TXT record
 
-In your other pane, using the exact value certbot printed:
+This `PATCH` call is PowerDNS's own REST API for editing a zone — the same
+zone `dns-as-code` manages through `dnscontrol` instead of raw HTTP.
+`changetype: REPLACE` sets (or overwrites) the `_acme-challenge` TXT
+record to exactly the value in `records`, which is what lets `step-ca`
+find it when it looks the name up in the next step. In your other pane,
+using the exact value certbot printed:
 
 ```sh
 curl -s -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \

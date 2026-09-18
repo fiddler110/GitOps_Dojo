@@ -42,6 +42,8 @@ git checkout -b <branch-name>
 
 Creates a new branch pointing at your current commit and switches you onto it. Work on a branch, not directly on `main`, so your in-progress changes can't affect anyone else until you're ready to share them.
 
+Newer Git versions also offer `git switch -c <branch-name>` (and `git switch <branch-name>` to switch to an existing branch) — a command split out of `checkout` specifically for branch switching, with the same effect as above. This workshop uses `checkout` since it's what you'll most often see in existing docs and scripts, but the two are interchangeable for this purpose.
+
 ### See what changed
 
 ```sh

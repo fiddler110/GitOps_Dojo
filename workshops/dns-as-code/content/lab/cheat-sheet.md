@@ -137,7 +137,7 @@ Same as plain git: `git pull` to bring in what you're missing, resolve a conflic
 
 **"a CI check isn't showing up on my PR yet"**
 
-CI is a real background job, not instant — give it a few seconds and re-check (`dnsctl.py status`, or refresh the Forgejo PR page). `dnsctl.py merge --force` skips waiting on it if you don't want to wait.
+CI is a real background job, not instant — give it a few seconds and re-check (`dnsctl.py status`, or refresh the Forgejo PR page). `dnsctl.py merge` doesn't actually block on a missing check — no check yet just prints a warning and merges anyway; it only refuses when a check exists and has *failed*, and that's what `--force` overrides.
 
 **"I want to undo a change that's already merged to main"**
 
@@ -181,7 +181,7 @@ git merge --abort
 - **`dnsconfig.js`:** the source of truth; dnscontrol reads it and reconciles PowerDNS to match.
 - **`dnscontrol preview`:** dry-run diff between `dnsconfig.js` and live state. Changes nothing.
 - **`dnscontrol push`:** applies that diff for real.
-- **Correction:** one line of a `preview`/`push` diff — a CREATE, DELETE, or MODIFY.
+- **Correction:** one line of a `preview`/`push` diff — a CREATE or a DELETE (dnscontrol has no in-place MODIFY; editing a record's value always shows as a paired DELETE + CREATE).
 - **TTL:** how long (in seconds) a resolver may cache a record before re-checking it.
 - **PR (pull request):** a proposal to merge a branch, reviewed before it happens — same as Git Fundamentals.
 - **DNS Preview / DNS Apply:** the two Forgejo Actions CI checks — preview comments the diff on every PR; apply runs `dnscontrol push` on merge to `main`.

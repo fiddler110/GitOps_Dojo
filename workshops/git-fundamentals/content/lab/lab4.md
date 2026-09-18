@@ -63,6 +63,8 @@ git checkout main
 git branch -D lab4-explore
 ```
 
+`lab4-explore` was never merged into `main`, so the safe `-d` delete would refuse it — capital `-D` forces the delete anyway. That's fine here because it's a disposable practice branch; on real work, a refusal from `-d` is usually git telling you something isn't merged yet, worth a second look before you force it.
+
 ---
 
 ## Recap

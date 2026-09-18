@@ -341,9 +341,11 @@ skipping the wrapper entirely, so both tracks are teachable here.
 - `merge`/`validate` check for a passing "DNS Preview"/"DNS Apply" CI
   status before they'll proceed — and now find a real one, same as
   against a GitHub repo with CI configured. `merge` checks once, not on a
-  retry loop — if you merge before CI has posted a status yet, it refuses
-  ("no check found"); re-run `status` after a few seconds and try again,
-  or pass `--force` to skip the check entirely.
+  retry loop — if you merge before a "DNS Preview" check has posted yet,
+  it just warns ("no check found") and merges anyway; it only *refuses*
+  once a check exists and has actually failed, and `--force` skips that
+  refusal too. `validate`, unlike `merge`, does poll and wait for its
+  check to appear.
 
 > A wrapper doesn't remove the underlying tool's assumptions — it just
 > gives them a shorter name. Worth knowing which assumptions you inherited

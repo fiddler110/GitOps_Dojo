@@ -163,7 +163,7 @@ for leftover markers, not whether the file is still valid.
 - **`dnsconfig.js`:** the source of truth.
 - **`preview`:** dry-run diff. Changes nothing.
 - **`push`:** applies the diff for real.
-- **Correction:** one CREATE/DELETE/MODIFY line.
+- **Correction:** one CREATE/DELETE line of a diff (an edit shows as a paired DELETE + CREATE, not an in-place MODIFY).
 - **TTL:** how long a resolver may cache a record.
 - **PR:** a reviewed proposal to merge a branch.
 - **DNS Preview / DNS Apply:** the two CI checks.

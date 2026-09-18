@@ -119,12 +119,22 @@ Confirm the diff shows only your one new record. If it shows anything else, you 
 ```sh
 git status
 git diff
+```
+
+`git status` shows *which* files changed — right now that should be just `dnsconfig.js`, nothing else. `git diff` shows *exactly what* changed, line by line, before you commit it — a second look at the same thing `dnscontrol preview` just showed you from the DNS side, this time from git's side. Get in the habit of reading both before every commit.
+
+```sh
 git add dnsconfig.js
 git commit -m "Add A record for yourname"
+```
+
+`git add` moves your change into the **staging area** — a holding pen for exactly what you want in the next commit. `git commit` then saves a permanent snapshot of everything staged, along with a message describing *what* changed and *why*.
+
+```sh
 git push -u origin add-yourname-record
 ```
 
-Nothing you've done is visible to anyone else until this push — up to that point, everything (branch, commits) existed only on your machine.
+`push` uploads your branch and its commit to the shared Forgejo server — `-u origin add-yourname-record` also remembers this branch's remote, so future pushes from it just need `git push`. Nothing you've done is visible to anyone else until this push — up to that point, everything (branch, commits) existed only on your machine.
 
 ---
 

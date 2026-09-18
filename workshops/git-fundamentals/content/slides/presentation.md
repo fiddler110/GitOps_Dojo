@@ -299,9 +299,9 @@ You now have:
 ## 2. Start from current `main`
 
 ```bash
-git switch main
+git checkout main
 git pull
-git switch -c add-yourname
+git checkout -b add-yourname
 ```
 
 - Move to the stable branch
@@ -309,6 +309,8 @@ git switch -c add-yourname
 - Create a branch for one focused change
 
 > A current starting point means fewer surprises later.
+
+**A note on `checkout` vs `switch`:** `checkout` is the classic, do-everything command — it switches branches, but it also checks out individual commits and restores files. Newer Git versions added `git switch` (and `git restore`) to split branch-switching into its own, more focused command: `git switch main` / `git switch -c add-yourname` do exactly the same thing as above. We teach `checkout` here because it's the one you'll see in most existing docs, tutorials, and scripts — but don't be surprised to see `switch` used instead.
 
 ---
 
@@ -424,8 +426,8 @@ Optional demonstrations and reference slides
 
 ```bash
 git stash          # Set uncommitted work aside
-git switch main    # Handle the interruption
-git switch -       # Return to the previous branch
+git checkout main  # Handle the interruption
+git checkout -     # Return to the previous branch
 git stash pop      # Restore the work
 ```
 
@@ -492,7 +494,7 @@ dist/
 
 ```bash
 git status                    # Inspect current state
-git switch -c <branch>        # Create and enter a branch
+git checkout -b <branch>       # Create and enter a branch
 git diff                      # Review unstaged changes
 git add <file>                # Stage selected changes
 git commit -m "<message>"     # Save a snapshot

@@ -121,6 +121,8 @@ git reset --hard HEAD~1
 git status
 ```
 
+`HEAD~1` means "one commit before `HEAD`" — `HEAD` is always your current commit, so `HEAD~1` is the parent of that commit, i.e. the state before the commit you're undoing. `git reset` moves your branch pointer (and `HEAD`) back to that commit; `--soft` leaves the undone commit's changes sitting in the staging area as if you'd just run `git add`, while `--hard` throws them away completely along with any other uncommitted edits in your working directory — there's no confirmation, so only use `--hard` when you're sure you don't need the change.
+
 **Committed *and* pushed (shared with others):** do **not** use `git reset` here. Rewriting history that someone else may have already pulled breaks their local repo. Use `git revert` instead — it adds a *new* commit that undoes an earlier one, so history only ever moves forward. (This demo stays local — no need to actually push it — but the same command is what you'd run on a real shared branch.)
 
 ```sh
@@ -132,7 +134,7 @@ git revert HEAD --no-edit
 git log --oneline -2
 ```
 
-Notice `git revert` added a new commit on top, rather than erasing the one before it — that's what makes it safe once something is shared.
+The `-1` and `-2` on `git log --oneline` just cap how many commits to show (most recent first) — here, a quick before/after without paging through full history. `git revert HEAD` undoes the most recent commit (`HEAD`), and `--no-edit` accepts git's auto-generated "Revert ..." message instead of opening an editor. Notice `git revert` added a new commit on top, rather than erasing the one before it — that's what makes it safe once something is shared.
 
 Clean up:
 
