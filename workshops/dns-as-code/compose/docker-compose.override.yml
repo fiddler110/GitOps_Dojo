@@ -52,6 +52,13 @@ services:
   web-terminal:
     build:
       context: ../workshops/dns-as-code/compose/terminal
+    # Without this, Compose would inherit the base file's
+    # `image: gitopsdojo/web-terminal:base` and tag this workshop-specific
+    # build as ":base" too -- clobbering the shared base tag every time
+    # this workshop runs (see engine/run.sh, which relies on ":base" always
+    # meaning the plain, un-augmented image so it can skip rebuilding it
+    # when nothing's changed).
+    image: gitopsdojo/web-terminal:dns-as-code
     depends_on:
       - dns-server
 

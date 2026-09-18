@@ -21,6 +21,14 @@ import socket
 import time
 import urllib.parse
 
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
+# Marks the session cookie Secure whenever the public deployment actually
+# terminates TLS (see gateway/README's Deployment scenarios) -- the browser
+# then refuses to ever send it over a plain-HTTP connection, e.g. to a
+# spoofed same-name host on an open network. No effect (and no downside)
+# on the plain-HTTP localhost path, since that's never HTTPS to begin with.
+COOKIE_SECURE = PUBLIC_BASE_URL.startswith("https://")
+
 STUDENT_COUNT = int(os.environ.get("STUDENT_COUNT", "30"))
 STUDENT_PREFIX = os.environ.get("STUDENT_PREFIX", "student")
 # Demo/test bots (--test, see engine/run.sh and README.md's "Demo bots"
@@ -149,6 +157,31 @@ def forgejo_login_request(username, password):
         return []
 
 
+# Inline, self-contained SVGs for the confirmation page's tool cards (see
+# render_confirmation) -- feather-style, 24x24, stroke=currentColor so each
+# one automatically picks up its card's icon color (including the primary
+# card's white-on-blue) with no extra markup or external icon font/CDN
+# request. This runs entirely inside a student's own browser, which this
+# project makes no assumption has internet access beyond the workshop
+# origin itself (see engine/README.md's Troubleshooting section on the
+# terminal container's own lack of one) -- so nothing on this page ever
+# depends on a third-party asset loading.
+_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{}</svg>'
+ICON_CODE = _SVG.format('<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>')
+ICON_TERMINAL = _SVG.format('<polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>')
+ICON_GIT = _SVG.format('<line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle>'
+                        '<circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path>')
+ICON_SLIDES = _SVG.format('<rect x="2" y="4" width="20" height="14" rx="2"></rect>'
+                           '<line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="18" x2="12" y2="21"></line>')
+ICON_ROCKET = _SVG.format('<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>'
+                           '<path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>'
+                           '<path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>'
+                           '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>')
+ICON_ARROW = '<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
+             'stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line>' \
+             '<polyline points="7 7 17 7 17 17"></polyline></svg>'
+
+
 def page(title, body):
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -176,6 +209,16 @@ def page(title, body):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "AllocatorHTTP/1.0"
+    # This server is single-threaded by design (see module docstring) --
+    # every request blocks every other request/connection for its duration,
+    # including the accept loop itself. Without a socket timeout, one client
+    # that opens a connection and then sends bytes slowly (or not at all)
+    # would stall the entire workshop's assignment/auth-check traffic
+    # indefinitely. 10s is generous for any legitimate request this process
+    # ever serves (all local, in-memory, no upstream I/O except the
+    # best-effort control_request/forgejo_login_request calls, which have
+    # their own shorter CONTROL_TIMEOUT).
+    timeout = 10
 
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
@@ -234,13 +277,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return None, None
 
     def client_ip(self):
+        # gateway/Caddyfile has no trusted_proxies configured, so Caddy's
+        # reverse_proxy APPENDS the address it actually saw to whatever
+        # X-Forwarded-For value the client already sent, rather than
+        # replacing it -- the same header a curl/browser client is free to
+        # set to anything. That means the FIRST entry can be attacker-
+        # supplied, but the LAST entry is always the address Caddy itself
+        # observed on the connection, since gateway is the sole public
+        # entry point with nothing in front of it to have appended anything
+        # earlier. Only that last hop is safe to trust (this is only ever
+        # used for the facilitator roster display, not an auth decision).
         forwarded = self.headers.get("X-Forwarded-For")
         if forwarded:
-            return forwarded.split(",")[0].strip()
+            return forwarded.split(",")[-1].strip()
         return self.client_address[0]
 
+    # Real form bodies here are tiny (a name, capped at 60 chars, is the
+    # only field any form on this service ever submits) -- capping well
+    # above that but far below "attacker-declared Content-Length" stops a
+    # client from making this single-threaded process (see class docstring)
+    # allocate or block on reading an enormous declared body.
+    MAX_BODY_BYTES = 4096
+
     def read_form_body(self):
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
+        length = max(0, min(length, self.MAX_BODY_BYTES))
         raw = self.rfile.read(length) if length else b""
         parsed = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
         return {k: v[0] for k, v in parsed.items()}
@@ -263,17 +327,100 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return page(WORKSHOP_NAME, body)
 
     def render_confirmation(self, sid):
+        """The landing page a student sees on every visit after /assign has
+        claimed them a slot (including refresh/back-button -- see
+        handle_assign). Deliberately its own full HTML document, like
+        render_facilitator_workspace, rather than page() -- page()'s
+        narrow single-column layout is tuned for the two short forms
+        (name entry, "lab full"), not a set of tool choices that benefits
+        from room to show what each one actually does."""
         slot = slots[sid]
-        body = f"""
-<h1>Welcome, {html.escape(slot['name'])}</h1>
-<p class="sub">You've been assigned <span class="badge">{html.escape(sid)}</span></p>
-<a class="btn" href="/ide/" target="_blank" rel="noopener">Open VS Code</a>
-<a class="btn secondary" href="/term/" target="_blank" rel="noopener">Open Terminal</a>
-<a class="btn secondary" href="/forgejo-login" target="_blank" rel="noopener">Open Forgejo</a>
-<a class="btn secondary" href="/slides/" target="_blank" rel="noopener">View Slides</a>"""
+        tools = [
+            {
+                "href": "/ide/", "label": "VS Code", "icon": ICON_CODE, "primary": True,
+                "desc": "Your editor, already open in your lab folder.",
+            },
+            {
+                "href": "/term/", "label": "Terminal", "icon": ICON_TERMINAL,
+                "desc": "A plain shell, same account, if you'd rather type.",
+            },
+            {
+                "href": "/forgejo-login", "label": "Forgejo", "icon": ICON_GIT,
+                "desc": "Your repo -- branches, commits, pull requests.",
+            },
+            {
+                "href": "/slides/", "label": "Slides", "icon": ICON_SLIDES,
+                "desc": "Today's material, for reference as you go.",
+            },
+        ]
         if DEMO_APP_ENABLED:
-            body += '\n<a class="btn secondary" href="/demo/" target="_blank" rel="noopener">View Demo Site</a>'
-        return page(WORKSHOP_NAME, body)
+            tools.append({
+                "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
+                "desc": "See your changes live once you've pushed them.",
+            })
+
+        cards = "\n".join(
+            f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
+  <span class="card-icon">{t['icon']}</span>
+  <span class="card-text">
+    <span class="card-title">{html.escape(t['label'])}</span>
+    <span class="card-desc">{html.escape(t['desc'])}</span>
+  </span>
+  {ICON_ARROW}
+</a>"""
+            for t in tools
+        )
+
+        body = f"""
+<div class="hero">
+  <span class="hero-badge">{html.escape(sid)}</span>
+  <h1>You're in, {html.escape(slot['name'])}</h1>
+  <p class="sub">Pick a tool to get started -- each one opens in a new tab.</p>
+</div>
+<div class="cards">
+{cards}
+</div>
+<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
+
+        return f"""<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(WORKSHOP_NAME)}</title>
+<style>
+  :root {{ color-scheme: light dark; }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }}
+  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
+  .hero {{ text-align: center; margin-bottom: 2rem; }}
+  .hero-badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
+          margin-bottom: 0.9rem; }}
+  @media (prefers-color-scheme: dark) {{ .hero-badge {{ background: #1e2352; color: #c7d2fe; }} }}
+  .hero h1 {{ font-size: 1.6rem; margin: 0 0 0.4rem; }}
+  .hero .sub {{ opacity: 0.7; margin: 0; }}
+  .cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }}
+  @media (max-width: 30rem) {{ .cards {{ grid-template-columns: 1fr; }} }}
+  .card {{ display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
+          border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
+          transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }}
+  @media (prefers-color-scheme: dark) {{ .card {{ border-color: #333; background: #1f1f1f; }} }}
+  .card:hover, .card:focus-visible {{ border-color: #2563eb; transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15); }}
+  .card.primary {{ grid-column: 1 / -1; border-color: #2563eb; background: #eff6ff; }}
+  @media (prefers-color-scheme: dark) {{ .card.primary {{ background: #172554; }} }}
+  .card-icon {{ flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; background: #eef2ff;
+          color: #2563eb; display: flex; align-items: center; justify-content: center; }}
+  @media (prefers-color-scheme: dark) {{ .card-icon {{ background: #1e2352; }} }}
+  .card.primary .card-icon {{ background: #2563eb; color: #fff; }}
+  .card-icon svg {{ width: 1.25rem; height: 1.25rem; }}
+  .card-text {{ display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }}
+  .card-title {{ font-weight: 600; font-size: 0.98rem; }}
+  .card-desc {{ font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }}
+  .card-arrow {{ flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }}
+  .card:hover .card-arrow, .card:focus-visible .card-arrow {{ opacity: 0.7; }}
+  .footnote {{ margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }}
+</style></head>
+<body>{body}</body></html>"""
 
     def render_facilitator_workspace(self):
         """The facilitator's one-stop page at /admin: a roster of live
@@ -437,7 +584,10 @@ function reloadTile(sid) {
 
 function releaseTile(sid, btn) {
   btn.disabled = true;
-  fetch('/admin/release/' + encodeURIComponent(sid), { method: 'POST' }).then(refresh);
+  fetch('/admin/release/' + encodeURIComponent(sid), {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(refresh);
 }
 
 function toggleEnlarge(sid) {
@@ -771,6 +921,21 @@ setInterval(refresh, 5000);
             return
 
         if path.startswith("/admin/release/"):
+            # HTTP Basic Auth (unlike a cookie) carries no SameSite
+            # protection of its own -- a browser that's already satisfied
+            # /admin's basic_auth reattaches those credentials to ANY
+            # same-origin request, including one triggered by a hidden form
+            # on a page a facilitator merely has open in another tab. A
+            # plain cross-site <form method=post> can't set a custom
+            # header, and a cross-site fetch() that tries to would first
+            # need this server to answer its CORS preflight (it doesn't) --
+            # so requiring this header on the actual roster JS's own fetch
+            # call (see render_facilitator_workspace's releaseTile) blocks
+            # both of those forgery paths while costing the real UI nothing.
+            if self.headers.get("X-Requested-With") != "dojo-admin":
+                self.send_response(403)
+                self.end_headers()
+                return
             sid = path[len("/admin/release/"):]
             self.handle_release(sid)
             return
@@ -810,9 +975,13 @@ setInterval(refresh, 5000);
         slots[sid].update(name=name, ip=self.client_ip(), token=token, assigned_at=time.time())
         token_index[token] = sid
 
+        cookie = f"{COOKIE_NAME}={token}; HttpOnly; Path=/; SameSite=Lax"
+        if COOKIE_SECURE:
+            cookie += "; Secure"
+
         self.send_response(303)
         self.send_header("Location", "/")
-        self.send_header("Set-Cookie", f"{COOKIE_NAME}={token}; HttpOnly; Path=/; SameSite=Lax")
+        self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Length", "0")
         self.end_headers()
 

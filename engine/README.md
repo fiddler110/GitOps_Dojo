@@ -341,13 +341,27 @@ independent knobs bound this:
 - `CODE_SERVER_MAX_HEAP_MB` (default 384) caps each individual
   code-server's own V8 heap via `NODE_OPTIONS`
   (`workspace-control.py`) — a safety net under the container ceiling so
-  one student can't quietly eat the whole budget alone.
+  one student can't quietly eat the whole budget alone. NODE_OPTIONS is
+  exported in the same shell that execs code-server (`workspace-control.py`),
+  so it's almost certainly inherited by every node child that shell spawns
+  too (extension host, pty host, file watcher, language servers) rather
+  than just the main process — worth confirming directly (e.g. `cat
+  /proc/<extensionHost pid>/environ` inside the container) before leaning
+  on it, but if true, a student's real worst-case footprint is closer to
+  *(number of node processes) × this cap* than to this cap alone.
+  `scripts/capacity-calc.sh`'s live-calibration mode measures actual RSS
+  instead of assuming either way.
 
-On the Azure delivery path (`infra/corp-dev/gdojo-cc`), both the VM's own
-size and these two container limits are computed automatically from
-`student_count` — see that module's `main.tf` (`vm_sizing_*` locals) and
-`README.md`. For a local/manual `engine/` run, set them yourself in
-`.env` using the same math.
+Every delivery path — Azure VM included — now sets these by hand rather
+than deriving them from Terraform (the old `infra/corp-dev/gdojo-cc`
+auto-sizing is parked, unused, under `.infra/`). Run
+`./scripts/capacity-calc.sh --students <N>` **on the target machine**
+(the Azure VM itself, or your Mac for local testing) before a real
+session — it reads that machine's actual memory and, if a couple of
+`--test` bot students are already live in `workshop_terminal`, calibrates
+against their real measured RSS instead of estimating. Without live data
+it falls back to the rule of thumb: `(concurrent students × 400MB) + 1GB`
+for RAM, `(concurrent students × 30) + 100` for pids.
 
 Extensions: code-server ships with a small, curated extension set —
 `redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
@@ -386,7 +400,19 @@ every student's `~/lab` on their next terminal restart (`docker compose up
 never overwritten. `lab/README.md` always reflects the current instructions.
 
 Rebuild is only required when `.env`, this Compose file, an image's
-Dockerfile, or `web-terminal/entrypoint.sh` / `gateway/Caddyfile` changes:
+Dockerfile, or `web-terminal/entrypoint.sh` / `gateway/Caddyfile` changes.
+Re-running `./run.sh <workshop-name>` already detects that: it hashes the
+web-terminal/allocator/gateway build contexts individually (only rebuilding
+the ones that actually changed — see `build_if_changed` in `run.sh`), and
+hashes a running workshop's whole `compose/` overlay directory as one unit
+to catch changes to any workshop-only service beyond that (dns-as-code's
+`forgejo-runner`, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
+see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
+way to pick up any of that. The manual form below forces every image to
+rebuild regardless of whether anything changed; reach for it only if you
+suspect the change-detection state itself is stale (e.g. you edited a file
+outside of git, or deleted `engine/.build-state/` by hand) — add the
+workshop's `-f` overlay flag too if it has one:
 
 ```sh
 docker compose up -d --build --force-recreate

@@ -35,9 +35,12 @@ cp .env.example .env       # first time only — account/secret settings, shared
    `.env` where they overlap, so `workshop.env` is always the source of
    truth for its own workshop.
 3. Builds the base `web-terminal` image and tags it
-   `gitopsdojo/web-terminal:base`, so a workshop's own terminal Dockerfile
-   (if it has one) can extend it instead of duplicating its package list.
-4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d --build`.
+   `gitopsdojo/web-terminal:base` (plus the workshop's own terminal image and
+   the allocator/gateway images), so a workshop's own terminal Dockerfile
+   (if it has one) can extend the base instead of duplicating its package
+   list — but only rebuilds whichever of those actually changed since the
+   last build, reusing the existing local image otherwise.
+4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d`.
 
 On Azure, the same selection happens via Terraform instead — see
 [`infra/corp-dev/gdojo-cc/README.md`](../infra/corp-dev/gdojo-cc/README.md)
@@ -85,7 +88,15 @@ server, etc.) — not for anything content/slides alone can express.
    Dockerfile if the terminal itself needs different packages — `FROM
    gitopsdojo/web-terminal:base` to inherit the shared account-provisioning
    entrypoint instead of duplicating it), and point `COMPOSE_OVERLAY` at
-   it.
+   it. If you add a `compose/terminal/` override, also give the
+   `web-terminal:` block in your override file its own
+   `image: gitopsdojo/web-terminal:<name>` line — without it, Compose
+   inherits the base file's `image: gitopsdojo/web-terminal:base` and tags
+   your workshop-specific build as `:base` too, clobbering the shared base
+   image every time this workshop runs (see `engine/run.sh`, which skips
+   rebuilding an image whose source hasn't changed and depends on `:base`
+   only ever meaning the plain, un-augmented image). `dns-as-code` and
+   `cert-autorenewal` are worked examples.
 5. Add a row to the table above.
 6. Run it locally end to end (`./run.sh <name>` from `engine/`) before
    trusting it for a live session.

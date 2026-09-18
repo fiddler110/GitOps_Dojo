@@ -9,80 +9,103 @@
   --teal: #3dd6c3;
   --teal-deep: #137f7a;
   --blue: #69aee8;
-  --amber: #f0b95b;
+  --cyan: #22d3ee;
+  /* Marp's syntax highlighter (highlight.js via GitHub's "prettylights"
+     theme) reads these custom properties, defined upstream for a light
+     background -- redeclaring them here keeps fenced code readable on
+     our dark canvas instead of e.g. near-black string literals. */
+  --color-prettylights-syntax-comment: var(--muted) !important;
+  --color-prettylights-syntax-constant: var(--cyan) !important;
+  --color-prettylights-syntax-entity: var(--blue) !important;
+  --color-prettylights-syntax-storage-modifier-import: var(--text) !important;
+  --color-prettylights-syntax-entity-tag: var(--teal) !important;
+  --color-prettylights-syntax-keyword: var(--blue) !important;
+  --color-prettylights-syntax-string: #b8f4ea !important;
+  --color-prettylights-syntax-variable: var(--text) !important;
+  --color-fg-default: var(--text) !important;
+  --color-fg-muted: var(--muted) !important;
 }
+/* Marp's built-in "default" theme CSS (a light theme) is injected after
+   this stylesheet and restyles every one of these elements -- including
+   ones scoped by our own classes like .lead/.hub/.section-title -- so it
+   consistently wins the cascade regardless of our selector's specificity.
+   !important is required everywhere below to actually keep this dark
+   theme in effect. */
 section {
   background:
     linear-gradient(135deg, rgba(61, 214, 195, 0.05), transparent 42%),
-    var(--canvas);
-  color: var(--text);
+    var(--canvas) !important;
+  color: var(--text) !important;
   font-family: 'Manrope', sans-serif;
   font-size: 26px;
   padding: 46px 64px;
 }
 section::after {
-  color: var(--muted);
+  color: var(--muted) !important;
   font-size: 18px;
 }
-h1, h2, h3 { color: var(--text); letter-spacing: 0; }
+h1, h2, h3 { color: var(--text) !important; letter-spacing: 0; }
 h1 { font-size: 50px; }
-h2 { border-bottom: 4px solid var(--teal); padding-bottom: 8px; }
-h3 { color: var(--blue); }
-strong { color: var(--teal); }
-a { color: var(--teal); }
-li::marker { color: var(--teal); }
+h2 { border-bottom: 4px solid var(--teal) !important; padding-bottom: 8px; }
+h3 { color: var(--blue) !important; }
+strong { color: var(--teal) !important; }
+a { color: var(--teal) !important; }
+li::marker { color: var(--teal) !important; }
 code {
-  background: var(--surface-raised);
-  color: #b8f4ea;
+  background: var(--surface-raised) !important;
+  color: #b8f4ea !important;
   font-family: 'IBM Plex Mono', monospace;
 }
-pre {
-  background: #0a1117;
-  border: 1px solid var(--line);
-  border-left: 7px solid var(--teal);
+/* Marp renders fenced code blocks as the custom element <marp-pre> (with
+   a nested real <code>), not a plain <pre> -- a bare `pre` selector never
+   matches it, which is why only the inner code text used to pick up
+   theme colors while the block itself stayed on Marp's default light
+   background. */
+pre, marp-pre {
+  background: #0a1117 !important;
+  border: 1px solid var(--line) !important;
+  border-left: 7px solid var(--teal) !important;
   border-radius: 4px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
-  color: var(--text);
+  color: var(--text) !important;
   font-size: 21px;
 }
-pre code { background: transparent; color: inherit; }
+pre code, marp-pre code { background: transparent !important; color: inherit !important; }
 blockquote {
-  background: rgba(61, 214, 195, 0.08);
-  border-left: 7px solid var(--teal);
-  color: var(--text);
+  background: rgba(61, 214, 195, 0.08) !important;
+  border-left: 7px solid var(--teal) !important;
+  color: var(--text) !important;
   font-size: 28px;
   font-weight: 600;
   padding: 14px 22px;
 }
 table {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
   font-size: 21px;
 }
-th, td { color: var(--text); }
-th { background: var(--surface-raised); color: var(--teal); }
-td { background: var(--surface); border-color: var(--line); }
-tr:nth-child(even) { background: rgba(105, 174, 232, 0.05); }
+th, td { color: var(--text) !important; }
+th { background: var(--surface-raised) !important; color: var(--teal) !important; }
+td { background: var(--surface) !important; border-color: var(--line) !important; }
+tr:nth-child(even) { background: rgba(105, 174, 232, 0.05) !important; }
 .lead {
-  background:
-    linear-gradient(125deg, rgba(19, 127, 122, 0.34), transparent 55%),
-    #0c131a;
-  color: var(--text);
+  background: linear-gradient(125deg, rgba(19, 127, 122, 0.34), transparent 55%),
+    #0c131a !important;
+  color: var(--text) !important;
   text-align: left;
 }
-.lead h1, .lead h2 { color: var(--text); }
-.lead strong { color: var(--teal); }
-.lead h1 { border-bottom: 7px solid var(--teal); padding-bottom: 18px; }
+.lead h1, .lead h2 { color: var(--text) !important; }
+.lead strong { color: var(--teal) !important; }
+.lead h1 { border-bottom: 7px solid var(--teal) !important; padding-bottom: 18px; }
 .section-title {
-  background:
-    linear-gradient(135deg, rgba(61, 214, 195, 0.14), transparent 50%),
-    var(--surface);
-  color: var(--text);
+  background: linear-gradient(135deg, rgba(61, 214, 195, 0.14), transparent 50%),
+    var(--surface) !important;
+  color: var(--text) !important;
 }
-.section-title h1, .section-title h2 { color: var(--text); }
-.section-title h1 { border-left: 9px solid var(--teal); padding-left: 28px; }
+.section-title h1, .section-title h2 { color: var(--text) !important; }
+.section-title h1 { border-left: 9px solid var(--teal) !important; padding-left: 28px; }
 .two-column { columns: 2; column-gap: 48px; }
-.command { color: var(--amber); }
+.command { color: var(--cyan) !important; }
 .small { font-size: 21px; }
-.nav { color: var(--muted); font-size: 20px; margin-top: 40px; }
-footer { color: var(--muted); font-size: 16px; }
+.nav { color: var(--muted) !important; font-size: 20px; margin-top: 40px; }
+footer { color: var(--muted) !important; font-size: 16px; }

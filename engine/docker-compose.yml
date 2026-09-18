@@ -41,6 +41,11 @@ services:
       timeout: 5s
       retries: 24
       start_period: 10s
+    # Backstop so a git-gc/large-push spike here can't eat into the memory
+    # budget web-terminal's own mem_limit was sized against (see
+    # scripts/capacity-calc.sh) -- generous for 30 concurrent students'
+    # worth of clone/push/PR-review traffic, not a tight cap.
+    mem_limit: ${GIT_SERVER_MEM_LIMIT:-2g}
 
   # 2. One-shot bootstrap: admin user, org, sample repo, and one Forgejo
   #    account per configured student. Safe to re-run; exits after it's done.
@@ -93,6 +98,8 @@ services:
     networks:
       - web_lab
     restart: unless-stopped
+    # Backstop, same reasoning as git-server's above.
+    mem_limit: ${PRESENTATION_MEM_LIMIT:-512m}
 
   # 4. Workspace host: per-account code-server + ttyd processes, spawned on
   # demand by workspace-control.py once the allocator (service 5a below)
@@ -141,11 +148,9 @@ services:
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
     # the per-process NODE_OPTIONS heap cap above -- this is the ceiling
-    # for all of them combined. The Azure delivery path (infra/corp-dev/
-    # gdojo-cc) computes WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT from
-    # student_count automatically (see that module's main.tf) so this
-    # tracks class size instead of staying fixed; the defaults below only
-    # apply to local/manual runs that don't set them.
+    # for all of them combined. Every delivery path (Azure VM included) now
+    # sets these by hand -- see scripts/capacity-calc.sh and .env's comment
+    # on these two vars.
     pids_limit: ${WEB_TERMINAL_PIDS_LIMIT:-2048}
     mem_limit: ${WEB_TERMINAL_MEM_LIMIT:-4g}
 
@@ -159,8 +164,17 @@ services:
   allocator:
     build:
       context: ./allocator
+    # Stable local tag, same reasoning as web-terminal's below -- lets
+    # run.sh check "has ./allocator changed since the last build?" against
+    # a fixed name instead of guessing whatever tag Compose would have
+    # auto-generated.
+    image: gitopsdojo/allocator:local
     container_name: workshop_allocator
     environment:
+      # Read only to decide whether the session cookie should be marked
+      # Secure (see allocator/server.py's COOKIE_SECURE) -- allocator never
+      # constructs a URL from this itself, gateway already owns routing.
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -192,6 +206,10 @@ services:
     networks:
       - workshop_lab
     restart: unless-stopped
+    # Backstop, same reasoning as git-server's above -- in-memory roster
+    # state for 30 students is trivial, this is just a ceiling in case of a
+    # leak.
+    mem_limit: ${ALLOCATOR_MEM_LIMIT:-256m}
 
   # 5b. Gateway: the only service exposed to students. Single hostname,
   # path-based routing (/slides, /git, /admin, /ide, /term, / ->
@@ -200,6 +218,8 @@ services:
   gateway:
     build:
       context: ./gateway
+    # Stable local tag -- see the same note on allocator above.
+    image: gitopsdojo/gateway:local
     container_name: workshop_gateway
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
@@ -215,6 +235,9 @@ services:
       - workshop_lab
       - web_lab
     restart: unless-stopped
+    # Backstop, same reasoning as git-server's above -- Caddy proxying 30
+    # concurrent sessions is still lightweight, this is just a ceiling.
+    mem_limit: ${GATEWAY_MEM_LIMIT:-256m}
 
 volumes:
   terminal_home:
