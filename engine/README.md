@@ -309,6 +309,18 @@ cd engine
 ./run.sh list                  # see available workshops
 ```
 
+**Tab-completion.** The first time you run `./run.sh` in an interactive
+terminal, it offers to wire up completion for workshop names, `list`/`stop`/
+`teardown`, and `--test` — for bash or zsh, whichever `$SHELL` says you're
+using (`engine/scripts/install-completion.sh`). Say yes and it appends two
+lines to `~/.bashrc`/`~/.zshrc`, sourcing the matching script under
+`engine/completions/`; say no, and it won't ask again (tracked in
+`engine/.build-state/`, gitignored) — source the file yourself later if you
+change your mind. Never prompts outside a real terminal (CI, `--test` bot
+runs, etc. are unaffected), and does nothing at all for a shell it doesn't
+recognize (e.g. PowerShell) beyond pointing you at `engine/completions/` to
+wire up by hand.
+
 `run.sh` picks the workshop's content/org/repo from
 `workshops/<name>/workshop.env`, builds the base terminal image, layers on
 that workshop's Compose overlay if it has one, and brings the stack up —

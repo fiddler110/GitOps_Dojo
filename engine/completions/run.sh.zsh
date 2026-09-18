@@ -2,10 +2,14 @@
 #
 # Usage:
 #   type `./run.sh <TAB>` (from inside engine/) and it lists workshop names
-#   plus `list`, same as `./run.sh list` would show.
+#   plus `list`, `stop`, `teardown`; after a workshop name, <TAB> offers
+#   `--test`.
 #
 # Install: source this file from your ~/.zshrc, e.g.
 #   source /Users/Scott.MacLeod/Architecture/repos/GitOps_Dojo/engine/completions/run.sh.zsh
+#
+# (engine/scripts/install-completion.sh does this for you on first run of
+# ./run.sh, with confirmation.)
 #
 # This mirrors run.sh's own workshop-discovery logic (workshops/*/workshop.env
 # next to engine/), so it stays correct as workshops are added or removed —
@@ -18,7 +22,11 @@ _run_sh() {
   workshops_dir="${engine_dir}/../workshops"
 
   local -a entries
-  entries=("list:show available workshops")
+  entries=(
+    "list:show available workshops"
+    "stop:stop the stack, wipe all volumes"
+    "teardown:same as stop"
+  )
 
   local d name title
   if [ -d "$workshops_dir" ]; then
@@ -30,7 +38,14 @@ _run_sh() {
     done
   fi
 
-  _describe 'workshop' entries
+  if [ "$CURRENT" -eq 2 ]; then
+    _describe 'workshop' entries
+  elif [ "$CURRENT" -eq 3 ]; then
+    case "${words[2]}" in
+      list | stop | teardown) ;;
+      *) _values 'option' '--test[also spin up demo/test bot students]' ;;
+    esac
+  fi
 }
 
-compdef _run_sh run.sh
+compdef _run_sh run.sh ./run.sh

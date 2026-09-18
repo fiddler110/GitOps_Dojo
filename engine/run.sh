@@ -33,6 +33,12 @@ set -eu
 
 cd "$(dirname "$0")"
 
+# One-time, interactive offer to wire up shell tab-completion (workshop
+# names, list/stop/teardown, --test) -- see the script for why this is
+# safe to call on every run (no-ops after the first decision, and in any
+# non-interactive context such as CI or a --test bot run).
+[ -f ./scripts/install-completion.sh ] && ./scripts/install-completion.sh
+
 if [ "${1:-}" = "stop" ] || [ "${1:-}" = "teardown" ]; then
   exec ./scripts/teardown.sh
 fi
