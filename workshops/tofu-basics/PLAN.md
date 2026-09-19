@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 reached — Track A shippable; provider = real `azurerm`. Next: P3 control plane** |
+| Overall status | **M1 + M2 + M3 reached — a student can init→apply→browse→destroy on Dojo Cloud. Next: P4 portal** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-18 (P0–P2 done) |
+| Last updated | 2026-09-18 (P0–P3 done) |
 
 ---
 
@@ -89,7 +89,7 @@ Update this table whenever a phase changes state.
 | P0 | Prep & repo hygiene | **done** | |
 | P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
 | P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
-| P3 | Control plane ("cloud-api") + cloud host | not started | **M3: one student can deploy end-to-end** |
+| P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
 | P4 | Portal (Azure-inspired console) | not started | |
 | P5 | Gateway / allocator integration | not started | |
 | P6 | Lab content — Track B | not started | |
@@ -597,26 +597,26 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 *Execute exactly one path, per D1.*
 
 **Path T2 (ARM facade)**
-- [ ] **T3.1** PKI: CA + server cert generated at start into `cloud_pki`;
+- [x] **T3.1** *(`6301cc8`; PKI: CA+server cert in cloud-api's private `/data/pki`, only the CA cert is shared via `cloud_pki`. Verified `curl --cacert` + provider trust; plain `curl` needs `CURL_CA_BUNDLE`, added to the broker but **not yet rebuilt/verified**)* PKI: CA + server cert generated at start into `cloud_pki`;
       terminal trust wiring. *Verify:* `curl https://management.dojo.cloud/metadata/endpoints…` from a student shell without `-k`.
-- [ ] **T3.2** Identity: broker (SO_PEERCRED) + `dojo-env` + signing key in
+- [x] **T3.2** *(`6301cc8`; broker + `dojo-env` + HMAC secrets; verified: distinct subscriptions per student, cross-student write → `AuthorizationFailed` 403, signing key unreadable by students)* Identity: broker (SO_PEERCRED) + `dojo-env` + signing key in
       `cloud_secrets`; token endpoint; subscription derivation. *Verify:* two
       students get different subscriptions; student A's token is rejected on
       student B's subscription path (403); a student cannot read the signing key.
-- [ ] **T3.3** ARM resources: subscriptions, resource groups, container groups
+- [x] **T3.3** *(`6301cc8`; PUT/PATCH/GET/DELETE + lists; **PATCH is required for tag edits** — found by testing; LRO not implemented, provider's own poll ticks make apply ≈35 s)* ARM resources: subscriptions, resource groups, container groups
       (PUT/GET/DELETE/list, LRO, ARM-shaped errors). *Verify:* provider contract
       test from T2.2 still passes.
-- [ ] **T3.4** Policy engine (§6.3 catalogue) with unit tests. *Verify:* each
+- [x] **T3.4** *(`6301cc8`; 19 unit tests + live checks of every policy error through the real provider)* Policy engine (§6.3 catalogue) with unit tests. *Verify:* each
       policy produces its documented error.
-- [ ] **T3.5** Quotas + per-container caps. *Verify:* 3rd container group →
+- [x] **T3.5** *(`6301cc8`; live: 3rd group → `QuotaExceeded`, 2 allowed)* Quotas + per-container caps. *Verify:* 3rd container group →
       `QuotaExceeded`.
-- [ ] **T3.6** Executor: fixed-template `docker run` on `cloud-host`; deletion;
+- [x] **T3.6** *(`6301cc8`; fixed-template `build_create_request` tested for forbidden keys/clamping/allow-list; **a fuzz test over the raw HTTP body is still to do in P9**)* Executor: fixed-template `docker run` on `cloud-host`; deletion;
       status/instanceView; log fetch; startup reconcile. *Verify:* no request can
       make the executor pass an unlisted flag (fuzz test on inputs).
-- [ ] **T3.7** Site ingress `/cloud/site/<label>/` → container port, reachable
+- [x] **T3.7** *(`6301cc8`; `/cloud/site/<label>/` proxy with CSP `sandbox`, verified from a student terminal on `cloud-api:8080`; **gateway route is P5, browser check pending**)* Site ingress `/cloud/site/<label>/` → container port, reachable
       via gateway. *Verify:* browser shows student's message.
-- [ ] **T3.8** Activity log store + API.
-- [ ] **T3.9** `cloud-host` hardening: `mem_limit`, `pids_limit`, no published
+- [x] **T3.8** *(`6301cc8`; recorded in state; **read API arrives with the portal, P4**)* Activity log store + API.
+- [x] **T3.9** *(`6301cc8`; cloud-host on `internal: true`, no host ports, unix socket only, mem/pids limits; verified no internet from host or container, not resolvable from students. **M3 reached.**)* `cloud-host` hardening: `mem_limit`, `pids_limit`, no published
       ports, internal net only. **M3 reached:** one real student completes
       init→apply→browse→destroy.
 
@@ -814,6 +814,45 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - **Next:** P3 — real `cloud-api` (auth, subscriptions, policy, executor to
   `cloud-host`, activity log) + `cloud-host` service + broker in the terminal
   wrapper, wired into the compose overlay.
+
+### 2026-09-18 (night) — P3 Dojo Cloud control plane → M3
+- Built and committed (`6301cc8`): `compose/cloud-host/` (privileged dind, internal
+  net, unix socket only, hello 1.0/2.0 imported offline from a busybox rootfs),
+  `compose/cloud-api/` (`server.py`, `auth.py`, `policy.py`, `docker_api.py`,
+  `state.py`, `pki.py` + tests), terminal side (`dojo-broker.py`, `dojo-env`,
+  `entrypoint-wrapper.sh`, `unpack-mirror.py`, azurerm added to the mirror), the
+  full overlay, and `compose/test_parity.py` (broker ⇄ auth.py must agree).
+- **Verified live as `student01` in the running stack:** `terraform init` (28 KB
+  `.terraform`, symlinked provider) → `apply` (≈35 s: RG 20 s + container group
+  ~14 s, due to the provider's poll ticks) → site reachable via `cloud-api:8080/cloud/site/<label>/`
+  from another student's terminal → clean re-plan → tag edit = in-place `~`
+  (PATCH) → env edit = `-/+` replace, site shows new message → 3rd container
+  group refused (`QuotaExceeded`) → out-of-band container delete = `+ create`
+  on plan, `apply` reconciles → `destroy` leaves 0 containers → cloud-api restart
+  keeps state (reconciled 1 CG, 1 RG). Track A regression OK on the unpacked mirror.
+- Policy errors verified through the real provider (`InvalidImage`,
+  `InvalidResourceRequest`, `InvalidContainerGroupName`, `InvalidRequestContent`
+  for port 22, `RequestDisallowedByPolicy` for region). Missing-tag policy was
+  exercised on PATCH/PUT by unit tests; **re-verify the missing-tag message live in P6.**
+- **Surprises / things to remember:**
+  1. A `plan` in a directory with no state never contacts the cloud — to test authz
+     you must `apply`. (Used in lab text: "plan only looks; apply is what talks".)
+  2. When a *replacement* is rejected by policy (e.g. bad image), Terraform has
+     already destroyed the old container — the site is gone until fixed. Real
+     cloud behaviour; mention in Lab 6 ("policy failures happen at create time").
+  3. `provider "azurerm" { features {} }` must be multi-line HCL.
+  4. `podman rm -f` of `workshop_cloud_api` silently fails because the terminal
+     depends on it → use `./run.sh stop` then start; compose does **not** recreate
+     a running container after an image rebuild.
+  5. Sizes: `cloud-host` image 369 MB, `cloud-api` 52 MB, `:tofu-basics` terminal
+     **1.13 GB** (base 692 MB). Idle memory: cloud-host ~58 MB, cloud-api ~13 MB.
+     (Per-container mem while running 30 hello containers still to measure — P9.)
+- **Not done / deliberately deferred:** the portal + activity-log read API (P4),
+  gateway/allocator integration (P5, needs D4), Track B starter files, lock file
+  with azurerm hashes, labs and slides (P6/P7), `CURL_CA_BUNDLE` rebuild check,
+  the 30-student load test (P9).
+- **Next task: P4 (portal)** — then P5, P6. See §12. The user asked to stop for the
+  night after P3, so nothing from P4 has been started.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
