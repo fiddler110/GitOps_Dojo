@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **PLANNING COMPLETE — no implementation started** |
-| Working branch | *(none yet — create in T0.1)* |
-| Last updated | 2026-09-18 |
+| Overall status | **M1 reached — Track A shippable. Next: P2 provider spike** |
+| Working branch | `feat/tofu-basics` (planning commit is on `main`) |
+| Last updated | 2026-09-18 (P0+P1 done) |
 
 ---
 
@@ -86,8 +86,8 @@ Update this table whenever a phase changes state.
 
 | Phase | Title | Status | Milestone |
 |---|---|---|---|
-| P0 | Prep & repo hygiene | not started | |
-| P1 | Track A — offline sandbox + terminal image | not started | **M1: Track A shippable** |
+| P0 | Prep & repo hygiene | **done** | |
+| P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
 | P2 | Provider-strategy spike (gate D1) | not started | **M2: provider decision made** |
 | P3 | Control plane ("cloud-api") + cloud host | not started | **M3: one student can deploy end-to-end** |
 | P4 | Portal (Azure-inspired console) | not started | |
@@ -123,17 +123,22 @@ Never build on an **assumed** item without first proving it (each has a task).
 | Slide decks are Marp with `assets/themes/presentation.css`; each workshop has `index.md`, `presentation.md`, `labs.md`, `cheat-sheet.md` | `workshops/dns-as-code/content/slides/presentation.md`, `workshops/cert-autorenewal/content/slides/` |
 | Lab content layout: `content/{slides,lab,sample-repo}`; `lab/` is seeded to each student's `~/lab`, `sample-repo/` is seeded into Forgejo | `workshops/README.md` |
 | `/home/scott/Development/GitOps_Dojo` has **~22 modified + 2 untracked files unrelated to this work** at planning time | `git status` snapshot |
+| **Lab flow (T0.3):** `content/lab/` is copied into each student's `~/lab` (`cp -Rn`, README.md symlinked); students `git clone http://git-server:3000/<FORGEJO_ORG>/<FORGEJO_REPO>.git` (anonymous clone works) and **push with student account + password `student123`** (VS Code popup / ttyd prompt). `sample-repo/` is what bootstrap seeds into Forgejo | live stack test, 2026-09-18 |
+| **Base `HEALTHCHECK` sends `X-Control-Token: ${CONTROL_TOKEN}`**; workspace-control returns 403 otherwise. The restated healthchecks in `dns-as-code` and `cert-autorenewal` Dockerfiles still lack the header → those workshops' terminals report *unhealthy* (pre-existing, not fixed here) | `engine/web-terminal/Dockerfile:259`; observed |
+| The stack builds/runs with **podman + podman-compose** here (no docker). `./run.sh <w> --test 2` starts 2 bots; a re-run does **not** recreate a running container after an image rebuild → `./run.sh stop` first | run.sh; observed |
+| Marp presentation container **exits 0 with a help dump if `content/slides/` is empty** → a workshop needs at least one slide file | observed |
+| `azurerm` provider docs list `metadata_host` (`ARM_METADATA_HOSTNAME`), `client_secret` auth, `environment`, `resource_provider_registrations` — the knobs the T2 design needs. Registry latest: `azurerm` 5.6.0, `azapi` 2.12.0 | provider docs (main branch) |
 | `infra/corp-dev/gdojo-cc/` (referenced by `workshops/README.md` for Azure delivery) **does not exist in this checkout** | `ls infra` failed |
 
 ### Assumed — must be proven (task in brackets)
 
 | Assumption | Proven by |
 |---|---|
-| OpenTofu keeps Terraform's on-disk names (`.terraform/`, `.terraform.lock.hcl`, `terraform.tfstate`, `*.tf`, `*.tfvars`) so the alias is seamless | T1.1 |
-| A `terraform → tofu` **symlink in `/usr/local/bin`** works in zsh, tmux, ttyd and the code-server terminal | T1.1 |
-| `TF_CLI_CONFIG_FILE` / env vars set for the terminal reach student shells after `su` | T1.2 (fallback: `/etc/zsh/zshenv` + `/etc/profile.d`) |
-| Offline `tofu init` works from a **filesystem mirror** | T1.2 (`docker run --network none`) |
-| A HCL syntax-highlighting extension is available on Open VSX and works offline with its language server disabled (`hashicorp.terraform` or `opentofu.vscode-opentofu`) | T1.3 |
+| ✅ *(proven T1.1)* OpenTofu keeps Terraform's on-disk names (`.terraform/`, `.terraform.lock.hcl`, `terraform.tfstate`, `*.tf`, `*.tfvars`) so the alias is seamless | T1.1 |
+| ✅ *(proven T1.1: sh, zsh, tmux; ttyd/code-server share zsh)* A `terraform → tofu` **symlink in `/usr/local/bin`** works in zsh, tmux, ttyd and the code-server terminal | T1.1 |
+| ✅ *(proven T1.2: exported from `/etc/zsh/zshenv`; survives `su -`)* `TF_CLI_CONFIG_FILE` / env vars set for the terminal reach student shells after `su` | T1.2 (fallback: `/etc/zsh/zshenv` + `/etc/profile.d`) |
+| ✅ *(proven T1.2 with `--network none` and in the live stack)* Offline `tofu init` works from a **filesystem mirror** | T1.2 (`docker run --network none`) |
+| ✅ *(installed; visual check pending P9)* A HCL syntax-highlighting extension is available on Open VSX and works offline with its language server disabled (`hashicorp.terraform` or `opentofu.vscode-opentofu`) | T1.3 |
 | **`azurerm` (or `azapi`) can run init/plan/apply/destroy against a custom ARM-compatible endpoint** via `metadata_host` (used upstream for Azure Stack/sovereign clouds) with a mocked token endpoint | **T2.2 — the big one** |
 | `azurerm_container_group` change behaviour (which attribute edits are in-place `~` vs replace `-/+`) matches what the lab teaches | T2.2 (record real plan output; rewrite lab text to match) |
 | `docker:dind` can run privileged on an `internal: true` network with images preloaded via `docker load` | T2.1 |
@@ -331,8 +336,7 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 
 Working repo: students clone the seeded Forgejo repo (`content/sample-repo`,
 "starter IaC") so the GitOps thread from earlier sessions continues (commit
-their `.tf`, ignore state). **T0.3 must confirm exactly how dns-as-code splits
-`lab/` vs `sample-repo/` and copy that flow.**
+their `.tf`, ignore state). *(T0.3 confirmed the flow — see §3: labs clone from Forgejo, push with the student account.)*
 
 ### Track A — "Sandbox" (offline, ~35 min, zero risk)
 
@@ -436,41 +440,41 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P0 — Prep & repo hygiene
 
-- [ ] **T0.1** Decide what to do with the unrelated uncommitted changes (commit
+- [x] **T0.1** *(done 2026-09-18: unrelated changes committed on `main` as `a24f08b`, plan as `b5bdb7a`, pushed; branch `feat/tofu-basics` created)* Decide what to do with the unrelated uncommitted changes (commit
       them separately or stash), then create branch `feat/tofu-basics`.
       *Verify:* `git status` clean apart from this workstream; `git branch`.
-- [ ] **T0.2** Skeleton: `workshop.env` (no overlay yet), empty `content/` tree,
+- [x] **T0.2** *(`ef3e36a`)* Skeleton: `workshop.env` (no overlay yet), empty `content/` tree,
       `README.md` stub. *Verify:* `cd engine && ./run.sh list` shows the workshop.
-- [ ] **T0.3** Study `workshops/dns-as-code` and `cert-autorenewal`: how `lab/`
+- [x] **T0.3** *(findings in §3/§9; done 2026-09-18)* Study `workshops/dns-as-code` and `cert-autorenewal`: how `lab/`
       vs `sample-repo/` are used, how `labs.md`/`index.md` link, how bots
       (`--test`, `engine/web-terminal/bot-runner.sh`) drive a workshop. Write
       findings into §3 and §9. *Verify:* §9 no longer says "T0.3 must confirm".
-- [ ] **T0.4** Choose and pin OpenTofu version; record version + amd64/arm64
+- [x] **T0.4** *(recorded in §16)* Choose and pin OpenTofu version; record version + amd64/arm64
       sha256 in §16. Also pin provider versions (`local`, `random`, and per D1).
       *Verify:* checksums recorded and match the release page.
 
 ### P1 — Track A (offline) + terminal image → **M1**
 
-- [ ] **T1.1** `compose/terminal/Dockerfile`: `FROM gitopsdojo/web-terminal:base`;
+- [x] **T1.1** *(`ef3e36a`)* `compose/terminal/Dockerfile`: `FROM gitopsdojo/web-terminal:base`;
       install pinned `tofu`; `terraform` symlink; restate HEALTHCHECK.
       *Verify:* in the built image, `terraform version` prints "OpenTofu";
       works in `sh -c`, zsh, and inside tmux; proves §3 assumptions 1–2.
-- [ ] **T1.2** Provider mirror + `tofurc` + env plumbing. *Verify:*
+- [x] **T1.2** *(`ef3e36a`; image +190 MB over `:base` 692→882 MB)* Provider mirror + `tofurc` + env plumbing. *Verify:*
       `docker run --rm --network none gitopsdojo/web-terminal:tofu-basics …`
       (as a student user) `tofu init` succeeds offline in the sandbox. Confirm
       `TF_CLI_CONFIG_FILE` survives `su`; else use zshenv fallback. Record
       image size delta.
-- [ ] **T1.3** HCL editor support (pinned `.vsix`, sha256, language server off).
+- [x] **T1.3** *(`ef3e36a`; installed + listed by code-server, LS default off. **Visual highlight check in a browser still to do at P9**)* HCL editor support (pinned `.vsix`, sha256, language server off).
       *Verify:* `.tf` file highlighted in code-server; no network errors in
       console beyond the known baseline.
-- [ ] **T1.4** `compose/docker-compose.override.yml` (web-terminal image tag
+- [x] **T1.4** *(`ef3e36a`; `:base` not clobbered)* `compose/docker-compose.override.yml` (web-terminal image tag
       `gitopsdojo/web-terminal:tofu-basics`, correct `engine/`-relative paths),
       set `COMPOSE_OVERLAY` in `workshop.env`. *Verify:* `./run.sh tofu-basics`
       starts; base `:base` tag not clobbered (`docker images`).
-- [ ] **T1.5** Track A starter (`sandbox/`) + Labs 0–3 + cheat sheet (Track A
+- [x] **T1.5** *(`ef3e36a`; verified as student01 in the live stack incl. clone + push)* Track A starter (`sandbox/`) + Labs 0–3 + cheat sheet (Track A
       part). *Verify:* a fresh student account completes Labs 0–3 with the
       exact commands and gets the documented output.
-- [ ] **T1.6** Add table row to `workshops/README.md`; commit. **M1 reached:**
+- [x] **T1.6** *(`ef3e36a`)* Add table row to `workshops/README.md`; commit. **M1 reached:**
       Track A runs end-to-end and could be delivered alone.
 
 ### P2 — Provider-strategy spike → **M2** (time-box: about half a day)
@@ -660,7 +664,39 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - Open items needing user input before/at P2–P3: D2 (privileged dind ok?), D3
   (broker vs shared secret), D4 (touch base Caddyfile/allocator?), D5/D6
   defaults.
-- **Pinned versions / checksums:** *(fill in at T0.4)*
+- **Pinned versions / checksums (T0.4, recorded 2026-09-18):**
+  - OpenTofu **1.12.6** — sha256 amd64 `50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec`,
+    arm64 `9bd0228a81bcd0c88f7045c74378f45a815779f19897191dff7d9efba9976b9e`
+    (from the release's `tofu_1.12.6_SHA256SUMS`).
+  - Providers (mirrored into the image): `hashicorp/random` **3.9.1**, `hashicorp/local` **2.9.1**.
+    Registry latest seen for P2: `hashicorp/azurerm` 5.6.0, `Azure/azapi` 2.12.0.
+  - OpenTofu VS Code extension **0.6.3** (Open VSX, `OpenTofu.vscode-opentofu`) — sha256
+    linux-x64 `ed0cbd5b8869b7adcc5f1d8fcec5ce573b9e46f4e57ecc66c3d535763a3a85fd`,
+    linux-arm64 `94755ee6cd3bd4e90c6c05768f952ed272152e4eb4f836d37d97a612a68045d2`.
+
+### 2026-09-18 — Implementation: P0 + P1 (Track A) — M1
+- User said "commit everything and push it, then start implementing the plan".
+  Committed the unrelated engine work on `main` (`a24f08b`), the plan
+  (`b5bdb7a`), pushed `main`, created `feat/tofu-basics`.
+- **Decisions D2–D6:** the user green-lit implementation without answering the
+  open questions, so the **defaults in §4 are being used** (privileged dind on an
+  isolated net, SO_PEERCRED broker, additive `/cloud*` route, `uksouth`, quota
+  2 × 0.25 vCPU/128 MB). They are *not* re-confirmed — flag them in the next
+  hand-off so the user can veto. D4 is not exercised until P5.
+- Built T0.2–T0.4 and T1.1–T1.6 (commit `ef3e36a`): terminal image with OpenTofu
+  1.12.6, `terraform` symlink, offline mirror + `tofurc` via `/etc/zsh/zshenv`,
+  OpenTofu VS Code extension (LS off), starter repo, Labs 0–3, cheat sheet.
+- Verified: `terraform version` in sh/zsh/tmux; `--network none` init/apply as a
+  student; full Track A run + clone + push as `student01` in the live stack;
+  `:base` tag intact; terminal healthy after the healthcheck fix.
+- Surprises: (1) stale restated HEALTHCHECKs in the other two workshops (see §3);
+  (2) a shipped multi-platform `.terraform.lock.hcl` removes the "incomplete lock
+  file" warning that mirror installs otherwise print; (3) editing `learner` gives
+  a plan with both `~` (terraform_data) and `-/+` (local_file) — used in Lab 2;
+  (4) Marp exits on empty slides dir → placeholder `index.md` added.
+- Image size: `:tofu-basics` 882 MB vs `:base` 692 MB (+190 MB).
+- **Next:** P2 provider-strategy spike (T2.1 cloud-host dind; T2.2 fake ARM
+  facade vs `azurerm` 5.6.0). Slides (P7) still only a placeholder hub.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
