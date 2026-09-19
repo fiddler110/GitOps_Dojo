@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached; P4 portal done. Next: P5 gateway/allocator route (needs your OK on D4 first)** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). Next: P6 Track B labs (approved) — start from a rebuilt stack** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-19 (P0–P4 done) |
+| Last updated | 2026-09-19 (P0–P5 done; D2–D6 all decided) |
 
 ---
 
@@ -93,7 +93,7 @@ Update this table whenever a phase changes state.
 | P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
 | P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
 | P4 | Portal (Azure-inspired console) | **done** (`49c168e`; gateway/browser-through-gateway check moves to P5) | |
-| P5 | Gateway / allocator integration | not started | |
+| P5 | Gateway / allocator integration | **done** (`a2eb28f`; facilitator progress board `1b22631`) | |
 | P6 | Lab content — Track B | not started | |
 | P7 | Slides | not started | |
 | P8 | Docs, registration, capacity, delivery | not started | |
@@ -158,11 +158,11 @@ Never build on an **assumed** item without first proving it (each has a task).
 | D0b | Deliver **Track A + Track B** | ✅ DECIDED (user) | A = offline sandbox, B = "Dojo Cloud". A doubles as fallback if the cloud host misbehaves mid-session. |
 | D0c | Cloud should feel like **Azure** | ✅ DECIDED (user) | Azure *concepts, naming, resource shapes, policy errors, portal layout* — no Microsoft logos/marks. Brand is "Dojo Cloud". |
 | D1 | **Provider strategy for Track B** | ✅ DECIDED 2026-09-18 by spike P2: **T2 — real `azurerm` 5.6.0 → ARM facade** (azapi + docker fallback not needed) | Option **T2** (preferred): real `azurerm` (fallback `azapi`) → a small ARM-compatible facade. Option **T1** (fallback): `kreuzwerker/docker` → policy-filtering Docker API proxy with mTLS. See §5.4. |
-| D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (privileged dind, isolated; see §15a-A) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
-| D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ⚠ **BUILT AT DEFAULT (a), NOT CONFIRMED** (see §15a-A) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
-| D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ⏳ PENDING — **not yet exercised (needed at P5); confirm with the user before editing any base-engine file** | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
-| D5 | Default region / subscription / naming values | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (`canadacentral`; `rg-`/`ci-` prefixes enforced by policy) | Default region `canadacentral`; change freely in `variables.tf`. |
-| D6 | Per-student quota | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (2 container groups, 0.25 vCPU, 0.125 GB each) | Sized in §14. |
+| D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ✅ **CONFIRMED (user, 2026-09-19):** privileged dind, isolated (see §7, §15a-A) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
+| D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ✅ **CONFIRMED (user, 2026-09-19): (a) broker with `SO_PEERCRED`** (see §15a-A) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
+| D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ✅ **DECIDED — user green-lit P5 (2026-09-19); built in P5** (`CLOUD_ENABLED`, `@cloud` route, landing card, facilitator Dojo Cloud tab) | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
+| D5 | Default region / subscription / naming values | ✅ **DECIDED (user, 2026-09-19: Canadian audience)** (`canadacentral`; `rg-`/`ci-` prefixes enforced by policy) | Default region `canadacentral`, the only other allowed one is `canadaeast`; change freely in `variables.tf`. |
+| D6 | Per-student quota | ✅ **DECIDED (user delegated the sizing, 2026-09-19)** (2 container groups, 0.25 vCPU, 0.125 GB each; `cloud-host` `mem_limit` 3 GB) | 2 groups is dictated by Lab 9 (Lab 5 hello + a two-instance `for_each` = 3 → `QuotaExceeded`; a limit of 3 would break it). The per-container numbers are caps, not reservations; students cannot run their own code (fixed image allow-list), so real use is a few MB each. 60 containers ≈ well under 1 GB expected; **T9.3 measures it and may lower the 3 GB ceiling.** |
 | D7 | Should students see each other's deployed sites? | ✅ DEFAULT yes (read-only "Class view") | Any authenticated session may **browse** any site; only the owner can **change** anything. |
 
 **Gate rule:** P3 could not start until D1 was decided — done (D1 = `azurerm`, so the
@@ -402,6 +402,47 @@ Portal-initiated changes must appear in the activity log with operation text tha
 `curl -H 'X-Auth-User: student01' -H "X-Gateway-Token: $GATEWAY_TOKEN" http://cloud-api:8080/cloud/api/me`.
 The gateway route (`/cloud*`) is P5 and is not needed to test P4.
 
+### 5.6a Class progress board (P5 addition — facilitator only)
+
+Principle (repo `CLAUDE.md`): the facilitator has access to every part of an active workshop. Students see the
+state of *their* deployment in the portal; the facilitator sees **everyone's, live, as they come up**, in the same
+portal (also embedded as the "Dojo Cloud" tab of `/admin`, which opens `/cloud/#/progress`).
+
+`GET /cloud/api/admin/progress` — facilitator only (same check as the other `admin/*` routes: 403 for students,
+401/403 auth rules unchanged). Built from data the control plane already records (resource groups, container
+groups, the activity log); **no new state, no Docker call under `State.lock`**, container state comes from the same
+cached `_running()` set as `overview`. Response:
+
+```json
+{ "generatedAt": "2026-09-19T12:00:00Z",
+  "summary":  { "total": 30, "notStarted": 12, "inProgress": 3, "running": 14, "attention": 1 },
+  "students": [ {
+      "user": "student01", "subscriptionId": "…",
+      "stage": "notStarted | inProgress | running | attention",
+      "resourceGroups": 1,
+      "containerGroups": [ { "name": "hello", "resourceGroup": "rg-x", "state": "Running|Terminated|Unknown", "siteUrl": "/cloud/site/<label>/" } ],
+      "lastEvent": null,
+      "failures": 0 } ] }
+```
+`lastEvent` is `null` or `{ "time", "operation", "status", "message" }` (message ≤ 200 chars) — the student's most
+recent activity-log entry. `failures` = that student's `Failed` events in the last 15 minutes. `students` = every
+roster user (students and demo bots) **except the facilitator**, in roster order. `stage`, first match wins:
+1. `attention` — the student's most recent event has status `Failed`, **or** any of their container groups is `Terminated`;
+2. `running` — at least one container group and all of them `Running`;
+3. `inProgress` — otherwise, if they have any resource group, container group (e.g. `Unknown` state) or event
+   (this is the "apply is part-way" state: the RG exists before the container does; also a drift-demo delete lands here);
+4. `notStarted`.
+`summary` counts the four stages; `total` = `len(students)`. Every string is student-controlled → SPA uses textContent only.
+
+SPA (facilitator only; students never see the nav item, and `#/progress` shows the ordinary "not found/forbidden"
+state for them): nav entry **Class progress** → `#/progress`. A summary strip ("14 of 30 running · 3 in progress ·
+1 needs attention · 12 not started"), then one tile per student: name, stage badge (**text label, not colour alone**),
+container list with state, "last: <operation> · <status> · <n>s ago" (relative time re-rendered on each 3 s poll),
+failure count when > 0, and a link to that student's container/site where one exists. Sort control: roster order /
+needs attention first / most recently active. A tile whose stage changed since the previous poll is briefly
+highlighted (skipped under `prefers-reduced-motion`). Empty/loading/error states like the other views; polling
+pauses when the tab is hidden, like the others.
+
 ---
 
 ## 6. Making it feel like Azure
@@ -419,7 +460,7 @@ environment — not affiliated with Microsoft."*
 | Tenant | one fixed tenant GUID for the class |
 | Subscription | one per student, GUID derived deterministically from username (`uuid5`) — isolation boundary |
 | Resource group | first-class resource in ARM facade; portal blade; label `dojo.rg=<name>` on containers |
-| Region / location | label + policy: allowed `canadacentral`, `ukwest`, `westeurope`, `eastus` (others → policy denial) |
+| Region / location | label + policy: allowed `canadacentral`, `canadaeast` only (Canadian data residency; any other region → policy denial) |
 | Azure Container Instances (`containerGroups`) | container on `cloud-host`, shaped as an ACI container group |
 | Resource ID | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerInstance/containerGroups/<name>` shown everywhere |
 | Tags | container labels; **required tags** policy (`owner`, `env`) |
@@ -709,12 +750,26 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P5 — Gateway / allocator integration (D4)
 
-- [ ] **T5.1** `CLOUD_ENABLED` in allocator (+ `tool=cloud` auth-check, landing
-      button) and `engine/docker-compose.yml` env line, mirroring `DEMO_APP_*`.
-- [ ] **T5.2** Caddyfile `@cloud path /cloud*` block with `forward_auth`.
-- [ ] **T5.3** Overlay sets `CLOUD_ENABLED=1`. *Verify:* button appears only for
-      this workshop; other workshops unchanged (`./run.sh git-fundamentals`
-      regression check); unauthenticated request to `/cloud/site/…` is refused.
+- [x] **T5.1** *(`a2eb28f`)* `CLOUD_ENABLED` in allocator (+ `tool=cloud` auth-check, landing
+      button) and `engine/docker-compose.yml` env line, mirroring `DEMO_APP_*`. The allocator hands the resolved
+      identity back as `X-Cloud-User` (a student's identity lives only in their `dojo_session` cookie).
+- [x] **T5.2** *(`a2eb28f`)* Caddyfile `@cloud path /cloud /cloud/*` block with `forward_auth`, then `reverse_proxy
+      cloud-api:8080` with `header_up X-Auth-User {http.request.header.X-Cloud-User}` + `X-Gateway-Token` +
+      `-X-Cloud-User` (matcher is `/cloud` and `/cloud/*`, not `/cloud*`, so `/cloudy` is not caught).
+- [x] **T5.3** *(`a2eb28f`; verified live through the real gateway: 10/10 checks)* Overlay sets `CLOUD_ENABLED=1`.
+      Button appears only for this workshop; git-fundamentals and cert-autorenewal have no card and `/cloud/` → 404
+      (never 502); forged `X-Auth-User`/`X-Cloud-User`/`X-Gateway-Token` are overwritten by Caddy (checked against an
+      echo upstream); no session → 303, no auth → 401.
+- [x] **T5.4** *(`a2eb28f`; live-tested)* **Facilitator "Dojo Cloud" tab** in `/admin` (iframe of `/cloud/#/progress`,
+      only when `CLOUD_ENABLED=1`). Repo `CLAUDE.md` rule: the facilitator has access to every part of an active workshop.
+- [x] **T5.5** *(`1b22631`; live-tested with real azurerm applies, a real browser and 30 rostered students)* **Class
+      progress board** (§5.6a): `GET /cloud/api/admin/progress` + SPA `#/progress`, stages notStarted / inProgress /
+      running / attention, failure message inline on attention tiles. `admin/progress` p50 3 ms / p95 6 ms with 10
+      facilitator pollers; a real apply was seen moving `notStarted` → `inProgress` (+3.5 s) → `running` (+27 s).
+- [ ] **T5.6** *(from the live test, §15a-H)* Fix progress-board findings H1 (failure history evicted from the capped
+      activity log), H2 (bot roster naming), H3 (BrokenPipe noise), H4 (SIGTERM ignored). Owner: fix agent, then re-run offline tests.
+- [ ] **T5.7** Re-verify on a rebuilt stack (first thing in P6): `canadacentral` apply through real azurerm, `eastus`
+      rejected, attention tile shows a real policy message, and `podman stop` of cloud-api is quick.
 
 ### P6 — Lab content (Track B)
 
@@ -867,7 +922,7 @@ answering the open questions in §4. Everything below was built at the plan's de
 | D2 | `cloud-host` is a **privileged** Docker-in-Docker container on an `internal: true` network, unix socket only, no host ports, no internet. | The riskiest component. Boxed in by §7, but a privileged container is a privileged container. Change = re-architect the executor (`docker_api.py`) — say so early. |
 | D3 | **Broker with `SO_PEERCRED`** (root daemon in the terminal; each student gets only their own creds). | The alternative (shared class secret) is simpler but lets students impersonate each other. |
 | D4 | *(Not started.)* P5 needs a small additive edit to the **base** `engine/gateway/Caddyfile`, `engine/allocator/server.py`, `engine/docker-compose.yml` (a `CLOUD_ENABLED` flag mirroring `DEMO_APP_ENABLED`). | The user's repo policy is that base engine files stay workshop-agnostic. **Ask before editing.** |
-| D5 | Region `canadacentral`; policy forces `rg-` / `ci-` name prefixes and allows `canadacentral/ukwest/westeurope/eastus`. | Edit `compose/cloud-api/policy.py`. |
+| D5 | Region `canadacentral` (user, 2026-09-19: Canadian audience); policy forces `rg-` / `ci-` name prefixes and allows only `canadacentral` and `canadaeast`. | Edit `compose/cloud-api/policy.py`. |
 | D6 | Quota 2 container groups per student, 0.25 vCPU / 0.125 GB each, only `dojo/hello:1.0` and `:2.0`, only port 80. | Edit `policy.py` (and `MAX_*` in `docker_api.py` tests). |
 
 ### B. Problems found in OTHER workshops / the base engine (need updating; see tasks F.1–F.5)
@@ -1041,6 +1096,32 @@ Established by the live integration run (real `azurerm`, real browser); each is 
     by neither Claude nor its agents (verified: agents were told not to, and the integration agent reported it
     did not touch them). They were **deliberately not committed** with P4 — see the `git status` in §16.
 
+### H. Findings from P5 (added 2026-09-19; live-tested against the real gateway and stack)
+
+1. **Failure history can be evicted (medium).** The activity log is capped at 2000 events (`state.py`
+   `ACTIVITY_MAX`) and `_progress` derived `lastEvent`/`failures` from it. One student sending ~2100 failing PUTs
+   pushed other students' `Failed` events out, so 3 of 4 attention tiles fell back to `inProgress`. **Fix (T5.6):** a
+   small per-subscription summary maintained in `State.log()` and rebuilt from the persisted log; this replaces the
+   "no new state" rule in §5.6a.
+2. **Bot roster names differ (low).** cloud-api's roster (`auth.py`) uses `testuser01`, the engine's accounts are
+   unpadded (`testuser1`…). Board and `/admin` disagree and the broker cannot mint credentials for bots < 10. Fix in T5.6.
+3. **Stage can flip before the event is logged (low, cosmetic).** In portal delete, state removal and the log entry are
+   separate lock holds; a poll in between shows `inProgress` with the previous `lastEvent`. Next poll corrects it.
+   Left alone: T9.7 restructures this locking.
+4. **Noisy `BrokenPipeError` tracebacks (low)** when a client drops mid-response (cloud-api and once the allocator).
+   Fix cloud-api in T5.6 (the allocator one is base-engine code, not touched).
+5. **cloud-api ignores SIGTERM** (Python is PID 1, no handler) so stop/restart waits 10 s then SIGKILLs. Fix in T5.6.
+6. **Latency bug found and fixed in `a2eb28f`:** Nagle + delayed ACK stalled small cloud-api responses ~40 ms
+   (also slowed the real `azurerm` provider's calls). `disable_nagle_algorithm = True`; p50 47 ms → ~4 ms.
+7. `publicBaseUrl` from `/cloud/api/me` (and `TF_VAR_portal_base_url`) ignores the dev host port (`PUBLIC_BASE_URL`
+   has no `:8080`). Only matters on a dev box with a non-default port: **labs must not hard-code links from it.**
+8. Not caused by P5, recorded for the engine owner: the presentation image is rebuilt on every `./run.sh` (its
+   "source changed" check always fires); `engine_workshop_lab` network survives `./run.sh stop`; `/ide/` returned one
+   502 on the very first hit while code-server cold-started (a retry works).
+9. The root-only signing key is (correctly) unreadable to a test agent; bot credentials were therefore not minted.
+10. `/demo/` was only partly verified on cert-autorenewal (the card and the route reach the demo-app; its own 404
+    is nginx because nothing was pushed).
+
 ---
 
 ## 16. SESSION LOG (append-only, newest at the bottom)
@@ -1177,6 +1258,23 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   `workshops/README.md`); **not committed**, not touched (§15a-G10). Please confirm they are yours.
 - **Also still unconfirmed:** D2–D6 defaults (§15a-A) — flagged again at this hand-off.
 - **Next: P5** — stop and ask the user first (phase gate), and confirm D4.
+
+### 2026-09-19 — P5 gateway integration, facilitator progress board, decisions (`a2eb28f`, `1b22631`, `8ee8439`, `45afcb7`)
+- **Approach:** small base-engine edit done directly (D4, after the user's go-ahead), then a live-integration agent
+  through the real gateway (10/10 PASS; found and fixed the Nagle stall). The user then asked for a facilitator
+  Cloud tab and per-student live progress: contract written into §5.6a, backend and SPA built **in parallel by two
+  agents**, then a second live-integration agent (real azurerm applies, real browser, 30 rostered students): all 5
+  checks PASS. A follow-up made the failure message inline on attention tiles.
+- **Decisions (user):** D2 privileged-but-isolated dind **confirmed**; D3 (a) broker **confirmed**; D4 green-lit;
+  D5 **Canadian regions** (`canadacentral` default, `canadaeast`; policy now allows only those); D6 "size
+  appropriately" → kept 2 groups (Lab 9 needs it), cloud-host ceiling 3 GB, T9.3 to measure. Repo `CLAUDE.md`
+  created (git-ignored). Correction: an earlier hand-off said the default region was `uksouth`; that was the code's
+  value, `canadacentral` had wrongly entered the plan in `e2f0524` — both are now `canadacentral`.
+- **Commits:** `a2eb28f` P5 integration + Nagle fix + 3 GB ceiling; `1b22631` progress board; `8ee8439` Canadian
+  regions; `45afcb7` the user's own README/doc edits (their request, separate commit).
+- **Not verified live:** attention-tile message and `canadacentral` on the real stack (T5.7); real screen reader,
+  Firefox/Safari (P9).
+- **Next:** T5.6 fixes (in progress by an agent), then **P6 Track B** (approved by the user).
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
