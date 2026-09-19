@@ -336,7 +336,7 @@ with the hello image's entrypoint writing `index.html` from those env vars.
 
 *Spike harness (recreate if needed):* scratchpad `spike/` = private CA + server
 cert (SAN `dojo-cloud`), `podman network create spike-net`, facade container
-(`python:3.12-alpine` running `compose/cloud-api/arm_facade.py` with
+(`python:3.12-alpine` running the v0 `arm_facade.py` from commit `ec2f664` — superseded by `compose/cloud-api/server.py` — with
 `CLOUD_TLS_CERT/KEY`, alias `dojo-cloud`), and the tofu image run with
 `SSL_CERT_FILE`, the `ARM_*` vars above, `TF_CLI_CONFIG_FILE=` (empty, so
 azurerm downloads directly since it isn't in the mirror yet).
@@ -585,7 +585,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       preloaded base image, build `dojo/hello:1.0` inside it, run one container
       manually. *Verify:* container serves a page reachable only from
       `cloud_net`; nothing reachable from terminal; no internet.
-- [x] **T2.2** *(done; `compose/cloud-api/arm_facade.py` v0; see §5.5)* Minimal ARM facade (throwaway quality): metadata, token, resource
+- [x] **T2.2** *(done; the throwaway `arm_facade.py` v0 is in commit `ec2f664` and was superseded by `server.py` in P3; see §5.5)* Minimal ARM facade (throwaway quality): metadata, token, resource
       group, container group (with LRO headers). Point `azurerm` at it from a
       student terminal; run init/plan/apply/destroy. *Record:* exact endpoints
       the provider needs, JWT claims it inspects, real plan output for tag edit
@@ -623,14 +623,14 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       ports, internal net only. **M3 reached:** one real student completes
       init→apply→browse→destroy.
 
-**Path T1 (fallback: Docker API policy proxy)** — only if D1 = docker fallback
-- [ ] **T3-ALT.1** Identity via mTLS: broker issues per-student client certs;
+**Path T1 (fallback: Docker API policy proxy)** — **DROPPED: D1 = `azurerm`, so this path is not used** (kept only as a record)
+- [-] **T3-ALT.1** *(dropped — D1 = azurerm)* Identity via mTLS: broker issues per-student client certs;
       proxy maps cert CN → student.
-- [ ] **T3-ALT.2** Docker API reverse proxy with body inspection/rewrite:
+- [-] **T3-ALT.2** *(dropped — D1 = azurerm)* Docker API reverse proxy with body inspection/rewrite:
       deny privileged, mounts, host net/pid, cap_add, devices, unlisted images;
       force `--name` prefix, owner label, network per student, resource caps,
       external-port range per student; filter list/inspect to own resources.
-- [ ] **T3-ALT.3** Quotas, activity log, site ingress (as T3.7–T3.8), and a
+- [-] **T3-ALT.3** *(dropped — D1 = azurerm)* Quotas, activity log, site ingress (as T3.7–T3.8), and a
       replacement of `azurerm_*` starter code with `docker_*`.
 
 ### P4 — Portal
@@ -692,6 +692,15 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       escalate through any documented endpoint.
 - [ ] **T9.3** Load test with demo bots (`--test`): N students × full flow. **M4**
 - [ ] **T9.4** Human dry-run with 3–5 people; collect confusion points; fix labs.
+- [ ] **T9.6** *(added)* Turn the throw-away P3 checks into **committed** e2e scripts under
+      `workshops/tofu-basics/tests/` — the lifecycle run (init/apply/tag edit/replace/quota/drift/destroy/restart)
+      and the policy-violation run currently exist only in a lost session scratchpad (§15a-F). Include the
+      live missing-tag check and the `CURL_CA_BUNDLE` check.
+- [ ] **T9.7** *(added)* Concurrency: 30 students applying at once against one global lock (§15a-F) —
+      measure `apply` latency; if bad, narrow the lock (per-subscription) or move Docker calls outside it.
+- [ ] **T9.8** *(added)* Isolation checks not yet done: `--icc=false` really blocks container-to-container
+      traffic; a hello container cannot reach `cloud-host`'s own netns or `cloud-api`; re-review D2 under
+      **docker** (not rootless podman) before any Azure-VM delivery (§15a-F).
 - [ ] **T9.5** Regression: other workshops still start (`./run.sh git-fundamentals`,
       `dns-as-code`, `cert-autorenewal`). **M5: release-ready**
 
@@ -722,6 +731,11 @@ reviewable. Details and evidence are in §15a-B.
 - [ ] **F.4** Decide whether workshops should keep *restating* the base HEALTHCHECK at
       all (it drifted once; it will again). Options in §15a-B. Then update
       `workshops/README.md` "Adding a new workshop" step 4 accordingly.
+- [ ] **F.6** *(user review)* Commit `a24f08b` on `main` bundles ~24 unrelated in-flight engine changes
+      that were committed and pushed **on the user's instruction, without a line-by-line review by
+      Claude** — see §15a-F. Someone who owns that work should skim it.
+- [ ] **F.7** *(decision)* Base images `docker:dind` and `python:3.12-alpine` are unpinned tags in
+      the tofu-basics overlay — pin them (repo precedent is mixed) or accept the drift risk; §15a-F.
 - [ ] **F.5** Refresh the stale comment in `engine/web-terminal/Dockerfile:175` (says
       no workshop has a `.tf` file / `hashicorp.terraform` is not installed) and add a
       line to `engine/web-terminal/vscode-extensions.md`: the OpenTofu extension is now
@@ -878,6 +892,64 @@ answering the open questions in §4. Everything below was built at the plan's de
   design (§7). LRO (`Azure-AsyncOperation`) is not implemented — the provider's polling is what
   sets the timings above.
 
+### F. Other problems, risks and gaps found in the audit (added 2026-09-18, late)
+
+Each item says how it was established. **Verified** = observed/read in the repo or stack;
+**Reasoned** = follows from the code but not measured.
+
+1. **The `--test` demo bots do not exercise tofu-basics.** *Verified* (`engine/web-terminal/bot-runner.sh`
+   header): bots "work through the git-fundamentals labs" (clone/branch/edit/commit/push/PR). On this
+   workshop they will only produce git noise. So plan item T0.3's hope that bots "drive the workshop" does
+   not hold, and **T9.3's load test needs its own driver** (a script that runs the Track A/B commands per
+   student), not just `--test N`.
+2. **Only the unit tests are committed.** *Verified.* The live checks that proved M3 (lifecycle, policy
+   scenarios, isolation probes) were shell scripts in a session scratchpad that no longer exists. What survives
+   is the description in §16. → task **T9.6**.
+3. **One global lock serialises every ARM call.** *Verified in code* (`server.py`: `with st.lock:` around
+   resource-group and container-group handlers, **including GETs, and the Docker calls inside them**).
+   *Reasoned:* with ~30 students applying together, each PUT (~1–2 s of Docker work) queues behind the others,
+   and every `plan` refresh (a GET that calls `docker inspect`) waits too. **Not measured.** → task **T9.7**.
+4. **Privileged-container risk was assessed and tested only under *rootless podman*.** *Verified* (that is
+   all this machine has). Under rootless podman `privileged` is not real host root; under **docker** on the
+   Azure VM it is much closer to real root, so the D2 risk is higher there. The isolation controls in §7 are
+   the same, but they must be re-reviewed and re-tested on docker before that delivery. → **T9.8**, and D2.
+5. **Container-to-container isolation on `cloud-host` is unverified.** *Reasoned:* dockerd runs with
+   `--icc=false` and containers are launched with `CapDrop ALL`, `no-new-privileges`, memory/CPU/pids caps
+   (the caps and template are unit-tested), but nobody has tried to reach one hello container from another
+   or from a container to `cloud-api`. → **T9.8**.
+6. **Unpinned base images in the overlay.** *Verified:* `docker.io/library/docker:dind` and
+   `python:3.12-alpine` float (`busybox:1.37` is pinned). Repo precedent is mixed (`dns-as-code` uses a
+   `:latest` PowerDNS). Note the cloud-host build **fails on purpose** if upstream's `dockerd-entrypoint.sh`
+   changes shape (the `sed` + assertion that removes the unauthenticated `tcp://…:2375` listener) — a good guard,
+   but it will surface as a build failure after an upstream release. → **F.7**.
+7. **Private-CA certificates last 30 days** (CA and server cert, `pki.py`) and are only regenerated when the
+   files are missing. *Reasoned:* fine while `./run.sh stop` wipes volumes between workshops; a VM left up for
+   more than 30 days would break TLS. Low priority; note for the Azure delivery.
+8. **No rate limiting on the token endpoint.** *Reasoned:* secrets are 160-bit HMAC output, so guessing is
+   infeasible, but a student can hammer `login.dojo.cloud`/`management.dojo.cloud` and slow the class. Request
+   bodies are capped at 1 MB. Low priority.
+9. **Error messages say `tofu`, labs say `terraform`.** *Verified:* OpenTofu's own hints read
+   "run: tofu init" even when the student typed `terraform`. Not a bug, but Lab text and the troubleshooting
+   table should mention it so a student isn't puzzled (already noted once in Lab 0).
+10. **Commit `a24f08b` was made without a full review.** *Verified* (I read `git diff --stat` and a handful of
+    diffs, not the whole 902-line change) and it is **pushed to `main`**. It contains unrelated engine work:
+    the repo-root `run.sh`, a locally-built Alpine Marp image replacing `marpteam/marp-cli`, removal of code-server's
+    bundled Copilot runtime, teardown `--dry-run`, capacity-calc/env-setup/run.sh changes, code-server idle
+    timeouts, and fully-qualified `docker.io/library/…` image names. The commit *message* was written from that
+    partial view. → **F.6**.
+11. **Building the terminal image with plain `podman build`** drops the `HEALTHCHECK` (OCI format) and prints a
+    warning; `./run.sh` sets Docker format via `BUILDAH_FORMAT`. *Verified.* Always build through `./run.sh`
+    when checking health.
+12. **Benign noise to ignore:** dockerd logs "Failed to find nft tool" on `cloud-host` start (iptables path
+    is used); `run.sh` prints "Removed N superseded image(s)". *Verified*, harmless so far.
+13. **Local `.env` oddities** (not repo bugs): `PUBLIC_BASE_URL=http://localhost` with the gateway on 8080, so
+    portal links and `TF_VAR_portal_base_url` omit the port; the earlier `curl http://localhost/` returned 000
+    for the same reason.
+
+*Checked and found NOT to be a problem:* the base image no longer contains `ms-python.debugpy` (an older local
+base image did; the freshly built one doesn't); the gateway returning 401 on `/` and `/terminal/` without a
+session is expected.
+
 ---
 
 ## 16. SESSION LOG (append-only, newest at the bottom)
@@ -990,6 +1062,9 @@ answering the open questions in §4. Everything below was built at the plan's de
   new follow-up tasks **F.1–F.5** in §12, decision rows D2/D3/D5/D6 relabelled
   "built at default, not confirmed", D4 marked "ask before editing base files".
 - No code changed. Nothing in the other workshops was touched.
+- Second pass: audited the whole session for problems not yet written down → new §15a-F (13 items),
+  tasks **T9.6–T9.8** and **F.6–F.7**; marked the dropped T1 fallback tasks `[-]`; repointed stale
+  `arm_facade.py` references to commit `ec2f664`.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
