@@ -145,11 +145,7 @@ services:
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       # No weak fallback -- entrypoint.sh grants this account passwordful
       # sudo, so a missing value must fail closed instead of defaulting to
-      # a guessable password. On the Azure delivery path this arrives
-      # already set in .env (cloud-init writes it from the Terraform
-      # facilitator_password var, itself sourced from the pipeline's secure
-      # ADO Library group — see infra/corp-dev/gdojo-cc). Set a real value
-      # in .env for local/manual runs.
+      # a guessable password. Set a real value in .env.
       - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       # Per-process V8 heap cap for each spawned code-server -- see
       # workspace-control.py. A safety net under mem_limit below, not a

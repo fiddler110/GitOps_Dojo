@@ -43,11 +43,6 @@ cp .env.example .env       # first time only — account/secret settings, shared
    last build, reusing the existing local image otherwise.
 4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d`.
 
-On Azure, the same selection happens via Terraform instead — see
-[`infra/corp-dev/gdojo-cc/README.md`](../infra/corp-dev/gdojo-cc/README.md)
-and that folder's `workshops/*.tfvars` (one per workshop, applied
-with `-var-file=`).
-
 ## Two kinds of workshop
 
 **Content-only** (like `git-fundamentals`): a `workshop.env` with an empty
@@ -101,12 +96,6 @@ server, etc.) — not for anything content/slides alone can express.
 5. Add a row to the table above.
 6. Run it locally end to end (`./run.sh <name>` from `engine/`) before
    trusting it for a live session.
-7. For an Azure delivery, add
-   `infra/corp-dev/gdojo-cc/workshops/<name>.tfvars` — copy an existing one
-   and adjust `workshop_content_dir`, `forgejo_org`, `forgejo_repo`,
-   `compose_overlay`, and `virtual_machine_size` if the workshop needs more
-   than the default VM size. Unlike `lab.auto.tfvars`, these have no
-   secrets in them and are committed directly.
 
 Nothing about adding a workshop this way ever requires editing
 `engine/docker-compose.yml`, the base `web-terminal` image, or the

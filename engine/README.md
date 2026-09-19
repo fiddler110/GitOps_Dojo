@@ -359,9 +359,7 @@ Needs a container engine on `PATH`: real `docker` (with the `compose`
 plugin) if you have it, otherwise `run.sh`/`scripts/teardown.sh` fall back
 to `podman build`/`podman-compose` automatically — there's no flag to set,
 they just detect whichever is actually installed. Confirmed working
-end-to-end on Podman (`podman-compose`) as well as Docker; the Azure VM
-path (`infra/corp-dev/gdojo-cc`) always installs real Docker via cloud-init
-regardless of what you use locally.
+end-to-end on Podman (`podman-compose`) as well as Docker.
 
 This builds the terminal and gateway images, starts Forgejo, waits for it to
 report healthy, then runs `bootstrap` once to create the admin account, the
@@ -418,9 +416,7 @@ the peak; nothing below lowers it. Three knobs bound it:
   effect: a student who returns after more than the grace time is asked to
   reload the window rather than resuming in place. `0` disables a timer.
 
-Every delivery path — Azure VM included — now sets these by hand rather
-than deriving them from Terraform (the old `infra/corp-dev/gdojo-cc`
-auto-sizing is parked, unused, under `.infra/`). Run
+These are set by hand in `.env`, not derived automatically. Run
 `./run.sh capacity --students <N>` **on the target machine**
 (the Azure VM itself, or your Mac for local testing) before a real
 session — it reads that machine's actual memory and, if a couple of
