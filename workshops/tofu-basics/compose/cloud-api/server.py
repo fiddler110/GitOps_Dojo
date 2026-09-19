@@ -191,6 +191,10 @@ def arm_error(status, code, message, target=None):
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # Headers and body are separate send() calls; with keep-alive, Nagle plus
+    # the peer's delayed ACK stalls every second small response by ~40 ms
+    # (measured through the gateway: /cloud/api/me p50 47 ms -> 5 ms).
+    disable_nagle_algorithm = True
     server_version = "DojoCloud/1.0"
 
     def log_message(self, fmt, *args):

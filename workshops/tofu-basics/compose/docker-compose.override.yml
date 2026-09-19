@@ -36,7 +36,7 @@ services:
       timeout: 5s
       retries: 30
       start_period: 5s
-    mem_limit: ${CLOUD_HOST_MEM_LIMIT:-2g}
+    mem_limit: ${CLOUD_HOST_MEM_LIMIT:-3g}
     pids_limit: ${CLOUD_HOST_PIDS_LIMIT:-4096}
     restart: unless-stopped
 
@@ -83,6 +83,12 @@ services:
       - no-new-privileges:true
     mem_limit: ${CLOUD_API_MEM_LIMIT:-256m}
     restart: unless-stopped
+
+  # Landing-page "Dojo Cloud" button + the gateway's /cloud route (engine D4).
+  # Off in the base file, so no other workshop is affected.
+  allocator:
+    environment:
+      - CLOUD_ENABLED=1
 
   web-terminal:
     build:

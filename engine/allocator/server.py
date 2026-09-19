@@ -75,6 +75,10 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
 DEMO_APP_ENABLED = os.environ.get("DEMO_APP_ENABLED", "0") == "1"
 DEMO_APP_ZONE = os.environ.get("DEMO_APP_ZONE", "certs.dojo.test")
+# Cloud console (/cloud*): a workshop that ships its own "cloud" service (see
+# workshops/tofu-basics) sets this in its compose overlay. Off by default, so
+# every other workshop is unchanged -- same shape as DEMO_APP_ENABLED above.
+CLOUD_ENABLED = os.environ.get("CLOUD_ENABLED", "0") == "1"
 
 WEB_TERMINAL_HOST = "web-terminal"
 CONTROL_PORT = 7682
@@ -212,7 +216,8 @@ ICON_ROCKET = _SVG.format('<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-
                            '<path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>'
                            '<path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>'
                            '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>')
-ICON_ARROW = '<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
+ICON_CLOUD = _SVG.format('<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>')
+ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
              'stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line>' \
              '<polyline points="7 7 17 7 17 17"></polyline></svg>'
 
@@ -404,6 +409,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
                 "desc": "See your changes live once you've pushed them.",
             })
+        if CLOUD_ENABLED:
+            tools.append({
+                "href": "/cloud/", "label": "Dojo Cloud", "icon": ICON_CLOUD,
+                "desc": "The portal for the resources you deploy.",
+            })
 
         cards = "\n".join(
             f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
@@ -518,7 +528,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
   <button class="tab" data-tab="term">Terminal</button>
   <button class="tab" data-tab="forgejo">Forgejo</button>
   <button class="tab" data-tab="slides">Slides</button>
-</div>
+CLOUD_TAB_PLACEHOLDER</div>
 
 <div class="panel active" id="panel-roster">
   <p id="empty" class="sub">No students connected yet.</p>
@@ -529,7 +539,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
 <div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
 <div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
-
+CLOUD_PANEL_PLACEHOLDER
 <script>
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -723,6 +733,15 @@ refresh();
 setInterval(refresh, 5000);
 </script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
+        # The facilitator gets every tool a student has (see the /cloud block
+        # in gateway/Caddyfile): the cloud portal, when the workshop has one.
+        body = body.replace(
+            "CLOUD_TAB_PLACEHOLDER",
+            '  <button class="tab" data-tab="cloud">Dojo Cloud</button>\n' if CLOUD_ENABLED else "",
+        ).replace(
+            "CLOUD_PANEL_PLACEHOLDER",
+            '<div class="panel" id="panel-cloud"><iframe data-src="/cloud/#/progress"></iframe></div>\n' if CLOUD_ENABLED else "",
+        )
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)} — Facilitator</title>
@@ -854,7 +873,7 @@ setInterval(refresh, 5000);
     def handle_auth_check(self, parsed):
         qs = urllib.parse.parse_qs(parsed.query)
         tool = (qs.get("tool") or [""])[0]
-        if tool not in ("ide", "term", "demo"):
+        if tool not in ("ide", "term", "demo", "cloud"):
             self.send_response(400)
             self.end_headers()
             return
@@ -876,6 +895,20 @@ setInterval(refresh, 5000);
             demo_host = f"{student_id or STUDENT_PREFIX + '01'}.{DEMO_APP_ZONE}"
             self.send_response(200)
             self.send_header("X-Demo-Host", demo_host)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if tool == "cloud":
+            if not CLOUD_ENABLED:
+                self.send_response(404)
+                self.end_headers()
+                return
+            # A student's identity only exists in their dojo_session cookie,
+            # which the cloud portal never sees, so it is handed back here and
+            # Caddy copies it onto the request (see gateway/Caddyfile's @cloud).
+            self.send_response(200)
+            self.send_header("X-Cloud-User", username)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
