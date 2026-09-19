@@ -26,6 +26,7 @@ import auth
 import docker_api
 import pki
 import policy
+import portal_api
 import state as state_mod
 
 ENV = os.environ
@@ -40,6 +41,7 @@ GRAPH = "https://graph.dojo.cloud"
 ARM_TYPE_RG = "Microsoft.Resources/resourceGroups"
 ARM_TYPE_CG = "Microsoft.ContainerInstance/containerGroups"
 SITE_RE = re.compile(r"^/cloud/site/([a-z][a-z0-9-]{2,40})(/.*)?$")
+KEEP_TAGS = object()  # update_container_group_tags(): leave the current tag set as it is
 
 
 def log(msg):
@@ -58,11 +60,12 @@ def load_signing_key():
 
 
 class App:
-    def __init__(self):
-        self.auth = auth.Auth(load_signing_key(), auth.roster(ENV), ENV.get("FACILITATOR_USERNAME", "root"),
-                              f"{LOGIN}/{auth.TENANT_ID}/v2.0")
-        self.state = state_mod.State(f"{DATA_DIR}/state.json")
-        self.executor = docker_api.Executor(DOCKER_SOCKET)
+    def __init__(self, auth_=None, state=None, executor=None):  # arguments: for unit tests
+        self.auth = auth_ or auth.Auth(load_signing_key(), auth.roster(ENV), ENV.get("FACILITATOR_USERNAME", "root"),
+                                       f"{LOGIN}/{auth.TENANT_ID}/v2.0")
+        self.state = state if state is not None else state_mod.State(f"{DATA_DIR}/state.json")
+        self.executor = executor or docker_api.Executor(DOCKER_SOCKET)
+        self.portal = portal_api.Portal(self, ENV)
 
     # ---- helpers ---------------------------------------------------------
     @staticmethod
@@ -93,7 +96,65 @@ class App:
             st.save()
         log(f"reconciled: {len(st.cgs)} container group(s), {len(st.rgs)} resource group(s)")
 
+    # ---- container-group changes shared by ARM and the portal --------------
+    # One implementation, so policy, activity log and executor behave identically
+    # whoever asks. `via` ("portal") is appended to the logged operation name.
+    # The executor is called AFTER the state lock is released.
+    @staticmethod
+    def op_name(base, via):
+        return f"{base} ({via})" if via else base
+
+    def delete_container_group(self, sub, rg, cg, user, via=""):
+        """Returns False if there was no such container group."""
+        st, key = self.state, self.cg_key(sub, rg, cg)
+        rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
+        op = self.op_name("Delete container group", via)
+        with st.lock:
+            rec = st.cgs.pop(key, None)
+        if rec is None:
+            return False
+        try:
+            self.executor.remove(rec["container"])
+        except docker_api.DockerError:
+            with st.lock:
+                st.log(sub, user, op, rid, "Failed", "executor")
+                st.save()
+            raise
+        with st.lock:
+            st.log(sub, user, op, rid, "Succeeded")
+            st.save()
+        return True
+
+    def update_container_group_tags(self, sub, rg, cg, user, tags=KEEP_TAGS, via=""):
+        """Replaces the tag set (policy-checked). Returns a snapshot copy of the record;
+        raises LookupError if missing, policy.PolicyError on a violation."""
+        st, key = self.state, self.cg_key(sub, rg, cg)
+        rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
+        op = self.op_name("Update container group tags", via)
+        with st.lock:
+            rec = st.cgs.get(key)
+            if rec is None:
+                raise LookupError(key)
+            if tags is KEEP_TAGS:
+                tags = rec.get("tags") or {}
+            try:
+                policy.check_tags(cg, tags)
+            except policy.PolicyError as exc:
+                st.log(sub, user, op, rid, "Failed", exc.code)
+                raise
+            rec["tags"] = tags
+            rec["body"]["tags"] = tags
+            st.log(sub, user, op, rid, "Succeeded")
+            st.save()
+            return copy.deepcopy(rec)
+
     # ---- ARM representations --------------------------------------------
+    @staticmethod
+    def cg_endpoint(rec):
+        """(ip, fqdn) the way ARM and the portal both present them."""
+        return (f"10.20.{rec['port'] // 256}.{rec['port'] % 256}",
+                f"{rec['dnsLabel']}.{rec['location']}.dojo-cloud.test")
+
     def rg_body(self, sub, rec):
         return {"id": f"/subscriptions/{sub}/resourceGroups/{rec['name']}", "name": rec["name"],
                 "type": ARM_TYPE_RG, "location": rec["location"], "tags": rec.get("tags") or {},
@@ -107,8 +168,7 @@ class App:
         props = body.setdefault("properties", {})
         props["provisioningState"] = "Succeeded"
         ip = props.setdefault("ipAddress", {})
-        ip["ip"] = f"10.20.{rec['port'] // 256}.{rec['port'] % 256}"
-        ip["fqdn"] = f"{rec['dnsLabel']}.{rec['location']}.dojo-cloud.test"
+        ip["ip"], ip["fqdn"] = self.cg_endpoint(rec)
         state = "Running" if running else "Terminated"
         props["instanceView"] = {"state": state}
         for c in props.get("containers", []):
@@ -155,6 +215,17 @@ class Handler(BaseHTTPRequestHandler):
     def _send_pair(self, pair):
         self._send(*pair)
 
+    def portal(self, path, body):
+        query = parse_qs(urlparse(self.path).query)
+        status, headers, raw = APP.portal.dispatch(self.command, path, query, self.headers, body)
+        self.send_response(status)
+        for k, v in headers.items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+
     def handle_any(self):
         try:
             path = urlparse(self.path).path
@@ -173,6 +244,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_pair(self.arm(low, path, body))
             if low.startswith("/cloud/site/") or low == "/cloud/site":
                 return self.site(path)
+            if low == "/cloud" or low.startswith("/cloud/"):  # Dojo Portal: SPA + /cloud/api/*
+                return self.portal(path, body)
             return self._send(*arm_error(404, "NotFound", f"No route for '{path}'."))
         except Exception as exc:  # never leak a traceback to a student
             log(f"internal error: {exc!r}")
@@ -333,6 +406,10 @@ class Handler(BaseHTTPRequestHandler):
         return arm_error(405, "MethodNotAllowed", method)
 
     def container_group(self, method, sub, owner, user, rg, cg, body):
+        if method == "DELETE":  # shared with the portal; talks to Docker outside the lock
+            return (200, {}) if APP.delete_container_group(sub, rg, cg, user) else (204, None)
+        if method == "PATCH":  # tags-only update
+            return self.patch_container_group(sub, user, rg, cg, body)
         st, key = APP.state, App.cg_key(sub, rg, cg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
         with st.lock:
@@ -345,39 +422,29 @@ class Handler(BaseHTTPRequestHandler):
                     st.save()
                     rec = None
                 if rec is None:
-                    return arm_error(404, "ResourceNotFound", f"The Resource '{ARM_TYPE_CG}/{cg}' under "
-                                     f"resource group '{rg}' was not found.")
-                return 200, self.cg_view(sub, rec)
-            if method == "DELETE":
-                rec = st.cgs.pop(key, None)
-                if rec is None:
-                    return 204, None
-                APP.executor.remove(rec["container"])
-                st.log(sub, user, "Delete container group", rid, "Succeeded")
-                st.save()
-                return 200, {}
-            if method == "PATCH":  # tags-only update
-                rec = st.cgs.get(key)
-                if rec is None:
-                    return arm_error(404, "ResourceNotFound", f"The Resource '{ARM_TYPE_CG}/{cg}' under "
-                                     f"resource group '{rg}' was not found.")
-                data = self.body_json(body)
-                if data is None:
-                    return arm_error(400, "InvalidRequestContent", "The request body is not valid JSON.")
-                tags = data.get("tags", rec.get("tags") or {})
-                try:
-                    policy.check_tags(cg, tags)
-                except policy.PolicyError as exc:
-                    st.log(sub, user, "Update container group tags", rid, "Failed", exc.code)
-                    return exc.status, exc.body()
-                rec["tags"] = tags
-                rec["body"]["tags"] = tags
-                st.log(sub, user, "Update container group tags", rid, "Succeeded")
-                st.save()
+                    return self.cg_not_found(rg, cg)
                 return 200, self.cg_view(sub, rec)
             if method == "PUT":
                 return self.put_container_group(sub, owner, user, rg, cg, rid, key, body)
         return arm_error(405, "MethodNotAllowed", method)
+
+    def cg_not_found(self, rg, cg):
+        return arm_error(404, "ResourceNotFound", f"The Resource '{ARM_TYPE_CG}/{cg}' under "
+                         f"resource group '{rg}' was not found.")
+
+    def patch_container_group(self, sub, user, rg, cg, body):
+        if APP.state.cgs.get(App.cg_key(sub, rg, cg)) is None:
+            return self.cg_not_found(rg, cg)
+        data = self.body_json(body)
+        if data is None:
+            return arm_error(400, "InvalidRequestContent", "The request body is not valid JSON.")
+        try:
+            rec = APP.update_container_group_tags(sub, rg, cg, user, data.get("tags", KEEP_TAGS))
+        except policy.PolicyError as exc:
+            return exc.status, exc.body()
+        except LookupError:  # deleted between the check above and the update
+            return self.cg_not_found(rg, cg)
+        return 200, self.cg_view(sub, rec)
 
     def put_container_group(self, sub, owner, user, rg, cg, rid, key, body):
         st = APP.state

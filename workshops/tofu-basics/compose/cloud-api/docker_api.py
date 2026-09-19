@@ -106,12 +106,22 @@ class Executor:
             return None
         return "Running" if info["State"].get("Running") else "Terminated"
 
-    def list_managed(self):
-        flt = quote(json.dumps({"label": [f"{LABEL_MANAGED}=true"]}))
-        status, data = self._call("GET", f"/containers/json?all=true&filters={flt}")
+    def _list_names(self, all_states, extra_filters=None):
+        filters = dict(extra_filters or {}, label=[f"{LABEL_MANAGED}=true"])
+        status, data = self._call(
+            "GET", f"/containers/json?all={'true' if all_states else 'false'}"
+                   f"&filters={quote(json.dumps(filters))}")
         if status != 200:
             raise DockerError(f"list failed ({status})")
         return [c["Names"][0].lstrip("/") for c in json.loads(data)]
+
+    def list_managed(self):
+        return self._list_names(True)
+
+    def list_running(self):
+        """Names of running managed containers: ONE call for the portal's status column
+        (never one inspect per container)."""
+        return set(self._list_names(False, {"status": ["running"]}))
 
     def logs(self, name, tail=200):
         status, data = self._call(

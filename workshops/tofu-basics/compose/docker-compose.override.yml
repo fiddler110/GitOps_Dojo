@@ -55,6 +55,9 @@ services:
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # Dojo Portal API trusts X-Auth-User only together with this token (the
+      # gateway sets both; students on workshop_lab can reach :8080 directly).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
     volumes:
       - cloud_run:/run/cloud
       - cloud_pki:/pki

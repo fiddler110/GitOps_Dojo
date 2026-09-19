@@ -39,4 +39,7 @@ cat > /www/index.html <<HTML
 </main></body></html>
 HTML
 
-exec httpd -f -p 80 -h /www
+# The portal's Logs tab shows this container's stdout/stderr, so say something:
+# a startup line, then one line per request (httpd -v logs to stderr).
+echo "dojo/hello:${version} starting for owner '${OWNER:-unknown}' - listening on :80"
+exec httpd -f -v -p 80 -h /www

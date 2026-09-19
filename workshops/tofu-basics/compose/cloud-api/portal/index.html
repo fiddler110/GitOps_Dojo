@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Dojo Portal</title>
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <link rel="stylesheet" href="static/app.css">
+  <script src="static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" id="skip-link">Skip to content</a>
+
+  <header class="topbar">
+    <button type="button" class="nav-toggle btn" id="nav-toggle" aria-expanded="false" aria-controls="sidenav">Menu</button>
+    <a class="brand" href="#/">
+      <img src="static/favicon.svg" alt="" width="26" height="26">
+      <span class="brand-text">Dojo Cloud</span>
+      <span class="brand-sub">Portal</span>
+    </a>
+    <div class="topbar-meta" id="topbar-meta">
+      <span class="meta-item" id="meta-user">Signing in&hellip;</span>
+      <span class="badge" id="meta-facilitator" hidden>Facilitator</span>
+      <span class="meta-item meta-sub" id="meta-sub" hidden>
+        <span class="meta-label">Subscription</span>
+        <code class="sub-full" id="meta-sub-full"></code>
+        <code class="sub-short" id="meta-sub-short" aria-hidden="true"></code>
+      </span>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidenav" id="sidenav" aria-label="Main navigation">
+      <ul>
+        <li><a href="#/" data-nav="home">Home</a></li>
+        <li><a href="#/rg" data-nav="rg">Resource groups</a></li>
+        <li><a href="#/resources" data-nav="resources">All resources</a></li>
+        <li><a href="#/containers" data-nav="containers">Container instances</a></li>
+        <li><a href="#/activity" data-nav="activity">Activity log</a></li>
+        <li><a href="#/class" data-nav="class">Class view</a></li>
+      </ul>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <div class="statusbar" id="statusbar">
+        <p class="updated" id="updated">Last updated: &mdash;</p>
+        <p class="paused" id="paused" hidden>Auto-refresh paused while you edit.</p>
+        <button type="button" class="btn btn-small" id="refresh-btn">Refresh now</button>
+      </div>
+      <div class="banner" id="banner" role="alert" hidden>
+        <p id="banner-msg"></p>
+        <button type="button" class="btn btn-small" id="banner-retry">Retry</button>
+      </div>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <p>Azure-inspired training environment &mdash; not affiliated with Microsoft.</p>
+  </footer>
+
+  <div class="sr-only" id="live" aria-live="polite" aria-atomic="true"></div>
+  <noscript><p class="noscript">The Dojo Portal needs JavaScript enabled.</p></noscript>
+</body>
+</html>
