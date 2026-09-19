@@ -837,7 +837,7 @@ setInterval(refresh, 5000);
             self.handle_auth_check_watch(parsed)
             return
 
-        if path == "/admin":
+        if path in ("/admin", "/admin/"):
             # Reaching this route at all means Caddy's own facilitator-only
             # basic_auth (see gateway/Caddyfile's @admin block) already
             # passed -- no separate cookie/login step needed.

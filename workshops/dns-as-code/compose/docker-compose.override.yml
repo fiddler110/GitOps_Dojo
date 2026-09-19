@@ -41,7 +41,7 @@ services:
   # single-container, internal-only PowerDNS instance — not a real secret,
   # same tier as TTYD_PASSWORD/STUDENT_PASSWORD (see engine/.env.example).
   dns-server:
-    image: powerdns/pdns-auth-49:latest
+    image: docker.io/powerdns/pdns-auth-49:latest
     container_name: workshop_powerdns
     environment:
       - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-workshop-not-a-secret}

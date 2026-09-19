@@ -1,12 +1,15 @@
-# Zsh tab-completion for engine/run.sh.
+# Zsh tab-completion for run.sh -- both the repo-root ./run.sh (a thin
+# forwarder) and engine/run.sh, which take identical arguments.
 #
 # Usage:
-#   type `./run.sh <TAB>` (from inside engine/) and it lists workshop names
-#   plus `list`, `stop`, `teardown`; after a workshop name, <TAB> offers
-#   `--test`.
+#   type `./run.sh <TAB>` (from the repo root or engine/) and it lists
+#   workshop names plus `setup`, `capacity`, `list`, `stop`, `teardown`,
+#   `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
+#   `setup`, `--default`/`--force`; after `stop`, `--dry-run`; after
+#   `capacity`, its sizing flags.
 #
 # Install: source this file from your ~/.zshrc, e.g.
-#   source /Users/Scott.MacLeod/Architecture/repos/GitOps_Dojo/engine/completions/run.sh.zsh
+#   source /path/to/GitOps_Dojo/engine/completions/run.sh.zsh
 #
 # (engine/scripts/install-completion.sh does this for you on first run of
 # ./run.sh, with confirmation.)
@@ -23,6 +26,9 @@ _run_sh() {
 
   local -a entries
   entries=(
+    "setup:create engine/.env (interactive, or --default)"
+    "capacity:size the terminal resource limits for this machine"
+    "help:show usage (also: ./run.sh <command> --help)"
     "list:show available workshops"
     "stop:stop the stack, wipe all volumes"
     "teardown:same as stop"
@@ -40,12 +46,37 @@ _run_sh() {
 
   if [ "$CURRENT" -eq 2 ]; then
     _describe 'workshop' entries
-  elif [ "$CURRENT" -eq 3 ]; then
+  elif [ "$CURRENT" -ge 3 ]; then
     case "${words[2]}" in
-      list | stop | teardown) ;;
-      *) _values 'option' '--test[also spin up demo/test bot students]' ;;
+      list | help) ;;
+      stop | teardown)
+        _values 'option' \
+          '--dry-run[list what would be removed, remove nothing]' \
+          '--help[show help without tearing anything down]' ;;
+      setup | --setup)
+        _values 'option' \
+          '--default[fixed lazy credentials, no prompts]' \
+          '--force[overwrite an existing .env without asking]' \
+          '--help[show help]' ;;
+      capacity | --capacity)
+        _values 'option' \
+          '--students[number of concurrent students to size for]' \
+          '--heap-mb[per-process code-server heap cap]' \
+          '--margin-pct[extra headroom percentage]' \
+          '--host-mem-mb[plan for a machine you have not provisioned yet]' \
+          '--procs-per-student[node processes assumed per student]' \
+          '--reserve-mb[host OS and daemon headroom]' \
+          '--other-services-mb[combined mem_limits of the other services]' \
+          '--help[show help]' ;;
+      *)
+        _values 'option' \
+          '--test[also spin up demo/test bot students; optionally --test N for N bots (max 35)]' \
+          '--dry-run[preview what would be rebuilt and started, change nothing]' \
+          '--help[show help]' ;;
     esac
   fi
 }
 
-compdef _run_sh run.sh ./run.sh
+# The relative forms you'd actually type: from the repo root (./run.sh,
+# ./engine/run.sh) or from engine/ (./run.sh, ../run.sh).
+compdef _run_sh run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh

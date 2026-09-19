@@ -1,8 +1,11 @@
 #!/bin/sh
 # Helper for creating engine/.env from .env.example.
 #
+# Normally run as `./run.sh setup [--default] [--force]` (same script, same
+# flags; `./run.sh setup --help` prints the usage).
+#
 # Two modes:
-#   ./scripts/env-setup.sh              # interactive: walk through every
+#   ./run.sh setup                      # interactive: walk through every
 #                                        # setting, showing its current
 #                                        # default -- press Enter to accept
 #                                        # it or type your own. For passwords
@@ -11,7 +14,7 @@
 #                                        # value. Use this when it matters
 #                                        # that credentials are unique.
 #
-#   ./scripts/env-setup.sh --default    # non-interactive: fills in every
+#   ./run.sh setup --default            # non-interactive: fills in every
 #                                        # required setting with a fixed,
 #                                        # easy-to-remember "lazy" value
 #                                        # (below) instead of prompting.
@@ -29,6 +32,26 @@
 # implied by --default, since that mode is meant to run unattended).
 set -eu
 
+usage() {
+  cat <<'EOF'
+Usage: ./run.sh setup [--default] [--force]
+
+Creates engine/.env from engine/.env.example.
+
+  (no flags)   interactive: prompts for every setting, showing its default;
+               Enter accepts it. Bare Enter on a password/token generates a
+               strong random value.
+  --default    non-interactive: fixed, easy-to-remember credentials for
+               local/throwaway use (student/student123/admin/admin).
+               CONTROL_TOKEN/GATEWAY_TOKEN are still random. Implies --force.
+  --force      overwrite an existing engine/.env without asking.
+  -h, --help   show this message.
+
+Both modes try to size the terminal resource limits for this machine via
+'./run.sh capacity'.
+EOF
+}
+
 cd "$(dirname "$0")/.."
 
 mode="interactive"
@@ -37,9 +60,10 @@ for arg in "$@"; do
   case "$arg" in
     --default) mode="default" ;;
     --force) force=1 ;;
+    -h | --help) usage; exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
-      echo "Usage: $0 [--default] [--force]" >&2
+      usage >&2
       exit 1 ;;
   esac
 done
@@ -108,7 +132,7 @@ current_value() {
 # any failure just falls back to whatever's already in .env.
 apply_capacity_sizing() {
   students="$1"
-  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./scripts/capacity-calc.sh --students ${students})..."
+  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./run.sh capacity --students ${students})..."
   if ! output="$(./scripts/capacity-calc.sh --students "$students" 2>&1)"; then
     echo "  -> capacity-calc.sh couldn't size this machine; keeping .env.example's defaults."
     return 1
@@ -126,7 +150,7 @@ apply_capacity_sizing() {
   echo "  -> WEB_TERMINAL_MEM_LIMIT=${mem} WEB_TERMINAL_PIDS_LIMIT=${pids} CODE_SERVER_MAX_HEAP_MB=${heap}"
   if echo "$output" | grep -q '^WARNING:'; then
     echo "  -> capacity-calc.sh warned this doesn't fit on this machine at ${students} students -- run it directly for details:"
-    echo "     ./scripts/capacity-calc.sh --students ${students}"
+    echo "     ./run.sh capacity --students ${students}"
   fi
 }
 
@@ -239,7 +263,7 @@ ask_secret GATEWAY_TOKEN "GATEWAY_TOKEN (gateway <-> allocator)" random_hex_32
 echo
 
 echo "--- Web-terminal resource ceiling ---"
-if confirm "Run ./scripts/capacity-calc.sh to size these for this machine (recommended)?"; then
+if confirm "Run './run.sh capacity' to size these for this machine (recommended)?"; then
   apply_capacity_sizing "$(current_value STUDENT_COUNT)" || {
     echo "  Falling back to manual entry."
     ask WEB_TERMINAL_MEM_LIMIT "Container memory limit" "$(example_default WEB_TERMINAL_MEM_LIMIT)"

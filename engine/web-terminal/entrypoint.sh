@@ -39,8 +39,8 @@ case "$bot_count" in
     ;;
 esac
 
-if [ "$bot_count" -gt 20 ]; then
-  echo "BOT_COUNT must be 20 or fewer" >&2
+if [ "$bot_count" -gt 35 ]; then
+  echo "BOT_COUNT must be 35 or fewer" >&2
   exit 1
 fi
 
@@ -77,6 +77,12 @@ fi
 rm -f "$facilitator_home/.zshrc"
 ln -s /opt/dojo-shell/zshrc.facilitator "$facilitator_home/.zshrc"
 
+# "python.languageServer": "None" below stops ms-python.python from starting
+# its Jedi language server (~75 MB per account that opens a .py file --
+# measured). Syntax highlighting doesn't depend on it; only completion/hover
+# do, and Pylance (the fuller one) isn't available on Open VSX anyway. Same
+# setting in the student settings.json further down. Delete the line to get
+# completion back.
 code_server_settings_dir="$facilitator_home/.local/share/code-server/User"
 if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   mkdir -p "$code_server_settings_dir"
@@ -87,7 +93,8 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
-  "extensions.ignoreRecommendations": true
+  "extensions.ignoreRecommendations": true,
+  "python.languageServer": "None"
 }
 EOF
 fi
@@ -226,6 +233,7 @@ EOF
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
   "extensions.ignoreRecommendations": true,
+  "python.languageServer": "None",
   "terminal.integrated.profiles.linux": {
     "dojo-shell": {
       "path": "/opt/dojo-shell/tmux-terminal.sh"
@@ -313,9 +321,35 @@ while [ "$bot_counter" -le "$bot_count" ]; do
     cp -Rn "$lab_seed_dir"/. "/home/$bot_username/lab/"
   fi
 
+  # Persona: bots 1-3 are always expert/intermediate/novice; any bot past
+  # that gets a random one of the three, so a big --test N gives a mixed
+  # cohort. Sticky across container restarts (reuse what's already in the
+  # env file) so a bot's saved step index never lands on a different
+  # persona's step list.
+  bot_persona=""
+  if [ -f "/home/$bot_username/.dojo-bot.env" ]; then
+    bot_persona="$(sed -n 's/^BOT_PERSONA=//p' "/home/$bot_username/.dojo-bot.env" | head -1)"
+  fi
+  case "$bot_persona" in
+    expert|intermediate|novice) ;;
+    *)
+      if [ "$bot_counter" -le 3 ]; then
+        idx=$(( bot_counter - 1 ))
+      else
+        idx=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 3 ))
+      fi
+      case "$idx" in
+        0) bot_persona=expert ;;
+        1) bot_persona=intermediate ;;
+        *) bot_persona=novice ;;
+      esac
+      ;;
+  esac
+
   cat > "/home/$bot_username/.dojo-bot.env" <<EOF
 BOT_USER=$bot_username
 BOT_PASSWORD=$bot_password
+BOT_PERSONA=$bot_persona
 FORGEJO_ORG=$forgejo_org
 FORGEJO_REPO=$forgejo_repo
 EOF

@@ -97,11 +97,15 @@ chmod 600 "$NETRC"
 api_curl() { curl -s --netrc-file "$NETRC" "$@"; }
 
 # -- persona -----------------------------------------------------------
-# Each bot plays a different skill level, derived from its own trailing
-# number (testuser1/4/7... -> expert, testuser2/5/8... -> intermediate,
-# testuser3/6/9... -> novice) so a facilitator watching all of them side by
-# side sees genuinely different pacing, command choices, and mistake
-# frequency -- not three copies of the same script. Concretely this affects:
+# Each bot plays a different skill level, so a facilitator watching all of
+# them side by side sees genuinely different pacing, command choices, and
+# mistake frequency -- not copies of the same script. entrypoint.sh picks
+# it and records it as BOT_PERSONA in $BOT_ENV_FILE: testuser1/2/3 are
+# always expert/intermediate/novice, and any bot numbered past 3 (from
+# `./run.sh <workshop> --test N`) gets a random one of the three. If
+# BOT_PERSONA is missing, fall back to the old number-based cycle
+# (1/4/7... -> expert, 2/5/8... -> intermediate, 3/6/9... -> novice).
+# Concretely the persona affects:
 #   - think()/type_out() delays (an expert types fast and barely pauses; a
 #     terminal novice hunts for keys and reads before acting)
 #   - orient(): how often, and with what commands, a bot "looks around"
@@ -115,12 +119,17 @@ api_curl() { curl -s --netrc-file "$NETRC" "$@"; }
 #     while the novice is still visibly stuck early on -- see
 #     engine/README.md's "Demo bots (--test)" section for the walkthrough
 #     this was tuned against.
-bot_num="$(printf '%s' "$BOT_USER" | grep -o '[0-9]\+' | head -1)"
-[ -z "$bot_num" ] && bot_num=1
-case $(( (bot_num - 1) % 3 )) in
-  0) PERSONA=expert ;;
-  1) PERSONA=intermediate ;;
-  2) PERSONA=novice ;;
+case "${BOT_PERSONA:-}" in
+  expert|intermediate|novice) PERSONA="$BOT_PERSONA" ;;
+  *)
+    bot_num="$(printf '%s' "$BOT_USER" | grep -o '[0-9]\+' | head -1)"
+    [ -z "$bot_num" ] && bot_num=1
+    case $(( (bot_num - 1) % 3 )) in
+      0) PERSONA=expert ;;
+      1) PERSONA=intermediate ;;
+      2) PERSONA=novice ;;
+    esac
+    ;;
 esac
 
 case "$PERSONA" in

@@ -1,4 +1,4 @@
-FROM caddy:2-alpine
+FROM docker.io/library/caddy:2-alpine
 
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY entrypoint.sh /usr/local/bin/gateway-entrypoint

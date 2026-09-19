@@ -12,7 +12,7 @@
 # own DNS server — see the comment there for why. su-exec drops to the
 # unprivileged `step` user for everything else, including the CA process
 # itself, so the running server has the same privilege as upstream's image.
-FROM smallstep/step-ca:latest
+FROM docker.io/smallstep/step-ca:latest
 
 USER root
 RUN apk add --no-cache jq su-exec

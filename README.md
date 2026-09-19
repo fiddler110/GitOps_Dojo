@@ -27,7 +27,7 @@ is a runtime choice, not something you edit `engine/` to change.
 
 Each `workshops/<name>/` is a self-contained **workshop pack** — content,
 and (only if the lab needs it) its own Compose overlay for different
-tooling or an extra backend service. Pick one with `./engine/run.sh
+tooling or an extra backend service. Pick one with `./run.sh
 <name>` locally, or a matching `-var-file` on the Azure/Terraform path. See
 [`workshops/README.md`](workshops/README.md) for exactly how that works
 and how to add a new workshop.
@@ -46,7 +46,7 @@ Full network/service topology and request flow are diagrammed in
 
 ## Start here
 
-- **Run a workshop locally:** [`engine/README.md`](engine/README.md)
+- **Run a workshop locally:** `./run.sh setup`, then `./run.sh <workshop>` — see [`engine/README.md`](engine/README.md)
 - **Which workshops exist, and how to add one:** [`workshops/README.md`](workshops/README.md)
 - **Session 1 (Git Fundamentals):** [`workshops/git-fundamentals/README.md`](workshops/git-fundamentals/README.md)
 - **Session 3 (DNS as Code):** [`workshops/dns-as-code/README.md`](workshops/dns-as-code/README.md)

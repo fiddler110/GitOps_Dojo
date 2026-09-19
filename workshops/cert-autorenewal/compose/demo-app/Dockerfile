@@ -7,7 +7,7 @@
 # of it (from inside web-terminal), never a way to reach into this
 # container directly — no docker.sock, no cross-container exec, consistent
 # with the allocator's existing no-docker.sock design principle.
-FROM nginx:1.27-alpine
+FROM docker.io/library/nginx:1.27-alpine
 
 RUN apk add --no-cache inotify-tools
 

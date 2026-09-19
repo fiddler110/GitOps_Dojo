@@ -13,7 +13,7 @@ version: '3.8'
 # sits on the internal network, unreachable from outside the stack.
 #
 # Every volume below is ephemeral by design: named volumes only, no host
-# bind mounts for runtime data. `./scripts/teardown.sh` (or
+# bind mounts for runtime data. `./run.sh stop` (or
 # `docker compose down --volumes`) always returns to a clean slate.
 
 services:
@@ -93,7 +93,13 @@ services:
 
   # 3. Interactive presentation layer (Marp)
   presentation:
-    image: marpteam/marp-cli:v3.4.0
+    # Local build instead of upstream marpteam/marp-cli (~1.07 GB, mostly
+    # a Chromium layer only PDF/PPTX export uses) -- see
+    # presentation/Dockerfile. run.sh builds and tags it, same as
+    # allocator and gateway below.
+    build:
+      context: ./presentation
+    image: gitopsdojo/presentation:local
     container_name: workshop_presentation
     volumes:
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
@@ -103,8 +109,6 @@ services:
       # edited once, used by every workshop. Not workshop-specific, so it
       # lives here rather than under any single workshops/<name>/.
       - ../workshops/assets:/home/marp/app/assets:ro
-    environment:
-      - MARP_USER=1000:1000
     command: -s --http --html .
     networks:
       - web_lab
@@ -151,6 +155,11 @@ services:
       # workspace-control.py. A safety net under mem_limit below, not a
       # replacement for it.
       - CODE_SERVER_MAX_HEAP_MB=${CODE_SERVER_MAX_HEAP_MB:-384}
+      # How long a code-server lingers once its browser tab closes -- see
+      # workspace-control.py. Frees memory from students who have left
+      # (break, end of class) without touching anyone still connected.
+      - CODE_SERVER_RECONNECTION_GRACE_SECONDS=${CODE_SERVER_RECONNECTION_GRACE_SECONDS:-300}
+      - CODE_SERVER_IDLE_TIMEOUT_SECONDS=${CODE_SERVER_IDLE_TIMEOUT_SECONDS:-900}
       # Shared secret workspace-control.py checks on every request -- proves
       # a start/stop/status call actually came from the allocator, not some
       # other container on this internal network. Must match allocator's

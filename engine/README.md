@@ -16,7 +16,7 @@ It runs six services by default (a workshop's overlay can add more — see
 | `gateway`        | built from `gateway/` (Caddy)     | The **only** service exposed to students. One hostname, TLS, routing, auth |
 | `git-server`     | `codeberg.org/forgejo/forgejo`    | Git hosting (branches, PRs, review)                                        |
 | `bootstrap`      | same, one-shot                    | Creates the admin user, org, sample repo, and student accounts on Forgejo  |
-| `presentation`   | `marpteam/marp-cli`               | Serves `WORKSHOP_CONTENT_DIR/slides`                                       |
+| `presentation`   | built from `presentation/` (Marp) | Serves `WORKSHOP_CONTENT_DIR/slides` (HTML only; no Chromium/PDF export)   |
 | `allocator`      | built from `allocator/`           | Assigns each browser session a student account, drives the facilitator dashboard (name/IP/status/Release) |
 | `web-terminal`   | built from `web-terminal/`        | Hosts each assigned student's code-server + ttyd processes, spawned on demand |
 
@@ -231,17 +231,19 @@ don't remove that when editing it.
 
 ## Setup
 
+Everything is driven from `run.sh`, which lives in the repo root (and in
+`engine/` — the root one just forwards to it):
+
 ```sh
-cd engine
-./scripts/env-setup.sh
+./run.sh setup
 # or, non-interactive with fixed lazy credentials for local/throwaway use:
-./scripts/env-setup.sh --default
+./run.sh setup --default
 ```
 
-`./scripts/env-setup.sh` walks through every setting below, showing its
+`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below, showing its
 current default in `[brackets]` (Enter accepts it) and auto-generating a
 strong random value for passwords/tokens on a bare Enter. It also offers to
-run `./scripts/capacity-calc.sh` for you to size `WEB_TERMINAL_MEM_LIMIT`/
+run `capacity-calc.sh` for you to size `WEB_TERMINAL_MEM_LIMIT`/
 `WEB_TERMINAL_PIDS_LIMIT`/`CODE_SERVER_MAX_HEAP_MB` to this machine. Prefer
 this path for a real workshop, since it gives every session unique
 credentials. `--default` skips all of that and fills in fixed, easy values
@@ -251,8 +253,9 @@ for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
 since nobody ever types those. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
 
-Prefer to do it by hand instead? `cp .env.example .env` and edit directly —
-same settings, same file.
+`./run.sh setup --force` skips the "`.env` already exists" prompt. Prefer to
+do it by hand instead? `cp .env.example .env` and edit directly — same
+settings, same file.
 
 `.env` now holds only account/secret/network settings — the same for every
 workshop. Which workshop to run (content, Forgejo org/repo, any extra
@@ -304,19 +307,42 @@ that's an Azure-side step you control per-deployment.
 ## Start
 
 ```sh
-cd engine
 ./run.sh <workshop-name>       # e.g. ./run.sh git-fundamentals, ./run.sh dns-as-code
 ./run.sh list                  # see available workshops
+./run.sh setup                 # create .env (--default for lazy local values)
+./run.sh capacity --students N # size the terminal resource limits (scripts/capacity-calc.sh)
+./run.sh stop                  # tear down the stack and all volumes (scripts/teardown.sh)
+./run.sh <workshop> --dry-run  # preview a start (also: ./run.sh stop --dry-run) — changes nothing
 ```
 
+Run these from the repo root, or from `engine/` — same commands either way.
+
+**Preview first with `--dry-run`.** `./run.sh <workshop-name> --dry-run` shows
+the resolved content/overlay, which images would be rebuilt vs. reused,
+and whether the Compose config validates — without building, starting, or
+writing anything (it won't even offer to install tab-completion).
+`./run.sh stop --dry-run` lists the Compose files, services, volumes, and
+running containers that `stop` would act on, and the exact command it would
+run, without removing anything. Worth doing before `stop`, since that deletes
+every volume. (`setup` and `capacity` don't take `--dry-run`: `capacity` is
+already read-only, and `setup` only writes the gitignored `.env`, asking
+before it overwrites one.)
+`./run.sh --help` lists every command, and `./run.sh <command> --help` prints
+that command's own help (e.g. `./run.sh capacity --help` for all the sizing
+flags, `./run.sh setup --help` for `--default`/`--force`).
+
 **Tab-completion.** The first time you run `./run.sh` in an interactive
-terminal, it offers to wire up completion for workshop names, `list`/`stop`/
-`teardown`, and `--test` — for bash or zsh, whichever `$SHELL` says you're
+terminal, it offers to wire up completion for workshop names,
+`setup`/`capacity`/`list`/`stop`/`teardown`, and their flags — for bash or zsh, whichever `$SHELL` says you're
 using (`engine/scripts/install-completion.sh`). Say yes and it appends two
 lines to `~/.bashrc`/`~/.zshrc`, sourcing the matching script under
 `engine/completions/`; say no, and it won't ask again (tracked in
 `engine/.build-state/`, gitignored) — source the file yourself later if you
-change your mind. Never prompts outside a real terminal (CI, `--test` bot
+change your mind. One completion script covers both the root `./run.sh` and
+`engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`, `./engine/run.sh`),
+and it finds the workshops from its own location, not your current directory,
+so it works the same wherever you are. Already installed? It's sourced by
+path, so a new shell picks up updates with no re-install. Never prompts outside a real terminal (CI, `--test` bot
 runs, etc. are unaffected), and does nothing at all for a shell it doesn't
 recognize (e.g. PowerShell) beyond pointing you at `engine/completions/` to
 wire up by hand.
@@ -357,40 +383,53 @@ assigned student (name, account, IP, live active/inactive status) at
 **Facilitator operations** below.
 
 **Capacity**: code-server instances run meaningfully heavier than a bare
-shell (roughly 150–300MB+ RAM each once a student is actively connected),
-but they're spawned lazily on first `/ide` visit and killed on Release —
-cost scales with concurrently-*active* students, not `STUDENT_COUNT`. Two
-independent knobs bound this:
+shell. Measured natively on amd64 (private memory, a fresh session with a
+`.py` and a `.yml` open, this repo's shipped settings): about **480MB** per
+connected student, **~555MB** if the Python language server is also on
+(`entrypoint.sh` turns it off by default), of which roughly 330MB is the
+extension host and language servers. They're spawned lazily on first `/ide`
+visit and killed on Release — cost scales with concurrently-*active*
+students, not `STUDENT_COUNT`. A room where everyone is connected at once is
+the peak; nothing below lowers it. Three knobs bound it:
 
 - `web-terminal`'s container-wide `mem_limit`/`pids_limit`
   (`docker-compose.yml`, set via `WEB_TERMINAL_MEM_LIMIT`/`WEB_TERMINAL_PIDS_LIMIT`
   in `.env`) is the ceiling for every student's code-server/ttyd process
-  combined. Size roughly `(expected concurrent students) × 400MB + 1GB`
+  combined. Size roughly `(expected concurrent students) × 650MB + 1GB`
   for RAM and `(expected concurrent students) × 30 + 100` for pids.
-- `CODE_SERVER_MAX_HEAP_MB` (default 384) caps each individual
-  code-server's own V8 heap via `NODE_OPTIONS`
-  (`workspace-control.py`) — a safety net under the container ceiling so
-  one student can't quietly eat the whole budget alone. NODE_OPTIONS is
-  exported in the same shell that execs code-server (`workspace-control.py`),
-  so it's almost certainly inherited by every node child that shell spawns
-  too (extension host, pty host, file watcher, language servers) rather
-  than just the main process — worth confirming directly (e.g. `cat
-  /proc/<extensionHost pid>/environ` inside the container) before leaning
-  on it, but if true, a student's real worst-case footprint is closer to
-  *(number of node processes) × this cap* than to this cap alone.
-  `scripts/capacity-calc.sh`'s live-calibration mode measures actual RSS
-  instead of assuming either way.
+- `CODE_SERVER_MAX_HEAP_MB` (default 384) caps the V8 heap of each
+  student's code-server *server* process via `NODE_OPTIONS`
+  (`workspace-control.py`). Checked directly
+  (`/proc/<pid>/environ` as the student): it is **not** inherited by the
+  extension host or pty host — code-server doesn't pass it on — so the
+  extension host, the largest per-student process, and the language servers
+  it spawns are uncapped, and `WEB_TERMINAL_MEM_LIMIT` is their only
+  backstop. `scripts/capacity-calc.sh`'s live-calibration mode measures
+  actual private memory (`RssAnon`) rather than assuming a per-process cap.
+- `CODE_SERVER_RECONNECTION_GRACE_SECONDS` (default 300) and
+  `CODE_SERVER_IDLE_TIMEOUT_SECONDS` (default 900) release memory from
+  students who have *left*. Without them, a closed tab's extension host and
+  language servers stay resident for VS Code's default 3 hours. After the
+  grace time they're killed (~330MB back per student); after the idle
+  timeout the whole code-server exits and the next `/ide` request restarts
+  it (via the allocator's `forward_auth` → `start_workspace()`), while
+  terminals — tmux sessions under the student's own uid — are untouched. A
+  student whose tab is open is never affected, however idle. One visible
+  effect: a student who returns after more than the grace time is asked to
+  reload the window rather than resuming in place. `0` disables a timer.
 
 Every delivery path — Azure VM included — now sets these by hand rather
 than deriving them from Terraform (the old `infra/corp-dev/gdojo-cc`
 auto-sizing is parked, unused, under `.infra/`). Run
-`./scripts/capacity-calc.sh --students <N>` **on the target machine**
+`./run.sh capacity --students <N>` **on the target machine**
 (the Azure VM itself, or your Mac for local testing) before a real
 session — it reads that machine's actual memory and, if a couple of
 `--test` bot students are already live in `workshop_terminal`, calibrates
-against their real measured RSS instead of estimating. Without live data
-it falls back to the rule of thumb: `(concurrent students × 400MB) + 1GB`
-for RAM, `(concurrent students × 30) + 100` for pids.
+against their real measured private memory instead of estimating (a
+reading too low to be a connected IDE — e.g. a bot whose `/ide` was never
+opened in a browser — is ignored, not trusted). Without usable live data it
+falls back to the rule of thumb: `(concurrent students × 650MB × 1.15) +
+base` for RAM, `(concurrent students × 40) + 200` for pids.
 
 Extensions: code-server ships with a small, curated extension set —
 `redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
@@ -437,7 +476,13 @@ hashes a running workshop's whole `compose/` overlay directory as one unit
 to catch changes to any workshop-only service beyond that (dns-as-code's
 `forgejo-runner`, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
 see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
-way to pick up any of that. The manual form below forces every image to
+way to pick up any of that. It also cleans up after itself: an image whose
+tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
+image a build displaces and removes it once the containers are running on the
+new one (`track_superseded` / `reap_superseded`). Only images that rebuild
+displaced are touched, and one still in use is kept in
+`.build-state/superseded-images` and retried next run. The manual form below
+forces every image to
 rebuild regardless of whether anything changed; reach for it only if you
 suspect the change-detection state itself is stale (e.g. you edited a file
 outside of git, or deleted `engine/.build-state/` by hand) — add the
@@ -471,12 +516,13 @@ workspace never consumes a student slot.
 ## Demo bots (`--test`)
 
 ```sh
-./run.sh git-fundamentals --test
+./run.sh git-fundamentals --test        # 3 bots
+./run.sh git-fundamentals --test 14     # 14 bots, for load / bigger-cohort testing
 ```
 
-Spins up three simulated "students" alongside the real stack — no extra
-Compose service, just three extra accounts (`testuser1`..`testuser3` by
-default) provisioned the same way `student01`..`studentNN` are, plus a
+Spins up simulated "students" alongside the real stack — no extra
+Compose service, just extra accounts (`testuser1`..`testuser3` by
+default, `testuser1`..`testuserN` with `--test N`, max 35) provisioned the same way `student01`..`studentNN` are, plus a
 script (`web-terminal/bot-runner.sh`) that drives each one through the
 git-fundamentals lab on its own: clone, branch, edit, commit, push, open a
 pull request, then the Lab 2-5 review/stash/history/conflict/undo
@@ -487,10 +533,13 @@ for demoing the whole workshop solo, or for exercising the facilitator
 dashboard (`/admin`) — watch tiles, Release, the live roster — without
 needing real students connected.
 
-**Three personas, not three copies of the same script.** Which persona a
-bot plays is derived from its own number (`testuser1` → expert, `testuser2`
-→ intermediate, `testuser3` → novice — see `bot-runner.sh`'s `PERSONA`
-block), and it changes more than just typing speed:
+**Three personas, not three copies of the same script.** `testuser1` is
+always the expert, `testuser2` the intermediate, and `testuser3` the novice.
+With `--test N` for N > 3, every bot past the third is assigned one of those
+three personas at random (picked once by `entrypoint.sh`, recorded as
+`BOT_PERSONA` in the bot's `~/.dojo-bot.env`, and kept across container
+restarts) — so `--test 14` gives you the three fixed bots plus 11 randomly
+mixed ones. Each persona changes more than just typing speed:
 
 | | Expert (`testuser1`) | Intermediate (`testuser2`) | Novice (`testuser3`) |
 | --- | --- | --- | --- |
@@ -517,7 +566,7 @@ exactly where it left off, so Release is safe to use on a bot to test that
 flow without losing its progress.
 
 **Config** (all optional, in `.env` — see `.env.example`): `BOT_COUNT`
-(`--test` defaults this to 3 if unset), `BOT_PREFIX` (default `testuser`),
+(`--test` defaults this to 3 if unset; `--test N` sets it to N and overrides `.env`), `BOT_PREFIX` (default `testuser`),
 `BOT_PASSWORD` (default `testuser123`). A bot's Forgejo account uses the
 same `FORGEJO_ORG`/`FORGEJO_REPO` as everything else, and is added to the
 `students` team by `bootstrap.sh` exactly like a real student account, so
@@ -575,7 +624,7 @@ Nothing here is meant to survive past the session. Run this when the
 workshop ends:
 
 ```sh
-./scripts/teardown.sh
+./run.sh stop
 ```
 
 This is `docker compose down --volumes` — it deletes every student's
@@ -588,7 +637,7 @@ same command on the host, e.g.:
 
 ```sh
 # four hours from now
-echo "cd $(pwd) && ./scripts/teardown.sh" | at now + 4 hours
+echo "cd $(pwd) && ./run.sh stop" | at now + 4 hours
 ```
 
 On a VM, deallocating/deleting the VM after the session is the cleanest

@@ -54,7 +54,7 @@ services:
   # Internal-only. Pinned to a static IP so step-ca's entrypoint (see
   # DNS_SERVER_IP below) has a stable address to point its resolver at.
   dns-server:
-    image: powerdns/pdns-auth-49:latest
+    image: docker.io/powerdns/pdns-auth-49:latest
     container_name: workshop_cert_powerdns
     environment:
       - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-workshop-not-a-secret}

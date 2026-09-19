@@ -85,12 +85,64 @@ USERNAME_RE = re.compile(
 # stack is up; see docker-compose.yml's workshop_lab network).
 CODE_SERVER_EXTENSIONS_DIR = "/opt/code-server-extensions"
 
-# Caps each code-server process's V8 heap so one student can't quietly
-# balloon past the container-wide mem_limit backstop (docker-compose.yml)
-# on their own -- a safety net under that ceiling, not a replacement for
-# it. Override via env if a workshop's files/extensions genuinely need
-# more headroom.
+# Caps the V8 heap of each student's code-server *server* process so one
+# student can't quietly balloon past the container-wide mem_limit backstop
+# (docker-compose.yml) on their own -- a safety net under that ceiling, not
+# a replacement for it. Verified: code-server does NOT pass NODE_OPTIONS on
+# to its extension host or pty host (their /proc/<pid>/environ has none), so
+# the extension host -- the largest per-student process -- and every
+# language server it spawns are not covered by this cap. mem_limit is the
+# only backstop for those. Override via env if a workshop's files/extensions
+# genuinely need more headroom.
 CODE_SERVER_MAX_HEAP_MB = os.environ.get("CODE_SERVER_MAX_HEAP_MB", "384")
+
+
+def _seconds_env(name, default):
+    """Non-negative integer seconds from the environment. Interpolated into
+    a shell command below, so anything but plain digits fails fast at
+    startup instead of being passed through."""
+    raw = os.environ.get(name, default)
+    if not raw.isdigit():
+        raise SystemExit(f"{name} must be a non-negative integer number of seconds, got {raw!r}")
+    return int(raw)
+
+
+# What a code-server keeps holding once its browser tab is gone. Measured
+# with both bundled language servers active, one student is ~550 MB (PSS),
+# and by default a disconnected client's extension host and language
+# servers linger for 3 HOURS (VS Code's own reconnection grace time), so a
+# closed tab quietly keeps ~330 MB of that until then. Two independent
+# timers, both counted from the tab closing (an open tab keeps both from
+# firing, however idle the student is):
+#
+#   - RECONNECTION_GRACE: after this long disconnected, the extension host,
+#     language servers, and pty host are killed (~330 MB back per student).
+#     The code-server process itself stays. A client reconnecting after
+#     this is told to reload its window instead of resuming in place.
+#   - IDLE_TIMEOUT: after this long with no client at all, the whole
+#     code-server exits (code-server judges "no client" from a heartbeat
+#     that can be up to ~1 minute stale, so expect up to that much extra). Nothing is lost by it: the next /ide request goes
+#     through the allocator's forward_auth -> POST /start/ide/<user> ->
+#     start_workspace() below, which sees the dead process and starts a
+#     fresh one, and terminals are tmux sessions owned by the student's own
+#     uid, so they outlive it.
+#
+# Keep GRACE below IDLE_TIMEOUT or the idle exit fires first and the
+# shorter grace is moot. 0 turns a timer off (VS Code's 3 h grace / no idle
+# exit). Neither changes memory while students are actually connected --
+# that's what CODE_SERVER_MAX_HEAP_MB and the container limit are for.
+CODE_SERVER_IDLE_TIMEOUT_SECONDS = _seconds_env("CODE_SERVER_IDLE_TIMEOUT_SECONDS", "900")
+CODE_SERVER_RECONNECTION_GRACE_SECONDS = _seconds_env("CODE_SERVER_RECONNECTION_GRACE_SECONDS", "300")
+
+
+def code_server_lifecycle_flags():
+    flags = []
+    if CODE_SERVER_RECONNECTION_GRACE_SECONDS:
+        flags.append(f"--reconnection-grace-time {CODE_SERVER_RECONNECTION_GRACE_SECONDS}")
+    if CODE_SERVER_IDLE_TIMEOUT_SECONDS:
+        flags.append(f"--idle-timeout-seconds {CODE_SERVER_IDLE_TIMEOUT_SECONDS}")
+    return " ".join(flags)
+
 
 running = {}  # (tool, username) -> subprocess.Popen
 running_lock = threading.Lock()
@@ -145,6 +197,7 @@ def start_workspace(tool, username):
                 f"export NODE_OPTIONS='--max-old-space-size={CODE_SERVER_MAX_HEAP_MB}'; "
                 f"exec code-server --bind-addr 0.0.0.0:{port} --auth none "
                 f"--disable-telemetry --disable-update-check --disable-workspace-trust "
+                f"{code_server_lifecycle_flags()} "
                 f"--extensions-dir {CODE_SERVER_EXTENSIONS_DIR} {home}/lab",
             ]
         else:

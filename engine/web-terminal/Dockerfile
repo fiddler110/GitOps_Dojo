@@ -71,6 +71,14 @@ RUN set -eux; \
     # causes or fixes -- harmless, and unrelated to whether Copilot itself
     # is present.
     #
+    # The Copilot *runtime* is a separate ~137 MB that the extensions/
+    # deletes above don't touch: code-server ships it as node_modules/
+    # @github/copilot* (a 90 MB native runtime.node plus its SDK), loaded
+    # only by the AgentHost feature. Deleted too -- code-server still
+    # starts and serves the workbench without it (verified), and it had no
+    # network route to do anything with it regardless. The glob also
+    # covers the arm64 variant (copilot-linux-arm64).
+    #
     # Full removed/kept list + rationale + how to add something back:
     # see vscode-extensions.md in this directory. Keep that file in sync
     # with this list whenever it changes.
@@ -87,7 +95,11 @@ RUN set -eux; \
         /usr/lib/code-server/lib/vscode/extensions/php \
         /usr/lib/code-server/lib/vscode/extensions/php-language-features \
         /usr/lib/code-server/lib/vscode/extensions/ipynb \
-        /usr/lib/code-server/lib/vscode/extensions/notebook-renderers
+        /usr/lib/code-server/lib/vscode/extensions/notebook-renderers \
+        /usr/lib/code-server/lib/vscode/extensions/ms-vscode.js-debug \
+        /usr/lib/code-server/lib/vscode/extensions/ms-vscode.js-debug-companion \
+        /usr/lib/code-server/lib/vscode/extensions/ms-vscode.vscode-js-profile-table \
+        /usr/lib/code-server/lib/vscode/node_modules/@github/copilot*
 
 # ttyd: alternate plain-terminal workspace. Statically linked release
 # binary -- no libc dependency, works the same regardless of base image.
@@ -150,7 +162,9 @@ RUN set -eux; \
 # ms-python.python's IntelliSense depends on Pylance, which is
 # proprietary and unavailable on Open VSX/code-server, so it runs with
 # reduced language features -- still worth having for syntax highlighting
-# and basic support against scripts/dnsctl.py in the dns-as-code lab.
+# and basic support against scripts/dnsctl.py in the dns-as-code lab
+# (entrypoint.sh's shipped settings.json also turns its Jedi language server
+# off -- ~75 MB per student for completion nobody needs here).
 #
 # Deliberately NOT installed here, to keep this set matched to what the
 # workshops actually use rather than a generic "nice to have" kit: gitlens
@@ -197,6 +211,13 @@ RUN --mount=type=secret,id=corp_ca_cert,target=/tmp/corp_ca.pem set -eux; \
         "https://open-vsx.org/api/ms-python/python/2026.4.0/file/ms-python.python-2026.4.0.vsix" \
         232aeafb01f069824fdd92d3e628c1c442bbcfa1d3cc945ff97076340bb2b4a6; \
     rm -rf /tmp/vsix; \
+    # ms-python.python's extensionPack pulls in ms-python.debugpy (~21 MB) as
+    # a soft, optional companion (not an extensionDependency), and no
+    # workshop debugs anything. --uninstall-extension keeps extensions.json
+    # consistent but only marks the directory obsolete on disk, so it's
+    # removed explicitly too.
+    code-server --extensions-dir /opt/code-server-extensions --uninstall-extension ms-python.debugpy; \
+    rm -rf /opt/code-server-extensions/ms-python.debugpy-* /opt/code-server-extensions/.obsolete; \
     chown -R root:root /opt/code-server-extensions; \
     chmod -R a+rX /opt/code-server-extensions
 

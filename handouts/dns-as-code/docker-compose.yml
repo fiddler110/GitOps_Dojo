@@ -15,7 +15,7 @@
 
 services:
   dns-server:
-    image: powerdns/pdns-auth-49:latest
+    image: docker.io/powerdns/pdns-auth-49:latest
     container_name: dns_dojo_powerdns
     environment:
       # Matches the apiKey in starter-repo/creds.json. Change both together
