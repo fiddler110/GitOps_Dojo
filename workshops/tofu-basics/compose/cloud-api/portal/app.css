@@ -426,3 +426,42 @@ dialog.dialog h2 { font-size: 1.15rem; margin-bottom: 0.6rem; }
 @media (prefers-contrast: more) {
   :root { --border: var(--border-strong); }
 }
+
+/* ---- class progress board (facilitator) ---- */
+.pstrip { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; margin: 0 0 1rem; padding: 0; }
+.pstrip .pill { font-size: 0.9375rem; padding: 0.2rem 0.85rem; }
+.pgrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem; list-style: none; margin: 0; padding: 0;
+}
+.ptile {
+  position: relative; min-width: 0; overflow-wrap: anywhere;
+  background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.7rem 0.85rem;
+}
+.ptile[data-stage="running"] { border-left-color: var(--ok-fg); }
+.ptile[data-stage="inProgress"] { border-left-color: var(--warn-fg); }
+.ptile[data-stage="attention"] { border-left-color: var(--err-fg); }
+.ptile-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.6rem; margin-bottom: 0.5rem; }
+.ptile-name { font-size: 1rem; min-width: 0; flex: 1 1 6rem; }
+.pcgs { list-style: none; margin: 0 0 0.4rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.pcgs li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.5rem; font-size: 0.875rem; }
+.pcg-name { font-weight: 600; min-width: 0; }
+.ptile-cgs p, .ptile-meta { margin: 0 0 0.4rem; }
+.ptile-last { margin: 0 0 0.3rem; color: var(--muted); }
+.ptile-fail { margin: 0.3rem 0 0; display: inline-block; padding: 0.05rem 0.6rem; border-radius: 999px; background: var(--err-bg); color: var(--err-fg); font-size: 0.8125rem; font-weight: 600; }
+.ptile-fail::before { content: "\26A0\FE0E\00a0"; }
+.ptile.pflash { animation: pflash 2.4s ease-out; }
+@keyframes pflash {
+  0%, 25% { background: var(--warn-bg); box-shadow: 0 0 0 3px var(--warn-fg); }
+  100% { background: var(--surface); box-shadow: var(--shadow); }
+}
+.ptile-reason {
+  margin: 0.3rem 0; padding: 0.35rem 0.6rem; border-radius: var(--radius);
+  background: var(--err-bg); color: var(--err-fg); font-size: 0.8125rem; overflow-wrap: anywhere; min-width: 0;
+}
+.ptile-reason .reason-label { display: block; }
+.ptile-reason .reason-text {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
+  overflow: hidden; overflow-wrap: anywhere; word-break: break-word;
+}

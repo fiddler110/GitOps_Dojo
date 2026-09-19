@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -20,7 +21,8 @@ import state as state_mod
 
 TOKEN = "gw-secret-token"
 A, B, FAC = "student01", "student02", "admin"
-SUB = {u: auth.subscription_id(u) for u in (A, B, FAC)}
+C, D, BOT = "student03", "student04", "testuser01"  # only used by the progress board tests
+SUB = {u: auth.subscription_id(u) for u in (A, B, C, D, BOT, FAC)}
 TAGS = {"owner": "someone", "env": "dev"}
 CSP_START = "default-src 'none'; script-src 'self'"
 
@@ -94,11 +96,11 @@ class Base(unittest.TestCase):
 
     def seed(self, user, rg, name, label, port, running=True):
         sub, container = SUB[user], f"dojo-{user}-{rg}-{name}"
-        self.st.rgs.setdefault(server.App.rg_key(sub, rg), {"name": rg, "location": "uksouth", "tags": dict(TAGS)})
+        self.st.rgs.setdefault(server.App.rg_key(sub, rg), {"name": rg, "location": "canadacentral", "tags": dict(TAGS)})
         body = {"properties": {"containers": [{"name": "hello", "properties": {
             "image": "dojo/hello:1.0", "environmentVariables": [{"name": "K", "secureValue": "s3cret"}]}}]}}
         self.st.cgs[server.App.cg_key(sub, rg, name)] = {
-            "name": name, "rg": rg, "location": "uksouth", "tags": dict(TAGS), "body": body,
+            "name": name, "rg": rg, "location": "canadacentral", "tags": dict(TAGS), "body": body,
             "spec": {"image": "dojo/hello:1.0", "env": [], "cpu": 0.25, "mem": 0.125},
             "port": port, "container": container, "dnsLabel": label, "owner": user}
         if running:
@@ -198,6 +200,7 @@ class Reads(Base):
         self.jcall("PATCH", self.cg_url(A, "rg-a", "ci-a1"), body={"tags": TAGS})
         self.jcall("DELETE", self.cg_url(A, "rg-a", "ci-a2"))
         self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={"subscriptionId": SUB[B]})
+        self.jcall("GET", "/cloud/api/admin/progress", user=FAC)
         self.assertGreaterEqual(len(self.fake.calls), 4)
         self.assertEqual(self.fake.under_lock, [])
 
@@ -317,6 +320,278 @@ class Writes(Base):
         self.assertEqual((status, err["error"]["code"]), (403, "Forbidden"))
         self.assertEqual(len(self.st.cgs), 3)
         self.assertEqual(self.jcall("POST", "/cloud/api/admin/purge", user=A, body={"subscriptionId": SUB[A]})[0], 403)
+
+
+class Progress(Base):
+    """Facilitator class progress board (PLAN.md 5.6a)."""
+    URL = "/cloud/api/admin/progress"
+
+    def setUp(self):
+        super().setUp()
+        self.st.rgs.clear()  # start from an empty class; each test seeds what it needs
+        self.st.cgs.clear()
+        self.st.data["activity"].clear()
+        self.fake.running.clear()
+        self.app.auth.users[:] = [A, B, FAC, C, D, BOT]  # facilitator in the middle on purpose
+
+    def board(self, user=FAC):
+        status, body = self.jcall("GET", self.URL, user=user)
+        self.assertEqual(status, 200, body)
+        return body
+
+    def row(self, user, board=None):
+        return next(r for r in (board or self.board())["students"] if r["user"] == user)
+
+    def add_rg(self, user, rg="rg-x"):
+        self.st.rgs.setdefault(server.App.rg_key(SUB[user], rg), {"name": rg, "location": "canadacentral", "tags": {}})
+
+    def event(self, user, status, operation="op", message="", age=0, time_text=None):
+        """Append an activity entry `age` seconds old (oldest must be appended first)."""
+        stamp = time_text if time_text is not None else time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - age))
+        self.st.data["activity"].append({"time": stamp, "subscription": SUB[user], "caller": user,
+                                         "operation": operation, "resourceId": "/x", "status": status,
+                                         "message": message})
+
+    def test_students_are_forbidden_and_unauthenticated_is_401(self):
+        for user in (A, BOT):
+            status, err = self.jcall("GET", self.URL, user=user)
+            self.assertEqual((status, err["error"]["code"]), (403, "Forbidden"), user)
+        self.assertEqual(self.jcall("GET", self.URL, user=FAC, token=None)[0], 401)
+        self.assertEqual(self.jcall("GET", self.URL, user=None)[0], 401)
+        self.assertEqual(self.jcall("GET", self.URL, user="mallory")[0], 403)
+        self.assertEqual(self.fake.calls, [])  # a forbidden caller costs no Docker call
+
+    def test_wrong_method_is_405(self):
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            status, err = self.jcall(method, self.URL, user=FAC, body={})
+            self.assertEqual((status, err["error"]["code"]), (405, "MethodNotAllowed"), method)
+        self.assertEqual(self.jcall("POST", self.URL, user=A, body={})[0], 403)  # same order as admin/settings
+        self.assertEqual(self.jcall("GET", self.URL + "/x", user=FAC)[0], 404)
+
+    def test_shape_and_headers(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.event(A, "Succeeded", "Create container group", "created")
+        status, headers, data = self.call("GET", self.URL, user=FAC)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "application/json; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+        board = json.loads(data)
+        self.assertEqual(set(board), {"generatedAt", "summary", "students"})
+        self.assertRegex(board["generatedAt"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(set(board["summary"]), {"total", "notStarted", "inProgress", "running", "attention"})
+        self.assertEqual(self.row(A, board), {
+            "user": A, "subscriptionId": SUB[A], "stage": "running", "resourceGroups": 1,
+            "containerGroups": [{"name": "ci-a1", "resourceGroup": "rg-a", "state": "Running",
+                                 "siteUrl": "/cloud/site/site-a1/"}],
+            "lastEvent": {"time": self.st.data["activity"][0]["time"], "operation": "Create container group",
+                          "status": "Succeeded", "message": "created"},
+            "failures": 0})
+
+    def test_roster_order_facilitator_excluded_bots_included(self):
+        board = self.board()
+        self.assertEqual([r["user"] for r in board["students"]], [A, B, C, D, BOT])
+        self.assertNotIn(FAC, json.dumps(board))
+        self.assertNotIn(SUB[FAC], json.dumps(board))
+        self.assertEqual(board["summary"]["total"], 5)
+        self.event(FAC, "Failed", "facilitator op")  # the facilitator's own activity never makes a row
+        self.assertEqual([r["user"] for r in self.board()["students"]], [A, B, C, D, BOT])
+
+    def test_not_started(self):
+        board = self.board()
+        for r in board["students"]:
+            self.assertEqual((r["stage"], r["resourceGroups"], r["containerGroups"], r["lastEvent"], r["failures"]),
+                             ("notStarted", 0, [], None, 0), r["user"])
+        self.assertEqual(board["summary"], {"total": 5, "notStarted": 5, "inProgress": 0, "running": 0, "attention": 0})
+        self.assertEqual(self.fake.calls, ["list_running"])  # still one list call, even with nothing to show
+
+    def test_in_progress_with_only_a_resource_group(self):
+        self.add_rg(A)  # apply is part-way: the RG exists before the container does
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["resourceGroups"], r["containerGroups"]), ("inProgress", 1, []))
+
+    def test_in_progress_with_only_an_event(self):
+        self.event(B, "Succeeded", "Delete container group (portal)")  # e.g. a drift demo deletes everything
+        self.assertEqual(self.row(B)["stage"], "inProgress")
+
+    def test_in_progress_when_state_is_unknown(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.fake.list_running = lambda: (_ for _ in ()).throw(docker_api.DockerError("down"))
+        r = self.row(A)
+        self.assertEqual([c["state"] for c in r["containerGroups"]], ["Unknown"])
+        self.assertEqual(r["stage"], "inProgress")
+
+    def test_running_needs_every_container_running(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.seed(A, "rg-a", "ci-a2", "site-a2", 20002)
+        self.event(A, "Succeeded")
+        self.assertEqual(self.row(A)["stage"], "running")
+        self.seed(A, "rg-a", "ci-a3", "site-a3", 20003, running=False)  # one of three is down
+        self.fake.calls.clear()
+        self.portal._invalidate()
+        r = self.row(A)
+        self.assertEqual(r["stage"], "attention")
+        self.assertEqual([(c["name"], c["state"]) for c in r["containerGroups"]],
+                         [("ci-a1", "Running"), ("ci-a2", "Running"), ("ci-a3", "Terminated")])
+
+    def test_attention_when_last_event_failed(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.event(A, "Succeeded", "Create container group")
+        self.event(A, "Failed", "Update container group tags (portal)", "RequestDisallowedByPolicy")
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["failures"]), ("attention", 1))
+        self.assertEqual(r["lastEvent"]["status"], "Failed")
+        self.assertEqual(r["lastEvent"]["message"], "RequestDisallowedByPolicy")
+
+    def test_attention_when_a_container_is_terminated(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001, running=False)  # crashed / stopped
+        self.event(A, "Succeeded", "Create container group")
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["failures"]), ("attention", 0))
+        self.assertEqual([c["state"] for c in r["containerGroups"]], ["Terminated"])
+
+    def test_failed_then_succeeded_is_not_attention(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.event(A, "Failed", "Create container group", "quota")
+        self.event(A, "Succeeded", "Create container group")
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["failures"]), ("running", 1))  # recovered; the failure still counts
+        self.assertEqual(r["lastEvent"]["status"], "Succeeded")
+
+    def test_failed_event_alone_is_attention(self):
+        self.event(C, "Failed", "Create resource group")
+        r = self.row(C)
+        self.assertEqual((r["stage"], r["resourceGroups"], r["containerGroups"]), ("attention", 0, []))
+
+    def test_summary_counts_add_up(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)          # running
+        self.add_rg(B)                                            # inProgress
+        self.seed(C, "rg-c", "ci-c1", "site-c1", 20003, running=False)  # attention
+        # D: notStarted; BOT: running
+        self.seed(BOT, "rg-bot", "ci-bot", "site-bot", 20004)
+        board = self.board()
+        self.assertEqual(board["summary"], {"total": 5, "notStarted": 1, "inProgress": 1, "running": 2, "attention": 1})
+        stages = [r["stage"] for r in board["students"]]
+        self.assertEqual(stages, ["running", "inProgress", "attention", "notStarted", "running"])
+        s = board["summary"]
+        self.assertEqual(s["total"], len(board["students"]))
+        self.assertEqual(s["total"], s["notStarted"] + s["inProgress"] + s["running"] + s["attention"])
+
+    def test_failures_count_only_the_last_15_minutes(self):
+        old_tz = os.environ.get("TZ")
+
+        def restore():
+            if old_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old_tz
+            time.tzset()
+
+        self.addCleanup(restore)
+        for tz in ("UTC", "Pacific/Auckland", "America/Los_Angeles"):  # event times are UTC whatever the host zone
+            os.environ["TZ"] = tz
+            time.tzset()
+            self.st.data["activity"].clear()
+            self.event(A, "Failed", age=3600)                       # long ago
+            self.event(A, "Failed", age=16 * 60)                    # just outside the window
+            self.event(A, "Failed", age=14 * 60)                    # inside
+            self.event(A, "Failed", age=30)                         # inside
+            self.event(A, "Succeeded", age=10)                      # not a failure
+            self.event(A, "Failed", time_text="not a timestamp")    # malformed: ignored, no crash
+            self.event(A, "Failed", time_text="")                   # empty: ignored
+            self.event(A, "Succeeded", age=5)
+            self.event(B, "Failed", age=20 * 60)
+            self.assertEqual(self.row(A)["failures"], 2, tz)
+            self.assertEqual(self.row(B)["failures"], 0, tz)
+            self.assertEqual(self.row(B)["stage"], "attention", tz)  # last event Failed regardless of its age
+
+    def test_last_event_message_is_truncated_to_200_chars(self):
+        self.event(A, "Succeeded", "op", "x" * 500)
+        self.event(B, "Succeeded", "op", "y" * 200)
+        self.event(C, "Succeeded", "op", "z" * 199)
+        self.assertEqual(self.row(A)["lastEvent"]["message"], "x" * 200)
+        self.assertEqual(self.row(B)["lastEvent"]["message"], "y" * 200)
+        self.assertEqual(self.row(C)["lastEvent"]["message"], "z" * 199)
+        self.assertEqual(set(self.row(A)["lastEvent"]), {"time", "operation", "status", "message"})
+        self.assertEqual(len(self.st.data["activity"][0]["message"]), 500)  # the log itself is untouched
+
+    def test_hostile_strings_pass_through_as_data(self):
+        evil = '<img src=x onerror=alert(1)>"</script><script>alert(1)</script>&amp;\u2028'
+        self.add_rg(A, "rg-<b>")
+        self.seed(A, "rg-<b>", "ci-<i>", "lbl-<u>", 20001)
+        self.event(A, "Succeeded", evil, evil)
+        status, headers, data = self.call("GET", self.URL, user=FAC)
+        self.assertEqual(status, 200)
+        self.assertTrue(headers["Content-Type"].startswith("application/json"))
+        self.assertNotIn("Content-Security-Policy", headers)  # a JSON API response, not an HTML page
+        r = self.row(A, json.loads(data))
+        self.assertEqual((r["lastEvent"]["operation"], r["lastEvent"]["message"]), (evil, evil))
+        self.assertEqual(r["containerGroups"][0]["name"], "ci-<i>")
+        self.assertEqual(r["containerGroups"][0]["resourceGroup"], "rg-<b>")
+        self.assertEqual(r["containerGroups"][0]["siteUrl"], "/cloud/site/lbl-<u>/")
+        self.assertFalse(data.lstrip().startswith(b"<"))
+
+    def test_no_docker_call_under_state_lock_and_one_list_call_for_the_class(self):
+        many = [f"student{n:02d}" for n in range(10, 40)]  # a 30-student class, one container each
+        self.app.auth.users[:] = [A, B, FAC, *many]
+        for i, u in enumerate(many):
+            SUB[u] = auth.subscription_id(u)
+            self.addCleanup(SUB.pop, u)
+            self.app.auth.by_subscription[SUB[u]] = u
+            self.seed(u, f"rg-{i}", f"ci-{i}", f"site-{i}", 21000 + i, running=bool(i % 2))
+            self.event(u, "Succeeded")
+        board = self.board()
+        self.assertEqual(board["summary"]["total"], 32)
+        self.assertEqual(board["summary"]["running"], 15)
+        self.assertEqual(board["summary"]["attention"], 15)
+        for _ in range(3):
+            self.board()
+        self.assertEqual(self.fake.calls, ["list_running"])  # never one call per student, cached for ~2 s
+        self.assertEqual(self.fake.under_lock, [])
+
+    def test_docker_call_is_made_after_the_lock_is_released(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        held = []
+        original = self.fake.list_running
+
+        def spy():
+            held.append(self.st.lock._is_owned())
+            return original()
+
+        self.fake.list_running = spy
+        self.board()
+        self.assertEqual(held, [False])
+
+    def test_a_students_data_does_not_leak_into_another_row(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.seed(B, "rg-b", "ci-b1", "site-b1", 20002, running=False)
+        self.event(A, "Succeeded", "op-of-A", "msg-A")
+        self.event(B, "Failed", "op-of-B", "msg-B")
+        self.event(B, "Failed", "op-of-B2", "msg-B2")
+        board = self.board()
+        a, b = self.row(A, board), self.row(B, board)
+        for needle in ("rg-b", "ci-b1", "site-b1", "op-of-B", "msg-B", SUB[B], B):
+            self.assertNotIn(needle, json.dumps(a), needle)
+        for needle in ("rg-a", "ci-a1", "site-a1", "op-of-A", "msg-A", SUB[A], A):
+            self.assertNotIn(needle, json.dumps(b), needle)
+        self.assertEqual((a["stage"], a["failures"]), ("running", 0))
+        self.assertEqual((b["stage"], b["failures"]), ("attention", 2))
+        self.assertEqual(b["lastEvent"]["operation"], "op-of-B2")
+        self.assertEqual(self.row(C)["lastEvent"], None)  # untouched student picks up nothing
+
+    def test_actions_on_a_students_behalf_show_under_that_student(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={"subscriptionId": SUB[A]})  # logged for A's sub
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["resourceGroups"], r["containerGroups"]), ("inProgress", 0, []))
+        self.assertEqual(r["lastEvent"]["operation"], "Purge subscription (portal)")
+
+    def test_events_for_unknown_subscriptions_are_ignored(self):
+        self.st.data["activity"].append({"time": "2026-01-01T00:00:00Z", "subscription": "not-a-sub", "caller": "x",
+                                         "operation": "o", "resourceId": "/", "status": "Failed", "message": ""})
+        self.st.rgs["ghost-sub/rg"] = {"name": "rg", "location": "canadacentral", "tags": {}}
+        board = self.board()
+        self.assertEqual(board["summary"], {"total": 5, "notStarted": 5, "inProgress": 0, "running": 0, "attention": 0})
 
 
 class Static(Base):

@@ -32,6 +32,7 @@
     scope: 'mine',      // facilitator overview scope: mine | class
     actScope: 'mine',   // facilitator activity scope: mine | all
     filters: { class: '', containers: '', resources: '' },
+    progressSort: 'roster',   // facilitator class progress board: roster | attention | recent
   };
   let current = null;       // mounted view
   let routeToken = 0;       // increments per navigation; stale responses are dropped
@@ -140,6 +141,37 @@
     };
   }
 
+  // Class progress board (PLAN.md 5.6a). Stage names are validated against STAGES, never used as-is.
+  const STAGES = {
+    attention:  { label: 'Needs attention', summary: 'needs attention', pill: 'pill-err', rank: 0 },
+    inProgress: { label: 'In progress', summary: 'in progress', pill: 'pill-warn', rank: 1 },
+    running:    { label: 'Running', summary: 'running', pill: 'pill-ok', rank: 2 },
+    notStarted: { label: 'Not started', summary: 'not started', pill: 'pill-neutral', rank: 3 },
+  };
+  const STAGE_KEYS = ['running', 'inProgress', 'attention', 'notStarted'];   // order of the summary strip
+  const isStage = (v) => typeof v === 'string' && Object.prototype.hasOwnProperty.call(STAGES, v);
+  function normProgressStudent(x) {
+    const sub = str(x.subscriptionId, 64);
+    const ev = x.lastEvent && typeof x.lastEvent === 'object' ? x.lastEvent : null;
+    return {
+      user: str(x.user, 100), subscriptionId: sub, stage: isStage(x.stage) ? x.stage : 'notStarted',
+      resourceGroups: num(x.resourceGroups) || 0, failures: num(x.failures) || 0,
+      containerGroups: objs(x.containerGroups).slice(0, 50).map((c) => ({
+        name: str(c.name, 200), resourceGroup: str(c.resourceGroup, 200), subscriptionId: sub, state: str(c.state, 30),
+        siteUrl: typeof c.siteUrl === 'string' && SITE_RE.test(c.siteUrl) ? c.siteUrl : '',
+      })),
+      lastEvent: ev ? { time: str(ev.time, 64), operation: str(ev.operation, 200), status: str(ev.status, 60), message: str(ev.message, 200) } : null,
+    };
+  }
+  function normProgress(o) {
+    o = o && typeof o === 'object' ? o : {};
+    const students = objs(o.students).map(normProgressStudent);
+    const sm = o.summary && typeof o.summary === 'object' ? o.summary : {};
+    const summary = { total: num(sm.total) ?? students.length };
+    for (const k of STAGE_KEYS) summary[k] = num(sm[k]) ?? students.filter((s) => s.stage === k).length;
+    return { generatedAt: str(o.generatedAt, 64), summary, students };
+  }
+
   // ------------------------------------------------------------------ formatting
   const enc = encodeURIComponent;
   const pad2 = (n) => String(n).padStart(2, '0');
@@ -148,6 +180,16 @@
     const d = new Date(iso);
     if (!iso || Number.isNaN(d.getTime())) return iso || '\u2014';
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + clock(d);
+  }
+  /** "12s ago" / "3m ago" / "2h ago" / "4d ago"; nowMs is the server's generatedAt, so browser clock skew does not show. */
+  function fmtAgo(iso, nowMs) {
+    const t = Date.parse(iso);
+    if (!iso || Number.isNaN(t)) return '';
+    const sec = Math.max(0, Math.round((nowMs - t) / 1000));
+    if (sec < 60) return sec + 's ago';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+    return Math.floor(sec / 86400) + 'd ago';
   }
   const dash = (v) => (v === '' || v == null ? '\u2014' : v);
   function fmtSize(cg) {
@@ -285,6 +327,7 @@
   function renderTopbar(me) {
     setText($('meta-user'), me.user || 'Unknown user');
     $('meta-facilitator').hidden = !me.isFacilitator;
+    $('nav-progress').hidden = !me.isFacilitator;
     const sub = $('meta-sub');
     sub.hidden = !me.subscriptionId;
     setText($('meta-sub-full'), me.subscriptionId);
@@ -697,6 +740,211 @@
       { label: 'Browse', cls: 'nowrap', cell: (c) => browseLink(c) },
     ],
   });
+
+  // ---- class progress board (facilitator only; PLAN.md 5.6a) ----
+  const PROGRESS_SORTS = [['roster', 'Roster order'], ['attention', 'Needs attention first'], ['recent', 'Most recently active']];
+  const MAX_TILE_CGS = 6;
+  const FLASH_MS = 2500;
+
+  function stagePill(stage) {
+    return h('span', { class: 'pill ' + STAGES[stage].pill },
+      h('span', { class: 'pill-dot', 'aria-hidden': 'true' }), STAGES[stage].label);
+  }
+  /** Run fn (which rebuilds part of box) and put focus back on the same link if it was inside box. */
+  function keepFocus(box, fn) {
+    const a = document.activeElement;
+    const inside = !!(a && box.contains(a));
+    const fk = inside ? a.getAttribute('data-fk') : null;
+    const idx = inside ? Array.from(box.querySelectorAll('li')).indexOf(a.closest('li')) : -1;
+    fn();
+    if (fk && idx >= 0) {
+      const t = box.querySelectorAll('li')[idx];
+      const n = t && t.querySelector('[data-fk="' + fk + '"]');
+      if (n) n.focus({ preventScroll: true });
+    }
+  }
+  function cgListNodes(s) {
+    if (!s.containerGroups.length) return h('p', { class: 'muted small' }, 'No container instances yet');
+    const shown = s.containerGroups.slice(0, MAX_TILE_CGS);
+    const ul = h('ul', { class: 'pcgs', role: 'list' }, shown.map((cg) => {
+      const canLink = cg.subscriptionId && cg.resourceGroup && cg.name;
+      return h('li', null,
+        h('span', { class: 'pcg-name' }, canLink ? link(cg.name, hashCG(cg), { 'data-fk': 'open' }) : clip(cg.name)),
+        statePill(cg.state),
+        cg.siteUrl ? browseLink(cg) : null);
+    }));
+    if (s.containerGroups.length > MAX_TILE_CGS) {
+      ul.append(h('li', { class: 'muted small' }, '+' + (s.containerGroups.length - MAX_TILE_CGS) + ' more'));
+    }
+    return ul;
+  }
+
+  /**
+   * Why a tile says "Needs attention": the failed event's message, else the terminated container names.
+   * label is a text label (never colour alone); text is clamped by CSS, full is for the title attribute.
+   */
+  function attentionReason(s) {
+    if (s.stage !== 'attention') return null;
+    const ev = s.lastEvent;
+    if (ev && ev.status.toLowerCase() === 'failed' && ev.message) return { label: 'Failed:', text: ev.message, full: ev.message };
+    const dead = s.containerGroups.filter((c) => c.state === 'Terminated' && c.name).map((c) => c.name);
+    if (!dead.length) return null;
+    const text = dead.slice(0, 3).map(clip).join(', ') + (dead.length > 3 ? ' +' + (dead.length - 3) + ' more' : '');
+    return { label: 'Container terminated:', text, full: dead.join(', ') };
+  }
+
+  function progressView() {
+    let root, body, strip, stripRefs, sortCtl, grid, empty, gone = false, last = null, lastSummary = null;
+    const tiles = new Map();   // user -> {li, r (refs), stage, sig, flashT}
+
+    function buildTile() {
+      const r = {
+        name: h('h3', { class: 'ptile-name' }), badge: h('span', { class: 'ptile-badge' }), cgs: h('div', { class: 'ptile-cgs' }),
+        rgs: h('p', { class: 'muted small ptile-meta' }), main: h('span'), ago: h('span'), fail: h('p', { class: 'ptile-fail', hidden: true }),
+        reasonLabel: h('strong', { class: 'reason-label' }), reasonText: h('span', { class: 'reason-text' }),
+      };
+      r.reason = h('p', { class: 'ptile-reason', hidden: true }, r.reasonLabel, r.reasonText);
+      r.last = h('p', { class: 'small ptile-last' }, r.main, r.ago);
+      const li = h('li', { class: 'ptile' }, h('div', { class: 'ptile-head' }, r.name, r.badge), r.cgs, r.rgs, r.last, r.reason, r.fail);
+      return { li, r, stage: null, sig: null, flashT: null };
+    }
+    function fillTile(rec, s, nowMs) {
+      const r = rec.r;
+      setText(r.name, clip(s.user));
+      if (s.user.length > CLIP) r.name.title = s.user; else r.name.removeAttribute('title');
+      rec.li.setAttribute('data-stage', s.stage);
+      setSlot(r.badge, s.stage, () => stagePill(s.stage));
+      const sig = JSON.stringify(s.containerGroups);
+      if (sig !== rec.sig) { rec.sig = sig; keepFocus(r.cgs, () => r.cgs.replaceChildren(cgListNodes(s))); }
+      setText(r.rgs, s.resourceGroups === 1 ? '1 resource group' : s.resourceGroups + ' resource groups');
+      const ev = s.lastEvent;
+      if (ev) {
+        setText(r.main, 'Last: ' + [clip(ev.operation), ev.status].filter(Boolean).join(' · '));
+        const ago = fmtAgo(ev.time, nowMs);
+        setText(r.ago, ago ? ' · ' + ago : '');
+        r.last.title = ev.operation + (ev.message ? ' — ' + ev.message : '');   // full text on hover
+      } else {
+        setText(r.main, 'No activity yet'); setText(r.ago, ''); r.last.removeAttribute('title');
+      }
+      const why = attentionReason(s);
+      r.reason.hidden = !why;
+      if (why) { setText(r.reasonLabel, why.label); setText(r.reasonText, why.text); r.reason.title = why.label + ' ' + why.full; }
+      else { setText(r.reasonLabel, ''); setText(r.reasonText, ''); r.reason.removeAttribute('title'); }
+      r.fail.hidden = s.failures <= 0;
+      setText(r.fail, s.failures === 1 ? '1 failure in the last 15 minutes' : s.failures + ' failures in the last 15 minutes');
+    }
+    function flash(rec) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      rec.li.classList.remove('pflash');
+      void rec.li.offsetWidth;            // restart the animation if it is still running
+      rec.li.classList.add('pflash');
+      clearTimeout(rec.flashT);
+      rec.flashT = setTimeout(() => rec.li.classList.remove('pflash'), FLASH_MS);
+    }
+    function ordered(students) {
+      const items = students.map((s, i) => ({ s, i, t: Date.parse(s.lastEvent ? s.lastEvent.time : '') }));
+      const mode = S.progressSort;
+      if (mode === 'attention') items.sort((a, b) => STAGES[a.s.stage].rank - STAGES[b.s.stage].rank || a.i - b.i);
+      else if (mode === 'recent') items.sort((a, b) => (Number.isNaN(b.t) ? -1 : b.t) - (Number.isNaN(a.t) ? -1 : a.t) || a.i - b.i);
+      return items.map((x) => x.s);
+    }
+    /** Keyed in-place update: tiles are created once, edited field by field, and only moved when the order changes. */
+    function renderTiles(p) {
+      const nowMs = Number.isNaN(Date.parse(p.generatedAt)) ? Date.now() : Date.parse(p.generatedAt);
+      const active = document.activeElement;
+      const seen = new Set(), dupes = new Map();
+      let prev = null;
+      for (const s of ordered(p.students)) {
+        let key = s.user;
+        const n = dupes.get(key) || 0;
+        dupes.set(key, n + 1);
+        if (n) key += '#' + n;
+        seen.add(key);
+        let rec = tiles.get(key);
+        const fresh = !rec;
+        if (fresh) { rec = buildTile(); tiles.set(key, rec); }
+        fillTile(rec, s, nowMs);
+        if (!fresh && rec.stage !== s.stage) flash(rec);
+        rec.stage = s.stage;
+        const ref = prev ? prev.nextSibling : grid.firstChild;
+        if (rec.li !== ref) grid.insertBefore(rec.li, ref);
+        prev = rec.li;
+      }
+      for (const [k, rec] of tiles) {
+        if (!seen.has(k)) { clearTimeout(rec.flashT); rec.li.remove(); tiles.delete(k); }
+      }
+      // moving a node drops focus in some browsers; put it back where it was
+      if (active && active !== document.body && active.isConnected && document.activeElement !== active) active.focus({ preventScroll: true });
+      empty.hidden = p.students.length !== 0;
+      grid.hidden = p.students.length === 0;
+      sortCtl.el.parentNode.hidden = p.students.length === 0;
+    }
+    function renderStrip(sm) {
+      const parts = [];
+      for (const k of STAGE_KEYS) {
+        const text = k === 'running' ? sm[k] + ' of ' + sm.total + ' running' : sm[k] + ' ' + STAGES[k].summary;
+        setText(stripRefs[k], text);
+        parts.push(text);
+      }
+      // announced only when the numbers change, not on every poll
+      const sentence = parts.join(' · ');
+      if (lastSummary !== null && sentence !== lastSummary) announce('Class progress: ' + sentence);
+      lastSummary = sentence;
+    }
+
+    return {
+      title: 'Class progress', nav: 'progress',
+      mount(r) {
+        root = r;
+        r.append(pageHeader('Class progress', { subtitle: 'Every student’s deployment, live. Facilitator only.' }).el);
+        stripRefs = {};
+        strip = h('ul', { class: 'pstrip', role: 'list', 'aria-label': 'Class summary' }, STAGE_KEYS.map((k) => {
+          stripRefs[k] = h('span');
+          return h('li', null, h('span', { class: 'pill ' + STAGES[k].pill }, h('span', { class: 'pill-dot', 'aria-hidden': 'true' }), stripRefs[k]));
+        }));
+        sortCtl = segmented('Sort students', PROGRESS_SORTS, () => S.progressSort, (v) => { S.progressSort = v; if (last) renderTiles(last); });
+        grid = h('ul', { class: 'pgrid', role: 'list', 'aria-label': 'Students' });
+        empty = h('div', { class: 'empty', hidden: true }, h('h2', null, 'No students yet'),
+          h('p', null, 'The class roster is empty. Students appear here as soon as they are on the roster.'));
+        body = h('div', { hidden: true },
+          h('h2', { class: 'sr-only' }, 'Summary'), strip,
+          h('div', { class: 'toolbar' }, h('span', { class: 'muted small', 'aria-hidden': 'true' }, 'Sort by'), sortCtl.el),
+          h('h2', { class: 'sr-only' }, 'Students'), empty, grid);
+        r.append(loadingNode(), body);
+      },
+      async load(signal) {
+        const me = await loadMe(signal);
+        if (!me.isFacilitator) return { me, forbidden: true };
+        try {
+          return { me, progress: normProgress(await api('admin/progress', { signal })) };
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 403) return { me, forbidden: true };
+          throw e;
+        }
+      },
+      update(d) {
+        clearLoading(root);
+        if (d.forbidden) {
+          // a student who typed #/progress by hand: the ordinary not-found page, not a broken board
+          if (!gone) {
+            gone = true;
+            root.replaceChildren(...notFoundBody());
+            setNav('');
+            document.title = 'Page not found – Dojo Portal';
+            const hd = root.querySelector('h1');
+            if (hd && (!document.activeElement || document.activeElement === document.body)) hd.focus({ preventScroll: true });
+          }
+          return;
+        }
+        last = d.progress;
+        body.hidden = false;
+        sortCtl.sync();
+        renderStrip(last.summary);
+        renderTiles(last);
+      },
+      dispose() { for (const rec of tiles.values()) clearTimeout(rec.flashT); },
+    };
+  }
 
   // ---- activity log ----
   function activityView() {
@@ -1242,12 +1490,13 @@
   }
 
   // ---- not found ----
+  function notFoundBody() {
+    return [pageHeader('Page not found').el, h('p', null, 'There is no such page. ', link('Go to Home', '#/'))];
+  }
   function notFoundView() {
     return {
       title: 'Page not found', nav: '',
-      mount(r) {
-        r.append(pageHeader('Page not found').el, h('p', null, 'There is no such page. ', link('Go to Home', '#/')));
-      },
+      mount(r) { r.append(...notFoundBody()); },
       async load(signal) { await loadMe(signal); return {}; },
       update() {},
     };
@@ -1273,6 +1522,7 @@
     if (a === 'containers' && parts.length === 4 && !bad(b) && !bad(c) && !bad(d)) return containerView({ sub: b, rg: c, name: d });
     if (a === 'activity' && parts.length === 1) return activityView();
     if (a === 'class' && parts.length === 1) return classView();
+    if (a === 'progress' && parts.length === 1) return progressView();
     return notFoundView();
   }
   function setNav(key) {

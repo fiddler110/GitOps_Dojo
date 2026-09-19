@@ -10,6 +10,7 @@ Talks to Docker only outside State.lock: data is snapshotted under the lock, the
 lock is released, then the executor is called. Container status comes from ONE list
 call per ~2 s for the whole class, not one inspect per container.
 """
+import calendar
 import copy
 import hmac
 import json
@@ -37,6 +38,9 @@ STATUS_TTL = 2.0       # seconds the "which containers are running" list is reus
 DEFAULT_TAIL, MAX_TAIL = 200, 500
 DEFAULT_EVENTS, MAX_EVENTS = 200, 500
 MAX_LOG_CHARS = 64_000
+FAILURE_WINDOW = 15 * 60  # seconds: how far back the class progress board counts Failed events
+MAX_LAST_MESSAGE = 200
+TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 MAX_TAGS, MAX_TAG_KEY, MAX_TAG_VALUE = 15, 512, 256
 
 
@@ -146,7 +150,7 @@ class Portal:
                 return self._only(method, "GET") or self._activity(user, query)
             if head == "containers" and len(segs) in (4, 5):
                 return self._container(method, user, segs, query, body)
-            if head == "admin" and len(segs) == 2 and segs[1].lower() in ("settings", "purge"):
+            if head == "admin" and len(segs) == 2 and segs[1].lower() in ("settings", "purge", "progress"):
                 return self._admin(method, user, segs[1].lower(), body)
         except ValueError:  # non-numeric limit/tail
             return _err(400, "InvalidQueryParameter", "A numeric query parameter was not a number.")
@@ -337,6 +341,8 @@ class Portal:
         if not self._is_fac(user):
             return _err(403, "Forbidden", "Facilitator only.")
         st = self.app.state
+        if what == "progress":
+            return self._only(method, "GET") or self._progress(user)
         if what == "settings":
             if method == "GET":
                 return _json(200, {"writeActions": self.write_actions()})
@@ -358,6 +364,68 @@ class Portal:
         if sub not in self.app.auth.by_subscription:
             return _err(404, "SubscriptionNotFound", "Unknown subscriptionId.")
         return self._purge(user, sub)
+
+    def _progress(self, user):
+        """Class progress board (PLAN.md 5.6a): one row per roster user except the facilitator.
+        `user` is the (already authorised) facilitator."""
+        now, st = time.time(), self.app.state
+        by_sub = {}  # sub -> {"rgs": n, "cgs": [(summary, container)], "last": event|None, "failures": n}
+        with st.lock:  # snapshot only: no Docker, no per-student work
+            for key in st.rgs:
+                self._bucket(by_sub, key.split("/", 1)[0])["rgs"] += 1
+            for key, rec in st.cgs.items():
+                summary = {"name": rec["name"], "resourceGroup": rec["rg"], "state": "Unknown",
+                           "siteUrl": f"/cloud/site/{rec['dnsLabel']}/"}
+                self._bucket(by_sub, key.split("/", 1)[0])["cgs"].append((summary, rec["container"]))
+            events = list(st.data["activity"])  # entries are never mutated after they are logged
+        for e in events:  # oldest first, so the last one seen per subscription is its most recent
+            b = self._bucket(by_sub, e.get("subscription"))
+            b["last"] = e
+            if e.get("status") == "Failed" and now - self._event_epoch(e) <= FAILURE_WINDOW:
+                b["failures"] += 1
+        for b in by_sub.values():
+            b["cgs"].sort(key=lambda c: (c[0]["resourceGroup"].lower(), c[0]["name"].lower()))
+        # State for every container group in the class from ONE cached list call, outside the lock.
+        self._apply_state([c for b in by_sub.values() for c in b["cgs"]])
+        students, summary = [], {"total": 0, "notStarted": 0, "inProgress": 0, "running": 0, "attention": 0}
+        for name in self.app.auth.users:
+            if self._is_fac(name):
+                continue
+            sub = auth.subscription_id(name)
+            b = by_sub.get(sub) or self._bucket({}, sub)
+            last, cgs = b["last"], [c[0] for c in b["cgs"]]
+            if (last and last.get("status") == "Failed") or any(c["state"] == "Terminated" for c in cgs):
+                stage = "attention"
+            elif cgs and all(c["state"] == "Running" for c in cgs):
+                stage = "running"
+            elif b["rgs"] or cgs or last:
+                stage = "inProgress"
+            else:
+                stage = "notStarted"
+            summary["total"] += 1
+            summary[stage] += 1
+            students.append({
+                "user": name, "subscriptionId": sub, "stage": stage, "resourceGroups": b["rgs"],
+                "containerGroups": [{k: c[k] for k in ("name", "resourceGroup", "state", "siteUrl")} for c in cgs],
+                "lastEvent": None if not last else {
+                    "time": last.get("time", ""), "operation": last.get("operation", ""),
+                    "status": last.get("status", ""), "message": str(last.get("message") or "")[:MAX_LAST_MESSAGE]},
+                "failures": b["failures"]})
+        return _json(200, {"generatedAt": time.strftime(TIME_FORMAT, time.gmtime(now)),
+                           "summary": summary, "students": students})
+
+    @staticmethod
+    def _bucket(by_sub, sub):
+        return by_sub.setdefault(sub, {"rgs": 0, "cgs": [], "last": None, "failures": 0})
+
+    @staticmethod
+    def _event_epoch(event):
+        """Seconds since the epoch of an event's UTC ISO 'time' (calendar.timegm, so no local-timezone
+        skew); -inf if it cannot be parsed, i.e. too old to count as recent."""
+        try:
+            return calendar.timegm(time.strptime(event.get("time"), TIME_FORMAT))
+        except (TypeError, ValueError):
+            return float("-inf")
 
     def _purge(self, user, sub):
         st, prefix = self.app.state, sub + "/"
