@@ -24,7 +24,9 @@
    commit SHA next to its checkbox in §12. If a box is ticked but the SHA is
    missing from `git log`, treat the task as **not done**.
 3. Check §4 (Decisions & Gates). Do not start a phase whose gate is still
-   `PENDING`.
+   `PENDING`. Also read **§15a (Worth knowing & follow-ups)** — it lists
+   unconfirmed decisions, behaviours that surprised us, and problems found in
+   *other* workshops.
 4. Find the first `[ ]` or `[~]` task in §12. Run that task's **Verify** line
    for the *previous* task first, to make sure the foundation still holds.
 5. Work the task. When finished: tick the box, add the commit SHA, and append a
@@ -156,15 +158,16 @@ Never build on an **assumed** item without first proving it (each has a task).
 | D0b | Deliver **Track A + Track B** | ✅ DECIDED (user) | A = offline sandbox, B = "Dojo Cloud". A doubles as fallback if the cloud host misbehaves mid-session. |
 | D0c | Cloud should feel like **Azure** | ✅ DECIDED (user) | Azure *concepts, naming, resource shapes, policy errors, portal layout* — no Microsoft logos/marks. Brand is "Dojo Cloud". |
 | D1 | **Provider strategy for Track B** | ✅ DECIDED 2026-09-18 by spike P2: **T2 — real `azurerm` 5.6.0 → ARM facade** (azapi + docker fallback not needed) | Option **T2** (preferred): real `azurerm` (fallback `azapi`) → a small ARM-compatible facade. Option **T1** (fallback): `kreuzwerker/docker` → policy-filtering Docker API proxy with mTLS. See §5.4. |
-| D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ⏳ PENDING (default: privileged dind, isolated) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
-| D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ⏳ PENDING (default **a**) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
-| D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ⏳ PENDING (default yes) | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
-| D5 | Default region / subscription / naming values | ⏳ PENDING (defaults in §6) | Default region `uksouth`; change freely in `variables.tf`. |
-| D6 | Per-student quota | ⏳ PENDING (default: 2 container groups, 0.25 vCPU, 128 MB each) | Sized in §14. |
+| D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (privileged dind, isolated; see §15a-A) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
+| D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ⚠ **BUILT AT DEFAULT (a), NOT CONFIRMED** (see §15a-A) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
+| D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ⏳ PENDING — **not yet exercised (needed at P5); confirm with the user before editing any base-engine file** | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
+| D5 | Default region / subscription / naming values | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (`uksouth`; `rg-`/`ci-` prefixes enforced by policy) | Default region `uksouth`; change freely in `variables.tf`. |
+| D6 | Per-student quota | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (2 container groups, 0.25 vCPU, 0.125 GB each) | Sized in §14. |
 | D7 | Should students see each other's deployed sites? | ✅ DEFAULT yes (read-only "Class view") | Any authenticated session may **browse** any site; only the owner can **change** anything. |
 
-**Gate rule:** P3 cannot start until D1 is decided (P2 produces it). P3 has two
-task lists (T2 path and T1 fallback path); only one is executed.
+**Gate rule:** P3 could not start until D1 was decided — done (D1 = `azurerm`, so the
+T2 path of P3 was executed and the T1 fallback path is dropped). The user green-lit
+implementation without answering D2–D6, so they are ⚠ *built at default* — see §15a-A.
 
 ---
 
@@ -702,6 +705,28 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       emulation) — only if the ARM facade proved cheap to extend.
 - [ ] **T10.4** Remote state backend simulation.
 
+### F — Follow-ups OUTSIDE tofu-basics (found while building it; not started)
+
+These are problems in other parts of the repo. They are deliberately **not**
+fixed on this branch — do them as a separate change so the tofu-basics diff stays
+reviewable. Details and evidence are in §15a-B.
+
+- [ ] **F.1** Fix the stale restated `HEALTHCHECK` in
+      `workshops/dns-as-code/compose/terminal/Dockerfile:40-41` (add
+      `--header="X-Control-Token: ${CONTROL_TOKEN}"`).
+- [ ] **F.2** Same fix in
+      `workshops/cert-autorenewal/compose/terminal/Dockerfile:68-69`.
+- [ ] **F.3** *Verify first:* run `./run.sh dns-as-code` and `./run.sh cert-autorenewal`
+      and confirm `workshop_terminal` reports `unhealthy` before the fix and `healthy`
+      after (only *inferred* so far — see §15a-B). Rebuild with `./run.sh stop` first.
+- [ ] **F.4** Decide whether workshops should keep *restating* the base HEALTHCHECK at
+      all (it drifted once; it will again). Options in §15a-B. Then update
+      `workshops/README.md` "Adding a new workshop" step 4 accordingly.
+- [ ] **F.5** Refresh the stale comment in `engine/web-terminal/Dockerfile:175` (says
+      no workshop has a `.tf` file / `hashicorp.terraform` is not installed) and add a
+      line to `engine/web-terminal/vscode-extensions.md`: the OpenTofu extension is now
+      installed by `tofu-basics`' own terminal image, not the base image.
+
 ---
 
 ## 13. Test & validation plan (summary)
@@ -721,6 +746,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 ## 14. Facilitator notes & capacity
 
 - Start: `cd engine && ./run.sh tofu-basics`; stop/reset: `./run.sh stop`.
+- **Measured so far (P3):** cloud-host image 369 MB, cloud-api 52 MB, `:tofu-basics` terminal 1.13 GB (base 692 MB); idle memory cloud-host ≈58 MB, cloud-api ≈13 MB. Per-student `.terraform` is ~30 KB thanks to the unpacked mirror. Memory under 30 running hello containers is **not measured yet** (T9.3).
 - **Capacity (initial guess — measure in T9.3):** hello containers ≈ 10–20 MB
   each idle; quota 2/student × 30 = 60 containers with 128 MB cap ⇒ worst-case
   7.7 GB, realistic ≪1 GB. Proposed `cloud-host` `mem_limit` 3 GB; cloud-api
@@ -747,6 +773,110 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 | Scope creep into a full Azure emulator | Medium | Medium | §1 non-goals; P10 is optional |
 | Unrelated in-flight repo changes get mixed in | Medium | Medium | T0.1 branch discipline |
 | `infra/` (Azure VM delivery) missing locally | Known | Low | T8.4 conditional |
+
+---
+
+## 15a. Worth knowing & follow-ups
+
+*Added 2026-09-18 after P3. Read this before starting P4.*
+
+### A. Decisions built at the default — NOT confirmed by the user
+
+The user said "commit everything and push it, then start implementing" without
+answering the open questions in §4. Everything below was built at the plan's default.
+**Raise these at the next hand-off** so the user can confirm or veto:
+
+| ID | What was built | Why it matters / how to change |
+|---|---|---|
+| D2 | `cloud-host` is a **privileged** Docker-in-Docker container on an `internal: true` network, unix socket only, no host ports, no internet. | The riskiest component. Boxed in by §7, but a privileged container is a privileged container. Change = re-architect the executor (`docker_api.py`) — say so early. |
+| D3 | **Broker with `SO_PEERCRED`** (root daemon in the terminal; each student gets only their own creds). | The alternative (shared class secret) is simpler but lets students impersonate each other. |
+| D4 | *(Not started.)* P5 needs a small additive edit to the **base** `engine/gateway/Caddyfile`, `engine/allocator/server.py`, `engine/docker-compose.yml` (a `CLOUD_ENABLED` flag mirroring `DEMO_APP_ENABLED`). | The user's repo policy is that base engine files stay workshop-agnostic. **Ask before editing.** |
+| D5 | Region `uksouth`; policy forces `rg-` / `ci-` name prefixes and allows `uksouth/ukwest/westeurope/eastus`. | Edit `compose/cloud-api/policy.py`. |
+| D6 | Quota 2 container groups per student, 0.25 vCPU / 0.125 GB each, only `dojo/hello:1.0` and `:2.0`, only port 80. | Edit `policy.py` (and `MAX_*` in `docker_api.py` tests). |
+
+### B. Problems found in OTHER workshops / the base engine (need updating; see tasks F.1–F.5)
+
+1. **Stale restated `HEALTHCHECK` in two workshop terminal images.**
+   - The base image's healthcheck now sends a token header:
+     `engine/web-terminal/Dockerfile:259-260` →
+     `wget -q -O /dev/null --header="X-Control-Token: ${CONTROL_TOKEN}" http://127.0.0.1:7682/status`.
+     `workspace-control.py` answers **403** without it (the "Harden internal control-plane
+     auth" work).
+   - `workshops/dns-as-code/compose/terminal/Dockerfile:40-41` and
+     `workshops/cert-autorenewal/compose/terminal/Dockerfile:68-69` still restate the **old**
+     check (no header). Because a Dockerfile `HEALTHCHECK` in the child image *replaces* the
+     inherited one, those two workshops' `workshop_terminal` should report **unhealthy**.
+   - **Evidence level:** *observed* on `tofu-basics` (it copied the same stale line: status
+     `unhealthy`, `wget` got 403, fixed by adding the header → `healthy`). *Inferred, not run*
+     for `dns-as-code` and `cert-autorenewal` (same line, same base). Task F.3 confirms.
+   - **Impact:** cosmetic in this stack today (nothing `depends_on` the terminal's health), but
+     `podman ps` / `docker ps` show `unhealthy`, and any monitoring or Azure-VM automation keyed
+     on health would misfire.
+   - **Fix options (F.4):** (a) patch both lines to add the header — quick, but it will drift
+     again; (b) delete the restated `HEALTHCHECK` from workshop images and rely on inheritance
+     (the stated reason for restating was to satisfy static scanners that don't resolve `FROM`);
+     (c) have the base image expose a tiny `web-terminal-healthcheck` script that workshop images
+     call, so the command lives in one place. `tofu-basics` currently uses (a).
+2. **Stale comment in the base Dockerfile** (`engine/web-terminal/Dockerfile:175-184`) says no
+   workshop has a `.tf` file and `hashicorp.terraform` is deliberately not installed. Still
+   true for the *base* image, but `tofu-basics` now installs the **OpenTofu** extension in its own
+   image (`compose/terminal/Dockerfile`). Update the comment and `engine/web-terminal/vscode-extensions.md`
+   (F.5) so the next person isn't misled.
+3. `workshops/README.md` "Adding a new workshop" step 4 tells authors to restate the healthcheck
+   but not that it must carry the token header — the root cause of item 1 (F.4).
+4. **Compose does not recreate a running container after its image is rebuilt**
+   (`./run.sh <w>` a second time reuses the old container). Always `./run.sh stop` first when
+   testing image changes. Also `podman rm -f` on a service another one `depends_on` fails silently.
+
+### C. Behaviours of Dojo Cloud that surprised us (use them in the labs)
+
+- `plan` in a folder with **no state never contacts the cloud** — only `apply` (or a plan with
+  existing state) does. So authz/policy can only be demonstrated with `apply`.
+- A **replacement rejected by policy** (bad image on an existing container) has *already
+  destroyed* the old container — Terraform destroys first. Real-cloud behaviour; Lab 6 should
+  say "policy failures happen at create time; your old resource may already be gone".
+- `apply` takes ≈ **35 s** (resource group ≈ 20 s + container group ≈ 14 s) because of the provider's
+  own poll ticks; `destroy` similar. Our API answers instantly. Plan the lab timing around it.
+- **Tag edits use `PATCH`** (in-place `~`); env/image/cpu/dns-label edits force replacement `-/+`.
+  A missing `PATCH` handler made Lab 8's in-place demo fail — found only by testing.
+- `provider "azurerm" { features {} }` must be **multi-line** HCL (one-line block is a syntax error) —
+  the starter files must be multi-line.
+- Sites are served with CSP `sandbox` (no scripts): a student's `MESSAGE` is HTML-escaped *and*
+  sandboxed.
+- Deleting a container "in the portal" (or `docker rm` on the host) is detected at next GET →
+  shows in `plan` as `+ create`; the activity log records "Container disappeared outside IaC".
+- The metadata document **must** say tenant `common` + identity provider `AAD`, or azurerm refuses
+  the environment as "Azure Stack" (details §5.5).
+- `TF_VAR_owner` and `TF_VAR_portal_base_url` come from the broker as environment variables —
+  the starter's `variable "owner"` therefore has **no default** (good place to teach `TF_VAR_`).
+  `PUBLIC_BASE_URL` in this dev `.env` is `http://localhost` (no port) while the gateway listens on
+  8080, so the printed portal link is wrong locally; it's an `.env` matter, not a bug.
+
+### D. Environment & test notes
+
+- All testing so far used **podman + podman-compose** (no docker on this machine). The Azure VM
+  delivery path (docker) has **not** been exercised. `docker:dind` under *docker* proper should behave
+  the same, but it is untested here.
+- The stack was stopped at the end of each session (`./run.sh stop` wipes volumes). No test data is kept.
+- Unit tests: `cd workshops/tofu-basics/compose/cloud-api && python3 -m unittest test_policy_auth test_executor`
+  and `cd .. && python3 -m unittest test_parity` (host Python is enough; no containers).
+- Scratch spike harness from P2 lived in the session scratchpad and is gone; §5.5 has the recipe if
+  it's ever needed again (the real control plane now supersedes it).
+
+### E. Known gaps / not verified yet
+
+- **Not built:** portal + activity-log read API (P4), gateway/allocator route (P5), Track B starter
+  files, `.terraform.lock.hcl` with azurerm hashes (`tofu providers lock -platform=linux_amd64 -platform=linux_arm64`),
+  Labs 4–10, slides (only a placeholder hub exists; without a slide file the Marp container exits),
+  docs/capacity-calc entries, Azure-VM `tfvars` (blocked: `infra/` absent in this checkout).
+- **Not verified:** the missing-tag policy message through the real provider (only unit-tested);
+  a browser check of HCL highlighting and of the site through the gateway; `CURL_CA_BUNDLE` (added to
+  the broker after the last image build); a fuzz test of raw ARM request bodies against the executor
+  (only the template builder is tested); behaviour with 30 students and 60 containers (T9.3/M4);
+  arm64 image build (checksums are pinned per arch, but only amd64 was built).
+- **Known limitation:** only one container per group and only `dojo/hello:*` images are allowed, by
+  design (§7). LRO (`Azure-AsyncOperation`) is not implemented — the provider's polling is what
+  sets the timings above.
 
 ---
 
@@ -853,6 +983,13 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
   the 30-student load test (P9).
 - **Next task: P4 (portal)** — then P5, P6. See §12. The user asked to stop for the
   night after P3, so nothing from P4 has been started.
+
+### 2026-09-18 (late) — Documentation follow-up
+- At the user's request, recorded "things worth knowing" and the out-of-date
+  `dns-as-code` / `cert-autorenewal` terminal healthchecks in the plan: new **§15a**,
+  new follow-up tasks **F.1–F.5** in §12, decision rows D2/D3/D5/D6 relabelled
+  "built at default, not confirmed", D4 marked "ask before editing base files".
+- No code changed. Nothing in the other workshops was touched.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
