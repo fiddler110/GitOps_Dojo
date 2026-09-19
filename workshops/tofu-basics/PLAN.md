@@ -410,7 +410,8 @@ portal (also embedded as the "Dojo Cloud" tab of `/admin`, which opens `/cloud/#
 
 `GET /cloud/api/admin/progress` — facilitator only (same check as the other `admin/*` routes: 403 for students,
 401/403 auth rules unchanged). Built from data the control plane already records (resource groups, container
-groups, the activity log); **no new state, no Docker call under `State.lock`**, container state comes from the same
+groups, the activity log, plus a small per-subscription summary `State` keeps beside the capped log so a noisy
+student cannot evict others' failures — §15a-H1); **no Docker call under `State.lock`**, container state comes from the same
 cached `_running()` set as `overview`. Response:
 
 ```json
@@ -766,8 +767,9 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       progress board** (§5.6a): `GET /cloud/api/admin/progress` + SPA `#/progress`, stages notStarted / inProgress /
       running / attention, failure message inline on attention tiles. `admin/progress` p50 3 ms / p95 6 ms with 10
       facilitator pollers; a real apply was seen moving `notStarted` → `inProgress` (+3.5 s) → `running` (+27 s).
-- [ ] **T5.6** *(from the live test, §15a-H)* Fix progress-board findings H1 (failure history evicted from the capped
-      activity log), H2 (bot roster naming), H3 (BrokenPipe noise), H4 (SIGTERM ignored). Owner: fix agent, then re-run offline tests.
+- [x] **T5.6** *(`2e8e818`; offline tests only — 90 + 5 parity; live re-check is T5.7)* Fixed progress-board findings H1 (failure
+      history evicted from the capped activity log: per-subscription summary in `State`), H2 (bot roster naming now
+      unpadded like the engine, incl. the terminal broker), H3 (BrokenPipe noise), H4 (SIGTERM handler).
 - [ ] **T5.7** Re-verify on a rebuilt stack (first thing in P6): `canadacentral` apply through real azurerm, `eastus`
       rejected, attention tile shows a real policy message, and `podman stop` of cloud-api is quick.
 
@@ -1274,7 +1276,7 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   regions; `45afcb7` the user's own README/doc edits (their request, separate commit).
 - **Not verified live:** attention-tile message and `canadacentral` on the real stack (T5.7); real screen reader,
   Firefox/Safari (P9).
-- **Next:** T5.6 fixes (in progress by an agent), then **P6 Track B** (approved by the user).
+- **Next:** T5.6 fixes landed in `2e8e818`; then **P6 Track B** (approved by the user).
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
