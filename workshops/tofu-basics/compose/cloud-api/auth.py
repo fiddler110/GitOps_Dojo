@@ -1,6 +1,6 @@
 """Identity for Dojo Cloud: who is calling, and which subscription is theirs.
 
-Every roster member (studentNN, botNN, the facilitator) gets:
+Every roster member (studentNN, testuserN demo bots, the facilitator) gets:
   * a deterministic "service principal" client id (uuid5)   -> ARM_CLIENT_ID
   * a deterministic subscription id (uuid5)                  -> ARM_SUBSCRIPTION_ID
   * a client secret = HMAC(signing_key, username)            -> ARM_CLIENT_SECRET
@@ -35,18 +35,22 @@ def client_secret(key, username):
 
 
 def roster(env):
-    """All usernames that may hold credentials, from the same env the engine uses."""
+    """All usernames that may hold credentials, from the same env the engine uses.
+
+    Naming must match the engine exactly: students are zero-padded to two digits
+    (allocator STUDENT_IDS, `{n:02d}`), demo bots are NOT (allocator BOT_IDS
+    `{prefix}{n}`, web-terminal entrypoint `printf '%s%d'`): testuser1 .. testuser12."""
     users = []
-    for prefix_var, count_var, default_prefix in (
-        ("STUDENT_PREFIX", "STUDENT_COUNT", "student"),
-        ("BOT_PREFIX", "BOT_COUNT", "testuser"),
+    for prefix_var, count_var, default_prefix, width in (
+        ("STUDENT_PREFIX", "STUDENT_COUNT", "student", 2),
+        ("BOT_PREFIX", "BOT_COUNT", "testuser", 0),
     ):
         prefix = env.get(prefix_var, default_prefix)
         try:
             count = int(env.get(count_var, "0") or 0)
         except ValueError:
             count = 0
-        users += [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+        users += [f"{prefix}{n:0{width}d}" if width else f"{prefix}{n}" for n in range(1, count + 1)]
     fac = env.get("FACILITATOR_USERNAME", "root")
     if fac:
         users.append(fac)

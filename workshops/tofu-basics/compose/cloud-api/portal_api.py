@@ -10,7 +10,6 @@ Talks to Docker only outside State.lock: data is snapshotted under the lock, the
 lock is released, then the executor is called. Container status comes from ONE list
 call per ~2 s for the whole class, not one inspect per container.
 """
-import calendar
 import copy
 import hmac
 import json
@@ -22,6 +21,7 @@ from urllib.parse import unquote
 import auth
 import docker_api
 import policy
+import state as state_mod
 
 PORTAL_DIR = "/app/portal"
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
@@ -40,7 +40,7 @@ DEFAULT_EVENTS, MAX_EVENTS = 200, 500
 MAX_LOG_CHARS = 64_000
 FAILURE_WINDOW = 15 * 60  # seconds: how far back the class progress board counts Failed events
 MAX_LAST_MESSAGE = 200
-TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+TIME_FORMAT = state_mod.TIME_FORMAT
 MAX_TAGS, MAX_TAG_KEY, MAX_TAG_VALUE = 15, 512, 256
 
 
@@ -369,7 +369,7 @@ class Portal:
         """Class progress board (PLAN.md 5.6a): one row per roster user except the facilitator.
         `user` is the (already authorised) facilitator."""
         now, st = time.time(), self.app.state
-        by_sub = {}  # sub -> {"rgs": n, "cgs": [(summary, container)], "last": event|None, "failures": n}
+        by_sub = {}  # sub -> {"rgs": n, "cgs": [(summary, container)]}
         with st.lock:  # snapshot only: no Docker, no per-student work
             for key in st.rgs:
                 self._bucket(by_sub, key.split("/", 1)[0])["rgs"] += 1
@@ -377,12 +377,10 @@ class Portal:
                 summary = {"name": rec["name"], "resourceGroup": rec["rg"], "state": "Unknown",
                            "siteUrl": f"/cloud/site/{rec['dnsLabel']}/"}
                 self._bucket(by_sub, key.split("/", 1)[0])["cgs"].append((summary, rec["container"]))
-            events = list(st.data["activity"])  # entries are never mutated after they are logged
-        for e in events:  # oldest first, so the last one seen per subscription is its most recent
-            b = self._bucket(by_sub, e.get("subscription"))
-            b["last"] = e
-            if e.get("status") == "Failed" and now - self._event_epoch(e) <= FAILURE_WINDOW:
-                b["failures"] += 1
+            # Latest event + recent Failed count per subscription: kept by State.log(), so this does not
+            # scan the activity log and a busy student cannot push another's failures out of view.
+            # `failures` is capped at state_mod.FAILURES_KEPT (100) per student.
+            recent = st.activity_summary(now - FAILURE_WINDOW)
         for b in by_sub.values():
             b["cgs"].sort(key=lambda c: (c[0]["resourceGroup"].lower(), c[0]["name"].lower()))
         # State for every container group in the class from ONE cached list call, outside the lock.
@@ -393,7 +391,8 @@ class Portal:
                 continue
             sub = auth.subscription_id(name)
             b = by_sub.get(sub) or self._bucket({}, sub)
-            last, cgs = b["last"], [c[0] for c in b["cgs"]]
+            last, failures = recent.get(sub, (None, 0))
+            cgs = [c[0] for c in b["cgs"]]
             if (last and last.get("status") == "Failed") or any(c["state"] == "Terminated" for c in cgs):
                 stage = "attention"
             elif cgs and all(c["state"] == "Running" for c in cgs):
@@ -410,22 +409,13 @@ class Portal:
                 "lastEvent": None if not last else {
                     "time": last.get("time", ""), "operation": last.get("operation", ""),
                     "status": last.get("status", ""), "message": str(last.get("message") or "")[:MAX_LAST_MESSAGE]},
-                "failures": b["failures"]})
+                "failures": failures})
         return _json(200, {"generatedAt": time.strftime(TIME_FORMAT, time.gmtime(now)),
                            "summary": summary, "students": students})
 
     @staticmethod
     def _bucket(by_sub, sub):
-        return by_sub.setdefault(sub, {"rgs": 0, "cgs": [], "last": None, "failures": 0})
-
-    @staticmethod
-    def _event_epoch(event):
-        """Seconds since the epoch of an event's UTC ISO 'time' (calendar.timegm, so no local-timezone
-        skew); -inf if it cannot be parsed, i.e. too old to count as recent."""
-        try:
-            return calendar.timegm(time.strptime(event.get("time"), TIME_FORMAT))
-        except (TypeError, ValueError):
-            return float("-inf")
+        return by_sub.setdefault(sub, {"rgs": 0, "cgs": []})
 
     def _purge(self, user, sub):
         st, prefix = self.app.state, sub + "/"

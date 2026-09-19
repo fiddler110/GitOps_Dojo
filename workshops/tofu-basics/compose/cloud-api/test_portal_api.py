@@ -3,12 +3,17 @@ static allow-list. No containers: a fake executor and an in-memory State.
 Run from this directory:  python3 -m unittest test_portal_api
 """
 import http.client
+import io
 import json
 import os
+import signal
+import subprocess
+import sys
 import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -21,7 +26,7 @@ import state as state_mod
 
 TOKEN = "gw-secret-token"
 A, B, FAC = "student01", "student02", "admin"
-C, D, BOT = "student03", "student04", "testuser01"  # only used by the progress board tests
+C, D, BOT = "student03", "student04", "testuser1"  # only used by the progress board tests
 SUB = {u: auth.subscription_id(u) for u in (A, B, C, D, BOT, FAC)}
 TAGS = {"owner": "someone", "env": "dev"}
 CSP_START = "default-src 'none'; script-src 'self'"
@@ -331,6 +336,7 @@ class Progress(Base):
         self.st.rgs.clear()  # start from an empty class; each test seeds what it needs
         self.st.cgs.clear()
         self.st.data["activity"].clear()
+        self.st.rebuild_summary()
         self.fake.running.clear()
         self.app.auth.users[:] = [A, B, FAC, C, D, BOT]  # facilitator in the middle on purpose
 
@@ -346,11 +352,13 @@ class Progress(Base):
         self.st.rgs.setdefault(server.App.rg_key(SUB[user], rg), {"name": rg, "location": "canadacentral", "tags": {}})
 
     def event(self, user, status, operation="op", message="", age=0, time_text=None):
-        """Append an activity entry `age` seconds old (oldest must be appended first)."""
+        """Append an activity entry `age` seconds old (oldest must be appended first). Written straight into
+        the list (State.log always stamps "now"), then the summary is rebuilt the way a restart would."""
         stamp = time_text if time_text is not None else time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - age))
         self.st.data["activity"].append({"time": stamp, "subscription": SUB[user], "caller": user,
                                          "operation": operation, "resourceId": "/x", "status": status,
                                          "message": message})
+        self.st.rebuild_summary()
 
     def test_students_are_forbidden_and_unauthenticated_is_401(self):
         for user in (A, BOT):
@@ -492,6 +500,7 @@ class Progress(Base):
             os.environ["TZ"] = tz
             time.tzset()
             self.st.data["activity"].clear()
+            self.st.rebuild_summary()
             self.event(A, "Failed", age=3600)                       # long ago
             self.event(A, "Failed", age=16 * 60)                    # just outside the window
             self.event(A, "Failed", age=14 * 60)                    # inside
@@ -579,6 +588,45 @@ class Progress(Base):
         self.assertEqual(b["lastEvent"]["operation"], "op-of-B2")
         self.assertEqual(self.row(C)["lastEvent"], None)  # untouched student picks up nothing
 
+    def test_failure_history_survives_activity_log_eviction(self):
+        """One busy student must not push another's failures out of the board (ACTIVITY_MAX cap)."""
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.st.log(SUB[A], A, "Create/Update container group", "/a", "Failed", "quota")
+        for i in range(2500):
+            self.st.log(SUB[B], B, "Create/Update resource group", "/b", "Failed", f"policy {i}")
+        self.assertEqual(len(self.st.data["activity"]), state_mod.ACTIVITY_MAX)
+        self.assertNotIn(A, [e["caller"] for e in self.st.data["activity"]])  # A's event really is gone
+        board = self.board()
+        a, b = self.row(A, board), self.row(B, board)
+        self.assertEqual((a["stage"], a["failures"]), ("attention", 1))
+        self.assertEqual((a["lastEvent"]["operation"], a["lastEvent"]["status"], a["lastEvent"]["message"]),
+                         ("Create/Update container group", "Failed", "quota"))
+        self.assertEqual((b["stage"], b["failures"]), ("attention", state_mod.FAILURES_KEPT))  # capped, documented
+        self.assertEqual(b["lastEvent"]["message"], "policy 2499")
+        self.assertEqual(board["summary"]["attention"], 2)
+        self.assertEqual(self.fake.under_lock, [])
+
+    def test_recovery_after_eviction_still_clears_attention(self):
+        self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
+        self.st.log(SUB[A], A, "op", "/a", "Failed", "x")
+        for _ in range(state_mod.ACTIVITY_MAX):
+            self.st.log(SUB[B], B, "op", "/b", "Succeeded")
+        self.assertEqual(self.row(A)["stage"], "attention")
+        self.st.log(SUB[A], A, "op", "/a", "Succeeded")
+        r = self.row(A)
+        self.assertEqual((r["stage"], r["failures"], r["lastEvent"]["status"]), ("running", 1, "Succeeded"))
+
+    def test_board_survives_a_restart(self):
+        path = os.path.join(self.tmp.name, "state.json")
+        st = state_mod.State(path)
+        st.log(SUB[A], A, "op", "/a", "Failed", "boom")
+        st.log(SUB[B], B, "op", "/b", "Succeeded")
+        st.save()
+        self.app.state = self.fake.app_state = state_mod.State(path)  # what a cloud-api restart does
+        self.assertEqual((self.row(A)["stage"], self.row(A)["failures"]), ("attention", 1))
+        self.assertEqual(self.row(A)["lastEvent"]["message"], "boom")
+        self.assertEqual(self.row(B)["stage"], "inProgress")
+
     def test_actions_on_a_students_behalf_show_under_that_student(self):
         self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
         self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={"subscriptionId": SUB[A]})  # logged for A's sub
@@ -589,6 +637,7 @@ class Progress(Base):
     def test_events_for_unknown_subscriptions_are_ignored(self):
         self.st.data["activity"].append({"time": "2026-01-01T00:00:00Z", "subscription": "not-a-sub", "caller": "x",
                                          "operation": "o", "resourceId": "/", "status": "Failed", "message": ""})
+        self.st.rebuild_summary()
         self.st.rgs["ghost-sub/rg"] = {"name": "rg", "location": "canadacentral", "tags": {}}
         board = self.board()
         self.assertEqual(board["summary"], {"total": 5, "notStarted": 5, "inProgress": 0, "running": 0, "attention": 0})
@@ -699,6 +748,237 @@ class OverHttp(Base):
         self.assertEqual(self.ops(A), ["Update container group tags", "Update container group tags",
                                        "Delete container group"])  # no "(portal)": it came via ARM
         self.assertEqual(self.fake.under_lock, [])
+
+
+class Clock:
+    """Stands in for time.time() so State.log can be stamped in the past."""
+
+    def __init__(self, now):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+
+class StateSummary(unittest.TestCase):
+    """The per-subscription summary State.log() keeps (last event + recent Failed times)."""
+    S, T = "sub-s", "sub-t"
+
+    def setUp(self):
+        self.clock = Clock(1_800_000_000)
+        patcher = mock.patch.object(state_mod.time, "time", self.clock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.st = state_mod.State(None)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def log(self, sub, status="Failed", message="", ago=0):
+        self.clock.now = 1_800_000_000 - ago
+        self.st.log(sub, "u", "op", "/r", status, message)
+
+    def since(self, window=15 * 60):
+        return 1_800_000_000 - window
+
+    def test_last_event_and_failure_count(self):
+        self.log(self.S, "Failed", "one")
+        self.log(self.S, "Succeeded", "two")
+        self.log(self.T, "Failed", "three")
+        out = self.st.activity_summary(self.since())
+        self.assertEqual((out[self.S][0]["message"], out[self.S][1]), ("two", 1))
+        self.assertEqual((out[self.T][0]["message"], out[self.T][1]), ("three", 1))
+        self.assertEqual(self.st.activity_summary(self.since()).keys(), {self.S, self.T})
+
+    def test_window_uses_injected_timestamps(self):
+        for ago in (3600, 16 * 60, 15 * 60 + 1, 15 * 60, 14 * 60, 30, 0):
+            self.log(self.S, "Failed", ago=ago)
+        self.log(self.S, "Succeeded", ago=0)  # not a failure
+        self.assertEqual(self.st.activity_summary(self.since())[self.S][1], 4)  # 15:00 exactly, 14:00, 0:30, now
+        self.assertEqual(self.st.activity_summary(self.since(60))[self.S][1], 2)  # (this read pruned the older ones)
+
+    def test_old_failures_are_pruned_on_read(self):
+        self.log(self.S, "Failed", ago=3600)
+        self.log(self.S, "Failed", ago=10)
+        self.assertEqual(len(self.st._summary[self.S]["failed"]), 2)
+        self.st.activity_summary(self.since())
+        self.assertEqual(len(self.st._summary[self.S]["failed"]), 1)
+
+    def test_failure_times_are_bounded_per_subscription(self):
+        for _ in range(state_mod.FAILURES_KEPT * 3):
+            self.log(self.S, "Failed")
+            self.assertLessEqual(len(self.st._summary[self.S]["failed"]), state_mod.FAILURES_KEPT)
+        self.assertEqual(self.st.activity_summary(self.since())[self.S][1], state_mod.FAILURES_KEPT)
+        self.assertEqual(len(self.st._summary), 1)  # one small entry per subscription, nothing per event
+
+    def test_survives_the_log_cap(self):
+        self.log(self.S, "Failed", "old")
+        for _ in range(state_mod.ACTIVITY_MAX + 5):
+            self.log(self.T, "Succeeded")
+        self.assertNotIn(self.S, [e["subscription"] for e in self.st.data["activity"]])
+        last, failures = self.st.activity_summary(self.since())[self.S]
+        self.assertEqual((last["message"], failures), ("old", 1))
+
+    def test_rebuilt_from_the_persisted_log(self):
+        path = os.path.join(self.tmp.name, "state.json")
+        self.st = state_mod.State(path)
+        self.log(self.S, "Failed", "hour ago", ago=3600)
+        self.log(self.S, "Failed", "eleven min ago", ago=11 * 60)
+        self.log(self.S, "Failed", "recent", ago=5)
+        self.log(self.T, "Succeeded", "ok")
+        self.st.save()
+        again = state_mod.State(path)
+        self.assertEqual(again.activity_summary(self.since()), self.st.activity_summary(self.since()))
+        last, failures = again.activity_summary(self.since())[self.S]
+        self.assertEqual((last["message"], failures), ("recent", 2))
+        self.st = again  # and it keeps counting after the restart
+        self.log(self.S, "Failed", "after restart")
+        self.assertEqual(again.activity_summary(self.since())[self.S][1], 3)
+
+    def test_rebuild_is_bounded_and_ignores_junk(self):
+        path = os.path.join(self.tmp.name, "state.json")
+        events = [{"time": "2027-01-15T08:00:00Z", "subscription": self.S, "status": "Failed", "message": str(i)}
+                  for i in range(state_mod.ACTIVITY_MAX)]
+        events += ["junk", 7, None, {"subscription": None, "status": "Failed"}, {"status": "Failed"},
+                   {"time": "garbage", "subscription": self.T, "status": "Failed", "message": "m"}]
+        with open(path, "w") as f:
+            json.dump({"activity": events}, f)
+        st = state_mod.State(path)
+        self.assertEqual(len(st._summary[self.S]["failed"]), state_mod.FAILURES_KEPT)
+        self.assertEqual(st._summary[self.T]["failed"], type(st._summary[self.T]["failed"])(maxlen=state_mod.FAILURES_KEPT))
+        self.assertEqual(st.activity_summary(0)[self.T][0]["message"], "m")  # last event kept; bad time never counts
+        self.assertEqual(set(st._summary), {self.S, self.T})
+
+    def test_log_works_while_the_caller_holds_the_lock(self):
+        with self.st.lock:  # callers log while holding the lock (ARM handlers)
+            self.log(self.S, "Failed")
+        self.assertFalse(self.st.lock._is_owned())
+
+
+class ClientDisconnect(unittest.TestCase):
+    """A client that hangs up mid-response is dropped quietly: no traceback, no 500."""
+
+    class BrokenWire:
+        def write(self, data):
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self):
+            pass
+
+    def setUp(self):
+        self.lines = []
+        self.old_app, self.old_log = server.APP, server.log
+        server.APP, server.log = mock.Mock(), self.lines.append
+        server.APP.executor.ping.return_value = True
+        self.addCleanup(lambda: (setattr(server, "APP", self.old_app), setattr(server, "log", self.old_log)))
+
+    def handler(self, path="/healthz", wfile=None, error=None):
+        h = server.Handler.__new__(server.Handler)  # no socket: only the pieces handle_any touches
+        h.command, h.path, h.request_version, h.requestline = "GET", path, "HTTP/1.1", f"GET {path} HTTP/1.1"
+        h.headers, h.rfile, h.wfile = {}, io.BytesIO(), wfile or self.BrokenWire()
+        h.client_address, h.close_connection, h._headers_buffer = ("127.0.0.1", 1), False, []
+        return h
+
+    def test_broken_pipe_on_write_is_dropped_quietly(self):
+        h = self.handler()
+        h.handle_any()  # must not raise
+        self.assertTrue(h.close_connection)
+        self.assertFalse([l for l in self.lines if "internal error" in l or "500" in l], self.lines)
+
+    def test_reset_and_abort_are_dropped_quietly_too(self):
+        for exc in (ConnectionResetError, ConnectionAbortedError):
+            self.lines.clear()
+            server.APP.executor.ping.side_effect = exc
+            h = self.handler()
+            h.handle_any()
+            self.assertTrue(h.close_connection, exc)
+            self.assertEqual([l for l in self.lines if "internal error" in l or "500" in l], [], exc)
+
+    def test_a_dead_client_during_the_500_reply_is_quiet_as_well(self):
+        server.APP.executor.ping.side_effect = RuntimeError("bug")
+        h = self.handler()
+        h.handle_any()  # logs the bug once; the 500 cannot be delivered and that is fine
+        self.assertTrue(h.close_connection)
+        self.assertEqual(len([l for l in self.lines if "internal error" in l]), 1)
+
+    def test_real_errors_still_get_a_500(self):
+        server.APP.executor.ping.side_effect = RuntimeError("bug")
+        wire = io.BytesIO()
+        h = self.handler(wfile=wire)
+        h.handle_any()
+        self.assertIn(b"500", wire.getvalue().split(b"\r\n")[0])
+        self.assertIn(b"InternalServerError", wire.getvalue())
+        self.assertTrue([l for l in self.lines if "internal error" in l])
+        self.assertFalse(h.close_connection)
+
+    def test_normal_request_is_unchanged(self):
+        wire = io.BytesIO()
+        h = self.handler(wfile=wire)
+        h.handle_any()
+        self.assertTrue(wire.getvalue().startswith(b"HTTP/1.1 200"))
+        self.assertIn(b'"status": "ok"', wire.getvalue())
+
+
+class Shutdown(unittest.TestCase):
+    """SIGTERM/SIGINT stop the servers cleanly and flush state (python is PID 1 in the container)."""
+
+    def test_signals_set_the_stop_event(self):
+        old = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT)}
+        self.addCleanup(lambda: [signal.signal(sig, h) for sig, h in old.items()])
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            stop = server.stop_on_signals()
+            self.assertFalse(stop.is_set())
+            os.kill(os.getpid(), sig)
+            self.assertTrue(stop.wait(2), sig)
+
+    def test_shutdown_stops_servers_then_saves(self):
+        calls = []
+        srv = mock.Mock()
+        srv.shutdown.side_effect = lambda: calls.append("shutdown")
+        srv.server_close.side_effect = lambda: calls.append("close")
+        st = mock.Mock()
+        st.lock = threading.RLock()
+        st.save.side_effect = lambda: calls.append("save")
+        with mock.patch.object(server, "log", lambda msg: None):
+            server.shutdown([srv, srv], st)
+        self.assertEqual(calls, ["shutdown", "close", "shutdown", "close", "save"])
+
+    def test_shutdown_does_not_hang_on_a_busy_state_lock(self):
+        st = state_mod.State(None)
+        st.lock = mock.Mock()
+        st.lock.acquire.return_value = False  # a handler is stuck holding it: skip the (redundant) save
+        with mock.patch.object(server, "log", lambda msg: None):
+            server.shutdown([], st)
+        st.lock.acquire.assert_called_once_with(timeout=5)
+
+    SCRIPT = """
+import sys
+import server, state as state_mod
+server.log = lambda msg: None
+st = state_mod.State(sys.argv[1])
+srv = server.serve(0)
+stop = server.stop_on_signals()
+st.data["rgs"]["k"] = {"name": "unsaved"}  # only in memory until shutdown() flushes it
+print("ready", flush=True)
+stop.wait()
+server.shutdown([srv], st)
+print("bye", flush=True)
+"""
+
+    def test_sigterm_stops_a_real_server_process_promptly_and_flushes_state(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(tempfile.mkdtemp(), "state.json")
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        proc = subprocess.Popen([sys.executable, "-B", "-c", self.SCRIPT, path], cwd=here,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(proc.kill)
+        self.assertEqual(proc.stdout.readline().strip(), "ready")
+        started = time.monotonic()
+        proc.send_signal(signal.SIGTERM)
+        out, err = proc.communicate(timeout=3)
+        self.assertEqual((proc.returncode, out.strip()), (0, "bye"), err)
+        self.assertLess(time.monotonic() - started, 3)
+        with open(path) as f:
+            self.assertIn("k", json.load(f)["rgs"])
 
 
 if __name__ == "__main__":

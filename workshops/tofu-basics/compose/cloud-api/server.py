@@ -16,6 +16,7 @@ import json
 import os
 import re
 import secrets
+import signal
 import ssl
 import sys
 import threading
@@ -41,6 +42,7 @@ GRAPH = "https://graph.dojo.cloud"
 ARM_TYPE_RG = "Microsoft.Resources/resourceGroups"
 ARM_TYPE_CG = "Microsoft.ContainerInstance/containerGroups"
 SITE_RE = re.compile(r"^/cloud/site/([a-z][a-z0-9-]{2,40})(/.*)?$")
+CLIENT_GONE = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)  # peer hung up mid-exchange
 KEEP_TAGS = object()  # update_container_group_tags(): leave the current tag set as it is
 
 
@@ -232,28 +234,36 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_any(self):
         try:
-            path = urlparse(self.path).path
-            low = path.lower().rstrip("/") or "/"
-            body = self._body()
-            if low == "/healthz":
-                return self._send(200, {"status": "ok", "cloudHost": APP.executor.ping()})
-            if low == "/metadata/endpoints":
-                return self._send(200, self.metadata())
-            if low.endswith("/oauth2/v2.0/token") or low.endswith("/oauth2/token"):
-                return self._send_pair(self.token(body))
-            if low.endswith("/.well-known/openid-configuration"):
-                return self._send(200, {"token_endpoint": f"{LOGIN}/{auth.TENANT_ID}/oauth2/v2.0/token",
-                                        "issuer": f"{LOGIN}/{auth.TENANT_ID}/v2.0"})
-            if low.startswith("/subscriptions"):
-                return self._send_pair(self.arm(low, path, body))
-            if low.startswith("/cloud/site/") or low == "/cloud/site":
-                return self.site(path)
-            if low == "/cloud" or low.startswith("/cloud/"):  # Dojo Portal: SPA + /cloud/api/*
-                return self.portal(path, body)
-            return self._send(*arm_error(404, "NotFound", f"No route for '{path}'."))
+            self.route()
+        except CLIENT_GONE:  # the client dropped mid-response: nobody to answer, nothing worth a traceback
+            self.close_connection = True
         except Exception as exc:  # never leak a traceback to a student
             log(f"internal error: {exc!r}")
-            self._send(*arm_error(500, "InternalServerError", "The control plane hit an unexpected error."))
+            try:
+                self._send(*arm_error(500, "InternalServerError", "The control plane hit an unexpected error."))
+            except CLIENT_GONE:
+                self.close_connection = True
+
+    def route(self):
+        path = urlparse(self.path).path
+        low = path.lower().rstrip("/") or "/"
+        body = self._body()
+        if low == "/healthz":
+            return self._send(200, {"status": "ok", "cloudHost": APP.executor.ping()})
+        if low == "/metadata/endpoints":
+            return self._send(200, self.metadata())
+        if low.endswith("/oauth2/v2.0/token") or low.endswith("/oauth2/token"):
+            return self._send_pair(self.token(body))
+        if low.endswith("/.well-known/openid-configuration"):
+            return self._send(200, {"token_endpoint": f"{LOGIN}/{auth.TENANT_ID}/oauth2/v2.0/token",
+                                    "issuer": f"{LOGIN}/{auth.TENANT_ID}/v2.0"})
+        if low.startswith("/subscriptions"):
+            return self._send_pair(self.arm(low, path, body))
+        if low.startswith("/cloud/site/") or low == "/cloud/site":
+            return self.site(path)
+        if low == "/cloud" or low.startswith("/cloud/"):  # Dojo Portal: SPA + /cloud/api/*
+            return self.portal(path, body)
+        return self._send(*arm_error(404, "NotFound", f"No route for '{path}'."))
 
     do_GET = do_PUT = do_POST = do_DELETE = do_PATCH = do_HEAD = handle_any
 
@@ -551,6 +561,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(port, tls=None):
+    """Starts one HTTP(S) server on a background thread and returns it (for shutdown())."""
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     server.daemon_threads = True
     if tls:
@@ -559,20 +570,45 @@ def serve(port, tls=None):
         server.socket = ctx.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     log(f"listening on :{port} ({'https' if tls else 'http'})")
+    return server
+
+
+def stop_on_signals():
+    """Returns an Event that SIGTERM (docker stop; python is PID 1, so without a handler the
+    signal is ignored and the container is SIGKILLed after 10 s) or SIGINT sets."""
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda _signum, _frame: stop.set())
+    return stop
+
+
+def shutdown(servers, state):
+    """Stops accepting connections, then flushes state (it is saved after every change anyway;
+    this covers a change in flight). Gives up on the lock after 5 s rather than hang the stop."""
+    for srv in servers:
+        srv.shutdown()
+        srv.server_close()
+    if state.lock.acquire(timeout=5):
+        try:
+            state.save()
+        finally:
+            state.lock.release()
+    log("stopped")
 
 
 def main():
     global APP
+    stop = stop_on_signals()
     crt, key = pki.ensure(f"{DATA_DIR}/pki", SHARED_PKI)
     APP = App()
     for _ in range(60):  # cloud-host may still be starting
-        if APP.executor.ping():
+        if APP.executor.ping() or stop.wait(1):
             break
-        threading.Event().wait(1)
     APP.reconcile()
-    serve(int(ENV.get("CLOUD_HTTPS_PORT", "443")), (crt, key))
-    serve(int(ENV.get("CLOUD_HTTP_PORT", "8080")))
-    threading.Event().wait()
+    servers = [serve(int(ENV.get("CLOUD_HTTPS_PORT", "443")), (crt, key)),
+               serve(int(ENV.get("CLOUD_HTTP_PORT", "8080")))]
+    stop.wait()
+    shutdown(servers, APP.state)
 
 
 if __name__ == "__main__":

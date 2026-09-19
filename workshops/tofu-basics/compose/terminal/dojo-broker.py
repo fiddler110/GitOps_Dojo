@@ -41,15 +41,17 @@ def client_secret(key, username):
 
 
 def roster(env):
+    # Same names the engine creates (kept in step with cloud-api's auth.roster, see
+    # test_parity.py): students are zero-padded (student01), demo bots are not (testuser1).
     users = []
-    for prefix_var, count_var, default_prefix in (("STUDENT_PREFIX", "STUDENT_COUNT", "student"),
-                                                  ("BOT_PREFIX", "BOT_COUNT", "testuser")):
+    for prefix_var, count_var, default_prefix, pad in (("STUDENT_PREFIX", "STUDENT_COUNT", "student", "02d"),
+                                                       ("BOT_PREFIX", "BOT_COUNT", "testuser", "d")):
         prefix = env.get(prefix_var, default_prefix)
         try:
             count = int(env.get(count_var, "0") or 0)
         except ValueError:
             count = 0
-        users += [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+        users += [f"{prefix}{n:{pad}}" for n in range(1, count + 1)]
     if env.get("FACILITATOR_USERNAME", "root"):
         users.append(env.get("FACILITATOR_USERNAME", "root"))
     return users

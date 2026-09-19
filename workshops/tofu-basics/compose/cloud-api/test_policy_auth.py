@@ -89,7 +89,14 @@ class AuthTests(unittest.TestCase):
         self.a = auth.Auth(b"k" * 32, self.users, "admin", "https://login/")
 
     def test_roster(self):
-        self.assertEqual(self.users, ["student01", "student02", "student03", "testuser01", "admin"])
+        self.assertEqual(self.users, ["student01", "student02", "student03", "testuser1", "admin"])
+
+    def test_roster_naming_matches_the_engine(self):
+        # students zero-padded (allocator STUDENT_IDS), bots not (allocator BOT_IDS, entrypoint printf '%d')
+        users = auth.roster({"STUDENT_COUNT": "11", "BOT_COUNT": "12", "FACILITATOR_USERNAME": ""})
+        self.assertEqual(users[:11], [f"student{n:02d}" for n in range(1, 12)])
+        self.assertEqual(users[11:], [f"testuser{n}" for n in range(1, 13)])  # testuser9, testuser10, ...
+        self.assertEqual(auth.roster({"BOT_PREFIX": "b", "BOT_COUNT": "10"})[-11:-1], [f"b{n}" for n in range(1, 11)])
 
     def test_distinct_subscriptions_and_secrets(self):
         self.assertNotEqual(auth.subscription_id("student01"), auth.subscription_id("student02"))
