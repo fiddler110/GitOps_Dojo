@@ -6,7 +6,8 @@ no I/O, so they are unit-tested in test_policy.py.
 """
 import re
 
-ALLOWED_LOCATIONS = ("uksouth", "ukwest", "westeurope", "eastus")
+# Canadian regions only (a data-residency style policy); the default is the first.
+ALLOWED_LOCATIONS = ("canadacentral", "canadaeast")
 ALLOWED_IMAGES = ("dojo/hello:1.0", "dojo/hello:2.0")
 REQUIRED_TAGS = ("owner", "env")
 MAX_CPU = 0.25

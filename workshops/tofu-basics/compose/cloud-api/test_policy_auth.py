@@ -13,7 +13,7 @@ def cg(**over):
             "resources": {"requests": {"cpu": 0.25, "memoryInGB": 0.125}}}}],
         "ipAddress": {"type": "Public", "ports": [{"port": 80}], "dnsNameLabel": "hello-student01"},
     }
-    args = dict(name="ci-hello-dev", location="uksouth", tags={"owner": "s", "env": "dev"},
+    args = dict(name="ci-hello-dev", location="canadacentral", tags={"owner": "s", "env": "dev"},
                 props=props, other_groups=0, dns_taken=lambda label: False)
     args.update(over)
     return args
@@ -47,7 +47,7 @@ class PolicyTests(unittest.TestCase):
     def test_naming(self):
         self.assertEqual(code(name="hello"), "InvalidContainerGroupName")
         with self.assertRaises(policy.PolicyError) as cm:
-            policy.check_resource_group("mygroup", "uksouth", {"owner": "a", "env": "b"})
+            policy.check_resource_group("mygroup", "canadacentral", {"owner": "a", "env": "b"})
         self.assertEqual(cm.exception.code, "InvalidResourceGroupName")
 
     def test_quota(self):
