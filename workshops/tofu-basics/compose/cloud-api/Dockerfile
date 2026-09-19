@@ -1,0 +1,14 @@
+# Dojo Cloud control plane. Stdlib-only Python plus openssl (private CA).
+FROM docker.io/library/python:3.12-alpine
+RUN apk add --no-cache openssl
+WORKDIR /app
+COPY auth.py policy.py docker_api.py state.py pki.py server.py /app/
+# Unit tests ride along so `podman exec ... python -m unittest` works in the image.
+COPY test_policy_auth.py test_executor.py /app/
+ENV PYTHONUNBUFFERED=1
+# Needs to bind :443 (the provider connects to https://<host> with no port) and
+# talk to the shared docker.sock; the compose overlay drops every other capability.
+EXPOSE 443 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+CMD ["python3", "/app/server.py"]

@@ -31,14 +31,18 @@ RUN set -eux; \
 # Offline provider mirror. The lab network has no internet, so `tofu init`
 # cannot reach registry.opentofu.org — instead every provider the labs use is
 # downloaded once, here at build time, into a read-only filesystem mirror and
-# the CLI config below makes that the ONLY install source. Versions are
-# pinned; the checksums are verified by `tofu providers mirror` against the
-# registry's signed hashes. Track B adds its cloud provider to this list.
+# the CLI config below makes that the ONLY install source. Versions are pinned
+# (mirror.tf); `tofu providers mirror` verifies each download against the
+# registry's signed hashes. The mirror is then UNPACKED (unpack-mirror.py) so
+# `tofu init` symlinks providers into each student's folder instead of copying
+# azurerm's ~218 MB thirty times over.
 COPY mirror.tf /tmp/mirror/mirror.tf
+COPY unpack-mirror.py /tmp/unpack-mirror.py
 RUN set -eux; \
     cd /tmp/mirror; \
-    tofu providers mirror -platform="linux_${TARGETARCH}" /opt/tofu-providers; \
-    rm -rf /tmp/mirror; \
+    tofu providers mirror -platform="linux_${TARGETARCH}" /tmp/mirror/packed; \
+    python3 /tmp/unpack-mirror.py /tmp/mirror/packed /opt/tofu-providers; \
+    rm -rf /tmp/mirror /tmp/unpack-mirror.py; \
     chmod -R a+rX /opt/tofu-providers
 
 COPY tofurc /etc/tofu/tofurc
@@ -79,6 +83,19 @@ RUN set -eux; \
     rm -f /tmp/disable-tofu-ls.py; \
     chown -R root:root /opt/code-server-extensions; \
     chmod -R a+rX /opt/code-server-extensions
+
+# Dojo Cloud client side: a root-owned credential broker (SO_PEERCRED tells it
+# which student is asking, so each gets only their own ARM_* values), the
+# `dojo-env` client, and a wrapper entrypoint that trusts the cloud's private CA
+# and starts the broker before handing off to the base entrypoint. Without a
+# running cloud-api all of this quietly does nothing (Track A still works).
+COPY dojo-broker.py /usr/local/bin/dojo-broker
+COPY dojo-env /usr/local/bin/dojo-env
+COPY entrypoint-wrapper.sh /usr/local/bin/terminal-entrypoint-wrapper
+RUN set -eux; \
+    chmod 0755 /usr/local/bin/dojo-broker /usr/local/bin/dojo-env /usr/local/bin/terminal-entrypoint-wrapper; \
+    printf '\n# tofu-basics: Dojo Cloud credentials for this user (from the broker)\nif [ -z "${ARM_CLIENT_ID:-}" ] && [ -x /usr/local/bin/dojo-env ]; then eval "$(/usr/local/bin/dojo-env 2>/dev/null)"; fi\n' >> /etc/zsh/zshenv
+ENTRYPOINT ["/usr/local/bin/terminal-entrypoint-wrapper"]
 
 # ENTRYPOINT is inherited from the base image (web-terminal-entrypoint) —
 # same account provisioning and workspace-control.py launch as every other

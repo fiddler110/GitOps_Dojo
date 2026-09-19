@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Prints `export NAME='value'` lines with the calling user's Dojo Cloud
+credentials, fetched from the root-owned broker. Silent no-op if the broker (or
+the cloud) isn't available, so Track A keeps working. Used from
+/etc/zsh/zshenv:  eval "$(dojo-env)"
+"""
+import json
+import shlex
+import socket
+import sys
+
+try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(2)
+    s.connect("/run/dojo-broker/broker.sock")
+    data = b""
+    while True:
+        chunk = s.recv(65536)
+        if not chunk:
+            break
+        data += chunk
+    for name, value in json.loads(data or b"{}").items():
+        print(f"export {name}={shlex.quote(value)}")
+except (OSError, ValueError):
+    sys.exit(0)
