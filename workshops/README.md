@@ -13,6 +13,7 @@ runs and how requests are routed.
 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | `cd ../engine && ./run.sh git-fundamentals` |
 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `cd ../engine && ./run.sh dns-as-code` |
 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `cd ../engine && ./run.sh cert-autorenewal` |
+| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `cd ../engine && ./run.sh tofu-basics` |
 
 `./run.sh list` (from `engine/`) prints this same list from each
 workshop's `workshop.env`.

@@ -1,0 +1,20 @@
+# Overlay for the tofu-basics workshop, layered on top of engine/docker-compose.yml
+# via `docker compose -f docker-compose.yml -f <this file>` (see engine/run.sh).
+#
+# IMPORTANT: because this file is merged with a base file, Compose resolves
+# every relative path in BOTH files relative to the base file's directory —
+# engine/, not this file's own directory. That's why `build.context` below
+# is `../workshops/tofu-basics/compose/terminal`, not `./terminal`.
+#
+# Phase 1 (Track A, offline sandbox) only swaps the terminal image. The
+# "Dojo Cloud" services for Track B are added later — see PLAN.md.
+
+services:
+  web-terminal:
+    build:
+      context: ../workshops/tofu-basics/compose/terminal
+    # Without this, Compose would inherit the base file's
+    # `image: gitopsdojo/web-terminal:base` and tag this workshop-specific
+    # build as ":base" too -- clobbering the shared base tag every time
+    # this workshop runs (see engine/run.sh).
+    image: gitopsdojo/web-terminal:tofu-basics
