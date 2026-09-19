@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached — a student can init→apply→browse→destroy on Dojo Cloud. Next: P4 portal** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal done. Next: P5 gateway/allocator route (needs your OK on D4 first)** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-18 (P0–P3 done) |
+| Last updated | 2026-09-19 (P0–P4 done) |
 
 ---
 
@@ -92,7 +92,7 @@ Update this table whenever a phase changes state.
 | P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
 | P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
 | P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
-| P4 | Portal (Azure-inspired console) | not started | |
+| P4 | Portal (Azure-inspired console) | **done** (`49c168e`; gateway/browser-through-gateway check moves to P5) | |
 | P5 | Gateway / allocator integration | not started | |
 | P6 | Lab content — Track B | not started | |
 | P7 | Slides | not started | |
@@ -161,7 +161,7 @@ Never build on an **assumed** item without first proving it (each has a task).
 | D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (privileged dind, isolated; see §15a-A) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
 | D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ⚠ **BUILT AT DEFAULT (a), NOT CONFIRMED** (see §15a-A) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
 | D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ⏳ PENDING — **not yet exercised (needed at P5); confirm with the user before editing any base-engine file** | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
-| D5 | Default region / subscription / naming values | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (`uksouth`; `rg-`/`ci-` prefixes enforced by policy) | Default region `uksouth`; change freely in `variables.tf`. |
+| D5 | Default region / subscription / naming values | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (`canadacentral`; `rg-`/`ci-` prefixes enforced by policy) | Default region `canadacentral`; change freely in `variables.tf`. |
 | D6 | Per-student quota | ⚠ **BUILT AT DEFAULT, NOT CONFIRMED** (2 container groups, 0.25 vCPU, 0.125 GB each) | Sized in §14. |
 | D7 | Should students see each other's deployed sites? | ✅ DEFAULT yes (read-only "Class view") | Any authenticated session may **browse** any site; only the owner can **change** anything. |
 
@@ -341,6 +341,67 @@ cert (SAN `dojo-cloud`), `podman network create spike-net`, facade container
 `SSL_CERT_FILE`, the `ARM_*` vars above, `TF_CLI_CONFIG_FILE=` (empty, so
 azurerm downloads directly since it isn't in the mirror yet).
 
+### 5.6 Portal API contract (P4 — the interface between `portal_api.py` and the SPA)
+
+*Written 2026-09-19 at the start of P4 so the backend and the SPA can be built independently.
+If you change either side, change this section.*
+
+**Serving.** cloud-api serves the SPA (`compose/cloud-api/portal/`) at `/cloud/` (→ `index.html`) and
+`/cloud/static/<file>` (fixed allow-list: `app.js`, `app.css`, `favicon.svg`; no path traversal). Static
+files need no identity. Every portal HTML/static response carries
+`Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+`X-Content-Type-Options: nosniff`. **No inline scripts/styles, no external assets** (no CDN, no web fonts).
+The JSON API lives under `/cloud/api/`. Student sites stay at `/cloud/site/<label>/` (unchanged, CSP `sandbox`).
+
+**Trust model (important).** Students share a network with cloud-api and can `curl cloud-api:8080`
+directly, so a bare `X-Auth-User` header is forgeable. The portal API therefore trusts identity **only** when
+the request also carries `X-Gateway-Token` equal (constant-time compare) to the `GATEWAY_TOKEN` env var —
+exactly the allocator's `gateway_authorized()` model (P5's Caddy block sets both headers with `header_up`
+so clients cannot). If `GATEWAY_TOKEN` is unset the API answers `503 PortalNotConfigured`; a missing/wrong token
+answers `401 Unauthenticated`. `user = X-Auth-User`; it must be in the roster (`auth.roster`) or be the facilitator,
+else `403`. Subscription = `auth.subscription_id(user)`. Facilitator = `FACILITATOR_USERNAME`.
+Students authorise on **subscription ownership** (path `sub` must equal their own) — same rule as ARM.
+
+**Errors:** `{"error": {"code": "...", "message": "..."}}` with the right HTTP status (ARM shape).
+**All JSON. Every string field is student-controlled data → the SPA must render with `textContent`, never `innerHTML`.**
+
+| Method + path | Who | Returns / does |
+|---|---|---|
+| `GET /cloud/api/me` | any | `{user, subscriptionId, isFacilitator, writeActions, quota:{containerGroups:{used,limit}}, publicBaseUrl}` |
+| `GET /cloud/api/overview?scope=mine\|class` | any (`class` = every subscription, **summaries only**) | `{resourceGroups:[RG], containerGroups:[CG], generatedAt}` |
+| `GET /cloud/api/containers/<sub>/<rg>/<name>` | owner / facilitator | `{summary: CG, arm: <the ARM JSON, i.e. App.cg_body>}` |
+| `GET /cloud/api/containers/<sub>/<rg>/<name>/logs?tail=N` | owner / facilitator | `{logs: "<text>"}`; `tail` 1–500, default 200 |
+| `GET /cloud/api/activity?scope=mine\|all&limit=N` | `mine`: any; `all`: facilitator | `{events:[Event]}` newest first; `limit` 1–500, default 200 |
+| `DELETE /cloud/api/containers/<sub>/<rg>/<name>` | owner / facilitator | deletes the container group (logged as a portal action); `204`-like `{deleted:true}` |
+| `PATCH /cloud/api/containers/<sub>/<rg>/<name>` body `{"tags":{…}}` | owner / facilitator | **replaces** the tag set, runs the same policy as ARM (required tags `owner`,`env`) → `RequestDisallowedByPolicy` on violation; returns `{summary: CG}` |
+| `GET /cloud/api/admin/settings` | facilitator | `{writeActions: bool}` |
+| `PUT /cloud/api/admin/settings` body `{"writeActions": bool}` | facilitator | sets it (kept in state; **default true**) |
+| `POST /cloud/api/admin/purge` body `{"subscriptionId": "<sub>"}` | facilitator | removes every container group + resource group of that subscription (+ containers on cloud-host); `{removed:{containerGroups:n, resourceGroups:m}}` |
+
+*Write actions off* (`writeActions=false`): `DELETE`/`PATCH` by a **student** → `403 PortalWriteActionsDisabled`;
+the facilitator is unaffected. Read endpoints are unaffected. Resource-group deletion is **not** offered in the portal
+(students use `tofu destroy`).
+
+**Shapes**
+
+```text
+CG    = {id, name, resourceGroup, subscriptionId, owner, location, state:"Running"|"Terminated",
+         fqdn, ip, image, cpu, memoryGb, tags:{}, dnsLabel, siteUrl:"/cloud/site/<label>/", isMine:bool}
+RG    = {id, name, subscriptionId, owner, location, tags:{}, containerCount, isMine:bool}
+Event = {time, subscription, caller, operation, resourceId, status, message}
+```
+
+`state` comes from ONE `docker ps`-style list per request (cached ~2 s), **not** one `inspect` per container, and Docker
+is never called while holding the global state lock — the portal is polled every ~3 s by every student (T9.7).
+Portal-initiated changes must appear in the activity log with operation text that says they came from the portal
+(e.g. `Delete container group (portal)`), so the drift lab can point at them.
+
+*As built (2026-09-19) — deviations from the table above:* `state` can also be `"Unknown"` (cloud-host could not be listed and nothing is cached; the SPA renders it neutral); purge adds `orphanedContainers` to its response only if a container removal failed; responses carry `Cache-Control`; changing the write-actions setting adds a "Change portal settings" activity entry. There is no dedicated resource-group endpoint — the RG blade filters `overview`. `/cloud` (no slash) is a `301` to `/cloud/` because `<base>` is blocked by the CSP.
+
+*Verification without the gateway:* from any container on `workshop_lab`,
+`curl -H 'X-Auth-User: student01' -H "X-Gateway-Token: $GATEWAY_TOKEN" http://cloud-api:8080/cloud/api/me`.
+The gateway route (`/cloud*`) is P5 and is not needed to test P4.
+
 ---
 
 ## 6. Making it feel like Azure
@@ -358,7 +419,7 @@ environment — not affiliated with Microsoft."*
 | Tenant | one fixed tenant GUID for the class |
 | Subscription | one per student, GUID derived deterministically from username (`uuid5`) — isolation boundary |
 | Resource group | first-class resource in ARM facade; portal blade; label `dojo.rg=<name>` on containers |
-| Region / location | label + policy: allowed `uksouth`, `ukwest`, `westeurope`, `eastus` (others → policy denial) |
+| Region / location | label + policy: allowed `canadacentral`, `ukwest`, `westeurope`, `eastus` (others → policy denial) |
 | Azure Container Instances (`containerGroups`) | container on `cloud-host`, shaped as an ACI container group |
 | Resource ID | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerInstance/containerGroups/<name>` shown everywhere |
 | Tags | container labels; **required tags** policy (`owner`, `env`) |
@@ -635,14 +696,14 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P4 — Portal
 
-- [ ] **T4.1** SPA shell + nav + theme (neutral, Azure-inspired, light/dark,
+- [x] **T4.1** *(`49c168e`; verified in real headless Chromium against the live stack through a throw-away header-injecting proxy — **not through the gateway**, that route is P5/D4)* SPA shell + nav + theme (neutral, Azure-inspired, light/dark,
       mobile-safe). *Verify:* renders through gateway at `/cloud/`.
-- [ ] **T4.2** Blades: Home, Resource groups, All resources, Container
+- [x] **T4.2** *(`49c168e`; Logs tab needed a hello-image fix to show anything)* Blades: Home, Resource groups, All resources, Container
       instances, resource overview + JSON view + Browse + log tail.
-- [ ] **T4.3** Activity log blade; Class view (read-only).
-- [ ] **T4.4** Owner actions: Delete, tag edit (for drift lab). Facilitator:
+- [x] **T4.3** *(`49c168e`)* Activity log blade; Class view (read-only).
+- [x] **T4.4** *(`49c168e`; write-actions toggle persists across a cloud-api restart)* Owner actions: Delete, tag edit (for drift lab). Facilitator:
       whole-class view, Purge subscription, write-actions toggle.
-- [ ] **T4.5** Footer disclaimer; accessibility pass (keyboard, contrast).
+- [x] **T4.5** *(`49c168e`; keyboard/focus/contrast checked in the palette + headless browser — **no real screen-reader or Firefox/Safari pass**; drift demo verified end to end)* Footer disclaimer; accessibility pass (keyboard, contrast).
       *Verify:* deploy from terminal → appears ≤ ~3 s; delete in portal →
       `tofu plan` shows drift.
 
@@ -698,6 +759,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       live missing-tag check and the `CURL_CA_BUNDLE` check.
 - [ ] **T9.7** *(added)* Concurrency: 30 students applying at once against one global lock (§15a-F) —
       measure `apply` latency; if bad, narrow the lock (per-subscription) or move Docker calls outside it.
+      **P4 measured a concrete instance:** `put_container_group` holds `State.lock` while Docker creates the container, so every portal read and every other student's ARM call stalls ≈3.3 s per deploy (§15a-G1). Do this fix here — reserve quota+port under the lock, create outside it, then commit.
 - [ ] **T9.8** *(added)* Isolation checks not yet done: `--icc=false` really blocks container-to-container
       traffic; a hello container cannot reach `cloud-host`'s own netns or `cloud-api`; re-review D2 under
       **docker** (not rootless podman) before any Azure-VM delivery (§15a-F).
@@ -805,7 +867,7 @@ answering the open questions in §4. Everything below was built at the plan's de
 | D2 | `cloud-host` is a **privileged** Docker-in-Docker container on an `internal: true` network, unix socket only, no host ports, no internet. | The riskiest component. Boxed in by §7, but a privileged container is a privileged container. Change = re-architect the executor (`docker_api.py`) — say so early. |
 | D3 | **Broker with `SO_PEERCRED`** (root daemon in the terminal; each student gets only their own creds). | The alternative (shared class secret) is simpler but lets students impersonate each other. |
 | D4 | *(Not started.)* P5 needs a small additive edit to the **base** `engine/gateway/Caddyfile`, `engine/allocator/server.py`, `engine/docker-compose.yml` (a `CLOUD_ENABLED` flag mirroring `DEMO_APP_ENABLED`). | The user's repo policy is that base engine files stay workshop-agnostic. **Ask before editing.** |
-| D5 | Region `uksouth`; policy forces `rg-` / `ci-` name prefixes and allows `uksouth/ukwest/westeurope/eastus`. | Edit `compose/cloud-api/policy.py`. |
+| D5 | Region `canadacentral`; policy forces `rg-` / `ci-` name prefixes and allows `canadacentral/ukwest/westeurope/eastus`. | Edit `compose/cloud-api/policy.py`. |
 | D6 | Quota 2 container groups per student, 0.25 vCPU / 0.125 GB each, only `dojo/hello:1.0` and `:2.0`, only port 80. | Edit `policy.py` (and `MAX_*` in `docker_api.py` tests). |
 
 ### B. Problems found in OTHER workshops / the base engine (need updating; see tasks F.1–F.5)
@@ -950,6 +1012,35 @@ Each item says how it was established. **Verified** = observed/read in the repo 
 base image did; the freshly built one doesn't); the gateway returning 401 on `/` and `/terminal/` without a
 session is expected.
 
+### G. Findings from P4 (added 2026-09-19)
+
+Established by the live integration run (real `azurerm`, real browser); each is *verified* unless marked.
+
+1. **A deploy stalls the whole control plane ≈3.3 s.** Existing ARM code (`server.py` `put_container_group`,
+   and GET/PUT of container groups, resource-group DELETE) calls Docker **while holding `State.lock`**; the
+   portal's own endpoints do not, but they still wait for that lock. Measured: one `overview` poll waited 3.30 s
+   during a deploy; simultaneous deploys queue. Portal reads themselves are fast (30 parallel class overviews: p95
+   258 ms; 30 pollers every 3 s: p95 186 ms). **Fix in T9.7** before the 30-student test.
+2. **The hello image was silent**, so the Logs tab was always empty — fixed in `49c168e` (startup line + `httpd -v`).
+   *Verified* in plain busybox only; the log **framing** through the executor was checked with a container that
+   prints. **Re-check the Logs tab once after the next full image rebuild.**
+3. `Handler.log_message` raises `AttributeError` on a malformed HTTP request line — only a thread traceback in
+   the log (existing code). Low priority.
+4. The container-group `owner` **tag value is not validated** — a student can claim any owner name in the tags
+   (the *real* owner is the subscription, so authz is unaffected). Decide in P6 whether the lab wants a policy for it.
+5. The ARM list endpoints read state without the lock (existing code). Benign today; fold into T9.7.
+6. `_body()` reads at most 1 MB and leaves any excess unread on the socket (existing code). Low priority.
+7. **Portal identity relies on `GATEWAY_TOKEN`** reaching cloud-api via the overlay. Verified a bare
+   `X-Auth-User` is rejected (401) and the token is not in student environments or `/proc/1/environ`. The
+   allocator-style trust model only holds if P5's Caddy block sets both headers with `header_up`.
+8. Facilitator username in this dev `engine/.env` is `admin` (not the `root` default) — the code reads
+   `FACILITATOR_USERNAME`, so nothing to fix; just don't hard-code `root` in labs.
+9. Anonymous podman volumes from earlier runs survive `./run.sh stop` — housekeeping, not a bug in this workshop.
+10. **Unrelated edits appeared in the working tree during P4** (root `README.md` +438 lines,
+    `engine/.env.example`, `engine/README.md`, `engine/docker-compose.yml`, `workshops/README.md`). They were made
+    by neither Claude nor its agents (verified: agents were told not to, and the integration agent reported it
+    did not touch them). They were **deliberately not committed** with P4 — see the `git status` in §16.
+
 ---
 
 ## 16. SESSION LOG (append-only, newest at the bottom)
@@ -981,7 +1072,7 @@ session is expected.
   (`b5bdb7a`), pushed `main`, created `feat/tofu-basics`.
 - **Decisions D2–D6:** the user green-lit implementation without answering the
   open questions, so the **defaults in §4 are being used** (privileged dind on an
-  isolated net, SO_PEERCRED broker, additive `/cloud*` route, `uksouth`, quota
+  isolated net, SO_PEERCRED broker, additive `/cloud*` route, `canadacentral`, quota
   2 × 0.25 vCPU/128 MB). They are *not* re-confirmed — flag them in the next
   hand-off so the user can veto. D4 is not exercised until P5.
 - Built T0.2–T0.4 and T1.1–T1.6 (commit `ef3e36a`): terminal image with OpenTofu
@@ -1065,6 +1156,27 @@ session is expected.
 - Second pass: audited the whole session for problems not yet written down → new §15a-F (13 items),
   tasks **T9.6–T9.8** and **F.6–F.7**; marked the dropped T1 fallback tasks `[-]`; repointed stale
   `arm_facade.py` references to commit `ec2f664`.
+
+### 2026-09-19 — P4 Dojo Portal (`49c168e`)
+- **Approach:** wrote the API contract first (§5.6), then built the backend (`portal_api.py` + shared `App`
+  delete/tag-patch methods) and the SPA (`compose/cloud-api/portal/`) **in parallel by two sub-agents** on disjoint
+  files, then had a third agent run the live integration test. Unit tests: 47 (28 new) + 3 parity, all pass.
+- **Live results (real azurerm as `student01`, real browser):** all 8 integration checks passed. Regression of the
+  refactored ARM delete/patch: apply ≈35 s, tag edit = in-place `~` (PATCH, 1 s), env edit = `-/+` (13 s), destroy → 0 containers.
+  Auth: no headers/forged `X-Auth-User`/wrong token → 401, unknown user → 403, cross-student detail/logs → 403,
+  `activity?scope=all` student → 403. **Drift demo works:** portal DELETE → `plan` shows `+ create`, activity log says
+  "Delete container group (portal)", `apply` reconciles; a portal tag change shows as `~`; removing `owner` →
+  `RequestDisallowedByPolicy`. Write-actions toggle blocks students, not the facilitator, and survives a restart;
+  purge removes only the target subscription (incl. the container on cloud-host). Container appears in the portal
+  within ≈0.2 s of the PUT (target was ≤3 s). Hostile tag/name payloads render as text; no CSP violations.
+- **Fixed after the test:** hello image printed nothing → Logs tab empty (`hello/entrypoint.sh`).
+- **Not done / carried forward:** gateway `/cloud*` route and a browser check *through the gateway* (P5, D4 — needs the
+  user's OK before touching base-engine files); the lock-during-deploy stall (§15a-G1 → T9.7); a real screen-reader and
+  Firefox/Safari pass (P9); re-check Logs after a full rebuild.
+- **Working-tree note:** unrelated modified files appeared mid-phase (root `README.md`, three `engine/` files,
+  `workshops/README.md`); **not committed**, not touched (§15a-G10). Please confirm they are yours.
+- **Also still unconfirmed:** D2–D6 defaults (§15a-A) — flagged again at this hand-off.
+- **Next: P5** — stop and ask the user first (phase gate), and confirm D4.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
