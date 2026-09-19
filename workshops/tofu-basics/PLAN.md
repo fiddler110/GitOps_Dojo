@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 reached — Track A shippable. Next: P2 provider spike** |
+| Overall status | **M1 + M2 reached — Track A shippable; provider = real `azurerm`. Next: P3 control plane** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-18 (P0+P1 done) |
+| Last updated | 2026-09-18 (P0–P2 done) |
 
 ---
 
@@ -88,7 +88,7 @@ Update this table whenever a phase changes state.
 |---|---|---|---|
 | P0 | Prep & repo hygiene | **done** | |
 | P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
-| P2 | Provider-strategy spike (gate D1) | not started | **M2: provider decision made** |
+| P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
 | P3 | Control plane ("cloud-api") + cloud host | not started | **M3: one student can deploy end-to-end** |
 | P4 | Portal (Azure-inspired console) | not started | |
 | P5 | Gateway / allocator integration | not started | |
@@ -139,11 +139,11 @@ Never build on an **assumed** item without first proving it (each has a task).
 | ✅ *(proven T1.2: exported from `/etc/zsh/zshenv`; survives `su -`)* `TF_CLI_CONFIG_FILE` / env vars set for the terminal reach student shells after `su` | T1.2 (fallback: `/etc/zsh/zshenv` + `/etc/profile.d`) |
 | ✅ *(proven T1.2 with `--network none` and in the live stack)* Offline `tofu init` works from a **filesystem mirror** | T1.2 (`docker run --network none`) |
 | ✅ *(installed; visual check pending P9)* A HCL syntax-highlighting extension is available on Open VSX and works offline with its language server disabled (`hashicorp.terraform` or `opentofu.vscode-opentofu`) | T1.3 |
-| **`azurerm` (or `azapi`) can run init/plan/apply/destroy against a custom ARM-compatible endpoint** via `metadata_host` (used upstream for Azure Stack/sovereign clouds) with a mocked token endpoint | **T2.2 — the big one** |
-| `azurerm_container_group` change behaviour (which attribute edits are in-place `~` vs replace `-/+`) matches what the lab teaches | T2.2 (record real plan output; rewrite lab text to match) |
-| `docker:dind` can run privileged on an `internal: true` network with images preloaded via `docker load` | T2.1 |
-| Go providers trust a private CA supplied via `SSL_CERT_FILE` / system store | T2.2 |
-| Size/time cost of mirroring `azurerm` into the image is acceptable (it is a very large provider) | T1.2/T2.2 — measure and record |
+| ✅ *(PROVEN T2.2: azurerm 5.6.0, full cycle + drift; see §5.5)* **`azurerm` (or `azapi`) can run init/plan/apply/destroy against a custom ARM-compatible endpoint** via `metadata_host` (used upstream for Azure Stack/sovereign clouds) with a mocked token endpoint | **T2.2 — the big one** |
+| ✅ *(recorded T2.2, §5.5)* `azurerm_container_group` change behaviour (which attribute edits are in-place `~` vs replace `-/+`) matches what the lab teaches | T2.2 (record real plan output; rewrite lab text to match) |
+| ✅ *(dind runs privileged under rootless podman; preload + build + run + published-port reachability proven on a plain bridge. **`internal: true` / no-internet still to confirm in P3**)* `docker:dind` can run privileged on an `internal: true` network with images preloaded via `docker load` | T2.1 |
+| ✅ *(proven T2.2)* Go providers trust a private CA supplied via `SSL_CERT_FILE` / system store | T2.2 |
+| ✅ *(measured, §5.5)* Size/time cost of mirroring `azurerm` into the image is acceptable (it is a very large provider) | T1.2/T2.2 — measure and record |
 | LocalStack/other emulators: **not used**; licensing changing and unverified | not planned |
 
 ---
@@ -155,7 +155,7 @@ Never build on an **assumed** item without first proving it (each has a task).
 | D0 | Use **OpenTofu**, expose as `terraform` too | ✅ DECIDED (user) | Symlink, not just a shell alias — works in scripts/tmux/ttyd/code-server, not only interactive zsh. Also add a zsh `alias` only if T1.1 shows the symlink misses a case. |
 | D0b | Deliver **Track A + Track B** | ✅ DECIDED (user) | A = offline sandbox, B = "Dojo Cloud". A doubles as fallback if the cloud host misbehaves mid-session. |
 | D0c | Cloud should feel like **Azure** | ✅ DECIDED (user) | Azure *concepts, naming, resource shapes, policy errors, portal layout* — no Microsoft logos/marks. Brand is "Dojo Cloud". |
-| D1 | **Provider strategy for Track B** | ⏳ PENDING → decided by spike **P2** | Option **T2** (preferred): real `azurerm` (fallback `azapi`) → a small ARM-compatible facade. Option **T1** (fallback): `kreuzwerker/docker` → policy-filtering Docker API proxy with mTLS. See §5.4. |
+| D1 | **Provider strategy for Track B** | ✅ DECIDED 2026-09-18 by spike P2: **T2 — real `azurerm` 5.6.0 → ARM facade** (azapi + docker fallback not needed) | Option **T2** (preferred): real `azurerm` (fallback `azapi`) → a small ARM-compatible facade. Option **T1** (fallback): `kreuzwerker/docker` → policy-filtering Docker API proxy with mTLS. See §5.4. |
 | D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ⏳ PENDING (default: privileged dind, isolated) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
 | D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ⏳ PENDING (default **a**) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
 | D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ⏳ PENDING (default yes) | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
@@ -238,6 +238,105 @@ written by cloud-api, mounted read-only into terminal), `cloud_secrets`
 **Rule:** spike T2 first (P2, time-boxed). If `azurerm` fails but `azapi` works,
 use `azapi` for the ARM path. Only if both fail do we execute the T1 path.
 Everything else in the plan (portal, quotas, lab flow, Track A) is the same.
+
+### 5.5 P2 spike results (2026-09-18) — the facts the build depends on
+
+**Outcome: real `azurerm` v5.6.0 runs init/plan/apply/destroy against our facade.**
+Student HCL is genuine Azure HCL; only the environment differs.
+
+*How the provider is pointed at Dojo Cloud (all via env vars, so `providers.tf`
+is just `provider "azurerm" { features {} }`):*
+
+```text
+ARM_METADATA_HOSTNAME=<cloud-api host>     # provider does GET https://<host>/metadata/endpoints?api-version=2022-09-01
+ARM_TENANT_ID / ARM_SUBSCRIPTION_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET
+ARM_USE_CLI=false
+ARM_RESOURCE_PROVIDER_REGISTRATIONS=none   # else it lists/registers providers
+SSL_CERT_FILE=<private CA pem>             # facade must be HTTPS; Go trusts this
+# do NOT set ARM_ENVIRONMENT (ignored when metadata host is set)
+```
+
+*Metadata document the provider requires* (miss any → hard error, see the three we hit):
+`name`; `resourceManager`; `microsoftGraphResourceId`;
+`authentication{loginEndpoint, audiences[], identityProvider:"AAD", tenant:"common"}`;
+`suffixes{keyVaultDns, storage}` (+ optional others).
+**Gotchas found the hard way:** (1) `tenant` MUST be the literal `"common"` and
+`identityProvider` `"AAD"`, otherwise go-azure-sdk `IsAzureStack()` is true and
+azurerm refuses with "does not support Azure Stack"; (2) `keyVaultDns` (and
+`storage`) suffixes must exist or the provider fails building the Key Vault
+authorizer ("endpoint KeyVault is not supported").
+
+*Auth:* `POST {loginEndpoint}{tenant}/oauth2/v2.0/token` (form:
+`grant_type=client_credentials&client_id&client_secret&scope=<aud>/.default`) —
+the provider requests ~4 tokens (resource manager, storage, key vault, graph). It
+does **not** verify the JWT signature; it only needs a well-formed access token
+(we issue an unsigned-`alg:none` one with `tid/oid/appid/exp`). Real auth
+decisions are ours to make from `client_id`/`client_secret` (P3).
+
+*ARM surface actually used* (with `resource_provider_registrations=none`) — tiny:
+
+| Call | API version |
+|---|---|
+| `GET https://<host>/metadata/endpoints` | `2022-09-01` |
+| `POST /<tenant>/oauth2/v2.0/token` | — |
+| `PUT/GET/DELETE /subscriptions/<s>/resourceGroups/<rg>` | `2023-07-01` |
+| `PUT/GET/DELETE …/resourceGroups/<rg>/providers/Microsoft.ContainerInstance/containerGroups/<cg>` | `2025-09-01` |
+
+No `GET /subscriptions/<s>`, no provider listing, no locks calls were made.
+
+*Long-running operations:* the facade answered `201`/`200` with
+`provisioningState: Succeeded` and no async headers; the provider then waited a
+poll tick — **RG create ≈20 s, container group ≈10 s, deletes similar** — real
+`plan` refreshes are fast. Acceptable (feels like a cloud), but tune in P3 (send
+`Azure-AsyncOperation`/`Retry-After: 1`, or accept) so Lab timings are sensible.
+
+*Plan behaviour of `azurerm_container_group` (recorded from real plans):*
+
+| Edit | Plan result |
+|---|---|
+| tag on the container group | **`~` update in place** |
+| `environment_variables` value | **`-/+` replace** (`# forces replacement`) |
+| container `image` | **`-/+` replace** |
+| container `cpu` | **`-/+` replace** |
+| `dns_name_label` | **`-/+` replace** |
+
+So Lab 8 works as designed: tag ⇒ in-place, env/image ⇒ replace. An unchanged
+config plans **"No changes"** against the facade (so the facade's GET response
+shape is sufficient — keep echoing the request back plus computed fields:
+`id/name/type`, `properties.provisioningState`, `properties.ipAddress{ip,fqdn}`).
+
+*Drift (Lab 7):* deleting the container group out-of-band, then `plan` →
+`+ create` (1 to add). Works.
+
+*Mirror / capacity:* `azurerm` 5.6.0 linux_amd64 is **56 MB zipped / 218 MB
+unpacked**. **A packed (zip) mirror makes every `tofu init` copy 218 MB into the
+student's folder; an UNPACKED mirror (extract the zips into
+`<host>/<ns>/<type>/<ver>/<os_arch>/`) makes `init` create a *symlink* — 0 bytes
+per student.** ⇒ the terminal image must ship the mirror **unpacked** (also switch
+random/local for consistency) and the lock file must carry `h1:` hashes. Image
+grows ≈ +220 MB for azurerm (on top of the +190 MB already). *(Not yet verified
+that a student's `su`-owned working dir can follow the symlink — it can: it is a
+plain read of a world-readable dir.)*
+
+*Cloud host (T2.1):* `docker:dind` runs `--privileged` under rootless podman
+(v29.8.1, overlayfs). `docker load` of a preloaded `nginx:alpine`, `docker
+build` of `dojo/hello` from it, `docker run -p 20001:80` all work with no
+internet needed. The site is reachable from a peer container on the same
+network and **not** from the host. Design consequences: cloud-api reaches
+sites via `cloud-host:<allocated port>` and reverse-proxies them (students never
+get a route to `cloud-host`); allocate host ports from a range (e.g.
+20000–20999). Prefer a **shared unix socket volume** between `cloud-host` and
+`cloud-api` over `tcp://…:2375` (the dind default listens **unauthenticated** on
+TCP 2375 — do not enable that). Container run command pattern:
+`docker run -d --name <sub>-<rg>-<cg> -p <port>:80 -e MESSAGE=… -e OWNER=… <allowed image>`
+with the hello image's entrypoint writing `index.html` from those env vars.
+
+*Spike harness (recreate if needed):* scratchpad `spike/` = private CA + server
+cert (SAN `dojo-cloud`), `podman network create spike-net`, facade container
+(`python:3.12-alpine` running `compose/cloud-api/arm_facade.py` with
+`CLOUD_TLS_CERT/KEY`, alias `dojo-cloud`), and the tofu image run with
+`SSL_CERT_FILE`, the `ARM_*` vars above, `TF_CLI_CONFIG_FILE=` (empty, so
+azurerm downloads directly since it isn't in the mirror yet).
 
 ---
 
@@ -322,7 +421,7 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 |---|---|
 | `tofu` | pinned release, per-arch sha256, same pattern as dnscontrol Dockerfile. Record version + checksums in §16 (T0.4). |
 | **Alias** | `ln -s /usr/local/bin/tofu /usr/local/bin/terraform` so `terraform plan` runs OpenTofu everywhere (scripts, tmux, ttyd, code-server). Note in lab: output says "OpenTofu"; that is expected. Add `alias terraform=tofu` to a system zsh file only if T1.1 proves needed. |
-| Provider mirror | build stage runs `tofu providers mirror` for the providers the lab uses → `/opt/tofu-providers`. Providers: `hashicorp/local`, `hashicorp/random`, and per D1 either `hashicorp/azurerm` (+ `Azure/azapi`) or `kreuzwerker/docker`. `terraform_data` is built in. |
+| Provider mirror | build runs `tofu providers mirror` → **then unpacks the zips into the *unpacked* layout** (`<host>/<ns>/<type>/<ver>/<os_arch>/`) at `/opt/tofu-providers`, so `tofu init` symlinks instead of copying 218 MB per student (§5.5). Providers: `hashicorp/local` 2.9.1, `hashicorp/random` 3.9.1, and (D1) `hashicorp/azurerm` 5.6.0. `terraform_data` is built in. **TODO (P3): switch the current packed mirror to unpacked and add azurerm.** |
 | CLI config | `/etc/tofu/tofurc` with `provider_installation { filesystem_mirror { path = "/opt/tofu-providers" } direct { exclude = ["*/*"] } }`; exposed via `TF_CLI_CONFIG_FILE`. Root-owned, students cannot edit. |
 | Env glue | `/etc/zsh/zshenv` (+ `/etc/profile.d`) runs `dojo-env` so every shell (incl. code-server terminal) gets `ARM_*`, `SSL_CERT_FILE`, `TF_VAR_portal_base_url`, `TF_IN_AUTOMATION` unset. |
 | Broker | small root daemon started by a **wrapper entrypoint** *before* `exec`-ing the base `web-terminal-entrypoint` (base entrypoint ends in `exec workspace-control.py`, so it cannot be hooked afterwards). |
@@ -479,18 +578,18 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P2 — Provider-strategy spike → **M2** (time-box: about half a day)
 
-- [ ] **T2.1** Minimal `cloud-host` (dind) on `cloud_net`: `docker load` the
+- [x] **T2.1** *(done 2026-09-18; see §5.5)* Minimal `cloud-host` (dind) on `cloud_net`: `docker load` the
       preloaded base image, build `dojo/hello:1.0` inside it, run one container
       manually. *Verify:* container serves a page reachable only from
       `cloud_net`; nothing reachable from terminal; no internet.
-- [ ] **T2.2** Minimal ARM facade (throwaway quality): metadata, token, resource
+- [x] **T2.2** *(done; `compose/cloud-api/arm_facade.py` v0; see §5.5)* Minimal ARM facade (throwaway quality): metadata, token, resource
       group, container group (with LRO headers). Point `azurerm` at it from a
       student terminal; run init/plan/apply/destroy. *Record:* exact endpoints
       the provider needs, JWT claims it inspects, real plan output for tag edit
       vs env edit vs image edit, mirror size. *Verify:* full cycle succeeds and
       the container appears/disappears on `cloud-host`.
-- [ ] **T2.3** If T2.2 fails inside the time-box: repeat with `azapi`.
-- [ ] **T2.4** Record the outcome and set **D1** (`azurerm` | `azapi` | `docker
+- [-] **T2.3** *(dropped: T2.2 succeeded, azapi not needed)* If T2.2 fails inside the time-box: repeat with `azapi`.
+- [x] **T2.4** *(D1 set in §4; §5.5 records results)* Record the outcome and set **D1** (`azurerm` | `azapi` | `docker
       fallback`) in §4. Update §5.4/§8/§9 provider names. **M2 reached.**
 
 ### P3 — Control plane + cloud host → **M3**
@@ -697,6 +796,24 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - Image size: `:tofu-basics` 882 MB vs `:base` 692 MB (+190 MB).
 - **Next:** P2 provider-strategy spike (T2.1 cloud-host dind; T2.2 fake ARM
   facade vs `azurerm` 5.6.0). Slides (P7) still only a placeholder hub.
+
+### 2026-09-18 — P2 provider spike → M2 (D1 = real `azurerm`)
+- Wrote `compose/cloud-api/arm_facade.py` v0 (stdlib HTTPS ARM facade: metadata,
+  OAuth token, resource groups, container groups, in-memory store, logs every
+  request) and ran the real `azurerm` 5.6.0 from the tofu image against it.
+- **Result:** init/plan/apply/drift/destroy all work; details, gotchas
+  (`tenant:"common"`, `keyVaultDns` suffix), the tiny ARM surface, plan
+  behaviour per edit type, mirror sizes, and dind findings are in **§5.5**.
+- Decided D1 = T2/`azurerm`; dropped T2.3 (azapi) and the T1 docker-provider
+  fallback (not needed). Track A remains the offline fallback for a live session.
+- Key discovery for capacity: **unpacked** provider mirror ⇒ `init` symlinks
+  (0 B/student) vs 218 MB/student packed. Must switch the image to unpacked in P3.
+- Not yet proven (carry into P3): dind on an `internal: true` network with no
+  internet; a real LRO/`Azure-AsyncOperation` implementation; broker/`SO_PEERCRED`
+  identity (facade v0 accepts any client id).
+- **Next:** P3 — real `cloud-api` (auth, subscriptions, policy, executor to
+  `cloud-host`, activity log) + `cloud-host` service + broker in the terminal
+  wrapper, wired into the compose overlay.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
