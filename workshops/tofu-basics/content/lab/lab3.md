@@ -89,7 +89,7 @@ Pushing asks you to sign in to the git server — in VS Code a popup appears at 
 
 You have used the whole lifecycle: **init → validate → plan → apply → change → plan → apply → destroy**, and know the file layout of a Terraform/OpenTofu repo.
 
-Track B — deploying a real container to "Dojo Cloud" — is coming next.
+**Next: Track B.** In [lab4.md](lab4.md) you leave the sandbox and deploy a real container to "Dojo Cloud", a practice cloud that works like Azure. The commands are the ones you just learned.
 
 ## Check yourself
 

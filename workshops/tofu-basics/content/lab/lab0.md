@@ -26,7 +26,7 @@ Expected: `OpenTofu v1.12.6` (or similar), and `terraform` is a link that points
 
 ## 3. The tour
 
-Track A lives in `sandbox/`. Look inside:
+Track A lives in `sandbox/`. (The files at the top level of the repo, `main.tf`, `locals.tf` and friends, are **Track B**, the cloud part, from Lab 4 onward. Ignore them for now.) Look inside:
 
 ```sh
 cd sandbox
