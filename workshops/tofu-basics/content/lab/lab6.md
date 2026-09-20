@@ -53,27 +53,33 @@ git diff
 terraform plan
 ```
 
-Expected (abridged):
+Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
 
 ```text
   # azurerm_container_group.hello will be updated in-place
   ~ resource "azurerm_container_group" "hello" {
+        id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev"
+        name                        = "ci-hello-dev"
       ~ tags                        = {
             "env"        = "dev"
             "managed_by" = "opentofu"
           - "owner"      = "student01" -> null
         }
-        ...
+        # (13 unchanged attributes hidden)
+
+        # (1 unchanged block hidden)
     }
 
   # azurerm_resource_group.main will be updated in-place
   ~ resource "azurerm_resource_group" "main" {
+        id       = "/subscriptions/260eb175-.../resourceGroups/rg-hello-dev-cac"
+        name     = "rg-hello-dev-cac"
       ~ tags     = {
             "env"        = "dev"
             "managed_by" = "opentofu"
           - "owner"      = "student01" -> null
         }
-        ...
+        # (1 unchanged attribute hidden)
     }
 
 Plan: 0 to add, 2 to change, 0 to destroy.
@@ -193,10 +199,16 @@ Expected (abridged):
 ```text
   # azurerm_container_group.hello must be replaced
 -/+ resource "azurerm_container_group" "hello" {
+      ~ fqdn                        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> (known after apply)
+      ~ id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> (known after apply)
+      ~ ip_address                  = "10.20.78.32" -> (known after apply)
+        name                        = "ci-hello-dev"
       ...
       ~ container {
           ~ commands                     = [] -> (known after apply)
           ~ cpu                          = 0.25 -> 2 # forces replacement
+          ...
+            name                         = "hello"
           ...
         }
     }
@@ -214,8 +226,8 @@ Type `yes`:
 
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac/providers/Microsoft.ContainerInstance/containerGroups/ci-hello-dev]
-azurerm_container_group.hello: Still destroying... [id=/subscriptions/260eb175-2be3-5b4e-a481-...rInstance/containerGroups/ci-hello-dev, 11s elapsed]
-azurerm_container_group.hello: Destruction complete after 13s
+azurerm_container_group.hello: Still destroying... [id=/subscriptions/260eb175-2be3-5b4e-a481-...rInstance/containerGroups/ci-hello-dev, 10s elapsed]
+azurerm_container_group.hello: Destruction complete after 12s
 azurerm_container_group.hello: Creating...
 
 Error: creating Container Group (Subscription: "260eb175-2be3-5b4e-a481-d14ff2e938cf"

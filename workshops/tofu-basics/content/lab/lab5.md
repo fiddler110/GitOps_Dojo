@@ -40,15 +40,30 @@ Two resources. The important line is in the second one: `resource_group_name = a
 terraform plan
 ```
 
-Expected (abridged: most attributes trimmed):
+Expected (abridged: the header text and a few lines are trimmed):
 
 ```text
   # azurerm_container_group.hello will be created
   + resource "azurerm_container_group" "hello" {
       + dns_name_label              = "hello-dev-student01"
+      + dns_name_label_reuse_policy = "Unsecure"
+      + exposed_port                = [
+          + {
+              + port     = 80
+              + protocol = "TCP"
+            },
+        ]
+      + fqdn                        = (known after apply)
+      + id                          = (known after apply)
+      + ip_address                  = (known after apply)
+      + ip_address_type             = "Public"
       + location                    = "canadacentral"
       + name                        = "ci-hello-dev"
+      + network_profile_id          = (known after apply)
+      + os_type                     = "Linux"
       + resource_group_name         = "rg-hello-dev-cac"
+      + restart_policy              = "Always"
+      + sku                         = "Standard"
       + tags                        = {
           + "env"        = "dev"
           + "managed_by" = "opentofu"
@@ -56,6 +71,7 @@ Expected (abridged: most attributes trimmed):
         }
 
       + container {
+          + commands              = (known after apply)
           + cpu                   = 0.25
           + environment_variables = {
               + "MESSAGE" = "Hello from Dojo Cloud!"
@@ -64,7 +80,11 @@ Expected (abridged: most attributes trimmed):
           + image                 = "dojo/hello:1.0"
           + memory                = 0.125
           + name                  = "hello"
-          ...
+
+          + ports {
+              + port     = 80
+              + protocol = "TCP"
+            }
         }
     }
 
@@ -167,14 +187,14 @@ terraform state list
 terraform plan
 ```
 
-Expected:
+`terraform output` prints the same three outputs as at the end of `apply`, so you never need to scroll back for them. `terraform state list` prints:
 
 ```text
 azurerm_container_group.hello
 azurerm_resource_group.main
 ```
 
-and for the plan:
+and the plan:
 
 ```text
 azurerm_resource_group.main: Refreshing state... [id=/subscriptions/260eb175-...]

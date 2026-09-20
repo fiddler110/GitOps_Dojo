@@ -133,6 +133,7 @@ Naming used in the starter (Cloud Adoption Framework style): `rg-<workload>-<env
 | `terraform state list` | what OpenTofu is tracking (`azurerm_container_group.hello`) |
 | `terraform output url` | the link to your site |
 | `terraform fmt` | tidy the formatting of your `.tf` files |
+| `terraform plan -no-color \| grep Plan:` | plain text output, so `grep` can find things (without `-no-color` the lines are wrapped in colour codes) |
 | `git diff` / `git checkout FILE` | see, or undo, your edits (a quick way out of a mistake) |
 
 ## Reading a cloud error

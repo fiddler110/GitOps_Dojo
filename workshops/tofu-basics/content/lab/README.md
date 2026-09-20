@@ -33,7 +33,7 @@ The HCL language, the commands, and the files (`*.tf`, `.terraform/`, `terraform
 
 **Track A (Sandbox)** runs entirely inside your terminal: OpenTofu creates a random name, a text file and a note in its own state. No cloud, no risk — perfect for learning the mechanics. Do Labs 0-3 in order.
 
-**Track B (Dojo Cloud)** deploys a real container to a practice cloud that works like Microsoft Azure: you get your own subscription, a web **portal** to watch it, and **policy** and **quota** rules to run into. It is an Azure-*inspired* training environment (not affiliated with Microsoft) but you use the real `azurerm` provider, so the HCL you write is genuine Azure HCL. Do Labs 4-10 in order, after Track A. Each lab builds on the previous one's deployment, so don't destroy anything until Lab 10. Open the portal from the landing page's **Dojo Cloud** card, and keep it open in its own tab.
+**Track B (Dojo Cloud)** deploys a real container to a practice cloud that works like Azure: you get your own subscription, a web **portal** to watch it, and **policy** and **quota** rules to run into. It is an Azure-*inspired* training environment (not affiliated with Microsoft) but you use the real `azurerm` provider, so the HCL you write is genuine Azure HCL. Do Labs 4-10 in order, after Track A. Each lab builds on the previous one's deployment, so don't destroy anything until Lab 10. Open the portal from the landing page's **Dojo Cloud** card, and keep it open in its own tab.
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
 

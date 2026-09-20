@@ -65,7 +65,7 @@ def check_resource_group(name, location, tags):
         raise PolicyError(400, "InvalidResourceGroupName",
                           f"Resource group name '{name}' is invalid: it must start with 'rg-' and "
                           "use only lowercase letters, digits and hyphens (for example "
-                          "'rg-hello-dev-uks').", target=name)
+                          "'rg-hello-dev-cac').", target=name)
     _check_location(name, location)
     check_tags(name, tags)
 

@@ -54,21 +54,30 @@ Expected (abridged):
 ```text
   # azurerm_container_group.hello will be updated in-place
   ~ resource "azurerm_container_group" "hello" {
+        id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev"
+        name                        = "ci-hello-dev"
       ~ tags                        = {
           + "cost_center" = "training"
             "env"         = "dev"
             "managed_by"  = "opentofu"
             "owner"       = "student01"
         }
-        ...
+        # (13 unchanged attributes hidden)
+
+        # (1 unchanged block hidden)
     }
 
   # azurerm_resource_group.main will be updated in-place
   ~ resource "azurerm_resource_group" "main" {
+        id       = "/subscriptions/260eb175-.../resourceGroups/rg-hello-dev-cac"
+        name     = "rg-hello-dev-cac"
       ~ tags     = {
           + "cost_center" = "training"
-            ...
+            "env"         = "dev"
+            "managed_by"  = "opentofu"
+            "owner"       = "student01"
         }
+        # (1 unchanged attribute hidden)
     }
 
 Plan: 0 to add, 2 to change, 0 to destroy.
@@ -112,15 +121,30 @@ Expected (abridged):
       ~ id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> (known after apply)
       ~ ip_address                  = "10.20.78.32" -> (known after apply)
         name                        = "ci-hello-dev"
-        ...
+      + network_profile_id          = (known after apply)
+      - subnet_ids                  = [] -> null
+        tags                        = {
+            "cost_center" = "training"
+            "env"         = "dev"
+            "managed_by"  = "opentofu"
+            "owner"       = "student01"
+        }
+      - zones                       = [] -> null
+        # (9 unchanged attributes hidden)
+
       ~ container {
           ~ commands                     = [] -> (known after apply)
+          - cpu_limit                    = 0 -> null
           ~ environment_variables        = { # forces replacement
               ~ "MESSAGE" = "Hello from Dojo Cloud!" -> "Hello, Canada!"
                 # (1 unchanged element hidden)
             }
+          - memory_limit                 = 0 -> null
             name                         = "hello"
-            ...
+          - secure_environment_variables = (sensitive value) -> null
+            # (3 unchanged attributes hidden)
+
+            # (1 unchanged block hidden)
         }
     }
 
@@ -138,7 +162,7 @@ Type `yes`:
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-...]
 azurerm_container_group.hello: Still destroying... [id=/subscriptions/260eb175-...rInstance/containerGroups/ci-hello-dev, 10s elapsed]
-azurerm_container_group.hello: Destruction complete after 13s
+azurerm_container_group.hello: Destruction complete after 12s
 azurerm_container_group.hello: Creating...
 azurerm_container_group.hello: Still creating... [10s elapsed]
 azurerm_container_group.hello: Creation complete after 13s [id=/subscriptions/260eb175-...]
@@ -146,7 +170,7 @@ azurerm_container_group.hello: Creation complete after 13s [id=/subscriptions/26
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 ```
 
-About 27 seconds: 13 to destroy, then 13 to create. The site was **down the whole time**. Reload it (portal **Browse**): **Hello, Canada!** Compare with step 1: a tag edit was a second, a message edit was half a minute of downtime.
+About 26 seconds: 12 to destroy, then 13 to create. The site was **down the whole time**. Reload it (portal **Browse**): **Hello, Canada!** Compare with step 1: a tag edit was a second, a message edit was half a minute of downtime.
 
 ## 3. The image: replace
 
@@ -162,9 +186,14 @@ The interesting part of the plan:
 ```text
       ~ container {
           ~ commands                     = [] -> (known after apply)
+          - cpu_limit                    = 0 -> null
           ~ image                        = "dojo/hello:1.0" -> "dojo/hello:2.0" # forces replacement
+          - memory_limit                 = 0 -> null
             name                         = "hello"
-            ...
+          - secure_environment_variables = (sensitive value) -> null
+            # (3 unchanged attributes hidden)
+
+            # (1 unchanged block hidden)
         }
     }
 

@@ -2,7 +2,7 @@
 
 **Goal:** open the cloud's web portal, see your (empty) subscription, find out how your terminal is connected to it, and run `init` for a real cloud provider. Nothing is created yet.
 
-Track A ran entirely inside your terminal. Track B talks to **Dojo Cloud**, a practice cloud that works like Microsoft Azure: subscriptions, resource groups, container instances, tags, policy, quotas. It is an Azure-*inspired* training environment (not affiliated with Microsoft), but the provider you will use is the real `azurerm` provider and the HCL you write is genuine Azure HCL. Everything you learn transfers.
+Track A ran entirely inside your terminal. Track B talks to **Dojo Cloud**, a practice cloud that works like Azure: subscriptions, resource groups, container instances, tags, policy, quotas. It is an Azure-*inspired* training environment (not affiliated with Microsoft), but the provider you will use is the real `azurerm` provider and the HCL you write is genuine Azure HCL. Everything you learn transfers.
 
 All commands run in the repo you cloned in Lab 0 (the top level of it, **not** `sandbox/`):
 
@@ -48,6 +48,7 @@ ls -la
 Expected (abridged; sizes and dates will differ):
 
 ```text
+.git
 .gitignore
 .terraform.lock.hcl
 README.md
@@ -169,7 +170,14 @@ provider "registry.opentofu.org/hashicorp/azurerm" {
     "h1:+9/JWbUEP2uDjLA4wEGTOcC/WdK8Tv4cOk+YqLu4y6M=",
 ```
 
-The `.terraform/providers/...` folder holds only a link to the shared copy (`linux_amd64 -> /opt/tofu-providers/...`), which is why your `.terraform` is tiny even though the provider itself is over 200 MB.
+and, for the `ls` (owner, dates and sizes trimmed):
+
+```text
+lrwxrwxrwx ... linux_amd64 -> /opt/tofu-providers/registry.opentofu.org/hashicorp/azurerm/5.6.0/linux_amd64
+-rw-r--r-- ... linux_amd64.lock
+```
+
+The `.terraform/providers/...` folder holds only a link to the shared copy, which is why your `.terraform` is tiny (about 28 KB) even though the provider itself is over 200 MB. The lock file is not touched by `init` here: it already lists the checksums of the copy your terminal has, and `git status` stays clean.
 
 Finally:
 

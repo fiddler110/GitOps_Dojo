@@ -142,7 +142,7 @@ class App:
             try:
                 policy.check_tags(cg, tags)
             except policy.PolicyError as exc:
-                st.log(sub, user, op, rid, "Failed", exc.code)
+                st.log(sub, user, op, rid, "Failed", f"{exc.code}: {exc.message}")
                 raise
             rec["tags"] = tags
             rec["body"]["tags"] = tags
@@ -384,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     policy.check_resource_group(rg, data.get("location"), data.get("tags"))
                 except policy.PolicyError as exc:
-                    st.log(sub, user, "Create/Update resource group", rid, "Failed", exc.code)
+                    st.log(sub, user, "Create/Update resource group", rid, "Failed", f"{exc.code}: {exc.message}")
                     return exc.status, exc.body()
                 existed = key in st.rgs
                 st.rgs[key] = {"name": rg, "location": data["location"], "tags": data.get("tags") or {}}
@@ -402,7 +402,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     policy.check_resource_group(rg, rec["location"], tags)
                 except policy.PolicyError as exc:
-                    st.log(sub, user, "Update resource group tags", rid, "Failed", exc.code)
+                    st.log(sub, user, "Update resource group tags", rid, "Failed", f"{exc.code}: {exc.message}")
                     return exc.status, exc.body()
                 rec["tags"] = tags
                 st.log(sub, user, "Update resource group tags", rid, "Succeeded")
@@ -478,7 +478,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             policy.check_container_group(cg, location, tags, props, others, dns_taken)
         except policy.PolicyError as exc:
-            st.log(sub, user, "Create/Update container group", rid, "Failed", exc.code)
+            st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
             return exc.status, exc.body()
 
         c = props["containers"][0]["properties"]

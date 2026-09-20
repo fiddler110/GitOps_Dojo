@@ -64,7 +64,7 @@ Type `yes`. In-place edits are quick:
 
 ```text
 azurerm_container_group.hello: Modifying... [id=/subscriptions/260eb175-...]
-azurerm_container_group.hello: Modifications complete after 0s [id=/subscriptions/260eb175-...]
+azurerm_container_group.hello: Modifications complete after 1s [id=/subscriptions/260eb175-...]
 
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 ```
@@ -97,7 +97,14 @@ last "tofu apply" which may have affected this plan:
       - fqdn                        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> null
       - id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> null
         name                        = "ci-hello-dev"
-        ...
+        tags                        = {
+            "env"        = "dev"
+            "managed_by" = "opentofu"
+            "owner"      = "student01"
+        }
+        # (12 unchanged attributes hidden)
+
+        # (1 unchanged block hidden)
     }
 
 Unless you have made equivalent changes to your configuration, or ignored the
@@ -119,6 +126,10 @@ OpenTofu will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  ~ fqdn        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> (known after apply)
+  ~ resource_id = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> (known after apply)
 ```
 
 Read it in two halves. The first says **"Objects have changed outside of OpenTofu"**: the container group `has been deleted`. That is the drift report. The second is the plan to fix it: `+ create` (1 to add), because your code still says the container should exist.
@@ -132,12 +143,12 @@ Type `yes`:
 ```text
 azurerm_container_group.hello: Creating...
 azurerm_container_group.hello: Still creating... [10s elapsed]
-azurerm_container_group.hello: Creation complete after 13s [id=...]
+azurerm_container_group.hello: Creation complete after 12s [id=...]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-About 13-15 seconds later the container is back in the portal, **Running**, and your site is up again. Check:
+About 12-15 seconds later the container is back in the portal, **Running**, and your site is up again. Check:
 
 ```sh
 terraform plan
@@ -150,8 +161,9 @@ terraform plan
 Open the portal's **Activity log**. Your recent rows (newest first) tell exactly what happened, and **who did it**:
 
 ```text
-Delete container group (portal)         Succeeded
-Update container group tags             Succeeded     <- your apply, putting the tags back
+Create/Update container group           Succeeded     <- your apply, bringing the container back
+Delete container group (portal)         Succeeded     <- you, deleting it in the portal
+Update container group tags             Succeeded     <- your first apply, putting the tags back
 Update container group tags (portal)    Succeeded     <- you, adding edited_by
 ...                                                   <- older rows follow (Lab 5, and Lab 6's failed attempts)
 ```

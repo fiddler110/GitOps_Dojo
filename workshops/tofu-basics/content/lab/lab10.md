@@ -13,13 +13,13 @@ Cloud resources cost money and, here, count against your quota. Real teams destr
 ## 1. Preview the destroy
 
 ```sh
-terraform plan -destroy | grep -E '^  # |^Plan:'
+terraform plan -destroy -no-color | grep -E '^  # |^Plan:'
 ```
 
-Expected (yours may show `["blue"]`, and will show one fewer or more line if you changed the number of extras):
+(`-no-color` keeps OpenTofu from wrapping the lines in colour codes, which would hide them from `grep`.) Expected (yours may show `["green"]`, and will show one fewer or more line if you changed the number of extras):
 
 ```text
-  # azurerm_container_group.extra["green"] will be destroyed
+  # azurerm_container_group.extra["blue"] will be destroyed
   # azurerm_container_group.hello will be destroyed
   # azurerm_resource_group.main will be destroyed
 Plan: 0 to add, 0 to change, 3 to destroy.
@@ -37,11 +37,11 @@ Review the plan, type `yes`:
 
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-...]
-azurerm_container_group.extra["green"]: Destroying... [id=/subscriptions/260eb175-...]
+azurerm_container_group.extra["blue"]: Destroying... [id=/subscriptions/260eb175-...]
+azurerm_container_group.extra["blue"]: Still destroying... [id=/subscriptions/260eb175-...ance/containerGroups/ci-hello-dev-blue, 10s elapsed]
 azurerm_container_group.hello: Still destroying... [id=/subscriptions/260eb175-...rInstance/containerGroups/ci-hello-dev, 10s elapsed]
-azurerm_container_group.extra["green"]: Still destroying... [id=/subscriptions/260eb175-...nce/containerGroups/ci-hello-dev-green, 10s elapsed]
-azurerm_container_group.extra["green"]: Destruction complete after 14s
-azurerm_container_group.hello: Destruction complete after 14s
+azurerm_container_group.extra["blue"]: Destruction complete after 13s
+azurerm_container_group.hello: Destruction complete after 13s
 azurerm_resource_group.main: Destroying... [id=/subscriptions/260eb175-...]
 azurerm_resource_group.main: Still destroying... [id=/subscriptions/260eb175-...e938cf/resourceGroups/rg-hello-dev-cac, 10s elapsed]
 azurerm_resource_group.main: Still destroying... [id=/subscriptions/260eb175-...e938cf/resourceGroups/rg-hello-dev-cac, 20s elapsed]
@@ -80,8 +80,8 @@ cat terraform.tfstate
 {
   "version": 4,
   "terraform_version": "1.12.6",
-  "serial": 14,
-  "lineage": "b3cd9e28-a5ff-977d-e93d-6dbdf7b73c24",
+  "serial": 13,
+  "lineage": "0538175a-f7d2-fa2b-bd32-2b7bda431105",
   "outputs": {},
   "resources": [],
   "check_results": [
@@ -97,7 +97,7 @@ Compare with Lab 3: same idea, different provider. `.terraform/` and `.terraform
 Now ask what a plan would do:
 
 ```sh
-terraform plan | grep '^Plan:'
+terraform plan -no-color | grep '^Plan:'
 ```
 
 ```text
