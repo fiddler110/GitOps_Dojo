@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B: labs 4–10, cheat sheet and starter repo are DRAFTED (`5d0ad28`) but NOT reviewed or verified live — see "START HERE" in §12/P6** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); next: P7 slides (ask the user first)** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-20 (P0–P5 done; D2–D6 all decided; P6 drafted, verification pending) |
+| Last updated | 2026-09-20 (P0–P6 done; D2–D6 all decided) |
 
 ---
 
@@ -94,7 +94,7 @@ Update this table whenever a phase changes state.
 | P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
 | P4 | Portal (Azure-inspired console) | **done** (`49c168e`; gateway/browser-through-gateway check moves to P5) | |
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; facilitator progress board `1b22631`) | |
-| P6 | Lab content — Track B | **drafted, not verified** (`5d0ad28`; needs T5.7 + live run of every lab) | |
+| P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`; T6.4 stretch labs optional; browser pass still owed) | |
 | P7 | Slides | not started | |
 | P8 | Docs, registration, capacity, delivery | not started | |
 | P9 | Validation (bots, load, dry-run) | not started | **M5: release-ready** |
@@ -770,12 +770,15 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - [x] **T5.6** *(`2e8e818`; offline tests only — 90 + 5 parity; live re-check is T5.7)* Fixed progress-board findings H1 (failure
       history evicted from the capped activity log: per-subscription summary in `State`), H2 (bot roster naming now
       unpadded like the engine, incl. the terminal broker), H3 (BrokenPipe noise), H4 (SIGTERM handler).
-- [ ] **T5.7** Re-verify on a rebuilt stack (first thing in P6): `canadacentral` apply through real azurerm, `eastus`
-      rejected, attention tile shows a real policy message, and `podman stop` of cloud-api is quick.
+- [x] **T5.7** *(live-verified 2026-09-20 on a rebuilt stack; fix in `25a7176`)* `canadacentral` apply through real azurerm
+      OK (34 s, site 200); `eastus` rejected with `RequestDisallowedByPolicy ... use one of: canadacentral, canadaeast`;
+      `podman stop workshop_cloud_api` 3.0 s and quota survived the restart; bot roster (`testuser1`…) gets creds.
+      The attention tile showed only the error *code*: fixed in `25a7176` to `code: message` (offline tests only;
+      **re-check the tile text on the next live run**).
 
 ### P6 — Lab content (Track B)
 
-> **START HERE (state at 2026-09-20).** A builder agent was cut off by a session rate limit part-way through P6, but had
+> **[Historical — P6 is now verified; see the log entry below.]** State at 2026-09-20 before verification: A builder agent was cut off by a session rate limit part-way through P6, but had
 > already written most of the content; the user committed it as-is in `5d0ad28` ("hit session limit, committing to
 > save the work"). **None of it has been reviewed, and none of it has been run against a live stack.** The stack is
 > fully stopped (all containers `Exited`; nothing is running). Treat everything below as *draft text*, not
@@ -808,12 +811,12 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 > 5. Only then tick T6.1–T6.3 with the fixing commit's SHA and add a session-log entry.
 > 6. Ask the user before moving to P7 (phase gate).
 
-- [~] **T6.1** *(drafted in `5d0ad28`, unverified)* Starter repo (§9 layout) with working values.
+- [x] **T6.1** *(`5d0ad28`; verified live 2026-09-20, no change needed)* Starter repo (§9 layout) with working values.
       *Verify:* fresh `student01` terminal: `cd` into the seeded repo, `tofu init` works offline with no lock rewrite,
       `tofu validate` passes, `tofu plan` proposes the expected 2–3 resources.
-- [~] **T6.2** *(drafted in `5d0ad28`, unverified)* Labs 4–10, each verified verbatim on a real run; plan output in
+- [x] **T6.2** *(`25a7176`; every command run as student01 through real azurerm; pasted output is real)* Labs 4–10, each verified verbatim on a real run; plan output in
       docs must be **pasted from real runs** (esp. Lab 8 in-place vs replace).
-- [~] **T6.3** *(drafted in `5d0ad28`, unverified)* Cheat sheet (Track B part), troubleshooting boxes (lost state →
+- [x] **T6.3** *(`25a7176`; commands and troubleshooting boxes reproduced live)* Cheat sheet (Track B part), troubleshooting boxes (lost state →
       ask facilitator to Purge; policy errors; portal stale).
 - [ ] **T6.4** Stretch labs 11–12 (optional).
 
@@ -1323,6 +1326,21 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   resume checklist.
 - **Git:** the user pushed `feat/tofu-basics`; `origin/feat/tofu-basics` = `5d0ad28` (nothing local-only).
 - **Next:** rebuild the stack → T5.7 → verify/fix each drafted lab live → tick T6.x → ask the user before P7.
+
+### 2026-09-20 — P6 verified live (`25a7176`)
+- A verification agent rebuilt the stack and ran every command of labs 4–10 as `student01` through real azurerm,
+  replacing pasted output with real output, plus the T5.7 checks (all in the task lines above). ANSI note: tofu emits
+  colour codes even when piped, so grep examples use `-no-color`. Troubleshooting boxes reproduced live: lost state
+  ("already exists … import"), `PortalWriteActionsDisabled`, `DnsNameLabelInUse`, `var.owner` prompt, missing
+  plugins, `InvalidImage`, `InvalidContainerGroupName`, `QuotaExceeded` (which of two `for_each` instances wins is a race).
+- **Fixed in `25a7176`:** failure events now log `code: message` (tile/activity showed only the code); the RG-name
+  example said `-uks`, now `-cac`; "works like Microsoft Azure" → "works like Azure" in the lab text.
+- **NOT verified:** no real browser (portal button/label text cross-checked against `app.js` only; portal actions were
+  driven through `/cloud/api` with a real session cookie); Labs 0–3 (Track A) not re-run; the `curl: (60)` box and the
+  `env` output only inferred; arm64; 30-student load; the facilitator `/admin` tab; the new `code: message` text live.
+- **Known:** `url` output / `TF_VAR_portal_base_url` omit the dev port (`:8080`) on this dev box (§15a-C 9), so labs say
+  `<class-address>`.
+- **Next:** ask the user before P7 (slides). A browser pass over labs 4–10 belongs in P9 (T9.x).
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
