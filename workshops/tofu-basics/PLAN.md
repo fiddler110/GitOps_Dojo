@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). Next: P6 Track B labs (approved) — start from a rebuilt stack** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B: labs 4–10, cheat sheet and starter repo are DRAFTED (`5d0ad28`) but NOT reviewed or verified live — see "START HERE" in §12/P6** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-19 (P0–P5 done; D2–D6 all decided) |
+| Last updated | 2026-09-20 (P0–P5 done; D2–D6 all decided; P6 drafted, verification pending) |
 
 ---
 
@@ -94,7 +94,7 @@ Update this table whenever a phase changes state.
 | P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
 | P4 | Portal (Azure-inspired console) | **done** (`49c168e`; gateway/browser-through-gateway check moves to P5) | |
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; facilitator progress board `1b22631`) | |
-| P6 | Lab content — Track B | not started | |
+| P6 | Lab content — Track B | **drafted, not verified** (`5d0ad28`; needs T5.7 + live run of every lab) | |
 | P7 | Slides | not started | |
 | P8 | Docs, registration, capacity, delivery | not started | |
 | P9 | Validation (bots, load, dry-run) | not started | **M5: release-ready** |
@@ -775,10 +775,45 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P6 — Lab content (Track B)
 
-- [ ] **T6.1** Starter repo (§9 layout) with working values.
-- [ ] **T6.2** Labs 4–10, each verified verbatim on a real run; plan output in
+> **START HERE (state at 2026-09-20).** A builder agent was cut off by a session rate limit part-way through P6, but had
+> already written most of the content; the user committed it as-is in `5d0ad28` ("hit session limit, committing to
+> save the work"). **None of it has been reviewed, and none of it has been run against a live stack.** The stack is
+> fully stopped (all containers `Exited`; nothing is running). Treat everything below as *draft text*, not
+> verified fact. Do not tick T6.x until the check named on that line has actually been done.
+>
+> What `5d0ad28` contains (all under `workshops/tofu-basics/content/`):
+> - `sample-repo/`: `versions.tf`, `providers.tf`, `variables.tf`, `locals.tf`, `main.tf`, `outputs.tf`,
+>   `terraform.tfvars`, `.terraform.lock.hcl` (azurerm 5.6.0, many `h1:` hashes) and an updated `README.md`.
+> - `lab/lab4.md` … `lab/lab10.md` (Meet Dojo Cloud, Deploy hello, Break a policy, Drift, Change types, Scale it,
+>   Clean up), a Track B section in `lab/cheat-sheet.md`, and small edits to `lab/README.md`, `lab0.md`, `lab3.md`.
+>
+> **Order of work when resuming (Monday):**
+> 1. Read this file, `git log` (expect `5d0ad28` on top of `3a71f8b`), `git status` (expect clean).
+> 2. `cd engine && ./run.sh tofu-basics --test` (rebuilds; ~minutes). Confirm 8 containers healthy.
+> 3. **T5.7 first** (below): `canadacentral` apply through real azurerm, `eastus` rejected, an attention tile shows a
+>    real policy message, `podman stop workshop_cloud_api` is quick (< ~5 s), a bot roster (`testuser1`…) works.
+> 4. Review the drafted labs against the real system, one lab at a time, from a fresh terminal as `student01`:
+>    run every command and fix the text to match the real output. Things to check specifically:
+>    - the lock file: `tofu init` must succeed **offline** in a student terminal and not rewrite
+>      `.terraform.lock.hcl` (hashes must match the offline provider mirror; if not, regenerate with
+>      `tofu providers lock` against the mirror and commit the new file);
+>    - all region values are `canadacentral` / `canadaeast` (nothing left as `uksouth`/`eastus`, except deliberately as
+>      the "bad region" in Lab 6);
+>    - Lab 6 error text (missing `owner` tag → `RequestDisallowedByPolicy`; bad region; quota) is pasted from real output;
+>    - Lab 8 in-place (`~`) vs replace (`-/+`) plan output is pasted from a real run (§15a and T2.2 have the expected
+>      behaviour: tag ⇒ in-place, env/image ⇒ replace);
+>    - Lab 9: two-instance `for_each` on top of Lab 5's hello = 3 groups → `QuotaExceeded` (D6 limit is 2);
+>    - Lab 7 drift demo: portal delete → `plan` shows `+ create`;
+>    - Lab 10 leaves the portal empty; the cheat sheet's commands all exist.
+> 5. Only then tick T6.1–T6.3 with the fixing commit's SHA and add a session-log entry.
+> 6. Ask the user before moving to P7 (phase gate).
+
+- [~] **T6.1** *(drafted in `5d0ad28`, unverified)* Starter repo (§9 layout) with working values.
+      *Verify:* fresh `student01` terminal: `cd` into the seeded repo, `tofu init` works offline with no lock rewrite,
+      `tofu validate` passes, `tofu plan` proposes the expected 2–3 resources.
+- [~] **T6.2** *(drafted in `5d0ad28`, unverified)* Labs 4–10, each verified verbatim on a real run; plan output in
       docs must be **pasted from real runs** (esp. Lab 8 in-place vs replace).
-- [ ] **T6.3** Cheat sheet (Track B part), troubleshooting boxes (lost state →
+- [~] **T6.3** *(drafted in `5d0ad28`, unverified)* Cheat sheet (Track B part), troubleshooting boxes (lost state →
       ask facilitator to Purge; policy errors; portal stale).
 - [ ] **T6.4** Stretch labs 11–12 (optional).
 
@@ -1277,6 +1312,17 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 - **Not verified live:** attention-tile message and `canadacentral` on the real stack (T5.7); real screen reader,
   Firefox/Safari (P9).
 - **Next:** T5.6 fixes landed in `2e8e818`; then **P6 Track B** (approved by the user).
+
+### 2026-09-19/20 — P6 started, cut off by a rate limit; plan brought up to date
+- **What happened:** the user approved P6 ("Track B, go ahead") and a builder agent was launched. It hit a session
+  rate limit (HTTP 429) and reported failure, but the working tree showed it had already written labs 4–10, the starter
+  repo (with a lock file) and a cheat-sheet section. The user committed that unreviewed work as `5d0ad28`.
+- **Also from that turn:** the stack was left half-stopped; it is now fully stopped (all containers `Exited`).
+- **Status:** P6 is *drafted*, not done. T6.1–T6.3 are `[~]`; nothing has been run live, and T5.7 (rebuilt-stack
+  re-checks of the T5.6 fixes and Canadian regions) is still open. The "START HERE" block under P6 in §12 is the
+  resume checklist.
+- **Git:** the user pushed `feat/tofu-basics`; `origin/feat/tofu-basics` = `5d0ad28` (nothing local-only).
+- **Next:** rebuild the stack → T5.7 → verify/fix each drafted lab live → tick T6.x → ask the user before P7.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
