@@ -92,7 +92,7 @@ Update this table whenever a phase changes state.
 | P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
 | P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
 | P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
-| P4 | Portal (Azure-inspired console) | **done** (`49c168e`; gateway/browser-through-gateway check moves to P5) | |
+| P4 | Portal (Azure-inspired console) | **done** (`49c168e`; through-the-gateway check done in P5) | |
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; facilitator progress board `1b22631`) | |
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`; T6.4 stretch labs optional; browser pass still owed) | |
 | P7 | Slides | not started | |
@@ -113,7 +113,7 @@ Never build on an **assumed** item without first proving it (each has a task).
 | Fact | Evidence |
 |---|---|
 | OpenTofu's registry serves `kreuzwerker/docker` (v4.6.0 listed) | `curl https://registry.opentofu.org/v1/providers/kreuzwerker/docker/versions` |
-| **No `docker.sock` is mounted anywhere** in the stack | comment in `workshops/dns-as-code/compose/docker-compose.override.yml` |
+| **No `docker.sock` is mounted into any student terminal.** (tofu-basics adds one Docker daemon, `cloud-host`'s own dind, reachable only by `cloud-api` over a unix socket on a shared volume; §7) | comment in `workshops/dns-as-code/compose/docker-compose.override.yml` |
 | Terminal container is on the internal-only network `workshop_lab` → **no internet at lab time** | `engine/docker-compose.yml`, `engine/web-terminal/Dockerfile` comments |
 | All student accounts **share one network namespace** (one container) → source IP cannot identify a student | comment on `cap_add: NET_ADMIN` in `engine/docker-compose.yml` |
 | Base terminal image is Debian bookworm-slim, no Terraform/OpenTofu, no HCL editor extension | `engine/web-terminal/Dockerfile` |
@@ -130,7 +130,7 @@ Never build on an **assumed** item without first proving it (each has a task).
 | The stack builds/runs with **podman + podman-compose** here (no docker). `./run.sh <w> --test 2` starts 2 bots; a re-run does **not** recreate a running container after an image rebuild → `./run.sh stop` first | run.sh; observed |
 | Marp presentation container **exits 0 with a help dump if `content/slides/` is empty** → a workshop needs at least one slide file | observed |
 | `azurerm` provider docs list `metadata_host` (`ARM_METADATA_HOSTNAME`), `client_secret` auth, `environment`, `resource_provider_registrations` — the knobs the T2 design needs. Registry latest: `azurerm` 5.6.0, `azapi` 2.12.0 | provider docs (main branch) |
-| `infra/corp-dev/gdojo-cc/` (referenced by `workshops/README.md` for Azure delivery) **does not exist in this checkout** | `ls infra` failed |
+| `infra/` (Azure-VM delivery) **does not exist in this checkout**, and the docs no longer reference it (root README cleanup `45afcb7`) | `ls infra` fails; `grep infra README.md workshops/README.md` |
 
 ### Assumed — must be proven (task in brackets)
 
@@ -160,14 +160,14 @@ Never build on an **assumed** item without first proving it (each has a task).
 | D1 | **Provider strategy for Track B** | ✅ DECIDED 2026-09-18 by spike P2: **T2 — real `azurerm` 5.6.0 → ARM facade** (azapi + docker fallback not needed) | Option **T2** (preferred): real `azurerm` (fallback `azapi`) → a small ARM-compatible facade. Option **T1** (fallback): `kreuzwerker/docker` → policy-filtering Docker API proxy with mTLS. See §5.4. |
 | D2 | Cloud host isolation: privileged `docker:dind` on an isolated internal network, vs. alternative runtimes | ✅ **CONFIRMED (user, 2026-09-19):** privileged dind, isolated (see §7, §15a-A) | Sysbox/rootless are not assumed available. Compensating controls in §7. Revisit only if you object to a privileged sidecar. |
 | D3 | Student identity to the cloud: (a) **broker with `SO_PEERCRED`** or (b) shared class secret + honour system | ✅ **CONFIRMED (user, 2026-09-19): (a) broker with `SO_PEERCRED`** (see §15a-A) | (a) proves *which Linux user* is calling; (b) is simpler but lets a student impersonate another. The repo's recent "Harden internal control-plane auth" commit suggests (a). |
-| D4 | Add a `/cloud*` route + landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ✅ **DECIDED — user green-lit P5 (2026-09-19); built in P5** (`CLOUD_ENABLED`, `@cloud` route, landing card, facilitator Dojo Cloud tab) | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
+| D4 | Add a `/cloud` + `/cloud/*` route and landing-page button to the **base** Caddyfile/allocator, gated by `CLOUD_ENABLED` | ✅ **DECIDED — user green-lit P5 (2026-09-19); built in P5** (`CLOUD_ENABLED`, `@cloud` route, landing card, facilitator Dojo Cloud tab) | Mirrors the existing `DEMO_APP_ENABLED` pattern exactly; additive and off by default. Only base-engine edit besides docs/capacity-calc. |
 | D5 | Default region / subscription / naming values | ✅ **DECIDED (user, 2026-09-19: Canadian audience)** (`canadacentral`; `rg-`/`ci-` prefixes enforced by policy) | Default region `canadacentral`, the only other allowed one is `canadaeast`; change freely in `variables.tf`. |
 | D6 | Per-student quota | ✅ **DECIDED (user delegated the sizing, 2026-09-19)** (2 container groups, 0.25 vCPU, 0.125 GB each; `cloud-host` `mem_limit` 3 GB) | 2 groups is dictated by Lab 9 (Lab 5 hello + a two-instance `for_each` = 3 → `QuotaExceeded`; a limit of 3 would break it). The per-container numbers are caps, not reservations; students cannot run their own code (fixed image allow-list), so real use is a few MB each. 60 containers ≈ well under 1 GB expected; **T9.3 measures it and may lower the 3 GB ceiling.** |
 | D7 | Should students see each other's deployed sites? | ✅ DEFAULT yes (read-only "Class view") | Any authenticated session may **browse** any site; only the owner can **change** anything. |
 
 **Gate rule:** P3 could not start until D1 was decided — done (D1 = `azurerm`, so the
 T2 path of P3 was executed and the T1 fallback path is dropped). The user green-lit
-implementation without answering D2–D6, so they are ⚠ *built at default* — see §15a-A.
+implementation without answering D2–D6; they were **all confirmed or set on 2026-09-19** (table above, §15a-A).
 
 ---
 
@@ -356,8 +356,8 @@ The JSON API lives under `/cloud/api/`. Student sites stay at `/cloud/site/<labe
 **Trust model (important).** Students share a network with cloud-api and can `curl cloud-api:8080`
 directly, so a bare `X-Auth-User` header is forgeable. The portal API therefore trusts identity **only** when
 the request also carries `X-Gateway-Token` equal (constant-time compare) to the `GATEWAY_TOKEN` env var —
-exactly the allocator's `gateway_authorized()` model (P5's Caddy block sets both headers with `header_up`
-so clients cannot). If `GATEWAY_TOKEN` is unset the API answers `503 PortalNotConfigured`; a missing/wrong token
+exactly the allocator's `gateway_authorized()` model (the P5 Caddy block sets both headers with `header_up`
+so clients cannot; verified live, §15a-H). If `GATEWAY_TOKEN` is unset the API answers `503 PortalNotConfigured`; a missing/wrong token
 answers `401 Unauthenticated`. `user = X-Auth-User`; it must be in the roster (`auth.roster`) or be the facilitator,
 else `403`. Subscription = `auth.subscription_id(user)`. Facilitator = `FACILITATOR_USERNAME`.
 Students authorise on **subscription ownership** (path `sub` must equal their own) — same rule as ARM.
@@ -400,7 +400,7 @@ Portal-initiated changes must appear in the activity log with operation text tha
 
 *Verification without the gateway:* from any container on `workshop_lab`,
 `curl -H 'X-Auth-User: student01' -H "X-Gateway-Token: $GATEWAY_TOKEN" http://cloud-api:8080/cloud/api/me`.
-The gateway route (`/cloud*`) is P5 and is not needed to test P4.
+The gateway route (`/cloud` and `/cloud/*`, built in P5) is not needed for this check.
 
 ### 5.6a Class progress board (P5 addition — facilitator only)
 
@@ -527,7 +527,7 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 |---|---|
 | `tofu` | pinned release, per-arch sha256, same pattern as dnscontrol Dockerfile. Record version + checksums in §16 (T0.4). |
 | **Alias** | `ln -s /usr/local/bin/tofu /usr/local/bin/terraform` so `terraform plan` runs OpenTofu everywhere (scripts, tmux, ttyd, code-server). Note in lab: output says "OpenTofu"; that is expected. Add `alias terraform=tofu` to a system zsh file only if T1.1 proves needed. |
-| Provider mirror | build runs `tofu providers mirror` → **then unpacks the zips into the *unpacked* layout** (`<host>/<ns>/<type>/<ver>/<os_arch>/`) at `/opt/tofu-providers`, so `tofu init` symlinks instead of copying 218 MB per student (§5.5). Providers: `hashicorp/local` 2.9.1, `hashicorp/random` 3.9.1, and (D1) `hashicorp/azurerm` 5.6.0. `terraform_data` is built in. **TODO (P3): switch the current packed mirror to unpacked and add azurerm.** |
+| Provider mirror | build runs `tofu providers mirror` → **then unpacks the zips into the *unpacked* layout** (`<host>/<ns>/<type>/<ver>/<os_arch>/`) at `/opt/tofu-providers`, so `tofu init` symlinks instead of copying 218 MB per student (§5.5). Providers: `hashicorp/local` 2.9.1, `hashicorp/random` 3.9.1, and (D1) `hashicorp/azurerm` 5.6.0. `terraform_data` is built in. *(Done in P1/P3: unpacked layout, azurerm included; a fresh `tofu init` offline takes ≈3 s and leaves the lock file untouched, verified 2026-09-20.)* |
 | CLI config | `/etc/tofu/tofurc` with `provider_installation { filesystem_mirror { path = "/opt/tofu-providers" } direct { exclude = ["*/*"] } }`; exposed via `TF_CLI_CONFIG_FILE`. Root-owned, students cannot edit. |
 | Env glue | `/etc/zsh/zshenv` (+ `/etc/profile.d`) runs `dojo-env` so every shell (incl. code-server terminal) gets `ARM_*`, `SSL_CERT_FILE`, `TF_VAR_portal_base_url`, `TF_IN_AUTOMATION` unset. |
 | Broker | small root daemon started by a **wrapper entrypoint** *before* `exec`-ing the base `web-terminal-entrypoint` (base entrypoint ends in `exec workspace-control.py`, so it cannot be hooked afterwards). |
@@ -628,10 +628,11 @@ tofurc), `compose/cloud-host/*` (Dockerfile, entrypoint, `images/hello/`),
 | File | Change | Why / risk |
 |---|---|---|
 | `workshops/README.md` | add table row | docs only |
-| `engine/gateway/Caddyfile` | additive `@cloud path /cloud*` block mirroring `@demo` (D4) | only base edit that changes behaviour; inert unless cloud-api exists |
-| `engine/allocator/server.py` | `CLOUD_ENABLED` flag, `tool=cloud` in `/auth-check`, landing button (mirror `DEMO_APP_ENABLED` at lines ~76, 402, 871) | additive, off by default |
-| `engine/docker-compose.yml` | pass `CLOUD_ENABLED` env to allocator (mirror line 229) | additive |
-| `engine/scripts/capacity-calc.sh` | account for cloud-host memory | docs/tooling |
+| `engine/gateway/Caddyfile` | additive `@cloud path /cloud /cloud/*` block (`forward_auth` `/auth-check?tool=cloud`, `copy_headers X-Cloud-User`, then `header_up` identity + gateway token) (D4, done `a2eb28f`) | only base edit that changes behaviour; the allocator answers 404 unless `CLOUD_ENABLED=1`, so other workshops never reach the upstream |
+| `engine/allocator/server.py` | `CLOUD_ENABLED` flag, `tool=cloud` in `/auth-check` (returns `X-Cloud-User`), landing card, and the facilitator `/admin` **Dojo Cloud tab** (D4, done `a2eb28f`) | additive, off by default |
+| `engine/docker-compose.yml` | pass `CLOUD_ENABLED` env to allocator (done `a2eb28f`; the overlay sets it to 1) | additive |
+| `engine/scripts/capacity-calc.sh` | account for cloud-host memory (**not done yet**, T8.2) | docs/tooling |
+| `engine/README.md` | document the `CLOUD_ENABLED` route (**not done yet**, T8.5; it does not mention it today) | docs only |
 | `infra/corp-dev/gdojo-cc/workshops/tofu-basics.tfvars` | only **if** `infra/` exists elsewhere | not in this checkout |
 
 Nothing else in `engine/` changes. **Do not mix with the ~24 unrelated
@@ -703,7 +704,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 *Execute exactly one path, per D1.*
 
 **Path T2 (ARM facade)**
-- [x] **T3.1** *(`6301cc8`; PKI: CA+server cert in cloud-api's private `/data/pki`, only the CA cert is shared via `cloud_pki`. Verified `curl --cacert` + provider trust; plain `curl` needs `CURL_CA_BUNDLE`, added to the broker but **not yet rebuilt/verified**)* PKI: CA + server cert generated at start into `cloud_pki`;
+- [x] **T3.1** *(`6301cc8`; PKI: CA+server cert in cloud-api's private `/data/pki`, only the CA cert is shared via `cloud_pki`. Verified `curl --cacert` + provider trust; plain `curl` needs `CURL_CA_BUNDLE`, added to the broker and **verified live 2026-09-20** in Lab 4's `curl` step)* PKI: CA + server cert generated at start into `cloud_pki`;
       terminal trust wiring. *Verify:* `curl https://management.dojo.cloud/metadata/endpoints…` from a student shell without `-k`.
 - [x] **T3.2** *(`6301cc8`; broker + `dojo-env` + HMAC secrets; verified: distinct subscriptions per student, cross-student write → `AuthorizationFailed` 403, signing key unreadable by students)* Identity: broker (SO_PEERCRED) + `dojo-env` + signing key in
       `cloud_secrets`; token endpoint; subscription derivation. *Verify:* two
@@ -719,7 +720,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - [x] **T3.6** *(`6301cc8`; fixed-template `build_create_request` tested for forbidden keys/clamping/allow-list; **a fuzz test over the raw HTTP body is still to do in P9**)* Executor: fixed-template `docker run` on `cloud-host`; deletion;
       status/instanceView; log fetch; startup reconcile. *Verify:* no request can
       make the executor pass an unlisted flag (fuzz test on inputs).
-- [x] **T3.7** *(`6301cc8`; `/cloud/site/<label>/` proxy with CSP `sandbox`, verified from a student terminal on `cloud-api:8080`; **gateway route is P5, browser check pending**)* Site ingress `/cloud/site/<label>/` → container port, reachable
+- [x] **T3.7** *(`6301cc8`; `/cloud/site/<label>/` proxy with CSP `sandbox`, verified from a student terminal on `cloud-api:8080`; gateway route done in P5 and checked live through the gateway)* Site ingress `/cloud/site/<label>/` → container port, reachable
       via gateway. *Verify:* browser shows student's message.
 - [x] **T3.8** *(`6301cc8`; recorded in state; **read API arrives with the portal, P4**)* Activity log store + API.
 - [x] **T3.9** *(`6301cc8`; cloud-host on `internal: true`, no host ports, unix socket only, mem/pids limits; verified no internet from host or container, not resolvable from students. **M3 reached.**)* `cloud-host` hardening: `mem_limit`, `pids_limit`, no published
@@ -738,7 +739,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P4 — Portal
 
-- [x] **T4.1** *(`49c168e`; verified in real headless Chromium against the live stack through a throw-away header-injecting proxy — **not through the gateway**, that route is P5/D4)* SPA shell + nav + theme (neutral, Azure-inspired, light/dark,
+- [x] **T4.1** *(`49c168e`; verified in real headless Chromium against the live stack; the through-the-gateway check was done in P5)* SPA shell + nav + theme (neutral, Azure-inspired, light/dark,
       mobile-safe). *Verify:* renders through gateway at `/cloud/`.
 - [x] **T4.2** *(`49c168e`; Logs tab needed a hello-image fix to show anything)* Blades: Home, Resource groups, All resources, Container
       instances, resource overview + JSON view + Browse + log tail.
@@ -834,8 +835,8 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - [ ] **T8.2** `capacity-calc.sh` includes cloud-host; record sizing in §14.
 - [ ] **T8.3** Facilitator guide (run-of-show, timings, common failures, how to
       Purge, fallback to Track A).
-- [ ] **T8.4** If `infra/` exists: add `tofu-basics.tfvars`, bump VM size if
-      needed. Otherwise note as not applicable.
+- [-] **T8.4** *(not applicable: `infra/` is absent and the docs no longer reference Azure-VM delivery, `45afcb7`)* If `infra/` exists: add `tofu-basics.tfvars`, bump VM size if
+      needed. Revisit only if that delivery path comes back.
 - [ ] **T8.5** Update `engine/README.md` only if behaviour described there
       changed (CLOUD_ENABLED route).
 
@@ -851,13 +852,17 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 - [ ] **T9.6** *(added)* Turn the throw-away P3 checks into **committed** e2e scripts under
       `workshops/tofu-basics/tests/` — the lifecycle run (init/apply/tag edit/replace/quota/drift/destroy/restart)
       and the policy-violation run currently exist only in a lost session scratchpad (§15a-F). Include the
-      live missing-tag check and the `CURL_CA_BUNDLE` check.
+      live missing-tag check and the `CURL_CA_BUNDLE` check. The P5 and P6 verification runs were scratch scripts too (not committed).
 - [ ] **T9.7** *(added)* Concurrency: 30 students applying at once against one global lock (§15a-F) —
       measure `apply` latency; if bad, narrow the lock (per-subscription) or move Docker calls outside it.
       **P4 measured a concrete instance:** `put_container_group` holds `State.lock` while Docker creates the container, so every portal read and every other student's ARM call stalls ≈3.3 s per deploy (§15a-G1). Do this fix here — reserve quota+port under the lock, create outside it, then commit.
 - [ ] **T9.8** *(added)* Isolation checks not yet done: `--icc=false` really blocks container-to-container
       traffic; a hello container cannot reach `cloud-host`'s own netns or `cloud-api`; re-review D2 under
       **docker** (not rootless podman) before any Azure-VM delivery (§15a-F).
+- [ ] **T9.9** *(added 2026-09-20)* Real-browser pass over Labs 4–10 and the portal (Add tag, Save tags, Delete dialog,
+      Browse, Quota tile, Refresh now): the P6 verification drove the portal through `/cloud/api` and only
+      cross-checked button/label text against `app.js`. Also re-run Track A labs 0–3 on a rebuilt image, and re-check
+      the attention-tile text now reading `code: message` (`25a7176`, offline tests only).
 - [ ] **T9.5** Regression: other workshops still start (`./run.sh git-fundamentals`,
       `dns-as-code`, `cert-autorenewal`). **M5: release-ready**
 
@@ -920,8 +925,8 @@ reviewable. Details and evidence are in §15a-B.
 - **Measured so far (P3):** cloud-host image 369 MB, cloud-api 52 MB, `:tofu-basics` terminal 1.13 GB (base 692 MB); idle memory cloud-host ≈58 MB, cloud-api ≈13 MB. Per-student `.terraform` is ~30 KB thanks to the unpacked mirror. Memory under 30 running hello containers is **not measured yet** (T9.3).
 - **Capacity (initial guess — measure in T9.3):** hello containers ≈ 10–20 MB
   each idle; quota 2/student × 30 = 60 containers with 128 MB cap ⇒ worst-case
-  7.7 GB, realistic ≪1 GB. Proposed `cloud-host` `mem_limit` 3 GB; cloud-api
-  256 MB. Add both to `capacity-calc.sh`.
+  7.7 GB, realistic ≪1 GB. `cloud-host` `mem_limit` 3 GB (`CLOUD_HOST_MEM_LIMIT`, set in the overlay); cloud-api
+  256 MB. **Neither is in `capacity-calc.sh` yet (T8.2).**
 - Fallback: if cloud host/API misbehaves mid-session, students continue with
   Track A (already complete) or the facilitator restarts only `cloud-host`
   + `cloud-api` (state is intentionally ephemeral; students may need Purge).
@@ -951,17 +956,17 @@ reviewable. Details and evidence are in §15a-B.
 
 *Added 2026-09-18 after P3. Read this before starting P4.*
 
-### A. Decisions built at the default — NOT confirmed by the user
+### A. Decisions D2–D6 — all confirmed or set by the user on 2026-09-19
 
-The user said "commit everything and push it, then start implementing" without
-answering the open questions in §4. Everything below was built at the plan's default.
-**Raise these at the next hand-off** so the user can confirm or veto:
+*History:* the user first said "commit everything and push it, then start implementing" without
+answering §4, so D2–D6 were built at defaults. They have since been decided (§4, §16 entry 2026-09-19); this
+table records what was built and how to change it:
 
 | ID | What was built | Why it matters / how to change |
 |---|---|---|
 | D2 | `cloud-host` is a **privileged** Docker-in-Docker container on an `internal: true` network, unix socket only, no host ports, no internet. | The riskiest component. Boxed in by §7, but a privileged container is a privileged container. Change = re-architect the executor (`docker_api.py`) — say so early. |
 | D3 | **Broker with `SO_PEERCRED`** (root daemon in the terminal; each student gets only their own creds). | The alternative (shared class secret) is simpler but lets students impersonate each other. |
-| D4 | *(Not started.)* P5 needs a small additive edit to the **base** `engine/gateway/Caddyfile`, `engine/allocator/server.py`, `engine/docker-compose.yml` (a `CLOUD_ENABLED` flag mirroring `DEMO_APP_ENABLED`). | The user's repo policy is that base engine files stay workshop-agnostic. **Ask before editing.** |
+| D4 | **Built in P5 (`a2eb28f`)**: a small additive edit to the base `engine/gateway/Caddyfile`, `engine/allocator/server.py`, `engine/docker-compose.yml` (a `CLOUD_ENABLED` flag mirroring `DEMO_APP_ENABLED`). | The user's repo policy is that base engine files stay workshop-agnostic; any further engine edit needs the user's OK first. |
 | D5 | Region `canadacentral` (user, 2026-09-19: Canadian audience); policy forces `rg-` / `ci-` name prefixes and allows only `canadacentral` and `canadaeast`. | Edit `compose/cloud-api/policy.py`. |
 | D6 | Quota 2 container groups per student, 0.25 vCPU / 0.125 GB each, only `dojo/hello:1.0` and `:2.0`, only port 80. | Edit `policy.py` (and `MAX_*` in `docker_api.py` tests). |
 
@@ -1029,22 +1034,24 @@ answering the open questions in §4. Everything below was built at the plan's de
   delivery path (docker) has **not** been exercised. `docker:dind` under *docker* proper should behave
   the same, but it is untested here.
 - The stack was stopped at the end of each session (`./run.sh stop` wipes volumes). No test data is kept.
-- Unit tests: `cd workshops/tofu-basics/compose/cloud-api && python3 -m unittest test_policy_auth test_executor`
-  and `cd .. && python3 -m unittest test_parity` (host Python is enough; no containers).
+- Unit tests: `cd workshops/tofu-basics/compose/cloud-api && python3 -B -m unittest test_portal_api test_executor test_policy_auth` (90 tests)
+  and `cd .. && python3 -B -m unittest test_parity` (5 tests) (host Python is enough; no containers).
 - Scratch spike harness from P2 lived in the session scratchpad and is gone; §5.5 has the recipe if
   it's ever needed again (the real control plane now supersedes it).
 
-### E. Known gaps / not verified yet
+### E. Known gaps / not verified yet *(rewritten 2026-09-20)*
 
-- **Not built:** portal + activity-log read API (P4), gateway/allocator route (P5), Track B starter
-  files, `.terraform.lock.hcl` with azurerm hashes (`tofu providers lock -platform=linux_amd64 -platform=linux_arm64`),
-  Labs 4–10, slides (only a placeholder hub exists; without a slide file the Marp container exits),
-  docs/capacity-calc entries, Azure-VM `tfvars` (blocked: `infra/` absent in this checkout).
-- **Not verified:** the missing-tag policy message through the real provider (only unit-tested);
-  a browser check of HCL highlighting and of the site through the gateway; `CURL_CA_BUNDLE` (added to
-  the broker after the last image build); a fuzz test of raw ARM request bodies against the executor
-  (only the template builder is tested); behaviour with 30 students and 60 containers (T9.3/M4);
-  arm64 image build (checksums are pinned per arch, but only amd64 was built).
+- **Not built yet:** slides (P7; only a placeholder hub exists, and without a slide file the Marp container exits),
+  workshop README, facilitator guide, `capacity-calc.sh` and `engine/README.md` entries (P8), committed e2e/load
+  scripts (P9), optional stretch labs 11–12 (T6.4). Built since this section was first written: portal and activity
+  read API (P4), gateway/allocator route and facilitator tab (P5), the starter repo with its lock file, and labs 4–10
+  (P6).
+- **Not verified:** a real-browser pass over the portal and labs (T9.9); HCL highlighting in code-server (visual);
+  Labs 0–3 re-run on the current image; a fuzz test of raw ARM request bodies against the executor (only the
+  template builder is tested); 30 students and 60 containers (T9.3/M4); arm64 (checksums are pinned per arch, only
+  amd64 was built); docker proper instead of podman (§15a-D); the attention-tile text after `25a7176`.
+- **Verified since:** the missing-tag policy message and every other policy error through the real provider (Lab 6);
+  `CURL_CA_BUNDLE` (Lab 4); the site and portal through the gateway (P5).
 - **Known limitation:** only one container per group and only `dojo/hello:*` images are allowed, by
   design (§7). LRO (`Azure-AsyncOperation`) is not implemented — the provider's polling is what
   sets the timings above.
@@ -1122,12 +1129,12 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 3. `Handler.log_message` raises `AttributeError` on a malformed HTTP request line — only a thread traceback in
    the log (existing code). Low priority.
 4. The container-group `owner` **tag value is not validated** — a student can claim any owner name in the tags
-   (the *real* owner is the subscription, so authz is unaffected). Decide in P6 whether the lab wants a policy for it.
+   (the *real* owner is the subscription, so authz is unaffected). Still open: the P6 labs do not rely on it, so no policy was added; decide only if a lab needs it.
 5. The ARM list endpoints read state without the lock (existing code). Benign today; fold into T9.7.
 6. `_body()` reads at most 1 MB and leaves any excess unread on the socket (existing code). Low priority.
 7. **Portal identity relies on `GATEWAY_TOKEN`** reaching cloud-api via the overlay. Verified a bare
    `X-Auth-User` is rejected (401) and the token is not in student environments or `/proc/1/environ`. The
-   allocator-style trust model only holds if P5's Caddy block sets both headers with `header_up`.
+   allocator-style trust model only holds if the Caddy block sets both headers with `header_up`; **it does (P5), verified against an echo upstream with forged headers.**
 8. Facilitator username in this dev `engine/.env` is `admin` (not the `root` default) — the code reads
    `FACILITATOR_USERNAME`, so nothing to fix; just don't hard-code `root` in labs.
 9. Anonymous podman volumes from earlier runs survive `./run.sh stop` — housekeeping, not a bug in this workshop.
@@ -1341,6 +1348,12 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 - **Known:** `url` output / `TF_VAR_portal_base_url` omit the dev port (`:8080`) on this dev box (§15a-C 9), so labs say
   `<class-address>`.
 - **Next:** ask the user before P7 (slides). A browser pass over labs 4–10 belongs in P9 (T9.x).
+
+### 2026-09-20 — plan accuracy pass
+- Brought stale statements in line with the code and git history: §3 facts (docker.sock, `infra/`), §8 mirror TODO,
+  §11 touchpoints (real Caddy matcher, allocator, what is still not done), P4/T3.x notes, §14, §15a-A (D2–D6 now
+  confirmed) and §15a-E (rewritten). T8.4 dropped (no `infra/`). Added T9.9 (browser pass). Older §16 entries were
+  left as written; they are a dated record, not current state.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
