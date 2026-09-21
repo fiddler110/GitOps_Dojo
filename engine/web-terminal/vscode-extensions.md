@@ -80,6 +80,12 @@ otherwise use the per-workshop override below instead, per
 3. Rebuild: `./run.sh <workshop-name>` from `engine/` (rebuilds the base
    `web-terminal` image).
 
+## Installed by one workshop, not the base image
+
+- `tofu-basics` installs the OpenTofu extension (`opentofu.vscode-opentofu`, HCL highlighting for `.tf` and `.tfvars`)
+  in its own terminal image (`workshops/tofu-basics/compose/terminal/Dockerfile`). The base image still ships no
+  Terraform/OpenTofu tooling, so the `hashicorp.terraform` note in `Dockerfile` remains true for every other workshop.
+
 ## Adding something for one workshop only
 
 The base image is built and tagged `gitopsdojo/web-terminal:base` before
@@ -116,7 +122,7 @@ RUN set -eux; \
     rm -f /tmp/markdown-mermaid.vsix
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:7682/status || exit 1
+    CMD web-terminal-healthcheck
 ```
 
 `workshops/mermaid-as-code/compose/docker-compose.override.yml`:

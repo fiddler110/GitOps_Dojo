@@ -104,7 +104,8 @@ ENTRYPOINT ["/usr/local/bin/terminal-entrypoint-wrapper"]
 
 # Base image's HEALTHCHECK is inherited too; restated here so a static scan
 # of this file alone (which doesn't resolve FROM) doesn't flag it missing.
-# Keep identical to engine/web-terminal/Dockerfile: workspace-control.py
-# rejects /status without the X-Control-Token header.
+# Call the base image's script rather than copying its wget line: workspace-control.py
+# rejects /status without the X-Control-Token header, and that lives in
+# engine/web-terminal/healthcheck.sh only.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null --header="X-Control-Token: ${CONTROL_TOKEN}" http://127.0.0.1:7682/status || exit 1
+    CMD web-terminal-healthcheck

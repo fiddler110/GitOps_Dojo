@@ -172,9 +172,9 @@ RUN set -eux; \
 # extension), golang.go (no workshop has a .go file, and there's no Go
 # toolchain in this image either -- code-server's built-in `go` extension
 # already gives the same syntax-highlighting-only experience for free),
-# hashicorp.terraform (no workshop has a .tf file -- Terraform only shows
-# up in infra/corp-dev, provisioning the VM this stack runs on, never
-# something a student edits in code-server), and markdown-all-in-one /
+# hashicorp.terraform (no workshop in the *base* image edits .tf files;
+# tofu-basics, the one workshop that does, installs the OpenTofu extension in its
+# own terminal image -- see workshops/tofu-basics/compose/terminal/Dockerfile), and markdown-all-in-one /
 # markdown-preview-enhanced (no lab content uses tables/TOCs/mermaid/math
 # enough to need more than code-server's built-in markdown preview).
 #
@@ -223,7 +223,8 @@ RUN --mount=type=secret,id=corp_ca_cert,target=/tmp/corp_ca.pem set -eux; \
 
 COPY entrypoint.sh /usr/local/bin/web-terminal-entrypoint
 COPY workspace-control.py /usr/local/bin/workspace-control.py
-RUN chmod +x /usr/local/bin/web-terminal-entrypoint
+COPY healthcheck.sh /usr/local/bin/web-terminal-healthcheck
+RUN chmod +x /usr/local/bin/web-terminal-entrypoint /usr/local/bin/web-terminal-healthcheck
 
 # Authored shell config for the facilitator/student accounts. Kept as real,
 # editable files here (not inline heredocs in entrypoint.sh) so shell
@@ -257,5 +258,5 @@ RUN chmod 644 /etc/tmux.conf
 
 EXPOSE 7682
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null --header="X-Control-Token: ${CONTROL_TOKEN}" http://127.0.0.1:7682/status || exit 1
+    CMD web-terminal-healthcheck
 ENTRYPOINT ["/usr/local/bin/web-terminal-entrypoint"]

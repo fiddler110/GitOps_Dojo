@@ -92,7 +92,11 @@ server, etc.) — not for anything content/slides alone can express.
    image every time this workshop runs (see `engine/run.sh`, which skips
    rebuilding an image whose source hasn't changed and depends on `:base`
    only ever meaning the plain, un-augmented image). `dns-as-code` and
-   `cert-autorenewal` are worked examples.
+   `cert-autorenewal` are worked examples. A workshop image that sets its own
+   `HEALTHCHECK` *replaces* the inherited one, so either omit it or use exactly
+   `HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD web-terminal-healthcheck`
+   (the base image's script, which sends the `X-Control-Token` header). Do not copy a `wget` line:
+   a bare `wget` gets a 403 and the container shows `unhealthy` for its whole life.
 5. Add a row to the table above.
 6. Run it locally end to end (`./run.sh <name>` from `engine/`) before
    trusting it for a live session.
