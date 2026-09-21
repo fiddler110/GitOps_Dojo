@@ -85,6 +85,8 @@ cat versions.tf providers.tf
 
 ## 3. Your credentials are in your environment
 
+A shell picks up its cloud credentials when it starts. If you opened this terminal before Dojo Cloud had started, the command below prints nothing: open a **new terminal tab** and run it there.
+
 ```sh
 env | grep -E '^(ARM_|TF_VAR_)' | grep -v SECRET | sort
 ```
