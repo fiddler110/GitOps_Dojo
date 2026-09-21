@@ -100,7 +100,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
 | P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic (the shared-theme code colours were fixed in `82b9e36`) |
 | P8 | Docs, registration, capacity, delivery | **done** (T8.1–T8.3, T8.5–T8.10 written and live-tested 2026-09-21) | the guide and README are untested against a real class (T9.4); T8.4 dropped |
-| P9 | Validation (bots, load, dry-run) | not started | all of T9.1–T9.9 |
+| P9 | Validation (bots, load, dry-run) | **in progress** (2026-09-21): T9.1, T9.2, T9.3 (M4 at 15), T9.6, T9.7 done live | open: T9.5 (other workshops), T9.9 (browser), T9.4 (people, yours), T9.8 on docker proper, and 20+ students |
 | P10 | Optional stretch | not started | T10.1–T10.4 |
 
 ### Milestones
@@ -110,7 +110,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | **M1** | Track A shippable | ✅ reached (`ef3e36a`) | the deck is written and render-tested (P7) but not dry-run with people; HCL highlighting and Labs 0–3 not re-checked in a browser / on the current image; amd64 only |
 | **M2** | Provider decision made (`azurerm`) | ✅ reached | none |
 | **M3** | One student deploys end-to-end | ✅ reached (`6301cc8`) | proven for one student on podman; not concurrent, not docker proper (T9.3, T9.7, T9.8) |
-| **M4** | 30-student load test passes | ❌ **not reached** (T9.3) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
+| **M4** | Load test passes at the largest class this machine can hold (**redefined 2026-09-21: 15 students, not 30**; 30 needs a bigger box or a VM, and is a separate run) | ✅ **reached at 15** (2026-09-21, T9.3; 30 not tried) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
 | **M5** | Release-ready | ❌ **not reached** | needs the T8.5 `engine/README.md` note, P9 validation (incl. a human dry-run, T9.4, and the regression run of the other workshops, T9.5) |
 
 ---
@@ -528,6 +528,43 @@ shows `Unknown` after 10 s without a Docker answer.
 
 ---
 
+### 5.8 Lock narrowing — T9.7 contract (2026-09-21)
+
+**Goal:** no Docker call is ever made while `State.lock` is held. Two places still do it: `Handler.put_container_group`
+(the old container's `remove` and the new one's `create`) and the resource-group `DELETE` in `Handler.resource_group`.
+Reads (`get_container_group`, `cg_list`, `cg_views`) and `App.delete_container_group` are already outside the lock.
+**Mechanism: reserve → Docker → commit**, all in `server.py` and `state.py`:
+
+- `State.pending`: `{cg_key: {"sub", "port", "dnsLabel"}}` for container groups with an operation in flight (a PUT that
+  creates/replaces, an ARM or portal DELETE, and every child of a resource group being deleted). `State.deleting_rgs`:
+  set of rg keys being deleted. Both in memory only (a restart mid-operation is what `reconcile()` already handles).
+- **Phase 1, under the lock:** everything that is decided today (rg exists, JSON, policy) with the reservations counted:
+  the quota's `others` and `dns_taken` include pending groups, `free_port()` skips pending ports. If the key is already
+  pending, or its rg is in `deleting_rgs`, answer `arm_error(409, "Conflict", "Another operation on this container
+  group is in progress. Wait for it to finish, then try again.")` and change nothing. Otherwise record the reservation.
+- **Phase 2, no lock:** `executor.remove` (old container), `executor.create`.
+- **Phase 3, under the lock, in a `try/finally` so a reservation is ALWAYS released:** commit or record the failure
+  exactly as today. Status codes, error bodies, activity-log operation names and messages, "old container already gone →
+  forget the record when create fails", and the 409 `ServiceUnavailable` host-down text must not change.
+- **Resource-group DELETE** claims the rg and every child key in phase 1 (409 if a child is pending or the rg is already
+  being deleted); removes containers in phase 2; on a `DockerError` drops only the records whose container was removed,
+  logs `Failed`, releases, and answers today's host-down 409; on success drops the child records and the rg, logs, saves.
+  A container-group PUT into an rg that is being deleted gets the 409 above.
+- **`App.delete_container_group`** (ARM and portal) claims the key the same way; the portal shows the same message.
+- **The GET drift path** (`Container disappeared outside IaC`) must not delete a record whose key is pending (a replace
+  removes the old container while its record still exists); in that case answer the stored record as it does when Docker
+  cannot be asked.
+- **Audit every iteration over `st.cgs` / `st.rgs` / `st.data["activity"]`** (§15a-G5): each must be under the lock or over
+  a snapshot, because commits now interleave with readers.
+- **Tests (new `test_concurrency.py`, fake executor with a controllable delay/barrier; every existing test still passes
+  unedited, or the edit is explained):** N parallel PUTs from N subscriptions finish in about one executor delay, not N;
+  a GET and a portal overview during a slow create answer in well under the delay; 5 parallel PUTs from one subscription
+  (quota 2) → exactly 2 succeed; 10 parallel PUTs get 10 distinct ports; two PUTs for the same DNS label → one wins; two
+  PUTs for the same key → one 201, one 409; PUT vs. rg DELETE (both orders) → 409 and no orphan record; an executor failure
+  releases the reservation (a retry succeeds and reuses the port); a GET during a replace does not log "disappeared".
+
+---
+
 ## 6. Making it feel like Azure
 
 **Principle:** mirror Azure's *mental model and vocabulary* so anything a
@@ -587,7 +624,7 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 
 | Control | Detail |
 |---|---|
-| Network isolation | `cloud-host` only on `cloud_net` (`internal: true`); not on `workshop_lab`; no ports published; no internet |
+| Network isolation | `cloud-host` only on `cloud_net` (`internal: true`); not on `workshop_lab`; no ports published; no internet. Student containers: `--icc=false`, plus an iptables `DOCKER-USER` rule that drops NEW connections initiated from `docker0` (added 2026-09-21: without it a container could reach `cloud-api` through dind's NAT). Verified by `tests/e2e.sh --only security` |
 | No Docker API for students | (T2) students only speak ARM to cloud-api; executor uses a **fixed template** (image from allow-list, memory/CPU/pids caps, no privileged/mounts/host net/caps, read-only rootfs where possible, restart policy `unless-stopped` so containers survive a cloud-host restart) |
 | Identity | D3(a): root-owned **broker** in terminal container; Unix socket; `SO_PEERCRED` → username → HMAC-signed short-lived token / client secret. Signing key is root-0400 in `cloud_secrets`, never in student-visible env |
 | AuthZ | path `subscriptionId` must equal token subject's subscription; facilitator token can act on any |
@@ -975,21 +1012,21 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P9 — Validation → **M4, M5**
 
-- [ ] **T9.1** Automated e2e script in `tests/`: for a student user run Track A
+- [x] **T9.1** *(2026-09-21: RAN LIVE, 1 student, all areas: 281 checks, 0 failed, 0 skipped, 937 s (`tests/e2e.sh`, then the restart area, 11 checks, 142 s). It passed at the first attempt, so the scripts and labs agree; see the 2026-09-21 log entry. Still open: the browser (T9.9) and other students' labs (T9.4))* Automated e2e script in `tests/`: for a student user run Track A
       and Track B commands, assert outputs, assert cleanup.
-- [ ] **T9.2** Security checks: cross-tenant access denied; fuzz executor;
+- [x] **T9.2** *(2026-09-21: offline fuzz (`test_fuzz.py`, 8 fixes) and the live `security` area (`tests/e2e/60_security.sh`): 42 checks pass. The live run found one real hole, fixed: a student container could open connections to `cloud-api` (8080 and 443) through dind's NAT; `cloud-host/entrypoint.sh` now drops NEW outbound connections from `docker0`, fail closed. Not covered: Caddy's header handling (gateway) and docker proper)* Security checks: cross-tenant access denied; fuzz executor;
       student cannot reach `cloud-host`, cannot read signing key, cannot
       escalate through any documented endpoint.
-- [ ] **T9.3** Load test with demo bots (`--test`): N students × full flow. **M4**
+- [~] **T9.3** *(2026-09-21: `tests/load.sh` ran live at 5, 10 and 15 students, all PASS: 0 failed steps, apply p95 51 / 69 / 76 s, portal overview p95 24 ms at 15, no OOM. Peak memory at 15: `workshop_terminal` 1.2 GB, `cloud-host` 0.16 GB, `cloud-api` 0.04 GB. **M4 (15) reached; 30 not tried** (`STUDENT_COUNT=20` on this box, so 20 is the next step))* Load test with demo bots (`--test`): N students × full flow. **M4**
 - [ ] **T9.4** Human dry-run with 3–5 people; collect confusion points; fix labs.
-- [ ] **T9.6** *(added)* Turn the throw-away P3 checks into **committed** e2e scripts under
+- [x] **T9.6** *(2026-09-21: the scripts are committed under `tests/` and ran green live, see T9.1)* Turn the throw-away P3 checks into **committed** e2e scripts under
       `workshops/tofu-basics/tests/` — the lifecycle run (init/apply/tag edit/replace/quota/drift/destroy/restart)
       and the policy-violation run currently exist only in a lost session scratchpad (§15a-F). Include the
       live missing-tag check and the `CURL_CA_BUNDLE` check. The P5 and P6 verification runs were scratch scripts too (not committed).
-- [ ] **T9.7** *(added)* Concurrency: 30 students applying at once against one global lock (§15a-F) —
+- [x] **T9.7** *(2026-09-21: unit-tested (§5.8, `test_concurrency.py`) AND measured live: 15 concurrent students, apply p95 76 s (dominated by the provider's own poll ticks), overview p95 24 ms, max 1.5 s, no failures. Uncommitted)* Concurrency: 30 students applying at once against one global lock (§15a-F) —
       measure `apply` latency; if bad, narrow the lock (per-subscription) or move Docker calls outside it.
       **P4 measured a concrete instance:** `put_container_group` holds `State.lock` while Docker creates the container, so every portal read and every other student's ARM call stalls ≈3.3 s per deploy (§15a-G1). Do this fix here — reserve quota+port under the lock, create outside it, then commit.
-- [ ] **T9.8** *(added)* Isolation checks not yet done: `--icc=false` really blocks container-to-container
+- [~] **T9.8** *(2026-09-21: RAN LIVE on rootless podman: `enable_icc=false`, container-to-container blocked (with a working control), no route from a student container to the Docker API or, after the fix, to `cloud-api`; a real deployed container has no privileges or caps, `no-new-privileges`, and non-zero limits. **Still open: repeat on docker proper (the VM), where privileged is much closer to root.**)* Isolation checks: `--icc=false` really blocks container-to-container
       traffic; a hello container cannot reach `cloud-host`'s own netns or `cloud-api`; re-review D2 under
       **docker** (not rootless podman) before any Azure-VM delivery (§15a-F).
 - [ ] **T9.9** *(added 2026-09-20)* Real-browser pass over Labs 4–10 and the portal (Add tag, Save tags, Delete dialog,
@@ -1209,7 +1246,7 @@ Each item says how it was established. **Verified** = observed/read in the repo 
    all this machine has). Under rootless podman `privileged` is not real host root; under **docker** on the
    Azure VM it is much closer to real root, so the D2 risk is higher there. The isolation controls in §7 are
    the same, but they must be re-reviewed and re-tested on docker before that delivery. → **T9.8**, and D2.
-5. **Container-to-container isolation on `cloud-host` is unverified.** *Reasoned:* dockerd runs with
+5. **Container-to-container isolation on `cloud-host` is unverified.** **UPDATE 2026-09-21: verified live on rootless podman (T9.8); it found and closed the container-to-`cloud-api` path. Still unverified on docker proper.** *Reasoned:* dockerd runs with
    `--icc=false` and containers are launched with `CapDrop ALL`, `no-new-privileges`, memory/CPU/pids caps
    (the caps and template are unit-tested), but nobody has tried to reach one hello container from another
    or from a container to `cloud-api`. → **T9.8**.
@@ -1253,17 +1290,17 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 1. **A deploy stalls the whole control plane ≈3.3 s.** Existing ARM code (`server.py` `put_container_group`,
    and GET/PUT of container groups, resource-group DELETE) calls Docker **while holding `State.lock`**; the
    portal's own endpoints do not, but they still wait for that lock. Measured: one `overview` poll waited 3.30 s
-   during a deploy; simultaneous deploys queue. Portal reads themselves are fast (30 parallel class overviews: p95
+   during a deploy; simultaneous deploys queue. **Fixed in T9.7 (2026-09-21, §5.8): unit-tested only, not yet measured live.** Portal reads themselves are fast (30 parallel class overviews: p95
    258 ms; 30 pollers every 3 s: p95 186 ms). **Fix in T9.7** before the 30-student test.
 2. **The hello image was silent**, so the Logs tab was always empty — fixed in `49c168e` (startup line + `httpd -v`).
    *Verified* in plain busybox only; the log **framing** through the executor was checked with a container that
    prints. **Re-check the Logs tab once after the next full image rebuild.**
 3. `Handler.log_message` raises `AttributeError` on a malformed HTTP request line — only a thread traceback in
-   the log (existing code). Low priority.
+   the log (existing code). Low priority. **CLOSED 2026-09-21** (the offline fuzz found it killed the handler thread with no reply at all; see §16).
 4. The container-group `owner` **tag value is not validated** — a student can claim any owner name in the tags
    (the *real* owner is the subscription, so authz is unaffected). Still open: the P6 labs do not rely on it, so no policy was added; decide only if a lab needs it.
-5. The ARM list endpoints read state without the lock (existing code). Benign today; fold into T9.7.
-6. `_body()` reads at most 1 MB and leaves any excess unread on the socket (existing code). Low priority.
+5. The ARM list endpoints read state without the lock (existing code). Benign today; fold into T9.7. **CLOSED 2026-09-21** (the rg list and `site()` lookups now take the lock).
+6. `_body()` reads at most 1 MB and leaves any excess unread on the socket (existing code). Low priority. **CLOSED 2026-09-21** (the connection is closed instead; the leftover bytes were parsed as a second request).
 7. **Portal identity relies on `GATEWAY_TOKEN`** reaching cloud-api via the overlay. Verified a bare
    `X-Auth-User` is rejected (401) and the token is not in student environments or `/proc/1/environ`. The
    allocator-style trust model only holds if the Caddy block sets both headers with `header_up`; **it does (P5), verified against an echo upstream with forged headers.**
@@ -1588,6 +1625,39 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   group's PATCH (409, 1.5 s); afterwards `plan` still showed both changes pending (nothing was half-applied), and after the host came back one `apply` (27 s) landed both. A run started 0.3 s
   after the stop began was refused too. What is left is inherent to Terraform: the host dying BETWEEN two requests of one `apply` (a re-run finishes it). **T8.10:** see the task.
 - **Not verified:** Docker proper, arm64, concurrency, real browser, the old image against the new test (only the new image ran on the full stack).
+
+### 2026-09-21 — P9 started: lock fix (T9.7) and offline fuzz (T9.2)
+- **User:** "start on P9". Then, twice, that token use was too high ("Such high token counts will blow through my usage"): stopped the two running builder agents, chose the **minimal live run** (build the stack once, e2e, a small load run sized to this machine, the security checks; no browser pass or other-workshop regression until asked). Saved as a feedback memory (short briefs, logs to files, short reports).
+- **T9.7:** built by one agent from §5.8 (reserve → Docker → commit; `State.pending`, `deleting_rgs`, 409 `Conflict` for a busy key), reviewed by me line by line. Known gaps left alone: portal Purge during an in-flight create; a tags PATCH during a replace (the replace commit wins); a resource-group PUT/PATCH during that group's DELETE. **Not run live.**
+- **Fuzz (`test_fuzz.py`, 1,731 lines, from the agent stopped mid-work):** it failed 22 of 42 tests on the code as it stood. Real bugs found and fixed by me (each in the same change): (1) `log_message` read `self.path` before it existed, so a malformed request line killed the handler thread and got no reply (was §15a-G3); (2) **a tiny positive CPU/memory request passed the policy and became `Memory: 0` / `NanoCpus: 0` = UNLIMITED in Docker** (policy now has `MIN_CPU` 0.05 / `MIN_MEMORY_GB` 0.03125, and `build_create_request` refuses anything below); (3) `NaN`/`Infinity` passed the caps; (4) the name patterns used `$`, so `rg-foo\n` and an env name with a trailing newline passed (now `\Z`); (5) wrong-shaped JSON reached `policy.py` and answered HTTP 500 (now one `_shape_guarded` wrapper: 400); (6) 500s from a bad `Content-Length`, deeply nested JSON (`RecursionError`), non-ASCII client secret (`hmac.compare_digest`), and control characters in a `/cloud/site/` path; (7) body over 1 MB, or a bad `Content-Length`, left bytes on a kept-alive connection that were parsed as a second request (now the connection is closed; was §15a-G6); (8) unparsable requests got an HTML body with no status line (now a JSON error with a status line); plus two groups whose joined names give one container name (`rg-ab`+`ci-b-ci-cc` vs `rg-ab-ci-b`+`ci-cc`) now get a 409 instead of a 500. Test changes: the harness self-check now expects the builder to refuse 1e-12, blank request lines are not required to be answered (RFC 9112), `505` is accepted for an unsupported HTTP version. One `expectedFailure` remains on purpose (builder-only defence in depth, not reachable over the network).
+- **State:** 151 + 5 unit tests and 42 fuzz tests pass (the fuzz suite was run 4 times after the last edit). **Nothing is committed.** No live stack was started this session.
+- **Drafts to treat with suspicion:** `tests/` (about 2,000 lines incl. a `selftest/` mock harness that may be more than needed) was written by an agent stopped mid-work; only `bash -n` was run on it.
+- **Next (minimal live run):** rebuild the stack (`./run.sh stop`, then `./run.sh tofu-basics`), run `tests/e2e.sh`, a load run sized to the machine, and the security checks (still to be written, small); then T9.5 and T9.9 only if asked.
+
+### 2026-09-21 (later) — P9 non-live work
+- **User asked** which validation to run, whether 15 students fit ("gpu" taken to mean RAM), and what non-live work P9 still needs. **Fit:** `./run.sh capacity --students 15` says 19,141 MB needed against 9,945 MB detected. That is a
+  limit-based plan for real IDE students, not a measurement; 15 scripted shells (no IDE) are unmeasured, so the run sheet ramps 5, 10, 15 and stops below about 1.5 GB free. **M4 redefined to 15** (30 needs a bigger box).
+- **Done (all offline):** explicit policy tests for the new floor/ceiling, NaN/Infinity, trailing newline and structural surprises (`test_policy_auth.py`; whole suite 197 tests, one intentional `expectedFailure`); README/lab 6 policy tables
+  and the FACILITATOR troubleshooting table (the new 409s); the `tests/` drafts reviewed and their selftest fixed (its mock wrote state to a different directory than the mock portal read, plus a miscount): 66 checks pass.
+- **Real bug found in the drafts and fixed:** when `e2e.sh` or `load.sh` **refused** to run because a student's subscription was not empty, the exit cleanup still verified the portal and **purged that subscription**. Both now set
+  `SAFE_TO_CLEAN` only after the refusal checks pass (`--cleanup-only` sets it itself); the selftest asserts a refused run leaves the state alone.
+- **New:** the `security` area (T9.2 live half, T9.8): `tests/e2e/60_security.sh`, `helpers/sec_arm.py` (cross-tenant and forged-token probes, in the student's shell), `helpers/sec_deploy.py` (deploys and deletes one policy-clean container
+  through ARM so a real container can be inspected). The two helpers were run against the real handlers with a fake executor: every status matched (403 across tenants, 401 for payload-swapped, `alg none`, wrong-key and borrowed-secret
+  cases; deploy 201/201, delete 200). Key names avoid `token=` and `secret=` because the scripts' `mask()` would rewrite them.
+- **Not done, needs a stack:** everything the user runs by hand (`tests/README.md` run sheet). Likely outcomes to watch: the bridge-to-`cloud-api` probe (a student container reaching `cloud-api` through dind's NAT is plausible and
+  would be a genuine finding), `nobody` existing in the terminal image, `nc`/`wget` behaviour in busybox, and the first-contact fixes any 2,500-line shell suite needs. **Nothing is committed.**
+
+### 2026-09-21 (later still) — P9 live run
+- **User asked** to run the e2e, load and security scripts live and fix the likely first-run problems. Rebuilt the stack (`./run.sh stop`, `./run.sh tofu-basics`) and ran them.
+- **Security area, first run: 40 pass, 2 fail.** (1) The probe used `.NetworkSettings.IPAddress`, which this Docker no longer has, and served `/` without an index (wget calls the 403 a failure): the test's own bugs, fixed, so the
+  `--icc=false` result is now backed by a working control. (2) **A real hole: a student container could reach `cloud-api` on 8080 and 443** through dind's NAT (`--icc=false` only stops container-to-container). Fixed in
+  `compose/cloud-host/entrypoint.sh` with a fail-closed `DOCKER-USER` rule (drop NEW connections initiated from `docker0`); verified by the rerun, published ports and sites still work, and the rule survives a cloud-host restart.
+  Impact was limited (hello runs fixed code and `cloud-api` still needs tokens), but it was the path §15a-F5 worried about.
+- **Full e2e (1 student): 281 passed, 0 failed, 0 skipped, 937 s**, then the restart area (11 checks, 142 s). **Load, waves of 5:** 5 / 10 / 15 students, all PASS, no failed step, no OOM. `apply` p95 51 / 69 / 76 s; `destroy` p95 79 s at 15; overview
+  p95 24 ms; `/readyz` never non-200. **Peak memory at 15: terminal 1.21 GB (of 4 GB), cloud-host 0.16 GB, cloud-api 0.04 GB; the host stayed near 6 GB free.** So `./run.sh capacity` (19 GB for 15) is a plan for IDE students, and
+  15 scripted shells are cheap. The unmeasured cost of a real class (IDE and browser per student) is the part not tested.
+- **Commits:** `745f842` (lock narrowing, fuzz fixes, policy tests, docs), `4d243cf` (cloud-host outbound rule), `4a4729a` (`tests/`), then this plan update.
+- **Nothing else needed fixing:** the scripts and the labs agreed on the first run. **Not tested:** 20+ students, docker proper, the gateway's own header handling, a browser (T9.9), other workshops (T9.5), real people (T9.4). **Uncommitted.**
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
