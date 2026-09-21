@@ -390,8 +390,9 @@ build_if_changed() {
 # in a local state file, and only runs `compose build` when that hash has
 # changed since the last time this workshop ran.
 #
-# Deliberately excludes web-terminal/allocator/gateway from that build:
-# they already went through build_if_changed above under their own fixed
+# Deliberately excludes web-terminal/allocator/gateway/presentation from that
+# build (keep the list in the grep below in step with every image built by
+# build_if_changed): they already went through build_if_changed above under their own fixed
 # tags, and re-running `compose build` on them here is worse than merely
 # redundant -- Compose's own build doesn't set our dojo.src-hash label, so
 # it would silently overwrite the tag build_if_changed just set, wipe the
@@ -413,7 +414,7 @@ compose_overlay_build_if_changed() {
     return 0
   fi
   echo "  ${overlay_dir}: building (source changed, or first run for this workshop)..."
-  other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway || true)"
+  other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway -e presentation || true)"
   if [ -n "$other_services" ]; then
     # shellcheck disable=SC2086
     track_superseded compose "$@" build $other_services

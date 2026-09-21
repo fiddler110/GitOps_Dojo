@@ -429,7 +429,8 @@ the peak; nothing below lowers it. Three knobs bound it:
   terminals — tmux sessions under the student's own uid — are untouched. A
   student whose tab is open is never affected, however idle. One visible
   effect: a student who returns after more than the grace time is asked to
-  reload the window rather than resuming in place. `0` disables a timer.
+  reload the window rather than resuming in place. `0` disables a timer; a non-zero
+  `CODE_SERVER_IDLE_TIMEOUT_SECONDS` must be more than 60 (code-server rejects less, and the container refuses to start).
 
 These are set by hand in `.env`, not derived automatically. Run
 `./run.sh capacity --students <N>` **on the target machine**

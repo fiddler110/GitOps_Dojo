@@ -97,14 +97,18 @@ CODE_SERVER_EXTENSIONS_DIR = "/opt/code-server-extensions"
 CODE_SERVER_MAX_HEAP_MB = os.environ.get("CODE_SERVER_MAX_HEAP_MB", "384")
 
 
-def _seconds_env(name, default):
+def _seconds_env(name, default, floor=None):
     """Non-negative integer seconds from the environment. Interpolated into
     a shell command below, so anything but plain digits fails fast at
-    startup instead of being passed through."""
+    startup instead of being passed through. With `floor`, a non-zero value
+    must also be greater than it (0 still means "off")."""
     raw = os.environ.get(name, default)
-    if not raw.isdigit():
+    if not (raw.isascii() and raw.isdigit()):
         raise SystemExit(f"{name} must be a non-negative integer number of seconds, got {raw!r}")
-    return int(raw)
+    value = int(raw)
+    if floor is not None and 0 < value <= floor:
+        raise SystemExit(f"{name} must be 0 (off) or greater than {floor} seconds, got {value}")
+    return value
 
 
 # What a code-server keeps holding once its browser tab is gone. Measured
@@ -131,7 +135,9 @@ def _seconds_env(name, default):
 # shorter grace is moot. 0 turns a timer off (VS Code's 3 h grace / no idle
 # exit). Neither changes memory while students are actually connected --
 # that's what CODE_SERVER_MAX_HEAP_MB and the container limit are for.
-CODE_SERVER_IDLE_TIMEOUT_SECONDS = _seconds_env("CODE_SERVER_IDLE_TIMEOUT_SECONDS", "900")
+# code-server itself refuses --idle-timeout-seconds of 60 or less and would exit at once, with its output discarded
+# (start_workspace below), so a too-small value is rejected here at startup instead of failing every /ide.
+CODE_SERVER_IDLE_TIMEOUT_SECONDS = _seconds_env("CODE_SERVER_IDLE_TIMEOUT_SECONDS", "900", floor=60)
 CODE_SERVER_RECONNECTION_GRACE_SECONDS = _seconds_env("CODE_SERVER_RECONNECTION_GRACE_SECONDS", "300")
 
 
