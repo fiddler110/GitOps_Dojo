@@ -44,6 +44,22 @@ ARM_TYPE_CG = "Microsoft.ContainerInstance/containerGroups"
 SITE_RE = re.compile(r"^/cloud/site/([a-z][a-z0-9-]{2,40})(/.*)?$")
 CLIENT_GONE = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)  # peer hung up mid-exchange
 KEEP_TAGS = object()  # update_container_group_tags(): leave the current tag set as it is
+READY_INTERVAL = 3.0  # seconds between readiness checks (the only thing that asks cloud-host about it)
+RECONCILE_RETRY = 2.0  # seconds between start-up attempts while cloud-host is not answering
+HOST_DOWN = "The cloud host is not answering; try again shortly."
+# The status ARM refusals use while Dojo Cloud cannot do a write. Not 503: the azurerm provider retries 503 with
+# exponential backoff (`plan` sat silent ~4 min, `apply` up to ~10 min before printing the error). A status the provider
+# does not retry makes it print the message at once. The ONE place this number lives (tests import it); /readyz and
+# the portal API keep their own 503, since neither is called by the provider.
+NOT_READY_STATUS = 409
+RETRY_HINT = "Wait a minute and run the command again, or tell your facilitator."
+# What a container group reads as when cloud-host cannot be asked whether it is running (see Handler.cg_views).
+ASSUME_RUNNING = True
+# Fixed strings for /readyz (and the refusals a write gets): a reason, never a raw error.
+REASONS = {"first": "the first readiness check has not finished",
+           "host": "the cloud host is not answering",
+           "images": "the cloud host is still loading its app images",
+           "reconcile": "the control plane is still syncing with the cloud host"}
 
 
 def log(msg):
@@ -67,6 +83,8 @@ class App:
                                        f"{LOGIN}/{auth.TENANT_ID}/v2.0")
         self.state = state if state is not None else state_mod.State(f"{DATA_DIR}/state.json")
         self.executor = executor or docker_api.Executor(DOCKER_SOCKET)
+        self.reconciled = threading.Event()  # set once the start-up reconcile has worked
+        self.readiness = Readiness(self)
         self.portal = portal_api.Portal(self, ENV)
 
     # ---- helpers ---------------------------------------------------------
@@ -82,21 +100,45 @@ class App:
         return f"dojo-{self.auth.by_subscription.get(sub, 'x')}-{rg.lower()}-{cg.lower()}"[:120]
 
     def reconcile(self):
-        """Forget container groups whose container vanished; remove orphans."""
+        """Forget container groups whose container vanished; remove orphans.
+        Returns False (and can simply be retried) if cloud-host could not be asked or told."""
         st = self.state
         try:
             live = set(self.executor.list_managed())
         except docker_api.DockerError as exc:
             log(f"reconcile skipped: {exc}")
-            return
+            return False
         with st.lock:
             known = {rec["container"] for rec in st.cgs.values()}
             for key in [k for k, rec in st.cgs.items() if rec["container"] not in live]:
                 del st.cgs[key]
-            for orphan in live - known:
-                self.executor.remove(orphan)
+            orphans = live - known
             st.save()
+        try:
+            for orphan in orphans:  # Docker only after the lock is released
+                self.executor.remove(orphan)
+        except docker_api.DockerError as exc:
+            log(f"reconcile skipped: {exc}")
+            return False
         log(f"reconciled: {len(st.cgs)} container group(s), {len(st.rgs)} resource group(s)")
+        return True
+
+    def start_up(self, stop, retry=RECONCILE_RETRY):
+        """Background thread: wait for cloud-host, then reconcile; retries until that has worked
+        once, then marks the control plane reconciled. Requests are served (and writes refused,
+        see Readiness) all the while."""
+        warned = False
+        while not stop.is_set():
+            try:
+                if self.executor.ping() and self.reconcile():
+                    self.reconciled.set()
+                    return
+            except Exception as exc:  # a bug here must not leave the control plane "starting" forever, silently
+                log(f"start-up error: {exc!r}")
+            if not warned:
+                log("cloud-host is not ready yet; will keep trying")
+                warned = True
+            stop.wait(retry)
 
     # ---- container-group changes shared by ARM and the portal --------------
     # One implementation, so policy, activity log and executor behave identically
@@ -112,10 +154,10 @@ class App:
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
         op = self.op_name("Delete container group", via)
         with st.lock:
-            rec = st.cgs.pop(key, None)
+            rec = st.cgs.get(key)
         if rec is None:
             return False
-        try:
+        try:  # the record stays until the container is really gone: a failed delete changes nothing
             self.executor.remove(rec["container"])
         except docker_api.DockerError:
             with st.lock:
@@ -123,6 +165,8 @@ class App:
                 st.save()
             raise
         with st.lock:
+            if st.cgs.pop(key, None) is None:  # a concurrent delete got there first
+                return False
             st.log(sub, user, op, rid, "Succeeded")
             st.save()
         return True
@@ -163,6 +207,7 @@ class App:
                 "properties": {"provisioningState": "Succeeded"}}
 
     def cg_body(self, sub, rec, running):
+        """The ARM JSON of a stored container group. `running` is the one value Docker provides."""
         body = copy.deepcopy(rec["body"])
         body.update({"id": f"/subscriptions/{sub}/resourceGroups/{rec['rg']}/providers/{ARM_TYPE_CG}/{rec['name']}",
                      "name": rec["name"], "type": ARM_TYPE_CG, "location": rec["location"],
@@ -181,6 +226,67 @@ class App:
         return body
 
 
+class Readiness:
+    """Can Dojo Cloud take work? ONE background thread asks (every READY_INTERVAL); requests only
+    read the cached answer, so a poll never costs a Docker call and never touches State.lock.
+
+    Ready = cloud-host's Docker answers AND both allow-listed images are there AND the start-up
+    reconcile has finished. `starting` = never ready since this process began; `unavailable` =
+    was ready, is not now."""
+
+    def __init__(self, app):
+        self.app = app
+        self._lock = threading.Lock()  # guards the fields below ONLY: never held across I/O
+        self._seen_ready = False
+        self._result = (False, "starting", self._detail("starting", "first"))
+
+    @staticmethod
+    def _detail(state, reason):
+        if state == "ready":
+            return "Dojo Cloud is ready."
+        # "not ready", not "still starting": after the allocator's start-up grace the facilitator's chip is red,
+        # and a red chip must not say "starting" (it would if the host never came up since this process began).
+        return f"Dojo Cloud is {'not ready' if state == 'starting' else 'unavailable'}: {REASONS[reason]}."
+
+    def _probe(self):
+        """-> None when ready, else the key of the first reason in REASONS that is not met."""
+        ex = self.app.executor
+        try:
+            if not ex.ping():
+                return "host"
+            if not all(ex.image_present(image) for image in policy.ALLOWED_IMAGES):
+                return "images"
+        except docker_api.DockerError:
+            return "host"
+        return None if self.app.reconciled.is_set() else "reconcile"
+
+    def refresh(self):
+        """One check, then publish the result. The Docker calls happen before the lock is taken."""
+        reason = self._probe()
+        with self._lock:
+            self._seen_ready = self._seen_ready or reason is None
+            state = "ready" if reason is None else ("unavailable" if self._seen_ready else "starting")
+            self._result = (reason is None, state, self._detail(state, reason))
+
+    def snapshot(self):
+        """-> (ready, state, detail), from the cache."""
+        with self._lock:
+            return self._result
+
+    def refusal(self):
+        """None when ready, else the detail string a write is refused with."""
+        ready, _, detail = self.snapshot()
+        return None if ready else detail
+
+    def run(self, stop, interval=READY_INTERVAL):
+        while not stop.is_set():
+            try:
+                self.refresh()
+            except Exception as exc:  # keep checking; the cached answer stays as it was
+                log(f"readiness check error: {exc!r}")
+            stop.wait(interval)
+
+
 APP = None
 
 
@@ -189,6 +295,12 @@ def arm_error(status, code, message, target=None):
     if target:
         err["target"] = target
     return status, {"error": err}
+
+
+def host_stopped_message(left):
+    """For a write that lost cloud-host part-way. `left`: what state the record was left in (one sentence)."""
+    return ("The cloud host stopped answering while this request was running. " + left + " Wait a minute, run "
+            "`terraform plan` to see where things stand, then run the command again, or tell your facilitator.")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -237,6 +349,13 @@ class Handler(BaseHTTPRequestHandler):
             self.route()
         except CLIENT_GONE:  # the client dropped mid-response: nobody to answer, nothing worth a traceback
             self.close_connection = True
+        except docker_api.DockerError as exc:  # cloud-host went away mid-request: retryable, not a bug
+            log(f"cloud-host error: {exc}")
+            try:
+                self._send(*self.host_stopped_reply(
+                    "What was recorded for your resources was left as it was; the container behind it may have changed."))
+            except CLIENT_GONE:
+                self.close_connection = True
         except Exception as exc:  # never leak a traceback to a student
             log(f"internal error: {exc!r}")
             try:
@@ -244,12 +363,23 @@ class Handler(BaseHTTPRequestHandler):
             except CLIENT_GONE:
                 self.close_connection = True
 
+    def host_stopped_reply(self, left):
+        """The reply when cloud-host stops answering mid-request. An ARM write gets NOT_READY_STATUS and says what
+        state it left things in (`left`); anything else (the ARM logs read, the portal API) keeps a plain 503."""
+        if self.command in ("PUT", "PATCH", "DELETE") and urlparse(self.path).path.lower().startswith("/subscriptions"):
+            return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(left))
+        return arm_error(503, "ServiceUnavailable", HOST_DOWN)
+
     def route(self):
         path = urlparse(self.path).path
         low = path.lower().rstrip("/") or "/"
         body = self._body()
         if low == "/healthz":
             return self._send(200, {"status": "ok", "cloudHost": APP.executor.ping()})
+        if low == "/readyz":  # from the cache; 200 only when Dojo Cloud can take work
+            ready, state, detail = APP.readiness.snapshot()
+            return self._send(200 if ready else 503, {"ready": ready, "state": state, "detail": detail},
+                              {"Cache-Control": "no-store"})
         if low == "/metadata/endpoints":
             return self._send(200, self.metadata())
         if low.endswith("/oauth2/v2.0/token") or low.endswith("/oauth2/token"):
@@ -342,24 +472,56 @@ class Handler(BaseHTTPRequestHandler):
                 return self.resource_group(method, sub, owner, user, rg, body)
             if len(parts) >= 6 and lparts[4] == "providers" and lparts[5] == "microsoft.containerinstance":
                 if len(parts) == 7 and lparts[6] == "containergroups":
-                    return 200, {"value": [self.cg_view(sub, r) for k, r in APP.state.cgs.items()
-                                           if k.startswith(f"{sub}/{rg.lower()}/")]}
+                    return 200, {"value": self.cg_list(sub, f"{sub}/{rg.lower()}/")}
                 if len(parts) == 8 and lparts[6] == "containergroups":
                     return self.container_group(method, sub, owner, user, rg, parts[7], body)
                 if len(parts) == 9 and lparts[6] == "containergroups" and lparts[8] == "logs":
                     return self.cg_logs(sub, rg, parts[7])
         if lparts[2] == "providers" and len(parts) == 5 and lparts[3] == "microsoft.containerinstance" \
                 and lparts[4] == "containergroups":
-            return 200, {"value": [self.cg_view(sub, r) for k, r in APP.state.cgs.items()
-                                   if k.startswith(sub + "/")]}
+            return 200, {"value": self.cg_list(sub, sub + "/")}
         return arm_error(404, "InvalidResourceType", f"No handler for '{path}'.")
 
     def subscription_body(self, sub, owner):
         return {"id": f"/subscriptions/{sub}", "subscriptionId": sub, "tenantId": auth.TENANT_ID,
                 "displayName": f"Dojo Subscription - {owner}", "state": "Enabled"}
 
+    def cg_views(self, sub, recs):
+        """ARM JSON of stored container groups. A read never fails because cloud-host is down: if Docker cannot say
+        whether a container runs, the stored record is answered with ASSUME_RUNNING, and the rest of the list does
+        not ask again (a hung host would cost a timeout per item). Never called with State.lock held.
+
+        Why Running: the record was created as Running, and a deployment nobody touched read as Running the last time
+        the provider looked (and will again once the host is back and dockerd has restarted the container, see
+        docker_api.build_create_request). The same JSON then comes back, so the provider plans "No changes" instead
+        of retrying an error; "Terminated" would be a state it never saw for a healthy deployment. The portal says
+        "Unknown" instead: it is for people, and this is for a program that cannot be told "unknown"."""
+        views, asked = [], True
+        for rec in recs:
+            running = ASSUME_RUNNING
+            if asked:
+                try:
+                    running = APP.executor.state(rec["container"]) == "Running"
+                except docker_api.DockerError as exc:
+                    log(f"cloud-host error (read answered from the stored record): {exc}")
+                    asked = False
+            views.append(APP.cg_body(sub, rec, running))
+        return views
+
     def cg_view(self, sub, rec):
-        return APP.cg_body(sub, rec, APP.executor.state(rec["container"]) == "Running")
+        return self.cg_views(sub, [rec])[0]
+
+    def cg_list(self, sub, prefix):
+        with APP.state.lock:  # a snapshot: Docker is asked only after the lock is released
+            recs = [copy.deepcopy(r) for k, r in APP.state.cgs.items() if k.startswith(prefix)]
+        return self.cg_views(sub, recs)
+
+    @staticmethod
+    def not_ready():
+        """ARM NOT_READY_STATUS while Dojo Cloud cannot take work (checked BEFORE anything is changed), else None."""
+        detail = APP.readiness.refusal()
+        return None if detail is None else arm_error(NOT_READY_STATUS, "ServiceUnavailable",
+                                                     f"{detail} Nothing was changed. {RETRY_HINT}")
 
     def body_json(self, body):
         try:
@@ -369,6 +531,11 @@ class Handler(BaseHTTPRequestHandler):
             return None
 
     def resource_group(self, method, sub, owner, user, rg, body):
+        # Every write is refused while Dojo Cloud is not ready, resource groups too: `apply` sends the resource
+        # group first, so refusing it here fails the whole run before anything is changed (an update that reached
+        # the group but not its container group would leave the two half-applied).
+        if method in ("PUT", "PATCH", "DELETE") and (refused := self.not_ready()):
+            return refused
         st, key = APP.state, App.rg_key(sub, rg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}"
         with st.lock:
@@ -411,8 +578,17 @@ class Handler(BaseHTTPRequestHandler):
             if method == "DELETE":
                 if key not in st.rgs:
                     return 204, None
-                for ck in [k for k in st.cgs if k.startswith(key + "/")]:
-                    APP.executor.remove(st.cgs.pop(ck)["container"])
+                doomed = [k for k in st.cgs if k.startswith(key + "/")]
+                for ck in doomed:  # container first, then its record: a failure leaves the two in step
+                    try:
+                        APP.executor.remove(st.cgs[ck]["container"])
+                    except docker_api.DockerError as exc:
+                        log(f"executor error: {exc}")
+                        st.log(sub, user, "Delete resource group", rid, "Failed", "executor")
+                        st.save()
+                        return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
+                            "Container groups already deleted are gone; the rest and the resource group were left in place."))
+                    del st.cgs[ck]
                 del st.rgs[key]
                 st.log(sub, user, "Delete resource group", rid, "Succeeded")
                 st.save()
@@ -420,27 +596,48 @@ class Handler(BaseHTTPRequestHandler):
         return arm_error(405, "MethodNotAllowed", method)
 
     def container_group(self, method, sub, owner, user, rg, cg, body):
+        if method in ("PUT", "PATCH", "DELETE") and (refused := self.not_ready()):
+            return refused  # reads below keep working
         if method == "DELETE":  # shared with the portal; talks to Docker outside the lock
             return (200, {}) if APP.delete_container_group(sub, rg, cg, user) else (204, None)
         if method == "PATCH":  # tags-only update
             return self.patch_container_group(sub, user, rg, cg, body)
         st, key = APP.state, App.cg_key(sub, rg, cg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
+        if method == "GET":
+            return self.get_container_group(sub, user, rg, cg, rid, key)
         with st.lock:
-            if method == "GET":
-                rec = st.cgs.get(key)
-                if rec is not None and APP.executor.state(rec["container"]) is None:
-                    # Container vanished (deleted out-of-band): that IS drift.
-                    del st.cgs[key]
-                    st.log(sub, user, "Container disappeared outside IaC", rid, "Succeeded")
-                    st.save()
-                    rec = None
-                if rec is None:
-                    return self.cg_not_found(rg, cg)
-                return 200, self.cg_view(sub, rec)
             if method == "PUT":
                 return self.put_container_group(sub, owner, user, rg, cg, rid, key, body)
         return arm_error(405, "MethodNotAllowed", method)
+
+    def get_container_group(self, sub, user, rg, cg, rid, key):
+        """One Docker call, made with State.lock released. If cloud-host cannot be asked the stored record is
+        answered (see cg_views): a host outage is not drift, and must not make the provider retry."""
+        st = APP.state
+        with st.lock:
+            rec = copy.deepcopy(st.cgs.get(key))
+        if rec is None:
+            return self.cg_not_found(rg, cg)
+        try:
+            state = APP.executor.state(rec["container"])
+        except docker_api.DockerError as exc:
+            log(f"cloud-host error (read answered from the stored record): {exc}")
+            return 200, APP.cg_body(sub, rec, ASSUME_RUNNING)
+        if state is None:
+            # Container vanished (deleted out-of-band): that IS drift. Forget it only if the record is still the
+            # one we asked about (a PUT may have replaced the container while the lock was released).
+            with st.lock:
+                if st.cgs.get(key) == rec:
+                    del st.cgs[key]
+                    st.log(sub, user, "Container disappeared outside IaC", rid, "Succeeded")
+                    st.save()
+                    return self.cg_not_found(rg, cg)
+                current = copy.deepcopy(st.cgs.get(key))
+            if current is None:
+                return self.cg_not_found(rg, cg)
+            return 200, self.cg_view(sub, current)
+        return 200, APP.cg_body(sub, rec, state == "Running")
 
     def cg_not_found(self, rg, cg):
         return arm_error(404, "ResourceNotFound", f"The Resource '{ARM_TYPE_CG}/{cg}' under "
@@ -495,13 +692,22 @@ class Handler(BaseHTTPRequestHandler):
         changed = existing is None or existing["spec"] != spec or existing["dnsLabel"] != label
         if changed:
             if existing is not None:
-                APP.executor.remove(existing["container"])
+                try:
+                    APP.executor.remove(existing["container"])
+                except docker_api.DockerError as exc:  # nothing has changed yet
+                    log(f"executor error: {exc}")
+                    st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
+                    return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
+                        "The container group's record was left as it was, and its old container may still be running."))
             try:
                 APP.executor.create(name, spec["image"], env_pairs, port, spec["cpu"], spec["mem"],
                                     {"dojo.owner": owner, "dojo.rg": rg, "dojo.name": cg})
             except docker_api.DockerError as exc:
                 log(f"executor error: {exc}")
+                if existing is not None:  # the old container is already gone: forget it too
+                    del st.cgs[key]
                 st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
+                st.save()
                 return arm_error(500, "InternalServerError", "The container could not be started.")
         created = existing is None
         st.cgs[key] = {"name": cg, "rg": rg, "location": location, "tags": tags, "body": data, "spec": spec,
@@ -601,12 +807,12 @@ def main():
     stop = stop_on_signals()
     crt, key = pki.ensure(f"{DATA_DIR}/pki", SHARED_PKI)
     APP = App()
-    for _ in range(60):  # cloud-host may still be starting
-        if APP.executor.ping() or stop.wait(1):
-            break
-    APP.reconcile()
     servers = [serve(int(ENV.get("CLOUD_HTTPS_PORT", "443")), (crt, key)),
                serve(int(ENV.get("CLOUD_HTTP_PORT", "8080")))]
+    # cloud-host may still be starting (or down for a while): listen anyway. ARM writes are refused (NOT_READY_STATUS)
+    # until these say Dojo Cloud is ready. Daemon threads that stop on the same signal as the servers.
+    for target, interval in ((APP.start_up, RECONCILE_RETRY), (APP.readiness.run, READY_INTERVAL)):
+        threading.Thread(target=target, args=(stop, interval), daemon=True).start()
     stop.wait()
     shutdown(servers, APP.state)
 

@@ -18,6 +18,13 @@
 # no listener except a unix socket shared with cloud-api, and the only thing that
 # ever talks to it is cloud-api's fixed-template executor. Students never speak
 # Docker. See PLAN.md §7.
+#
+# Start-up is deliberately NOT chained on health: each service only waits for the
+# previous one to have started (service_started), so the lab, the terminals and
+# Track A come up even if Dojo Cloud is slow or broken. cloud-api listens at once and
+# answers GET /readyz with 503 until cloud-host's Docker is up, both app images are
+# imported and its start-up reconcile is done; the facilitator's status strip shows
+# that (STATUS_CHECKS below), and cloud-api refuses writes with a 503 until then.
 
 services:
   cloud-host:
@@ -28,6 +35,10 @@ services:
     privileged: true
     volumes:
       - cloud_run:/run/cloud
+      # docker:dind keeps its images and containers in /var/lib/docker, which its image declares as an
+      # ANONYMOUS volume. `down --volumes` (./run.sh stop) leaves anonymous volumes behind, one per start,
+      # so name it: then stop removes it like every other volume.
+      - cloud_docker:/var/lib/docker
     networks:
       - cloud_net
     healthcheck:
@@ -45,9 +56,11 @@ services:
       context: ../workshops/tofu-basics/compose/cloud-api
     image: gitopsdojo/cloud-api:local
     container_name: workshop_cloud_api
+    # Started, not healthy: cloud-api listens at once and reports its own readiness
+    # (/readyz), so a slow cloud-host must not hold anything else back.
     depends_on:
       cloud-host:
-        condition: service_healthy
+        condition: service_started
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -89,6 +102,9 @@ services:
   allocator:
     environment:
       - CLOUD_ENABLED=1
+      # Extra facilitator status-strip entry (Label=URL): green once cloud-api's /readyz
+      # answers 200 (cloud-host up, images loaded, cloud-api ready for work).
+      - STATUS_CHECKS=Dojo Cloud=http://cloud-api:8080/readyz
 
   web-terminal:
     build:
@@ -98,9 +114,11 @@ services:
     # build as ":base" too -- clobbering the shared base tag every time
     # this workshop runs (see engine/run.sh).
     image: gitopsdojo/web-terminal:tofu-basics
+    # Started, not healthy: the wrapper entrypoint never waits for Dojo Cloud, so
+    # Track A is usable at once (a shell opened before the cloud is ready needs a new tab).
     depends_on:
       cloud-api:
-        condition: service_healthy
+        condition: service_started
     environment:
       # Handed to students' shells by the credential broker (TF_VAR_portal_base_url).
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
@@ -112,6 +130,7 @@ services:
 
 volumes:
   cloud_run:
+  cloud_docker:
   cloud_pki:
   cloud_secrets:
   cloud_data:

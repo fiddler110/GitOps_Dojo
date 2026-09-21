@@ -68,6 +68,9 @@ class FakeExecutor:
     def ping(self):
         return True
 
+    def image_present(self, image):
+        return True
+
 
 class Headers(dict):
     def get(self, k, default=None):
@@ -95,6 +98,8 @@ class Base(unittest.TestCase):
         self.env = {"GATEWAY_TOKEN": TOKEN, "PUBLIC_BASE_URL": "https://dojo.example"}
         self.portal = portal_api.Portal(self.app, self.env, self.tmp.name)
         self.app.portal = self.portal
+        self.app.reconciled.set()  # writes are refused until Dojo Cloud is ready (test_readiness.py)
+        self.app.readiness.refresh()
         self.seed(A, "rg-a", "ci-a1", "site-a1", 20001)
         self.seed(A, "rg-a", "ci-a2", "site-a2", 20002, running=False)
         self.seed(B, "rg-b", "ci-b1", "site-b1", 20003)
@@ -197,6 +202,19 @@ class Reads(Base):
         self.fake.list_running = lambda: (_ for _ in ()).throw(docker_api.DockerError("down"))
         _, mine = self.jcall("GET", "/cloud/api/overview")
         self.assertEqual({c["state"] for c in mine["containerGroups"]}, {"Unknown"})
+
+    def test_docker_down_keeps_last_answer_briefly_then_unknown(self):
+        """A blip keeps "Running"; an outage that lasts longer than STATUS_STALE_MAX must not."""
+        _, mine = self.jcall("GET", "/cloud/api/overview")
+        self.assertIn("Running", {c["state"] for c in mine["containerGroups"]})
+        self.fake.list_running = lambda: (_ for _ in ()).throw(docker_api.DockerError("down"))
+        self.portal._invalidate()  # the ~2 s cache has expired; Docker is now unreachable
+        _, blip = self.jcall("GET", "/cloud/api/overview")
+        self.assertIn("Running", {c["state"] for c in blip["containerGroups"]})
+        self.portal._run_ok -= portal_api.STATUS_STALE_MAX + 1  # ...and it has been down for a while
+        self.portal._invalidate()
+        _, outage = self.jcall("GET", "/cloud/api/overview")
+        self.assertEqual({c["state"] for c in outage["containerGroups"]}, {"Unknown"})
 
     def test_no_docker_call_under_state_lock(self):
         self.jcall("GET", "/cloud/api/overview?scope=class")

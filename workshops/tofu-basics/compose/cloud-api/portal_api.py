@@ -35,6 +35,7 @@ STATIC = {
     "favicon.svg": ("favicon.svg", "image/svg+xml"),
 }
 STATUS_TTL = 2.0       # seconds the "which containers are running" list is reused
+STATUS_STALE_MAX = 10.0  # seconds after the last good list that a stale one may still be shown when cloud-host stops answering
 DEFAULT_TAIL, MAX_TAIL = 200, 500
 DEFAULT_EVENTS, MAX_EVENTS = 200, 500
 MAX_LOG_CHARS = 64_000
@@ -69,7 +70,7 @@ class Portal:
         self.env = os.environ if env is None else env
         self.dir = portal_dir or self.env.get("PORTAL_DIR", PORTAL_DIR)
         self._run_lock = threading.Lock()  # guards the status cache ONLY (not State.lock)
-        self._run_set, self._run_at = None, None
+        self._run_set, self._run_at, self._run_ok = None, None, None  # _run_ok: when the list last succeeded
 
     # ---- entry point ---------------------------------------------------------
     def dispatch(self, method, path, query, headers, body):
@@ -215,16 +216,20 @@ class Portal:
 
     # ---- container status: one list call per ~2 s for everybody ------------------
     def _running(self):
-        """Set of running container names, or None if cloud-host cannot be asked and
-        nothing is cached. Never called with State.lock held."""
+        """Set of running container names, or None if cloud-host cannot be asked and nothing
+        recent (STATUS_STALE_MAX) is cached. Never called with State.lock held."""
         with self._run_lock:
             now = time.monotonic()
             if self._run_at is not None and now - self._run_at < STATUS_TTL:
                 return self._run_set
             try:
                 self._run_set = set(self.app.executor.list_running())
+                self._run_ok = now
             except docker_api.DockerError:
-                pass  # keep serving the stale set (or None) for one more interval
+                # A blip keeps the last answer for a moment; a real outage must not keep saying "Running"
+                # for a container nobody can see (the states then read "Unknown").
+                if self._run_ok is None or now - self._run_ok > STATUS_STALE_MAX:
+                    self._run_set = None
             self._run_at = now
             return self._run_set
 
@@ -298,6 +303,9 @@ class Portal:
             return _err(405, "MethodNotAllowed", method)
         if not self._is_fac(user) and not self.write_actions():
             return _err(403, "PortalWriteActionsDisabled", "The facilitator has switched off portal write actions.")
+        refused = self.app.readiness.refusal()  # before anything is changed; reads above keep working
+        if refused:
+            return _err(503, "ServiceUnavailable", refused)
         if method == "DELETE":
             if not self.app.delete_container_group(sub, rg, name, user, via="portal"):
                 return self._not_found(rg, name)

@@ -6,12 +6,22 @@ set -eu
 
 mkdir -p /run/cloud
 
+# A restarted container keeps its filesystem, so the last run's leftovers are still here: dockerd's pid file, its
+# runtime dir with the containerd socket, and the shared docker.sock. Start from a clean slate so dockerd never
+# waits on (or trusts) a containerd from a run that is gone.
+rm -rf /var/run/docker /var/run/docker.pid /run/cloud/docker.sock
+
 # Off-the-shelf bootstrap (cgroups, iptables mode, dind wrapper); we patched
 # the Dockerfile so it listens on the unix socket only.
 #  --icc=false        containers cannot talk to each other
 #  --iptables etc.    left default: published ports need NAT
 dockerd-entrypoint.sh --icc=false --log-level=warn &
 dockerd_pid=$!
+
+# This script is PID 1, which ignores SIGTERM unless it has a handler, so `stop` used to end in a hard kill (dockerd
+# and containerd never got to shut down). Pass the signal on and wait for dockerd to finish.
+stopping=0
+trap 'stopping=1; kill -TERM "$dockerd_pid" 2>/dev/null || true' TERM INT
 
 # Wait for the daemon.
 i=0
@@ -42,4 +52,12 @@ import_hello 1.0
 import_hello 2.0
 
 echo "cloud-host: ready"
-wait "$dockerd_pid"
+# A trapped signal makes `wait` return early: keep waiting until dockerd is really gone, then pass its status on.
+status=0
+wait "$dockerd_pid" || status=$?
+while kill -0 "$dockerd_pid" 2>/dev/null; do
+  wait "$dockerd_pid" || status=$?
+done
+# Asked to stop and dockerd did: that is a clean exit, not the 143 of a killed process.
+[ "$stopping" = 1 ] && exit 0
+exit "$status"

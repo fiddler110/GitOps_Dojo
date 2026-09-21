@@ -42,4 +42,10 @@ HTML
 # The portal's Logs tab shows this container's stdout/stderr, so say something:
 # a startup line, then one line per request (httpd -v logs to stderr).
 echo "dojo/hello:${version} starting for owner '${OWNER:-unknown}' - listening on :80"
-exec httpd -f -v -p 80 -h /www
+# This script is PID 1 of the container, and PID 1 ignores SIGTERM unless it has a handler. Without one, stopping the
+# cloud host waits out Docker's 10 s stop timeout for every running site, then kills it. So keep httpd as a child
+# and exit when told to.
+httpd -f -v -p 80 -h /www &
+httpd_pid=$!
+trap 'kill "$httpd_pid" 2>/dev/null; exit 0' TERM INT
+wait "$httpd_pid"

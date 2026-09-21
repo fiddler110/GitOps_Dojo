@@ -52,7 +52,10 @@ def build_create_request(image, env_pairs, host_port, cpu, memory_gb, labels):
             "PidsLimit": 64,
             "CapDrop": ["ALL"],
             "SecurityOpt": ["no-new-privileges"],
-            "RestartPolicy": {"Name": "no"},
+            # dockerd (cloud-host) brings student containers back when cloud-host itself restarts. Otherwise
+            # they stay Exited, the site 502s, and `plan` says "No changes" (T8.9). unless-stopped, not
+            # always: nothing here ever stops a container except remove(), which deletes it.
+            "RestartPolicy": {"Name": "unless-stopped"},
             "Privileged": False,
             "ReadonlyRootfs": False,  # the hello entrypoint writes /www
         },
@@ -81,6 +84,17 @@ class Executor:
             return self._call("GET", "/_ping")[0] == 200
         except DockerError:
             return False
+
+    def image_present(self, image):
+        """True if cloud-host has this image. Only allow-listed images can be asked about, so
+        the request path stays a fixed template like everything else here. Raises DockerError
+        if cloud-host cannot be asked (an unknown answer is not "missing")."""
+        if image not in policy.ALLOWED_IMAGES:
+            raise DockerError(f"image {image!r} is not allowed")
+        status, _ = self._call("GET", f"/images/{quote(image)}/json")
+        if status not in (200, 404):
+            raise DockerError(f"image inspect failed ({status})")
+        return status == 200
 
     def create(self, name, image, env_pairs, host_port, cpu, memory_gb, labels):
         spec = build_create_request(image, env_pairs, host_port, cpu, memory_gb, labels)

@@ -105,7 +105,10 @@ def serve():
                 name = pwd.getpwuid(uid).pw_name
             except KeyError:
                 name = ""
-            payload = credentials_for(name, key, os.environ) if name in users else {}
+            # Nothing until the wrapper has written the CA bundle: a shell holding ARM_* credentials
+            # but no way to trust the cloud is worse than a shell without them (Lab 4: open a new tab).
+            ready = name in users and os.path.exists(CA_BUNDLE)
+            payload = credentials_for(name, key, os.environ) if ready else {}
             conn.sendall(json.dumps(payload).encode())
         except OSError:
             pass

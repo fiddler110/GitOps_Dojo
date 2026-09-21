@@ -21,6 +21,11 @@ class TemplateTests(unittest.TestCase):
                           "UsernsMode", "CapAdd", "Links", "ExtraHosts"):
             self.assertNotIn(forbidden, hc)
 
+    def test_containers_come_back_when_cloud_host_restarts(self):
+        hc = self.spec()["HostConfig"]
+        self.assertEqual(hc["RestartPolicy"], {"Name": "unless-stopped"})  # not "always", not "no"
+        self.assertEqual(set(hc["RestartPolicy"]), {"Name"})  # no MaximumRetryCount and the like
+
     def test_only_expected_top_level_keys(self):
         self.assertEqual(set(self.spec()), {"Image", "Env", "Labels", "ExposedPorts", "HostConfig"})
 
