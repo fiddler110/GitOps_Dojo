@@ -84,23 +84,32 @@ Track A (~35 min) and Track B (~60 min) plus slides.
 
 ## 2. Status dashboard
 
-Update this table whenever a phase changes state.
+Update this table whenever a phase changes state. "Done" means the phase's own tasks are ticked; the last column
+lists what is **still open inside a done phase** so a green row is never read as "fully finished".
 
-| Phase | Title | Status | Milestone |
+| Phase | Title | Status | Still open in this phase (task / section) |
 |---|---|---|---|
-| P0 | Prep & repo hygiene | **done** | |
-| P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | **M1: Track A shippable ✅** |
-| P2 | Provider-strategy spike (gate D1) | **done** | **M2: provider decision made ✅ (azurerm)** |
-| P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | **M3: one student can deploy end-to-end ✅** |
-| P4 | Portal (Azure-inspired console) | **done** (`49c168e`; through-the-gateway check done in P5) | |
-| P5 | Gateway / allocator integration | **done** (`a2eb28f`; facilitator progress board `1b22631`) | |
-| P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`; T6.4 stretch labs optional; browser pass still owed) | |
-| P7 | Slides | not started | |
-| P8 | Docs, registration, capacity, delivery | not started | |
-| P9 | Validation (bots, load, dry-run) | not started | **M5: release-ready** |
-| P10 | Optional stretch | not started | |
+| P0 | Prep & repo hygiene | **done** | none |
+| P1 | Track A — offline sandbox + terminal image | **done** (`ef3e36a`) | HCL highlighting not checked visually in a browser (T1.3, T9.9); Labs 0–3 not re-run on the current image (T9.9); arm64 image never built (§15a-E) |
+| P2 | Provider-strategy spike (gate D1) | **done** | none |
+| P3 | Control plane ("cloud-api") + cloud host | **done** (`6301cc8`) | fuzz test of raw ARM bodies against the executor (T9.2/T9.6); deploy holds the global lock ≈3.3 s while Docker creates (T9.7); isolation checks under real docker (T9.8); the P3/P5/P6 verification runs are not committed scripts (T9.6) |
+| P4 | Portal (Azure-inspired console) | **done** (`49c168e`) | no real screen-reader / Firefox / Safari pass; no real-browser pass over portal buttons (T9.9) |
+| P5 | Gateway / allocator integration | **done** (`a2eb28f`; progress board `1b22631`; fixes `2e8e818`, `25a7176`) | attention-tile text `code: message` only unit-tested (T9.9); deferred findings in §15a-H (`publicBaseUrl` ignores the dev port, presentation image rebuilds every run, leftover network survives stop) |
+| P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
+| P7 | Slides | not started | everything: `presentation.md`, `index.md`/`labs.md`/`cheat-sheet.md` hubs (only a placeholder hub exists), speaker notes (T7.1–T7.3) |
+| P8 | Docs, registration, capacity, delivery | not started | workshop `README.md` (a stub exists), `capacity-calc.sh`, facilitator guide, `engine/README.md` note (T8.1–T8.3, T8.5); T8.4 dropped |
+| P9 | Validation (bots, load, dry-run) | not started | all of T9.1–T9.9 |
+| P10 | Optional stretch | not started | T10.1–T10.4 |
 
-Milestone **M4** = 30-student load test passes (inside P9).
+### Milestones
+
+| | Milestone | Status | Caveats — what "reached" does not cover |
+|---|---|---|---|
+| **M1** | Track A shippable | ✅ reached (`ef3e36a`) | the slide deck is still a placeholder (P7); HCL highlighting and Labs 0–3 not re-checked in a browser / on the current image; amd64 only |
+| **M2** | Provider decision made (`azurerm`) | ✅ reached | none |
+| **M3** | One student deploys end-to-end | ✅ reached (`6301cc8`) | proven for one student on podman; not concurrent, not docker proper (T9.3, T9.7, T9.8) |
+| **M4** | 30-student load test passes | ❌ **not reached** (T9.3) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
+| **M5** | Release-ready | ❌ **not reached** | needs P7 slides, P8 docs/capacity/facilitator guide, P9 validation (incl. a human dry-run, T9.4, and the regression run of the other workshops, T9.5) |
 
 ---
 
