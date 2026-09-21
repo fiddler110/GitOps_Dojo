@@ -42,7 +42,8 @@ fi
 : "${FORGEJO_ORG:=training}"
 : "${FORGEJO_REPO:=sample-training-repo}"
 
-REPO_DIR="$HOME/lab/sample-training-repo"
+# git clones into a folder named after the repo, so this must follow FORGEJO_REPO (not a fixed name).
+REPO_DIR="$HOME/lab/${FORGEJO_REPO}"
 STATE_FILE="$HOME/.dojo-bot-state"
 GIT_SERVER="git-server:3000"
 API="http://$GIT_SERVER/api/v1"
