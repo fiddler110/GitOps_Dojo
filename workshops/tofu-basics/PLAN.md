@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); P7 slides written and render-tested (`d750be5`); next: P8 docs/capacity/facilitator guide or the T9.9 browser pass (ask the user first)** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); P7 slides written and render-tested (`d750be5`); P8 done, live-tested and committed (README, facilitator guide, capacity flag, Forgejo-password panel, facilitator status strip, start-up decoupling); T8.10 (cloud-host restart) fixed; next: P9 or the T9.9 browser pass (ask the user first)** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-21 (P0–P7 done and audited; D2–D6 all decided) |
+| Last updated | 2026-09-21 (P0–P8 done and committed (`8ce91e2`, `72b85fc`, `e0e6bff`); D2–D6 all decided) |
 
 ---
 
@@ -28,7 +28,7 @@
    unconfirmed decisions, behaviours that surprised us, and problems found in
    *other* workshops.
 4. Find the first `[ ]` or `[~]` task in §12 (skip tasks marked *optional*, e.g. T6.4, unless asked; as of
-   2026-09-21 the first real task is **T8.1**, after asking the user at the phase gate). Run that task's **Verify** line
+   2026-09-21 the first open item is **P9**, after asking at the phase gate). Run that task's **Verify** line
    for the *previous* task first, to make sure the foundation still holds.
 5. Work the task. When finished: tick the box, add the commit SHA, and append a
    dated entry to §16 (Session Log). If you learned something that changes the
@@ -99,7 +99,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; progress board `1b22631`; fixes `2e8e818`, `25a7176`) | attention-tile text `code: message` only unit-tested (T9.9); deferred findings in §15a-H (`publicBaseUrl` ignores the dev port, presentation image rebuilds every run, leftover network survives stop) |
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
 | P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic (the shared-theme code colours were fixed in `82b9e36`) |
-| P8 | Docs, registration, capacity, delivery | not started | workshop `README.md` (a stub exists), `capacity-calc.sh`, facilitator guide, `engine/README.md` note (T8.1–T8.3, T8.5); T8.4 dropped |
+| P8 | Docs, registration, capacity, delivery | **done** (T8.1–T8.3, T8.5–T8.10 written and live-tested 2026-09-21) | the guide and README are untested against a real class (T9.4); T8.4 dropped |
 | P9 | Validation (bots, load, dry-run) | not started | all of T9.1–T9.9 |
 | P10 | Optional stretch | not started | T10.1–T10.4 |
 
@@ -111,7 +111,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | **M2** | Provider decision made (`azurerm`) | ✅ reached | none |
 | **M3** | One student deploys end-to-end | ✅ reached (`6301cc8`) | proven for one student on podman; not concurrent, not docker proper (T9.3, T9.7, T9.8) |
 | **M4** | 30-student load test passes | ❌ **not reached** (T9.3) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
-| **M5** | Release-ready | ❌ **not reached** | needs P7 slides, P8 docs/capacity/facilitator guide, P9 validation (incl. a human dry-run, T9.4, and the regression run of the other workshops, T9.5) |
+| **M5** | Release-ready | ❌ **not reached** | needs the T8.5 `engine/README.md` note, P9 validation (incl. a human dry-run, T9.4, and the regression run of the other workshops, T9.5) |
 
 ---
 
@@ -455,6 +455,77 @@ needs attention first / most recently active. A tile whose stage changed since t
 highlighted (skipped under `prefers-reduced-motion`). Empty/loading/error states like the other views; polling
 pauses when the tab is hidden, like the others.
 
+### 5.7 Startup decoupling, facilitator status strip, Forgejo-password panel (contract, 2026-09-21)
+
+*Decided with the user on 2026-09-21. Builders work from this section; change it if you change the code.*
+
+**A. Landing page shows the student's Forgejo password** (`engine/allocator/server.py`, `render_confirmation`).
+Always on for every workshop (every workshop pushes to Forgejo; no flag). Shows only secrets the student owns: the
+value of `STUDENT_PASSWORD`, labelled **Forgejo password**, visible (no click-to-reveal), in a `<code>` element,
+`html.escape`d. Short hint: use it when git asks for a password (`git push`) and for the terminal account. **Never**
+show `TTYD_*`, `FORGEJO_ADMIN_*`, `CONTROL_TOKEN`, `GATEWAY_TOKEN`, or the facilitator's or bots' passwords. Every
+response that carries it (both `render_confirmation` call sites) sends `Cache-Control: no-store` and `Pragma: no-cache`
+(`send_html(headers=...)` iterates `for k, v in (headers or {})`, so pass a list of `(name, value)` tuples). The
+`student01` badge stays. Labs call the value "your **Forgejo password**, shown on your landing page".
+
+**B. Facilitator-only service status** (`engine/allocator/server.py`; students see no status at all).
+The allocator's *request path stays single-threaded* (atomic slot claim, see its docstring). Probing runs in **one
+background daemon thread** that only writes a snapshot; request handlers only read it (no I/O in a request).
+- Probes (every `STATUS_INTERVAL_SECONDS`, default 5, each with a 2 s timeout, run sequentially):
+  **Forgejo** `http://git-server:3000/api/healthz`; **Terminals** `control_request("GET", "/status")` (web-terminal);
+  **Slides** through the gateway, `http://gateway:80/slides/` (the presentation container is on `web_lab`, which the
+  allocator is not on; the builder must find a URL that really returns 200 when slides work, and say what it is);
+  plus workshop extras from env `STATUS_CHECKS` = `Label=URL` items separated by `;` (split each item at its first
+  `=`). An extra is OK when it answers HTTP 200. No auth header is sent to any probe.
+- State per service, colour decided by the allocator (not by the service): **green** = last probe OK. Not OK:
+  **yellow** if it has never been OK since allocator start and less than `STATUS_STARTUP_GRACE_SECONDS` (default 300)
+  have passed, or if it was OK within the last `STATUS_LOSS_GRACE_SECONDS` (default 30); otherwise **red**. Each
+  service also has a short `detail` string (the probe error, or `detail` from a JSON body if present); `null` when green.
+- `GET /admin/api/status` (facilitator only, like `/admin/api/sessions`; Caddy's `/admin*` basic_auth already gates it and
+  the allocator's `gateway_authorized()` check runs first) returns
+  `{"generatedAt": "<ISO-8601 UTC>", "services": [{"name": "...", "state": "green|yellow|red", "detail": null|"..."}]}`,
+  served from the snapshot. Before the first probe completes, every service is `yellow` / `"waiting for first check"`.
+- `/admin` page: a compact strip of services, each with a coloured dot **and** a word (Ready / Starting / Down) so colour
+  is never the only signal, name, and `detail` as a tooltip; polled with the page's existing 5 s refresh. Build DOM with
+  `textContent` only (names and details are data), never `innerHTML`.
+- Test overrides: the three `STATUS_*_SECONDS` variables exist so a test can shorten the timings.
+
+**C. cloud-api** (`compose/cloud-api/`).
+- `GET /readyz` on the plain-HTTP port, unauthenticated (like `/healthz`), returns HTTP **200** only when ready, else
+  **503**, with JSON `{"ready": bool, "state": "ready|starting|unavailable", "detail": "<fixed string>"}`. Ready =
+  cloud-host's Docker answers **and** `dojo/hello:1.0` and `:2.0` are present **and** the startup reconcile has finished.
+  `starting` = never ready since cloud-api started; `unavailable` = was ready, is not now. Computed by a **background
+  thread every ~3 s**; the handler reads the cache (no Docker call per request, never under `State.lock`).
+  `/healthz` keeps returning 200 whenever the process is up (it is the container healthcheck).
+- `main()` currently blocks up to 60 s pinging Docker *before* it starts listening. Change it: create PKI and the app,
+  **start both servers immediately**, and run "wait for the host, then `reconcile()`" in the background, retrying until
+  it has worked once (reconcile is skipped, not fatal, while the host is down).
+- While the host is not ready, ARM writes (PUT/PATCH/DELETE of container groups AND resource groups: `apply` sends the group first, so refusing it fails the whole run before anything changes) and the portal's delete/tag actions
+  answer an ARM-shaped **503 `ServiceUnavailable`** ("Dojo Cloud is not ready" or "... is unavailable") *before* mutating
+  any state, so nothing is half-recorded. Reads keep working. Also fix the two paths that let a `DockerError` escape
+  (`executor.remove(existing[...])` in `put_container_group`; `delete_container_group` pops the record before it removes).
+
+**D. Overlay and terminal** (`compose/docker-compose.override.yml`, `compose/terminal/entrypoint-wrapper.sh`).
+- `web-terminal` `depends_on: cloud-api: condition: service_started` (was `service_healthy`);
+  `cloud-api` `depends_on: cloud-host: condition: service_started` (was `service_healthy`).
+- `allocator` gets `STATUS_CHECKS=Dojo Cloud=http://cloud-api:8080/readyz` (the overlay may set it; no base compose edit).
+- The wrapper's CA-bundle step becomes a **background loop with no timeout** (wait for the CA and signing key, write
+  `/etc/dojo/ca-bundle.pem` atomically, stop). It prints one "Dojo Cloud not available yet, Track A works" line after 60 s
+  and keeps waiting. The header comment must stop claiming more than the code does. The broker already tolerates a late key.
+- Because a shell captures `ARM_*` when it starts, a shell opened before the cloud was ready needs a **new terminal tab**
+  (Lab 4 already says so; the facilitator guide says to tell the room when the Dojo Cloud dot goes green).
+
+*As built and live-tested (2026-09-21), deviations from the contract above:* the Slides probe goes through the gateway with the
+scheme, port and Host of `PUBLIC_BASE_URL` (plus a non-empty-body check) because `gateway:80` reads a false green or a permanent red; the Terminals
+probe is `GET /status` with the control token through the same probe helper; `/readyz` detail says "not ready" (not "still starting") so a red chip
+never reads "starting"; resource-group `PUT` and reads of resource groups still work while the host is down, but **container-group reads answer 503,
+not 200** (T8.9); credentials do not depend on `cloud-host` (cloud-api creates the CA and key on its own), so the "new tab" case is a `cloud-api` that
+started after the shell; the broker returns nothing until `/etc/dojo/ca-bundle.pem` exists; the allocator now reads the whole 200 body in a probe
+(closing with unread data made `cloud-api` log a `ConnectionResetError` traceback about every 5 s).
+*Later the same day (T8.9):* container-group reads no longer 503 while the host is down (they answer from the stored record), ARM writes that cannot proceed answer
+`NOT_READY_STATUS` (409) with an actionable message instead of 503 (the provider retried 503 for minutes), student containers use `unless-stopped`, and the portal
+shows `Unknown` after 10 s without a Docker answer.
+
 ---
 
 ## 6. Making it feel like Azure
@@ -517,7 +588,7 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 | Control | Detail |
 |---|---|
 | Network isolation | `cloud-host` only on `cloud_net` (`internal: true`); not on `workshop_lab`; no ports published; no internet |
-| No Docker API for students | (T2) students only speak ARM to cloud-api; executor uses a **fixed template** (image from allow-list, memory/CPU/pids caps, no privileged/mounts/host net/caps, read-only rootfs where possible, restart policy none) |
+| No Docker API for students | (T2) students only speak ARM to cloud-api; executor uses a **fixed template** (image from allow-list, memory/CPU/pids caps, no privileged/mounts/host net/caps, read-only rootfs where possible, restart policy `unless-stopped` so containers survive a cloud-host restart) |
 | Identity | D3(a): root-owned **broker** in terminal container; Unix socket; `SO_PEERCRED` → username → HMAC-signed short-lived token / client secret. Signing key is root-0400 in `cloud_secrets`, never in student-visible env |
 | AuthZ | path `subscriptionId` must equal token subject's subscription; facilitator token can act on any |
 | TLS | private CA generated by cloud-api at start → `cloud_pki` volume (ro in terminal); terminal trusts it via `SSL_CERT_FILE`/trust store |
@@ -651,8 +722,9 @@ tofurc), `compose/cloud-host/*` (Dockerfile, entrypoint, `images/hello/`),
 | `engine/gateway/Caddyfile` | additive `@cloud path /cloud /cloud/*` block (`forward_auth` `/auth-check?tool=cloud`, `copy_headers X-Cloud-User`, then `header_up` identity + gateway token) (D4, done `a2eb28f`) | only base edit that changes behaviour; the allocator answers 404 unless `CLOUD_ENABLED=1`, so other workshops never reach the upstream |
 | `engine/allocator/server.py` | `CLOUD_ENABLED` flag, `tool=cloud` in `/auth-check` (returns `X-Cloud-User`), landing card, and the facilitator `/admin` **Dojo Cloud tab** (D4, done `a2eb28f`) | additive, off by default |
 | `engine/docker-compose.yml` | pass `CLOUD_ENABLED` env to allocator (done `a2eb28f`; the overlay sets it to 1) | additive |
-| `engine/scripts/capacity-calc.sh` | account for cloud-host memory (**not done yet**, T8.2) | docs/tooling |
-| `engine/README.md` | document the `CLOUD_ENABLED` route (**not done yet**, T8.5; it does not mention it today) | docs only |
+| `engine/scripts/capacity-calc.sh` | **not edited.** It already has `--other-services-mb`; `FACILITATOR.md` tells the facilitator to pass `6400` (3072 engine + 3072 cloud-host + 256 cloud-api) so the engine stays workshop-agnostic (T8.2) | none |
+| `engine/README.md` | `/cloud` route row, "Workshop hooks" (`CLOUD_ENABLED`, `STATUS_CHECKS`), Forgejo password on the landing page, status strip (done, T8.5) | docs only |
+| `engine/allocator/server.py` | **second edit (2026-09-21, user-approved):** the student landing page shows the Forgejo password (`no-store`); a background probe thread and `/admin/api/status` feed a facilitator-only status strip on `/admin` (§5.7 A/B); `STATUS_CHECKS` for workshop extras | always on for every workshop (the password panel and the strip); request path unchanged and still single-threaded |
 | `infra/corp-dev/gdojo-cc/workshops/tofu-basics.tfvars` | only **if** `infra/` exists elsewhere | not in this checkout |
 
 Nothing else in `engine/` changes. **Do not mix with the ~24 unrelated
@@ -850,15 +922,56 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P8 — Docs, registration, capacity, delivery
 
-- [ ] **T8.1** Workshop `README.md`: what it is, architecture, security notes,
+- [x] **T8.1** *(2026-09-21, committed `e0e6bff`; unit tests 90 + 5 re-run, links and code claims cross-checked, nothing run live)* Workshop `README.md`: what it is, architecture, security notes,
       how to reset, how to add a policy/image, troubleshooting.
-- [ ] **T8.2** `capacity-calc.sh` includes cloud-host; record sizing in §14.
-- [ ] **T8.3** Facilitator guide (run-of-show, timings, common failures, how to
-      Purge, fallback to Track A).
+- [x] **T8.2** *(2026-09-21, committed `e0e6bff`; no engine edit)* `capacity-calc.sh` sizing: the existing `--other-services-mb 6400` flag covers `cloud-host` + `cloud-api`
+      (checked: 30 students on 32 GB → total 30346 MB, up from 27018 MB); documented in `FACILITATOR.md` and §14.
+- [x] **T8.3** *(2026-09-21, committed `e0e6bff`)* Facilitator guide `FACILITATOR.md` (run-of-show, timings, pre-flight, progress-board stages, common failures, Purge,
+      restarting parts, fallback to Track A). Deliberately not under `content/`, which is seeded to students.
 - [-] **T8.4** *(not applicable: `infra/` is absent and the docs no longer reference Azure-VM delivery, `45afcb7`)* If `infra/` exists: add `tofu-basics.tfvars`, bump VM size if
       needed. Revisit only if that delivery path comes back.
-- [ ] **T8.5** Update `engine/README.md` only if behaviour described there
-      changed (CLOUD_ENABLED route).
+- [x] **T8.5** *(2026-09-21, committed `8ce91e2`; the user approved engine edits on 2026-09-21)* `engine/README.md`: `/cloud` route row, a "Workshop hooks"
+      section (`CLOUD_ENABLED`, `STATUS_CHECKS`), the landing page's Forgejo password, and the facilitator service-status strip.
+
+- [x] **T8.6** *(2026-09-21, committed `8ce91e2`, `72b85fc`, `e0e6bff`; live-verified on tofu-basics, git-fundamentals and cert-autorenewal)* Landing page shows the student's **Forgejo password** (always on, `no-store`,
+      escaped); labs 3, 10 and git-fundamentals lab1 refer to it. Live: the panel value matched `STUDENT_PASSWORD` and a real `git push` with it
+      worked (a wrong one was refused); no other secret on the page; non-facilitator `/admin/api/status` refused. **Not run live:** escaping
+      with a special-character password (offline check with `<b>&"x` only) and `no-store` on the `POST /assign` call site (read from code).
+- [x] **T8.7** *(2026-09-21, committed `8ce91e2`; live-verified)* Facilitator-only service status strip on `/admin` (background probe thread, `/admin/api/status`,
+      `STATUS_CHECKS` for workshop extras). Live: all four chips green on a warm start (Forgejo +5 s, Slides +30 s, Dojo Cloud +36 s,
+      Terminals +66 s); Slides chip yellow then red 30 s after the presentation container was stopped, green again 3 s after restart; Dojo Cloud
+      yellow then red 31 s after `cloud-host` stopped; red after the 304 s start-up grace when the host could not start; seen in Edge (green,
+      yellow, red, dark mode). The Slides probe goes through the gateway with the public Host/scheme (`gateway:80` reads a false green). **Not
+      checked:** the Terminals chip turning red, the chip tooltip, light theme, 420 px width (chips wrap and one looked clipped).
+- [x] **T8.8** *(2026-09-21, committed `72b85fc`; live-verified, with two open issues: T8.9)* Start-up decoupling: terminal and cloud-api `depends_on: service_started`, wrapper CA loop,
+      `cloud-api` `/readyz`, background host wait + reconcile retry, 503 guard while the host is down. Live: with a host that OOMs at start
+      (`CLOUD_HOST_MEM_LIMIT=16m`) everything else came up healthy, Track A ran offline, `/readyz` said 503, and `podman update --memory 3g` +
+      `restart` on the host brought Dojo Cloud green without touching the rest. With `cloud-api` itself crash-looping (`CLOUD_API_MEM_LIMIT=8m`) the
+      terminal still started, the 60 s notice printed, a shell opened meanwhile had no `ARM_` vars, and after recovery only a NEW shell had them
+      and `curl` worked without `-k` (proves the wrapper loop and the broker withholding credentials). Container-group writes while down: 503 with
+      nothing changed (ARM and portal). Not caught: the sub-second window where the CA and key exist but the bundle does not.
+- [x] **T8.9** *(2026-09-21, committed `72b85fc`; live-verified)* Host outage and restart, decided with the user ("I don't love the idea of the lab freezing for minutes"; `unless-stopped`
+      approved): (1) student containers use restart policy `unless-stopped`; (2) container-group reads answer 200 from the stored record when Docker is
+      unreachable (`ASSUME_RUNNING`, byte-identical JSON so `plan` says `No changes`); (3) ARM writes refused or failed because the host is down answer
+      `NOT_READY_STATUS = 409` (code string `ServiceUnavailable`) with an actionable message (the portal keeps 503); (4) `cloud-host`'s
+      `/var/lib/docker` is the named volume `cloud_docker`, so `./run.sh stop` removes it; the 16 orphaned anonymous dind volumes left by earlier runs
+      (~240 MB, all dangling and dind-shaped) were deleted by name. Live: host down: `plan` 6 s `No changes`, unchanged `apply` 3 s, replace/tag-edit/create/`destroy`
+      each fail in 3 s or less on ONE request with the message intact (the provider does not retry 409; no other code needed testing); host restart: student
+      container back Running by itself, site 200 again about 40-50 s after the restart, `plan` `No changes`, no student action; normal apply 38 s; stop
+      (normal and after `podman kill workshop_cloud_host`) leaves no containers, volumes, networks or stray processes (`engine_workshop_lab` no longer survives
+      stop). 126 + 5 unit tests at that point. **Then fixed here:** the portal kept saying `Running` for a container nobody could see (its status cache served the
+      last list forever on a Docker error); it now keeps a stale list for `STATUS_STALE_MAX` = 10 s and then shows `Unknown` (+1 unit test, 127 total;
+      the new test was not run against the old code, and the fix was not re-run live).
+- [x] **T8.10** *(2026-09-21, committed `72b85fc`; live-verified)* `cloud-host` often failed its FIRST start after a hard stop while a student container was running
+      (`failed to start containerd: timeout waiting for containerd to start`, exit 1, retried ~8 s later by `unless-stopped`): recovery took 40-50 s. Reproduced on a lone
+      cloud-host rig with a student container inside (old image: 2 of 6 restarts failed; stop took 13.5 s and ended in SIGKILL, exit 137). Two changes in
+      `compose/cloud-host/entrypoint.sh`: (1) remove the last run's leftovers before starting dockerd (`/var/run/docker`, `/var/run/docker.pid`, `/run/cloud/docker.sock`; a restarted
+      container keeps its filesystem); (2) trap TERM/INT, forward it to dockerd, wait for it, exit 0 when asked to stop (PID 1 ignores TERM without a handler). And in
+      `hello/entrypoint.sh` httpd is now a child that the script stops on TERM (as PID 1 of the site container it ignored TERM, so dockerd's shutdown waited out Docker's 10 s
+      per site). **Result:** rig 0 failures in 14 restarts, recovery about 11 s (was 20-40 s); live stack (test agent, 7 cycles incl. simulated crashes): 0 containerd timeouts, `/readyz` 200
+      again after 9-13 s, site back after 8-12 s, `plan` `No changes` every time, same container each time; plain `podman stop` 5.5-6.5 s, exit 0 (was 13.5 s, 137). **Which of the two
+      changes fixed the timeout was not isolated**; both stay. **Found:** `podman kill` (and any hand `stop`) counts as a manual stop, so `unless-stopped` does NOT bring the host back:
+      run `podman start workshop_cloud_host`. A crash (process killed from outside) is restarted by itself.
 
 ### P9 — Validation → **M4, M5**
 
@@ -907,7 +1020,7 @@ reviewable. Details and evidence are in §15a-B.
       `--header="X-Control-Token: ${CONTROL_TOKEN}"`).
 - [ ] **F.2** Same fix in
       `workshops/cert-autorenewal/compose/terminal/Dockerfile:68-69`.
-- [ ] **F.3** *Verify first:* run `./run.sh dns-as-code` and `./run.sh cert-autorenewal`
+- [~] **F.3** *(2026-09-21: cert-autorenewal confirmed live: `workshop_terminal` `(unhealthy)`, `wget` gets 403 without `X-Control-Token`; dns-as-code not run)* *Verify first:* run `./run.sh dns-as-code` and `./run.sh cert-autorenewal`
       and confirm `workshop_terminal` reports `unhealthy` before the fix and `healthy`
       after (only *inferred* so far — see §15a-B). Rebuild with `./run.sh stop` first.
 - [ ] **F.4** Decide whether workshops should keep *restating* the base HEALTHCHECK at
@@ -946,7 +1059,7 @@ reviewable. Details and evidence are in §15a-B.
 - **Capacity (initial guess — measure in T9.3):** hello containers ≈ 10–20 MB
   each idle; quota 2/student × 30 = 60 containers with 128 MB cap ⇒ worst-case
   7.7 GB, realistic ≪1 GB. `cloud-host` `mem_limit` 3 GB (`CLOUD_HOST_MEM_LIMIT`, set in the overlay); cloud-api
-  256 MB. **Neither is in `capacity-calc.sh` yet (T8.2).**
+  256 MB. Both are covered by `./run.sh capacity --students 30 --other-services-mb 6400` (T8.2, `FACILITATOR.md`).
 - Fallback: if cloud host/API misbehaves mid-session, students continue with
   Track A (already complete) or the facilitator restarts only `cloud-host`
   + `cloud-api` (state is intentionally ephemeral; students may need Purge).
@@ -1061,7 +1174,7 @@ table records what was built and how to change it:
 
 ### E. Known gaps / not verified yet *(rewritten 2026-09-20)*
 
-- **Not built yet:** workshop README, facilitator guide, `capacity-calc.sh` and `engine/README.md` entries (P8), committed e2e/load
+- **Not built yet:** committed e2e/load
   scripts (P9), optional stretch labs 11–12 (T6.4). Built since this section was first written: portal and activity
   read API (P4), gateway/allocator route and facilitator tab (P5), the starter repo with its lock file, and labs 4–10
   (P6).
@@ -1156,7 +1269,7 @@ Established by the live integration run (real `azurerm`, real browser); each is 
    allocator-style trust model only holds if the Caddy block sets both headers with `header_up`; **it does (P5), verified against an echo upstream with forged headers.**
 8. Facilitator username in this dev `engine/.env` is `admin` (not the `root` default) — the code reads
    `FACILITATOR_USERNAME`, so nothing to fix; just don't hard-code `root` in labs.
-9. Anonymous podman volumes from earlier runs survive `./run.sh stop` — housekeeping, not a bug in this workshop.
+9. Anonymous podman volumes from earlier runs survive `./run.sh stop`. **Fixed for `cloud-host` in T8.9** (its `/var/lib/docker` is now the named volume `cloud_docker`, verified: zero volumes left after stop); 16 orphans (~240 MB) were deleted on 2026-09-21. Other services' anonymous volumes were not checked.
 10. **Unrelated edits appeared in the working tree during P4** (root `README.md` +438 lines,
     `engine/.env.example`, `engine/README.md`, `engine/docker-compose.yml`, `workshops/README.md`). They were made
     by neither Claude nor its agents (verified: agents were told not to, and the integration agent reported it
@@ -1415,6 +1528,66 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   - *Known limitation in the labs:* they say `<class-address>` because the dev portal URL lacks the port (§15a-C).
 - **Next:** P8 (T8.1 README, T8.2 `capacity-calc.sh`, T8.3 facilitator guide, T8.5 `engine/README.md` note); T8.2 and T8.5 edit
   `engine/` files, so ask the user first. Ask at the phase gate before starting.
+
+### 2026-09-21 — P8 docs, facilitator guide, capacity (committed 8ce91e2 / 72b85fc / e0e6bff)
+- User asked to start P8 with the README (that is the phase-gate go-ahead). Wrote the full workshop `README.md` (T8.1: what
+  it is, layout, architecture, policy table and how to change a limit / add a rule / add an image, security model, reset
+  table, tests, known limits) and a new `FACILITATOR.md` (T8.3: run-of-show, pre-flight, progress-board stages, timing
+  notes, failure table, restarting parts, Track A fallback). The guide sits beside the README, not in `content/`,
+  because `content/lab/` is seeded into every student's home.
+- **T8.2 without touching the engine:** `capacity-calc.sh` already takes `--other-services-mb`; passing `6400`
+  (3072 for the four engine services + 3072 cloud-host + 256 cloud-api) raises the 30-student plan from 27018 MB to
+  30346 MB (`--host-mem-mb 32768` run). The guide tells the facilitator to pass it; no engine file was edited. If the
+  user wants it automatic, that needs an engine change (a per-workshop extra-memory setting), which needs their OK.
+- **Checked:** 90 + 5 offline tests pass; every link in the two files resolves; executor template flags (CapDrop ALL,
+  no-new-privileges, not privileged, pids 64) match the README; the portal's Facilitator panel is on Home and the Class
+  progress nav item is facilitator-only, as the guide says.
+- **Found while writing:** Labs 3 and 10 tell students to push with `student123`, which is only the default of
+  `./run.sh setup --default`; interactive `setup` generates a random `STUDENT_PASSWORD`. The guide now says so. Also
+  the terminal container waits for a healthy `cloud-api`, so a broken control plane at start blocks the whole terminal.
+- **Not verified:** none of the guide's procedures were run on a live stack this session (restarting `cloud-host`,
+  `docker restart workshop_terminal`, the rehearsal steps). Claims are from code and earlier logged runs; the two
+  untested restarts are labelled untested in the text. Wave-starting Lab 5 is a reasoned suggestion (§15a-G1), not a measurement.
+- **Next:** T8.5 needs the user's OK (it edits `engine/README.md`). Then P9 (ask at the gate): T9.9 browser pass and T9.7
+  lock fix carry the most unverified risk.
+
+### 2026-09-21 — Forgejo password panel, facilitator status strip, start-up decoupling (committed 8ce91e2 / 72b85fc / e0e6bff)
+- **Decisions (user):** show each student's own Forgejo password on their landing page (visible, `no-store`, escaped, always on, one name "Forgejo
+  password" in the labs); terminal and cloud-api start on `service_started`; a facilitator-only status strip for all services (students see none);
+  fix `git-fundamentals` lab1's hard-coded `student123` too; engine edits approved. Asked whether the allocator must stay single-threaded: it keeps a
+  single-threaded request path (atomic slot claim) and gets one background probe thread instead of a new container.
+- **How:** contract §5.7; two builder agents on disjoint files (allocator; cloud-api + terminal wrapper + overlay), I reviewed both diffs and added the
+  broker change (no credentials until the CA bundle exists), then a third agent ran the live stack (7 tests, results in T8.6–T8.8 above). Unit tests:
+  117 + 5 pass. Docs: labs 3/4/10 + lab README + git-fundamentals lab1, workshop README, FACILITATOR.md, engine README (T8.5).
+- **Live results in short:** panel, strip and decoupling work (details on the task lines). Found and fixed here: `cloud-api` traceback every 5 s from the
+  allocator's probe not reading the 200 body (fix verified by the test agent's measurement of the read variant against the real server; my own local
+  repro could not reproduce the noise, and the edited probe was not re-run on the live stack); the red chip's tooltip said "still starting" (wording
+  changed, tests updated); docs said a host restart deletes containers and `+ create` shows (the opposite is true) and that a shell opened while the host
+  is down lacks credentials (it has them).
+- **Open:** T8.9 (container-group reads hang `plan` ~4 min during a host outage; containers stay Exited after a host restart and `plan` says `No changes`).
+  Other workshops: cert-autorenewal starts but its terminal is unhealthy (F.1/F.2, the stale restated healthcheck, now seen live) and its `step-ca`
+  reports unhealthy (`step ca health` cannot resolve `step-ca`; not investigated). git-fundamentals is fine. dns-as-code was not run.
+- **Not verified:** escaping with a special-character password live; `no-store` on `POST /assign` live; the Terminals chip going red; light theme and
+  420 px width of the strip; real browser terminals (ttyd/tmux) and `--test` bots; Docker proper, arm64, concurrent students.
+- **Security note:** during that live test an agent's `curl -w` echoed the shared browser-gate (`TTYD_*`) password into its own tool output. It is in that
+  session's transcript, not in any repo file; rotate it if the transcript is kept or shared.
+
+### 2026-09-21 (later) — host outage, restart recovery and stop hygiene (T8.9, committed 8ce91e2 / 72b85fc / e0e6bff)
+- **User asked** how to avoid multi-minute freezes when the cloud host is down, what "host" meant (the `cloud-host` container, not the OS; an OS reboot has the same
+  effect on student containers), approved `unless-stopped`, and asked whether `./run.sh stop` decommissions everything if a stop goes wrong. **Found while checking:** 16
+  orphaned anonymous dind volumes (~240 MB) that `stop` never removed (deleted by name after checking each was dangling, anonymous and dind-shaped); fixed for the future
+  with the named volume `cloud_docker`. Then: builder agent (restart policy, fast reads, fail-fast writes), me (overlay volume, portal cache), live-test agent.
+- **Result:** see T8.9. The provider does not retry HTTP 409, so a write during an outage fails in about 3 s with the message intact; `plan` finishes in 6 s; a host restart
+  recovers with no student action in about 40-50 s; stop, including after SIGKILL of `cloud-host`, leaves nothing behind.
+- **Open then, closed next (T8.10, below):** slow first start after a hard stop, and the partial apply. **Not verified:** Docker proper, arm64, concurrency, a real browser.
+
+### 2026-09-21 (later still) — T8.10 and the partial apply (committed 8ce91e2 / 72b85fc / e0e6bff)
+- **User asked** whether anything can be done about the partial apply, and to fix T8.10. **Partial apply:** every ARM write, resource groups included, is now refused with the 409
+  while Dojo Cloud is not ready (`resource_group()` checks `not_ready()` first; the old check on group DELETE was folded in; one test rewritten, 127 tests). Live: an `apply` that
+  changed both the group's tag and the container group failed in 1.2-1.5 s on the FIRST request (a replace sends the container group's DELETE first), and a tag-only `apply` failed on the
+  group's PATCH (409, 1.5 s); afterwards `plan` still showed both changes pending (nothing was half-applied), and after the host came back one `apply` (27 s) landed both. A run started 0.3 s
+  after the stop began was refused too. What is left is inherent to Terraform: the host dying BETWEEN two requests of one `apply` (a re-run finishes it). **T8.10:** see the task.
+- **Not verified:** Docker proper, arm64, concurrency, real browser, the old image against the new test (only the new image ran on the full stack).
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
