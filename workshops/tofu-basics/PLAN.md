@@ -13,7 +13,7 @@
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
 | Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); P7 slides written and render-tested (`d750be5`); next: P8 docs/capacity/facilitator guide or the T9.9 browser pass (ask the user first)** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-21 (P0–P7 done; D2–D6 all decided) |
+| Last updated | 2026-09-21 (P0–P7 done and audited; D2–D6 all decided) |
 
 ---
 
@@ -27,7 +27,8 @@
    `PENDING`. Also read **§15a (Worth knowing & follow-ups)** — it lists
    unconfirmed decisions, behaviours that surprised us, and problems found in
    *other* workshops.
-4. Find the first `[ ]` or `[~]` task in §12. Run that task's **Verify** line
+4. Find the first `[ ]` or `[~]` task in §12 (skip tasks marked *optional*, e.g. T6.4, unless asked; as of
+   2026-09-21 the first real task is **T8.1**, after asking the user at the phase gate). Run that task's **Verify** line
    for the *previous* task first, to make sure the foundation still holds.
 5. Work the task. When finished: tick the box, add the commit SHA, and append a
    dated entry to §16 (Session Log). If you learned something that changes the
@@ -97,7 +98,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | P4 | Portal (Azure-inspired console) | **done** (`49c168e`) | no real screen-reader / Firefox / Safari pass; no real-browser pass over portal buttons (T9.9) |
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; progress board `1b22631`; fixes `2e8e818`, `25a7176`) | attention-tile text `code: message` only unit-tested (T9.9); deferred findings in §15a-H (`publicBaseUrl` ignores the dev port, presentation image rebuilds every run, leftover network survives stop) |
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
-| P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); shared-theme `whoami` contrast in `labs.md` code blocks (see §16); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic |
+| P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic (the shared-theme code colours were fixed in `82b9e36`) |
 | P8 | Docs, registration, capacity, delivery | not started | workshop `README.md` (a stub exists), `capacity-calc.sh`, facilitator guide, `engine/README.md` note (T8.1–T8.3, T8.5); T8.4 dropped |
 | P9 | Validation (bots, load, dry-run) | not started | all of T9.1–T9.9 |
 | P10 | Optional stretch | not started | T10.1–T10.4 |
@@ -621,6 +622,15 @@ Marp, `presentation.md` + `index.md` + `labs.md` + `cheat-sheet.md`, styled with
 10. Drift & policy (foreshadow labs 6–7)
 11. Recap, cheat sheet, next steps (real Azure, remote state, modules, CI)
 
+**Authoring notes (learned in P7):** (a) **no emoji-range characters** (e.g. `↔`, `→` is fine): Marp swaps them for
+twemoji `<img>` tags fetched from jsdelivr, an external request in an offline lab; (b) Markdown is **not** processed
+inside raw HTML like `<p class="tag">`, so write `<code>` there, not backticks; (c) a `two-column` block splits
+paragraphs mid-sentence, so use it only for short bullet lists; (d) the shared themes must set the
+`--color-prettylights-*` variables on `section`, not `:root` (see `82b9e36`); (e) `hcl` fences render but get no
+colouring (Marp has no HCL grammar); (f) render check without the stack: `podman run --rm -v <dir>:/home/marp/app:Z
+docker.io/marpteam/marp-cli:v3.4.0 <file>.md --html </dev/null` (make `<dir>` world-writable and copy
+`workshops/assets/themes` to `<dir>/assets/themes`), then screenshot with Windows Edge headless from WSL.
+
 ---
 
 ## 11. Repo touchpoints (full list of files to create/edit)
@@ -829,7 +839,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       docs must be **pasted from real runs** (esp. Lab 8 in-place vs replace).
 - [x] **T6.3** *(`25a7176`; commands and troubleshooting boxes reproduced live)* Cheat sheet (Track B part), troubleshooting boxes (lost state →
       ask facilitator to Purge; policy errors; portal stale).
-- [ ] **T6.4** Stretch labs 11–12 (optional).
+- [ ] **T6.4** *(optional — skip unless the user asks)* Stretch labs 11–12.
 
 ### P7 — Slides
 
@@ -1381,6 +1391,30 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   students' browsers (only Windows Edge was used); nobody has presented it.
 - **Next:** ask the user before the next phase. Candidates: P8 (README, `capacity-calc.sh`, facilitator guide) or T9.9 /
   T9.7 (browser pass, lock stall) which carry the larger unverified risk.
+
+### 2026-09-21 — shared theme fix, CLAUDE.md, P1–P7 audit (`82b9e36`, `2c35a9b`)
+- **Theme (`82b9e36`):** root cause of the `whoami` colour was broader than one word: the `--color-prettylights-*`
+  overrides sat on `:root`, but the themes load via `@import` (so `:root` is `<html>`) and Marp's default theme sets the
+  same variables on `<section>`, which beats an inherited value even against `!important`. **None** of our syntax colours
+  applied. Moved to `section` in `labs.css`, `presentation.css`, `cheat-sheet.css` (all workshops share them). Rendered and
+  looked at: tofu-basics `labs` slide 2 and `presentation` slides 7 and 9, plus a `dns-as-code` cheat-sheet `js` slide
+  (colours now dark-theme correct, no regression). The other workshops' remaining slides were not re-rendered.
+- **CLAUDE.md** (local, git-ignored): D2–D6 now described as confirmed on 2026-09-19.
+- **README stub** no longer says Track B is in progress (`2c35a9b`); the full README is still T8.1.
+- **Audit of P1–P7 (no live testing):** every SHA cited in this file exists in git; the only unticked task in P1–P7 is the
+  optional T6.4; 90 + 5 offline tests pass; slide claims cross-checked against the portal (`Class view`, `Refresh now`,
+  `Browse`, `Activity log`, …), the pinned OpenTofu version, and the facilitator `/admin` Dojo Cloud tab code.
+  **Nothing in P1–P7 is blocked or half-done.** What remains open inside those phases is either live-only or assigned to P9:
+  - *Live only (user will run):* HCL highlighting in code-server (T1.3/T9.9); Labs 0–3 on the current image; a real-browser
+    pass over the portal and Labs 4–10 (T9.9); the attention-tile `code: message` text; the `/admin` Slides and Dojo Cloud
+    tabs; isolation under docker proper (T9.8); arm64 image build; the 30-way concurrent apply (T9.3).
+  - *Offline-doable but deliberately left in P9:* a fuzz test of raw ARM bodies against the executor (T9.2/T9.6); the
+    lock-held-during-Docker fix (T9.7, code change that needs a live re-measure); committing the throw-away e2e scripts (T9.6).
+  - *Owner's call, not this workstream:* §15a-H8 engine notes (presentation image rebuilt every run, leftover
+    `engine_workshop_lab` network), follow-ups F.1–F.7 (other workshops' healthchecks, unpinned images, commit `a24f08b` review).
+  - *Known limitation in the labs:* they say `<class-address>` because the dev portal URL lacks the port (§15a-C).
+- **Next:** P8 (T8.1 README, T8.2 `capacity-calc.sh`, T8.3 facilitator guide, T8.5 `engine/README.md` note); T8.2 and T8.5 edit
+  `engine/` files, so ask the user first. Ask at the phase gate before starting.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
