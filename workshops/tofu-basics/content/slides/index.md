@@ -16,6 +16,14 @@ style: |
 
 # OpenTofu Basics
 
-<p class="tag">init, plan, apply, destroy — and how an Infrastructure-as-Code repo is laid out. `terraform` runs OpenTofu here.</p>
+<p class="tag">init, plan, apply, destroy — and how an Infrastructure-as-Code repo is laid out. <code>terraform</code> runs OpenTofu here.</p>
 
-<p class="meta">Talk + hands-on lab · Engineering &amp; IT Operations · slides coming soon</p>
+<div class="links">
+<a class="enter" href="presentation.md">&rarr; Presentation</a>
+<br>
+<a class="enter secondary" href="labs.md">&rarr; Lab overview</a>
+<br>
+<a class="enter secondary" href="cheat-sheet.md">&rarr; Cheat sheet</a>
+</div>
+
+<p class="meta">Talk + hands-on lab · Engineering &amp; IT Operations</p>
