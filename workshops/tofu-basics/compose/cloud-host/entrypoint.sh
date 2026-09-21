@@ -34,6 +34,13 @@ until docker info >/dev/null 2>&1; do
   sleep 0.5
 done
 
+# --icc=false only stops containers talking to each other. A container's NEW outbound connections still leave through
+# this container's own address, i.e. onto the cloud network where cloud-api lives (found by tests/e2e.sh --only security,
+# 2026-09-21: 8080 and 443 were reachable from a student container). Student containers never need to start a
+# connection: published ports are DNAT'd inbound and replies are not NEW. `set -e` makes a failure here fatal (fail closed).
+iptables -C DOCKER-USER -i docker0 ! -o docker0 -m conntrack --ctstate NEW -j DROP 2>/dev/null ||
+  iptables -I DOCKER-USER -i docker0 ! -o docker0 -m conntrack --ctstate NEW -j DROP
+
 # The socket is shared with cloud-api, which runs as a different user.
 chmod 0666 /run/cloud/docker.sock
 
