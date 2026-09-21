@@ -9,7 +9,19 @@ single accept loop means they can't interleave. No lock, no DB transaction.
 
 All state is in-memory and reset on container restart, matching this
 project's ephemeral-by-design stack (see engine/docker-compose.yml).
+
+There is exactly one other thread: a background daemon that probes the
+lab's services (Forgejo, terminals, slides, plus whatever a workshop lists
+in STATUS_CHECKS) every few seconds for the facilitator's status strip
+(/admin/api/status). It does not weaken the guarantee above, because it
+never touches `slots`, `token_index` or anything else a request handler
+mutates: its only output is one status snapshot that it replaces wholesale
+(a single reference assignment, atomic in CPython), and request handlers
+only ever read that snapshot. All upstream I/O for status happens in that
+thread; no request handler waits on a probe, so a hung service can slow the
+probe thread down but never /assign, /auth-check or the roster.
 """
+import datetime
 import hmac
 import html
 import http.client
@@ -19,6 +31,8 @@ import os
 import re
 import secrets
 import socket
+import ssl
+import threading
 import time
 import urllib.parse
 
@@ -196,6 +210,199 @@ def forgejo_login_request(username, password):
         return []
 
 
+# -- Facilitator service status (see the module docstring) -----------------
+# One daemon thread (status_probe_loop, started by main()) probes each
+# service in turn and republishes _status_snapshot; request handlers only
+# read it. Nothing below is called from a request handler except
+# handle_status_api, which does a plain read.
+GATEWAY_HOST = "gateway"
+STATUS_PROBE_TIMEOUT = 2.0
+STATUS_DETAIL_MAX = 200
+
+
+def _env_seconds(name, default, minimum):
+    try:
+        return max(minimum, float(os.environ.get(name, default)))
+    except ValueError:
+        return float(default)
+
+
+# The three timings can be shortened for a test; the defaults suit a real class.
+STATUS_INTERVAL = _env_seconds("STATUS_INTERVAL_SECONDS", 5, 0.2)
+STATUS_STARTUP_GRACE = _env_seconds("STATUS_STARTUP_GRACE_SECONDS", 300, 0)
+STATUS_LOSS_GRACE = _env_seconds("STATUS_LOSS_GRACE_SECONDS", 30, 0)
+# Workshop-specific extras, "Label=URL" items separated by ";" (a workshop's
+# compose overlay sets it, e.g. tofu-basics' Dojo Cloud). OK means HTTP 200.
+STATUS_CHECKS = os.environ.get("STATUS_CHECKS", "")
+
+
+class _SniHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS to one address while asking for another name (SNI), and without
+    verifying the certificate. Only used by status probes, which send no
+    credential and only look at the status code."""
+
+    def __init__(self, host, port, sni=None, **kw):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        super().__init__(host, port, context=ctx, **kw)
+        self._probe_ctx = ctx
+        self._probe_sni = sni
+
+    def connect(self):
+        http.client.HTTPConnection.connect(self)
+        self.sock = self._probe_ctx.wrap_socket(self.sock, server_hostname=self._probe_sni or self.host)
+
+
+def _short(text):
+    text = " ".join(str(text).split())
+    return text[:STATUS_DETAIL_MAX] or "check failed"
+
+
+def _describe_error(exc):
+    if isinstance(exc, socket.timeout):
+        return f"no answer within {STATUS_PROBE_TIMEOUT:g} s"
+    if isinstance(exc, ConnectionRefusedError):
+        return "connection refused"
+    if isinstance(exc, socket.gaierror):
+        return "name not found"
+    if isinstance(exc, ssl.SSLError):
+        return "TLS error: " + str(exc)
+    return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+
+
+def probe_http(host, port, path, tls=False, sni=None, host_header=None, headers=None, require_body=False):
+    """One GET with a short timeout. Returns (ok, detail); never raises.
+    ok is True only for HTTP 200 (a redirect is NOT ok: it means we asked the
+    wrong address). On a non-200, detail is a JSON body's "detail" when
+    there is one (cloud-api's /readyz sends that), else "HTTP <status>".
+    require_body also demands a non-empty 200 body: Caddy answers an empty
+    200 for a Host it has no site for, which would look healthy."""
+    conn = None
+    try:
+        if tls:
+            conn = _SniHTTPSConnection(host, port, sni=sni, timeout=STATUS_PROBE_TIMEOUT)
+        else:
+            conn = http.client.HTTPConnection(host, port, timeout=STATUS_PROBE_TIMEOUT)
+        hdrs = dict(headers or {})
+        if host_header:
+            hdrs["Host"] = host_header
+        conn.request("GET", path, headers=hdrs)
+        resp = conn.getresponse()
+        if resp.status == 200:
+            # Read the whole body (capped): closing with unread data makes the kernel reset the
+            # connection, and the server then logs a ConnectionResetError traceback on every probe.
+            body = resp.read(1 << 20)
+            if require_body and not body:
+                return False, "empty response (gateway has no site for this Host?)"
+            return True, None
+        detail = f"HTTP {resp.status}"
+        try:
+            parsed = json.loads(resp.read(4096))
+            if isinstance(parsed, dict) and isinstance(parsed.get("detail"), str) and parsed["detail"].strip():
+                detail = parsed["detail"]
+        except ValueError:
+            pass
+        return False, _short(detail)
+    except (OSError, http.client.HTTPException) as exc:  # socket.timeout and ssl errors are OSErrors
+        return False, _short(_describe_error(exc))
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def probe_forgejo():
+    return probe_http(GIT_SERVER_HOST, GIT_SERVER_PORT, "/api/healthz")
+
+
+def probe_terminals():
+    # Same call control_request("GET", "/status") makes, but through
+    # probe_http so a failure has a reason and a 2 s timeout.
+    return probe_http(WEB_TERMINAL_HOST, CONTROL_PORT, "/status", headers={"X-Control-Token": CONTROL_TOKEN})
+
+
+def probe_slides():
+    """The presentation container is on web_lab, which the allocator is not
+    on, so go through the gateway (on both networks) exactly as a browser
+    would: same scheme, port and Host as PUBLIC_BASE_URL. Not http://gateway:80:
+    Caddy answers an empty 200 for Host "gateway" when the site is
+    http://localhost, and a 308 redirect (or a TLS failure on 443) when the
+    site is an https hostname, so neither would say anything about slides."""
+    base = urllib.parse.urlsplit(PUBLIC_BASE_URL)
+    tls = base.scheme == "https"
+    return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
+                      tls=tls, sni=base.hostname, host_header=base.netloc, require_body=True)
+
+
+def _extra_probe(url):
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return lambda: (False, "STATUS_CHECKS: not an http(s) URL")
+    tls = parts.scheme == "https"
+    target = (parts.path or "/") + (("?" + parts.query) if parts.query else "")
+    return lambda: probe_http(parts.hostname, parts.port or (443 if tls else 80), target, tls=tls)
+
+
+def build_status_services():
+    """[{name, probe, ok, last_ok, detail}] in display order. Only the probe
+    thread writes ok/last_ok/detail after this."""
+    probes = [("Forgejo", probe_forgejo), ("Terminals", probe_terminals), ("Slides", probe_slides)]
+    for item in STATUS_CHECKS.split(";"):
+        label, sep, url = item.partition("=")
+        label, url = label.strip()[:40], url.strip()
+        if sep and label and url:
+            probes.append((label, _extra_probe(url)))
+    return [{"name": n, "probe": p, "ok": None, "last_ok": None, "detail": None} for n, p in probes]
+
+
+_status_started = time.monotonic()
+_status_services = build_status_services()
+
+
+def classify_status(ok, last_ok, now, started=None):
+    """green / yellow / red for one service; the allocator decides, not the
+    service. Yellow = not OK but either never OK yet and still inside the
+    startup grace, or OK within the loss grace (a blip or a restart)."""
+    if ok:
+        return "green"
+    if last_ok is None:
+        return "yellow" if now - (_status_started if started is None else started) < STATUS_STARTUP_GRACE else "red"
+    return "yellow" if now - last_ok < STATUS_LOSS_GRACE else "red"
+
+
+def _build_snapshot(now):
+    services = []
+    for svc in _status_services:
+        if svc["ok"] is None:
+            services.append({"name": svc["name"], "state": "yellow", "detail": "waiting for first check"})
+            continue
+        state = classify_status(svc["ok"], svc["last_ok"], now)
+        services.append({"name": svc["name"], "state": state,
+                         "detail": None if state == "green" else (svc["detail"] or "check failed")})
+    return {"generatedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "services": services}
+
+
+# Replaced wholesale by the probe thread, read by handle_status_api.
+_status_snapshot = _build_snapshot(time.monotonic())
+
+
+def status_probe_loop():
+    global _status_snapshot
+    while True:
+        for svc in _status_services:
+            try:
+                ok, detail = svc["probe"]()
+            except Exception as exc:  # a bad probe must not kill the thread
+                ok, detail = False, _short(f"probe error: {type(exc).__name__}")
+            now = time.monotonic()
+            svc["ok"], svc["detail"] = ok, detail
+            if ok:
+                svc["last_ok"] = now
+            _status_snapshot = _build_snapshot(now)
+        time.sleep(STATUS_INTERVAL)
+
+
 # Inline, self-contained SVGs for the confirmation page's tool cards (see
 # render_confirmation) -- feather-style, 24x24, stroke=currentColor so each
 # one automatically picks up its card's icon color (including the primary
@@ -245,6 +452,11 @@ def page(title, body):
   @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
 </style></head>
 <body>{body}</body></html>"""
+
+
+# The landing page shows the student's Forgejo password, so nothing between
+# here and the browser (or the browser's own back/forward cache) may keep a copy.
+NO_STORE_HEADERS = [("Cache-Control", "no-store"), ("Pragma", "no-cache")]
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -436,6 +648,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <div class="cards">
 {cards}
 </div>
+<div class="secret">
+  <span class="secret-label">Forgejo password</span>
+  <code class="secret-value">{html.escape(STUDENT_PASSWORD)}</code>
+  <span class="secret-hint">Sign in as <strong>{html.escape(sid)}</strong> with this when git asks for a password (for example on <code>git push</code>). It is also your terminal account's password.</span>
+</div>
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
 
         return f"""<!doctype html>
@@ -474,6 +691,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
   .card-desc {{ font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }}
   .card-arrow {{ flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }}
   .card:hover .card-arrow, .card:focus-visible .card-arrow {{ opacity: 0.7; }}
+  .secret {{ margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e2e2;
+          background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }}
+  @media (prefers-color-scheme: dark) {{ .secret {{ border-color: #333; background: #1f1f1f; }} }}
+  .secret-label {{ font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em; }}
+  .secret code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #eef2ff;
+          color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }}
+  @media (prefers-color-scheme: dark) {{ .secret code {{ background: #1e2352; color: #c7d2fe; }} }}
+  .secret-hint code {{ font-size: 0.75rem; padding: 0.05rem 0.3rem; }}
+  .secret-value {{ font-size: 1.1rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }}
+  .secret-hint {{ font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }}
   .footnote {{ margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }}
 </style></head>
 <body>{body}</body></html>"""
@@ -519,8 +746,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         that tile's iframe."""
         body = """
 <div id="bar">
-  <h1>Facilitator</h1>
-  <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
+  <div>
+    <h1>Facilitator</h1>
+    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
+  </div>
+  <div id="status" role="group" aria-label="Service status"></div>
 </div>
 <div class="tabs">
   <button class="tab active" data-tab="roster">Roster</button>
@@ -720,7 +950,55 @@ function updateRoster(rows) {
   document.getElementById('empty').style.display = rows.length ? 'none' : 'block';
 }
 
+// -- service status strip ---------------------------------------------
+// One chip per service: coloured dot + name + a word, so colour is never
+// the only signal. Chips are updated in place (never rebuilt) and all text
+// goes in via textContent/title -- names and details are data.
+const statusEl = document.getElementById('status');
+const svcChips = [];
+const STATE_WORD = { green: 'Ready', yellow: 'Starting', red: 'Down' };
+
+function buildChip() {
+  const el = document.createElement('span');
+  const dot = document.createElement('span');
+  dot.className = 'svc-dot';
+  dot.setAttribute('aria-hidden', 'true');
+  const name = document.createElement('span');
+  name.className = 'svc-name';
+  const word = document.createElement('span');
+  word.className = 'svc-word';
+  el.append(dot, name, word);
+  return el;
+}
+
+function updateStatus(data) {
+  const services = Array.isArray(data.services) ? data.services : [];
+  services.forEach((s, i) => {
+    if (!svcChips[i]) {
+      svcChips[i] = buildChip();
+      statusEl.appendChild(svcChips[i]);
+    }
+    const el = svcChips[i];
+    const state = STATE_WORD[s.state] ? s.state : 'red';
+    el.className = 'svc ' + state;
+    el.querySelector('.svc-name').textContent = String(s.name);
+    el.querySelector('.svc-word').textContent = STATE_WORD[state];
+    el.title = s.detail ? String(s.name) + ': ' + String(s.detail) : String(s.name) + ': ' + STATE_WORD[state];
+  });
+  while (svcChips.length > services.length) svcChips.pop().remove();
+  statusEl.classList.remove('stale');
+}
+
+async function refreshStatus() {
+  try {
+    updateStatus(await (await fetch('/admin/api/status')).json());
+  } catch {
+    statusEl.classList.add('stale');  // keep the last known chips, greyed out
+  }
+}
+
 async function refresh() {
+  refreshStatus();
   let rows;
   try {
     rows = await (await fetch('/admin/api/sessions')).json();
@@ -754,6 +1032,24 @@ setInterval(refresh, 5000);
   @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
   h1 {{ font-size: 1.4rem; margin: 0 0 0.15rem; }}
   .sub {{ opacity: 0.7; }}
+  #bar {{ display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.5rem 1.5rem; }}
+  #status {{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem 0.4rem; }}
+  #status.stale {{ opacity: 0.45; }}
+  .svc {{ display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
+          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; white-space: nowrap; cursor: default; }}
+  @media (prefers-color-scheme: dark) {{ .svc {{ border-color: #333; background: #1f1f1f; }} }}
+  .svc-dot {{ width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }}
+  .svc.green .svc-dot {{ background: #16a34a; }}
+  .svc.yellow .svc-dot {{ background: #d97706; }}
+  .svc.red .svc-dot {{ background: #dc2626; }}
+  @media (prefers-color-scheme: dark) {{
+    .svc.green .svc-dot {{ background: #22c55e; }}
+    .svc.yellow .svc-dot {{ background: #f59e0b; }}
+    .svc.red .svc-dot {{ background: #f87171; }}
+  }}
+  .svc-name {{ font-weight: 600; }}
+  .svc-word {{ opacity: 0.75; }}
+  .svc.yellow .svc-word, .svc.red .svc-word {{ opacity: 1; font-weight: 600; }}
   .badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
           padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
   @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
@@ -819,7 +1115,7 @@ setInterval(refresh, 5000);
                 self.send_header("Content-Length", "0")
                 self.end_headers()
             elif sid is not None:
-                self.send_html(self.render_confirmation(sid))
+                self.send_html(self.render_confirmation(sid), headers=NO_STORE_HEADERS)
             else:
                 self.send_html(self.render_name_form())
             return
@@ -865,6 +1161,10 @@ setInterval(refresh, 5000);
 
         if path == "/admin/api/sessions":
             self.handle_sessions_api()
+            return
+
+        if path == "/admin/api/status":
+            self.handle_status_api()
             return
 
         self.send_response(404)
@@ -950,6 +1250,13 @@ setInterval(refresh, 5000);
         self.send_header("X-Upstream-Port", str(watch_port(sid)))
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    def handle_status_api(self):
+        """Facilitator service status: authorised exactly like
+        /admin/api/sessions (do_GET's gateway_authorized() ran first; Caddy's
+        /admin* basic_auth is the facilitator gate). Reads the snapshot the
+        probe thread publishes -- no upstream I/O here."""
+        self.send_json(_status_snapshot)
 
     def handle_sessions_api(self):
         held = [sid for sid in STUDENT_IDS if slots[sid]["name"] is not None]
@@ -1044,7 +1351,7 @@ setInterval(refresh, 5000);
             return
         if sid is not None:
             self.read_form_body()  # drain body regardless
-            self.send_html(self.render_confirmation(sid))
+            self.send_html(self.render_confirmation(sid), headers=NO_STORE_HEADERS)
             return
 
         form = self.read_form_body()
@@ -1096,6 +1403,7 @@ setInterval(refresh, 5000);
 
 
 def main():
+    threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
     server = http.server.HTTPServer(("0.0.0.0", 8080), Handler)
     server.serve_forever()
 

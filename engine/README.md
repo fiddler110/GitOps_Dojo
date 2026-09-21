@@ -168,6 +168,7 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
+| `/cloud`, `/cloud/*` | `cloud-api` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=cloud`; Caddy then sets `X-Auth-User` and `X-Gateway-Token` itself. **404 unless the workshop sets `CLOUD_ENABLED=1`** (see below) |
 
 The shared gate is one Caddy `basic_auth` block covering everything except
 `/slides/*`, and it accepts **either** the shared student credential or the
@@ -228,6 +229,16 @@ Basic Auth credential per-request; layering the shared gate's credential on
 top of it would collide. `gateway/Caddyfile` explicitly strips the
 `Authorization` header before proxying to Forgejo for exactly this reason —
 don't remove that when editing it.
+
+### Workshop hooks
+
+A workshop's Compose overlay can set these on the `allocator` service. Both are empty or off by default, so a workshop that doesn't set them is unaffected.
+
+- **`CLOUD_ENABLED=1`** adds a **Dojo Cloud** card to the student landing page, makes the `/cloud` route above reach
+  `cloud-api:8080` (otherwise the allocator's `/auth-check?tool=cloud` answers 404, so the gateway never reaches an upstream), and adds a **Dojo Cloud** tab to
+  the facilitator's `/admin` page (an iframe of `/cloud/#/progress`). `tofu-basics` is the only user.
+- **`STATUS_CHECKS`** adds extra entries to the facilitator's service-status strip (below): `Label=URL` items separated by
+  `;`, for example `Dojo Cloud=http://cloud-api:8080/readyz`. A service is *green* when its URL answers HTTP 200.
 
 ## Setup
 
@@ -374,7 +385,11 @@ to type, no picking their own account. They land straight in code-server
 (or ttyd, their choice) as that account. Their Open Forgejo link SSOs them
 straight into their matching Forgejo account with no login prompt (see
 **Forgejo SSO** above); `STUDENT_PASSWORD` is only something they'd need to
-type themselves for a `git clone`/`push` from inside the terminal.
+type themselves for a `git clone`/`push` from inside the terminal, and
+the landing page they see after that shows it to them as their **Forgejo
+password** (`no-store`, HTML-escaped, and only ever their own account's
+secret, never the shared gate or facilitator credentials), so labs can
+send students there instead of quoting a value that depends on your `.env`.
 `/slides` is reachable from the same address too. The facilitator sees every
 assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
@@ -508,6 +523,18 @@ immediately kills that student's code-server/ttyd process and frees the
 account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
+
+**Service status strip.** The top right of `/admin` shows one chip per service —
+a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
+for Forgejo, the terminals, the slides (probed through the gateway exactly as a
+browser would, using `PUBLIC_BASE_URL`), and any `STATUS_CHECKS` a workshop adds.
+Hover a chip for the reason. The allocator decides the colour: green when the
+last probe was OK; yellow while a service has never been OK and is still inside
+its start-up grace (`STATUS_STARTUP_GRACE_SECONDS`, default 300), or was OK within
+the last `STATUS_LOSS_GRACE_SECONDS` (default 30, a blip or a restart); red
+otherwise. Probes run every `STATUS_INTERVAL_SECONDS` (default 5) in one
+background thread, so a hung service never slows `/assign` or `/auth-check`.
+The strip is facilitator-only by design: students are not shown service health.
 
 ## Demo bots (`--test`)
 
