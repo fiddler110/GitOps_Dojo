@@ -65,6 +65,43 @@ class PolicyTests(unittest.TestCase):
         p["containers"][0]["properties"]["ports"] = [{"port": 22}]
         self.assertEqual(code(props=p), "InvalidRequestContent")
 
+    def test_resource_floor_and_ceiling(self):
+        # The floor matters: Docker treats a 0 memory or cpu limit as UNLIMITED, so a tiny
+        # request must be refused rather than rounded down to 0.
+        def sized(cpu, mem):
+            p = cg()["props"]
+            p["containers"][0]["properties"]["resources"]["requests"] = {"cpu": cpu, "memoryInGB": mem}
+            return code(props=p)
+        self.assertIsNone(sized(policy.MIN_CPU, policy.MIN_MEMORY_GB))
+        self.assertIsNone(sized(policy.MAX_CPU, policy.MAX_MEMORY_GB))
+        self.assertEqual(sized(1e-12, 0.125), "InvalidResourceRequest")
+        self.assertEqual(sized(0.25, 1e-12), "InvalidResourceRequest")
+        self.assertEqual(sized(policy.MIN_CPU / 2, 0.125), "InvalidResourceRequest")
+        self.assertEqual(sized(0.25, policy.MAX_MEMORY_GB * 2), "InvalidResourceRequest")
+        self.assertEqual(sized(0, 0.125), "InvalidRequestContent")   # missing, not merely small
+        self.assertEqual(sized(-1, 0.125), "InvalidRequestContent")
+
+    def test_non_finite_numbers(self):
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            p = cg()["props"]
+            p["containers"][0]["properties"]["resources"]["requests"]["cpu"] = bad
+            self.assertEqual(code(props=p), "InvalidRequestContent", bad)
+
+    def test_names_reject_a_trailing_newline(self):
+        # Python's `$` matches before a trailing newline; the patterns use \\Z.
+        self.assertEqual(code(name="ci-hello-dev\n"), "InvalidContainerGroupName")
+        with self.assertRaises(policy.PolicyError) as cm:
+            policy.check_resource_group("rg-lab\n", "canadacentral", {"owner": "s", "env": "dev"})
+        self.assertEqual(cm.exception.code, "InvalidResourceGroupName")
+
+    def test_structural_surprises_are_a_400_not_a_crash(self):
+        for props in ({"containers": "x"}, {"containers": [None]}, {"containers": [{"properties": []}]},
+                      {"containers": [{"properties": {"resources": 5}}]}, {"ipAddress": []}):
+            with self.assertRaises(policy.PolicyError) as cm:
+                policy.check_container_group(**cg(props=props))
+            self.assertEqual(cm.exception.status, 400, props)
+        self.assertEqual(code(tags=["owner", "env"]), "InvalidRequestContent")
+
     def test_no_command_override_and_env_rules(self):
         p = cg()["props"]
         p["containers"][0]["properties"]["command"] = ["sh"]

@@ -20,7 +20,7 @@ Real clouds let an organisation attach **policy** ("Azure Policy"): rules checke
 | Every resource needs tags `owner` and `env` | `RequestDisallowedByPolicy` (policy "Require tag ...") |
 | Resource groups start with `rg-`, container groups with `ci-` | `InvalidResourceGroupName`, `InvalidContainerGroupName` |
 | Only images `dojo/hello:1.0` and `dojo/hello:2.0` | `InvalidImage` |
-| At most 0.25 vCPU and 0.125 GB per container | `InvalidResourceRequest` |
+| Between 0.05 and 0.25 vCPU, and 0.03125 and 0.125 GB, per container | `InvalidResourceRequest` |
 | Only port 80 | `InvalidRequestContent` |
 | At most 2 container groups per subscription | `QuotaExceeded` (Lab 9) |
 

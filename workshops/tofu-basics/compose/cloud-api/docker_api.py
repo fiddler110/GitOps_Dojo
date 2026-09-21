@@ -39,6 +39,8 @@ def build_create_request(image, env_pairs, host_port, cpu, memory_gb, labels):
         raise DockerError(f"image {image!r} is not allowed")
     cpu = min(float(cpu), policy.MAX_CPU)
     memory_gb = min(float(memory_gb), policy.MAX_MEMORY_GB)
+    if not (cpu >= policy.MIN_CPU and memory_gb >= policy.MIN_MEMORY_GB):  # also false for NaN; 0 means unlimited
+        raise DockerError(f"resource request {cpu} vCPU / {memory_gb} GB is below the minimum")
     return {
         "Image": image,
         "Env": [f"{name}={value}" for name, value in env_pairs],

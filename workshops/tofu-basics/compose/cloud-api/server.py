@@ -143,33 +143,41 @@ class App:
     # ---- container-group changes shared by ARM and the portal --------------
     # One implementation, so policy, activity log and executor behave identically
     # whoever asks. `via` ("portal") is appended to the logged operation name.
-    # The executor is called AFTER the state lock is released.
+    # The executor is called with the state lock released: the group is reserved (State.pending) under the lock,
+    # Docker is called, then the result is recorded under the lock again and the reservation released (PLAN.md 5.8).
     @staticmethod
     def op_name(base, via):
         return f"{base} ({via})" if via else base
 
     def delete_container_group(self, sub, rg, cg, user, via=""):
-        """Returns False if there was no such container group."""
+        """Returns False if there was no such container group; raises state.Busy (nothing changed) if it has an
+        operation in flight or its resource group is being deleted."""
         st, key = self.state, self.cg_key(sub, rg, cg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
         op = self.op_name("Delete container group", via)
         with st.lock:
+            if st.busy(key):
+                raise state_mod.Busy()
             rec = st.cgs.get(key)
-        if rec is None:
-            return False
-        try:  # the record stays until the container is really gone: a failed delete changes nothing
-            self.executor.remove(rec["container"])
-        except docker_api.DockerError:
-            with st.lock:
-                st.log(sub, user, op, rid, "Failed", "executor")
-                st.save()
-            raise
-        with st.lock:
-            if st.cgs.pop(key, None) is None:  # a concurrent delete got there first
+            if rec is None:
                 return False
-            st.log(sub, user, op, rid, "Succeeded")
-            st.save()
-        return True
+            st.reserve(key, sub, rec["port"], rec.get("dnsLabel"))
+        try:
+            try:  # the record stays until the container is really gone: a failed delete changes nothing
+                self.executor.remove(rec["container"])
+            except docker_api.DockerError:
+                with st.lock:
+                    st.log(sub, user, op, rid, "Failed", "executor")
+                    st.save()
+                raise
+            with st.lock:
+                if st.cgs.pop(key, None) is None:  # the record went another way (a purge)
+                    return False
+                st.log(sub, user, op, rid, "Succeeded")
+                st.save()
+            return True
+        finally:
+            st.release(key)
 
     def update_container_group_tags(self, sub, rg, cg, user, tags=KEEP_TAGS, via=""):
         """Replaces the tag set (policy-checked). Returns a snapshot copy of the record;
@@ -297,6 +305,11 @@ def arm_error(status, code, message, target=None):
     return status, {"error": err}
 
 
+def busy_reply():
+    """The 409 for a write that meets an operation in flight on the same container group (nothing was changed)."""
+    return arm_error(409, "Conflict", state_mod.BUSY_MESSAGE)
+
+
 def host_stopped_message(left):
     """For a write that lost cloud-host part-way. `left`: what state the record was left in (one sentence)."""
     return ("The cloud host stopped answering while this request was running. " + left + " Wait a minute, run "
@@ -312,12 +325,26 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "DojoCloud/1.0"
 
     def log_message(self, fmt, *args):
-        log(f"{self.client_address[0]} {self.command} {self.path.split('?')[0]} -> {args[1] if len(args) > 1 else ''}")
+        # A request line that cannot be parsed is answered with an error before command/path exist.
+        path = getattr(self, "path", "").split("?")[0]
+        log(f"{self.client_address[0]} {getattr(self, 'command', None)} {path} -> {args[1] if len(args) > 1 else ''}")
+
+    def send_error(self, code, message=None, explain=None):
+        """Requests that cannot be parsed (bad request line, oversized header) get the same JSON error as the rest."""
+        self.close_connection = True
+        self.request_version = "HTTP/1.1"  # a line that did not parse counts as HTTP/0.9, which gets no status line
+        self._send(code, arm_error(code, "BadRequest", message or "The request could not be understood.")[1])
 
     # ---- plumbing --------------------------------------------------------
     def _body(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        return self.rfile.read(min(n, 1_000_000)) if n else b""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:  # not a number: treated as no body
+            n = 0
+            self.close_connection = True
+        if n > 1_000_000:  # the rest stays unread: on a kept-alive connection it would be parsed as the next request
+            self.close_connection = True
+        return self.rfile.read(min(n, 1_000_000)) if n > 0 else b""
 
     def _send(self, status, body=None, headers=None):
         raw = b"" if body is None else json.dumps(body).encode()
@@ -465,8 +492,9 @@ class Handler(BaseHTTPRequestHandler):
             return 200, self.subscription_body(sub, owner)
         if lparts[2] == "resourcegroups":
             if len(parts) == 3:
-                return 200, {"value": [APP.rg_body(sub, r) for k, r in APP.state.rgs.items()
-                                       if k.startswith(sub + "/")]}
+                with APP.state.lock:  # rg_body does no I/O; the dict must not change under the iteration
+                    return 200, {"value": [APP.rg_body(sub, r) for k, r in APP.state.rgs.items()
+                                           if k.startswith(sub + "/")]}
             rg = parts[3]
             if len(parts) == 4:
                 return self.resource_group(method, sub, owner, user, rg, body)
@@ -527,7 +555,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             data = json.loads(body or b"{}")
             return data if isinstance(data, dict) else None
-        except ValueError:
+        except (ValueError, RecursionError):  # RecursionError: absurdly deeply nested JSON
             return None
 
     def resource_group(self, method, sub, owner, user, rg, body):
@@ -538,6 +566,8 @@ class Handler(BaseHTTPRequestHandler):
             return refused
         st, key = APP.state, App.rg_key(sub, rg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}"
+        if method == "DELETE":  # talks to Docker, so it does not run under the lock below
+            return self.delete_resource_group(sub, user, rg, key, rid)
         with st.lock:
             if method in ("GET", "HEAD"):
                 rec = st.rgs.get(key)
@@ -575,40 +605,59 @@ class Handler(BaseHTTPRequestHandler):
                 st.log(sub, user, "Update resource group tags", rid, "Succeeded")
                 st.save()
                 return 200, APP.rg_body(sub, rec)
-            if method == "DELETE":
-                if key not in st.rgs:
-                    return 204, None
-                doomed = [k for k in st.cgs if k.startswith(key + "/")]
-                for ck in doomed:  # container first, then its record: a failure leaves the two in step
-                    try:
-                        APP.executor.remove(st.cgs[ck]["container"])
-                    except docker_api.DockerError as exc:
-                        log(f"executor error: {exc}")
-                        st.log(sub, user, "Delete resource group", rid, "Failed", "executor")
-                        st.save()
-                        return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
-                            "Container groups already deleted are gone; the rest and the resource group were left in place."))
-                    del st.cgs[ck]
-                del st.rgs[key]
+        return arm_error(405, "MethodNotAllowed", method)
+
+    def delete_resource_group(self, sub, user, rg, key, rid):
+        """Reserve the group and everything in it, remove the containers with the lock released, then record (5.8)."""
+        st = APP.state
+        with st.lock:
+            if key not in st.rgs:
+                return 204, None
+            children = st.claim_rg(key)
+            if children is None:
+                return busy_reply()
+            containers = {ck: st.cgs[ck]["container"] for ck in children}
+        try:
+            removed, failure = [], None
+            for ck, container in containers.items():  # container first, then its record: the two stay in step
+                try:
+                    APP.executor.remove(container)
+                except docker_api.DockerError as exc:
+                    log(f"executor error: {exc}")
+                    failure = exc
+                    break
+                removed.append(ck)
+            with st.lock:
+                for ck in removed:
+                    st.cgs.pop(ck, None)
+                if failure is not None:
+                    st.log(sub, user, "Delete resource group", rid, "Failed", "executor")
+                    st.save()
+                    return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
+                        "Container groups already deleted are gone; the rest and the resource group were left in place."))
+                st.rgs.pop(key, None)
                 st.log(sub, user, "Delete resource group", rid, "Succeeded")
                 st.save()
                 return 200, {}
-        return arm_error(405, "MethodNotAllowed", method)
+        finally:
+            st.release(*children, rg=key)
 
     def container_group(self, method, sub, owner, user, rg, cg, body):
         if method in ("PUT", "PATCH", "DELETE") and (refused := self.not_ready()):
             return refused  # reads below keep working
         if method == "DELETE":  # shared with the portal; talks to Docker outside the lock
-            return (200, {}) if APP.delete_container_group(sub, rg, cg, user) else (204, None)
+            try:
+                return (200, {}) if APP.delete_container_group(sub, rg, cg, user) else (204, None)
+            except state_mod.Busy:
+                return busy_reply()
         if method == "PATCH":  # tags-only update
             return self.patch_container_group(sub, user, rg, cg, body)
         st, key = APP.state, App.cg_key(sub, rg, cg)
         rid = f"/subscriptions/{sub}/resourceGroups/{rg}/providers/{ARM_TYPE_CG}/{cg}"
         if method == "GET":
             return self.get_container_group(sub, user, rg, cg, rid, key)
-        with st.lock:
-            if method == "PUT":
-                return self.put_container_group(sub, owner, user, rg, cg, rid, key, body)
+        if method == "PUT":  # takes the lock only to decide and to record, never across Docker
+            return self.put_container_group(sub, owner, user, rg, cg, rid, key, body)
         return arm_error(405, "MethodNotAllowed", method)
 
     def get_container_group(self, sub, user, rg, cg, rid, key):
@@ -626,9 +675,11 @@ class Handler(BaseHTTPRequestHandler):
             return 200, APP.cg_body(sub, rec, ASSUME_RUNNING)
         if state is None:
             # Container vanished (deleted out-of-band): that IS drift. Forget it only if the record is still the
-            # one we asked about (a PUT may have replaced the container while the lock was released).
+            # one we asked about and nothing is in flight on it: a replace or delete removes the old container
+            # while its record still exists, and that is not drift.
             with st.lock:
-                if st.cgs.get(key) == rec:
+                in_flight = key in st.pending
+                if not in_flight and st.cgs.get(key) == rec:
                     del st.cgs[key]
                     st.log(sub, user, "Container disappeared outside IaC", rid, "Succeeded")
                     st.save()
@@ -636,6 +687,8 @@ class Handler(BaseHTTPRequestHandler):
                 current = copy.deepcopy(st.cgs.get(key))
             if current is None:
                 return self.cg_not_found(rg, cg)
+            if in_flight:  # Docker's answer is about the old container: say what is recorded, as when it cannot be asked
+                return 200, APP.cg_body(sub, current, ASSUME_RUNNING)
             return 200, self.cg_view(sub, current)
         return 200, APP.cg_body(sub, rec, state == "Running")
 
@@ -658,64 +711,76 @@ class Handler(BaseHTTPRequestHandler):
         return 200, self.cg_view(sub, rec)
 
     def put_container_group(self, sub, owner, user, rg, cg, rid, key, body):
+        """Reserve, then Docker, then commit (PLAN.md 5.8): State.lock covers the decision and the record, never a
+        Docker call. Meanwhile the reservation (State.pending) keeps the key, port, DNS label and quota slot ours."""
         st = APP.state
-        if App.rg_key(sub, rg) not in st.rgs:
-            return arm_error(404, "ResourceGroupNotFound", f"Resource group '{rg}' could not be found.")
-        data = self.body_json(body)
-        if data is None:
-            return arm_error(400, "InvalidRequestContent", "The request body is not valid JSON.")
-        props, tags, location = data.get("properties") or {}, data.get("tags") or {}, data.get("location")
-        existing = st.cgs.get(key)
-        others = sum(1 for k in st.cgs if k.startswith(sub + "/") and k != key)
-
-        def dns_taken(label):
-            holder = st.dns_owner(label)
-            return holder is not None and holder != key
-
-        try:
-            policy.check_container_group(cg, location, tags, props, others, dns_taken)
-        except policy.PolicyError as exc:
-            st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
-            return exc.status, exc.body()
-
-        c = props["containers"][0]["properties"]
-        env_pairs = [(v["name"], str(v.get("value", v.get("secureValue", "")) or ""))
-                     for v in c.get("environmentVariables") or []]
-        req = c["resources"]["requests"]
-        spec = {"image": c["image"], "env": env_pairs, "cpu": float(req["cpu"]), "mem": float(req["memoryInGB"])}
-        label = props["ipAddress"]["dnsNameLabel"]
-        name = APP.container_name(sub, rg, cg)
-        port = existing["port"] if existing else st.free_port()
-        if port is None:
-            return arm_error(503, "ServiceUnavailable", "No capacity is available right now.")
-
-        changed = existing is None or existing["spec"] != spec or existing["dnsLabel"] != label
-        if changed:
-            if existing is not None:
-                try:
-                    APP.executor.remove(existing["container"])
-                except docker_api.DockerError as exc:  # nothing has changed yet
-                    log(f"executor error: {exc}")
-                    st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
-                    return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
-                        "The container group's record was left as it was, and its old container may still be running."))
+        with st.lock:  # phase 1: decide and reserve
+            if App.rg_key(sub, rg) not in st.rgs:
+                return arm_error(404, "ResourceGroupNotFound", f"Resource group '{rg}' could not be found.")
+            if st.busy(key):
+                return busy_reply()
+            data = self.body_json(body)
+            if data is None:
+                return arm_error(400, "InvalidRequestContent", "The request body is not valid JSON.")
+            props, tags, location = data.get("properties") or {}, data.get("tags") or {}, data.get("location")
+            existing = st.cgs.get(key)
             try:
-                APP.executor.create(name, spec["image"], env_pairs, port, spec["cpu"], spec["mem"],
-                                    {"dojo.owner": owner, "dojo.rg": rg, "dojo.name": cg})
-            except docker_api.DockerError as exc:
-                log(f"executor error: {exc}")
-                if existing is not None:  # the old container is already gone: forget it too
-                    del st.cgs[key]
-                st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
+                policy.check_container_group(cg, location, tags, props, st.other_groups(sub, key),
+                                             lambda label: st.dns_taken(label, key))
+            except policy.PolicyError as exc:
+                st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
+                return exc.status, exc.body()
+
+            c = props["containers"][0]["properties"]
+            env_pairs = [(v["name"], str(v.get("value", v.get("secureValue", "")) or ""))
+                         for v in c.get("environmentVariables") or []]
+            req = c["resources"]["requests"]
+            spec = {"image": c["image"], "env": env_pairs, "cpu": float(req["cpu"]), "mem": float(req["memoryInGB"])}
+            label = props["ipAddress"]["dnsNameLabel"]
+            name = APP.container_name(sub, rg, cg)
+            port = existing["port"] if existing else st.free_port()
+            if port is None:
+                return arm_error(503, "ServiceUnavailable", "No capacity is available right now.")
+            if any(k != key and r["container"] == name for k, r in st.cgs.items()):
+                return arm_error(409, "Conflict", "These resource group and container group names are too close to "
+                                 "another of your container groups (the two would share one container name). "
+                                 "Choose a different name.")
+            changed = existing is None or existing["spec"] != spec or existing["dnsLabel"] != label
+            st.reserve(key, sub, port, label)
+
+        try:  # the reservation is released on every way out of here, an unexpected exception included
+            if changed:  # phase 2: Docker, no lock
+                if existing is not None:
+                    try:
+                        APP.executor.remove(existing["container"])
+                    except docker_api.DockerError as exc:  # nothing has changed yet
+                        log(f"executor error: {exc}")
+                        with st.lock:
+                            st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
+                        return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
+                            "The container group's record was left as it was, and its old container may still be running."))
+                try:
+                    APP.executor.create(name, spec["image"], env_pairs, port, spec["cpu"], spec["mem"],
+                                        {"dojo.owner": owner, "dojo.rg": rg, "dojo.name": cg})
+                except docker_api.DockerError as exc:
+                    log(f"executor error: {exc}")
+                    with st.lock:
+                        if existing is not None:  # the old container is already gone: forget it too
+                            st.cgs.pop(key, None)
+                        st.log(sub, user, "Create/Update container group", rid, "Failed", "executor")
+                        st.save()
+                    return arm_error(500, "InternalServerError", "The container could not be started.")
+            created = existing is None
+            with st.lock:  # phase 3: commit
+                st.cgs[key] = {"name": cg, "rg": rg, "location": location, "tags": tags, "body": data, "spec": spec,
+                               "port": port, "container": name, "dnsLabel": label, "owner": owner}
+                st.log(sub, user, "Create/Update container group", rid, "Succeeded",
+                       "" if created else ("replaced" if changed else "tags/metadata only"))
                 st.save()
-                return arm_error(500, "InternalServerError", "The container could not be started.")
-        created = existing is None
-        st.cgs[key] = {"name": cg, "rg": rg, "location": location, "tags": tags, "body": data, "spec": spec,
-                       "port": port, "container": name, "dnsLabel": label, "owner": owner}
-        st.log(sub, user, "Create/Update container group", rid, "Succeeded",
-               "" if created else ("replaced" if changed else "tags/metadata only"))
-        st.save()
-        return (201 if created else 200), self.cg_view(sub, st.cgs[key])
+                stored = copy.deepcopy(st.cgs[key])
+        finally:
+            st.release(key)
+        return (201 if created else 200), self.cg_view(sub, stored)  # Docker is asked with the lock released
 
     def cg_logs(self, sub, rg, cg):
         rec = APP.state.cgs.get(App.cg_key(sub, rg, cg))
@@ -735,16 +800,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        key = APP.state.dns_owner(label)
-        if key is None:
+        with APP.state.lock:
+            key = APP.state.dns_owner(label)
+            port = None if key is None else APP.state.cgs[key]["port"]
+        if port is None:
             return self._send_text(404, "No site is deployed under that name (yet).")
-        port = APP.state.cgs[key]["port"]
         try:
             conn = http.client.HTTPConnection(CLOUD_HOST, port, timeout=5)
             conn.request("GET" if self.command != "HEAD" else "HEAD", rest or "/")
             resp = conn.getresponse()
             payload = resp.read(2_000_000)
             conn.close()
+        except (UnicodeError, http.client.InvalidURL):  # a path that cannot be sent as a request line
+            return self._send_text(400, "That path is not valid.")
         except OSError:
             return self._send_text(502, "The container is not answering.")
         self.send_response(resp.status)

@@ -101,7 +101,7 @@ Everything a student can deploy is bounded by `compose/cloud-api/policy.py`. Eac
 | Tags `owner` and `env` required | `RequestDisallowedByPolicy` ("Require tag …") |
 | Names start with `rg-` / `ci-`, lowercase, digits, hyphens | `InvalidResourceGroupName`, `InvalidContainerGroupName` |
 | Images: `dojo/hello:1.0`, `dojo/hello:2.0` only | `InvalidImage` |
-| At most 0.25 vCPU and 0.125 GB per container | `InvalidResourceRequest` |
+| Between 0.05 and 0.25 vCPU, and between 0.03125 and 0.125 GB, per container (Docker reads a limit of 0 as unlimited, so there is a floor as well as a ceiling) | `InvalidResourceRequest` |
 | Port 80 only, one container per group, no command override | `InvalidRequestContent` |
 | At most 2 container groups per subscription | `QuotaExceeded` |
 | DNS name label required and unique across the class | `DnsNameLabelInUse` |

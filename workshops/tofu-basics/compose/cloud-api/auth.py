@@ -82,7 +82,7 @@ class Auth:
         if user is None:
             return None
         expected = client_secret(self.key, user)
-        return user if hmac.compare_digest(expected, secret or "") else None
+        return user if hmac.compare_digest(expected.encode(), (secret or "").encode()) else None
 
     def issue_token(self, username, audience):
         now = int(time.time())

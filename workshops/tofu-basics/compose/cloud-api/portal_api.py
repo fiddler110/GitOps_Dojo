@@ -166,7 +166,7 @@ class Portal:
         try:
             data = json.loads(body or b"{}")
             return data if isinstance(data, dict) else None
-        except ValueError:
+        except (ValueError, RecursionError):  # RecursionError: absurdly deeply nested JSON
             return None
 
     # ---- snapshots (under the lock, no I/O) ------------------------------------
@@ -307,8 +307,11 @@ class Portal:
         if refused:
             return _err(503, "ServiceUnavailable", refused)
         if method == "DELETE":
-            if not self.app.delete_container_group(sub, rg, name, user, via="portal"):
-                return self._not_found(rg, name)
+            try:
+                if not self.app.delete_container_group(sub, rg, name, user, via="portal"):
+                    return self._not_found(rg, name)
+            except state_mod.Busy as exc:  # an operation on it is in flight: same words as the ARM 409
+                return _err(409, "Conflict", str(exc))
             self._invalidate()
             return _json(200, {"deleted": True})
         return self._patch(user, sub, rg, name, key, body)
