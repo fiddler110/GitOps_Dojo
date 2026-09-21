@@ -100,7 +100,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
 | P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic (the shared-theme code colours were fixed in `82b9e36`) |
 | P8 | Docs, registration, capacity, delivery | **done** (T8.1–T8.3, T8.5–T8.10 written and live-tested 2026-09-21) | the guide and README are untested against a real class (T9.4); T8.4 dropped |
-| P9 | Validation (bots, load, dry-run) | **in progress** (2026-09-21): T9.1, T9.2, T9.3 (M4 at 15), T9.6, T9.7 done live | open: T9.5 (other workshops), T9.9 (browser), T9.4 (people, yours), T9.8 on docker proper, and 20+ students |
+| P9 | Validation (bots, load, dry-run) | **in progress** (2026-09-21): T9.1, T9.2, T9.3 (M4 at 15), T9.5, T9.6, T9.7 done live | open: T9.9 (browser), T9.4 (people, yours), T9.8 on docker proper, and 20+ students |
 | P10 | Optional stretch | not started | T10.1–T10.4 |
 
 ### Milestones
@@ -111,7 +111,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | **M2** | Provider decision made (`azurerm`) | ✅ reached | none |
 | **M3** | One student deploys end-to-end | ✅ reached (`6301cc8`) | proven for one student on podman; not concurrent, not docker proper (T9.3, T9.7, T9.8) |
 | **M4** | Load test passes at the largest class this machine can hold (**redefined 2026-09-21: 15 students, not 30**; 30 needs a bigger box or a VM, and is a separate run) | ✅ **reached at 15** (2026-09-21, T9.3; 30 not tried) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
-| **M5** | Release-ready | ❌ **not reached** | needs the T8.5 `engine/README.md` note, P9 validation (incl. a human dry-run, T9.4, and the regression run of the other workshops, T9.5) |
+| **M5** | Release-ready | ❌ **not reached** | T8.5 and T9.5 are done; still needs the human dry-run (T9.4) and the browser pass (T9.9) |
 
 ---
 
@@ -1033,7 +1033,7 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
       Browse, Quota tile, Refresh now): the P6 verification drove the portal through `/cloud/api` and only
       cross-checked button/label text against `app.js`. Also re-run Track A labs 0–3 on a rebuilt image, and re-check
       the attention-tile text now reading `code: message` (`25a7176`, offline tests only).
-- [ ] **T9.5** Regression: other workshops still start (`./run.sh git-fundamentals`,
+- [x] **T9.5** *(2026-09-21, live, `./run.sh <w> --test`: git-fundamentals 20/20 checks pass; dns-as-code and cert-autorenewal pass every engine check (landing, assign, session cookie, `/admin` gating, status all green, forge and slides routes reachable, `/cloud/` and `/cloud/api/me` answer 404, no Cloud card or tab, no cloud containers, no allocator tracebacks). Two fails on those two are **old bugs, not caused by this branch** (it changed nothing in `engine/web-terminal` or those packs): the terminal reports `(unhealthy)` (F.1/F.2) and the demo bots push nothing (F.8). Not checked: a student's IDE, terminal or a lab step in those three workshops. Uncommitted)* Regression: other workshops still start (`./run.sh git-fundamentals`,
       `dns-as-code`, `cert-autorenewal`). **M5: release-ready**
 
 ### P10 — Optional stretch
@@ -1052,23 +1052,30 @@ These are problems in other parts of the repo. They are deliberately **not**
 fixed on this branch — do them as a separate change so the tofu-basics diff stays
 reviewable. Details and evidence are in §15a-B.
 
-- [ ] **F.1** Fix the stale restated `HEALTHCHECK` in
+- [x] **F.1** *(2026-09-21, live: `workshop_terminal` `(healthy)`, uncommitted; done through the shared script, see F.4)* Fix the stale restated `HEALTHCHECK` in
       `workshops/dns-as-code/compose/terminal/Dockerfile:40-41` (add
       `--header="X-Control-Token: ${CONTROL_TOKEN}"`).
-- [ ] **F.2** Same fix in
+- [x] **F.2** *(2026-09-21, live: `(healthy)`, uncommitted)* Same fix in
       `workshops/cert-autorenewal/compose/terminal/Dockerfile:68-69`.
-- [~] **F.3** *(2026-09-21: cert-autorenewal confirmed live: `workshop_terminal` `(unhealthy)`, `wget` gets 403 without `X-Control-Token`; dns-as-code not run)* *Verify first:* run `./run.sh dns-as-code` and `./run.sh cert-autorenewal`
+- [x] **F.3** *(2026-09-21: after the fix both packs report `(healthy)`; before it: cert-autorenewal confirmed live: `workshop_terminal` `(unhealthy)`, `wget` gets 403 without `X-Control-Token`; dns-as-code also `(unhealthy)` on 2026-09-21, same restated `HEALTHCHECK`)* *Verify first:* run `./run.sh dns-as-code` and `./run.sh cert-autorenewal`
       and confirm `workshop_terminal` reports `unhealthy` before the fix and `healthy`
       after (only *inferred* so far — see §15a-B). Rebuild with `./run.sh stop` first.
-- [ ] **F.4** Decide whether workshops should keep *restating* the base HEALTHCHECK at
+- [x] **F.8** *(found in T9.5; fixed 2026-09-21 in `engine/web-terminal/bot-runner.sh` (`REPO_DIR` follows `$FORGEJO_REPO`, the user approved the engine edit): live, dns-as-code and cert-autorenewal bots now push `testuser1/round1-add-testuser1`. Only the first-round branch was looked for, not a whole bot run. Uncommitted)* `--test` demo bots only work for git-fundamentals. `engine/web-terminal/bot-runner.sh:45` hard-codes
+      `REPO_DIR="$HOME/lab/sample-training-repo"` although the clone uses `$FORGEJO_REPO`, so in cert-autorenewal the clone lands in `cert-autorenewal/`, the
+      `cd` fails and the bot retries forever (`step_ensure_clone failed (attempt 11)`); no `testuser*` branches appear. dns-as-code has the same repo-name mismatch (its bot log was not read).
+      Fix: derive `REPO_DIR` from `$FORGEJO_REPO`. Touches `engine/`, so ask first.
+- [x] **F.9** *(found in T9.5; fixed 2026-09-21 by a `HEALTHCHECK` in `cert-autorenewal/compose/step-ca/Dockerfile` that asks `https://localhost:9000` with the CA's root cert; live: `(healthy)`. Uncommitted)* cert-autorenewal `workshop_step_ca` stays `(unhealthy)`: its healthcheck `step ca health` fails with
+      `lookup step-ca on 172.30.0.10:53: server misbehaving`, because that container's resolver is the workshop's PowerDNS, which does not know `step-ca`.
+      Unknown whether it also happens on docker (this was rootless podman); the CA itself serves HTTPS on :9000 and the lab still ran in earlier sessions.
+- [x] **F.4** *(2026-09-21, the user chose option (c): the base image now ships `/usr/local/bin/web-terminal-healthcheck` (`engine/web-terminal/healthcheck.sh`) and every workshop's `HEALTHCHECK` is `CMD web-terminal-healthcheck`: dns-as-code, cert-autorenewal, tofu-basics; `workshops/README.md` step 4 and the `vscode-extensions.md` example say so. Live: all four workshops healthy. Uncommitted)* Decide whether workshops should keep *restating* the base HEALTHCHECK at
       all (it drifted once; it will again). Options in §15a-B. Then update
       `workshops/README.md` "Adding a new workshop" step 4 accordingly.
-- [ ] **F.6** *(user review)* Commit `a24f08b` on `main` bundles ~24 unrelated in-flight engine changes
+- [x] **F.6** *(2026-09-21, reviewed by a sub-agent; the user then asked for H1, M1 and M2 to be fixed, and they are, live-checked: `run.sh` is now `100755`; `workspace-control.py` refuses a non-zero idle timeout of 60 or less at startup (`.env.example` and `engine/README.md` say so); `presentation` is excluded from the overlay `compose build` and its `dojo.src-hash` label now survives (a second `--dry-run` says "source unchanged"). The 8 low items are untouched. Original findings: **H1 (confirmed by me):** root `run.sh` is committed as mode `100644`, so a fresh clone gets "Permission denied" on `./run.sh` (`core.fileMode=false` hides it here); fix `git update-index --chmod=+x run.sh`. **M1:** `CODE_SERVER_IDLE_TIMEOUT_SECONDS` 1 to 60 passes `workspace-control.py:100-107` but code-server 4.137.0 rejects values of 60 or less, so `/ide` fails silently. **M2:** `presentation` is missing from the exclusion list at `engine/run.sh:416`, so it is rebuilt unlabelled (the same as the §15a-H rebuild-every-run finding). Also 8 low items: unlisted behaviour changes, README sizing figures that disagree (`engine/README.md:411` vs `:442` vs `capacity-calc.sh`), base images still unqualified, and a few unverified corners of the Marp image. No problem found in the auth or identity-trust path)* Commit `a24f08b` on `main` bundles ~24 unrelated in-flight engine changes
       that were committed and pushed **on the user's instruction, without a line-by-line review by
       Claude** — see §15a-F. Someone who owns that work should skim it.
-- [ ] **F.7** *(decision)* Base images `docker:dind` and `python:3.12-alpine` are unpinned tags in
+- [x] **F.7** *(2026-09-21, the user chose to leave them unpinned and accept the drift risk; matches `engine/allocator` and other packs)* *(decision)* Base images `docker:dind` and `python:3.12-alpine` are unpinned tags in
       the tofu-basics overlay — pin them (repo precedent is mixed) or accept the drift risk; §15a-F.
-- [ ] **F.5** Refresh the stale comment in `engine/web-terminal/Dockerfile:175` (says
+- [x] **F.5** *(2026-09-21, uncommitted)* Refresh the stale comment in `engine/web-terminal/Dockerfile:175` (says
       no workshop has a `.tf` file / `hashicorp.terraform` is not installed) and add a
       line to `engine/web-terminal/vscode-extensions.md`: the OpenTofu extension is now
       installed by `tofu-basics`' own terminal image, not the base image.
@@ -1658,6 +1665,21 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   15 scripted shells are cheap. The unmeasured cost of a real class (IDE and browser per student) is the part not tested.
 - **Commits:** `745f842` (lock narrowing, fuzz fixes, policy tests, docs), `4d243cf` (cloud-host outbound rule), `4a4729a` (`tests/`), then this plan update.
 - **Nothing else needed fixing:** the scripts and the labs agreed on the first run. **Not tested:** 20+ students, docker proper, the gateway's own header handling, a browser (T9.9), other workshops (T9.5), real people (T9.4). **Uncommitted.**
+
+### 2026-09-21 (evening) — T9.5 other-workshop regression
+- Stopped the stack and started each other workshop with `--test`, then ran a scripted check (kept in the scratchpad, not committed) against the gateway with the shared gate, a real student assignment and the facilitator login.
+- **git-fundamentals: 20/20.** **dns-as-code and cert-autorenewal: every engine check passes; 2 fail each**, both found to predate this branch: `workshop_terminal` `(unhealthy)` (the restated `HEALTHCHECK` lacks `X-Control-Token`, F.1/F.2; F.3 now confirmed for both packs) and no bot branches (bot-runner hardcodes the repo directory, new F.8).
+  cert-autorenewal also has `step-ca` unhealthy (new F.9). Proof they are not ours: `git diff main...HEAD` shows no change under `engine/web-terminal`, `workshops/dns-as-code` or `workshops/cert-autorenewal`.
+- The engine changes this branch does make (allocator `/auth-check?tool=cloud`, Caddy `@cloud`, `CLOUD_ENABLED`) are exercised here: with `CLOUD_ENABLED` off, `/cloud/` is a 404 and no Cloud card or tab appears.
+- **Slip in my own run:** the first attempt ran two copies of the script at once (a backgrounded loop outlived its shell), which collided on `pod_engine`; I killed everything, ran `./run.sh stop` and re-ran once. Those results are the ones above.
+- **Uncommitted.** Stack stopped.
+
+### 2026-09-21 (night) — follow-ups F.1 to F.9
+- **Decisions (user):** shared healthcheck script (F.4 option c); engine edits allowed for `healthcheck.sh`, `web-terminal/Dockerfile` (comment and `COPY`), `bot-runner.sh` and `vscode-extensions.md`; review `a24f08b` read-only; leave F.7 images unpinned.
+- **Done, live:** `./run.sh stop` then each workshop. dns-as-code and cert-autorenewal: 16 of 16 checks, terminals `(healthy)`, cert `step-ca` `(healthy)`, bot branches pushed. tofu-basics: all 7 containers healthy with the new script (its e2e was not re-run; only the healthcheck line changed).
+- **F.6 review** summarised in the F.6 line above; then fixed on the user's request: H1 (`run.sh` mode), M1 (idle-timeout floor, rejected by the container: `must be 0 (off) or greater than 60 seconds, got 45`), M2 (`-e presentation`). Also made the seconds check ASCII-only (L8). Full report was in the scratchpad only (`review-a24f08b.md`), not committed.
+- **Commits:** `230a9ba` shared healthcheck (F.1-F.5), `231cd5d` bot repo folder (F.8), `a5953ec` step-ca healthcheck (F.9), `f55f0bd` the three `a24f08b` fixes (F.6), then this plan update. Pushed.
+- **Slips:** a zsh `rm -f fix-*.out` with no matching file aborted the whole command, so my first re-run never started; I re-ran it under `bash -c`. **Uncommitted.**
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
