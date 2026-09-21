@@ -10,10 +10,17 @@
   --teal-deep: #137f7a;
   --blue: #69aee8;
   --cyan: #22d3ee;
-  /* Marp's syntax highlighter (highlight.js via GitHub's "prettylights"
-     theme) reads these custom properties, defined upstream for a light
-     background -- redeclaring them here keeps fenced code readable on
-     our dark canvas instead of e.g. near-black string literals. */
+}
+/* Marp's syntax highlighter (highlight.js via GitHub's "prettylights"
+   theme) reads these custom properties, defined upstream for a light
+   background -- redeclaring them here keeps fenced code readable on
+   our dark canvas instead of e.g. near-black string literals.
+   They MUST be set on `section`, not `:root`: Marp's default theme
+   declares them on `section` itself, and this file is loaded through
+   @import, so `:root` stays the <html> element. A value set on <html>
+   is only inherited, and loses to the declaration on <section> even
+   with !important. */
+section {
   --color-prettylights-syntax-comment: var(--muted) !important;
   --color-prettylights-syntax-constant: var(--cyan) !important;
   --color-prettylights-syntax-entity: var(--blue) !important;
