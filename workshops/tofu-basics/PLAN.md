@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/tofu-basics/` |
 | Run command (when built) | `cd engine && ./run.sh tofu-basics` |
-| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); next: P7 slides (ask the user first)** |
+| Overall status | **M1 + M2 + M3 reached; P4 portal and P5 gateway route done (facilitator Class progress board built, live-tested). P6 Track B labs 4–10, cheat sheet and starter repo done and verified live through the API (`25a7176`); P7 slides written and render-tested (`d750be5`); next: P8 docs/capacity/facilitator guide or the T9.9 browser pass (ask the user first)** |
 | Working branch | `feat/tofu-basics` (planning commit is on `main`) |
-| Last updated | 2026-09-20 (P0–P6 done; D2–D6 all decided) |
+| Last updated | 2026-09-21 (P0–P7 done; D2–D6 all decided) |
 
 ---
 
@@ -77,8 +77,9 @@ trademarks, or copied portal assets (we use Azure *concepts and naming*, not
 Microsoft branding — see §6).
 
 **Audience:** engineers who did (or are doing) Git Fundamentals; comfortable
-with a terminal and git; new to IaC. Target session **~2 hours** including
-Track A (~35 min) and Track B (~60 min) plus slides.
+with a terminal and git; new to IaC. Target session **~2¼ hours**: talk ~30 min (a guess until
+the dry run, T9.4), Track A ~37 min and Track B ~66 min (the lab README's estimates). To fit 2 hours, drop Lab 9
+and/or Lab 8's optional section (deck speaker notes say so).
 
 ---
 
@@ -96,7 +97,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 | P4 | Portal (Azure-inspired console) | **done** (`49c168e`) | no real screen-reader / Firefox / Safari pass; no real-browser pass over portal buttons (T9.9) |
 | P5 | Gateway / allocator integration | **done** (`a2eb28f`; progress board `1b22631`; fixes `2e8e818`, `25a7176`) | attention-tile text `code: message` only unit-tested (T9.9); deferred findings in §15a-H (`publicBaseUrl` ignores the dev port, presentation image rebuilds every run, leftover network survives stop) |
 | P6 | Lab content — Track B | **done** (`5d0ad28` + `25a7176`) | stretch labs 11–12 (T6.4, optional); browser pass over labs 4–10 (T9.9); labs say `<class-address>` because the dev portal URL lacks the port |
-| P7 | Slides | not started | everything: `presentation.md`, `index.md`/`labs.md`/`cheat-sheet.md` hubs (only a placeholder hub exists), speaker notes (T7.1–T7.3) |
+| P7 | Slides | **done** (`d750be5`) | talk timings are guesses until the dry run (T9.4); shared-theme `whoami` contrast in `labs.md` code blocks (see §16); the four post-render fixes were not re-rendered; not checked in the `/admin` Slides tab iframe or with real student traffic |
 | P8 | Docs, registration, capacity, delivery | not started | workshop `README.md` (a stub exists), `capacity-calc.sh`, facilitator guide, `engine/README.md` note (T8.1–T8.3, T8.5); T8.4 dropped |
 | P9 | Validation (bots, load, dry-run) | not started | all of T9.1–T9.9 |
 | P10 | Optional stretch | not started | T10.1–T10.4 |
@@ -105,7 +106,7 @@ lists what is **still open inside a done phase** so a green row is never read as
 
 | | Milestone | Status | Caveats — what "reached" does not cover |
 |---|---|---|---|
-| **M1** | Track A shippable | ✅ reached (`ef3e36a`) | the slide deck is still a placeholder (P7); HCL highlighting and Labs 0–3 not re-checked in a browser / on the current image; amd64 only |
+| **M1** | Track A shippable | ✅ reached (`ef3e36a`) | the deck is written and render-tested (P7) but not dry-run with people; HCL highlighting and Labs 0–3 not re-checked in a browser / on the current image; amd64 only |
 | **M2** | Provider decision made (`azurerm`) | ✅ reached | none |
 | **M3** | One student deploys end-to-end | ✅ reached (`6301cc8`) | proven for one student on podman; not concurrent, not docker proper (T9.3, T9.7, T9.8) |
 | **M4** | 30-student load test passes | ❌ **not reached** (T9.3) | only the read side was checked with 30 *rostered* students (progress board p50 3 ms). No 30-way concurrent apply has run; the `--test` bots only exercise git, so a dedicated driver is needed (§15a-F1); the 3 GB `cloud-host` ceiling is unmeasured; the lock stall (T9.7) is unfixed |
@@ -832,10 +833,10 @@ Each task: what · files · **Verify** (how to prove it) · `[ ]` status.
 
 ### P7 — Slides
 
-- [ ] **T7.1** `presentation.md` per §10 outline; render with the presentation
+- [x] **T7.1** *(`d750be5`; 23 slides; rendered by the real Marp container, every slide screenshotted in headless Edge)* `presentation.md` per §10 outline; render with the presentation
       service. *Verify:* visible at `/slides`, links from `index.md` work.
-- [ ] **T7.2** `index.md`, `labs.md`, `cheat-sheet.md` slide/lab hubs.
-- [ ] **T7.3** Speaker notes, timing marks.
+- [x] **T7.2** *(`d750be5`; hub links and "← Hub" footers all return 200)* `index.md`, `labs.md`, `cheat-sheet.md` slide/lab hubs.
+- [x] **T7.3** *(`d750be5`; notes on most slides; timings from the lab README, talk times are estimates)* Speaker notes, timing marks.
 
 ### P8 — Docs, registration, capacity, delivery
 
@@ -1050,8 +1051,7 @@ table records what was built and how to change it:
 
 ### E. Known gaps / not verified yet *(rewritten 2026-09-20)*
 
-- **Not built yet:** slides (P7; only a placeholder hub exists, and without a slide file the Marp container exits),
-  workshop README, facilitator guide, `capacity-calc.sh` and `engine/README.md` entries (P8), committed e2e/load
+- **Not built yet:** workshop README, facilitator guide, `capacity-calc.sh` and `engine/README.md` entries (P8), committed e2e/load
   scripts (P9), optional stretch labs 11–12 (T6.4). Built since this section was first written: portal and activity
   read API (P4), gateway/allocator route and facilitator tab (P5), the starter repo with its lock file, and labs 4–10
   (P6).
@@ -1363,6 +1363,24 @@ Established by the live integration run (real `azurerm`, real browser); each is 
   §11 touchpoints (real Caddy matcher, allocator, what is still not done), P4/T3.x notes, §14, §15a-A (D2–D6 now
   confirmed) and §15a-E (rewritten). T8.4 dropped (no `infra/`). Added T9.9 (browser pass). Older §16 entries were
   left as written; they are a dated record, not current state.
+
+### 2026-09-21 — P7 slides (`d750be5`)
+- User approved P7 at the phase gate. Wrote `presentation.md` (23 slides, §10 outline), `labs.md`, `cheat-sheet.md`
+  and the real `index.md` hub; a sub-agent rendered them on a live stack (real Marp container, all four served, every
+  link 200, all 46 slides screenshotted) and reported findings; I checked them against the files and fixed four in the
+  same commit: a two-column slide splitting a paragraph, literal backticks in the hub tagline (`<p>` HTML is not
+  Markdown), `↔` (Marp turns it into a jsdelivr twemoji image, an external fetch in an offline lab: **avoid emoji-range
+  characters in slides**), a stray gap on the cheat-sheet.
+- **Timing correction:** the lab README's estimates sum to 37 + 66 min, so with the talk the session is about 2¼ hours,
+  not 2. The deck says so and its notes name what to trim (Lab 9, Lab 8's optional section).
+- **Not fixed (shared theme, not this workshop):** `whoami` in `sh` fences is dark orange on the dark background in
+  `labs.css` (highlight.js builtin colour); `dns-as-code/labs.md` shares it, so probably affected too (not rendered).
+  The Marp container also logs "Cannot register theme CSS" for the four shared themes; harmless (they load via
+  `@import`), not checked against another workshop.
+- **Not verified:** the four fixes after the render (text-only edits, not re-rendered); the `/admin` Slides tab;
+  students' browsers (only Windows Edge was used); nobody has presented it.
+- **Next:** ask the user before the next phase. Candidates: P8 (README, `capacity-calc.sh`, facilitator guide) or T9.9 /
+  T9.7 (browser pass, lock stall) which carry the larger unverified risk.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
