@@ -212,7 +212,7 @@ if [ "$LIVE_STUDENTS" -gt 0 ]; then
 else
   PER_STUDENT_MB=$(( BASELINE_PER_STUDENT_MB * (100 + MARGIN_PCT) / 100 ))
   BASE_MB=512
-  SOURCE="${LIVE_IGNORED_NOTE}revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './run.sh <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
+  SOURCE="revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './run.sh <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
 fi
 
 MEM_LIMIT_MB=$(( BASE_MB + STUDENTS * PER_STUDENT_MB ))
@@ -230,6 +230,13 @@ TOTAL_NEEDED_MB=$(( MEM_LIMIT_MB + OTHER_SERVICES_MB + RESERVE_MB ))
 echo "== Capacity calculator =========================================="
 echo "Host/VM memory (${HOST_MEM_SOURCE}): ${HOST_MEM_MB}MB"
 echo "Per-student estimate source: $SOURCE"
+if [ -n "$LIVE_IGNORED_NOTE" ]; then
+  echo "NOTE: ${LIVE_IGNORED_NOTE% }"
+fi
+if [ "$LIVE_STUDENTS" -eq 0 ]; then
+  echo "NOTE: the ${BASELINE_PER_STUDENT_MB}MB baseline is a fresh-session figure. A session that has run for an hour, with"
+  echo "      every student in their IDE, can use more; WEB_TERMINAL_MEM_LIMIT is the only backstop for that."
+fi
 echo "Per-student memory estimate: ${PER_STUDENT_MB}MB"
 echo "Container base overhead:     ${BASE_MB}MB"
 echo "Other 4 services' mem_limits:${OTHER_SERVICES_MB}MB"

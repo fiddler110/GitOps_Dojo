@@ -58,10 +58,16 @@ done
 # One-time, interactive offer to wire up shell tab-completion (workshop
 # names, list/stop/teardown, --test) -- see the script for why this is
 # safe to call on every run (no-ops after the first decision, and in any
-# non-interactive context such as CI or a --test bot run).
-if [ "$dry_run" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
-  ./scripts/install-completion.sh
-fi
+# non-interactive context such as CI or a --test bot run). Not offered
+# ahead of help or stop either: asking a question before printing usage (or
+# tearing down) is the wrong first thing to do.
+case "${1:-}" in
+  help | -h | --help | stop | teardown) ;;
+  *)
+    if [ "$dry_run" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
+      ./scripts/install-completion.sh
+    fi ;;
+esac
 
 case "${1:-}" in
   stop | teardown)
@@ -105,6 +111,10 @@ list_workshops() {
     name="$(basename "$d")"
     [ -f "${d}workshop.env" ] || continue
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
+    case "$name" in
+      setup | capacity | stop | teardown | help | list)
+        title="(unreachable: '${name}' is also a command, rename the folder)" ;;
+    esac
     printf '  %-20s %s\n' "$name" "${title:-}"
   done
 }
@@ -281,9 +291,10 @@ hash_dir() {
 # compose overlay's service image, ...) doesn't delete the image it used to
 # point at -- that image just loses its tag and sits on disk as <none>, and
 # the pile grows with every rebuild. So each build below is wrapped in
-# track_superseded, which notes every image that had a tag before the build
-# and has none after it: exactly what that build displaced, whatever the
-# image is named and whether or not it carries our label. reap_superseded
+# track_superseded, which notes every one of our images (see
+# our_tagged_image_ids) that had a tag before the build and has none after it:
+# exactly what that build displaced, whether or not it carries our label.
+# reap_superseded
 # removes them at the very end of the run.
 #
 # Removal is deferred until after `compose up -d` because a still-running
@@ -297,9 +308,19 @@ image_ids() {
   images --filter "dangling=$1" --format '{{.ID}}' | sort -u
 }
 
+# IDs of the tagged images this project builds: gitopsdojo/* (our fixed tags)
+# and Compose's own names for an overlay's services (engine_step-ca, or
+# engine-step-ca on newer Compose). Only these are ever candidates for
+# removal, so an image you tagged or built yourself in another terminal while
+# a run is going is never mistaken for one this run displaced.
+our_tagged_image_ids() {
+  images --filter "dangling=false" --format '{{.ID}} {{.Repository}}' \
+    | awk '$2 ~ /(^|\/)gitopsdojo\// || $2 ~ /(^|\/)engine[_-]/ { print $1 }' | sort -u
+}
+
 # Run the given build command, recording any image it left untagged.
 track_superseded() {
-  ids_before=" $(image_ids false | tr '\n' ' ') "
+  ids_before=" $(our_tagged_image_ids | tr '\n' ' ') "
   "$@"
   mkdir -p "$(dirname "$superseded_file")"
   for id in $(image_ids true); do
@@ -374,6 +395,7 @@ build_if_changed() {
   fi
   if [ "$dry_run" = "1" ]; then
     echo "  ${image}: WOULD BUILD (source changed, or no cached image yet)."
+    would_build="${would_build} ${image} "
     return 0
   fi
   echo "  ${image}: building (source changed, or no cached image yet)..."
@@ -447,6 +469,10 @@ if [ "$dry_run" = "1" ]; then
 else
   echo "Checking images (only rebuilding what actually changed)..."
 fi
+# A dry run builds nothing, so it can't see that a rebuilt base makes the
+# workshop terminal (FROM base) stale too; build_if_changed records what it
+# would build here so the workshop terminal below can say so.
+would_build=""
 # shellcheck disable=SC2086
 build_if_changed gitopsdojo/web-terminal:base ./web-terminal $build_secret_args
 
@@ -464,8 +490,13 @@ if [ -d "$workshop_terminal_dir" ]; then
   # contents alone wouldn't change when only the base did.
   saved_salt="$build_salt"
   build_salt="${build_salt}$(inspect -f '{{.Id}}' gitopsdojo/web-terminal:base 2>/dev/null || true)"
-  # shellcheck disable=SC2086
-  build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args
+  case "$would_build" in
+    *" gitopsdojo/web-terminal:base "*)
+      echo "  gitopsdojo/web-terminal:${workshop}: WOULD BUILD (the base image it is built on would be rebuilt)." ;;
+    *)
+      # shellcheck disable=SC2086
+      build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args ;;
+  esac
   build_salt="$saved_salt"
 fi
 

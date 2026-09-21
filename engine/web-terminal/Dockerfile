@@ -9,7 +9,7 @@
 # stack that isn't Alpine-based. Everything not available via apt (ttyd,
 # zoxide, glow, code-server) is pinned to a specific version and
 # sha256-verified below, same as this file always did on Alpine.
-FROM debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bat \

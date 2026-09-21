@@ -1,0 +1,9 @@
+{
+  "name": "dojo-presentation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marp CLI for the Dojo slide server; package-lock.json pins every transitive dependency.",
+  "dependencies": {
+    "@marp-team/marp-cli": "3.4.0"
+  }
+}

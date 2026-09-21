@@ -408,8 +408,9 @@ the peak; nothing below lowers it. Three knobs bound it:
 - `web-terminal`'s container-wide `mem_limit`/`pids_limit`
   (`docker-compose.yml`, set via `WEB_TERMINAL_MEM_LIMIT`/`WEB_TERMINAL_PIDS_LIMIT`
   in `.env`) is the ceiling for every student's code-server/ttyd process
-  combined. Size roughly `(expected concurrent students) × 650MB + 1GB`
-  for RAM and `(expected concurrent students) × 30 + 100` for pids.
+  combined. Size roughly `(expected concurrent students) × 650MB × 1.15 + 512MB`
+  for RAM and `(expected concurrent students) × 40 + 200` for pids: the same
+  rule `./run.sh capacity` falls back to (below).
 - `CODE_SERVER_MAX_HEAP_MB` (default 384) caps the V8 heap of each
   student's code-server *server* process via `NODE_OPTIONS`
   (`workspace-control.py`). Checked directly
@@ -427,10 +428,13 @@ the peak; nothing below lowers it. Three knobs bound it:
   timeout the whole code-server exits and the next `/ide` request restarts
   it (via the allocator's `forward_auth` → `start_workspace()`), while
   terminals — tmux sessions under the student's own uid — are untouched. A
-  student whose tab is open is never affected, however idle. One visible
+  student whose browser tab is still connected is not affected: the timers
+  start when the connection goes (tab closed, network lost). Not tested: how
+  code-server sees a discarded background tab or a sleeping laptop. One visible
   effect: a student who returns after more than the grace time is asked to
-  reload the window rather than resuming in place. `0` disables a timer; a non-zero
-  `CODE_SERVER_IDLE_TIMEOUT_SECONDS` must be more than 60 (code-server rejects less, and the container refuses to start).
+  reload the window rather than resuming in place. `0` disables a timer; a
+  non-zero `CODE_SERVER_IDLE_TIMEOUT_SECONDS` must be more than 60 (code-server
+  rejects less, and the container refuses to start).
 
 These are set by hand in `.env`, not derived automatically. Run
 `./run.sh capacity --students <N>` **on the target machine**
@@ -440,8 +444,10 @@ session — it reads that machine's actual memory and, if a couple of
 against their real measured private memory instead of estimating (a
 reading too low to be a connected IDE — e.g. a bot whose `/ide` was never
 opened in a browser — is ignored, not trusted). Without usable live data it
-falls back to the rule of thumb: `(concurrent students × 650MB × 1.15) +
-base` for RAM, `(concurrent students × 40) + 200` for pids.
+falls back to that rule of thumb: `(concurrent students × 650MB × 1.15) +
+512MB` for RAM, `(concurrent students × 40) + 200` for pids. The 650MB is a
+fresh-session figure (about 480MB measured, plus headroom), so a long session
+can run above it; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
 
 Extensions: code-server ships with a small, curated extension set —
 `redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
@@ -492,9 +498,15 @@ way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
 image a build displaces and removes it once the containers are running on the
 new one (`track_superseded` / `reap_superseded`). Only images that rebuild
-displaced are touched, and one still in use is kept in
-`.build-state/superseded-images` and retried next run. The manual form below
-forces every image to
+displaced are touched, and only ones this project builds (`gitopsdojo/*` and
+Compose's own `engine_*` names): an image you tagged or built yourself is
+never a candidate. One still in use is kept in `.build-state/superseded-images`
+and retried next run. On podman, `run.sh` builds in Docker image format
+(`BUILDAH_FORMAT=docker`) because the default OCI format has no `HEALTHCHECK`,
+and the change-detection hash is salted with that, so the first run after
+pulling it rebuilds every image once. `--dry-run` reports what would be rebuilt;
+a workshop terminal image is reported as rebuilt whenever the base image it is
+built on would be. The manual form below forces every image to
 rebuild regardless of whether anything changed; reach for it only if you
 suspect the change-detection state itself is stale (e.g. you edited a file
 outside of git, or deleted `engine/.build-state/` by hand) — add the
