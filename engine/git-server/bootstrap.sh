@@ -116,6 +116,14 @@ else
     >/dev/null
 fi
 
+# Pre-tick "Delete branch after merge" on the PR merge form, so a merged PR
+# cleans up its branch on the server (labs rely on this before git fetch --prune).
+# Applied on every run so repos created before this setting also pick it up.
+api_curl -sf -X PATCH "$api/repos/$org_name/$repo_name" \
+  -H 'Content-Type: application/json' \
+  -d '{"default_delete_branch_after_merge":true}' \
+  >/dev/null || log "warning: could not set delete-branch-after-merge on '$org_name/$repo_name'"
+
 # ---------------------------------------------------------------------------
 # 5. Seed content (only if the repo has no commits yet)
 # ---------------------------------------------------------------------------
