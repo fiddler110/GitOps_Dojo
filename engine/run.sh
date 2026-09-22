@@ -291,11 +291,14 @@ hash_dir() {
 # compose overlay's service image, ...) doesn't delete the image it used to
 # point at -- that image just loses its tag and sits on disk as <none>, and
 # the pile grows with every rebuild. So each build below is wrapped in
-# track_superseded, which notes every one of our images (see
-# our_tagged_image_ids) that had a tag before the build and has none after it:
-# exactly what that build displaced, whether or not it carries our label.
-# reap_superseded
-# removes them at the very end of the run.
+# track_superseded, which notes two kinds of image the build left untagged:
+#   - one of ours (see our_tagged_image_ids) that had a tag before the build and
+#     has none after it: exactly what that build displaced, whether or not it
+#     carries our label;
+#   - one that did not exist before the build at all: the non-final stage of a
+#     multi-stage Dockerfile (presentation's `build`, cloud-host's `hello`).
+#     Podman keeps those as <none> images; they never had a tag to lose.
+# reap_superseded removes them at the very end of the run.
 #
 # Removal is deferred until after `compose up -d` because a still-running
 # container pins the image it was created from; once `up -d` has recreated
@@ -321,11 +324,16 @@ our_tagged_image_ids() {
 # Run the given build command, recording any image it left untagged.
 track_superseded() {
   ids_before=" $(our_tagged_image_ids | tr '\n' ' ') "
+  untagged_before=" $(image_ids true | tr '\n' ' ') "
   "$@"
   mkdir -p "$(dirname "$superseded_file")"
   for id in $(image_ids true); do
     case "$ids_before" in
-      *" $id "*) echo "$id" >>"$superseded_file" ;;
+      *" $id "*) echo "$id" >>"$superseded_file"; continue ;;
+    esac
+    case "$untagged_before" in
+      *" $id "*) ;;
+      *) echo "$id" >>"$superseded_file" ;;
     esac
   done
 }
