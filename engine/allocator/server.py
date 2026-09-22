@@ -1214,12 +1214,28 @@ setInterval(refresh, 5000);
             return
 
         port = ide_port(username) if tool == "ide" else term_port(username)
-        control_request("POST", f"/start/{tool}/{username}")
+        resp = control_request("POST", f"/start/{tool}/{username}")
+        ready = False
+        if resp is not None:
+            try:
+                ready = bool(json.loads(resp).get("ready"))
+            except (ValueError, AttributeError):
+                ready = False
 
-        self.send_response(200)
-        self.send_header("X-Upstream-Port", str(port))
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        if ready:
+            self.send_response(200)
+            self.send_header("X-Upstream-Port", str(port))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        else:
+            # code-server/ttyd was just spawned (or web-terminal itself is
+            # briefly unreachable) and isn't listening yet -- 202 tells
+            # Caddy (see gateway/Caddyfile's @ide/@term handle_response) to
+            # serve the self-refreshing starting page instead of proxying
+            # to a port nothing is listening on yet.
+            self.send_response(202)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
     def handle_auth_check_watch(self, parsed):
         """Gates /admin/watch/<studentId> (see gateway/Caddyfile). Reached

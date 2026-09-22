@@ -218,17 +218,11 @@ def start_workspace(tool, username):
                    "-c", f"tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    # Give the process a moment to actually bind before Caddy's first proxy
-    # attempt -- best-effort only, a reload fixes a still-cold start. Poll
-    # the port itself, not is_alive(username): ttyd's listener runs as
-    # root (only the per-connection `su - <username>` child it spawns once
-    # a browser connects runs as the student), so pgrep -u would never
-    # observe the listener itself as "up".
-    for _ in range(50):
-        if port_open(port):
-            return
-        time.sleep(0.1)
+    # Doesn't wait for the port to open -- the caller (do_POST's /start
+    # handler) reports actual readiness back via port_open() right after
+    # this returns, and the allocator's /auth-check uses that to decide
+    # whether to proxy or show a starting page, so nothing here needs to
+    # block on the spawn finishing.
 
 
 def list_sessions(username):
@@ -395,9 +389,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.send_response(409)  # no term session for this student yet
                     self.end_headers()
                     return
+                self.send_json_ok()
             else:
                 start_workspace(tool, username)
-            self.send_json_ok()
+                # Reported straight back to the allocator's /auth-check,
+                # which proxies once this is true and shows a starting page
+                # (that reloads itself) otherwise -- see server.py's
+                # handle_auth_check. Checked fresh every call (not just
+                # right after a spawn) since this same endpoint is hit on
+                # every /ide or /term request, not only the first.
+                self.send_json_ok({"ready": port_open(port_for(tool, username))})
             return
 
         if len(parts) == 2 and parts[0] == "stop":
