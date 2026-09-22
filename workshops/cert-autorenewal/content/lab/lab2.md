@@ -125,7 +125,7 @@ any real client does. Compare that against what happens with
 `--insecure`/`-k` instead of `--cacert`: it still connects, but it's no
 longer *verifying* anything — worth seeing the difference once.
 
-You can also open the **View Demo Site** link on the workshop homepage
+You can also open the **Demo Site** link on the workshop homepage
 (new tab) to confirm the same vhost content — it's a quick sanity check
 that nginx picked up your config. It's plain HTTP only, though, so it
 never actually touches your certificate; the `curl` above (not the

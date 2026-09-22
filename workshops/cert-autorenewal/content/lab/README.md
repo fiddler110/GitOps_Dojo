@@ -74,7 +74,7 @@ trust the CA → request a cert (prove you control your hostname) →
 install it → verify it → automate the next renewal before this one expires
 ```
 
-The workshop homepage also has a **View Demo Site** link (opens `/demo/` in
+The workshop homepage also has a **Demo Site** link (opens `/demo/` in
 a new tab) — it always points at your own vhost, so from Lab 2 onward it's
 a quick way to confirm nginx picked up your config and is serving your
 content. That link is plain HTTP only, though — it never touches your

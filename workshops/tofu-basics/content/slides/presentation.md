@@ -46,7 +46,7 @@ infrastructure itself becomes a file you review, the same way code is.
 3. The building blocks and how a repo is laid out
 4. The lifecycle: `init` → `plan` → `apply` → `destroy`
 5. **Track A:** an offline sandbox, zero risk (~37 min)
-6. **Track B:** deploy a real container into "Dojo Cloud" (~65 min)
+6. **Track B:** deploy a real container into "Dojo Cloud" (~66 min)
 
 > Learning the basics is the goal. Nothing you do today can break anything that matters.
 
@@ -387,7 +387,7 @@ plan computes what to ask for; the cloud decides whether to say yes.
 
 ## Track B: deploy for real
 
-Labs **4-10** · about **65 minutes** (apply takes ~35 s: that's normal)
+Labs **4-10** · about **66 minutes** (apply takes ~35 s: that's normal)
 
 | Lab | You will | Time |
 | --- | -------- | ---- |

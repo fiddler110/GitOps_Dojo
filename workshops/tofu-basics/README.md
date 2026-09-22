@@ -157,7 +157,7 @@ Assume 30 curious students who each have a shell. Full table in `PLAN.md` §7.
 Offline, host Python only, no containers:
 
 ```sh
-cd compose/cloud-api && python3 -B -m unittest test_portal_api test_executor test_policy_auth test_readiness   # 117 tests
+cd compose/cloud-api && python3 -B -m unittest test_portal_api test_executor test_policy_auth test_readiness   # 131 tests
 cd .. && python3 -B -m unittest test_parity                                                                     #   5 tests
 ```
 

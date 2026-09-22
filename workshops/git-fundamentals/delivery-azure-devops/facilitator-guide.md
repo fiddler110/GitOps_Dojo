@@ -207,7 +207,7 @@ This guide complements [session-01-plan.md](session-01-plan.md) with detailed sp
 **Step 1: Clone (once)**
 ```bash
 git clone https://dev.azure.com/<org>/<project>/_git/<repo-name>
-cd sample-repo
+cd <repo-name>
 ```
 - "First time only. You now have the full repo history on your machine."
 

@@ -168,6 +168,7 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
+| `/demo`, `/demo/*` | `demo-app` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=demo`, which hands back `X-Demo-Host` for the student's own vhost. **404 unless the workshop sets `DEMO_APP_ENABLED=1`** (see below) |
 | `/cloud`, `/cloud/*` | `cloud-api` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=cloud`; Caddy then sets `X-Auth-User` and `X-Gateway-Token` itself. **404 unless the workshop sets `CLOUD_ENABLED=1`** (see below) |
 
 The shared gate is one Caddy `basic_auth` block covering everything except
@@ -232,8 +233,11 @@ don't remove that when editing it.
 
 ### Workshop hooks
 
-A workshop's Compose overlay can set these on the `allocator` service. Both are empty or off by default, so a workshop that doesn't set them is unaffected.
+A workshop's Compose overlay can set these on the `allocator` service. All are empty or off by default, so a workshop that doesn't set them is unaffected.
 
+- **`DEMO_APP_ENABLED=1`** adds a **Demo Site** card to the student landing page and makes the `/demo` route above reach
+  `demo-app:80` (otherwise the allocator's `/auth-check?tool=demo` answers 404). `DEMO_APP_ZONE` (default `certs.dojo.test`)
+  sets the per-student hostname (`studentNN.<zone>`) sent back as `X-Demo-Host`. `cert-autorenewal` is the only user.
 - **`CLOUD_ENABLED=1`** adds a **Dojo Cloud** card to the student landing page, makes the `/cloud` route above reach
   `cloud-api:8080` (otherwise the allocator's `/auth-check?tool=cloud` answers 404, so the gateway never reaches an upstream), and adds a **Dojo Cloud** tab to
   the facilitator's `/admin` page (an iframe of `/cloud/#/progress`). `tofu-basics` is the only user.
@@ -450,23 +454,21 @@ fresh-session figure (about 480MB measured, plus headroom), so a long session
 can run above it; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
 
 Extensions: code-server ships with a small, curated extension set —
-`redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
-`shd101wyy.markdown-preview-enhanced`, `hashicorp.terraform`, `golang.Go`,
-`ms-python.python` — pinned + sha256-verified and fetched via `wget` at
+`redhat.vscode-yaml`, `GitHub.github-vscode-theme`, `ms-python.python` —
+pinned + sha256-verified and fetched via `wget` at
 build time (`web-terminal/Dockerfile`, same pattern as ttyd/zoxide/glow),
 not installed live by ID and not committed to this repo as binaries. All
-seven were checked on open-vsx.org and are published by the extension's
+three were checked on open-vsx.org and are published by the extension's
 real/verified namespace owner. Installed into one shared, read-only
 directory every student's instance points at — add or remove one by
 adding/removing a `fetch_ext` line in the Dockerfile, not per-student.
-Two caveats worth knowing: `ms-python.python`'s IntelliSense depends on
+One caveat worth knowing: `ms-python.python`'s IntelliSense depends on
 Pylance, which is proprietary and unavailable on Open VSX/code-server, so
-it runs with reduced language features; `golang.Go` has no Go toolchain
-baked into this image, so it's syntax-highlighting only unless a workshop
-actually adds one. Students can't reach the Marketplace/Open VSX to
-install anything else regardless: `web-terminal` sits only on the
-internal-only `workshop_lab` network (see `docker-compose.yml`), with no route
-to the internet at all once the stack is up.
+it runs with reduced language features. Students can't reach the
+Marketplace/Open VSX to install anything else regardless: `web-terminal`
+sits only on the internal-only `workshop_lab` network (see
+`docker-compose.yml`), with no route to the internet at all once the
+stack is up.
 
 **Facilitator ops below use plain `docker compose ...` commands.** If the
 running workshop has a Compose overlay (check its `workshop.env`'s

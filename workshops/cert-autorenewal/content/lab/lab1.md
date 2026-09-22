@@ -82,7 +82,7 @@ You should be able to run `step ca health --ca-url https://step-ca:9000`
 and get `ok`, and explain in one sentence why `step ca bootstrap` needs a
 fingerprint, not just a URL.
 
-Nothing to see on the homepage's **View Demo Site** link yet — that
+Nothing to see on the homepage's **Demo Site** link yet — that
 becomes useful starting next lab, once you actually have a vhost.
 
 Next: [lab2.md](lab2.md) — issue your first certificate.

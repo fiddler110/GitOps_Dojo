@@ -56,7 +56,7 @@ This lab never copies its output into `/srv/webroot/${me}/certs/`, so
 `demo-app` is still serving Lab 2's certificate, not this one — the acme.sh
 cert exists (you can inspect it above), it's just not installed. The
 `curl --cacert` check from Lab 2 step 5 would confirm that if you ran it
-again here; the homepage's **View Demo Site** link wouldn't tell you either
+again here; the homepage's **Demo Site** link wouldn't tell you either
 way, since it never touches HTTPS at all.
 
 ---

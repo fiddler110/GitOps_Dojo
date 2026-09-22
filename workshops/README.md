@@ -37,7 +37,7 @@ cp .env.example .env       # first time only — account/secret settings, shared
    truth for its own workshop.
 3. Builds the base `web-terminal` image and tags it
    `gitopsdojo/web-terminal:base` (plus the workshop's own terminal image and
-   the allocator/gateway images), so a workshop's own terminal Dockerfile
+   the allocator/gateway/presentation images), so a workshop's own terminal Dockerfile
    (if it has one) can extend the base instead of duplicating its package
    list — but only rebuilds whichever of those actually changed since the
    last build, reusing the existing local image otherwise.
