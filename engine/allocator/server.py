@@ -619,7 +619,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if DEMO_APP_ENABLED:
             tools.append({
                 "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
-                "desc": "See your changes live once you've pushed them.",
+                "desc": "The live site your lab work is serving.",
             })
         if CLOUD_ENABLED:
             tools.append({
