@@ -6,12 +6,12 @@ size: 16:9
 html: true
 style: |
   @import url('assets/themes/labs.css');
-footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; OpenTofu Basics | Lab Overview'
+footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; OpenTofu Basics | Lab Overview'
 ---
 
 <!-- _class: lead -->
 <!-- _paginate: false -->
-<!-- _footer: "[&larr; Hub](index.md)" -->
+<!-- _footer: "[&larr; Labs](lab-index.md)" -->
 
 # Lab Overview
 
@@ -118,7 +118,7 @@ You deploy a real container and watch it in the portal. Work in `~/lab/tofu-basi
 
 <!-- _class: lead -->
 <!-- _paginate: false -->
-<!-- _footer: "[&larr; Hub](index.md)" -->
+<!-- _footer: "[&larr; Labs](lab-index.md)" -->
 
 # Ready?
 

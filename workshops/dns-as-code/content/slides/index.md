@@ -21,7 +21,7 @@ style: |
 <div class="links">
 <a class="enter" href="presentation.md">&rarr; Presentation</a>
 <br>
-<a class="enter secondary" href="labs.md">&rarr; Lab overview</a>
+<a class="enter secondary" href="lab-index.md">&rarr; Labs</a>
 <br>
 <a class="enter secondary" href="cheat-sheet.md">&rarr; Cheat sheet</a>
 </div>

@@ -147,3 +147,16 @@ tr:nth-child(even) { background: rgba(105, 174, 232, 0.05) !important; }
 .cards p { color: var(--muted) !important; font-size: 22px; margin: 0; }
 .nav { color: var(--muted) !important; font-size: 20px; margin-top: 50px; }
 footer { color: var(--muted) !important; font-size: 16px; }
+/* lab-index.md's single-slide directory: two featured cards (.cards, above)
+   plus a compact, multi-column list of every raw file the browser reader
+   can open. */
+.lab-links {
+  columns: 2;
+  column-gap: 40px;
+  font-size: 22px;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+.lab-links li { break-inside: avoid; margin-bottom: 10px; }
+.lab-links .topic { color: var(--muted) !important; display: block; font-size: 17px; }

@@ -266,6 +266,34 @@ sha256_cmd() {
   fi
 }
 
+# Mirrors content/lab/*.md into content/slides/lab/*.md.txt so the
+# browser-only slides service (marp -s, ./presentation) can serve lab
+# instructions read-only alongside the deck, without Marp trying to render
+# them as slide decks -- Marp's server intercepts any .md path and converts
+# it to a slide deck, but a .md.txt path falls through as a plain static
+# file. workshops/assets/lab-reader.html fetches that raw text and renders
+# it as a normal scrolling document. Runs on every `./run.sh <workshop>` so
+# content/lab/*.md stays the single source of truth; the generated .md.txt
+# copies are gitignored and never hand-edited.
+sync_lab_docs() {
+  content_dir="$1"
+  lab_src="${content_dir}/lab"
+  lab_dst="${content_dir}/slides/lab"
+  [ -d "$lab_src" ] || return 0
+  mkdir -p "$lab_dst"
+  # Drop generated copies whose source was renamed or deleted since the
+  # last run, before regenerating what's actually there now.
+  for existing in "$lab_dst"/*.md.txt; do
+    [ -e "$existing" ] || continue
+    base="$(basename "$existing" .md.txt)"
+    [ -f "${lab_src}/${base}.md" ] || rm -f "$existing"
+  done
+  for src in "$lab_src"/*.md; do
+    [ -e "$src" ] || continue
+    cp "$src" "${lab_dst}/$(basename "$src").txt"
+  done
+}
+
 # Deterministic content hash of a build context directory. Docker's own
 # layer cache can't be trusted to tell us "nothing changed" on its own --
 # e.g. web-terminal's `apt-get update` layers legitimately cache-bust on
@@ -550,6 +578,8 @@ if [ "$dry_run" = "1" ]; then
 fi
 
 echo "${COMPOSE_OVERLAY:-}" > .last-overlay
+
+sync_lab_docs "$WORKSHOP_CONTENT_DIR"
 
 echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
 # No --build: every image Compose references was already brought up to

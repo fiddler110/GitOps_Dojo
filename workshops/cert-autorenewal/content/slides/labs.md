@@ -6,12 +6,12 @@ size: 16:9
 html: true
 style: |
   @import url('assets/themes/labs.css');
-footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; Certificate Autorenewal | Lab Overview'
+footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; Certificate Autorenewal | Lab Overview'
 ---
 
 <!-- _class: lead -->
 <!-- _paginate: false -->
-<!-- _footer: "[&larr; Hub](index.md)" -->
+<!-- _footer: "[&larr; Labs](lab-index.md)" -->
 
 # Lab Overview
 
@@ -114,10 +114,10 @@ be done any time after that, independent of Labs 2-4.
 
 <!-- _class: lead -->
 <!-- _paginate: false -->
-<!-- _footer: "[&larr; Hub](index.md)" -->
+<!-- _footer: "[&larr; Labs](lab-index.md)" -->
 
 # Ready
 
 ## Open `~/lab/README.md` in your terminal and start with `lab1.md`
 
-<p class="nav">Next: <a href="cheat-sheet.md">Cheat sheet &rarr;</a> &middot; <a href="index.md">&larr; Back to hub</a></p>
+<p class="nav">Next: <a href="cheat-sheet.md">Cheat sheet &rarr;</a> &middot; <a href="lab-index.md">&larr; Back to labs</a></p>
