@@ -22,15 +22,17 @@ Builds on Git Fundamentals: same files-in-git habit, applied to servers and clou
 **Talk + hands-on lab · about 2¼ hours**
 
 <!--
-TIMING (whole session, ~135 min; the lab times are the estimates in
+TIMING (whole session, ~140 min; the lab times are the estimates in
 ~/lab/README.md, the talk times are a guess until the dry run, T9.4):
-  Talk, parts 1-3 ............ ~20 min   (slides up to "Track A")
+  Talk, parts 1-3 ............ ~25 min   (slides up to "Track A")
   Track A labs 0-3 ........... ~37 min   (5 + 12 + 12 + 8)
   Dojo Cloud tour ............ ~10 min   (part 4, before Track B)
   Track B labs 4-10 .......... ~66 min   (8 + 10 + 12 + 8 + 12 + 8 + 8)
   Recap and questions ........ ~5 min
 
-To fit a 2-hour slot, trim Track B (see the Track B slide notes).
+To fit a 2-hour slot, trim Track B (see the Track B slide notes). If the
+talk runs long, the "Variables and outputs" slide can be skipped: Lab 0
+and Lab 2 cover the same ground.
 
 Assumes the room did Git Fundamentals (or knows clone/commit/push). The
 new idea today is not a new tool for its own sake: it is that the
@@ -42,7 +44,7 @@ infrastructure itself becomes a file you review, the same way code is.
 ## Today
 
 1. Why write infrastructure down instead of clicking it
-2. OpenTofu, and why `terraform` works here too
+2. OpenTofu: what it is and how it works
 3. The building blocks and how a repo is laid out
 4. The lifecycle: `init` → `plan` → `apply` → `destroy`
 5. **Track A:** an offline sandbox, zero risk (~37 min)
@@ -90,18 +92,52 @@ rebuild it? What did you forget? That memory is the whole motivation.
 
 ## What changes when it's code
 
+**Infrastructure as Code (IaC):** you write down what should exist, in text files, and a tool builds it for you.
+
 - The setup is **a file**, in a git repo
 - A change is a **pull request**: reviewed before anything is touched
-- The tool shows the **exact diff** of what it *would* do (`plan`) before it does it
+- The tool shows **exactly** what it *would* do (`plan`) before it does it
 - `git log` says who changed what, when and why
 - Making a second copy is running the same files again
-- Deleting it all is one command, and it removes exactly what was created
-
-**Declarative:** you describe the result you want; the tool works out the steps.
+- Deleting it all is one command, and it removes exactly what the tool created
 
 <!--
 Connect back: the file-is-the-truth idea is the same one from the DNS as
 Code session, if the room did it. Preview in dnscontrol is plan here.
+-->
+
+---
+
+## Say *what*, not *how*
+
+OpenTofu is **declarative**: you describe the result you want, and the tool works out the steps.
+
+<div class="two-column">
+
+**Step by step (a script)**
+1. Check if the folder exists
+2. If not, create it
+3. Check if the file exists
+4. If not, create it; if it's wrong, fix it
+
+**Declarative (OpenTofu)**
+- "There is a file called `hello.txt`"
+- "It says `Hi`"
+
+The tool checks what is already there and does only what's missing.
+
+</div>
+
+> Run it twice and the second run does **nothing**: *"No changes. Your infrastructure matches the configuration."*
+
+<!--
+Analogy that lands: a script is turn-by-turn directions; declarative is
+giving the taxi driver the address. If you're already there, the driver
+does nothing.
+
+The quoted line is OpenTofu's real message when there is nothing to do.
+The word for "safe to run again" is idempotent; say it once, but don't lean
+on it. Lab 2 starts by proving it (apply twice, change once).
 -->
 
 ---
@@ -116,9 +152,9 @@ Code session, if the room did it. Preview in dnscontrol is plan here.
 
 ## OpenTofu, and why `terraform` works too
 
-- **OpenTofu** is the open-source fork of Terraform, run by the Linux Foundation
-- Same language (HCL), same workflow, same file names: `.tf`, `.tfvars`, `.terraform/`, `terraform.tfstate`
-- What you learn here carries straight over to Terraform, and the reverse
+- **OpenTofu** is the open-source fork of Terraform, a Linux Foundation project
+- Same language (**HCL**, a simple config format), same workflow, same file names: `.tf`, `.tfvars`, `.terraform/`, `terraform.tfstate`
+- Almost everything you learn here works the same in Terraform
 - In your terminal, **`terraform` is a symlink to `tofu`**: type either
 
 ```sh
@@ -130,7 +166,33 @@ terraform version     # prints "OpenTofu v1.12.6"
 <!--
 Do not get pulled into the licensing history. One line: comparable tool,
 open source, drop-in for what we do today. Version is pinned to 1.12.6 in
-the image.
+the image. "Almost": the two projects have added a few different features
+since the fork (2023), none of which we use today.
+-->
+
+---
+
+## How OpenTofu works
+
+<div class="flow">
+<span><b>1</b><br>.tf files<br><small>what you want</small></span>
+<span>→</span>
+<span><b>2</b><br>OpenTofu<br><small>plans changes</small></span>
+<span>→</span>
+<span><b>3</b><br>provider<br><small>plugin</small></span>
+<span>→</span>
+<span><b>4</b><br>real system<br><small>cloud, files</small></span>
+</div>
+
+- OpenTofu compares what you want with what exists, and works out the difference
+- A **provider** carries it out: a plugin that knows one system (`azurerm` talks to Azure, `local` writes files)
+- Afterwards OpenTofu records what it made in **state**
+
+<!--
+This is the mental model for the rest of the day. Every error students see
+comes from one of these boxes: a typo in the files (1), a plan they didn't
+expect (2), a provider install problem at init (3), or the real system
+saying no (4, Dojo Cloud's policy and quota in Track B).
 -->
 
 ---
@@ -140,7 +202,7 @@ the image.
 | Block | What it is | Example |
 | ----- | ---------- | ------- |
 | **provider** | The plugin that talks to one system | `azurerm`, `random`, `local` |
-| **resource** | One thing that should exist | a resource group, a container |
+| **resource** | One thing you want to exist | a resource group, a container |
 | **variable** | An input you can change without editing resources | `location`, `message` |
 | **output** | A value worth printing when it's done | the site's URL |
 
@@ -157,6 +219,32 @@ one of these. State gets its own slide shortly.
 
 ```hcl
 resource "random_pet" "nickname" {
+  length = 2
+}
+```
+
+- `resource`: this block describes **one thing that should exist**
+- `"random_pet"`: the **type**, what kind of thing it is. The part before the first `_` names the **provider** (`random`)
+- `"nickname"`: **your label** for it, used to refer to it from elsewhere
+- `length = 2`: an **argument**, a setting for this thing. Each type has its own
+- Type plus label is the resource's **address**: `random_pet.nickname`. You'll see it in every plan
+
+<!--
+random_pet makes a random name like "light-porpoise". It is a good first
+resource because it's harmless, and because it only exists in OpenTofu's
+state: nothing outside the tool is created. If someone asks "where does the
+pet live?", that's the answer.
+
+The label only has to be unique per type in a folder. Renaming it is a
+change of address, which OpenTofu reads as delete-and-create.
+-->
+
+---
+
+## Connecting resources
+
+```hcl
+resource "random_pet" "nickname" {
   length = var.pet_words
 }
 
@@ -166,13 +254,49 @@ resource "local_file" "greeting" {
 }
 ```
 
-- `random_pet` = **type** (the provider is `random`), `nickname` = **your name** for it
-- `var.pet_words` reads a variable; `random_pet.nickname.id` reads another resource
-- That reference is a **dependency**: the pet is created *before* the file. You never write the order down.
+- `var.pet_words` reads a **variable**; `random_pet.nickname.id` reads **another resource** (for a pet, `id` is the generated name)
+- That reference is a **dependency**: OpenTofu creates the pet *before* the file, and deletes them in reverse
+- You don't write the order down; OpenTofu works it out from the references
 
 <!--
 This is the sandbox from Track A, simplified. The dependency-by-reference
-point is the most important thing on the slide: the graph is implicit.
+point is the most important thing on the slide: the order is implicit.
+${...} inside a string inserts a value, and path.module means "this
+folder". Result: out/hello.txt contains "Hi light-porpoise".
+
+If asked: depends_on exists for the rare dependency OpenTofu can't see from
+a reference. You won't need it today.
+
+Foreshadow Lab 2: change pet_words and BOTH get replaced, because a new
+pet means a new name, which means new file content.
+-->
+
+---
+
+## Variables and outputs
+
+```hcl
+# variables.tf: declare an input
+variable "pet_words" { default = 2 }
+
+# terraform.tfvars: choose its value
+pet_words = 3
+
+# outputs.tf: print a result
+output "nickname" { value = random_pet.nickname.id }
+```
+
+- A **variable** is declared once, then read anywhere as `var.pet_words`
+- Its value comes from the `default`, `terraform.tfvars`, a `TF_VAR_pet_words` environment variable, or `-var` on the command line
+- An **output** is printed after `apply`; `terraform output` shows it again
+
+<!--
+The point of variables: the same code, different settings (dev vs prod, a
+different region) without touching the resource blocks.
+
+Precedence, if asked: -var wins, then terraform.tfvars, then TF_VAR_, then
+the default. Track B uses TF_VAR_owner: your terminal sets your username
+for you, which is why variables.tf gives owner no default.
 -->
 
 ---
@@ -190,15 +314,18 @@ tofu-basics/
 ├── outputs.tf          what to print when done
 ├── .terraform.lock.hcl exact provider versions and checksums (commit it)
 ├── .gitignore          keeps .terraform/ and state out of git
+├── sandbox/            Track A: its own small set of the same files
 └── terraform.tfstate   created by apply: the tool's memory (never commit)
 ```
 
-> OpenTofu reads **every `.tf` file** in the folder. The split is for people, not the tool.
+> OpenTofu reads **every `.tf` file** in the folder, as if they were one. The split is for people, not the tool.
 
 <!--
 The file structure is a stated learning objective. The names are
 convention; the tool would work with one giant main.tf. Real repos split
-them this way so a reviewer knows where to look.
+them this way so a reviewer knows where to look. Each folder is its own
+separate configuration with its own state: sandbox/ doesn't see the files
+above it, and vice versa.
 -->
 
 ---
@@ -223,16 +350,37 @@ them this way so a reviewer knows where to look.
 <span><b>4</b><br>destroy<br><small>undo it</small></span>
 </div>
 
-<br>
-
-- `init` once per folder. `plan` as often as you like: it is **read-only**
-- `apply` shows the plan again and waits for you to type `yes`
-- Then loop: **change a file → `plan` → `apply`**
+- **`init`** installs the providers. Once per folder (again if you add one)
+- **`plan`** shows what *would* change. It changes nothing: run it often
+- **`apply`** shows the plan, waits for you to type `yes`, then does it
+- **`destroy`** deletes everything this folder created (it asks first too)
+- Day to day, you loop: **change a file → `plan` → `apply`**
 
 <!--
 Emphasise that plan is safe. People are scared of the tool at first; the
-fix is to run plan constantly. Apply is the only step with consequences,
-and it asks first.
+fix is to run plan constantly. Apply and destroy are the only steps with
+consequences, and both ask first.
+-->
+
+---
+
+## How `plan` decides what to do
+
+It looks at three things: **your files** (what you want), **state** (what it made last time), and **the real system** (what is there now, checked fresh every time).
+
+| Situation | Plan says |
+| --------- | --------- |
+| In your files, not created yet | `+` create it |
+| Exists, but your files now say something different | `~` change it, or `-/+` replace it |
+| Removed from your files | `-` destroy it |
+| Deleted by someone else, behind the tool's back | `+` create it again |
+| Everything matches | *No changes* |
+
+<!--
+This is the heart of how the tool works: it doesn't replay a script, it
+compares "wanted" with "is" and plans the difference. The fourth row is
+drift, which students will cause on purpose in Lab 7. Whether a change is
+~ or -/+ is the next slide.
 -->
 
 ---
@@ -242,30 +390,33 @@ and it asks first.
 | Symbol | Meaning | Feels like |
 | ------ | ------- | ---------- |
 | `+` | create | new |
-| `~` | update **in place** | tweak |
+| `~` | update **in place**: the same thing, edited | tweak |
 | `-` | destroy | gone |
-| `-/+` | **replace** (destroy, then create) | rebuild |
+| `-/+` | **replace**: destroy the old one, then create a new one | rebuild |
 
 ```text
 Plan: 2 to add, 1 to change, 0 to destroy.
 ```
 
-**Always read the last line, and always look for `-/+`.** A replace is where surprises live.
+**Always read the last line, and always look for `-/+`.** A replace means downtime and a brand-new thing; anything stored on the old one is gone.
 
 <!--
 Whether an edit is ~ or -/+ is decided by the provider, attribute by
-attribute. Lab 8 measures it on a real resource: a tag is ~, a message or
-image is -/+.
+attribute: some settings simply can't be changed on a thing that already
+exists. The plan prints "# forces replacement" next to the attribute
+responsible: tell people to look for it. Lab 8 measures it on a real resource: a tag is ~, a message or
+image is -/+ (and the site is down for ~26 s). Lab 8 also shows +/-, the
+reverse order (create the new one first), which you opt into with
+create_before_destroy. A replace counts in both "to add" and "to destroy".
 -->
 
 ---
 
 ## State: the tool's memory
 
-- After `apply`, OpenTofu writes `terraform.tfstate`: *"I created these, with these ids"*
-- `plan` compares **your files**, **state** and **what is really there**
-- Never hand-edit it. Never commit it (it can hold secrets)
-- Lose it and the tool forgets what it made: the resources are still there, orphaned
+- `apply` writes `terraform.tfstate`: *"I created these, with these IDs"*. That's how OpenTofu knows which real things are **its own**
+- Never hand-edit it. Never commit it: it can hold passwords in plain text
+- Lose it and the tool forgets what it made: the resources are still there, but nothing manages them
 
 ```sh
 terraform state list     # what is tracked
@@ -331,22 +482,49 @@ real Azure, and do not say it is Azure.
 
 ---
 
+## What happens when you `apply` to a cloud
+
+<div class="flow">
+<span><b>1</b><br>OpenTofu<br><small>the plan</small></span>
+<span>→</span>
+<span><b>2</b><br>azurerm<br><small>web requests</small></span>
+<span>→</span>
+<span><b>3</b><br>cloud API<br><small>checks rules</small></span>
+<span>→</span>
+<span><b>4</b><br>resources<br><small>made, or refused</small></span>
+</div>
+
+- A cloud is a web API: the provider sends requests like *"create this resource group"*
+- It logs in with **credentials** from your terminal (`ARM_*` variables), never from a `.tf` file
+- The cloud checks each request against its **rules** (policy, quota), then says yes or no
+
+<!--
+Lab 4 shows this for real: students look at their ARM_* variables and
+curl the cloud's front door. The takeaway: OpenTofu doesn't do anything a
+script couldn't; it just sends the right requests in the right order and
+remembers the results.
+-->
+
+---
+
 ## The vocabulary you'll meet
 
 | Azure idea | In Dojo Cloud |
 | ---------- | ------------- |
-| Subscription | yours alone, made from your username |
+| Subscription | your own account area, named after your username |
 | Resource group | a folder for related resources (`rg-…`) |
-| Container group | one running container (`ci-…`), like Azure Container Instances |
-| Region | `canadacentral` or `canadaeast` |
+| Container instance | one running container (`ci-…`), a "container group" in code |
+| Region | where it runs: `canadacentral` or `canadaeast` |
 | Tags | labels: `owner` and `env` are **required** |
 | Policy | the cloud's house rules; it says no, in words |
-| Quota | a cap: 2 container groups each |
+| Quota | a cap: 2 container instances each |
 | Activity log | who did what, and whether it worked |
 
 <!--
 Do not read the table out. Point at "Policy" and "Quota": those are the
 two that produce errors students will see, on purpose, in Labs 6 and 9.
+The portal says "container instance"; Azure's API and the provider say
+"container group" (a group can hold several containers; ours hold one).
 -->
 
 ---
@@ -360,7 +538,7 @@ Open **Dojo Cloud** from the landing page. It shows your subscription **live**: 
 - **Class view** to browse everyone's sites (read-only)
 - A **Delete** button, on purpose: clicking around behind your code's back is how we make **drift** (Lab 7)
 
-Your site's address prints as an output: `…/cloud/site/<name>/`
+Your site's address prints as an output: `…/cloud/site/hello-dev-<username>/`
 
 <!--
 The facilitator has the whole class on a Class progress board, so do not
@@ -372,22 +550,25 @@ reassuring.
 
 ## Three things the labs will do to you
 
-- **Policy** *(Lab 6)*: omit a tag or pick `eastus`. `plan` looks fine, `apply` is refused with `RequestDisallowedByPolicy`. Read the error, fix the file
-- **Drift** *(Lab 7)*: delete your container in the portal, then `plan`. The tool notices reality changed and offers to put it back
+- **Policy** *(Lab 6)*: remove the `owner` tag. `plan` looks fine, but `apply` is refused with `RequestDisallowedByPolicy`. Read the error, fix the file
+- **Drift** *(Lab 7)*: someone deletes your container in the portal. `plan` notices reality changed and offers to put it back
 - **Replace** *(Lab 8)*: edit a tag and get `~`; edit the message and get `-/+`. Predict it *before* you run `plan`
 
-> `plan` cannot see policy or quotas. Only a real request can.
+> `plan` can't see the cloud's rules; only a real request can. Your own `validation` rules in `variables.tf` catch some mistakes earlier: try `eastus` and `plan` stops you.
 
 <!--
 This is the foreshadowing slide. The key insight for Lab 6 and Lab 9:
 plan computes what to ask for; the cloud decides whether to say yes.
+Two layers: validation (your code, at plan, instant) repeats some of the
+cloud's rules so you fail fast; policy (the cloud, at apply) is the real
+rule and can't be bypassed. Lab 6 shows both.
 -->
 
 ---
 
 ## Track B: deploy for real
 
-Labs **4-10** · about **66 minutes** (apply takes ~35 s: that's normal)
+Labs **4-10** · about **66 minutes** (an apply takes ~35 s: that's normal)
 
 | Lab | You will | Time |
 | --- | -------- | ---- |
@@ -412,10 +593,11 @@ error); make sure people finish its clean-up section before Lab 10.
 ## Recap
 
 - **Code, not clicks:** infrastructure is files, reviewed and versioned in git
+- **Declarative:** say what you want; the tool compares it with what exists and does the difference
 - Four blocks: **provider, resource, variable, output**, plus **state**
 - **`init` → `plan` → `apply` → `destroy`**, and read every plan before you say `yes`
 - `+` create · `~` in place · `-` destroy · `-/+` **replace**
-- Policy and quota are enforced at `apply`; drift is what `plan` finds
+- Your `validation` is checked at `plan`; the cloud's policy and quota at `apply`; drift is what `plan` finds
 
 **Next steps:** real Azure, remote state, modules, and running `plan` on every pull request.
 
