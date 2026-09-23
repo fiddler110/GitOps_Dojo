@@ -14,14 +14,14 @@ Every tmux command starts with a *prefix* key combo, then a second key. The defa
 
 ## Splitting panes
 
-```
+```text
 <prefix> %      # split vertically (side by side)
 <prefix> "      # split horizontally (stacked)
 ```
 
 Move between panes:
 
-```
+```text
 <prefix> <arrow key>     # move to the pane in that direction
 <prefix> o                # cycle to the next pane
 ```
@@ -30,13 +30,13 @@ Close a pane: type `exit` or press `Ctrl+d` in it — same as closing any shell.
 
 Resize the current pane:
 
-```
+```text
 <prefix> Ctrl+<arrow key>
 ```
 
 Temporarily zoom a pane to fill the whole window (press again to restore):
 
-```
+```text
 <prefix> z
 ```
 
@@ -46,7 +46,7 @@ Temporarily zoom a pane to fill the whole window (press again to restore):
 
 A tmux *window* is a full-screen tab within a session — different from a pane (a split within one window).
 
-```
+```text
 <prefix> c          # create a new window
 <prefix> n           # next window
 <prefix> p           # previous window
@@ -59,7 +59,7 @@ A tmux *window* is a full-screen tab within a session — different from a pane 
 
 ## Detaching and reattaching
 
-```
+```text
 <prefix> d      # detach -- leaves everything running in the background
 ```
 
@@ -78,7 +78,7 @@ tmux attach -t <name>      # reattach to one by name
 
 tmux captures your terminal's scrollback itself, so your browser/terminal's normal scroll may not work as expected. Enter *copy mode* to scroll and select text:
 
-```
+```text
 <prefix> [                 # enter copy mode
 <arrow keys / Page Up/Down>  # scroll
 q                           # exit copy mode

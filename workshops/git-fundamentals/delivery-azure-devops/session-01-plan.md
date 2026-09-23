@@ -57,7 +57,7 @@ where useful:
 ### 4. Core Git Workflows — The Everyday Loop (8 min)
 Walk through the "day in the life" loop, tied to the diagram from #2:
 
-```
+```text
 git clone   → (once) get the repo
 git pull    → get latest changes before starting work
 <edit files>

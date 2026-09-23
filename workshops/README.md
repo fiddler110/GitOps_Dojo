@@ -13,6 +13,7 @@ runs and how requests are routed.
 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | `cd ../engine && ./run.sh git-fundamentals` |
 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `cd ../engine && ./run.sh dns-as-code` |
 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `cd ../engine && ./run.sh cert-autorenewal` |
+| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `cd ../engine && ./run.sh tofu-basics` |
 
 `./run.sh list` (from `engine/`) prints this same list from each
 workshop's `workshop.env`.
@@ -36,16 +37,11 @@ cp .env.example .env       # first time only — account/secret settings, shared
    truth for its own workshop.
 3. Builds the base `web-terminal` image and tags it
    `gitopsdojo/web-terminal:base` (plus the workshop's own terminal image and
-   the allocator/gateway images), so a workshop's own terminal Dockerfile
+   the allocator/gateway/presentation images), so a workshop's own terminal Dockerfile
    (if it has one) can extend the base instead of duplicating its package
    list — but only rebuilds whichever of those actually changed since the
    last build, reusing the existing local image otherwise.
 4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d`.
-
-On Azure, the same selection happens via Terraform instead — see
-[`infra/corp-dev/gdojo-cc/README.md`](../infra/corp-dev/gdojo-cc/README.md)
-and that folder's `workshops/*.tfvars` (one per workshop, applied
-with `-var-file=`).
 
 ## Two kinds of workshop
 
@@ -96,16 +92,22 @@ server, etc.) — not for anything content/slides alone can express.
    image every time this workshop runs (see `engine/run.sh`, which skips
    rebuilding an image whose source hasn't changed and depends on `:base`
    only ever meaning the plain, un-augmented image). `dns-as-code` and
-   `cert-autorenewal` are worked examples.
-5. Add a row to the table above.
-6. Run it locally end to end (`./run.sh <name>` from `engine/`) before
+   `cert-autorenewal` are worked examples. A workshop image that sets its own
+   `HEALTHCHECK` *replaces* the inherited one, so either omit it or use exactly
+   `HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD web-terminal-healthcheck`
+   (the base image's script, which sends the `X-Control-Token` header). Do not copy a `wget` line:
+   a bare `wget` gets a 403 and the container shows `unhealthy` for its whole life.
+   Keep any service a student terminal must reach **off TCP ports 9000-9099 and
+   9500-9899**: the terminal's per-account firewall (`DOJO_ISOLATION` in
+   `engine/web-terminal/entrypoint.sh`) drops those for every non-root account,
+   on any host, and the symptom is a silent timeout. `cert-autorenewal`'s
+   step-ca uses 9443 for this reason.
+5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
+   work through *your* labs instead of the default git-fundamentals ones (see
+   `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
+6. Add a row to the table above.
+7. Run it locally end to end (`./run.sh <name>` from `engine/`) before
    trusting it for a live session.
-7. For an Azure delivery, add
-   `infra/corp-dev/gdojo-cc/workshops/<name>.tfvars` — copy an existing one
-   and adjust `workshop_content_dir`, `forgejo_org`, `forgejo_repo`,
-   `compose_overlay`, and `virtual_machine_size` if the workshop needs more
-   than the default VM size. Unlike `lab.auto.tfvars`, these have no
-   secrets in them and are committed directly.
 
 Nothing about adding a workshop this way ever requires editing
 `engine/docker-compose.yml`, the base `web-terminal` image, or the

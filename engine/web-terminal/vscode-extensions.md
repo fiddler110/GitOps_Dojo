@@ -24,12 +24,16 @@ needed today.
 | `mermaid-markdown-features` | Mermaid diagram rendering in markdown preview | No lab content uses mermaid diagrams (checked `workshops/*/content`) |
 | `debug-auto-launch`, `debug-server-ready` | Run & Debug helpers (auto-attach, launch-on-ready) | No workshop has a launch config; nothing to debug |
 | `ms-vscode.js-debug`, `ms-vscode.js-debug-companion`, `ms-vscode.vscode-js-profile-table` | JavaScript/Node debugger, its browser-attach companion, and the CPU-profile viewer that ships with it | Same reason -- no workshop debugs anything, and there's no JS in the labs |
-| `ms-python.debugpy` (curated set, see below) | Python debugger, pulled in as a soft `extensionPack` companion of `ms-python.python` | Same reason. Not an `extensionDependency`, so `ms-python.python` still works without it (syntax highlighting / basic support is all it gives here anyway) |
 | `node_modules/@github/copilot*` (not an extension -- code-server's own runtime deps) | Copilot's ~137 MB native runtime and SDK, loaded only by the AgentHost feature | Removing the `copilot`/`copilot-chat` extensions above doesn't touch this; it's a separate ~137 MB. Verified code-server still starts and serves the workbench without it |
 | `npm` | "NPM SCRIPTS" Explorer section + npm task provider | No workshop has a `package.json` |
 | `simple-browser` | "Open with Simple Browser" embedded webview command | Unused; `presentation` service and Forgejo are opened in the real browser, not embedded |
 | `php`, `php-language-features` | PHP syntax highlighting/IntelliSense | No lab content has `.php` files |
 | `ipynb`, `notebook-renderers` | Jupyter notebook (`.ipynb`) file format + output rendering | No lab content has notebooks |
+| `github` | GitHub publish, permalinks, PR features on top of Source Control | The lab git server is Forgejo, not GitHub. It also activated in every account's extension host at startup (`activationEvents: ["*"]`) |
+| `typescript-language-features` | JS/TS IntelliSense via `tsserver`, often the largest process VS Code runs | No lab content has JS/TS. It also activated on `jsonc` files, which every student has (`.vscode/tasks.json`, `settings.json`). Syntax highlighting stays via `javascript` / `typescript-basics` |
+| `terminal-suggest` | Terminal command autocomplete | Activated with every terminal and indexed `$PATH`; the terminals here run inside tmux, where it barely works |
+| `extension-editing` | Helpers for authoring VS Code extensions | Nobody writes extensions here, but it activated on every json/markdown file |
+| `markdown-math` | KaTeX math in the markdown preview | No lab content uses math |
 
 ## Explicitly kept (do not remove without checking with the facilitator first)
 
@@ -52,20 +56,18 @@ Fetched from Open VSX and installed into the shared, read-only
 `/opt/code-server-extensions` dir -- see the `fetch_ext` block in
 `Dockerfile` for versions/hashes and how to add one:
 
-- `redhat.vscode-yaml`
+- `redhat.vscode-yaml` (`yaml.schemaStore.enable` is off in the shipped
+  `settings.json`: with no network route out, the SchemaStore fetch can
+  only fail)
 - `GitHub.github-vscode-theme` (the `GitHub Dark` theme set in
   `entrypoint.sh`'s shipped `settings.json`)
-- `ms-python.python`
 
-(`ms-python.debugpy` is deliberately absent even though installing
-`ms-python.python` pulls it in -- see the removed table above.)
-
-`ms-python.python`'s Jedi language server is switched off too
-(`"python.languageServer": "None"` in the shipped `settings.json`, see
-`entrypoint.sh`): it costs ~75MB per account that opens a `.py` file
-(measured), and only completion/hover depend on it -- syntax highlighting
-doesn't. Delete that line from both `settings.json` heredocs to get it
-back.
+`ms-python.python` used to be here too. It was dropped: the built-in
+`python` extension already gives syntax highlighting, and without Pylance
+(proprietary, not on Open VSX) the Microsoft extension added no real
+IntelliSense, only an extension-host activation and its
+`ms-python.vscode-python-envs` companion in every account that touched a
+`.py` file.
 
 ## Adding something back to the shared base image (every workshop)
 
@@ -79,6 +81,12 @@ otherwise use the per-workshop override below instead, per
 2. Update the tables above.
 3. Rebuild: `./run.sh <workshop-name>` from `engine/` (rebuilds the base
    `web-terminal` image).
+
+## Installed by one workshop, not the base image
+
+- `tofu-basics` installs the OpenTofu extension (`opentofu.vscode-opentofu`, HCL highlighting for `.tf` and `.tfvars`)
+  in its own terminal image (`workshops/tofu-basics/compose/terminal/Dockerfile`). The base image still ships no
+  Terraform/OpenTofu tooling, so the `hashicorp.terraform` note in `Dockerfile` remains true for every other workshop.
 
 ## Adding something for one workshop only
 
@@ -116,7 +124,7 @@ RUN set -eux; \
     rm -f /tmp/markdown-mermaid.vsix
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:7682/status || exit 1
+    CMD web-terminal-healthcheck
 ```
 
 `workshops/mermaid-as-code/compose/docker-compose.override.yml`:

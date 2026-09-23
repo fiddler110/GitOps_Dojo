@@ -96,7 +96,7 @@ This guide complements [session-01-plan.md](session-01-plan.md) with detailed sp
 
 3. **Three-part mental model (diagram this on screen or a slide):**
 
-   ```
+   ```text
    Working Directory  →  Staging Area  →  Local Repo  →  Remote Repo
    (files on disk)       (stage before)   (commits)       (shared copy)
    ```
@@ -192,7 +192,7 @@ This guide complements [session-01-plan.md](session-01-plan.md) with detailed sp
 
 **The loop (narrate + show commands on screen):**
 
-```
+```text
 1. git clone <url>           # (once) get the repo
 2. git pull                  # get latest from remote
 3. <edit files>              # do your work
@@ -207,7 +207,7 @@ This guide complements [session-01-plan.md](session-01-plan.md) with detailed sp
 **Step 1: Clone (once)**
 ```bash
 git clone https://dev.azure.com/<org>/<project>/_git/<repo-name>
-cd sample-repo
+cd <repo-name>
 ```
 - "First time only. You now have the full repo history on your machine."
 
@@ -275,7 +275,7 @@ git push
 
 **Feature-branch workflow (diagram on screen):**
 
-```
+```text
 main (v1.0)
     ↓
 git checkout -b add-newfeature  # branch off

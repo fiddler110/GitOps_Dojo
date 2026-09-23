@@ -53,7 +53,16 @@ _run_sh_complete() {
     stop | teardown) COMPREPLY=($(compgen -W "--dry-run --help" -- "$cur")) ;;
     setup | --setup) COMPREPLY=($(compgen -W "--default --force --help" -- "$cur")) ;;
     capacity | --capacity) COMPREPLY=($(compgen -W "$capacity_opts" -- "$cur")) ;;
-    *) COMPREPLY=($(compgen -W "--test --dry-run --help" -- "$cur")) ;;
+    *)
+      # Don't offer an option that is already on the line.
+      local o w remaining=""
+      for o in --test --dry-run --help; do
+        for w in "${COMP_WORDS[@]:2:COMP_CWORD-2}"; do
+          [ "$w" = "$o" ] && continue 2
+        done
+        remaining="$remaining $o"
+      done
+      COMPREPLY=($(compgen -W "$remaining" -- "$cur")) ;;
   esac
 }
 

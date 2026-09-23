@@ -58,10 +58,16 @@ done
 # One-time, interactive offer to wire up shell tab-completion (workshop
 # names, list/stop/teardown, --test) -- see the script for why this is
 # safe to call on every run (no-ops after the first decision, and in any
-# non-interactive context such as CI or a --test bot run).
-if [ "$dry_run" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
-  ./scripts/install-completion.sh
-fi
+# non-interactive context such as CI or a --test bot run). Not offered
+# ahead of help or stop either: asking a question before printing usage (or
+# tearing down) is the wrong first thing to do.
+case "${1:-}" in
+  help | -h | --help | stop | teardown) ;;
+  *)
+    if [ "$dry_run" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
+      ./scripts/install-completion.sh
+    fi ;;
+esac
 
 case "${1:-}" in
   stop | teardown)
@@ -105,6 +111,10 @@ list_workshops() {
     name="$(basename "$d")"
     [ -f "${d}workshop.env" ] || continue
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
+    case "$name" in
+      setup | capacity | stop | teardown | help | list)
+        title="(unreachable: '${name}' is also a command, rename the folder)" ;;
+    esac
     printf '  %-20s %s\n' "$name" "${title:-}"
   done
 }
@@ -189,6 +199,23 @@ set -a
 . "$workshop_env"
 set +a
 
+# PUBLIC_BASE_URL is baked into links the lab prints (Forgejo clone URLs, the
+# tofu-basics `url` output), so it has to name the port the gateway is
+# published on. Warn rather than fail: a NAT or proxy in front can make a
+# mismatch legitimate.
+url_scheme="${PUBLIC_BASE_URL%%://*}"
+url_hostport="${PUBLIC_BASE_URL#*://}"; url_hostport="${url_hostport%%/*}"
+case "$url_scheme" in
+  https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
+  *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
+esac
+case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
+if [ "$url_port" != "$gateway_port" ]; then
+  echo "WARNING: PUBLIC_BASE_URL (${PUBLIC_BASE_URL}) points at port ${url_port}, but the gateway" >&2
+  echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
+  echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
+fi
+
 # --test [N]: spin up demo/test bot student accounts (see
 # engine/web-terminal/bot-runner.sh and README.md's "Demo bots (--test)"
 # section) -- simulated students (an expert, an intermediate, and a
@@ -256,6 +283,34 @@ sha256_cmd() {
   fi
 }
 
+# Mirrors content/lab/*.md into content/slides/lab/*.md.txt so the
+# browser-only slides service (marp -s, ./presentation) can serve lab
+# instructions read-only alongside the deck, without Marp trying to render
+# them as slide decks -- Marp's server intercepts any .md path and converts
+# it to a slide deck, but a .md.txt path falls through as a plain static
+# file. workshops/assets/lab-reader.html fetches that raw text and renders
+# it as a normal scrolling document. Runs on every `./run.sh <workshop>` so
+# content/lab/*.md stays the single source of truth; the generated .md.txt
+# copies are gitignored and never hand-edited.
+sync_lab_docs() {
+  content_dir="$1"
+  lab_src="${content_dir}/lab"
+  lab_dst="${content_dir}/slides/lab"
+  [ -d "$lab_src" ] || return 0
+  mkdir -p "$lab_dst"
+  # Drop generated copies whose source was renamed or deleted since the
+  # last run, before regenerating what's actually there now.
+  for existing in "$lab_dst"/*.md.txt; do
+    [ -e "$existing" ] || continue
+    base="$(basename "$existing" .md.txt)"
+    [ -f "${lab_src}/${base}.md" ] || rm -f "$existing"
+  done
+  for src in "$lab_src"/*.md; do
+    [ -e "$src" ] || continue
+    cp "$src" "${lab_dst}/$(basename "$src").txt"
+  done
+}
+
 # Deterministic content hash of a build context directory. Docker's own
 # layer cache can't be trusted to tell us "nothing changed" on its own --
 # e.g. web-terminal's `apt-get update` layers legitimately cache-bust on
@@ -281,10 +336,14 @@ hash_dir() {
 # compose overlay's service image, ...) doesn't delete the image it used to
 # point at -- that image just loses its tag and sits on disk as <none>, and
 # the pile grows with every rebuild. So each build below is wrapped in
-# track_superseded, which notes every image that had a tag before the build
-# and has none after it: exactly what that build displaced, whatever the
-# image is named and whether or not it carries our label. reap_superseded
-# removes them at the very end of the run.
+# track_superseded, which notes two kinds of image the build left untagged:
+#   - one of ours (see our_tagged_image_ids) that had a tag before the build and
+#     has none after it: exactly what that build displaced, whether or not it
+#     carries our label;
+#   - one that did not exist before the build at all: the non-final stage of a
+#     multi-stage Dockerfile (presentation's `build`, cloud-host's `hello`).
+#     Podman keeps those as <none> images; they never had a tag to lose.
+# reap_superseded removes them at the very end of the run.
 #
 # Removal is deferred until after `compose up -d` because a still-running
 # container pins the image it was created from; once `up -d` has recreated
@@ -297,14 +356,29 @@ image_ids() {
   images --filter "dangling=$1" --format '{{.ID}}' | sort -u
 }
 
+# IDs of the tagged images this project builds: gitopsdojo/* (our fixed tags)
+# and Compose's own names for an overlay's services (engine_step-ca, or
+# engine-step-ca on newer Compose). Only these are ever candidates for
+# removal, so an image you tagged or built yourself in another terminal while
+# a run is going is never mistaken for one this run displaced.
+our_tagged_image_ids() {
+  images --filter "dangling=false" --format '{{.ID}} {{.Repository}}' \
+    | awk '$2 ~ /(^|\/)gitopsdojo\// || $2 ~ /(^|\/)engine[_-]/ { print $1 }' | sort -u
+}
+
 # Run the given build command, recording any image it left untagged.
 track_superseded() {
-  ids_before=" $(image_ids false | tr '\n' ' ') "
+  ids_before=" $(our_tagged_image_ids | tr '\n' ' ') "
+  untagged_before=" $(image_ids true | tr '\n' ' ') "
   "$@"
   mkdir -p "$(dirname "$superseded_file")"
   for id in $(image_ids true); do
     case "$ids_before" in
-      *" $id "*) echo "$id" >>"$superseded_file" ;;
+      *" $id "*) echo "$id" >>"$superseded_file"; continue ;;
+    esac
+    case "$untagged_before" in
+      *" $id "*) ;;
+      *) echo "$id" >>"$superseded_file" ;;
     esac
   done
 }
@@ -374,6 +448,7 @@ build_if_changed() {
   fi
   if [ "$dry_run" = "1" ]; then
     echo "  ${image}: WOULD BUILD (source changed, or no cached image yet)."
+    would_build="${would_build} ${image} "
     return 0
   fi
   echo "  ${image}: building (source changed, or no cached image yet)..."
@@ -390,8 +465,9 @@ build_if_changed() {
 # in a local state file, and only runs `compose build` when that hash has
 # changed since the last time this workshop ran.
 #
-# Deliberately excludes web-terminal/allocator/gateway from that build:
-# they already went through build_if_changed above under their own fixed
+# Deliberately excludes web-terminal/allocator/gateway/presentation from that
+# build (keep the list in the grep below in step with every image built by
+# build_if_changed): they already went through build_if_changed above under their own fixed
 # tags, and re-running `compose build` on them here is worse than merely
 # redundant -- Compose's own build doesn't set our dojo.src-hash label, so
 # it would silently overwrite the tag build_if_changed just set, wipe the
@@ -413,7 +489,7 @@ compose_overlay_build_if_changed() {
     return 0
   fi
   echo "  ${overlay_dir}: building (source changed, or first run for this workshop)..."
-  other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway || true)"
+  other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway -e presentation || true)"
   if [ -n "$other_services" ]; then
     # shellcheck disable=SC2086
     track_superseded compose "$@" build $other_services
@@ -446,6 +522,10 @@ if [ "$dry_run" = "1" ]; then
 else
   echo "Checking images (only rebuilding what actually changed)..."
 fi
+# A dry run builds nothing, so it can't see that a rebuilt base makes the
+# workshop terminal (FROM base) stale too; build_if_changed records what it
+# would build here so the workshop terminal below can say so.
+would_build=""
 # shellcheck disable=SC2086
 build_if_changed gitopsdojo/web-terminal:base ./web-terminal $build_secret_args
 
@@ -463,8 +543,13 @@ if [ -d "$workshop_terminal_dir" ]; then
   # contents alone wouldn't change when only the base did.
   saved_salt="$build_salt"
   build_salt="${build_salt}$(inspect -f '{{.Id}}' gitopsdojo/web-terminal:base 2>/dev/null || true)"
-  # shellcheck disable=SC2086
-  build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args
+  case "$would_build" in
+    *" gitopsdojo/web-terminal:base "*)
+      echo "  gitopsdojo/web-terminal:${workshop}: WOULD BUILD (the base image it is built on would be rebuilt)." ;;
+    *)
+      # shellcheck disable=SC2086
+      build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args ;;
+  esac
   build_salt="$saved_salt"
 fi
 
@@ -510,6 +595,8 @@ if [ "$dry_run" = "1" ]; then
 fi
 
 echo "${COMPOSE_OVERLAY:-}" > .last-overlay
+
+sync_lab_docs "$WORKSHOP_CONTENT_DIR"
 
 echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
 # No --build: every image Compose references was already brought up to

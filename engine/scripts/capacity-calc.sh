@@ -144,29 +144,39 @@ LIVE_BASE_MB=0
 # readable for every uid; PSS (smaps_rollup) would be closer still but
 # needs CAP_SYS_PTRACE to read another uid's processes, which this
 # container doesn't have -- it silently returns nothing for students.
-# Emits "<user> <kB>" lines, same shape as the `ps` fallback below.
+# Emits "<user> <kB> <1 if this is a code-server extension host, else 0>"
+# lines, same shape as the `ps` fallback below. The extension host only
+# exists while that account's IDE is open in a browser, which is what
+# decides whether a student counts for calibration (see below).
 MEM_SCRIPT='for p in /proc/[0-9]*; do
   u=$(stat -c %U "$p" 2>/dev/null) || continue
   kb=$(awk "/^(RssAnon|RssShmem):/{s+=\$2} END{print s+0}" "$p/status" 2>/dev/null)
-  [ -n "$kb" ] && echo "$u $kb"
+  eh=0; grep -qa -- --type=extensionHost "$p/cmdline" 2>/dev/null && eh=1
+  [ -n "$kb" ] && echo "$u $kb $eh"
 done'
 if runtime inspect workshop_terminal >/dev/null 2>&1; then
   PS_OUT=$(runtime exec workshop_terminal sh -c "$MEM_SCRIPT" 2>/dev/null || true)
   # /proc/<pid>/status unreadable (unusual runtime): fall back to RSS,
   # which overstates a bit but errs on the safe side.
-  [ -n "$PS_OUT" ] || PS_OUT=$(runtime exec workshop_terminal ps -eo user:20,rss --no-headers 2>/dev/null || true)
+  [ -n "$PS_OUT" ] || PS_OUT=$(runtime exec workshop_terminal ps -eo user:20,rss,args --no-headers 2>/dev/null \
+    | awk '{ print $1, $2, (index($0, "--type=extensionHost") ? 1 : 0) }' || true)
   if [ -n "$PS_OUT" ]; then
     LIVE_BASE_MB=$(echo "$PS_OUT" | awk '$1=="root"{sum+=$2} END{printf "%d", sum/1024}')
     STUDENT_PREFIX="${STUDENT_PREFIX:-student}"
+    # Only students whose IDE is connected (an extension host is running)
+    # count: one without it -- tab never opened, or already reaped after
+    # CODE_SERVER_RECONNECTION_GRACE_SECONDS / IDLE_TIMEOUT_SECONDS -- holds
+    # a fraction of what a full room costs and would drag the average down.
     CALIBRATION=$(echo "$PS_OUT" | awk -v pfx="$STUDENT_PREFIX" '
-      $1 ~ "^"pfx"[0-9]+$" { sum[$1]+=$2; users[$1]=1 }
+      $1 ~ "^"pfx"[0-9]+$" { sum[$1]+=$2; users[$1]=1; if ($3 == 1) connected[$1]=1 }
       END {
-        n=0; total=0
-        for (u in users) { n++; total+=sum[u] }
-        printf "%d %d", n, total/1024
+        n=0; total=0; idle=0
+        for (u in users) { if (u in connected) { n++; total+=sum[u] } else idle++ }
+        printf "%d %d %d", n, total/1024, idle
       }')
     LIVE_STUDENTS=$(echo "$CALIBRATION" | cut -d' ' -f1)
     LIVE_TOTAL_MB=$(echo "$CALIBRATION" | cut -d' ' -f2)
+    LIVE_IDLE_STUDENTS=$(echo "$CALIBRATION" | cut -d' ' -f3)
   fi
 fi
 
@@ -177,11 +187,12 @@ fi
 #     (partly real, partly that Mac's qemu-emulation tax before
 #     web-terminal was rebuilt arm64-native), which set this to 800.
 #     Re-measured natively on amd64 (PSS, fresh session, a .py and a .yml
-#     file open, this repo's shipped settings): ~480MB with the Python
-#     language server off (entrypoint.sh's default), ~555MB with it on.
-#     650 is that plus ~35% for terminals, git, and a session that has been
-#     running an hour instead of a minute. A fresh-session number, so
-#     prefer live calibration below when you can get it.
+#     file open): ~480MB, and 650 is that plus ~35% for terminals, git, and
+#     a session that has been running an hour instead of a minute. Since
+#     the extension trim and code-server node flags (f977209) a connected
+#     student measures ~260MB PSS / ~240MB private (3 at once), so 650 is
+#     now conservative; kept until a long session has been measured. Prefer
+#     live calibration below when you can get it.
 #   - CEILING_PER_STUDENT_MB: every node process a student can spawn
 #     (entry + extensionHost + ptyHost + fileWatcher + a language server)
 #     simultaneously maxing its own CODE_SERVER_MAX_HEAP_MB heap cap. This
@@ -191,20 +202,10 @@ fi
 BASELINE_PER_STUDENT_MB=650
 CEILING_PER_STUDENT_MB=$(( PROCS_PER_STUDENT * HEAP_MB ))
 
-# A student with a *connected* IDE never measured below ~385MB (code-server
-# server + launcher + ptyHost + extensionHost, before any language server).
-# Anything under this floor means the live students' IDEs aren't connected
-# to a browser -- no extension host yet, or already reaped by
-# CODE_SERVER_RECONNECTION_GRACE_SECONDS / IDLE_TIMEOUT_SECONDS -- so the
-# reading is a fraction of what a full room costs. Ignore it rather than
-# recommend a limit half the size it needs to be.
-MIN_CONNECTED_STUDENT_MB=350
 LIVE_IGNORED_NOTE=""
-if [ "$LIVE_STUDENTS" -gt 0 ] && [ $(( LIVE_TOTAL_MB / LIVE_STUDENTS )) -lt "$MIN_CONNECTED_STUDENT_MB" ]; then
-  LIVE_IGNORED_NOTE="Ignored the live reading of $(( LIVE_TOTAL_MB / LIVE_STUDENTS ))MB/student: below the ${MIN_CONNECTED_STUDENT_MB}MB a connected IDE needs, so those students' IDEs aren't open in a browser (or were already reaped after CODE_SERVER_RECONNECTION_GRACE_SECONDS). Open /ide for each bot in a browser, then re-run within CODE_SERVER_IDLE_TIMEOUT_SECONDS. "
-  LIVE_STUDENTS=0
+if [ "${LIVE_IDLE_STUDENTS:-0}" -gt 0 ]; then
+  LIVE_IGNORED_NOTE="Left out ${LIVE_IDLE_STUDENTS} live student(s) whose IDE isn't open in a browser (no extension host, or already reaped after CODE_SERVER_RECONNECTION_GRACE_SECONDS). Open /ide for each bot in a browser, then re-run within CODE_SERVER_IDLE_TIMEOUT_SECONDS. "
 fi
-
 if [ "$LIVE_STUDENTS" -gt 0 ]; then
   PER_STUDENT_MB=$(( (LIVE_TOTAL_MB * (100 + MARGIN_PCT) / 100) / LIVE_STUDENTS ))
   BASE_MB=$(( LIVE_BASE_MB > 128 ? LIVE_BASE_MB : 128 ))
@@ -212,7 +213,7 @@ if [ "$LIVE_STUDENTS" -gt 0 ]; then
 else
   PER_STUDENT_MB=$(( BASELINE_PER_STUDENT_MB * (100 + MARGIN_PCT) / 100 ))
   BASE_MB=512
-  SOURCE="${LIVE_IGNORED_NOTE}revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './run.sh <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
+  SOURCE="revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './run.sh <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
 fi
 
 MEM_LIMIT_MB=$(( BASE_MB + STUDENTS * PER_STUDENT_MB ))
@@ -230,6 +231,13 @@ TOTAL_NEEDED_MB=$(( MEM_LIMIT_MB + OTHER_SERVICES_MB + RESERVE_MB ))
 echo "== Capacity calculator =========================================="
 echo "Host/VM memory (${HOST_MEM_SOURCE}): ${HOST_MEM_MB}MB"
 echo "Per-student estimate source: $SOURCE"
+if [ -n "$LIVE_IGNORED_NOTE" ]; then
+  echo "NOTE: ${LIVE_IGNORED_NOTE% }"
+fi
+if [ "$LIVE_STUDENTS" -eq 0 ]; then
+  echo "NOTE: the ${BASELINE_PER_STUDENT_MB}MB baseline is a fresh-session figure. A session that has run for an hour, with"
+  echo "      every student in their IDE, can use more; WEB_TERMINAL_MEM_LIMIT is the only backstop for that."
+fi
 echo "Per-student memory estimate: ${PER_STUDENT_MB}MB"
 echo "Container base overhead:     ${BASE_MB}MB"
 echo "Other 4 services' mem_limits:${OTHER_SERVICES_MB}MB"

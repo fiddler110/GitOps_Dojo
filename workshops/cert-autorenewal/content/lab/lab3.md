@@ -17,7 +17,7 @@ host="${me}.certs.dojo.test"
 acme.sh --issue \
   --webroot "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --ca-bundle /opt/step-ca-root/root_ca.crt \
   --cert-home ~/acmesh-lab3 \
   --accountemail "${me}@example.com"
@@ -56,7 +56,7 @@ This lab never copies its output into `/srv/webroot/${me}/certs/`, so
 `demo-app` is still serving Lab 2's certificate, not this one — the acme.sh
 cert exists (you can inspect it above), it's just not installed. The
 `curl --cacert` check from Lab 2 step 5 would confirm that if you ran it
-again here; the homepage's **View Demo Site** link wouldn't tell you either
+again here; the homepage's **Demo Site** link wouldn't tell you either
 way, since it never touches HTTPS at all.
 
 ---

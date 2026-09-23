@@ -22,13 +22,15 @@
 # either block transparently reuses that cached credential on the other
 # too, instead of prompting twice. Past the shared gate:
 #   - / is the allocator's name-entry + tool-picker flow (see engine/allocator/)
-#   - /ide/* and /term/* are gated a second time by forward_auth, which
-#     calls the allocator to confirm this browser session actually holds a
-#     student/facilitator slot before proxying to that student's own
-#     code-server/ttyd process (dynamic port, injected via the
-#     X-Upstream-Port response header -- see engine/allocator/server.py's
-#     /auth-check). This is what stops a released or never-assigned
-#     student from reaching a workspace directly.
+#   - /ide/* and /term/* are gated a second time by an auth-check call
+#     (forward_auth's own pattern, written out longhand so a still-starting
+#     workspace can get its own response -- see the @ide/@term blocks
+#     below), which calls the allocator to confirm this browser session
+#     actually holds a student/facilitator slot before proxying to that
+#     student's own code-server/ttyd process (dynamic port, injected via
+#     the X-Upstream-Port response header -- see engine/allocator/
+#     server.py's /auth-check). This is what stops a released or
+#     never-assigned student from reaching a workspace directly.
 # Signing into Forgejo is a separate, deliberate step with each student's
 # own credentials, same as before.
 
@@ -88,28 +90,61 @@
 			}
 		}
 
+		# /ide and /term are written out longhand (what forward_auth is sugar
+		# for) instead of using the forward_auth directive itself, so a 202
+		# from /auth-check -- code-server/ttyd just spawned and isn't
+		# listening yet, see allocator/server.py's handle_auth_check -- can
+		# serve the self-refreshing starting page below instead of Caddy
+		# immediately dialing a port nothing is listening on yet (that race
+		# used to surface to the student as a 502). Any other non-2xx
+		# (e.g. the 303 redirect for no session, or a disabled tool's 404)
+		# still falls through to the client unchanged, same as forward_auth.
 		@ide path /ide*
 		handle @ide {
-			forward_auth allocator:8080 {
-				uri /auth-check?tool=ide
+			reverse_proxy allocator:8080 {
+				method GET
+				rewrite /auth-check?tool=ide
 				header_up X-Auth-User {http.auth.user.id}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
-				copy_headers X-Upstream-Port
+
+				@ide_ready status 200
+				handle_response @ide_ready {
+					uri strip_prefix /ide
+					reverse_proxy web-terminal:{rp.header.X-Upstream-Port}
+				}
+
+				@starting status 202
+				handle_response @starting {
+					header Cache-Control "no-store"
+					root * /srv/static
+					rewrite * /starting.html
+					file_server
+				}
 			}
-			uri strip_prefix /ide
-			reverse_proxy web-terminal:{http.request.header.X-Upstream-Port}
 		}
 
 		@term path /term*
 		handle @term {
-			forward_auth allocator:8080 {
-				uri /auth-check?tool=term
+			reverse_proxy allocator:8080 {
+				method GET
+				rewrite /auth-check?tool=term
 				header_up X-Auth-User {http.auth.user.id}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
-				copy_headers X-Upstream-Port
+
+				@term_ready status 200
+				handle_response @term_ready {
+					uri strip_prefix /term
+					reverse_proxy web-terminal:{rp.header.X-Upstream-Port}
+				}
+
+				@starting status 202
+				handle_response @starting {
+					header Cache-Control "no-store"
+					root * /srv/static
+					rewrite * /starting.html
+					file_server
+				}
 			}
-			uri strip_prefix /term
-			reverse_proxy web-terminal:{http.request.header.X-Upstream-Port}
 		}
 
 		@demo path /demo*
@@ -123,6 +158,28 @@
 			uri strip_prefix /demo
 			reverse_proxy demo-app:80 {
 				header_up Host {http.request.header.X-Demo-Host}
+			}
+		}
+
+		# Cloud console, for workshops that ship one (allocator's CLOUD_ENABLED;
+		# /auth-check answers 404 otherwise, so no other workshop ever reaches
+		# the upstream). forward_auth resolves who this is -- a student's
+		# identity lives in their dojo_session cookie, so the allocator hands
+		# it back as X-Cloud-User -- and the upstream gets it as X-Auth-User
+		# with X-Gateway-Token, the same pair the allocator trusts (see
+		# gateway_authorized()). Both are set here, never taken from the client.
+		@cloud path /cloud /cloud/*
+		handle @cloud {
+			forward_auth allocator:8080 {
+				uri /auth-check?tool=cloud
+				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
+				copy_headers X-Cloud-User
+			}
+			reverse_proxy cloud-api:8080 {
+				header_up X-Auth-User {http.request.header.X-Cloud-User}
+				header_up X-Gateway-Token {$GATEWAY_TOKEN}
+				header_up -X-Cloud-User
 			}
 		}
 

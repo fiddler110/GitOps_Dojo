@@ -59,7 +59,7 @@ This outline pairs with [facilitator-guide.md](facilitator-guide.md). Each secti
 
 ### Slide 2.2: Local vs. Remote
 - **Diagram (three-layer model):**
-  ```
+  ```text
   Your Machine (Full copy)  ←→  Azure Repos (Team's copy)
   ```
 - **Bullet points:**
@@ -70,7 +70,7 @@ This outline pairs with [facilitator-guide.md](facilitator-guide.md). Each secti
 
 ### Slide 2.3: Three-Part Mental Model
 - **Diagram (key graphic — use this throughout the session):**
-  ```
+  ```text
   Working Dir  →  Staging Area  →  Local Repo  →  Azure Repos
   (your edits)    (stage changes)  (commits)    (shared copy)
   ```
@@ -168,7 +168,7 @@ git push
 
 ### Slide 4.6: Branch-Per-Feature (Optional Bonus Slide)
 - **Diagram:**
-  ```
+  ```text
   main
     ↓ git checkout -b add-newfeature
   add-newfeature (your branch)
@@ -208,7 +208,7 @@ allow.
 
 ### Slide 5.3: Merge Conflicts (Demo Slide)
 - **Show conflict markers:**
-  ```
+  ```text
   <<<<<<< HEAD
   version: 1.2.0
   =======

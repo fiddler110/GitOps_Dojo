@@ -74,7 +74,7 @@ trust the CA → request a cert (prove you control your hostname) →
 install it → verify it → automate the next renewal before this one expires
 ```
 
-The workshop homepage also has a **View Demo Site** link (opens `/demo/` in
+The workshop homepage also has a **Demo Site** link (opens `/demo/` in
 a new tab) — it always points at your own vhost, so from Lab 2 onward it's
 a quick way to confirm nginx picked up your config and is serving your
 content. That link is plain HTTP only, though — it never touches your
@@ -92,14 +92,14 @@ check for that.
 - Nothing here can break another student's site — your vhost, docroot, and
   certificate all live only in your own subdirectory of the shared volume.
 - If a client can't reach `step-ca`'s ACME directory at all, double-check
-  you're using `https://step-ca:9000/...`, not `http://` — step-ca has no
+  you're using `https://step-ca:9443/...`, not `http://` — step-ca has no
   plain-HTTP listener.
 - Stuck for more than a minute or two? Ask the facilitator.
 
 ## Quick reference
 
 ```sh
-step ca bootstrap --ca-url https://step-ca:9000 --fingerprint <fp>   # trust the CA (Lab 1)
+step ca bootstrap --ca-url https://step-ca:9443 --fingerprint <fp>   # trust the CA (Lab 1)
 certbot certonly --webroot -w <dir> -d <host> --server <acme-dir-url>  # issue (Lab 2)
 openssl x509 -in <cert> -noout -dates                                  # check validity
 nginx -t                                                                # (inside demo-app only — you won't run this)

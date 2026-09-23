@@ -148,7 +148,7 @@ Try just a simple `git push` now and see what git tells you.
 
 You will need to authenticate your git session to the git-server here and will see a popup at the top of your screen in VS Code for your `username `and then `password`, or a `username for 'http://git-server:3000':` prompt in the ttyd.
 
-Use your student account with password `student123`.
+Use your student account name (for example `student01`) and your **Forgejo password**. Both are shown on your landing page (the page with the VS Code, Terminal and Forgejo cards; reloading it always brings it back).
 
 ```sh
 # Ex. If you look at your terminal, your username is your student user id or use whoami

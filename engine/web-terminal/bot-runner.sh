@@ -7,12 +7,14 @@
 # existing /admin/watch/<id> tile works on a bot with no special-casing on
 # that side beyond allocator/server.py's BOT_IDS).
 #
-# Works through the git-fundamentals labs (clone, branch, edit, commit,
+# By default works through the git-fundamentals labs (clone, branch, edit, commit,
 # push, PR, plus the lab2-5 review/stash/history/conflict/undo exercises)
 # at a slow, human-ish pace, on branches named "<BOT_USER>/round<N>-...",
 # deliberately typing a wrong command here and there and then correcting
 # it -- so a facilitator watching gets constantly-changing terminal output
 # and traceable Forgejo activity, without needing a real second person.
+# A workshop pack swaps in its own labs via content/bots/steps.sh (see
+# BOT_STEPS_FILE near the end of this file).
 #
 # Resumable by design: progress is a single (round, step) pair in
 # ~/.dojo-bot-state, rewritten after each step completes. bot-supervisor.sh
@@ -41,8 +43,15 @@ fi
 : "${BOT_PASSWORD:?BOT_PASSWORD not set in $BOT_ENV_FILE}"
 : "${FORGEJO_ORG:=training}"
 : "${FORGEJO_REPO:=sample-training-repo}"
+# FORGEJO_FORK_WORKFLOW=1 (set by a workshop.env whose labs have each student
+# fork the repo, e.g. tofu-basics): fork $FORGEJO_ORG/$FORGEJO_REPO into the
+# bot's own account, clone the fork (with the team repo as `upstream`), push
+# branches there and open PRs from the fork into the team repo. 0 (default):
+# clone the team repo and push to it directly, as git-fundamentals does.
+: "${FORGEJO_FORK_WORKFLOW:=0}"
 
-REPO_DIR="$HOME/lab/sample-training-repo"
+# git clones into a folder named after the repo, so this must follow FORGEJO_REPO (not a fixed name).
+REPO_DIR="$HOME/lab/${FORGEJO_REPO}"
 STATE_FILE="$HOME/.dojo-bot-state"
 GIT_SERVER="git-server:3000"
 API="http://$GIT_SERVER/api/v1"
@@ -92,7 +101,9 @@ export BOT_PASSWORD
 export GIT_PAGER=cat
 export GIT_EDITOR=true
 
-printf 'machine %s\n\tlogin %s\n\tpassword %s\n' "$GIT_SERVER" "$BOT_USER" "$BOT_PASSWORD" > "$NETRC"
+# netrc's `machine` is a hostname only: with the port in it ("git-server:3000") curl
+# never matches the entry and every API call below goes out unauthenticated (401).
+printf 'machine %s\n\tlogin %s\n\tpassword %s\n' "${GIT_SERVER%%:*}" "$BOT_USER" "$BOT_PASSWORD" > "$NETRC"
 chmod 600 "$NETRC"
 api_curl() { curl -s --netrc-file "$NETRC" "$@"; }
 
@@ -286,10 +297,19 @@ step_ensure_clone() {
   if [ -d "$REPO_DIR/.git" ]; then
     return 0
   fi
-  narrate "Lab 1, step 1 -- clone the sample repo"
   cd "$HOME/lab" || return 1
-  run_cmd "git clone http://${BOT_USER}@${GIT_SERVER}/${FORGEJO_ORG}/${FORGEJO_REPO}.git"
-  cd "$REPO_DIR" || return 1
+  if [ "$FORGEJO_FORK_WORKFLOW" = 1 ]; then
+    narrate "Lab 0 -- fork the team repo into my own account, then clone the fork"
+    # 202 = forked now, 409 = forked on an earlier run; either way the fork exists.
+    run_cmd "curl -s -o /dev/null -w 'fork: HTTP %{http_code}\\n' --netrc-file ~/.dojo-bot-netrc -H 'Content-Type: application/json' -d '{}' $API/repos/${FORGEJO_ORG}/${FORGEJO_REPO}/forks"
+    run_cmd "git clone http://${BOT_USER}@${GIT_SERVER}/${BOT_USER}/${FORGEJO_REPO}.git"
+    cd "$REPO_DIR" || return 1
+    run_cmd "git remote add upstream http://${GIT_SERVER}/${FORGEJO_ORG}/${FORGEJO_REPO}.git"
+  else
+    narrate "Lab 1, step 1 -- clone the sample repo"
+    run_cmd "git clone http://${BOT_USER}@${GIT_SERVER}/${FORGEJO_ORG}/${FORGEJO_REPO}.git"
+    cd "$REPO_DIR" || return 1
+  fi
   run_cmd "git config user.name '$BOT_USER'"
   run_cmd "git config user.email '${BOT_USER}@example.com'"
 }
@@ -309,7 +329,12 @@ step_sync_main() {
   cd "$REPO_DIR" || return 1
   narrate "start of round $ROUND -- syncing main and checking last round's PR"
   run_cmd "git checkout main"
-  run_cmd "git pull"
+  if [ "$FORGEJO_FORK_WORKFLOW" = 1 ]; then
+    # Merged PRs land in the team repo, not the fork: sync main from there.
+    run_cmd "git pull upstream main"
+  else
+    run_cmd "git pull"
+  fi
   run_cmd "git fetch --prune"
   orient
 
@@ -377,10 +402,12 @@ step_lab1_push_and_pr() {
   run_cmd "git push -u origin '$branch'"
 
   narrate "Lab 1, step 7 -- open a pull request"
-  local pr_json pr_number
+  local pr_json pr_number head="$branch"
+  # From a fork, the PR's head names the fork's owner: "<owner>:<branch>".
+  [ "$FORGEJO_FORK_WORKFLOW" = 1 ] && head="$BOT_USER:$branch"
   pr_json="$(api_curl -X POST "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls" \
     -H 'Content-Type: application/json' \
-    -d "{\"head\":\"$branch\",\"base\":\"main\",\"title\":\"[$BOT_USER] Add to roster (round $ROUND)\",\"body\":\"Demo bot activity -- safe to review and merge live, or close.\"}")"
+    -d "{\"head\":\"$head\",\"base\":\"main\",\"title\":\"[$BOT_USER] Add to roster (round $ROUND)\",\"body\":\"Demo bot activity -- safe to review and merge live, or close.\"}")"
   pr_number="$(printf '%s' "$pr_json" | grep -o '"number":[0-9]*' | head -1 | cut -d: -f2)"
   if [ -n "$pr_number" ]; then
     narrate "opened PR #$pr_number for $branch"
@@ -566,6 +593,20 @@ case "$PERSONA" in
     )
     ;;
 esac
+
+# A workshop pack can replace the steps above with its own labs: it ships
+# content/bots/steps.sh (mounted at /opt/workshop-content), which is sourced
+# here, after every helper and default step is defined. It may define new
+# step functions, redefine any of the ones above (orient, step_sync_main,
+# ...), and must set STEPS for "$PERSONA". Without one, the bot runs the
+# git-fundamentals steps above. Changing a pack's STEPS between runs is
+# safe: a saved STEP past the end of the new list just starts a new round.
+BOT_STEPS_FILE="${BOT_STEPS_FILE:-/opt/workshop-content/bots/steps.sh}"
+if [ -f "$BOT_STEPS_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$BOT_STEPS_FILE"
+  narrate "workshop bot steps loaded from $BOT_STEPS_FILE"
+fi
 
 narrate "=== GitOps Dojo demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
 

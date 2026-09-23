@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM docker.io/library/python:3.12-alpine
 
 # Stdlib only -- no pip installs, matches this repo's minimal-deps convention.
 COPY server.py /usr/local/bin/allocator-server.py

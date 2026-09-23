@@ -95,7 +95,7 @@ curl --resolve "${me}.certs.dojo.test:443:${demo_ip}" --cacert /opt/step-ca-root
 Check `~/renew.log` if anything looks off — that's where cron's output
 landed.
 
-The homepage's **View Demo Site** link still loads the page throughout —
+The homepage's **Demo Site** link still loads the page throughout —
 it's plain HTTP, so it never touches the certificate and won't show you
 the renewal happening. Rerun the `curl` above (or just re-run the
 `openssl x509 -enddate` check) after `notAfter` jumps forward to confirm

@@ -35,7 +35,7 @@ step certificate fingerprint /opt/step-ca-root/root_ca.crt
 
 This SHA-256 fingerprint is what `step ca bootstrap` uses to verify it's
 actually talking to the right CA before trusting anything it says —
-without it, a client bootstrapping against `https://step-ca:9000` would
+without it, a client bootstrapping against `https://step-ca:9443` would
 have no way to know it isn't being handed a different root by something
 in the middle.
 
@@ -45,7 +45,7 @@ in the middle.
 
 ```sh
 step ca bootstrap \
-  --ca-url https://step-ca:9000 \
+  --ca-url https://step-ca:9443 \
   --fingerprint "$(step certificate fingerprint /opt/step-ca-root/root_ca.crt)"
 ```
 
@@ -57,7 +57,7 @@ fingerprint every time.
 Confirm it worked:
 
 ```sh
-step ca health --ca-url https://step-ca:9000
+step ca health --ca-url https://step-ca:9443
 ```
 
 Should print `ok`.
@@ -78,11 +78,11 @@ problem a real internal-CA rollout has to solve at much larger scale.
 
 ## Checkpoint
 
-You should be able to run `step ca health --ca-url https://step-ca:9000`
+You should be able to run `step ca health --ca-url https://step-ca:9443`
 and get `ok`, and explain in one sentence why `step ca bootstrap` needs a
 fingerprint, not just a URL.
 
-Nothing to see on the homepage's **View Demo Site** link yet — that
+Nothing to see on the homepage's **Demo Site** link yet — that
 becomes useful starting next lab, once you actually have a vhost.
 
 Next: [lab2.md](lab2.md) — issue your first certificate.

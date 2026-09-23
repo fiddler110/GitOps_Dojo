@@ -168,6 +168,8 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
+| `/demo`, `/demo/*` | `demo-app` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=demo`, which hands back `X-Demo-Host` for the student's own vhost. **404 unless the workshop sets `DEMO_APP_ENABLED=1`** (see below) |
+| `/cloud`, `/cloud/*` | `cloud-api` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=cloud`; Caddy then sets `X-Auth-User` and `X-Gateway-Token` itself. **404 unless the workshop sets `CLOUD_ENABLED=1`** (see below) |
 
 The shared gate is one Caddy `basic_auth` block covering everything except
 `/slides/*`, and it accepts **either** the shared student credential or the
@@ -228,6 +230,19 @@ Basic Auth credential per-request; layering the shared gate's credential on
 top of it would collide. `gateway/Caddyfile` explicitly strips the
 `Authorization` header before proxying to Forgejo for exactly this reason —
 don't remove that when editing it.
+
+### Workshop hooks
+
+A workshop's Compose overlay can set these on the `allocator` service. All are empty or off by default, so a workshop that doesn't set them is unaffected.
+
+- **`DEMO_APP_ENABLED=1`** adds a **Demo Site** card to the student landing page and makes the `/demo` route above reach
+  `demo-app:80` (otherwise the allocator's `/auth-check?tool=demo` answers 404). `DEMO_APP_ZONE` (default `certs.dojo.test`)
+  sets the per-student hostname (`studentNN.<zone>`) sent back as `X-Demo-Host`. `cert-autorenewal` is the only user.
+- **`CLOUD_ENABLED=1`** adds a **Dojo Cloud** card to the student landing page, makes the `/cloud` route above reach
+  `cloud-api:8080` (otherwise the allocator's `/auth-check?tool=cloud` answers 404, so the gateway never reaches an upstream), and adds a **Dojo Cloud** tab to
+  the facilitator's `/admin` page (an iframe of `/cloud/#/progress`). `tofu-basics` is the only user.
+- **`STATUS_CHECKS`** adds extra entries to the facilitator's service-status strip (below): `Label=URL` items separated by
+  `;`, for example `Dojo Cloud=http://cloud-api:8080/readyz`. A service is *green* when its URL answers HTTP 200.
 
 ## Setup
 
@@ -359,9 +374,7 @@ Needs a container engine on `PATH`: real `docker` (with the `compose`
 plugin) if you have it, otherwise `run.sh`/`scripts/teardown.sh` fall back
 to `podman build`/`podman-compose` automatically — there's no flag to set,
 they just detect whichever is actually installed. Confirmed working
-end-to-end on Podman (`podman-compose`) as well as Docker; the Azure VM
-path (`infra/corp-dev/gdojo-cc`) always installs real Docker via cloud-init
-regardless of what you use locally.
+end-to-end on Podman (`podman-compose`) as well as Docker.
 
 This builds the terminal and gateway images, starts Forgejo, waits for it to
 report healthy, then runs `bootstrap` once to create the admin account, the
@@ -376,18 +389,24 @@ to type, no picking their own account. They land straight in code-server
 (or ttyd, their choice) as that account. Their Open Forgejo link SSOs them
 straight into their matching Forgejo account with no login prompt (see
 **Forgejo SSO** above); `STUDENT_PASSWORD` is only something they'd need to
-type themselves for a `git clone`/`push` from inside the terminal.
+type themselves for a `git clone`/`push` from inside the terminal, and
+the landing page they see after that shows it to them as their **Forgejo
+password** (`no-store`, HTML-escaped, and only ever their own account's
+secret, never the shared gate or facilitator credentials), so labs can
+send students there instead of quoting a value that depends on your `.env`.
 `/slides` is reachable from the same address too. The facilitator sees every
 assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
 **Capacity**: code-server instances run meaningfully heavier than a bare
-shell. Measured natively on amd64 (private memory, a fresh session with a
-`.py` and a `.yml` open, this repo's shipped settings): about **480MB** per
-connected student, **~555MB** if the Python language server is also on
-(`entrypoint.sh` turns it off by default), of which roughly 330MB is the
-extension host and language servers. They're spawned lazily on first `/ide`
+shell. Measured natively on amd64 with 3 students connected at once (a
+fresh session with README.md and its preview, a `.yaml` and a `.tf` open):
+about **260MB** PSS / **240MB** private memory per student, of which
+roughly 200MB is the extension host, pty host and language servers. That is
+down from about 480MB before the extension trim and code-server node flags
+(`f977209`); see `web-terminal/vscode-extensions.md` and
+`CODE_SERVER_MAX_HEAP_MB` below. They're spawned lazily on first `/ide`
 visit and killed on Release — cost scales with concurrently-*active*
 students, not `STUDENT_COUNT`. A room where everyone is connected at once is
 the peak; nothing below lowers it. Three knobs bound it:
@@ -395,16 +414,18 @@ the peak; nothing below lowers it. Three knobs bound it:
 - `web-terminal`'s container-wide `mem_limit`/`pids_limit`
   (`docker-compose.yml`, set via `WEB_TERMINAL_MEM_LIMIT`/`WEB_TERMINAL_PIDS_LIMIT`
   in `.env`) is the ceiling for every student's code-server/ttyd process
-  combined. Size roughly `(expected concurrent students) × 650MB + 1GB`
-  for RAM and `(expected concurrent students) × 30 + 100` for pids.
+  combined. Size roughly `(expected concurrent students) × 650MB × 1.15 + 512MB`
+  for RAM and `(expected concurrent students) × 40 + 200` for pids: the same
+  rule `./run.sh capacity` falls back to (below).
 - `CODE_SERVER_MAX_HEAP_MB` (default 384) caps the V8 heap of each
-  student's code-server *server* process via `NODE_OPTIONS`
-  (`workspace-control.py`). Checked directly
-  (`/proc/<pid>/environ` as the student): it is **not** inherited by the
-  extension host or pty host — code-server doesn't pass it on — so the
-  extension host, the largest per-student process, and the language servers
-  it spawns are uncapped, and `WEB_TERMINAL_MEM_LIMIT` is their only
-  backstop. `scripts/capacity-calc.sh`'s live-calibration mode measures
+  node process a student's code-server runs: the server, extension host,
+  pty host and file watcher (`workspace-control.py`). It is passed as a
+  node command-line flag, not `NODE_OPTIONS`, because code-server strips
+  `NODE_OPTIONS` from its children but forks them with the parent's flags
+  (checked in `/proc/<pid>/cmdline`). Language servers are forked by their
+  extensions and stay uncapped, so `WEB_TERMINAL_MEM_LIMIT` is their only
+  backstop. The same launch also sets `--max-semi-space-size=2`,
+  `--optimize-for-size` and `MALLOC_ARENA_MAX=2` to keep each student small. `scripts/capacity-calc.sh`'s live-calibration mode measures
   actual private memory (`RssAnon`) rather than assuming a per-process cap.
 - `CODE_SERVER_RECONNECTION_GRACE_SECONDS` (default 300) and
   `CODE_SERVER_IDLE_TIMEOUT_SECONDS` (default 900) release memory from
@@ -414,13 +435,15 @@ the peak; nothing below lowers it. Three knobs bound it:
   timeout the whole code-server exits and the next `/ide` request restarts
   it (via the allocator's `forward_auth` → `start_workspace()`), while
   terminals — tmux sessions under the student's own uid — are untouched. A
-  student whose tab is open is never affected, however idle. One visible
+  student whose browser tab is still connected is not affected: the timers
+  start when the connection goes (tab closed, network lost). Not tested: how
+  code-server sees a discarded background tab or a sleeping laptop. One visible
   effect: a student who returns after more than the grace time is asked to
-  reload the window rather than resuming in place. `0` disables a timer.
+  reload the window rather than resuming in place. `0` disables a timer; a
+  non-zero `CODE_SERVER_IDLE_TIMEOUT_SECONDS` must be more than 60 (code-server
+  rejects less, and the container refuses to start).
 
-Every delivery path — Azure VM included — now sets these by hand rather
-than deriving them from Terraform (the old `infra/corp-dev/gdojo-cc`
-auto-sizing is parked, unused, under `.infra/`). Run
+These are set by hand in `.env`, not derived automatically. Run
 `./run.sh capacity --students <N>` **on the target machine**
 (the Azure VM itself, or your Mac for local testing) before a real
 session — it reads that machine's actual memory and, if a couple of
@@ -428,27 +451,28 @@ session — it reads that machine's actual memory and, if a couple of
 against their real measured private memory instead of estimating (a
 reading too low to be a connected IDE — e.g. a bot whose `/ide` was never
 opened in a browser — is ignored, not trusted). Without usable live data it
-falls back to the rule of thumb: `(concurrent students × 650MB × 1.15) +
-base` for RAM, `(concurrent students × 40) + 200` for pids.
+falls back to that rule of thumb: `(concurrent students × 650MB × 1.15) +
+512MB` for RAM, `(concurrent students × 40) + 200` for pids. The 650MB was
+set from the older 480MB measurement plus headroom, so it is now
+conservative against the ~260MB measured since; it stays until a longer
+session has been measured, since a session grows over an hour; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
 
 Extensions: code-server ships with a small, curated extension set —
-`redhat.vscode-yaml`, `eamodio.gitlens`, `yzhang.markdown-all-in-one`,
-`shd101wyy.markdown-preview-enhanced`, `hashicorp.terraform`, `golang.Go`,
-`ms-python.python` — pinned + sha256-verified and fetched via `wget` at
+`redhat.vscode-yaml` and `GitHub.github-vscode-theme` —
+pinned + sha256-verified and fetched via `wget` at
 build time (`web-terminal/Dockerfile`, same pattern as ttyd/zoxide/glow),
-not installed live by ID and not committed to this repo as binaries. All
-seven were checked on open-vsx.org and are published by the extension's
+not installed live by ID and not committed to this repo as binaries. Both
+were checked on open-vsx.org and are published by the extension's
 real/verified namespace owner. Installed into one shared, read-only
 directory every student's instance points at — add or remove one by
 adding/removing a `fetch_ext` line in the Dockerfile, not per-student.
-Two caveats worth knowing: `ms-python.python`'s IntelliSense depends on
-Pylance, which is proprietary and unavailable on Open VSX/code-server, so
-it runs with reduced language features; `golang.Go` has no Go toolchain
-baked into this image, so it's syntax-highlighting only unless a workshop
-actually adds one. Students can't reach the Marketplace/Open VSX to
-install anything else regardless: `web-terminal` sits only on the
-internal-only `workshop_lab` network (see `docker-compose.yml`), with no route
-to the internet at all once the stack is up.
+Python files get syntax highlighting from VS Code's built-in `python`
+extension; `ms-python.python` was dropped, since without Pylance (not on
+Open VSX) it added per-student memory and no real IntelliSense. Students can't reach the
+Marketplace/Open VSX to install anything else regardless: `web-terminal`
+sits only on the internal-only `workshop_lab` network (see
+`docker-compose.yml`), with no route to the internet at all once the
+stack is up.
 
 **Facilitator ops below use plain `docker compose ...` commands.** If the
 running workshop has a Compose overlay (check its `workshop.env`'s
@@ -480,9 +504,15 @@ way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
 image a build displaces and removes it once the containers are running on the
 new one (`track_superseded` / `reap_superseded`). Only images that rebuild
-displaced are touched, and one still in use is kept in
-`.build-state/superseded-images` and retried next run. The manual form below
-forces every image to
+displaced are touched, and only ones this project builds (`gitopsdojo/*` and
+Compose's own `engine_*` names): an image you tagged or built yourself is
+never a candidate. One still in use is kept in `.build-state/superseded-images`
+and retried next run. On podman, `run.sh` builds in Docker image format
+(`BUILDAH_FORMAT=docker`) because the default OCI format has no `HEALTHCHECK`,
+and the change-detection hash is salted with that, so the first run after
+pulling it rebuilds every image once. `--dry-run` reports what would be rebuilt;
+a workshop terminal image is reported as rebuilt whenever the base image it is
+built on would be. The manual form below forces every image to
 rebuild regardless of whether anything changed; reach for it only if you
 suspect the change-detection state itself is stale (e.g. you edited a file
 outside of git, or deleted `engine/.build-state/` by hand) — add the
@@ -513,6 +543,18 @@ account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
 
+**Service status strip.** The top right of `/admin` shows one chip per service —
+a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
+for Forgejo, the terminals, the slides (probed through the gateway exactly as a
+browser would, using `PUBLIC_BASE_URL`), and any `STATUS_CHECKS` a workshop adds.
+Hover a chip for the reason. The allocator decides the colour: green when the
+last probe was OK; yellow while a service has never been OK and is still inside
+its start-up grace (`STATUS_STARTUP_GRACE_SECONDS`, default 300), or was OK within
+the last `STATUS_LOSS_GRACE_SECONDS` (default 30, a blip or a restart); red
+otherwise. Probes run every `STATUS_INTERVAL_SECONDS` (default 5) in one
+background thread, so a hung service never slows `/assign` or `/auth-check`.
+The strip is facilitator-only by design: students are not shown service health.
+
 ## Demo bots (`--test`)
 
 ```sh
@@ -532,6 +574,25 @@ traceable back to a bot, never confusable with real student work. Useful
 for demoing the whole workshop solo, or for exercising the facilitator
 dashboard (`/admin`) — watch tiles, Release, the live roster — without
 needing real students connected.
+
+**Per-workshop bot steps.** The steps above are the default. A workshop
+pack can give its bots its own labs by shipping
+`content/bots/steps.sh`: `bot-runner.sh` sources it (the content dir is
+mounted read-only at `/opt/workshop-content`) after defining its helpers
+(`run_cmd`, `narrate`, `think`, `orient`, `branch_name`, `api_curl`) and the
+generic steps (`step_ensure_clone`, `step_sync_main`, `step_lab1_push_and_pr`,
+`step_wrap_round`). The file defines its own step functions, may redefine any
+of the engine's, and sets `STEPS` for each `$PERSONA`. Steps must be safe to
+re-run from the top and return non-zero on failure (the runner retries that
+step with backoff).
+
+**Fork workflow (off by default).** A workshop whose labs have each student
+fork the repo (tofu-basics) sets `FORGEJO_FORK_WORKFLOW=1` in its
+`workshop.env`. Each bot then forks `FORGEJO_ORG/FORGEJO_REPO` into its own
+account, clones the fork (the team repo becomes `upstream`), pushes its
+branches to the fork, syncs `main` from `upstream`, and opens its pull
+requests from the fork into the team repo, where the facilitator merges them
+as before.
 
 **Three personas, not three copies of the same script.** `testuser1` is
 always the expert, `testuser2` the intermediate, and `testuser3` the novice.

@@ -43,7 +43,7 @@ mkdir -p "${DEST}"
 # calls this same renew-and-install step; this line is what you'd also run
 # by hand to test it before trusting the cron job.
 #
-# acme.sh --renew -d "${YOUR_STUDENT_ID}.certs.dojo.test" --server https://step-ca:9000/acme/acme/directory
+# acme.sh --renew -d "${YOUR_STUDENT_ID}.certs.dojo.test" --server https://step-ca:9443/acme/acme/directory
 # acme.sh --install-cert -d "${YOUR_STUDENT_ID}.certs.dojo.test" \
 #   --cert-file      "${DEST}/cert.pem" \
 #   --key-file       "${DEST}/privkey.pem" \

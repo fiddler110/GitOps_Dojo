@@ -1,7 +1,7 @@
 # One-shot: creates the certs.dojo.test zone on dns-server and one A
 # record per configured student pointing at demo-app, via PowerDNS's HTTP
 # API. See seed.sh. Runs every `docker compose up`; idempotent.
-FROM alpine:3.20
+FROM docker.io/library/alpine:3.20
 
 RUN apk add --no-cache curl jq
 

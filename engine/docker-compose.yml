@@ -142,14 +142,13 @@ services:
       - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
+      # 1 = the workshop's labs have each student fork the repo; bots do the same.
+      # Off by default (set in workshop.env) -- see bot-runner.sh.
+      - FORGEJO_FORK_WORKFLOW=${FORGEJO_FORK_WORKFLOW:-0}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       # No weak fallback -- entrypoint.sh grants this account passwordful
       # sudo, so a missing value must fail closed instead of defaulting to
-      # a guessable password. On the Azure delivery path this arrives
-      # already set in .env (cloud-init writes it from the Terraform
-      # facilitator_password var, itself sourced from the pipeline's secure
-      # ADO Library group — see infra/corp-dev/gdojo-cc). Set a real value
-      # in .env for local/manual runs.
+      # a guessable password. Set a real value in .env.
       - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       # Per-process V8 heap cap for each spawned code-server -- see
       # workspace-control.py. A safety net under mem_limit below, not a
@@ -168,6 +167,10 @@ services:
     volumes:
       - terminal_home:/home
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/lab:/opt/lab:ro
+      # Whole content dir, for the workshop's own demo-bot steps
+      # (content/bots/steps.sh, see bot-runner.sh). Mounted as the dir rather
+      # than content/bots so a workshop without bots doesn't break the mount.
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}:/opt/workshop-content:ro
     networks:
       - workshop_lab
     restart: unless-stopped
@@ -181,7 +184,7 @@ services:
       - NET_ADMIN
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
-    # the per-process NODE_OPTIONS heap cap above -- this is the ceiling
+    # the per-process code-server heap cap above -- this is the ceiling
     # for all of them combined. Every delivery path (Azure VM included) now
     # sets these by hand -- see scripts/capacity-calc.sh and .env's comment
     # on these two vars.
@@ -228,6 +231,8 @@ services:
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
       - DEMO_APP_ENABLED=${DEMO_APP_ENABLED:-0}
       - DEMO_APP_ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
+      # Cloud console button + /cloud route; a workshop's compose overlay turns it on.
+      - CLOUD_ENABLED=${CLOUD_ENABLED:-0}
       # SSO into Forgejo (see /forgejo-login in allocator/server.py): the
       # allocator logs the browser straight into the Forgejo account
       # matching whatever identity it already resolved (studentNN or the
@@ -277,9 +282,12 @@ services:
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+    # Same port on both sides: Caddy listens on whatever port PUBLIC_BASE_URL
+    # names (e.g. http://localhost:8080 -> :8080 inside the container), and
+    # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:80"
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:443"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:${GATEWAY_HTTP_PORT:-80}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:${GATEWAY_HTTPS_PORT:-443}"
     networks:
       - public
       - workshop_lab

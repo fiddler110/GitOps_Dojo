@@ -41,8 +41,9 @@ alias egrep='egrep --color=auto'
 # RipGrep Alias for Case-Insensitive by Default
 alias rg="rg -i"
 
-# Bat Alias for Colours 
+# Bat Alias for Colours
 alias bat="bat --color=always --paging=auto"
+alias batf="bat --language=terraform"
 
 alias aliases="bat ~/.zshrc_aliases | rg alias"
 

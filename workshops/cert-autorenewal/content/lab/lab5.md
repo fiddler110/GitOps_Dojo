@@ -13,8 +13,8 @@ If you did the `dns-as-code` workshop, the DNS half of this will feel
 familiar — same PowerDNS, same idea of "the zone is the source of truth" —
 just driven by a raw API call here instead of `dnscontrol`.
 
-You'll want a second terminal pane for this one — see `tmux-guide.md` if
-you don't already have one open (`Ctrl+b %`).
+You'll want a second terminal pane for this one — split one if you don't
+already have one open (`Ctrl+b %`).
 
 ---
 
@@ -29,7 +29,7 @@ REQUESTS_CA_BUNDLE=/opt/step-ca-root/root_ca.crt \
 certbot certonly --manual --preferred-challenges dns-01 \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --email "${me}@example.com"
 ```
 
@@ -112,7 +112,7 @@ certificate for the same domain — that's certbot's own bookkeeping, not
 anything to fix.) This lab doesn't copy that cert into
 `/srv/webroot/${me}/certs/` either, so `demo-app` is still serving whatever
 Lab 2/4 last installed there — `openssl` above is your real check for this
-one, not the homepage's **View Demo Site** link (it's HTTP-only and
+one, not the homepage's **Demo Site** link (it's HTTP-only and
 wouldn't show a certificate either way).
 
 ---

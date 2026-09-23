@@ -10,10 +10,17 @@
   --teal-deep: #137f7a;
   --blue: #69aee8;
   --cyan: #22d3ee;
-  /* Marp's syntax highlighter (highlight.js via GitHub's "prettylights"
-     theme) reads these custom properties, defined upstream for a light
-     background -- redeclaring them here keeps fenced code readable on
-     our dark canvas instead of e.g. near-black string literals. */
+}
+/* Marp's syntax highlighter (highlight.js via GitHub's "prettylights"
+   theme) reads these custom properties, defined upstream for a light
+   background -- redeclaring them here keeps fenced code readable on
+   our dark canvas instead of e.g. near-black string literals.
+   They MUST be set on `section`, not `:root`: Marp's default theme
+   declares them on `section` itself, and this file is loaded through
+   @import, so `:root` stays the <html> element. A value set on <html>
+   is only inherited, and loses to the declaration on <section> even
+   with !important. */
+section {
   --color-prettylights-syntax-comment: var(--muted) !important;
   --color-prettylights-syntax-constant: var(--cyan) !important;
   --color-prettylights-syntax-entity: var(--blue) !important;
@@ -140,3 +147,16 @@ tr:nth-child(even) { background: rgba(105, 174, 232, 0.05) !important; }
 .cards p { color: var(--muted) !important; font-size: 22px; margin: 0; }
 .nav { color: var(--muted) !important; font-size: 20px; margin-top: 50px; }
 footer { color: var(--muted) !important; font-size: 16px; }
+/* lab-index.md's single-slide directory: two featured cards (.cards, above)
+   plus a compact, multi-column list of every raw file the browser reader
+   can open. */
+.lab-links {
+  columns: 2;
+  column-gap: 40px;
+  font-size: 22px;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+.lab-links li { break-inside: avoid; margin-bottom: 10px; }
+.lab-links .topic { color: var(--muted) !important; display: block; font-size: 17px; }

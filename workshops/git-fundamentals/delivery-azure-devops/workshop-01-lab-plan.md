@@ -35,7 +35,7 @@ A small, low-stakes "sandbox" repo created specifically for this training,
 themed around something relatable to both engineering and ops — proposal:
 a simple **team directory / on-call roster** in plain text or YAML, e.g.:
 
-```
+```text
 roster/
   team.yaml         # name, role, on-call rotation notes
   README.md
@@ -50,14 +50,14 @@ repo can be introduced in Session 3 once git basics are second nature.)
 ## Lab 1 — Core Workflow (Instructor Led, ~23 minutes)
 
 ### Exercise 1 — Clone (3 min)
-```
+```sh
 git clone <sample-repo-url>
 cd <sample-repo>
 ```
 - Checkpoint: `git status` shows a clean working tree on `main`.
 
 ### Exercise 2 — Branch (3 min)
-```
+```sh
 git checkout -b add-<yourname>
 ```
 - Talking point: naming branches so others know whose work it is / what
@@ -69,7 +69,7 @@ git checkout -b add-<yourname>
 - `git diff` → see exactly what changed before staging.
 
 ### Exercise 4 — Stage & Commit (5 min)
-```
+```sh
 git add roster/team.yaml
 git commit -m "Add <yourname> to team roster"
 ```
@@ -77,7 +77,7 @@ git commit -m "Add <yourname> to team roster"
   even if you have unrelated changes sitting in your working directory.
 
 ### Exercise 5 — Push & Open a Pull Request (7 min)
-```
+```sh
 git push -u origin add-<yourname>
 ```
 - Open the PR in the Azure DevOps portal.

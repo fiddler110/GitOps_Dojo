@@ -85,38 +85,64 @@ USERNAME_RE = re.compile(
 # stack is up; see docker-compose.yml's workshop_lab network).
 CODE_SERVER_EXTENSIONS_DIR = "/opt/code-server-extensions"
 
-# Caps the V8 heap of each student's code-server *server* process so one
-# student can't quietly balloon past the container-wide mem_limit backstop
-# (docker-compose.yml) on their own -- a safety net under that ceiling, not
-# a replacement for it. Verified: code-server does NOT pass NODE_OPTIONS on
-# to its extension host or pty host (their /proc/<pid>/environ has none), so
-# the extension host -- the largest per-student process -- and every
-# language server it spawns are not covered by this cap. mem_limit is the
-# only backstop for those. Override via env if a workshop's files/extensions
-# genuinely need more headroom.
+# V8 flags for every node process a student's code-server runs. They are
+# passed on node's command line, not through NODE_OPTIONS, because
+# code-server strips NODE_OPTIONS from the environment of its extension
+# host, pty host and file watcher, but forks all three (and its own wrapper
+# forks the server) with the parent's execArgv. Verified via
+# /proc/<pid>/cmdline: the extension host, the largest process per
+# student, inherits them. Language servers are forked by extensions with
+# their own execArgv, so they only get MALLOC_ARENA_MAX from the
+# environment.
+#
+#   --max-old-space-size: caps each process's heap, a safety net under the
+#     container-wide mem_limit backstop (docker-compose.yml), not a
+#     replacement for it. Per process, so a student's worst case is several
+#     times this; see scripts/capacity-calc.sh's CEILING_PER_STUDENT_MB.
+#   --max-semi-space-size=2, --optimize-for-size, MALLOC_ARENA_MAX=2: a
+#     smaller young generation, V8 preferring memory over speed, and fewer
+#     glibc malloc arenas. Measured together on one student (PSS, README +
+#     preview, a .yaml, a .tf and the terminal open): 350 -> 316 MB for
+#     --optimize-for-size on top of the other two, with every capped
+#     process smaller. Costs a little CPU, which lab-sized files don't
+#     notice.
+#
+# Override the cap via env if a workshop's files/extensions genuinely need
+# more headroom.
 CODE_SERVER_MAX_HEAP_MB = os.environ.get("CODE_SERVER_MAX_HEAP_MB", "384")
+if not (CODE_SERVER_MAX_HEAP_MB.isascii() and CODE_SERVER_MAX_HEAP_MB.isdigit()):
+    # Interpolated into a shell command below, same as _seconds_env's values.
+    raise SystemExit(f"CODE_SERVER_MAX_HEAP_MB must be a whole number of MB, got {CODE_SERVER_MAX_HEAP_MB!r}")
+CODE_SERVER_NODE_FLAGS = (
+    f"--max-old-space-size={CODE_SERVER_MAX_HEAP_MB} --max-semi-space-size=2 --optimize-for-size"
+)
 
 
-def _seconds_env(name, default):
+def _seconds_env(name, default, floor=None):
     """Non-negative integer seconds from the environment. Interpolated into
     a shell command below, so anything but plain digits fails fast at
-    startup instead of being passed through."""
+    startup instead of being passed through. With `floor`, a non-zero value
+    must also be greater than it (0 still means "off")."""
     raw = os.environ.get(name, default)
-    if not raw.isdigit():
+    if not (raw.isascii() and raw.isdigit()):
         raise SystemExit(f"{name} must be a non-negative integer number of seconds, got {raw!r}")
-    return int(raw)
+    value = int(raw)
+    if floor is not None and 0 < value <= floor:
+        raise SystemExit(f"{name} must be 0 (off) or greater than {floor} seconds, got {value}")
+    return value
 
 
 # What a code-server keeps holding once its browser tab is gone. Measured
-# with both bundled language servers active, one student is ~550 MB (PSS),
-# and by default a disconnected client's extension host and language
-# servers linger for 3 HOURS (VS Code's own reconnection grace time), so a
-# closed tab quietly keeps ~330 MB of that until then. Two independent
+# with both bundled language servers active, one student is ~550 MB (PSS)
+# before f977209's extension trim and node flags, ~260 MB after, and by
+# default a disconnected client's extension host and language servers
+# linger for 3 HOURS (VS Code's own reconnection grace time), so a closed
+# tab quietly keeps most of that (~330 MB before, ~200 MB after) until then. Two independent
 # timers, both counted from the tab closing (an open tab keeps both from
 # firing, however idle the student is):
 #
 #   - RECONNECTION_GRACE: after this long disconnected, the extension host,
-#     language servers, and pty host are killed (~330 MB back per student).
+#     language servers, and pty host are killed (~200 MB back per student).
 #     The code-server process itself stays. A client reconnecting after
 #     this is told to reload its window instead of resuming in place.
 #   - IDLE_TIMEOUT: after this long with no client at all, the whole
@@ -131,7 +157,9 @@ def _seconds_env(name, default):
 # shorter grace is moot. 0 turns a timer off (VS Code's 3 h grace / no idle
 # exit). Neither changes memory while students are actually connected --
 # that's what CODE_SERVER_MAX_HEAP_MB and the container limit are for.
-CODE_SERVER_IDLE_TIMEOUT_SECONDS = _seconds_env("CODE_SERVER_IDLE_TIMEOUT_SECONDS", "900")
+# code-server itself refuses --idle-timeout-seconds of 60 or less and would exit at once, with its output discarded
+# (start_workspace below), so a too-small value is rejected here at startup instead of failing every /ide.
+CODE_SERVER_IDLE_TIMEOUT_SECONDS = _seconds_env("CODE_SERVER_IDLE_TIMEOUT_SECONDS", "900", floor=60)
 CODE_SERVER_RECONNECTION_GRACE_SECONDS = _seconds_env("CODE_SERVER_RECONNECTION_GRACE_SECONDS", "300")
 
 
@@ -194,8 +222,9 @@ def start_workspace(tool, username):
         if tool == "ide":
             cmd = [
                 "su", "-", username, "-c",
-                f"export NODE_OPTIONS='--max-old-space-size={CODE_SERVER_MAX_HEAP_MB}'; "
-                f"exec code-server --bind-addr 0.0.0.0:{port} --auth none "
+                f"export MALLOC_ARENA_MAX=2; "
+                f"exec /usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
+                f"--bind-addr 0.0.0.0:{port} --auth none "
                 f"--disable-telemetry --disable-update-check --disable-workspace-trust "
                 f"{code_server_lifecycle_flags()} "
                 f"--extensions-dir {CODE_SERVER_EXTENSIONS_DIR} {home}/lab",
@@ -208,21 +237,15 @@ def start_workspace(tool, username):
             # student's actual live session. `new-session -A` creates the
             # session on the first connect and reattaches on every one
             # after, including the student's own reconnects/extra tabs.
-            cmd = ["ttyd", "-p", str(port), "-W", "su", "-", username,
+            cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
                    "-c", f"tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    # Give the process a moment to actually bind before Caddy's first proxy
-    # attempt -- best-effort only, a reload fixes a still-cold start. Poll
-    # the port itself, not is_alive(username): ttyd's listener runs as
-    # root (only the per-connection `su - <username>` child it spawns once
-    # a browser connects runs as the student), so pgrep -u would never
-    # observe the listener itself as "up".
-    for _ in range(50):
-        if port_open(port):
-            return
-        time.sleep(0.1)
+    # Doesn't wait for the port to open -- the caller (do_POST's /start
+    # handler) reports actual readiness back via port_open() right after
+    # this returns, and the allocator's /auth-check uses that to decide
+    # whether to proxy or show a starting page, so nothing here needs to
+    # block on the spawn finishing.
 
 
 def list_sessions(username):
@@ -389,9 +412,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.send_response(409)  # no term session for this student yet
                     self.end_headers()
                     return
+                self.send_json_ok()
             else:
                 start_workspace(tool, username)
-            self.send_json_ok()
+                # Reported straight back to the allocator's /auth-check,
+                # which proxies once this is true and shows a starting page
+                # (that reloads itself) otherwise -- see server.py's
+                # handle_auth_check. Checked fresh every call (not just
+                # right after a spawn) since this same endpoint is hit on
+                # every /ide or /term request, not only the first.
+                self.send_json_ok({"ready": port_open(port_for(tool, username))})
             return
 
         if len(parts) == 2 and parts[0] == "stop":

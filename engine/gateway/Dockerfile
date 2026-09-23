@@ -1,6 +1,7 @@
 FROM docker.io/library/caddy:2-alpine
 
 COPY Caddyfile /etc/caddy/Caddyfile
+COPY static/ /srv/static/
 COPY entrypoint.sh /usr/local/bin/gateway-entrypoint
 RUN chmod +x /usr/local/bin/gateway-entrypoint
 

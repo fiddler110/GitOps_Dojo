@@ -9,8 +9,8 @@ see each lab for the first time they're introduced.
 ```sh
 step certificate inspect /opt/step-ca-root/root_ca.crt --short   # what's in the root cert
 step certificate fingerprint /opt/step-ca-root/root_ca.crt        # its SHA-256 fingerprint
-step ca bootstrap --ca-url https://step-ca:9000 --fingerprint <fp> # trust it (step CLI only)
-step ca health --ca-url https://step-ca:9000                      # confirm you can reach the CA
+step ca bootstrap --ca-url https://step-ca:9443 --fingerprint <fp> # trust it (step CLI only)
+step ca health --ca-url https://step-ca:9443                      # confirm you can reach the CA
 ```
 
 certbot and acme.sh each need telling about this root **separately** —
@@ -24,7 +24,7 @@ that's the two env vars/flags below, not `step ca bootstrap`.
 ## ACME directory URL
 
 ```text
-https://step-ca:9000/acme/acme/directory
+https://step-ca:9443/acme/acme/directory
 ```
 
 (`acme` appears twice: once for the ACME protocol, once as this CA's
@@ -39,7 +39,7 @@ certbot certonly \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
   --webroot -w "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --non-interactive --email "${me}@example.com"
 # cert lands at ~/certbot/config/live/${host}/{fullchain.pem,privkey.pem}
 ```
@@ -50,7 +50,7 @@ certbot certonly \
 acme.sh --issue \
   --webroot "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --ca-bundle /opt/step-ca-root/root_ca.crt \
   --cert-home ~/acmesh-lab3 \
   --accountemail "${me}@example.com"
@@ -61,7 +61,7 @@ acme.sh --issue \
 ```sh
 certbot certonly --manual --preferred-challenges dns-01 \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
-  -d "${host}" --server https://step-ca:9000/acme/acme/directory \
+  -d "${host}" --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --email "${me}@example.com"
 # pauses; deploy the printed TXT record (see below), then press Enter
 ```
