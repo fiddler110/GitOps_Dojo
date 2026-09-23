@@ -67,6 +67,7 @@ in the browser.
   Every tool is baked into the workshop's image, pinned to a version and checked
   against a sha256. Extra services sit on internal-only networks, and anything a
   student can reach checks a gateway token before trusting who the caller is.
+  See [Security boundaries](#security-boundaries).
 - **Workshops are plug-ins.** A workshop is a folder under `workshops/`: a
   `workshop.env`, its content and, only if it needs one, a Compose overlay that
   adds services or a different terminal image. The engine is never edited to
@@ -663,7 +664,227 @@ teach reading real-looking failures.
 
 ---
 
-## Who can reach what
+## Security boundaries
+
+The lab assumes students will poke at everything they can reach, whether out of
+curiosity or by accident. Three layers stop that from turning into access to
+another student's work, to the host or to the internet:
+
+1. **Trust zones.** There is one published port. Everything behind it sits on
+   internal networks with no route out.
+2. **Identity.** Only the gateway can say who a request is from, and every
+   service checks that the claim really came from the gateway.
+3. **Kernel checks.** Inside the shared terminal container, the Linux kernel
+   decides which student is which, not anything a student can type.
+
+### 1. Trust zones: one way in
+
+```mermaid
+graph TB
+    NET(["Internet / class network<br/>untrusted"])
+
+    subgraph z1["Zone 1 - the only way in"]
+        GW["gateway (Caddy)<br/>the only published ports: :80 / :443<br/>TLS, sign-in, routing, identity headers"]
+    end
+
+    subgraph z2["Zone 2 - workshop_lab, internal: true, no route out"]
+        AL["allocator<br/>sessions and student slots"]
+        WT["web-terminal<br/>one Linux user per student<br/>no internet, no docker.sock"]
+        GS["git-server (Forgejo)"]
+        SVC["workshop services<br/>PowerDNS, step-ca, demo-app, cloud-api"]
+    end
+
+    subgraph z2b["web_lab - internal"]
+        PR["presentation (Marp)"]
+    end
+
+    OUT(["Internet, outbound"])
+
+    subgraph z3["Zone 3 - sandboxes, each with one door"]
+        subgraph boot["bootstrap_net"]
+            BS["bootstrap<br/>one-shot provisioning"]
+        end
+        subgraph rn["runner_net"]
+            RN["forgejo-runner<br/>runs student-written CI"]
+        end
+        subgraph cn["cloud_net"]
+            HOST["cloud-host<br/>privileged docker-in-docker"]
+        end
+    end
+
+    NET ==>|"HTTPS, the one way in"| GW
+    GW -->|"/, /admin"| AL
+    GW -->|"/ide, /term, after /auth-check"| WT
+    GW -->|"/git"| GS
+    GW -->|"/cloud, /demo, after /auth-check"| SVC
+    GW -->|"/slides"| PR
+    WT -->|"lab traffic"| GS
+    WT -->|"lab traffic"| SVC
+    GS ---|"bootstrap's only door"| BS
+    GS ---|"runner's doors:<br/>Forgejo and PowerDNS"| RN
+    SVC ---|" "| RN
+    SVC -->|"cloud-api's fixed templates only"| HOST
+    WT -.-x|"no route"| OUT
+    HOST -.-x|"no route"| OUT
+
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
+    class NET,OUT person
+    class GW gw
+    class AL,WT,GS,PR,BS core
+    class SVC addon
+    class RN,HOST priv
+    style z1 fill:#8b5cf60f,stroke:#8b5cf6,stroke-width:1px,stroke-dasharray:5 4
+    style z2 fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style z2b fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style z3 fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
+    style boot fill:#64748b0f,stroke:#64748b,stroke-width:1px,stroke-dasharray:5 4
+    style rn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
+    style cn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
+```
+
+- **Zone 1:** `gateway` is the only container with published ports, so it is
+  the only thing that needs a hole in a firewall. It is also the only
+  container attached to both the outside and the inside.
+- **Zone 2:** every lab network is a Compose network with `internal: true`, so
+  it has no route to the internet. Student terminals can reach Forgejo and
+  their workshop's services, and nothing outside. Tools are baked into the
+  image (pinned and sha256-checked) because nothing can be downloaded at lab time.
+- **Zone 3:** the parts that are risky by nature each get a network of their
+  own with exactly one door. Provisioning can reach Forgejo and nothing else.
+  Student-written CI can reach Forgejo and PowerDNS, never the allocator or the
+  terminals. The privileged Docker host runs student containers, but only
+  `cloud-api` can reach it, through a shared socket, using fixed templates.
+  Students never speak Docker, and `cloud-api` itself drops every Linux
+  capability except binding :443.
+
+### 2. Identity: only the gateway can say who you are
+
+The gateway signs everyone in and tells the services behind it who each request
+is from. To make that claim impossible to forge, it always travels as a pair of
+headers that Caddy sets itself: `X-Auth-User` (who) and `X-Gateway-Token` (a
+shared secret from `engine/.env` that only Caddy and the services know).
+
+```mermaid
+sequenceDiagram
+    actor B as Browser
+    box rgba(139,92,246,0.12) Zone 1
+    participant GW as gateway (Caddy)
+    end
+    box rgba(59,130,246,0.12) Zone 2
+    participant AL as allocator
+    participant UP as the service (allocator, web-terminal, cloud-api)
+    end
+
+    rect rgba(139,92,246,0.16)
+    Note over B,GW: Sign in
+    B->>GW: request with the class login, the dojo_session cookie and perhaps a forged X-Auth-User
+    GW->>GW: basic_auth - the class credential, or the facilitator's own (the only one /admin accepts)
+    end
+
+    rect rgba(59,130,246,0.16)
+    Note over GW,AL: Check the session
+    GW->>AL: /auth-check, with X-Auth-User and X-Gateway-Token set by Caddy
+    AL->>AL: token correct (constant-time compare)? cookie holds a live student slot?
+    AL-->>GW: yes - this student, and their workspace port
+    AL-->>GW: no - send them back to / (or 404 for a tool this workshop doesn't have)
+    end
+
+    rect rgba(16,185,129,0.16)
+    Note over GW,UP: Forward
+    GW->>UP: proxy, with header_up REPLACING X-Auth-User and X-Gateway-Token
+    UP->>UP: no valid token, no trust - then act as the user X-Auth-User names
+    end
+```
+
+- **Headers are replaced, never passed through.** `header_up X-Auth-User ...`
+  overwrites whatever the client sent, so a browser can't claim to be someone
+  else by setting the header itself.
+- **The token proves the request came through Caddy.** All students share one
+  network, so a terminal can reach `allocator` or `cloud-api` directly. Without
+  `X-Gateway-Token` those requests are refused (the Dojo Cloud portal answers
+  `401`) before the identity header is ever read.
+- **The cookie says which student.** The class shares one sign-in, so the
+  student's own identity lives in their `dojo_session` cookie, which the
+  allocator issues and checks on every `/auth-check`. A released or
+  never-assigned session can't reach a workspace, even with the class password.
+- **The facilitator has a separate door.** `/admin` has its own `basic_auth`
+  block that accepts only the facilitator's credential, checked before the
+  shared one.
+
+### 3. Kernel checks: students share a container, not an identity
+
+Every student's shell, VS Code and terminal run in one `web-terminal`
+container, and all students share its network namespace, so a source IP never
+identifies anyone. Separation comes from Linux users instead, and the kernel
+enforces it.
+
+```mermaid
+graph LR
+    GW["gateway<br/>proxies to the port /auth-check chose"]
+
+    subgraph wt["web-terminal container - one shared network namespace"]
+        subgraph u1["student01 - its own Linux uid"]
+            SH1["shell, VS Code"]
+        end
+        subgraph u2["student02 - its own Linux uid"]
+            SH2["shell, VS Code"]
+        end
+        IPT{{"iptables DOJO_ISOLATION<br/>-m owner --uid-owner"}}
+        P1["student01's code-server + ttyd<br/>ports 9001 / 9501"]
+        P2["student02's code-server + ttyd<br/>ports 9002 / 9502"]
+        BR["dojo-broker (root)<br/>unix socket"]
+        KEY[("signing key<br/>root-only file")]
+    end
+
+    API["cloud-api<br/>checks the token's subscription"]
+
+    GW --> P1
+    GW --> P2
+    SH1 -->|"connect to a workspace port"| IPT
+    IPT -->|"own uid: ACCEPT"| P1
+    IPT -.-x|"any other uid: DROP"| P2
+    SH2 -->|"ask for credentials"| BR
+    BR -->|"SO_PEERCRED: the kernel reports uid"| BR
+    BR -->|"ARM_* for student02 only"| SH2
+    KEY -.->|"readable by root only"| BR
+    SH2 -->|"tofu apply"| API
+
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
+    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
+    class GW gw
+    class SH1,SH2,P1,P2 core
+    class API addon
+    class IPT,BR priv
+    class KEY store
+    style wt fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style u1 fill:#f59e0b0f,stroke:#f59e0b,stroke-width:1px,stroke-dasharray:5 4
+    style u2 fill:#f59e0b0f,stroke:#f59e0b,stroke-width:1px,stroke-dasharray:5 4
+```
+
+- **One Linux user per student.** `entrypoint.sh` creates `student01`..`studentNN`,
+  each with its own uid and home directory. No student runs as root (the
+  facilitator's shell does, by default, so they can help anyone).
+- **Workspace ports belong to their owner.** Each student's code-server and ttyd
+  listen on a port of their own (9000+N and 9500+N). An `iptables` chain with an
+  `owner` match lets a uid connect only to its own ports and drops everything
+  else in those ranges, so student01 can't open student02's terminal from inside
+  the container. The gateway, connecting from outside, can reach them all, and
+  it only ever sends a request to the port `/auth-check` chose.
+- **Cloud credentials come from the kernel, not from the student**
+  (tofu-basics). A shell asks the root-owned broker for its `ARM_*` values over
+  a unix socket. The broker asks the kernel who is on the other end
+  (`SO_PEERCRED`), so a student can only get their own credentials. The key that
+  derives them is readable by root only, and `cloud-api` accepts a token only
+  for that student's own subscription.
+
+### Who can reach what
 
 Rows are the caller; a ✓ is a real network path. Everything else is either
 blocked by network isolation or never routed.
@@ -676,8 +897,3 @@ blocked by network isolation or never routed.
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |
-
-Three deliberate boundaries carry the security model: `bootstrap_net`
-(provisioning can reach Forgejo and nothing else), `runner_net` (student-authored
-CI can't reach the control plane), and `cloud_net` (the privileged host is
-reachable only through `cloud-api`'s fixed templates).
