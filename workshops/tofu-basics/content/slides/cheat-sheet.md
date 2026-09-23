@@ -48,6 +48,7 @@ edit .tf files → init → validate → plan → apply → (change → plan →
 | <span class="command">terraform output [name]</span> | Print outputs (`terraform output url`) |
 | <span class="command">terraform show</span> | Everything in state |
 | <span class="command">terraform state list</span> | What OpenTofu is tracking |
+| <span class="command">terraform graph</span> | Dependency graph as DOT text (`A -> B`: A waits for B) |
 | <span class="command">terraform plan -destroy</span> | Preview a destroy |
 | <span class="command">terraform plan -replace=ADDR</span> | Preview rebuilding one resource |
 | <span class="command">terraform plan -var name=value</span> | Override a variable for one run |

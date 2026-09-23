@@ -20,6 +20,7 @@ edit .tf files → init → validate → plan → apply → (change → plan →
 | `terraform output [name]` | Print outputs. | No |
 | `terraform show` | Print everything in state. | No |
 | `terraform state list` | List tracked resources. | No |
+| `terraform graph` | Print the dependency graph as DOT text (`A -> B` means A waits for B). | No |
 | `terraform plan -replace=ADDR` | Preview rebuilding one resource. | No |
 | `terraform plan -var name=value` | Override a variable for one run. | No |
 

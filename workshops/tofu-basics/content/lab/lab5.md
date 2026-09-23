@@ -144,6 +144,28 @@ In the portal you should see the **resource group appear within a couple of seco
 
 Order matters: the resource group was created **first**, then the container group. You never wrote that order down; OpenTofu worked it out from the reference in `main.tf`, the same **dependency graph** idea as `random_pet` and `local_file` in Lab 1.
 
+**Optional: see the graph.** `terraform graph` prints the graph as text in DOT, the language of the Graphviz drawing tool. Save it to a file:
+
+```sh
+terraform graph > graph.dot
+```
+
+Open `graph.dot` in the VS Code editor (Explorer, left), press **Ctrl+A** then **Ctrl+C**, and paste it into <https://www.devtoolsdaily.com/graphviz/> in your own browser to draw it.
+
+How to read the picture:
+
+- **An arrow means "waits for".** `azurerm_container_group.hello → azurerm_resource_group.main`: the container group can't start until the resource group exists.
+- **Work starts at the bottom and moves up.** The things nothing depends on sit at the top. The bottom holds what's needed first: your **variables** (folded-page shapes) and the **provider** (diamond). The two **resources** (boxes) sit in between, with `local.*` and `output.*` (ovals) around them.
+- **Ignore the plumbing.** `(expand)` is where OpenTofu works out how many copies of a resource there are (`count`, `for_each`). `provider[...] (close)` shuts the provider down once its last resource is done. `[root] root` is the finish line at the top.
+- **Find `output.url`.** Its arrows go only to `local.dns_label` and `var.portal_base_url`, never to a resource. That's why the plan above already showed the full `url`, while `fqdn` and `resource_id` said `(known after apply)`: those two wait for the container group, and a value that comes from a resource can't be known until the resource exists.
+- **It's not a numbered list.** Anything whose arrows all point at finished work starts straight away, in parallel with anything else that's ready. `destroy` follows the arrows in reverse. You'll see both in Lab 10.
+
+Then delete the file, so it doesn't show up in `git status` later in this lab:
+
+```sh
+rm graph.dot
+```
+
 ## 4. Open your site
 
 ```sh

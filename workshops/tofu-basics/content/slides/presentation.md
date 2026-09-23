@@ -267,6 +267,10 @@ folder". Result: out/hello.txt contains "Hi light-porpoise".
 If asked: depends_on exists for the rare dependency OpenTofu can't see from
 a reference. You won't need it today.
 
+If asked "can I see the graph?": `terraform graph` prints it as DOT text
+(Lab 5 has an optional step). It shows what waits for what, not a fixed
+order: independent resources run in parallel (10 at a time by default).
+
 Foreshadow Lab 2: change pet_words and BOTH get replaced, because a new
 pet means a new name, which means new file content.
 -->
