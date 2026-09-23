@@ -19,6 +19,7 @@ bot_prefix="${BOT_PREFIX:-testuser}"
 bot_password="${BOT_PASSWORD:-testuser123}"
 forgejo_org="${FORGEJO_ORG:-training}"
 forgejo_repo="${FORGEJO_REPO:-sample-training-repo}"
+forgejo_fork_workflow="${FORGEJO_FORK_WORKFLOW:-0}"
 
 case "$student_count" in
   ''|*[!0-9]*)
@@ -357,6 +358,7 @@ BOT_PASSWORD=$bot_password
 BOT_PERSONA=$bot_persona
 FORGEJO_ORG=$forgejo_org
 FORGEJO_REPO=$forgejo_repo
+FORGEJO_FORK_WORKFLOW=$forgejo_fork_workflow
 EOF
   chmod 600 "/home/$bot_username/.dojo-bot.env"
 

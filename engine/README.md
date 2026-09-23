@@ -586,6 +586,14 @@ of the engine's, and sets `STEPS` for each `$PERSONA`. Steps must be safe to
 re-run from the top and return non-zero on failure (the runner retries that
 step with backoff).
 
+**Fork workflow (off by default).** A workshop whose labs have each student
+fork the repo (tofu-basics) sets `FORGEJO_FORK_WORKFLOW=1` in its
+`workshop.env`. Each bot then forks `FORGEJO_ORG/FORGEJO_REPO` into its own
+account, clones the fork (the team repo becomes `upstream`), pushes its
+branches to the fork, syncs `main` from `upstream`, and opens its pull
+requests from the fork into the team repo, where the facilitator merges them
+as before.
+
 **Three personas, not three copies of the same script.** `testuser1` is
 always the expert, `testuser2` the intermediate, and `testuser3` the novice.
 With `--test N` for N > 3, every bot past the third is assigned one of those
