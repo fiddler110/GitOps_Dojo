@@ -29,19 +29,33 @@ body {
   z-index: 1;
 }
 
-.lab-header .back {
+.lab-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lab-header .pager {
+  display: flex;
+  gap: 20px;
+}
+
+.lab-header .back,
+.lab-header .pager a {
   color: var(--accent);
   font-weight: 600;
   text-decoration: none;
 }
 
-.lab-header .back:hover { text-decoration: underline; }
+.lab-header .back:hover,
+.lab-header .pager a:hover { text-decoration: underline; }
 
 .lab-content {
   line-height: 1.65;
   margin: 0 auto;
-  max-width: 800px;
-  padding: 32px 24px 80px;
+  /* Fill the pane; the cap only bites on very wide monitors. */
+  max-width: 1400px;
+  padding: 32px clamp(16px, 4vw, 56px) 80px;
 }
 
 .lab-content h1,

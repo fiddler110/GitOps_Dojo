@@ -49,6 +49,32 @@
     document.title = (heading ? heading.textContent : file) + ' — Lab';
   }
 
+  // Header links to the neighbouring labs (labN-1 / labN+1). Numbering
+  // differs per workshop (tofu-basics starts at lab0, others at lab1), so
+  // each neighbour is shown only if its generated file actually exists.
+  // README and cheat-sheet get no pager.
+  function renderPager(file) {
+    var match = /^lab(\d+)\.md\.txt$/.exec(file);
+    if (!match) return;
+    var pager = document.getElementById('lab-pager');
+    var n = parseInt(match[1], 10);
+    var neighbours = [
+      { n: n - 1, text: '\u2190 Lab ' + (n - 1) },
+      { n: n + 1, text: 'Lab ' + (n + 1) + ' \u2192' }
+    ];
+    neighbours.forEach(function (item) {
+      if (item.n < 0) return;
+      var link = document.createElement('a');
+      link.href = 'lab-reader.html?file=lab' + item.n + '.md.txt';
+      link.textContent = item.text;
+      link.hidden = true;
+      pager.appendChild(link);
+      fetch('../lab/lab' + item.n + '.md.txt', { method: 'HEAD', credentials: 'same-origin' })
+        .then(function (res) { if (res.ok) link.hidden = false; })
+        .catch(function () {});
+    });
+  }
+
   var file = labFileFromQuery();
   if (!file) {
     showError('No lab file specified. Open this page from the lab overview’s links.');
@@ -60,7 +86,10 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.text();
     })
-    .then(function (text) { render(text, file); })
+    .then(function (text) {
+      render(text, file);
+      renderPager(file);
+    })
     .catch(function (err) {
       showError('Could not load ' + file + ' (' + err.message + ').');
     });
