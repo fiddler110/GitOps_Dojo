@@ -164,6 +164,10 @@ services:
     volumes:
       - terminal_home:/home
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/lab:/opt/lab:ro
+      # Whole content dir, for the workshop's own demo-bot steps
+      # (content/bots/steps.sh, see bot-runner.sh). Mounted as the dir rather
+      # than content/bots so a workshop without bots doesn't break the mount.
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}:/opt/workshop-content:ro
     networks:
       - workshop_lab
     restart: unless-stopped

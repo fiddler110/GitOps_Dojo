@@ -7,12 +7,14 @@
 # existing /admin/watch/<id> tile works on a bot with no special-casing on
 # that side beyond allocator/server.py's BOT_IDS).
 #
-# Works through the git-fundamentals labs (clone, branch, edit, commit,
+# By default works through the git-fundamentals labs (clone, branch, edit, commit,
 # push, PR, plus the lab2-5 review/stash/history/conflict/undo exercises)
 # at a slow, human-ish pace, on branches named "<BOT_USER>/round<N>-...",
 # deliberately typing a wrong command here and there and then correcting
 # it -- so a facilitator watching gets constantly-changing terminal output
 # and traceable Forgejo activity, without needing a real second person.
+# A workshop pack swaps in its own labs via content/bots/steps.sh (see
+# BOT_STEPS_FILE near the end of this file).
 #
 # Resumable by design: progress is a single (round, step) pair in
 # ~/.dojo-bot-state, rewritten after each step completes. bot-supervisor.sh
@@ -567,6 +569,20 @@ case "$PERSONA" in
     )
     ;;
 esac
+
+# A workshop pack can replace the steps above with its own labs: it ships
+# content/bots/steps.sh (mounted at /opt/workshop-content), which is sourced
+# here, after every helper and default step is defined. It may define new
+# step functions, redefine any of the ones above (orient, step_sync_main,
+# ...), and must set STEPS for "$PERSONA". Without one, the bot runs the
+# git-fundamentals steps above. Changing a pack's STEPS between runs is
+# safe: a saved STEP past the end of the new list just starts a new round.
+BOT_STEPS_FILE="${BOT_STEPS_FILE:-/opt/workshop-content/bots/steps.sh}"
+if [ -f "$BOT_STEPS_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$BOT_STEPS_FILE"
+  narrate "workshop bot steps loaded from $BOT_STEPS_FILE"
+fi
 
 narrate "=== GitOps Dojo demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
 

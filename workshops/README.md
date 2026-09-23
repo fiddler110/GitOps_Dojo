@@ -97,8 +97,16 @@ server, etc.) — not for anything content/slides alone can express.
    `HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD web-terminal-healthcheck`
    (the base image's script, which sends the `X-Control-Token` header). Do not copy a `wget` line:
    a bare `wget` gets a 403 and the container shows `unhealthy` for its whole life.
-5. Add a row to the table above.
-6. Run it locally end to end (`./run.sh <name>` from `engine/`) before
+   Keep any service a student terminal must reach **off TCP ports 9000-9099 and
+   9500-9899**: the terminal's per-account firewall (`DOJO_ISOLATION` in
+   `engine/web-terminal/entrypoint.sh`) drops those for every non-root account,
+   on any host, and the symptom is a silent timeout. `cert-autorenewal`'s
+   step-ca uses 9443 for this reason.
+5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
+   work through *your* labs instead of the default git-fundamentals ones (see
+   `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
+6. Add a row to the table above.
+7. Run it locally end to end (`./run.sh <name>` from `engine/`) before
    trusting it for a live session.
 
 Nothing about adding a workshop this way ever requires editing

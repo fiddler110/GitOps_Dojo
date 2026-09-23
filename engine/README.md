@@ -575,6 +575,17 @@ for demoing the whole workshop solo, or for exercising the facilitator
 dashboard (`/admin`) — watch tiles, Release, the live roster — without
 needing real students connected.
 
+**Per-workshop bot steps.** The steps above are the default. A workshop
+pack can give its bots its own labs by shipping
+`content/bots/steps.sh`: `bot-runner.sh` sources it (the content dir is
+mounted read-only at `/opt/workshop-content`) after defining its helpers
+(`run_cmd`, `narrate`, `think`, `orient`, `branch_name`, `api_curl`) and the
+generic steps (`step_ensure_clone`, `step_sync_main`, `step_lab1_push_and_pr`,
+`step_wrap_round`). The file defines its own step functions, may redefine any
+of the engine's, and sets `STEPS` for each `$PERSONA`. Steps must be safe to
+re-run from the top and return non-zero on failure (the runner retries that
+step with backoff).
+
 **Three personas, not three copies of the same script.** `testuser1` is
 always the expert, `testuser2` the intermediate, and `testuser3` the novice.
 With `--test N` for N > 3, every bot past the third is assigned one of those
