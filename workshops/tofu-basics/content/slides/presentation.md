@@ -5,8 +5,8 @@ paginate: true
 size: 16:9
 html: true
 style: |
-  @import url('assets/themes/presentation.css');
-footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; OpenTofu Basics | Engineering & IT Operations'
+    @import url('assets/themes/presentation.css');
+footer: "[&larr; Hub](index.md) &nbsp;|&nbsp; OpenTofu Basics | Engineering & IT Operations"
 ---
 
 <!-- _class: lead -->
@@ -75,7 +75,7 @@ everyone still finishes the core loop.
 - Open a web console
 - Click through a wizard
 - Pick a region, a size, a name, a few tags (maybe)
-- It works. Nobody wrote down *what* you clicked
+- It works. Nobody wrote down _what_ you clicked
 - Six months later: "who made this, and why is it here?"
 - Making a second copy means clicking it all again, slightly differently
 
@@ -96,7 +96,7 @@ rebuild it? What did you forget? That memory is the whole motivation.
 
 - The setup is **a file**, in a git repo
 - A change is a **pull request**: reviewed before anything is touched
-- The tool shows **exactly** what it *would* do (`plan`) before it does it
+- The tool shows **exactly** what it _would_ do (`plan`) before it does it
 - `git log` says who changed what, when and why
 - Making a second copy is running the same files again
 - Deleting it all is one command, and it removes exactly what the tool created
@@ -108,19 +108,21 @@ Code session, if the room did it. Preview in dnscontrol is plan here.
 
 ---
 
-## Say *what*, not *how*
+## Say _what_, not _how_
 
 OpenTofu is **declarative**: you describe the result you want, and the tool works out the steps.
 
 <div class="two-column">
 
 **Step by step (a script)**
+
 1. Check if the folder exists
 2. If not, create it
 3. Check if the file exists
 4. If not, create it; if it's wrong, fix it
 
 **Declarative (OpenTofu)**
+
 - "There is a file called `hello.txt`"
 - "It says `Hi`"
 
@@ -128,7 +130,7 @@ The tool checks what is already there and does only what's missing.
 
 </div>
 
-> Run it twice and the second run does **nothing**: *"No changes. Your infrastructure matches the configuration."*
+> Run it twice and the second run does **nothing**: _"No changes. Your infrastructure matches the configuration."_
 
 <!--
 Analogy that lands: a script is turn-by-turn directions; declarative is
@@ -199,12 +201,12 @@ saying no (4, Dojo Cloud's policy and quota in Track B).
 
 ## Four building blocks
 
-| Block | What it is | Example |
-| ----- | ---------- | ------- |
-| **provider** | The plugin that talks to one system | `azurerm`, `random`, `local` |
-| **resource** | One thing you want to exist | a resource group, a container |
-| **variable** | An input you can change without editing resources | `location`, `message` |
-| **output** | A value worth printing when it's done | the site's URL |
+| Block        | What it is                                        | Example                       |
+| ------------ | ------------------------------------------------- | ----------------------------- |
+| **provider** | The plugin that talks to one system               | `azurerm`, `random`, `local`  |
+| **resource** | One thing you want to exist                       | a resource group, a container |
+| **variable** | An input you can change without editing resources | `location`, `message`         |
+| **output**   | A value worth printing when it's done             | the site's URL                |
 
 And one thing the tool keeps for itself: **state**, its memory of what it created.
 
@@ -255,7 +257,7 @@ resource "local_file" "greeting" {
 ```
 
 - `var.pet_words` reads a **variable**; `random_pet.nickname.id` reads **another resource** (for a pet, `id` is the generated name)
-- That reference is a **dependency**: OpenTofu creates the pet *before* the file, and deletes them in reverse
+- That reference is a **dependency**: OpenTofu creates the pet _before_ the file, and deletes them in reverse
 - You don't write the order down; OpenTofu works it out from the references
 
 <!--
@@ -355,10 +357,10 @@ above it, and vice versa.
 </div>
 
 - **`init`** installs the providers. Once per folder (again if you add one)
-- **`plan`** shows what *would* change. It changes nothing: run it often
+- **`plan`** shows what _would_ change. It changes nothing: run it often
 - **`apply`** shows the plan, waits for you to type `yes`, then does it
 - **`destroy`** deletes everything this folder created (it asks first too)
-- Day to day, you loop: **change a file → `plan` → `apply`**
+- Day to day, your loop: **change a file → `plan` → `apply`**
 
 <!--
 Emphasise that plan is safe. People are scared of the tool at first; the
@@ -372,13 +374,13 @@ consequences, and both ask first.
 
 It looks at three things: **your files** (what you want), **state** (what it made last time), and **the real system** (what is there now, checked fresh every time).
 
-| Situation | Plan says |
-| --------- | --------- |
-| In your files, not created yet | `+` create it |
+| Situation                                          | Plan says                          |
+| -------------------------------------------------- | ---------------------------------- |
+| In your files, not created yet                     | `+` create it                      |
 | Exists, but your files now say something different | `~` change it, or `-/+` replace it |
-| Removed from your files | `-` destroy it |
-| Deleted by someone else, behind the tool's back | `+` create it again |
-| Everything matches | *No changes* |
+| Removed from your files                            | `-` destroy it                     |
+| Deleted by someone else, behind the tool's back    | `+` create it again                |
+| Everything matches                                 | _No changes_                       |
 
 <!--
 This is the heart of how the tool works: it doesn't replay a script, it
@@ -391,12 +393,12 @@ drift, which students will cause on purpose in Lab 7. Whether a change is
 
 ## Reading a plan: the symbols
 
-| Symbol | Meaning | Feels like |
-| ------ | ------- | ---------- |
-| `+` | create | new |
-| `~` | update **in place**: the same thing, edited | tweak |
-| `-` | destroy | gone |
-| `-/+` | **replace**: destroy the old one, then create a new one | rebuild |
+| Symbol | Meaning                                                 | Feels like |
+| ------ | ------------------------------------------------------- | ---------- |
+| `+`    | create                                                  | new        |
+| `~`    | update **in place**: the same thing, edited             | tweak      |
+| `-`    | destroy                                                 | gone       |
+| `-/+`  | **replace**: destroy the old one, then create a new one | rebuild    |
 
 ```text
 Plan: 2 to add, 1 to change, 0 to destroy.
@@ -418,8 +420,8 @@ create_before_destroy. A replace counts in both "to add" and "to destroy".
 
 ## State: the tool's memory
 
-- `apply` writes `terraform.tfstate`: *"I created these, with these IDs"*. That's how OpenTofu knows which real things are **its own**
-- Never hand-edit it. Never commit it: it can hold passwords in plain text
+- `apply` writes `terraform.tfstate`: _"I created these, with these IDs"_. That's how OpenTofu knows which real things are **its own**
+- Never hand-edit it. <u>**Never commit it**</u>: it can hold passwords in plain text
 - Lose it and the tool forgets what it made: the resources are still there, but nothing manages them
 
 ```sh
@@ -442,12 +444,12 @@ nobody panics.
 
 Labs **0-3** · about **37 minutes** · runs entirely in your terminal
 
-| Lab | You will | Time |
-| --- | -------- | ---- |
-| **0** | clone the repo, take the tour, meet `terraform` = `tofu` | ~5 min |
+| Lab   | You will                                                    | Time    |
+| ----- | ----------------------------------------------------------- | ------- |
+| **0** | fork + clone the repo, take the tour, meet `terraform` = `tofu`    | ~5 min  |
 | **1** | `init`, `validate`, `plan`, `apply`: make a name and a file | ~12 min |
-| **2** | change a variable, read the plan, apply it again | ~12 min |
-| **3** | `destroy`, and see what's left behind | ~8 min |
+| **2** | change a variable, read the plan, apply it again            | ~12 min |
+| **3** | `destroy`, and see what's left behind                       | ~8 min  |
 
 Nothing leaves your terminal. No internet, no cloud, no risk.
 
@@ -476,7 +478,7 @@ is where the ~ vs -/+ mix first shows up.
 - Everyone has their **own subscription**; you cannot touch anyone else's
 - It disappears when the class ends
 
-> Azure-inspired training environment. Not affiliated with Microsoft.
+> Azure-inspired training environment. Not affiliated or connected with Microsoft.
 
 <!--
 Be honest about what it is: a small stand-in that speaks Azure's language.
@@ -498,7 +500,7 @@ real Azure, and do not say it is Azure.
 <span><b>4</b><br>resources<br><small>made, or refused</small></span>
 </div>
 
-- A cloud is a web API: the provider sends requests like *"create this resource group"*
+- A cloud is a web API: the provider sends requests like _"create this resource group"_
 - It logs in with **credentials** from your terminal (`ARM_*` variables), never from a `.tf` file
 - The cloud checks each request against its **rules** (policy, quota), then says yes or no
 
@@ -513,16 +515,16 @@ remembers the results.
 
 ## The vocabulary you'll meet
 
-| Azure idea | In Dojo Cloud |
-| ---------- | ------------- |
-| Subscription | your own account area, named after your username |
-| Resource group | a folder for related resources (`rg-…`) |
+| Azure idea         | In Dojo Cloud                                               |
+| ------------------ | ----------------------------------------------------------- |
+| Subscription       | your own account area, named after your username            |
+| Resource group     | a folder for related resources (`rg-…`)                     |
 | Container instance | one running container (`ci-…`), a "container group" in code |
-| Region | where it runs: `canadacentral` or `canadaeast` |
-| Tags | labels: `owner` and `env` are **required** |
-| Policy | the cloud's house rules; it says no, in words |
-| Quota | a cap: 2 container instances each |
-| Activity log | who did what, and whether it worked |
+| Region             | where it runs: `canadacentral` or `canadaeast`              |
+| Tags               | labels: `owner` and `env` are **required**                  |
+| Policy             | the cloud's house rules; it says no, in words               |
+| Quota              | a cap: 2 container instances each                           |
+| Activity log       | who did what, and whether it worked                         |
 
 <!--
 Do not read the table out. Point at "Policy" and "Quota": those are the
@@ -554,9 +556,9 @@ reassuring.
 
 ## Three things the labs will do to you
 
-- **Policy** *(Lab 6)*: remove the `owner` tag. `plan` looks fine, but `apply` is refused with `RequestDisallowedByPolicy`. Read the error, fix the file
-- **Drift** *(Lab 7)*: someone deletes your container in the portal. `plan` notices reality changed and offers to put it back
-- **Replace** *(Lab 8)*: edit a tag and get `~`; edit the message and get `-/+`. Predict it *before* you run `plan`
+- **Policy** _(Lab 6)_: remove the `owner` tag. `plan` looks fine, but `apply` is refused with `RequestDisallowedByPolicy`. Read the error, fix the file
+- **Drift** _(Lab 7)_: someone deletes your container in the portal. `plan` notices reality changed and offers to put it back
+- **Replace** _(Lab 8)_: edit a tag and get `~`; edit the message and get `-/+`. Predict it _before_ you run `plan`
 
 > `plan` can't see the cloud's rules; only a real request can. Your own `validation` rules in `variables.tf` catch some mistakes earlier: try `eastus` and `plan` stops you.
 
@@ -574,15 +576,15 @@ rule and can't be bypassed. Lab 6 shows both.
 
 Labs **4-10** · about **66 minutes** (an apply takes ~35 s: that's normal)
 
-| Lab | You will | Time |
-| --- | -------- | ---- |
-| **4** | meet Dojo Cloud, look at the files, `init` with the cloud provider | ~8 min |
-| **5** | **deploy hello**, open the site, watch the portal | ~10 min |
-| **6** | break policy on purpose, read the error | ~12 min |
-| **7** | cause drift, then reconcile it | ~8 min |
-| **8** | in-place vs replace | ~12 min |
-| **9** | `for_each`, and hit your quota | ~8 min |
-| **10** | `destroy`, and check the portal is empty | ~8 min |
+| Lab    | You will                                                           | Time    |
+| ------ | ------------------------------------------------------------------ | ------- |
+| **4**  | meet Dojo Cloud, look at the files, `init` with the cloud provider | ~8 min  |
+| **5**  | **deploy hello**, open the site, watch the portal                  | ~10 min |
+| **6**  | break policy on purpose, read the error                            | ~12 min |
+| **7**  | cause drift, then reconcile it                                     | ~8 min  |
+| **8**  | in-place vs replace                                                | ~12 min |
+| **9**  | `for_each`, and hit your quota                                     | ~8 min  |
+| **10** | `destroy`, and check the portal is empty                           | ~8 min  |
 
 <!--
 Each lab builds on Lab 5's deployment, so keep the order and do not let
@@ -596,7 +598,7 @@ error); make sure people finish its clean-up section before Lab 10.
 
 ## Recap
 
-- **Code, not clicks:** infrastructure is files, reviewed and versioned in git
+- **Code, not clicks:** infrastructure in files, reviewed and versioned in git
 - **Declarative:** say what you want; the tool compares it with what exists and does the difference
 - Four blocks: **provider, resource, variable, output**, plus **state**
 - **`init` → `plan` → `apply` → `destroy`**, and read every plan before you say `yes`

@@ -1,19 +1,30 @@
 # Lab 0 — Get the repo and take the tour
 
-**Goal:** clone the starter repository and learn what each file is for. No commands change anything yet.
+**Goal:** get your own copy of the starter repository and learn what each file is for. Nothing you run here changes any infrastructure.
 
 ---
 
-## 1. Clone the starter repo
+## 1. Fork the starter repo, then clone your fork
+
+The team's repo is `iac-team/tofu-basics`. Instead of everyone pushing branches into that one repo, each of you works in your own **fork**: a copy on the git server under your account, which still knows where it came from. This one command asks the git server's API to make it:
+
+```sh
+curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  http://git-server:3000/api/v1/repos/iac-team/tofu-basics/forks
+```
+
+`curl` asks for your **Forgejo password**, which is shown on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON describing the new repo means it worked. If you see `repository is already forked`, you made it earlier; carry on.
+
+Now clone **your** fork (`$USER` is your account name, for example `student01`):
 
 ```sh
 cd ~/lab
-git clone http://git-server:3000/iac-team/tofu-basics.git
+git clone http://git-server:3000/$USER/tofu-basics.git
 cd tofu-basics
 ls -la
 ```
 
-Same clone you did in Git Fundamentals. Infrastructure-as-Code is *just files in a git repo* — the same review, history and rollback tools apply.
+Infrastructure-as-Code is *just files in a git repo*: the same review, history and rollback tools apply. You can see your fork in Forgejo too, under your own account, marked "forked from iac-team/tofu-basics".
 
 ## 2. Is `terraform` really OpenTofu?
 

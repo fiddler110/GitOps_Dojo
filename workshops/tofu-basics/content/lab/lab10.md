@@ -129,6 +129,8 @@ git push -u origin my-dojo-cloud-change
 remote: Create a new pull request for 'my-dojo-cloud-change':
 ```
 
+Because you cloned your fork, that link proposes your branch to the team's `iac-team/tofu-basics` repo: the usual way to get a change reviewed.
+
 Anyone with access to the repo can now review, reproduce and re-deploy exactly what you built: `git clone`, `terraform init`, `terraform apply`. **That is Infrastructure as Code.**
 
 ## Track B complete
@@ -149,5 +151,6 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 | ------- | ----------- |
 | `Error: a resource with the ID ... already exists ... needs to be imported into the State` | OpenTofu has lost track of something it created, usually because `terraform.tfstate` was deleted or you're in the wrong folder. The cloud still has the resource, but your state doesn't know. **Ask the facilitator to Purge your subscription** (they can empty it in the portal), then run `terraform apply` again. |
 | `destroy` finishes but the portal still shows a resource | It refreshes every ~3 s. Click **Refresh now**. If it's still there, it wasn't created by this state (an old deleted state file?): ask the facilitator to Purge your subscription. |
+| `git push` says `! [rejected] ... (fetch first)`, or its output shows `iac-team/tofu-basics` | You cloned the team repo, not your fork, and someone already pushed that branch name there. Do Lab 0 step 1 (fork), then `git remote set-url origin http://git-server:3000/$USER/tofu-basics.git` and push again. |
 | `git push` asks for a password over and over | Use your student account name and the **Forgejo password** shown on your landing page. In VS Code the prompt is a popup at the top of the window. |
 | `terraform state list` prints nothing but the portal has resources | You're in the wrong folder, or the state file was deleted. `cd ~/lab/tofu-basics` and check `ls terraform.tfstate`. |

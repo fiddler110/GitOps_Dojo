@@ -77,7 +77,7 @@ You deploy a real container and watch it in the portal. Work in `~/lab/tofu-basi
 
 ## What you'll learn in Track A
 
-- **Lab 0:** what each file in the repo is for, and that `terraform` really is OpenTofu
+- **Lab 0:** fork the starter repo so you have your own copy, what each file in it is for, and that `terraform` really is OpenTofu
 - **Lab 1:** the four commands in order. `plan` changes nothing; `apply` asks before it acts
 - **Lab 2:** one edit can give a `~` *and* a `-/+`. Applying twice changes nothing (**idempotent**)
 - **Lab 3:** `destroy` removes what was created, but the state file and your `.tf` files stay

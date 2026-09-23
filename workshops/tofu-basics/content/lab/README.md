@@ -51,4 +51,4 @@ tofu version
 git --version
 ```
 
-Your username looks like `student01`, `student02`, and so on. Your landing page (the page with the tool cards) shows it again, together with your **Forgejo password**, which you need in Labs 3 and 10 when you push to git. Nothing needs downloading: OpenTofu and the providers it needs are already installed. The lab network has no internet — that's why `tofu init` works from a local copy of the providers (you'll see this in Lab 1). Dojo Cloud is reached over the lab network only, and your credentials for it are already set in your shell (Lab 4).
+Your username looks like `student01`, `student02`, and so on. Your landing page (the page with the tool cards) shows it again, together with your **Forgejo password**, which you need in Lab 0 to fork the starter repo and in Labs 3 and 10 when you push to git. Nothing needs downloading: OpenTofu and the providers it needs are already installed. The lab network has no internet — that's why `tofu init` works from a local copy of the providers (you'll see this in Lab 1). Dojo Cloud is reached over the lab network only, and your credentials for it are already set in your shell (Lab 4).
