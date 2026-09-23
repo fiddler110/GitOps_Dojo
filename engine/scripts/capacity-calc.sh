@@ -187,11 +187,12 @@ fi
 #     (partly real, partly that Mac's qemu-emulation tax before
 #     web-terminal was rebuilt arm64-native), which set this to 800.
 #     Re-measured natively on amd64 (PSS, fresh session, a .py and a .yml
-#     file open, this repo's shipped settings): ~480MB with the Python
-#     language server off (entrypoint.sh's default), ~555MB with it on.
-#     650 is that plus ~35% for terminals, git, and a session that has been
-#     running an hour instead of a minute. A fresh-session number, so
-#     prefer live calibration below when you can get it.
+#     file open): ~480MB, and 650 is that plus ~35% for terminals, git, and
+#     a session that has been running an hour instead of a minute. Since
+#     the extension trim and code-server node flags (f977209) a connected
+#     student measures ~260MB PSS / ~240MB private (3 at once), so 650 is
+#     now conservative; kept until a long session has been measured. Prefer
+#     live calibration below when you can get it.
 #   - CEILING_PER_STUDENT_MB: every node process a student can spawn
 #     (entry + extensionHost + ptyHost + fileWatcher + a language server)
 #     simultaneously maxing its own CODE_SERVER_MAX_HEAP_MB heap cap. This

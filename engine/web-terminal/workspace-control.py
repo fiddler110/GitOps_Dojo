@@ -133,15 +133,16 @@ def _seconds_env(name, default, floor=None):
 
 
 # What a code-server keeps holding once its browser tab is gone. Measured
-# with both bundled language servers active, one student is ~550 MB (PSS),
-# and by default a disconnected client's extension host and language
-# servers linger for 3 HOURS (VS Code's own reconnection grace time), so a
-# closed tab quietly keeps ~330 MB of that until then. Two independent
+# with both bundled language servers active, one student is ~550 MB (PSS)
+# before f977209's extension trim and node flags, ~260 MB after, and by
+# default a disconnected client's extension host and language servers
+# linger for 3 HOURS (VS Code's own reconnection grace time), so a closed
+# tab quietly keeps most of that (~330 MB before, ~200 MB after) until then. Two independent
 # timers, both counted from the tab closing (an open tab keeps both from
 # firing, however idle the student is):
 #
 #   - RECONNECTION_GRACE: after this long disconnected, the extension host,
-#     language servers, and pty host are killed (~330 MB back per student).
+#     language servers, and pty host are killed (~200 MB back per student).
 #     The code-server process itself stays. A client reconnecting after
 #     this is told to reload its window instead of resuming in place.
 #   - IDLE_TIMEOUT: after this long with no client at all, the whole

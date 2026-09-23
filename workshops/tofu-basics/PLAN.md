@@ -1226,6 +1226,9 @@ table records what was built and how to change it:
   Labs 0–3 re-run on the current image; a fuzz test of raw ARM request bodies against the executor (only the
   template builder is tested); 30 students and 60 containers (T9.3/M4); arm64 (checksums are pinned per arch, only
   amd64 was built); docker proper instead of podman (§15a-D); the attention-tile text after `25a7176`.
+- **Not verified since `f977209` (code-server memory cut, 2026-09-23):** `tests/e2e.sh` hasn't been re-run on the new
+  web-terminal image; `./run.sh capacity` printing "Left out N" for a closed tab (logic dry-run only); a clean
+  connected-IDE measurement of the old launch form (the before figure is the older ~480MB note).
 - **Verified since:** the missing-tag policy message and every other policy error through the real provider (Lab 6);
   `CURL_CA_BUNDLE` (Lab 4); the site and portal through the gateway (P5).
 - **Known limitation:** only one container per group and only `dojo/hello:*` images are allowed, by
@@ -1713,6 +1716,27 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 - **User decided:** defer T9.8, and also drop the 20+/30-student load test — 15 (already reached, T9.3) stands as the final number for this box.
 - **Changes:** T9.8 marked `[-]` (deferred, not dropped — same distinction as T8.4) with the reasoning and a pointer to re-run it before any real-Docker/Azure-VM delivery (§15a-F4 updated to match). T9.3 marked `[x]` (M4 final at 15). Status dashboard, milestone table (M3/M4) and the overall-status header updated to match. No code changed.
 - **Next:** hand off to the user for T9.4 (human dry-run) and T9.9 (real-browser pass) — the only two items left in P9.
+
+### 2026-09-23 — code-server memory cut in the shared web-terminal (`f977209`)
+- **User asked** what else could be stripped from `engine/web-terminal` to stop per-student memory adding up (not
+  a tofu-basics task, but it changes the image this workshop runs on). User approved each `engine/` edit.
+- **Changes (`f977209`):** removed built-in extensions that ran code in every student's extension host for nothing
+  here (`github`, `typescript-language-features`, `terminal-suggest`, `extension-editing`, `markdown-math`) and
+  dropped `ms-python.python` + `ms-python.vscode-python-envs` (the built-in `python` extension already
+  highlights). Shipped `settings.json` turns off SchemaStore, JSON schema downloads and extension update checks.
+  `workspace-control.py` now launches `node --max-old-space-size=<cap> --max-semi-space-size=2
+  --optimize-for-size /usr/lib/code-server` with `MALLOC_ARENA_MAX=2`, instead of `NODE_OPTIONS` + `code-server`.
+  `capacity-calc.sh` counts a live student only when their extension host is running (replaces the 350MB floor).
+- **Surprise worth keeping:** code-server strips `NODE_OPTIONS` from its extension host, pty host and file watcher,
+  but forks them with the parent's execArgv, so node *command-line* flags reach them. The old heap cap never covered
+  the extension host; now it does. Language servers are forked by their extensions and stay uncapped.
+- **Verified live:** 3 students connected at once in headless Edge (README + preview, a `.yaml`, a `.tf`, terminal):
+  ~261MB PSS / ~242MB private per student, IDE working; flags confirmed in `/proc/<pid>/cmdline`;
+  `./run.sh capacity` calibrated from 3 live students. Browser console shows a harmless one-off "Activating
+  extension … failed: Not Found" per code-server start.
+- **Not verified:** see §15a-E (e2e not re-run on the new image; capacity "Left out N" path; clean old-form baseline).
+  `BASELINE_PER_STUDENT_MB` stays 650 (now conservative) until a long session is measured.
+- **Next:** user's live walkthrough of tofu-basics (T9.4/T9.9) on the rebuilt image.
 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title

@@ -400,11 +400,13 @@ assigned student (name, account, IP, live active/inactive status) at
 **Facilitator operations** below.
 
 **Capacity**: code-server instances run meaningfully heavier than a bare
-shell. Measured natively on amd64 (private memory, a fresh session with a
-`.py` and a `.yml` open, this repo's shipped settings): about **480MB** per
-connected student, **~555MB** if the Python language server is also on
-(`entrypoint.sh` turns it off by default), of which roughly 330MB is the
-extension host and language servers. They're spawned lazily on first `/ide`
+shell. Measured natively on amd64 with 3 students connected at once (a
+fresh session with README.md and its preview, a `.yaml` and a `.tf` open):
+about **260MB** PSS / **240MB** private memory per student, of which
+roughly 200MB is the extension host, pty host and language servers. That is
+down from about 480MB before the extension trim and code-server node flags
+(`f977209`); see `web-terminal/vscode-extensions.md` and
+`CODE_SERVER_MAX_HEAP_MB` below. They're spawned lazily on first `/ide`
 visit and killed on Release — cost scales with concurrently-*active*
 students, not `STUDENT_COUNT`. A room where everyone is connected at once is
 the peak; nothing below lowers it. Three knobs bound it:
@@ -450,9 +452,10 @@ against their real measured private memory instead of estimating (a
 reading too low to be a connected IDE — e.g. a bot whose `/ide` was never
 opened in a browser — is ignored, not trusted). Without usable live data it
 falls back to that rule of thumb: `(concurrent students × 650MB × 1.15) +
-512MB` for RAM, `(concurrent students × 40) + 200` for pids. The 650MB is a
-fresh-session figure (about 480MB measured, plus headroom), so a long session
-can run above it; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
+512MB` for RAM, `(concurrent students × 40) + 200` for pids. The 650MB was
+set from the older 480MB measurement plus headroom, so it is now
+conservative against the ~260MB measured since; it stays until a longer
+session has been measured, since a session grows over an hour; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
 
 Extensions: code-server ships with a small, curated extension set —
 `redhat.vscode-yaml` and `GitHub.github-vscode-theme` —
