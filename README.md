@@ -144,6 +144,15 @@ graph LR
     Gateway -->|"mounts WORKSHOP_CONTENT_DIR"| Content["workshops/NAME/content/<br/>slides, lab, sample-repo"]
     Gateway -.->|"optional overlay"| Extra["workshops/NAME/compose/<br/>extra services, custom terminal image"]
     Facilitator -->|"edits, no engine changes"| Content
+
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef content fill:#ec48992e,stroke:#ec4899,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    class Extra addon
+    class Content content
+    class Gateway gw
+    class Student,Facilitator person
 ```
 
 ## Where to go next
@@ -195,6 +204,17 @@ graph TB
     AL -.->|"start / stop / status"| WT
     WT -->|"git clone / push, direct"| GS
     BS -->|"creates admin, org, repo, student accounts"| GS
+
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    class AL,WT,GS,PR,BS core
+    class GW gw
+    class Browser person
+    style pub fill:#8b5cf60f,stroke:#8b5cf6,stroke-width:1px,stroke-dasharray:5 4
+    style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style web fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style boot fill:#64748b0f,stroke:#64748b,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 `git-server` is attached to both `workshop_lab` and `bootstrap_net`;
@@ -230,6 +250,14 @@ graph LR
     BS -->|"git push, only if the repo is empty"| GS["Forgejo repo<br/>ORG/REPO"]
     GS -->|"git clone"| WT
     WT -->|"git push, then pull request"| GS
+
+    classDef content fill:#ec48992e,stroke:#ec4899,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    class SL,LB,SR content
+    class PR,WT,BS,GS core
+    class Browser person
+    style pack fill:#ec48990f,stroke:#ec4899,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 `lab/` files a student has already edited are never overwritten by an
@@ -262,19 +290,28 @@ the gateway.
 ```mermaid
 sequenceDiagram
     actor S as Student
+    box rgba(59,130,246,0.1) Engine
     participant WT as web-terminal (~/lab)
     participant GS as git-server (Forgejo)
     participant GW as gateway
+    end
     actor F as Facilitator
 
+    rect rgba(59,130,246,0.16)
+    Note over S,GS: Work in the terminal
     S->>WT: git clone http://git-server:3000/training/sample-training-repo
     WT->>GS: clone, direct over workshop_lab
     S->>WT: branch, edit, commit
     WT->>GS: git push (studentNN + STUDENT_PASSWORD)
+    end
+
+    rect rgba(139,92,246,0.16)
+    Note over S,F: Review in the browser
     S->>GW: Open Forgejo (/forgejo-login, then /git/...)
     GW->>GS: proxy, already signed in as studentNN
     S->>GS: open a pull request
     F->>GS: review and merge (facilitator's Forgejo tab under /admin)
+    end
 ```
 
 Git traffic never goes through the gateway — pushes and clones go straight
@@ -317,6 +354,21 @@ graph TB
     RS -->|"registers the runner with the forgejo CLI"| FD
     RS -->|"writes config.yaml"| RC
     RC -.->|"read-only"| RN
+
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
+    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
+    class DNS,RS addon
+    class WT,GS core
+    class GW gw
+    class Browser person
+    class RN priv
+    class RC,FD store
+    style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style rn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 **Dataflow.** One change travels the whole loop: local preview, PR, CI
@@ -326,22 +378,33 @@ it after the merge — not when the student pushes their branch.
 ```mermaid
 sequenceDiagram
     actor S as Student (terminal)
+    box rgba(59,130,246,0.1) Engine
     participant GS as git-server (Forgejo)
+    end
+    box rgba(16,185,129,0.1) dns-as-code adds
     participant RN as forgejo-runner
     participant DNS as dns-server (PowerDNS)
+    end
 
+    rect rgba(59,130,246,0.16)
+    Note over S,DNS: Pull request - preview only
     S->>DNS: dnscontrol preview (reads zone via :8081, changes nothing)
     S->>GS: git push branch, open pull request
     GS-->>RN: pull_request event, job queued (runner polls)
     RN->>GS: clone PR head over runner_net
     RN->>DNS: dnscontrol preview (:8081)
     RN->>GS: comment the diff on the PR, set "DNS Preview" status
+    end
+
+    rect rgba(16,185,129,0.16)
+    Note over S,DNS: Merge - CI applies the change
     S->>GS: merge the PR to main
     GS-->>RN: push to main, job queued
     RN->>GS: clone main
     RN->>DNS: dnscontrol push (:8081), the record goes live
     RN->>GS: set "DNS Apply" status
     S->>DNS: dig @dns-server name A +short (:53), verify
+    end
 ```
 
 Zone data lives only in the PowerDNS container's own filesystem, so it
@@ -390,6 +453,18 @@ graph TB
     APP -.->|"serves and watches"| WEB
     CA -.->|"publishes"| ROOT
     ROOT -.->|"ro at /opt/step-ca-root"| WT
+
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
+    class CA,APP,DNS,SEED addon
+    class WT core
+    class GW gw
+    class Browser person
+    class WEB,ROOT store
+    style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 The CA's private keys stay in `step-ca`'s own volume; only the public root
@@ -403,14 +478,19 @@ and one renewal loop.
 ```mermaid
 sequenceDiagram
     actor S as Student (terminal)
+    box rgba(16,185,129,0.1) cert-autorenewal adds
     participant CA as step-ca
     participant V as /srv/webroot (shared volume)
     participant APP as demo-app (nginx)
     participant DNS as dns-server (PowerDNS)
+    end
 
+    rect rgba(59,130,246,0.16)
     Note over S,CA: Lab 1 - trust the CA
     S->>CA: step ca bootstrap, using the root cert from /opt/step-ca-root
+    end
 
+    rect rgba(16,185,129,0.16)
     Note over S,APP: Lab 2 - issue with http-01
     S->>V: write vhost, html, certs dirs under studentNN/
     V-->>APP: file change, watcher runs nginx -t and reload
@@ -423,19 +503,24 @@ sequenceDiagram
     S->>V: copy fullchain and privkey to certs/, add a :443 server block
     V-->>APP: reload
     S->>APP: curl --resolve ... https, verified against the root cert
+    end
 
+    rect rgba(139,92,246,0.16)
     Note over S,APP: Lab 4 - automated renewal
     loop cron runs the renewal script
         S->>CA: renew (ACME)
         S->>V: install the new cert
         V-->>APP: reload
     end
+    end
 
+    rect rgba(6,182,212,0.16)
     Note over S,DNS: Lab 5 - dns-01 instead
     S->>CA: certbot --manual --preferred-challenges dns-01
     S->>DNS: PUT _acme-challenge TXT record (:8081 API)
     CA->>DNS: look up the TXT record
     CA-->>S: signed certificate
+    end
 ```
 
 The `/demo` link on the workshop homepage is HTTP-only and never touches a
@@ -488,6 +573,21 @@ graph TB
     API -->|"writes the signing key"| SEC
     SEC -.->|"ro, only the root broker can read it"| WT
     API -.-> DATA
+
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
+    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
+    class API addon
+    class WT,GS core
+    class GW gw
+    class Browser person
+    class HOST priv
+    class RUN,PKI,SEC,DATA store
+    style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
+    style cn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 The gateway routes `/cloud` to `cloud-api`'s `:8080` listener: the Dojo
@@ -507,6 +607,13 @@ graph LR
     WD -->|"plan / apply"| ST["terraform.tfstate<br/>plus random_pet, local_file outputs"]
     ST -->|"tofu destroy"| WD
     WD -.->|"git commit .tf files, never state"| GS["Forgejo"]
+
+    classDef content fill:#ec48992e,stroke:#ec4899,stroke-width:2px
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
+    class WD,ST content
+    class GS core
+    class M store
 ```
 
 **Dataflow — Track B (Dojo Cloud).** The student never holds a long-lived
@@ -516,22 +623,38 @@ subscription.
 
 ```mermaid
 sequenceDiagram
+    box rgba(59,130,246,0.1) web-terminal
     actor S as Student shell
     participant BR as dojo-broker (root)
+    end
+    box rgba(16,185,129,0.1) Dojo Cloud
     participant API as cloud-api
     participant HOST as cloud-host
+    end
 
+    rect rgba(59,130,246,0.16)
+    Note over S,BR: Credentials
     S->>BR: new shell asks for credentials (unix socket)
     BR-->>S: ARM_* values for that uid only (uid comes from SO_PEERCRED)
     S->>S: tofu init, offline, from the provider mirror
-    S->>API: tofu apply - fetch metadata, get a token (HTTPS, private CA)
+    end
+
+    rect rgba(16,185,129,0.16)
+    Note over S,HOST: tofu apply
+    S->>API: fetch metadata, get a token (HTTPS, private CA)
     S->>API: PUT resource group, PUT container group
     API->>API: authenticate token, check subscription, run policy
     API->>HOST: fixed-template docker run over the shared socket
     HOST-->>API: container running
     API-->>S: Succeeded, the provider polls the operation
     S->>S: output "url" prints /cloud/site/label/
-    S->>API: tofu destroy - DELETE, container removed
+    end
+
+    rect rgba(239,68,68,0.16)
+    Note over S,HOST: tofu destroy
+    S->>API: DELETE, container removed
+    API->>HOST: remove the container
+    end
 ```
 
 Policy rejections come back as ARM-shaped errors (a required tag missing,
