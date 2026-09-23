@@ -77,12 +77,11 @@ fi
 rm -f "$facilitator_home/.zshrc"
 ln -s /opt/dojo-shell/zshrc.facilitator "$facilitator_home/.zshrc"
 
-# "python.languageServer": "None" below stops ms-python.python from starting
-# its Jedi language server (~75 MB per account that opens a .py file --
-# measured). Syntax highlighting doesn't depend on it; only completion/hover
-# do, and Pylance (the fuller one) isn't available on Open VSX anyway. Same
-# setting in the student settings.json further down. Delete the line to get
-# completion back.
+# The schema/update settings below switch off background fetches that can
+# only fail here: this container has no network route out, so SchemaStore
+# (redhat.vscode-yaml), JSON schema downloads and extension update checks
+# would just retry for nothing in every account's extension host. Same
+# settings in the student settings.json further down.
 code_server_settings_dir="$facilitator_home/.local/share/code-server/User"
 if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   mkdir -p "$code_server_settings_dir"
@@ -94,7 +93,10 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
   "extensions.ignoreRecommendations": true,
-  "python.languageServer": "None"
+  "extensions.autoCheckUpdates": false,
+  "extensions.autoUpdate": false,
+  "yaml.schemaStore.enable": false,
+  "json.schemaDownload.enable": false
 }
 EOF
 fi
@@ -233,7 +235,10 @@ EOF
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
   "extensions.ignoreRecommendations": true,
-  "python.languageServer": "None",
+  "extensions.autoCheckUpdates": false,
+  "extensions.autoUpdate": false,
+  "yaml.schemaStore.enable": false,
+  "json.schemaDownload.enable": false,
   "terminal.integrated.profiles.linux": {
     "dojo-shell": {
       "path": "/opt/dojo-shell/tmux-terminal.sh"

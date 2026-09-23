@@ -416,13 +416,14 @@ the peak; nothing below lowers it. Three knobs bound it:
   for RAM and `(expected concurrent students) × 40 + 200` for pids: the same
   rule `./run.sh capacity` falls back to (below).
 - `CODE_SERVER_MAX_HEAP_MB` (default 384) caps the V8 heap of each
-  student's code-server *server* process via `NODE_OPTIONS`
-  (`workspace-control.py`). Checked directly
-  (`/proc/<pid>/environ` as the student): it is **not** inherited by the
-  extension host or pty host — code-server doesn't pass it on — so the
-  extension host, the largest per-student process, and the language servers
-  it spawns are uncapped, and `WEB_TERMINAL_MEM_LIMIT` is their only
-  backstop. `scripts/capacity-calc.sh`'s live-calibration mode measures
+  node process a student's code-server runs: the server, extension host,
+  pty host and file watcher (`workspace-control.py`). It is passed as a
+  node command-line flag, not `NODE_OPTIONS`, because code-server strips
+  `NODE_OPTIONS` from its children but forks them with the parent's flags
+  (checked in `/proc/<pid>/cmdline`). Language servers are forked by their
+  extensions and stay uncapped, so `WEB_TERMINAL_MEM_LIMIT` is their only
+  backstop. The same launch also sets `--max-semi-space-size=2`,
+  `--optimize-for-size` and `MALLOC_ARENA_MAX=2` to keep each student small. `scripts/capacity-calc.sh`'s live-calibration mode measures
   actual private memory (`RssAnon`) rather than assuming a per-process cap.
 - `CODE_SERVER_RECONNECTION_GRACE_SECONDS` (default 300) and
   `CODE_SERVER_IDLE_TIMEOUT_SECONDS` (default 900) release memory from
@@ -454,17 +455,17 @@ fresh-session figure (about 480MB measured, plus headroom), so a long session
 can run above it; `WEB_TERMINAL_MEM_LIMIT` is the only backstop for that.
 
 Extensions: code-server ships with a small, curated extension set —
-`redhat.vscode-yaml`, `GitHub.github-vscode-theme`, `ms-python.python` —
+`redhat.vscode-yaml` and `GitHub.github-vscode-theme` —
 pinned + sha256-verified and fetched via `wget` at
 build time (`web-terminal/Dockerfile`, same pattern as ttyd/zoxide/glow),
-not installed live by ID and not committed to this repo as binaries. All
-three were checked on open-vsx.org and are published by the extension's
+not installed live by ID and not committed to this repo as binaries. Both
+were checked on open-vsx.org and are published by the extension's
 real/verified namespace owner. Installed into one shared, read-only
 directory every student's instance points at — add or remove one by
 adding/removing a `fetch_ext` line in the Dockerfile, not per-student.
-One caveat worth knowing: `ms-python.python`'s IntelliSense depends on
-Pylance, which is proprietary and unavailable on Open VSX/code-server, so
-it runs with reduced language features. Students can't reach the
+Python files get syntax highlighting from VS Code's built-in `python`
+extension; `ms-python.python` was dropped, since without Pylance (not on
+Open VSX) it added per-student memory and no real IntelliSense. Students can't reach the
 Marketplace/Open VSX to install anything else regardless: `web-terminal`
 sits only on the internal-only `workshop_lab` network (see
 `docker-compose.yml`), with no route to the internet at all once the

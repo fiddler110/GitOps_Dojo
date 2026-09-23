@@ -99,6 +99,11 @@ RUN set -eux; \
         /usr/lib/code-server/lib/vscode/extensions/ms-vscode.js-debug \
         /usr/lib/code-server/lib/vscode/extensions/ms-vscode.js-debug-companion \
         /usr/lib/code-server/lib/vscode/extensions/ms-vscode.vscode-js-profile-table \
+        /usr/lib/code-server/lib/vscode/extensions/github \
+        /usr/lib/code-server/lib/vscode/extensions/typescript-language-features \
+        /usr/lib/code-server/lib/vscode/extensions/terminal-suggest \
+        /usr/lib/code-server/lib/vscode/extensions/extension-editing \
+        /usr/lib/code-server/lib/vscode/extensions/markdown-math \
         /usr/lib/code-server/lib/vscode/node_modules/@github/copilot*
 
 # ttyd: alternate plain-terminal workspace. Statically linked release
@@ -159,15 +164,13 @@ RUN set -eux; \
 # Both below were checked on open-vsx.org before pinning: each is
 # published by the extension's real/verified namespace owner (not a
 # re-upload by an unrelated account -- Open VSX flags those explicitly).
-# ms-python.python's IntelliSense depends on Pylance, which is
-# proprietary and unavailable on Open VSX/code-server, so it runs with
-# reduced language features -- still worth having for syntax highlighting
-# and basic support against scripts/dnsctl.py in the dns-as-code lab
-# (entrypoint.sh's shipped settings.json also turns its Jedi language server
-# off -- ~75 MB per student for completion nobody needs here).
 #
 # Deliberately NOT installed here, to keep this set matched to what the
-# workshops actually use rather than a generic "nice to have" kit: gitlens
+# workshops actually use rather than a generic "nice to have" kit:
+# ms-python.python (the built-in `python` extension already highlights .py
+# files; the Microsoft one only added an extension-host activation plus the
+# python-envs companion per student, since its IntelliSense needs Pylance,
+# which isn't on Open VSX), gitlens
 # (git-fundamentals teaches `git blame`/`log`/`show` on the CLI, not via an
 # extension), golang.go (no workshop has a .go file, and there's no Go
 # toolchain in this image either -- code-server's built-in `go` extension
@@ -207,17 +210,7 @@ RUN --mount=type=secret,id=corp_ca_cert,target=/tmp/corp_ca.pem set -eux; \
     fetch_ext GitHub.github-vscode-theme \
         "https://open-vsx.org/api/GitHub/github-vscode-theme/6.3.5/file/GitHub.github-vscode-theme-6.3.5.vsix" \
         a85236a58ad490b1600ec5a0fd0cea7eec56fb9d33660a1ac82c6da639ad3af4; \
-    fetch_ext ms-python.python \
-        "https://open-vsx.org/api/ms-python/python/2026.4.0/file/ms-python.python-2026.4.0.vsix" \
-        232aeafb01f069824fdd92d3e628c1c442bbcfa1d3cc945ff97076340bb2b4a6; \
     rm -rf /tmp/vsix; \
-    # ms-python.python's extensionPack pulls in ms-python.debugpy (~21 MB) as
-    # a soft, optional companion (not an extensionDependency), and no
-    # workshop debugs anything. --uninstall-extension keeps extensions.json
-    # consistent but only marks the directory obsolete on disk, so it's
-    # removed explicitly too.
-    code-server --extensions-dir /opt/code-server-extensions --uninstall-extension ms-python.debugpy; \
-    rm -rf /opt/code-server-extensions/ms-python.debugpy-* /opt/code-server-extensions/.obsolete; \
     chown -R root:root /opt/code-server-extensions; \
     chmod -R a+rX /opt/code-server-extensions
 

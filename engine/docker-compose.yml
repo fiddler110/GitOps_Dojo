@@ -177,7 +177,7 @@ services:
       - NET_ADMIN
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
-    # the per-process NODE_OPTIONS heap cap above -- this is the ceiling
+    # the per-process code-server heap cap above -- this is the ceiling
     # for all of them combined. Every delivery path (Azure VM included) now
     # sets these by hand -- see scripts/capacity-calc.sh and .env's comment
     # on these two vars.

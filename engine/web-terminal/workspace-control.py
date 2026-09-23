@@ -85,16 +85,37 @@ USERNAME_RE = re.compile(
 # stack is up; see docker-compose.yml's workshop_lab network).
 CODE_SERVER_EXTENSIONS_DIR = "/opt/code-server-extensions"
 
-# Caps the V8 heap of each student's code-server *server* process so one
-# student can't quietly balloon past the container-wide mem_limit backstop
-# (docker-compose.yml) on their own -- a safety net under that ceiling, not
-# a replacement for it. Verified: code-server does NOT pass NODE_OPTIONS on
-# to its extension host or pty host (their /proc/<pid>/environ has none), so
-# the extension host -- the largest per-student process -- and every
-# language server it spawns are not covered by this cap. mem_limit is the
-# only backstop for those. Override via env if a workshop's files/extensions
-# genuinely need more headroom.
+# V8 flags for every node process a student's code-server runs. They are
+# passed on node's command line, not through NODE_OPTIONS, because
+# code-server strips NODE_OPTIONS from the environment of its extension
+# host, pty host and file watcher, but forks all three (and its own wrapper
+# forks the server) with the parent's execArgv. Verified via
+# /proc/<pid>/cmdline: the extension host, the largest process per
+# student, inherits them. Language servers are forked by extensions with
+# their own execArgv, so they only get MALLOC_ARENA_MAX from the
+# environment.
+#
+#   --max-old-space-size: caps each process's heap, a safety net under the
+#     container-wide mem_limit backstop (docker-compose.yml), not a
+#     replacement for it. Per process, so a student's worst case is several
+#     times this; see scripts/capacity-calc.sh's CEILING_PER_STUDENT_MB.
+#   --max-semi-space-size=2, --optimize-for-size, MALLOC_ARENA_MAX=2: a
+#     smaller young generation, V8 preferring memory over speed, and fewer
+#     glibc malloc arenas. Measured together on one student (PSS, README +
+#     preview, a .yaml, a .tf and the terminal open): 350 -> 316 MB for
+#     --optimize-for-size on top of the other two, with every capped
+#     process smaller. Costs a little CPU, which lab-sized files don't
+#     notice.
+#
+# Override the cap via env if a workshop's files/extensions genuinely need
+# more headroom.
 CODE_SERVER_MAX_HEAP_MB = os.environ.get("CODE_SERVER_MAX_HEAP_MB", "384")
+if not (CODE_SERVER_MAX_HEAP_MB.isascii() and CODE_SERVER_MAX_HEAP_MB.isdigit()):
+    # Interpolated into a shell command below, same as _seconds_env's values.
+    raise SystemExit(f"CODE_SERVER_MAX_HEAP_MB must be a whole number of MB, got {CODE_SERVER_MAX_HEAP_MB!r}")
+CODE_SERVER_NODE_FLAGS = (
+    f"--max-old-space-size={CODE_SERVER_MAX_HEAP_MB} --max-semi-space-size=2 --optimize-for-size"
+)
 
 
 def _seconds_env(name, default, floor=None):
@@ -200,8 +221,9 @@ def start_workspace(tool, username):
         if tool == "ide":
             cmd = [
                 "su", "-", username, "-c",
-                f"export NODE_OPTIONS='--max-old-space-size={CODE_SERVER_MAX_HEAP_MB}'; "
-                f"exec code-server --bind-addr 0.0.0.0:{port} --auth none "
+                f"export MALLOC_ARENA_MAX=2; "
+                f"exec /usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
+                f"--bind-addr 0.0.0.0:{port} --auth none "
                 f"--disable-telemetry --disable-update-check --disable-workspace-trust "
                 f"{code_server_lifecycle_flags()} "
                 f"--extensions-dir {CODE_SERVER_EXTENSIONS_DIR} {home}/lab",
