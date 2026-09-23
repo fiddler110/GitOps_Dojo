@@ -89,6 +89,8 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   cat > "$code_server_settings_dir/settings.json" <<'EOF'
 {
   "workbench.colorTheme": "GitHub Dark",
+  "editor.fontSize": 16,
+  "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
@@ -231,6 +233,8 @@ EOF
     cat > "$student_code_server_settings_dir/settings.json" <<'EOF'
 {
   "workbench.colorTheme": "GitHub Dark",
+  "editor.fontSize": 16,
+  "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",

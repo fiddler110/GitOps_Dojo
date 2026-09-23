@@ -237,7 +237,7 @@ def start_workspace(tool, username):
             # student's actual live session. `new-session -A` creates the
             # session on the first connect and reattaches on every one
             # after, including the student's own reconnects/extra tabs.
-            cmd = ["ttyd", "-p", str(port), "-W", "su", "-", username,
+            cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
                    "-c", f"tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
