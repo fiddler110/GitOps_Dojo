@@ -282,9 +282,12 @@ services:
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+    # Same port on both sides: Caddy listens on whatever port PUBLIC_BASE_URL
+    # names (e.g. http://localhost:8080 -> :8080 inside the container), and
+    # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:80"
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:443"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:${GATEWAY_HTTP_PORT:-80}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:${GATEWAY_HTTPS_PORT:-443}"
     networks:
       - public
       - workshop_lab

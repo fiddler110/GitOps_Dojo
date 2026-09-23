@@ -199,6 +199,23 @@ set -a
 . "$workshop_env"
 set +a
 
+# PUBLIC_BASE_URL is baked into links the lab prints (Forgejo clone URLs, the
+# tofu-basics `url` output), so it has to name the port the gateway is
+# published on. Warn rather than fail: a NAT or proxy in front can make a
+# mismatch legitimate.
+url_scheme="${PUBLIC_BASE_URL%%://*}"
+url_hostport="${PUBLIC_BASE_URL#*://}"; url_hostport="${url_hostport%%/*}"
+case "$url_scheme" in
+  https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
+  *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
+esac
+case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
+if [ "$url_port" != "$gateway_port" ]; then
+  echo "WARNING: PUBLIC_BASE_URL (${PUBLIC_BASE_URL}) points at port ${url_port}, but the gateway" >&2
+  echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
+  echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
+fi
+
 # --test [N]: spin up demo/test bot student accounts (see
 # engine/web-terminal/bot-runner.sh and README.md's "Demo bots (--test)"
 # section) -- simulated students (an expert, an intermediate, and a
