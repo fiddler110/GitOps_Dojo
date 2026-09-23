@@ -35,6 +35,8 @@ FROM docker.io/library/alpine:${ALPINE_VERSION}
 RUN apk add --no-cache libstdc++
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /opt/marp /opt/marp
+# Adds an HCL/Terraform grammar to Marp's code highlighter (engine.js).
+COPY engine.js /opt/marp/engine.js
 
 # Non-root, like the upstream image's MARP_USER=1000:1000. Slides are
 # mounted read-only under /home/marp/app (docker-compose.yml) and server
@@ -45,4 +47,4 @@ RUN adduser -D -u 1000 -h /home/marp marp
 USER 1000:1000
 WORKDIR /home/marp/app
 EXPOSE 8080
-ENTRYPOINT ["node", "/opt/marp/node_modules/@marp-team/marp-cli/marp-cli.js"]
+ENTRYPOINT ["node", "/opt/marp/node_modules/@marp-team/marp-cli/marp-cli.js", "--engine", "/opt/marp/engine.js"]
