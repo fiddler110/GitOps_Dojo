@@ -136,7 +136,7 @@ Never build on an **assumed** item without first proving it (each has a task).
 | Slide decks are Marp with `assets/themes/presentation.css`; each workshop has `index.md`, `presentation.md`, `labs.md`, `cheat-sheet.md` | `workshops/dns-as-code/content/slides/presentation.md`, `workshops/cert-autorenewal/content/slides/` |
 | Lab content layout: `content/{slides,lab,sample-repo}`; `lab/` is seeded to each student's `~/lab`, `sample-repo/` is seeded into Forgejo | `workshops/README.md` |
 | `/home/scott/Development/GitOps_Dojo` has **~22 modified + 2 untracked files unrelated to this work** at planning time | `git status` snapshot |
-| **Lab flow (T0.3):** `content/lab/` is copied into each student's `~/lab` (`cp -Rn`, README.md symlinked); students `git clone http://git-server:3000/<FORGEJO_ORG>/<FORGEJO_REPO>.git` (anonymous clone works) and **push with student account + password `student123`** (VS Code popup / ttyd prompt). `sample-repo/` is what bootstrap seeds into Forgejo | live stack test, 2026-09-18 |
+| **Lab flow (T0.3):** `content/lab/` is copied into each student's `~/lab` (`cp -Rn`, README.md symlinked); students **fork** `<FORGEJO_ORG>/<FORGEJO_REPO>` from the terminal (`curl -u "$USER" ... /api/v1/repos/<org>/<repo>/forks`, Forgejo password; 202, or 409 if already forked), then `git clone http://git-server:3000/$USER/<FORGEJO_REPO>.git` and **push to their own fork with student account + Forgejo password** (VS Code popup / ttyd prompt). *(Changed 2026-09-23 from cloning the shared repo: every student pushed the same branch names.)* `sample-repo/` is what bootstrap seeds into Forgejo | live stack test, 2026-09-18 |
 | **Base `HEALTHCHECK` sends `X-Control-Token: ${CONTROL_TOKEN}`**; workspace-control returns 403 otherwise. The restated healthchecks in `dns-as-code` and `cert-autorenewal` Dockerfiles still lack the header → those workshops' terminals report *unhealthy* (pre-existing, not fixed here) | `engine/web-terminal/Dockerfile:259`; observed |
 | The stack builds/runs with **podman + podman-compose** here (no docker). `./run.sh <w> --test 2` starts 2 bots; a re-run does **not** recreate a running container after an image rebuild → `./run.sh stop` first | run.sh; observed |
 | Marp presentation container **exits 0 with a help dump if `content/slides/` is empty** → a workshop needs at least one slide file | observed |
@@ -658,15 +658,15 @@ Cloud host is privileged, so it must be unreachable except through cloud-api.
 
 ## 9. Lab design (learning path)
 
-Working repo: students clone the seeded Forgejo repo (`content/sample-repo`,
-"starter IaC") so the GitOps thread from earlier sessions continues (commit
+Working repo: students fork the seeded Forgejo repo (`content/sample-repo`,
+"starter IaC") in Lab 0 and clone their fork so the GitOps thread from earlier sessions continues (commit
 their `.tf`, ignore state). *(T0.3 confirmed the flow — see §3: labs clone from Forgejo, push with the student account.)*
 
 ### Track A — "Sandbox" (offline, ~35 min, zero risk)
 
 | Lab | Goal | Commands | Concepts |
 |---|---|---|---|
-| **Lab 0** Orientation | tour of the folder; `terraform` is `tofu` | `tofu version`, `ls -la` | what each file is |
+| **Lab 0** Orientation | fork + clone the repo; tour of the folder; `terraform` is `tofu` | `curl` (fork API), `git clone`, `tofu version`, `ls -la` | what each file is |
 | **Lab 1** First run | make random name + write a file | `tofu init`, `validate`, `plan`, `apply` | providers, resources, plan symbols `+ ~ - -/+`, approval prompt |
 | **Lab 2** Change & repeat | edit a variable, re-plan | `plan`, `apply`, `output`, `show`, `state list` | variables, outputs, locals, state, idempotency |
 | **Lab 3** Tear down | destroy | `destroy`, `plan -destroy` | lifecycle end, what's left behind (state file) |
@@ -1741,3 +1741,32 @@ Established by the live integration run (real `azurerm`, real browser); each is 
 <!-- Append new entries below this line. Format:
 ### YYYY-MM-DD — short title
 - what was done (task IDs), commits (SHAs), decisions, surprises, next step -->
+
+### 2026-09-23 (later) — push auth fix; students work in their own fork
+- **Found:** `git push` failed for student01 with `ECONNREFUSED /tmp/vscode-git-*.sock` then `unauthorized`. The tmux
+  server snapshots VS Code's `GIT_ASKPASS`/`VSCODE_GIT_*` from the first VS Code terminal into its global env; when
+  code-server's extension host restarts, every tmux session (Terminal tab included) points git at a dead socket.
+- **Fix (user approved the `engine/` edit):** `engine/web-terminal/tmux.conf` unsets those vars globally and adds them
+  to `update-environment`, so each new session takes the live values from its own client (the Terminal tab gets none,
+  so git prompts). Verified: rebuilt stack, stale-socket scenario reproduced as student01, `git push --dry-run`
+  authenticated. Not verified: a push from VS Code in a real browser. A VS Code terminal already open across an
+  extension-host restart keeps the old socket (open a new terminal).
+- **User decided:** each student forks `iac-team/tofu-basics` in Lab 0 (Forgejo API via `curl`, verified live: 202,
+  409 on repeat, clone + push to the fork work, the push reply links a PR back to `iac-team`) and clones the fork.
+  Reason: Labs 3 and 10 have everyone push the same branch names, so in the shared repo only the first push of each wins.
+  Updated lab0/3/10, lab README, slides (labs.md, presentation.md Lab 0 row), FACILITATOR.md, tests/README.md, §3, §9.
+- **e2e follows Lab 0 now:** fork as the student, clone the fork, push + delete a throwaway branch, delete the fork
+  at cleanup if the run made it (`as_student` gained `TB_PASS_ENV` so the password travels as an env var only).
+  Live `--only track_a`: 45 passed, 0 failed; password absent from both logs; fork gone afterwards. Selftest 66/66.
+  `tests/load.sh` still clones the team repo.
+- **Bots (user asked; `engine/` edits):** new flag `FORGEJO_FORK_WORKFLOW` (default 0, compose -> entrypoint ->
+  `~/.dojo-bot.env`), set to 1 in tofu-basics' `workshop.env`. With it a bot forks, clones the fork (`upstream` =
+  team repo), pulls `main` from `upstream`, and opens PRs with head `<bot>:<branch>`. Live with `--test`: 3 forks,
+  PRs #1/#2 from the forks into `iac-team/tofu-basics` main.
+- **Pre-existing bot bug fixed on the way:** `~/.dojo-bot-netrc` said `machine git-server:3000`; curl matches the
+  hostname only, so every bot API call (PR open, merged check) went out unauthenticated (401) in every workshop.
+  Now `machine git-server`.
+- **Found, not fixed (pre-existing):** the bot script is git-fundamentals-shaped. In tofu-basics, Lab 2's
+  `rm -f scratch.log .gitignore` deletes the repo's real `.gitignore` and `step_lab3_stash` needs
+  `roster/team.yaml`, so every bot retries Lab 3 forever after round 1's PR. Round 2's merged-PR sync from
+  `upstream` is therefore unobserved end to end (its parts were checked by hand as testuser1).
