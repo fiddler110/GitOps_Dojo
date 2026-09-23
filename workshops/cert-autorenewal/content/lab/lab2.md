@@ -73,7 +73,7 @@ certbot certonly \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
   --webroot -w "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --non-interactive --email "${me}@example.com"
 ```
 

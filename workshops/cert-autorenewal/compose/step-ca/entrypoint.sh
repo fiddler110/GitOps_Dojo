@@ -41,7 +41,7 @@ if [ ! -f "${STEPPATH}/config/ca.json" ]; then
     --name "GitOps Dojo Lab CA" \
     --dns "step-ca" \
     --dns "localhost" \
-    --address ":9000" \
+    --address ":9443" \
     --provisioner "admin" \
     --password-file "${PASSWORD_FILE}" \
     --provisioner-password-file "${PASSWORD_FILE}" \
@@ -57,6 +57,15 @@ if [ ! -f "${STEPPATH}/config/ca.json" ]; then
         \"maxTLSCertDuration\": \"10m\",
         \"defaultTLSCertDuration\": \"5m\"
       }" "${STEPPATH}/config/ca.json" > "${STEPPATH}/config/ca.json.tmp"
+  mv "${STEPPATH}/config/ca.json.tmp" "${STEPPATH}/config/ca.json"
+fi
+
+# Listen on 9443, never 9000: the student terminal firewall drops outbound
+# 9000-9099 and 9500-9899 (engine/web-terminal/entrypoint.sh, DOJO_ISOLATION).
+# Set on every start, not just at init, so a ca.json persisted from an
+# older run that still says :9000 is moved too.
+if [ "$(jq -r .address "${STEPPATH}/config/ca.json")" != ":9443" ]; then
+  jq ".address = \":9443\"" "${STEPPATH}/config/ca.json" > "${STEPPATH}/config/ca.json.tmp"
   mv "${STEPPATH}/config/ca.json.tmp" "${STEPPATH}/config/ca.json"
 fi
 

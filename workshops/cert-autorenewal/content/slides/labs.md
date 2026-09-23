@@ -106,7 +106,7 @@ be done any time after that, independent of Labs 2-4.
 - Nothing here can break another student's site — your vhost, docroot, and
   certificate all live only in your own subdirectory of the shared volume.
 - Client can't reach `step-ca`'s ACME directory? Double-check you're using
-  `https://step-ca:9000/...`, not `http://` — step-ca has no plain-HTTP
+  `https://step-ca:9443/...`, not `http://` — step-ca has no plain-HTTP
   listener.
 - Stuck more than a minute or two? Ask the facilitator.
 

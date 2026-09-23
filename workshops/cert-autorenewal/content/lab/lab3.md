@@ -17,7 +17,7 @@ host="${me}.certs.dojo.test"
 acme.sh --issue \
   --webroot "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --ca-bundle /opt/step-ca-root/root_ca.crt \
   --cert-home ~/acmesh-lab3 \
   --accountemail "${me}@example.com"

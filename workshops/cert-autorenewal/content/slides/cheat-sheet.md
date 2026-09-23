@@ -30,8 +30,8 @@ need to memorize any of it. `me="$(whoami)"` and
 ```sh
 step certificate inspect /opt/step-ca-root/root_ca.crt --short   # what's in the root cert
 step certificate fingerprint /opt/step-ca-root/root_ca.crt        # its SHA-256 fingerprint
-step ca bootstrap --ca-url https://step-ca:9000 --fingerprint <fp> # trust it (step CLI only)
-step ca health --ca-url https://step-ca:9000                      # confirm you can reach the CA
+step ca bootstrap --ca-url https://step-ca:9443 --fingerprint <fp> # trust it (step CLI only)
+step ca health --ca-url https://step-ca:9443                      # confirm you can reach the CA
 ```
 
 certbot and acme.sh each need telling about this root **separately**:
@@ -52,7 +52,7 @@ certbot certonly \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
   --webroot -w "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --non-interactive --email "${me}@example.com"
 # cert lands at ~/certbot/config/live/${host}/{fullchain.pem,privkey.pem}
 ```
@@ -65,7 +65,7 @@ certbot certonly \
 acme.sh --issue \
   --webroot "/srv/webroot/${me}/html" \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --ca-bundle /opt/step-ca-root/root_ca.crt \
   --cert-home ~/acmesh-lab3 \
   --accountemail "${me}@example.com"
@@ -76,7 +76,7 @@ acme.sh --issue \
 ```sh
 certbot certonly --manual --preferred-challenges dns-01 \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
-  -d "${host}" --server https://step-ca:9000/acme/acme/directory \
+  -d "${host}" --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --email "${me}@example.com"
 # pauses; deploy the printed TXT record (see below), then press Enter
 ```
@@ -170,7 +170,7 @@ crontab -e
 - Nothing here can break another student's site — your vhost, docroot, and
   certificate all live only in your own subdirectory of the shared volume.
 - Client can't reach `step-ca`'s ACME directory? Double-check you're using
-  `https://step-ca:9000/...` — it has no plain-HTTP listener.
+  `https://step-ca:9443/...` — it has no plain-HTTP listener.
 - Stuck for more than a minute or two? Ask the facilitator.
 
 <p class="nav"><a href="index.md">&larr; Back to hub</a> &middot; <a href="labs.md">&larr; Lab overview</a> &middot; <a href="presentation.md">&larr; Deck</a></p>

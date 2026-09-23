@@ -25,4 +25,4 @@ ENTRYPOINT ["/entrypoint.sh"]
 # points this container's resolver at PowerDNS, which knows only the lab zone -- so that lookup fails and the container
 # reports unhealthy while serving fine. Ask localhost instead (one of the CA's configured hostnames, so the cert matches).
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD step ca health --ca-url https://localhost:9000 --root "${STEPPATH:-/home/step}/certs/root_ca.crt" 2>/dev/null | grep -q '^ok'
+    CMD step ca health --ca-url https://localhost:9443 --root "${STEPPATH:-/home/step}/certs/root_ca.crt" 2>/dev/null | grep -q '^ok'

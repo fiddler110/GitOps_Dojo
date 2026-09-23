@@ -29,7 +29,7 @@ REQUESTS_CA_BUNDLE=/opt/step-ca-root/root_ca.crt \
 certbot certonly --manual --preferred-challenges dns-01 \
   --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs \
   -d "${host}" \
-  --server https://step-ca:9000/acme/acme/directory \
+  --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --email "${me}@example.com"
 ```
 
