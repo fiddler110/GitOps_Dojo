@@ -649,9 +649,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 {cards}
 </div>
 <div class="secret">
-  <span class="secret-label">Forgejo password</span>
-  <code class="secret-value">{html.escape(STUDENT_PASSWORD)}</code>
-  <span class="secret-hint">Sign in as <strong>{html.escape(sid)}</strong> with this when git asks for a password (for example on <code>git push</code>). It is also your terminal account's password.</span>
+  <span class="secret-label">Your Forgejo sign-in</span>
+  <table class="secret-table">
+    <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
+    <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(STUDENT_PASSWORD)}</code></td></tr>
+  </table>
+  <span class="secret-hint">Use these when git asks you to sign in (for example on <code>git push</code>). The password is also your terminal account's password.</span>
 </div>
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
 
@@ -699,7 +702,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
           color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }}
   @media (prefers-color-scheme: dark) {{ .secret code {{ background: #1e2352; color: #c7d2fe; }} }}
   .secret-hint code {{ font-size: 0.75rem; padding: 0.05rem 0.3rem; }}
-  .secret-value {{ font-size: 1.1rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }}
+  .secret-table {{ border-collapse: collapse; margin: 0.15rem 0; }}
+  .secret-table th, .secret-table td {{ padding: 0.35rem 0.75rem; border-bottom: 1px solid #e2e2e2; }}
+  @media (prefers-color-scheme: dark) {{ .secret-table th, .secret-table td {{ border-color: #333; }} }}
+  .secret-table tr:last-child th, .secret-table tr:last-child td {{ border-bottom: none; }}
+  .secret-table th {{ text-align: right; font-weight: 500; font-size: 0.85rem; opacity: 0.7; }}
+  .secret-table td {{ text-align: left; }}
+  .secret-value {{ font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }}
   .secret-hint {{ font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }}
   .footnote {{ margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }}
 </style></head>
