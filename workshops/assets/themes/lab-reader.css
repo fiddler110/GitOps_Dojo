@@ -102,6 +102,32 @@ body {
   padding: 0;
 }
 
+/* Prism token colours (fenced code blocks, see lab-reader.js). */
+.lab-content .token.comment,
+.lab-content .token.prolog { color: #7d7d86; font-style: italic; }
+.lab-content .token.keyword,
+.lab-content .token.function { color: #c792ea; }
+.lab-content .token.string,
+.lab-content .token.heredoc-string { color: #c3e88d; }
+.lab-content .token.number,
+.lab-content .token.boolean { color: #f78c6c; }
+.lab-content .token.property,
+.lab-content .token.attr-name,
+.lab-content .token.key,
+.lab-content .token.atrule { color: #82aaff; }
+.lab-content .token.class-name,
+.lab-content .token.builtin,
+.lab-content .token.constant { color: #ffcb6b; }
+.lab-content .token.regex,
+.lab-content .token.entity { color: #89ddff; }
+.lab-content .token.interpolation,
+.lab-content .token.variable { color: #ffcb6b; }
+.lab-content .token.operator,
+.lab-content .token.punctuation { color: var(--muted); }
+.lab-content .token.type { color: var(--accent); }
+.lab-content .token.inserted { color: #c3e88d; }
+.lab-content .token.deleted { color: #ff6b6b; }
+
 .lab-content blockquote {
   border-left: 3px solid var(--accent);
   color: var(--muted);

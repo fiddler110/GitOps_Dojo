@@ -41,8 +41,33 @@
     }
   }
 
+  // Syntax highlighting for fenced code blocks (```terraform, ```sh, ...),
+  // via the vendored Prism build (hcl, bash, javascript, json, yaml,
+  // diff, gitignore, dockerfile). Prism
+  // escapes the source itself, so the returned HTML is safe to insert.
+  // Unknown or ```text fences return '' and markdown-it escapes them as
+  // plain text.
+  var prism = window.Prism;
+  if (prism) {
+    prism.languages.terraform = prism.languages.tf = prism.languages.hcl;
+    // Prism's bash grammar only knows common Unix commands; colour the
+    // workshop CLIs the same way so one-line steps aren't left plain.
+    prism.languages.insertBefore('bash', 'function', {
+      'lab-command': {
+        pattern: /(^|[\s;|&]|[<>]\()(?:terraform|tofu|dnscontrol|batcat|step|python3|az)(?=$|[)\s;|&])/,
+        lookbehind: true,
+        alias: 'function'
+      }
+    });
+  }
+
+  function highlight(code, lang) {
+    var grammar = prism && lang && prism.languages[lang.toLowerCase()];
+    return grammar ? prism.highlight(code, grammar, lang) : '';
+  }
+
   function render(markdownSource, file) {
-    var md = window.markdownit({ html: false, linkify: true, breaks: false });
+    var md = window.markdownit({ html: false, linkify: true, breaks: false, highlight: highlight });
     contentEl.innerHTML = md.render(markdownSource);
     rewriteLabLinks(contentEl);
     var heading = contentEl.querySelector('h1');
