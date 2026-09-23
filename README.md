@@ -1,45 +1,141 @@
-# Git & Version Control Lunch-and-Learn Series
+# GitOps Dojo
 
-A lunch-and-learn training series for engineering and IT operations,
-building git fundamentals before moving into team-specific workflows (e.g.
-DNS-as-Code, certificate automation, Infrastructure-as-Code).
+**A self-contained, offline, hands-on learning environment for practical
+infrastructure skills.**
 
-## Layout
+GitOps Dojo runs short-lived workshops where students do the real work: they
+push commits and open pull requests, watch CI change a live DNS server, get TLS
+certificates from a working ACME authority, and deploy containers into a cloud
+that the real `azurerm` provider talks to. Every exercise uses real tools
+against real services. Each workshop's lab is built for one class and removed
+completely at the end.
 
-```text
-├── run.sh                          # Forwards to engine/run.sh, so ./run.sh <workshop> works from the repo root
-├── engine/                         # Reusable workshop runtime (Forgejo + web terminal + slides), shared by every workshop
-├── assets/branding/                # Shared branding
-├── handouts/                       # Printable handouts (git-fundamentals, dns-as-code)
-└── workshops/
-    ├── README.md                   # Workshop catalog + how selection/overlay works + how to add one
-    ├── assets/themes/              # Shared slide CSS, mounted into every workshop's deck
-    ├── git-fundamentals/           # Session 1: core git workflow (content-only workshop pack)
-    │   ├── content/                # Mounted into the engine: slides, lab instructions, seed repo
-    │   ├── docs/                   # Student/facilitator docs for the local-lab delivery
-    │   └── delivery-azure-devops/  # Alternate delivery mode: Azure Repos, doc-only
-    ├── dns-as-code/                # Session 3: DNS-as-Code via dnscontrol
-    │   ├── content/
-    │   └── compose/                # Overlay: PowerDNS + Forgejo Actions runner + terminal with dnscontrol
-    ├── cert-autorenewal/           # TLS certificate issuance and renewal via ACME
-    │   ├── content/
-    │   └── compose/                # Overlay: step-ca + PowerDNS + shared demo web app + terminal with certbot/acme.sh
-    └── tofu-basics/                # OpenTofu basics (in progress): offline sandbox + "Dojo Cloud"
-        ├── content/
-        ├── compose/                # Overlay: cloud-api + cloud-host + terminal with tofu and a credential broker
-        └── PLAN.md                 # Design, decisions, task list, progress log
+**Zero install for students.** A student opens one URL in any browser and gets
+their own VS Code, terminal, git server, slides and lab guide, already signed
+in. There is nothing to download, no accounts to create and no laptop setup to
+debug before the class can start.
+
+**Fully self-contained and offline.** Everything a class needs runs inside the
+stack: the git server, CI runners, DNS servers, a certificate authority and a
+practice cloud. Once the images are built, a session needs no internet and no
+outside accounts. Every tool is baked in, pinned to a version and checked
+against a sha256.
+
+**Ephemeral by design.** `./run.sh <workshop>` starts a whole lab on a laptop or
+a single VM, and `./run.sh stop` removes it without a trace. Each class starts
+clean, and several workshops run on the same engine.
+
+**Safe to break.** Student terminals have no internet and no Docker socket. The
+DNS zones, certificates and cloud resources belong to the lab, so a mistake
+is part of the lesson and never an incident.
+
+```sh
+./run.sh setup              # first time only: writes engine/.env
+./run.sh list               # which workshops exist
+./run.sh tofu-basics        # build and start one
+./run.sh tofu-basics --test # the same, with simulated students
+./run.sh stop               # tear down and wipe
 ```
 
-`engine/` is the reusable part — a self-hosted Git server, browser terminal,
-and slide deck, wired together so a student needs nothing but a browser.
-Nothing in it is specific to any one workshop's topic: which workshop runs
-is a runtime choice, not something you edit `engine/` to change.
+## What's here
 
-Each `workshops/<name>/` is a self-contained **workshop pack** — content,
-and (only if the lab needs it) its own Compose overlay for different
-tooling or extra backend services. Pick one with `./run.sh <name>`. See
-[`workshops/README.md`](workshops/README.md) for exactly how that works and
-how to add a new workshop.
+### The workshops
+
+| Workshop | What students learn | Labs | Length |
+| -------- | ------------------- | ---- | ------ |
+| [**Git Fundamentals**](workshops/git-fundamentals/) | The core git workflow: clone, branch, commit, push, pull request, then reviewing and undoing changes, stashing, reading history and resolving merge conflicts. | 5 | 60 min |
+| [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | 45-60 min |
+| [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
+| [**OpenTofu Basics**](workshops/tofu-basics/) | The Terraform workflow (`init`, `plan`, `apply`, `destroy`) and how an IaC repo is laid out. Track A is an offline sandbox. Track B deploys real containers through the real `azurerm` provider into **Dojo Cloud**, an Azure-inspired practice cloud with a portal, policies, quotas and drift. `terraform` runs OpenTofu. | 11 | ~2¼ h |
+
+Each workshop pack has its own slide deck, lab guides, cheat sheet and a seed
+repository. The lab guides are copied into every student's `~/lab` and shown
+in the browser.
+
+### The platform
+
+- **One URL per class.** A Caddy gateway is the only exposed service. It assigns
+  each browser a student account and routes it to that student's VS Code
+  (code-server), terminal (ttyd + tmux), the Forgejo git server and the Marp
+  slides, all signed in already.
+- **A facilitator workspace at `/admin`.** A live roster with a read-only view
+  of every student's terminal, a Release button to free a stuck account, a
+  service status strip, and the facilitator's own VS Code, Terminal, Forgejo,
+  Slides and Dojo Cloud tabs. The **Class progress** board (tofu-basics) shows
+  where each student has got to.
+- **Isolated labs.** Student terminals have no internet and no Docker socket.
+  Every tool is baked into the workshop's image, pinned to a version and checked
+  against a sha256. Extra services sit on internal-only networks, and anything a
+  student can reach checks a gateway token before trusting who the caller is.
+- **Workshops are plug-ins.** A workshop is a folder under `workshops/`: a
+  `workshop.env`, its content and, only if it needs one, a Compose overlay that
+  adds services or a different terminal image. The engine is never edited to
+  add a workshop. See [`workshops/README.md`](workshops/README.md).
+- **Demo bots.** `--test [N]` adds up to 35 simulated students (expert,
+  intermediate and novice personas) who work through the labs for real, pushing
+  branches and opening pull requests. Use them to rehearse solo, demo the
+  admin dashboard or load-test a machine before a class.
+- **Runs on one machine.** A laptop for rehearsal or a single cloud VM for a
+  real class, with Docker or Podman. `./run.sh capacity --students 30` sizes the
+  per-student memory and process limits for that host. Nothing persists once the
+  stack is stopped.
+
+### Beyond the live lab
+
+- **Take-home handouts** ([`handouts/`](handouts/)): the Git Fundamentals and
+  DNS as Code labs adapted for self-paced practice against a student's own
+  GitHub account (and, for DNS, a local PowerDNS stack or a real Cloudflare
+  domain).
+- **Azure DevOps edition** of Git Fundamentals
+  ([`workshops/git-fundamentals/delivery-azure-devops/`](workshops/git-fundamentals/delivery-azure-devops/)):
+  the same session delivered against Azure Repos, with a facilitator guide,
+  checklists and a feedback survey.
+- **Facilitator guides.** [`engine/README.md`](engine/README.md) covers setup,
+  deployment, the admin workspace, mid-session content updates, cleanup and
+  troubleshooting. OpenTofu Basics also has a run-of-show in
+  [`FACILITATOR.md`](workshops/tofu-basics/FACILITATOR.md).
+- **Tests.** OpenTofu Basics ships an end-to-end suite and a load test against
+  the live stack ([`workshops/tofu-basics/tests/`](workshops/tofu-basics/tests/)),
+  and Dojo Cloud's control plane has its own unit tests.
+
+## Who it's for
+
+Engineering and IT operations teams: people who use git every day, and people
+who have never used version control. It assumes comfort with a terminal and no
+git knowledge. The workshops build on each other: Git Fundamentals gives
+everyone the clone, branch, pull request routine, and the later workshops apply
+that routine to real operational work, where a change goes through review and
+automation instead of being made by hand.
+
+## Status and roadmap
+
+| Workshop | Status |
+| -------- | ------ |
+| Git Fundamentals | Ready |
+| DNS as Code | Ready |
+| Certificate Autorenewal | Ready |
+| OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
+| **Vault Fundamentals** (OpenBao) | Planned: secrets in code, git, pipelines and deployments, on a real OpenBao with CI runners ([`keyvault-workshop-plan.md`](keyvault-workshop-plan.md)). |
+| Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
+
+## Repository layout
+
+```text
+├── run.sh                    # Forwards to engine/run.sh
+├── engine/                   # The shared runtime: gateway, allocator, web-terminal, Forgejo, slides
+│   ├── README.md             # Setup, routing, auth, facilitator operations, troubleshooting
+│   └── scripts/              # env setup, capacity calculator, teardown, shell completion
+├── workshops/
+│   ├── README.md             # How workshops are selected and how to add one
+│   ├── assets/               # Shared slide theme and the in-browser lab reader
+│   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
+│   ├── dns-as-code/          # + PowerDNS, Forgejo Actions runner
+│   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
+│   └── tofu-basics/          # + Dojo Cloud (cloud-api, cloud-host); PLAN.md, FACILITATOR.md, tests/
+├── handouts/                 # Take-home versions of the labs
+├── assets/branding/          # Shared branding
+└── keyvault-workshop-plan.md # Plan for the next workshop (vault-fundamentals)
+```
 
 ```mermaid
 graph LR
@@ -50,14 +146,11 @@ graph LR
     Facilitator -->|"edits, no engine changes"| Content
 ```
 
-## Start here
+## Where to go next
 
-- **Run a workshop locally:** `./run.sh setup`, then `./run.sh <workshop>` — see [`engine/README.md`](engine/README.md)
-- **Which workshops exist, and how to add one:** [`workshops/README.md`](workshops/README.md)
-- **Session 1 (Git Fundamentals):** [`workshops/git-fundamentals/README.md`](workshops/git-fundamentals/README.md)
-- **Session 3 (DNS as Code):** [`workshops/dns-as-code/README.md`](workshops/dns-as-code/README.md)
-- **Certificate Autorenewal:** [`workshops/cert-autorenewal/`](workshops/cert-autorenewal/) (lab instructions in `content/lab/`)
-- **OpenTofu Basics:** [`workshops/tofu-basics/README.md`](workshops/tofu-basics/README.md) (design and status in [`PLAN.md`](workshops/tofu-basics/PLAN.md))
+- **Run a class:** [`engine/README.md`](engine/README.md), then the workshop's own README.
+- **Add a workshop:** [`workshops/README.md`](workshops/README.md).
+- **Understand how it fits together:** keep reading.
 
 ## How the platform is put together
 
@@ -351,7 +444,7 @@ check that a cert is valid.
 
 ---
 
-### `tofu-basics` — offline sandbox + "Dojo Cloud" (in progress)
+### `tofu-basics` — offline sandbox + "Dojo Cloud"
 
 Two tracks. **Track A** (sandbox) needs no infrastructure beyond the swapped
 terminal image. **Track B** (Dojo Cloud) adds an Azure-inspired control
@@ -368,8 +461,8 @@ speak Docker.
 
 ```mermaid
 graph TB
-    Browser(["Browser"]) -.->|"planned"| GW["gateway"]
-    GW -.->|"/cloud, not routed yet"| API
+    Browser(["Browser"]) --> GW["gateway"]
+    GW -->|"/cloud, after allocator forward_auth"| API
 
     subgraph lab["workshop_lab - internal"]
         WT["web-terminal<br/>tofu / terraform + provider mirror<br/>dojo-broker (root, unix socket)"]
@@ -397,12 +490,11 @@ graph TB
     API -.-> DATA
 ```
 
-Dashed edges through the gateway are **planned, not wired yet**: the Dojo
-Portal and the deployed-site links (`/cloud/site/<label>/`) need a gateway
-route and a landing-page button (phase P5 in
-[`PLAN.md`](workshops/tofu-basics/PLAN.md), which touches the base engine
-and is gated on the maintainer's OK). Today a student deploys entirely from
-their terminal. `cloud_data` mirrors control-plane state to disk so a
+The gateway routes `/cloud` to `cloud-api`'s `:8080` listener: the Dojo
+Portal at `/cloud/` and each deployed site at `/cloud/site/<label>/`. The
+route and the landing-page card only exist when the workshop sets
+`CLOUD_ENABLED`, and the facilitator gets a matching **Dojo Cloud** tab in
+`/admin`. `cloud_data` mirrors control-plane state to disk so a
 `cloud-api` restart doesn't forget what was deployed; `./run.sh stop` still
 wipes it.
 
@@ -456,7 +548,7 @@ blocked by network isolation or never routed.
 | From ↓ / To → | `git-server` | `presentation` | `dns-server` | `step-ca` / `demo-app` | `cloud-api` | `cloud-host` | Internet |
 | ------------- | :----------: | :------------: | :----------: | :--------------------: | :---------: | :----------: | :------: |
 | Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
-| `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | planned (tofu-basics, P5) | — | published :80/:443 in, nothing else |
+| `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
 | `forgejo-runner` (dns-as-code) | ✓ | — | ✓ | — | — | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
@@ -466,34 +558,3 @@ Three deliberate boundaries carry the security model: `bootstrap_net`
 (provisioning can reach Forgejo and nothing else), `runner_net` (student-authored
 CI can't reach the control plane), and `cloud_net` (the privileged host is
 reachable only through `cloud-api`'s fixed templates).
-
-## Audience
-
-- Engineering team members (mixed git experience, some daily users)
-- IT operations team members (little to no git/version control experience)
-- Assumes comfort with a terminal; no assumed git knowledge
-
-## Goals of the series
-
-1. Get everyone speaking the same language around version control and git.
-2. Build confidence with the core git workflow through hands-on practice.
-3. Establish a shared team workflow/convention to point back to later.
-4. Lay the foundation for later, more specific sessions (e.g. managing DNS
-   zone files as code, PR review process, CI checks on infra changes).
-
-## Session roadmap
-
-| # | Session | Format | Status |
-| - | ------- | ------ | ------ |
-| 1 | Git Fundamentals: What/Why/How + Hands-on Lab | 60 min | [`workshops/git-fundamentals/`](workshops/git-fundamentals/) |
-| 2 | Branching Workflows & Pull Requests in Practice | 45-60 min | Future |
-| 3 | Team Git Conventions + DNS-as-Code Repo Walkthrough | 45-60 min | [`workshops/dns-as-code/`](workshops/dns-as-code/) |
-| 4 | Handling Conflicts, Rebasing, and "Oh No" Recovery | 45-60 min | Future |
-| 5 | Automating Checks: Pre-commit Hooks & CI Pipelines | 45-60 min | Future |
-
-### Additional workshops (not yet slotted into the numbered series)
-
-| Workshop | Topic | Status |
-| -------- | ----- | ------ |
-| [`workshops/cert-autorenewal/`](workshops/cert-autorenewal/) | Automated TLS certificate issuance and renewal via ACME (step-ca, certbot, acme.sh) | Runs today |
-| [`workshops/tofu-basics/`](workshops/tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout. Track A (offline sandbox) runs today; Track B (Dojo Cloud) is in progress | In progress — see [`PLAN.md`](workshops/tofu-basics/PLAN.md) |
