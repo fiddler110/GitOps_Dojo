@@ -39,7 +39,7 @@ sed -i '/^    owner /d' locals.tf
 git diff
 ```
 
-```text
+```diff
    tags = {
 -    owner      = var.owner
      env        = var.environment
@@ -55,7 +55,7 @@ terraform plan
 
 Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
 
-```text
+```terraform
   # azurerm_container_group.hello will be updated in-place
   ~ resource "azurerm_container_group" "hello" {
         id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev"
@@ -196,7 +196,7 @@ terraform plan
 
 Expected (abridged):
 
-```text
+```terraform
   # azurerm_container_group.hello must be replaced
 -/+ resource "azurerm_container_group" "hello" {
       ~ fqdn                        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> (known after apply)

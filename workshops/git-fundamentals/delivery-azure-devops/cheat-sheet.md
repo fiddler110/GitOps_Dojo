@@ -191,7 +191,7 @@ Find the commit hash with `git log --oneline`.
 
 Conflicts happen when two branches change the same line. Git will mark them:
 
-```
+```text
 <<<<<<< HEAD
 version: 1.2.0
 =======

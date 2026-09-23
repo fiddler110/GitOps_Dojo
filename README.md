@@ -6,7 +6,7 @@ DNS-as-Code, certificate automation, Infrastructure-as-Code).
 
 ## Layout
 
-```
+```text
 ├── run.sh                          # Forwards to engine/run.sh, so ./run.sh <workshop> works from the repo root
 ├── engine/                         # Reusable workshop runtime (Forgejo + web terminal + slides), shared by every workshop
 ├── assets/branding/                # Shared branding

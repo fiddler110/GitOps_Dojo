@@ -161,7 +161,7 @@ head -8 .terraform.lock.hcl
 ls -la .terraform/providers/registry.opentofu.org/hashicorp/azurerm/5.6.0/
 ```
 
-```text
+```terraform
 # This file is maintained automatically by "tofu init".
 # Manual edits may be lost in future updates.
 

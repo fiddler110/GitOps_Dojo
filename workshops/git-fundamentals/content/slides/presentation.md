@@ -234,7 +234,7 @@ branch → push → pull request → review → merge → main
 ### Merge
 Combine the histories of two branches.
 
-```text 
+```text
 Like two rivers merging — separate currents become one flow, carrying both histories downstream
 ```
 

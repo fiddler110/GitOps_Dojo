@@ -30,7 +30,7 @@ Open `terraform.tfvars` and change `learner` to your own first name (lowercase):
 nano terraform.tfvars
 ```
 
-```hcl
+```terraform
 learner  = "ada"
 greeting = "Hello from OpenTofu!"
 ```
@@ -45,7 +45,7 @@ terraform plan
 
 Expected (abridged):
 
-```text
+```terraform
   ~ update in-place (current -> planned)
 -/+ destroy and then create replacement
 

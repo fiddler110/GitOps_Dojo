@@ -96,7 +96,7 @@ git push -u origin main
 ## Step 4: Verify the Repo Structure
 
 In Azure DevOps portal, your repo should look like:
-```
+```text
 📁 sample-training-repo/
   📄 README.md
   📄 CONTRIBUTING.md
@@ -134,12 +134,12 @@ Ask an attendee to:
 You'll need to provide attendees with the clone URL in the pre-work checklist and during the session.
 
 **HTTPS URL format:**
-```
+```text
 https://dev.azure.com/<ORG>/<PROJECT>/_git/sample-training-repo
 ```
 
 **SSH URL format (if using SSH keys):**
-```
+```text
 git@ssh.dev.azure.com:v3/<ORG>/<PROJECT>/sample-training-repo
 ```
 
@@ -204,7 +204,7 @@ Before sending the pre-work checklist to attendees, fill in these details:
 - Add your repo URL to the "Pre-Session Checklist" section.
 
 **Example:**
-```
+```text
 Organization: contoso-engineering
 Project: Git-Training
 Repo URL: https://dev.azure.com/contoso-engineering/Git-Training/_git/sample-training-repo

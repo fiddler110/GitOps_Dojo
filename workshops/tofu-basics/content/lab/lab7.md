@@ -26,7 +26,7 @@ terraform plan
 
 Expected:
 
-```text
+```terraform
 azurerm_resource_group.main: Refreshing state... [id=/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac]
 azurerm_container_group.hello: Refreshing state... [id=/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac/providers/Microsoft.ContainerInstance/containerGroups/ci-hello-dev]
 
@@ -83,7 +83,7 @@ terraform plan
 
 Expected (abridged):
 
-```text
+```terraform
 azurerm_resource_group.main: Refreshing state... [id=...]
 azurerm_container_group.hello: Refreshing state... [id=...]
 

@@ -219,7 +219,7 @@ one of these. State gets its own slide shortly.
 
 ## A resource, line by line
 
-```hcl
+```terraform
 resource "random_pet" "nickname" {
   length = 2
 }
@@ -245,7 +245,7 @@ change of address, which OpenTofu reads as delete-and-create.
 
 ## Connecting resources
 
-```hcl
+```terraform
 resource "random_pet" "nickname" {
   length = var.pet_words
 }
@@ -281,7 +281,7 @@ pet means a new name, which means new file content.
 
 ## Variables and outputs
 
-```hcl
+```terraform
 # variables.tf: declare an input
 variable "pet_words" { default = 2 }
 

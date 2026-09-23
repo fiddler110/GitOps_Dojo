@@ -88,7 +88,7 @@ Add `-no-color` when piping into `grep`, or the lines are wrapped in colour code
 
 ## HCL in 30 seconds
 
-```hcl
+```terraform
 variable "name" { type = string }               # input:    var.name
 locals { greeting = "Hi ${var.name}" }          # local:    local.greeting
 resource "random_pet" "x" { length = 2 }        # resource: random_pet.x

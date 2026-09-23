@@ -45,7 +45,7 @@ terraform plan
 
 Expected (abridged):
 
-```text
+```terraform
   # local_file.greeting will be created
   + resource "local_file" "greeting" { ... }
 

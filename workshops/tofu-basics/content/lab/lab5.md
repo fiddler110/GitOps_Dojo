@@ -42,7 +42,7 @@ terraform plan
 
 Expected (abridged: the header text and a few lines are trimmed):
 
-```text
+```terraform
   # azurerm_container_group.hello will be created
   + resource "azurerm_container_group" "hello" {
       + dns_name_label              = "hello-dev-student01"
