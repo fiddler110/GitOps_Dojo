@@ -161,7 +161,9 @@ not measured.
 - Real people (T9.4), other workshops (T9.5), arm64, docker proper (only what `CONTAINER_CLI=docker` happens to get right; nothing here
   was run with it; T9.8 must be repeated on the Azure VM's dockerd before a delivery there). The gateway's own header handling is not part of the
   `security` area either: it talks to cloud-api directly, so Caddy's `header_up` is not exercised.
-- `git push` (it needs the Forgejo password and would write to the shared repo): Labs 3 and 10's push step is not run.
+- The load test clones `iac-team/tofu-basics` directly (no fork). e2e does follow Lab 0: it forks as the student (the password comes
+  from the terminal container's `STUDENT_PASSWORD`, passed as an environment variable), clones the fork, pushes and deletes a throwaway
+  `e2e-<run id>` branch there (standing in for Labs 3 and 10's push), and deletes the fork at cleanup only if the run created it.
 - The Lab 6 "optional" scratch-copy of the region test is replaced by the `policy` area (same cloud message, other route).
 - The precise timings: they are bounds with slack, not measurements. `apply` ~35 s, `destroy` ~35 s, replace ~27 s, in-place ~1-2 s come from the labs.
 

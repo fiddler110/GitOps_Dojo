@@ -112,8 +112,11 @@ count_status() { awk -F'\t' -v s="$1" '$1 == s {n++} END {print n + 0}' "$RESULT
 #   Runs the string in a login zsh as that user in the terminal container (cwd = their home).
 #   Sets RC (exit status; 124 = timed out), SECS / SECS_MS (wall time) and OUT (a file with stdout+stderr, masked).
 #   The command string reaches zsh as ONE argument: no extra layer of quoting to get wrong.
+#   Variables named in TB_PASS_ENV (space-separated, exported by the caller) are passed through by NAME (`-e NAME`),
+#   so a secret such as the Forgejo password never appears in a command line or a log.
 as_student() {
-  local user=$1 cmd=$2 tmo=${3:-300} label=${4:-cmd} t0 t1 safe
+  local user=$1 cmd=$2 tmo=${3:-300} label=${4:-cmd} t0 t1 safe v
+  local -a xenv=(); for v in ${TB_PASS_ENV:-}; do xenv+=(-e "$v"); done
   SEQ=$((SEQ + 1)); safe=${label//[^A-Za-z0-9_.-]/_}
   OUT="$LOG_DIR/$(printf '%s-%03d-%s' "${AREA:-x}" "$SEQ" "$safe")-$user.log"
   if is_dry; then
@@ -122,7 +125,7 @@ as_student() {
     return 0
   fi
   t0=$(now_ms)
-  timeout -k 5 "$((tmo + 30))" "$CLI" exec -u "$user" -w "/home/$user" -e "HOME=/home/$user" \
+  timeout -k 5 "$((tmo + 30))" "$CLI" exec -u "$user" -w "/home/$user" -e "HOME=/home/$user" "${xenv[@]}" \
     "$TERMINAL_CONTAINER" timeout -k 5 "$tmo" zsh -lc "$cmd" 2>&1 | mask > "$OUT"
   RC=${PIPESTATUS[0]}
   t1=$(now_ms); SECS_MS=$((t1 - t0)); SECS=$(fmt_secs "$SECS_MS")
