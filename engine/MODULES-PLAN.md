@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **M1 in progress (user go-ahead 2026-09-24).** |
+| Overall status | **M1 done (all four workshops re-tested live; no workshop flags left in the engine). Waiting for the user's go-ahead for M2.** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -215,7 +215,11 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
   Verify: live checks 8/8 (card; student and facilitator each see their own `<user>.certs.dojo.test` after lab 2's
   vhost steps; forged `X-Dojo-Host`/`X-Dojo-User` ignored; 303 without session; `/admin` tab frames `/demo/`), and
   lab 3's `acme.sh --issue` as the facilitator succeeds (HTTP-01 through their own site).
-- [ ] **T1.7** git-fundamentals and dns-as-code: start, confirm nothing changed. Spoofed-header test on each gate.
+- [x] **T1.7** (findings in §10) git-fundamentals and dns-as-code: start, confirm nothing changed. Spoofed-header test on each gate.
+  Verify: git-fundamentals with a temporary 2-route manifest (not committed) to `presentation:8080`: `shared` 200
+  logged in / 401 not; `facilitator` 200 facilitator, 403 student, 403 student with forged `X-Auth-User`/`X-Dojo-User`,
+  303 no session. dns-as-code (no manifest): `0 manifest(s)`, the 4 built-in cards, 5 built-in tabs, 3 status entries,
+  IDE 200, `dnscontrol v5.0.4`, runner up. `identity` was spoof-tested in T1.5/T1.6.
 
 ### M2: modules
 
@@ -289,3 +293,22 @@ names beside the running vault spike stack (untouched).
 ### 2026-09-24: M0 spikes
 - User: facilitator gets their own demo site (M10); run M0 before deciding Q1.
 - T0.1-T0.3 pass (§9). New rule: same `networks:` form per service across files. New Q4: entrypoint hooks.
+
+### 2026-09-24: M1 extensions
+- User: modules go in top-level `modules/` (M7); `start.d` hooks approved (M11); go for M1.
+- T1.1 renderer + 31 unit tests; T1.2 `run.sh` render step + mounts; T1.3 Caddyfile `import`; T1.4 allocator.
+- T1.5 tofu-basics and T1.6 cert-autorenewal moved onto `extensions.json`; `CLOUD_ENABLED`, `DEMO_APP_ENABLED`,
+  `DEMO_APP_ZONE` (engine side), `X-Cloud-User`, `X-Demo-Host` and the `@cloud`/`@demo` Caddy blocks are gone.
+  cert-autorenewal gained an `/admin` Demo Site tab (it had none) and the facilitator's own demo site (M10).
+- The paused vault spike stack was stopped from `feat/vault-fundamentals` (user's choice) so `.last-overlay`'s
+  OpenBao overlay was torn down properly; its volumes are gone, so resuming vault means a fresh init.
+- Worth knowing:
+  - Rootless podman: a one-shot container writing into `engine/` must **not** get `--user <uid>` (maps to a subuid
+    that can't write); container root is already the caller. Docker gets `--user uid:gid` (`run_once` in `run.sh`).
+  - Caddy re-sorts path-matched `handle` blocks; the renderer's no-overlap rule is what keeps routing correct.
+  - Inside a `handle`, Caddy orders `request_header` after `forward_auth`; the template wraps the gate in `route {}`
+    so client copies of `X-Dojo-*` are stripped **before** `forward_auth` copies the real ones in.
+  - `workshops/tofu-basics/tests/e2e.sh` is mode 644 in git: run it with `bash`.
+  - This machine's facilitator username is `admin` (not the `root` default), which is why M10's site is
+    `admin.certs.dojo.test` here.
+  - Not done in M1: a real-browser pass (no headless browser here) and docs (M3).
