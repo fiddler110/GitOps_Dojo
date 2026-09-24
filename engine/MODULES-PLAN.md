@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **M2 done (two modules extracted; all four workshops re-tested live). Waiting for the user's go-ahead for M3.** |
+| Overall status | **M3 in progress: docs (T3.1) and the vault plan (T3.2) done; the user is running the browser pass (T3.4, checklist in §7). PR (T3.3) only when asked.** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -232,10 +232,37 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 ### M3: docs and hand-over
 
-- [ ] **T3.1** `workshops/README.md` (adding a workshop, using and writing modules), `engine/README.md` (gates,
-  rendering), root `README.md` tables.
-- [ ] **T3.2** Update `workshops/vault-fundamentals/PLAN.md`: P0.5 is replaced by this; openbao becomes a module.
+- [x] **T3.1** `workshops/README.md` (adding a workshop, using and writing modules), `engine/README.md` (gates,
+  rendering), root `README.md` tables. e3ee3b9. Also `./run.sh modules` (user asked, 2026-09-24). 816c333
+- [x] **T3.2** Update `workshops/vault-fundamentals/PLAN.md`: P0.5 is replaced by this; openbao becomes a module.
+  fbac73e **on `feat/vault-fundamentals`** (not this branch). Its draft `openbao` and Runners manifests pass the
+  renderer.
+- [ ] **T3.4** Browser pass by the user, per workshop (checklist below). Findings go in §10.
 - [ ] **T3.3** PR to `main` (only when the user asks).
+
+### T3.4 browser checklist (done by the user)
+
+For each workshop: `./run.sh stop`, then `./run.sh <workshop>`. Open `PUBLIC_BASE_URL` in one browser as a student
+and in a private window as the facilitator. Everything below comes from this branch's changes. The labs themselves
+were tested live in M1/M2.
+
+**Every workshop**
+- [ ] Student landing page: VS Code, Terminal, Forgejo and Slides cards, plus the workshop's own card (below). Each
+  opens.
+- [ ] Facilitator lands on `/admin`: Roster, VS Code, Terminal, Forgejo and Slides tabs, plus the workshop's own tab.
+  Each loads inside the page (no "refused to connect" frame).
+- [ ] Status strip: Forgejo, Terminals and Slides are **Ready**, plus the workshop's own check.
+- [ ] The student's terminal: `whoami` gives `studentNN`, and the workshop's tools run (below).
+
+| Workshop | Extra card / tab | Extra status chip | Check in the browser |
+|---|---|---|---|
+| git-fundamentals | none | none | Lab 1: clone, branch, push, open a PR in Forgejo. |
+| dns-as-code | none | none | `dnscontrol version` in the terminal. Push a branch and open a PR: Forgejo's Actions tab shows **DNS Preview** green; merge it and **DNS Apply** goes green; `dig` shows the new record. |
+| cert-autorenewal | **Demo Site** card and tab | none | After lab 2's vhost steps, the student's card shows their own `studentNN.certs.dojo.test` site, and the facilitator's tab shows **their own** site (`admin.certs.dojo.test` here), not a student's. |
+| tofu-basics | **Dojo Cloud** card and tab | **Dojo Cloud** | The student's card opens the portal on their own subscription. The facilitator's tab opens the progress view. After a Track B `terraform apply`, the resource shows up in the student's portal and in the facilitator's progress view. |
+
+**After each:** `./run.sh stop` finishes without errors (the stack's volumes and networks were already checked
+from the CLI in M2).
 
 ## 8. Open questions
 
@@ -342,3 +369,14 @@ names beside the running vault spike stack (untouched).
     `./run.sh stop` removes (verified: unnamed-volume count unchanged across a start/stop). When adding a service,
     check `podman image inspect <img> --format '{{json .Config.Volumes}}'` and name every declared path.
   - Still not done: a real-browser pass; docs (M3); `./run.sh list` doesn't show modules (nice-to-have).
+
+### 2026-09-24: M3 docs
+- User: go for M3; OK to edit `engine/README.md`; vault plan update committed on its own branch; add
+  `./run.sh modules`; a browser checklist in this plan (§7, T3.4). The user runs the browser pass (T3.4).
+- 816c333 `./run.sh modules` (summary = first plain line of each module README; "used by" from `MODULES=`).
+- e3ee3b9 docs: `workshops/README.md` rewritten (three kinds of workshop, `extensions.json` reference, writing a
+  module), `engine/README.md` (routing row, extensions and module wiring replace "Workshop hooks", ops notes on
+  `.last-overlay` and `WEB_TERMINAL_IMAGE`), root `README.md` (layout, summary table, Dojo Cloud paragraph).
+- fbac73e on `feat/vault-fundamentals`: P0.5/P6 struck (S25), `openbao` module split and draft manifests (§8.1).
+- Still stale: the local, git-ignored `CLAUDE.md` still describes the overlay `image:` rule and names P0.5. It's
+  shared by every branch, so update it when this branch merges.
