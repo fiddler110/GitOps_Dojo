@@ -51,6 +51,26 @@ batcat <file>          # read a file with syntax highlighting
 glow <file.md>         # read Markdown in the terminal
 ```
 
+### Optional: your own shortcuts
+
+You'll type `git status` a lot. Your `~/.zshrc` is shared and read-only, but `~/.zshrc_aliases` is yours: every new shell loads it last, so anything you put there sticks for the rest of the session. Add a few short aliases:
+
+```sh
+echo 'alias gs="git status"' >> ~/.zshrc_aliases
+echo 'alias gd="git diff"' >> ~/.zshrc_aliases
+echo 'alias gl="git log --oneline --graph"' >> ~/.zshrc_aliases
+source ~/.zshrc_aliases   # load them into this shell now
+```
+
+Now `gs` does the same as `git status`:
+
+```sh
+gs
+aliases   # list everything in ~/.zshrc_aliases
+```
+
+You can also open the file in VS Code or `nano ~/.zshrc_aliases` and edit it directly; run `source ~/.zshrc_aliases` (or open a new terminal) afterwards. The labs spell out the full `git` commands so you learn them, but use your shortcuts wherever you like.
+
 ---
 
 ## 2. The workflow you're about to practice
