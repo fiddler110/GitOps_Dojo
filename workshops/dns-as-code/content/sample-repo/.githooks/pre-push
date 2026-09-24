@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Local stand-in for server-side branch protection: this private repo can't
-# use GitHub's required-status-check branch protection without GitHub Pro,
-# so this hook enforces "dnscontrol preview must pass" before anything
-# reaches main from this machine.
+# Local early warning to go with Forgejo's branch protection: refuses to
+# push to main from this machine unless "dnscontrol preview" passes. (Forgejo
+# itself rejects direct pushes to main anyway; this catches a broken
+# dnsconfig.js before it even leaves your terminal.)
 #
-# Enable once per clone with:
+# Enable once per clone with `python3 scripts/dnsctl.py setup`, which runs:
 #   git config core.hooksPath .githooks
 
 set -euo pipefail
@@ -12,9 +12,9 @@ set -euo pipefail
 protected_ref="refs/heads/main"
 zero="0000000000000000000000000000000000000000"
 
-# Keep this file list identical to the `paths:` filters in
-# .github/workflows/preview.yml and .github/workflows/apply.yml — if they
-# drift, this local check and CI stop agreeing about what's DNS-relevant.
+# Keep this file list identical to the `paths:` filter in
+# .forgejo/workflows/dns-apply.yml — if they drift, this local check and CI
+# stop agreeing about what's DNS-relevant.
 dns_relevant_paths=(dnsconfig.js creds.json)
 
 while read -r local_ref local_sha remote_ref remote_sha; do

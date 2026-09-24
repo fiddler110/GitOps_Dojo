@@ -45,8 +45,7 @@ def run_dnscontrol(args: list[str], env_overrides: dict) -> int:
     if not dnscontrol:
         eprint(
             "error: dnscontrol not found on PATH.\n"
-            "  Run: python scripts/dnsctl.py install-dnscontrol\n"
-            "  or:  go install github.com/DNSControl/dnscontrol/v4@latest"
+            "  Run: python3 scripts/dnsctl.py install-dnscontrol"
         )
         return 1
 

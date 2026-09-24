@@ -10,7 +10,7 @@ import re
 
 # A record name is either "@" (apex), "*" (wildcard), or dot-separated labels
 # made of letters/digits/hyphen/underscore (each label non-empty, no leading/
-# trailing hyphen requirement enforced - Cloudflare/dnscontrol will reject
+# trailing hyphen requirement enforced - dnscontrol/PowerDNS will reject
 # anything actually invalid at preview time regardless).
 VALID_NAME_PATTERN = re.compile(r'^(\*|[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?)'
                                  r'(\.[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?)*$')
@@ -30,9 +30,10 @@ FULL_RECORD_LINE_PATTERN = re.compile(
 # `extras` instead of being silently absorbed into the record's value.
 EXPECTED_POSITIONAL_COUNT = {"A": 1, "CNAME": 1, "TXT": 1, "MX": 2}
 # Non-record lines that are expected inside a D(...) block besides records
-# themselves - anything else gets flagged by classify_zone_line() below
-# instead of being silently skipped.
-DIRECTIVE_LINE_PATTERN = re.compile(r'^\s*(DnsProvider|DefaultTTL)\(')
+# themselves (SOA/NAMESERVER describe the zone itself; the wizard never edits
+# them) - anything else gets flagged by classify_zone_line() below instead of
+# being silently skipped.
+DIRECTIVE_LINE_PATTERN = re.compile(r'^\s*(DnsProvider|DefaultTTL|SOA|NAMESERVER)\(')
 
 
 def detect_zone(spec: str, zones: list[str]) -> str | None:
@@ -144,8 +145,9 @@ def split_top_level_args(argstr: str) -> list[str]:
 def parse_record_line_full(line: str) -> dict | None:
     """Parse one record line into its constituent fields for reporting.
 
-    Best-effort: covers the modifiers actually used in this project
-    (CF_PROXY_ON/OFF, TTL(n)) plus positional name/value(s)/MX priority.
+    Best-effort: covers the modifier actually used in this project (TTL(n))
+    plus positional name/value(s)/MX priority. Anything else is kept verbatim
+    in `extras`.
     """
     m = FULL_RECORD_LINE_PATTERN.match(line)
     if not m:
@@ -163,24 +165,19 @@ def parse_record_line_full(line: str) -> dict | None:
                 return a.strip('"')
         return a
 
-    proxied = ""
     ttl = ""
     positional = []
     extras = []
     expected = EXPECTED_POSITIONAL_COUNT.get(record_type)
     for a in raw_args[1:]:
-        if a == "CF_PROXY_ON":
-            proxied = "yes"
-        elif a == "CF_PROXY_OFF":
-            proxied = "no"
-        elif a.startswith("TTL(") and a.endswith(")"):
+        if a.startswith("TTL(") and a.endswith(")"):
             ttl = a[len("TTL("):-1].strip()
         elif expected is None or len(positional) < expected:
             positional.append(a)
         else:
             # An unsupported modifier or extra argument this parser doesn't
             # model - keep the raw token so a rewrite can preserve it
-            # instead of mashing it into the value (see ROADMAP.md TOOL-2).
+            # instead of mashing it into the value.
             extras.append(a)
 
     name = unquote(raw_args[0])
@@ -196,7 +193,6 @@ def parse_record_line_full(line: str) -> dict | None:
         "value": value,
         "priority": priority,
         "ttl": ttl,
-        "proxied": proxied,
         "extras": extras,
         "comment": (trailing_comment or "").strip(),
         "raw": line.strip(),
@@ -210,10 +206,10 @@ def classify_zone_line(line: str) -> tuple[dict | None, str | None]:
     parse_record_line_full() for a record line, `skip_reason` is a
     human-readable string for anything that isn't a record and isn't one of
     the expected non-record directives - callers should surface this rather
-    than silently skip it (that silent skip was the TOOL-1 bug: `show`/`lint`
-    used to disagree with `record list` about how many records exist).
+    than silently skip it (a silent skip once made `show`/`lint`
+    disagree with `record list` about how many records exist).
     Both are None for a blank line, a `//` comment, or a recognised directive
-    (DnsProvider/DefaultTTL) - there's nothing to report for those.
+    (DnsProvider/DefaultTTL/SOA/NAMESERVER) - there's nothing to report for those.
     """
     raw = line.strip()
     if not raw or raw.startswith("//") or DIRECTIVE_LINE_PATTERN.match(raw):
@@ -249,9 +245,7 @@ def build_record_line(
     name: str,
     value: str,
     priority: int | None = None,
-    proxy: bool | None = None,
     ttl: int | None = None,
-    proxy_off: bool = False,
     extras: list[str] | None = None,
     comment: str = "",
 ) -> str:
@@ -266,24 +260,12 @@ def build_record_line(
             line += f"  {comment}" if comment.startswith("//") else f"  // {comment}"
         return line
 
-    if record_type in ("A", "CNAME"):
-        parts = [quoted_name, quoted_value]
-        if proxy:
-            parts.append("CF_PROXY_ON")
-        elif proxy_off:
-            # Preserve an explicit CF_PROXY_OFF that was already on the line
-            # rather than silently normalising it away (see ROADMAP.md TOOL-2).
-            parts.append("CF_PROXY_OFF")
-        if ttl:
-            parts.append(f"TTL({ttl})")
-        return finish(parts)
-
     if record_type == "MX":
         if priority is None:
             raise ValueError("MX records require a priority.")
         return finish([quoted_name, str(priority), quoted_value])
 
-    if record_type == "TXT":
+    if record_type in ("A", "CNAME", "TXT"):
         parts = [quoted_name, quoted_value]
         if ttl:
             parts.append(f"TTL({ttl})")

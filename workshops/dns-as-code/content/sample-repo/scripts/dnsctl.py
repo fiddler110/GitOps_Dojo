@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dnsctl - cross-platform helper for this dnscontrol/Cloudflare project.
+dnsctl - cross-platform helper for this dnscontrol/PowerDNS project.
 
 Wraps the common operations documented in docs/ (setup, preview, push,
 zone re-baseline, dnscontrol install) behind one script that works the
@@ -8,32 +8,33 @@ same way on Windows, macOS, and Linux. Standard library only - no pip
 install required.
 
 Usage:
-    python scripts/dnsctl.py <command> [options]
+    python3 scripts/dnsctl.py <command> [options]
 
 Commands:
     doctor              Check that the local environment is set up correctly.
-    setup               One-time local setup: git hook + .env scaffold.
+    setup               One-time local setup: enable git hooks, create .env,
+                         add the `dnsc` shell alias.
     install-dnscontrol  Download the pinned dnscontrol release for this OS/arch.
-    preview             Run `dnscontrol preview` (loads .env automatically).
+    preview             Run `dnscontrol preview` (changes nothing).
     push                Run `dnscontrol push` (requires confirmation).
-    import              Snapshot the live Cloudflare zone to a JS file for
+    import              Snapshot the live zone to a JS file for
                          manual merging back into dnsconfig.js.
     submit              Commit your dnsconfig.js change, push a branch, and
                          open a pull request for review.
     status              List open pull requests and their DNS Preview check status.
     review              Show a PR's file diff and its DNS Preview comment.
-    approve             Approve a PR (GitHub blocks approving your own PR - see below).
+    approve             Approve someone else's PR (you can't approve your own).
     merge               Merge a PR once its DNS Preview check has passed.
-    validate            Confirm a merged change's DNS Apply run succeeded and live
-                         Cloudflare matches dnsconfig.js.
+    validate            Confirm a merged change's DNS Apply run succeeded and the
+                         live zone matches dnsconfig.js.
     record add          Interactively add a record to dnsconfig.js, e.g.
-                         `record add plex.example.com`.
+                         `record add www.dojo.test`.
     record remove       Interactively remove a record from dnsconfig.js.
     record list         List records currently in dnsconfig.js.
-    record edit         Change an existing record's value/priority/proxy/TTL in place.
+    record edit         Change an existing record's value/priority/TTL in place.
     record update-ip    Bulk-replace an IP across every A record that points at it.
     record prune-acme   List/remove stale _acme-challenge TXT records.
-    record sync-acme    Fold live Cloudflare's _acme-challenge TXT records into
+    record sync-acme    Fold the live zone's _acme-challenge TXT records into
                          dnsconfig.js (add missing, remove stale).
     lint                Fast offline sanity checks on dnsconfig.js.
     show                Table view of all records (terminal, CSV, or Markdown).
@@ -43,15 +44,11 @@ CLI: `gh` against a GitHub remote, or dnsctl_lib/forgejo.py's own API
 client against a Forgejo remote (this lab's git-server) - picked
 automatically per the 'origin' remote's host, see procutil.detect_forge().
 
-This copy is pointed at this lab's PowerDNS zone (dojo.test) instead of
-the upstream template's Cloudflare/example.com - see CREDKEY/ZONES below.
-Everything named "Cloudflare" in this file's own output (the record
-wizard's proxy prompt, CLOUDFLARE_API_TOKEN env var, the ACME-sync
-commands) is inherited unmodified from the real production script; it's
-mostly harmless noise against PowerDNS and left as-is on purpose - see
-this workshop's slides for why.
+dnscontrol finds the PowerDNS API and its key in creds.json (see CREDKEY
+below), so nothing here needs a secret of its own. .env is optional: it
+holds per-person settings such as FORGEJO_TOKEN and is never committed.
 
-Run `python scripts/dnsctl.py <command> --help` for command-specific options.
+Run `python3 scripts/dnsctl.py <command> --help` for command-specific options.
 """
 
 from __future__ import annotations
@@ -63,6 +60,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -70,18 +68,18 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 # Needed so `import dnsctl_lib` resolves whether dnsctl.py is run directly
-# (python scripts/dnsctl.py ...) or loaded by file path, as the test suite
+# (python3 scripts/dnsctl.py ...) or loaded by file path, as the test suite
 # does - neither guarantees scripts/ is already on sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from dnsctl_lib import install, procutil, records, render  # noqa: E402
-from dnsctl_lib import env as env_lib  # noqa: E402
-from dnsctl_lib.env import load_env_file  # noqa: E402
+from dnsctl_lib.env import apply_env_file  # noqa: E402
 from dnsctl_lib.cli_utils import (  # noqa: E402
     eprint,
     parse_index_arg,
@@ -103,17 +101,18 @@ from dnsctl_lib.records import (  # noqa: E402
     RECORD_LINE_PATTERN,
     build_record_line,
     classify_zone_line,
+    find_zone_block_in_lines,
     fqdn_for,
     parse_record_line_full,
     split_top_level_args,
 )
 
-# This lab has no CI, so there's no workflow file to keep this in sync
-# with - just match whatever's installed in compose/terminal/Dockerfile.
+# Keep in step with the dnscontrol the lab terminal and the CI runner ship.
 DNSCONTROL_VERSION = "5.0.4"
-# Matches the top-level key in creds.json - this lab's PowerDNS provider,
-# not the upstream template's "cloudflare".
+# Matches the top-level key in creds.json (and NewDnsProvider in dnsconfig.js).
 CREDKEY = "powerdns"
+# Fields dnscontrol's POWERDNS provider needs in creds.json.
+CREDS_REQUIRED_KEYS = ("apiUrl", "apiKey", "serverName")
 # Every zone managed in dnsconfig.js. Keep this in sync with the D("...", ...)
 # blocks there - the record wizard needs it to figure out which zone a given
 # name belongs to (and to require --zone when a bare relative name is ambiguous).
@@ -125,10 +124,6 @@ ENV_FILE = REPO_ROOT / ".env"
 ENV_EXAMPLE = REPO_ROOT / ".env.example"
 CREDS_FILE = REPO_ROOT / "creds.json"
 DNSCONFIG_FILE = REPO_ROOT / "dnsconfig.js"
-
-
-def load_cloudflare_env(env_file: Path = ENV_FILE) -> dict:
-    return env_lib.load_cloudflare_env(env_file)
 
 
 def detect_zone(spec: str) -> str | None:
@@ -148,8 +143,8 @@ def find_zone_block(zone: str) -> tuple[int, int]:
     return records.find_zone_block_in_lines(lines, zone, source_name=DNSCONFIG_FILE.name)
 
 
-def fetch_live_acme_snapshot(zone: str, env: dict) -> list[dict] | None:
-    """Snapshot live Cloudflare state for `zone` via `dnscontrol get-zones` and
+def fetch_live_acme_snapshot(zone: str) -> list[dict] | None:
+    """Snapshot the live zone `zone` via `dnscontrol get-zones` and
     return the parsed records (name/value/ttl) for its _acme-challenge TXT
     entries. Returns None if the snapshot itself failed (network/auth/etc) so
     callers can tell that apart from "zero live records"."""
@@ -157,7 +152,7 @@ def fetch_live_acme_snapshot(zone: str, env: dict) -> list[dict] | None:
     os.close(fd)
     try:
         rc = run_dnscontrol(
-            ["get-zones", "--format=js", f"--out={tmp_path}", CREDKEY, zone], env
+            ["get-zones", "--format=js", f"--out={tmp_path}", CREDKEY, zone], {}
         )
         if rc != 0:
             return None
@@ -177,10 +172,10 @@ def fetch_live_acme_snapshot(zone: str, env: dict) -> list[dict] | None:
         Path(tmp_path).unlink(missing_ok=True)
 
 
-def fetch_live_acme_entries(zone: str, env: dict) -> set[tuple[str, str]] | None:
+def fetch_live_acme_entries(zone: str) -> set[tuple[str, str]] | None:
     """Like fetch_live_acme_snapshot, but reduced to the (name, value) pairs
     used for the prune-acme live cross-check."""
-    snapshot = fetch_live_acme_snapshot(zone, env)
+    snapshot = fetch_live_acme_snapshot(zone)
     if snapshot is None:
         return None
     return {(p["name"], p["value"]) for p in snapshot}
@@ -249,8 +244,8 @@ def offer_preview_and_submit(default_message: str, interactive: bool) -> None:
     """After editing dnsconfig.js, optionally run preview and hand off to submit."""
     if not interactive:
         print(
-            "\nNext: python scripts/dnsctl.py preview   (verify the diff)\n"
-            '      python scripts/dnsctl.py submit "..." (open a PR)'
+            "\nNext: python3 scripts/dnsctl.py preview   (verify the diff)\n"
+            '      python3 scripts/dnsctl.py submit "..." (open a PR)'
         )
         return
 
@@ -271,6 +266,41 @@ def offer_preview_and_submit(default_message: str, interactive: bool) -> None:
         cmd_submit(submit_args)
 
 
+def load_creds() -> tuple[dict | None, str | None]:
+    """Return (the CREDKEY entry of creds.json, None) or (None, what's wrong)."""
+    if not CREDS_FILE.is_file():
+        return None, "creds.json not found."
+    try:
+        creds = json.loads(CREDS_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return None, f"creds.json is not valid JSON ({e})."
+    entry = creds.get(CREDKEY)
+    if not isinstance(entry, dict):
+        return None, f'creds.json has no "{CREDKEY}" entry (dnsconfig.js looks it up by that name).'
+    missing = [k for k in CREDS_REQUIRED_KEYS if not entry.get(k)]
+    if missing:
+        return None, f'creds.json\'s "{CREDKEY}" entry is missing {", ".join(missing)}.'
+    return entry, None
+
+
+def check_powerdns_api(entry: dict) -> str | None:
+    """None if the PowerDNS API answers with this key, else what went wrong."""
+    url = f"{entry['apiUrl'].rstrip('/')}/api/v1/servers/{entry['serverName']}"
+    req = urllib.request.Request(url, headers={"X-API-Key": entry["apiKey"]})
+    try:
+        with urllib.request.urlopen(req, timeout=5):
+            return None
+    except urllib.error.HTTPError as e:
+        return f"{url} answered {e.code}"
+    except (urllib.error.URLError, OSError) as e:
+        return f"could not reach {url} ({getattr(e, 'reason', e)})"
+
+
+def hooks_enabled() -> bool:
+    hooks_path = git_output(["config", "--get", "core.hooksPath"])
+    return hooks_path in (".githooks", str(REPO_ROOT / ".githooks"))
+
+
 def cmd_doctor(_args) -> int:
     ok = True
 
@@ -288,77 +318,38 @@ def cmd_doctor(_args) -> int:
                 f"[warn] installed dnscontrol version does not match the pinned "
                 f"DNSCONTROL_VERSION ({DNSCONTROL_VERSION}). CI uses the pinned version, so a "
                 f"local/CI mismatch can produce confusing 'works locally, fails in CI' diffs. "
-                f"Fix: python scripts/dnsctl.py install-dnscontrol"
+                f"Fix: python3 scripts/dnsctl.py install-dnscontrol"
             )
     else:
         print("[FAIL] dnscontrol not found on PATH or in the usual go install location.")
-        print("       Fix: python scripts/dnsctl.py install-dnscontrol")
+        print("       Fix: python3 scripts/dnsctl.py install-dnscontrol")
         ok = False
 
-    raw_env = load_env_file(ENV_FILE) if ENV_FILE.is_file() else {}
-    vault = raw_env.get("CLOUDFLARE_KEYVAULT_NAME") or os.environ.get("CLOUDFLARE_KEYVAULT_NAME")
-    local_token_present = "CLOUDFLARE_API_TOKEN" in raw_env or "CLOUDFLARE_API_TOKEN" in os.environ
-
-    if not ENV_FILE.is_file() and not vault:
-        print("[FAIL] .env not found, and no CLOUDFLARE_KEYVAULT_NAME configured.")
-        print(
-            f"       Fix: python3 scripts/dnsctl.py setup (copies {ENV_EXAMPLE.name} to .env "
-            "for you - the placeholder value it ships with is enough for this lab's PowerDNS "
-            "provider, which doesn't use this token at all; see .env.example's own comment)."
-        )
+    entry, problem = load_creds()
+    if problem:
+        print(f"[FAIL] {problem}")
         ok = False
     else:
-        env = load_cloudflare_env()
-        token = env.get("CLOUDFLARE_API_TOKEN")
-        if token:
-            source = "local .env/environment" if local_token_present else f"Azure Key Vault '{vault}'"
-            print(f"[ok]   CLOUDFLARE_API_TOKEN available (length {len(token)}, source: {source}).")
-        else:
-            print("[FAIL] CLOUDFLARE_API_TOKEN not available from .env, the environment, or Key Vault.")
-            if vault:
-                print(
-                    f"       Key Vault '{vault}' is configured but the fetch failed (see the "
-                    "warning above) - confirm 'az login' and the 'Key Vault Secrets User' role."
-                )
-            else:
-                print("       Fix: fill in CLOUDFLARE_API_TOKEN in .env.")
+        print(f'[ok]   creds.json has the "{CREDKEY}" provider ({entry["apiUrl"]}).')
+        api_problem = check_powerdns_api(entry)
+        if api_problem:
+            print(f"[FAIL] PowerDNS API check failed: {api_problem}.")
+            print("       preview/push need it - check apiUrl/apiKey in creds.json.")
             ok = False
-        if raw_env.get("CLOUDFLARE_API_TOKEN_WRITE"):
-            print(
-                "[warn] .env contains CLOUDFLARE_API_TOKEN_WRITE. The write token should "
-                "normally only exist as a GitHub Actions secret - see docs/security.md."
-            )
-
-    if CREDS_FILE.is_file():
-        # The template hardcodes "apitoken" (Cloudflare's required field
-        # name); this lab's PowerDNS provider needs "apiKey" instead - see
-        # CREDKEY above and dnscontrol's PowerDNS provider docs.
-        required_key = "apitoken" if CREDKEY == "cloudflare" else "apiKey"
-        contents = CREDS_FILE.read_text(encoding="utf-8")
-        if f'"{required_key}"' in contents:
-            print(f"[ok]   creds.json uses the correct '{required_key}' key.")
         else:
-            print(
-                f"[FAIL] creds.json does not contain the literal key \"{required_key}\" - "
-                f"dnscontrol's {CREDKEY} provider requires this exact field name."
-            )
-            ok = False
-    else:
-        print("[FAIL] creds.json not found.")
-        ok = False
+            print("[ok]   PowerDNS API reachable and accepts the key.")
 
-    hooks_path = subprocess.run(
-        ["git", "config", "--get", "core.hooksPath"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if hooks_path in (".githooks", str(REPO_ROOT / ".githooks")):
-        print(f"[ok]   git hooks path is set to '{hooks_path}'.")
+    if ENV_FILE.is_file():
+        print("[ok]   .env present (optional; git-ignored).")
     else:
-        print("[warn] git core.hooksPath is not set to .githooks - the pre-push safety "
-              "check will not run.")
-        print("       Fix: git config core.hooksPath .githooks")
+        print("[ok]   no .env (optional - only for per-person settings like FORGEJO_TOKEN).")
+
+    if hooks_enabled():
+        print("[ok]   git hooks enabled (core.hooksPath = .githooks).")
+    else:
+        print("[warn] git hooks are not enabled - the pre-commit lint and pre-push preview "
+              "checks will not run.")
+        print("       Fix: python3 scripts/dnsctl.py setup")
 
     print()
     if ok:
@@ -371,23 +362,53 @@ def cmd_doctor(_args) -> int:
 def cmd_setup(_args) -> int:
     print("Setting up local environment...")
 
-    subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=REPO_ROOT, check=True)
-    print("[ok] git core.hooksPath set to .githooks")
+    git(["config", "core.hooksPath", ".githooks"])
+    print("[ok] git hooks enabled (core.hooksPath = .githooks): pre-commit lint, pre-push preview")
 
     if ENV_FILE.is_file():
         print("[ok] .env already exists (leaving it as-is)")
-    else:
-        if not ENV_EXAMPLE.is_file():
-            eprint("error: .env.example not found - cannot scaffold .env")
-            return 1
+    elif ENV_EXAMPLE.is_file():
         shutil.copyfile(ENV_EXAMPLE, ENV_FILE)
-        print(f"[ok] created .env from {ENV_EXAMPLE.name} - edit it and fill in your "
-              "read-only Cloudflare API token")
+        print(f"[ok] created .env from {ENV_EXAMPLE.name} (git-ignored; nothing in it is required)")
+
+    ensure_shell_alias()
 
     print()
-    print("Next: install dnscontrol if needed (python scripts/dnsctl.py install-dnscontrol),")
-    print("then fill in .env and run: python scripts/dnsctl.py doctor")
+    print("Next: python3 scripts/dnsctl.py doctor")
     return 0
+
+
+SHELL_ALIAS = "dnsc"
+SHELL_ALIASES_FILE = Path.home() / ".zshrc_aliases"
+
+
+def ensure_shell_alias() -> None:
+    """Add `dnsc` (short for `python3 <this clone>/scripts/dnsctl.py`) to
+    ~/.zshrc_aliases, which the lab terminal's shell loads. Only touches that
+    file if it already exists, so running setup on another machine never
+    writes shell config the user didn't opt into."""
+    command = f"python3 {shlex.quote(str(REPO_ROOT / 'scripts' / 'dnsctl.py'))}"
+    line = f"alias {SHELL_ALIAS}={shlex.quote(command)}"
+    if not SHELL_ALIASES_FILE.is_file():
+        print(f"[skip] no {SHELL_ALIASES_FILE} - to get a short command, add this to your shell profile:")
+        print(f"       {line}")
+        return
+
+    lines = SHELL_ALIASES_FILE.read_text(encoding="utf-8").splitlines()
+    prefix = f"alias {SHELL_ALIAS}="
+    existing = [i for i, l in enumerate(lines) if l.strip().startswith(prefix)]
+    if existing and lines[existing[0]].strip() == line:
+        print(f"[ok] '{SHELL_ALIAS}' alias already in ~/{SHELL_ALIASES_FILE.name}")
+        return
+    if existing:
+        lines[existing[0]] = line
+        action = "updated"
+    else:
+        lines += ["", "# dns-as-code: `dnsc <command>` = python3 scripts/dnsctl.py <command>", line]
+        action = "added"
+    SHELL_ALIASES_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"[ok] {action} '{SHELL_ALIAS}' alias in ~/{SHELL_ALIASES_FILE.name} "
+          f"(use it in new terminals, or now after: source ~/{SHELL_ALIASES_FILE.name})")
 
 
 def cmd_install_dnscontrol(args) -> int:
@@ -464,27 +485,16 @@ def cmd_install_dnscontrol(args) -> int:
 
 
 def cmd_preview(_args) -> int:
-    env = load_cloudflare_env()
-    if "CLOUDFLARE_API_TOKEN" not in env and "CLOUDFLARE_API_TOKEN" not in os.environ:
-        eprint("error: CLOUDFLARE_API_TOKEN not set in .env, the environment, or Key Vault.")
-        eprint("       Run: python scripts/dnsctl.py setup")
-        return 1
-    return run_dnscontrol(["preview"], env)
+    return run_dnscontrol(["preview"], {})
 
 
 def cmd_push(args) -> int:
-    env = load_cloudflare_env()
-    if "CLOUDFLARE_API_TOKEN" not in env and "CLOUDFLARE_API_TOKEN" not in os.environ:
-        eprint("error: CLOUDFLARE_API_TOKEN not set in .env, the environment, or Key Vault.")
-        return 1
-
     print(
-        "WARNING: this will apply changes directly to the live Cloudflare zones "
-        f"managed here ({', '.join(ZONES)}). The normal workflow is: open a PR, review "
-        "the DNS Preview comment, and merge to main so the apply.yml GitHub Actions "
-        "workflow applies it with the write-scoped token. Running this locally requires "
-        "the write token to be set yourself for this one command (e.g. via "
-        "CLOUDFLARE_API_TOKEN_WRITE in .env) - see docs/security.md before doing this."
+        "WARNING: this applies changes directly to the live zone(s) managed here "
+        f"({', '.join(ZONES)}). The normal workflow is: open a PR, review the DNS "
+        "Preview comment, get it approved, and merge to main so the DNS Apply CI job "
+        "applies it. In this lab only CI may change the shared zone, so from your "
+        "terminal the PowerDNS API refuses this with 403."
     )
     if not args.yes:
         confirm = input('Type "APPLY" to continue, anything else to abort: ')
@@ -492,22 +502,10 @@ def cmd_push(args) -> int:
             print("Aborted.")
             return 1
 
-    write_token = env.get("CLOUDFLARE_API_TOKEN_WRITE") or os.environ.get(
-        "CLOUDFLARE_API_TOKEN_WRITE"
-    )
-    overrides = dict(env)
-    if write_token:
-        overrides["CLOUDFLARE_API_TOKEN"] = write_token
-
-    return run_dnscontrol(["push"], overrides)
+    return run_dnscontrol(["push"], {})
 
 
 def cmd_import(args) -> int:
-    env = load_cloudflare_env()
-    if "CLOUDFLARE_API_TOKEN" not in env and "CLOUDFLARE_API_TOKEN" not in os.environ:
-        eprint("error: CLOUDFLARE_API_TOKEN not set in .env, the environment, or Key Vault.")
-        return 1
-
     zone = args.zone
     if not zone:
         if len(ZONES) == 1:
@@ -522,13 +520,13 @@ def cmd_import(args) -> int:
     out_path = args.out
     print(f"Snapshotting live zone '{zone}' to {out_path} ...")
     rc = run_dnscontrol(
-        ["get-zones", "--format=js", f"--out={out_path}", CREDKEY, zone], env
+        ["get-zones", "--format=js", f"--out={out_path}", CREDKEY, zone], {}
     )
     if rc == 0:
         print(f"[ok] wrote {out_path}")
         print("Now manually merge any new/changed records into dnsconfig.js, delete "
-              f"{out_path}, and run `python scripts/dnsctl.py preview` to confirm "
-              "0 corrections before committing. See docs/operations.md#re-baselining-the-zone.")
+              f"{out_path}, and run `python3 scripts/dnsctl.py preview` to confirm "
+              "0 corrections before committing.")
     return rc
 
 
@@ -605,9 +603,9 @@ def cmd_submit(args) -> int:
     print(result.stdout.strip())
 
     print(
-        "\nNext: wait for the 'DNS Preview' check (python scripts/dnsctl.py status), "
-        "review it (python scripts/dnsctl.py review <PR#>), then "
-        "python scripts/dnsctl.py merge <PR#>."
+        "\nNext: wait for the 'DNS Preview' check (python3 scripts/dnsctl.py status), "
+        "review it (python3 scripts/dnsctl.py review <PR#>), then "
+        "python3 scripts/dnsctl.py merge <PR#>."
     )
     return 0
 
@@ -694,9 +692,9 @@ def cmd_approve(args) -> int:
             print(
                 "You can't approve your own pull request. main needs one approval "
                 "from someone else: ask a teammate to run\n"
-                f"  python scripts/dnsctl.py approve {number}\n"
+                f"  python3 scripts/dnsctl.py approve {number}\n"
                 "and once it's approved and the DNS Preview check has passed, run:\n"
-                f"  python scripts/dnsctl.py merge {number}"
+                f"  python3 scripts/dnsctl.py merge {number}"
             )
             return 1
         eprint(stderr or result.stdout.strip())
@@ -733,7 +731,7 @@ def cmd_merge(args) -> int:
         if failed:
             eprint(
                 f"error: DNS Preview check has not succeeded for PR #{number}. "
-                f"Run: python scripts/dnsctl.py review {number}"
+                f"Run: python3 scripts/dnsctl.py review {number}"
             )
             if not args.force:
                 return 1
@@ -741,8 +739,8 @@ def cmd_merge(args) -> int:
 
     print(f'PR #{number}: "{data.get("title")}"')
     print(
-        "Merging will trigger the 'DNS Apply' GitHub Actions workflow, which applies "
-        f"this change to the live Cloudflare zone(s) managed here ({', '.join(ZONES)})."
+        "Merging triggers the 'DNS Apply' CI job, which applies this change to the "
+        f"live zone(s) managed here ({', '.join(ZONES)})."
     )
     if not args.yes:
         confirm = input('Type "MERGE" to continue, anything else to abort: ')
@@ -758,7 +756,7 @@ def cmd_merge(args) -> int:
 
     if not args.wait:
         print(
-            "Merged. Run 'python scripts/dnsctl.py validate "
+            "Merged. Run 'python3 scripts/dnsctl.py validate "
             f"{number}' to confirm 'DNS Apply' succeeded and live state matches "
             "dnsconfig.js, or watch the Actions tab yourself."
         )
@@ -799,27 +797,21 @@ def cmd_begin(args) -> int:
         )
         return 1
 
-    env = load_cloudflare_env()
-    have_token = "CLOUDFLARE_API_TOKEN" in env or "CLOUDFLARE_API_TOKEN" in os.environ
-    if have_token:
-        print(
-            f"\nChecking '{base}' matches live Cloudflare state "
-            "(dnscontrol preview --expect-no-changes)..."
+    print(
+        f"\nChecking '{base}' matches the live zone "
+        "(dnscontrol preview --expect-no-changes)..."
+    )
+    rc = run_dnscontrol(["preview", "--expect-no-changes"], {})
+    if rc != 0:
+        eprint(
+            "\nwarning: the live zone does not match dnsconfig.js on "
+            f"'{base}'. This usually means a change made outside git, or an apply "
+            "that hasn't landed yet. Find out which before building an unrelated "
+            "change on top of it."
         )
-        rc = run_dnscontrol(["preview", "--expect-no-changes"], env)
-        if rc != 0:
-            eprint(
-                "\nwarning: live Cloudflare state does not match dnsconfig.js on "
-                f"'{base}'. This usually means an out-of-band dashboard edit, or an "
-                "apply that hasn't landed yet. See "
-                "docs/operations.md#responding-to-detected-drift before building an "
-                "unrelated change on top of this."
-            )
-            if not args.yes and not prompt_yes_no("Continue anyway?", default_yes=False):
-                print("Aborted.")
-                return 1
-    else:
-        print("\n[skip] no CLOUDFLARE_API_TOKEN in .env - skipping the live-state drift check.")
+        if not args.yes and not prompt_yes_no("Continue anyway?", default_yes=False):
+            print("Aborted.")
+            return 1
 
     description = args.description or prompt(
         "Short description for this change (used for the branch name)"
@@ -829,22 +821,12 @@ def cmd_begin(args) -> int:
     if git(["checkout", "-b", branch]).returncode != 0:
         return 1
 
-    if have_token:
-        print(
-            "\nChecking _acme-challenge records against live Cloudflare "
-            "(these rotate out-of-band, outside this repo's control)..."
-        )
-        sync_args = argparse.Namespace(zone=None, yes=args.yes)
-        rc = cmd_record_sync_acme(sync_args, offer_submit=False)
-        if rc == 1:
-            print("Continuing without the ACME sync - run 'record sync-acme' later if needed.")
-
     print(
         f"\nReady on branch '{branch}'. Now:\n"
         "  1. Edit dnsconfig.js\n"
-        "  2. python scripts/dnsctl.py lint\n"
-        "  3. python scripts/dnsctl.py preview\n"
-        '  4. python scripts/dnsctl.py submit "<description of change>"'
+        "  2. python3 scripts/dnsctl.py lint\n"
+        "  3. python3 scripts/dnsctl.py preview\n"
+        '  4. python3 scripts/dnsctl.py submit "<description of change>"'
     )
     return 0
 
@@ -871,7 +853,7 @@ def cmd_history(args) -> int:
         kind = " (merge)" if len(parents.split()) > 1 else ""
         print(f"{sha[:8]:<10} {date:<12} {pr:<6} {subject}{kind}")
 
-    print("\nRoll one back: python scripts/dnsctl.py rollback <PR#|commit>")
+    print("\nRoll one back: python3 scripts/dnsctl.py rollback <PR#|commit>")
     return 0
 
 
@@ -949,8 +931,8 @@ def cmd_rollback(args) -> int:
         eprint(
             "error: git revert hit a conflict - resolve it manually (see `git status`), "
             "then run:\n"
-            "  python scripts/dnsctl.py preview\n"
-            f'  python scripts/dnsctl.py submit "Revert: {subject}"'
+            "  python3 scripts/dnsctl.py preview\n"
+            f'  python3 scripts/dnsctl.py submit "Revert: {subject}"'
         )
         return 1
 
@@ -988,7 +970,7 @@ def cmd_rollback(args) -> int:
         return result.returncode
     print(result.stdout.strip())
     print(
-        "\nNext: python scripts/dnsctl.py status / review <PR#> / merge <PR#> - "
+        "\nNext: python3 scripts/dnsctl.py status / review <PR#> / merge <PR#> - "
         "same as any other change."
     )
     return 0
@@ -1000,8 +982,8 @@ DEFAULT_VALIDATE_TIMEOUT = 300
 def sync_local_main() -> bool:
     """Switch to main and fast-forward it to origin/main. Refuses (rather than
     stashing or discarding) if the working tree isn't clean - same guard
-    `begin`/`rollback` use. `validate` needs this because it compares live
-    Cloudflare against whatever dnsconfig.js is on disk; running it from a
+    `begin`/`rollback` use. `validate` needs this because it compares the
+    live zone against whatever dnsconfig.js is on disk; running it from a
     stale or unrelated branch would otherwise report phantom drift that's
     actually just local/main being out of sync, not a real problem."""
     status = git_output(["status", "--porcelain"])
@@ -1030,11 +1012,11 @@ def sync_local_main() -> bool:
     return True
 
 
-# Keep in sync with the `paths:` filter in .github/workflows/apply.yml - a
+# Keep in sync with the `paths:` filter in .forgejo/workflows/dns-apply.yml - a
 # commit touching none of these never triggers DNS Apply at all, so `validate`
 # has nothing to wait for and shouldn't burn its timeout polling for a run
 # that will never appear.
-APPLY_TRIGGER_PATHS = {"dnsconfig.js", "creds.json", ".github/workflows/apply.yml"}
+APPLY_TRIGGER_PATHS = {"dnsconfig.js", "creds.json"}
 
 
 def commit_triggers_apply(sha: str) -> bool | None:
@@ -1067,7 +1049,7 @@ def resolve_validate_target_sha(target: str | None) -> str | None:
 def validate_apply(target: str | None, timeout: int) -> int:
     """Confirm a merged change actually landed: find the 'DNS Apply' run for
     the target commit, wait for it to finish, then re-run `dnscontrol preview
-    --expect-no-changes` to confirm live Cloudflare now matches dnsconfig.js.
+    --expect-no-changes` to confirm the live zone now matches dnsconfig.js.
     This is the automated version of what merging a PR otherwise leaves as a
     manual "go check the Actions tab" step.
 
@@ -1088,10 +1070,10 @@ def validate_apply(target: str | None, timeout: int) -> int:
 
     if commit_triggers_apply(sha) is False:
         print(
-            f"Commit {short} doesn't touch dnsconfig.js/creds.json/apply.yml, so 'DNS "
+            f"Commit {short} doesn't touch dnsconfig.js/creds.json, so 'DNS "
             "Apply' never runs for it (see the `paths:` filter in "
-            ".github/workflows/apply.yml) - nothing to wait for.\n"
-            "Confirming live Cloudflare still matches the current dnsconfig.js anyway..."
+            ".forgejo/workflows/dns-apply.yml) - nothing to wait for.\n"
+            "Confirming the live zone still matches the current dnsconfig.js anyway..."
         )
     else:
         print("Looking for the 'DNS Apply' workflow run for this commit...")
@@ -1115,7 +1097,7 @@ def validate_apply(target: str | None, timeout: int) -> int:
                 eprint(
                     f"error: no 'DNS Apply' run found for {short} within {timeout}s - it "
                     "may not have started yet, or this commit never reached main via a "
-                    "merge. Check the Actions tab, or re-run with a longer --timeout."
+                    "merge. Check the repo's Actions tab in Forgejo, or re-run with a longer --timeout."
                 )
                 return 1
             time.sleep(5)
@@ -1128,21 +1110,19 @@ def validate_apply(target: str | None, timeout: int) -> int:
             eprint(f"\nerror: 'DNS Apply' run {run_id} did not succeed - see {run_url}")
             return 1
 
-        print("\n'DNS Apply' succeeded. Confirming live Cloudflare state matches dnsconfig.js...")
+        print("\n'DNS Apply' succeeded. Confirming the live zone matches dnsconfig.js...")
 
-    env = load_cloudflare_env()
-    rc = run_dnscontrol(["preview", "--expect-no-changes"], env)
+    rc = run_dnscontrol(["preview", "--expect-no-changes"], {})
     if rc != 0:
         eprint(
-            "\nerror: 'DNS Apply' succeeded but live Cloudflare state still doesn't match "
-            "dnsconfig.js (see the corrections above). This usually means a second, "
-            "unrelated drift source (e.g. an out-of-band ACME renewal) rather than a "
-            "problem with the apply itself - see "
-            "docs/operations.md#responding-to-detected-drift."
+            "\nerror: 'DNS Apply' succeeded but the live zone still doesn't match "
+            "dnsconfig.js (see the corrections above). Usually that's a newer merge "
+            "whose own 'DNS Apply' hasn't finished yet - wait a few seconds and run "
+            "validate again."
         )
         return 1
 
-    print(f"\nValidated: commit {short} is live on Cloudflare and matches dnsconfig.js exactly.")
+    print(f"\nValidated: commit {short} is live and the zone matches dnsconfig.js exactly.")
     return 0
 
 
@@ -1175,7 +1155,6 @@ def cmd_record_add(args) -> int:
 
     value = args.value
     priority = args.priority
-    proxy = args.proxy
     ttl = args.ttl
 
     if value is None:
@@ -1204,20 +1183,13 @@ def cmd_record_add(args) -> int:
             return 1
         priority = int(prompt("Priority (lower number = preferred)", default="10"))
 
-    if record_type in ("A", "CNAME") and proxy is None:
-        if interactive:
-            proxy = prompt_yes_no("Proxy through Cloudflare (orange cloud)?", default_yes=True)
-        else:
-            proxy = True
-            print("note: defaulting to proxy ON (pass --no-proxy to disable)")
-
     if record_type == "TXT" and ttl is None and interactive:
         ttl_input = prompt("TTL override in seconds (blank = zone default)", default="")
         ttl = int(ttl_input) if ttl_input else None
 
     try:
         line = build_record_line(
-            record_type, name, value, priority=priority, proxy=proxy, ttl=ttl
+            record_type, name, value, priority=priority, ttl=ttl
         )
     except ValueError as e:
         eprint(f"error: {e}")
@@ -1242,7 +1214,7 @@ def cmd_record_add(args) -> int:
             print(
                 f"\nWARNING: {fqdn_for(name, zone)} already has {'/'.join(existing_types)} record(s), "
                 "and CNAME can't coexist with any other record type on the same name "
-                "(DNS-wide rule, not specific to this project). Cloudflare will likely reject this."
+                "(DNS-wide rule, not specific to this project). dnscontrol will reject this at preview."
             )
             for _, existing_line in same_name_other_type:
                 print(f"  {existing_line.strip()}")
@@ -1355,14 +1327,6 @@ def cmd_record_edit(args) -> int:
         else:
             priority = int(current_priority)
 
-    proxy = args.proxy
-    if record_type in ("A", "CNAME") and proxy is None:
-        current_proxy = parsed["proxied"] == "yes"
-        if interactive:
-            proxy = prompt_yes_no("Proxy through Cloudflare (orange cloud)?", default_yes=current_proxy)
-        else:
-            proxy = current_proxy
-
     ttl = args.ttl
     if ttl is None and parsed["ttl"]:
         ttl = int(parsed["ttl"])
@@ -1370,11 +1334,9 @@ def cmd_record_edit(args) -> int:
         ttl_input = prompt("TTL override in seconds (blank = zone default)", default=str(ttl) if ttl else "")
         ttl = int(ttl_input) if ttl_input else None
 
-    had_explicit_proxy_off = parsed["proxied"] == "no"
     try:
         new_line = build_record_line(
-            record_type, name, value, priority=priority, proxy=proxy, ttl=ttl,
-            proxy_off=had_explicit_proxy_off and not proxy,
+            record_type, name, value, priority=priority, ttl=ttl,
             extras=parsed.get("extras"), comment=parsed.get("comment", ""),
         )
     except ValueError as e:
@@ -1533,11 +1495,8 @@ def cmd_record_update_ip(args) -> int:
 
     for zone, idx, _line, parsed in matches:
         ttl = int(parsed["ttl"]) if parsed["ttl"] else None
-        proxy = parsed["proxied"] == "yes"
         new_line = build_record_line(
-            "A", parsed["name"], args.new_ip,
-            proxy=proxy, ttl=ttl,
-            proxy_off=(parsed["proxied"] == "no" and not proxy),
+            "A", parsed["name"], args.new_ip, ttl=ttl,
             extras=parsed.get("extras"), comment=parsed.get("comment", ""),
         )
         replace_line_at(idx, new_line)
@@ -1569,27 +1528,19 @@ def cmd_record_prune_acme(args) -> int:
     if args.offline:
         pass
     else:
-        env = load_cloudflare_env()
-        if "CLOUDFLARE_API_TOKEN" not in env and "CLOUDFLARE_API_TOKEN" not in os.environ:
-            eprint(
-                "note: no CLOUDFLARE_API_TOKEN available (.env, environment, or Key Vault) - "
-                "falling back to the token-count heuristic only. Set up .env (see "
-                "docs/getting-started.md) or pass --offline to silence this."
-            )
-        else:
-            live_active = True
-            for zone in zones_to_check:
-                print(f"Fetching live state for {zone} ...", file=sys.stderr)
-                live = fetch_live_acme_entries(zone, env)
-                if live is None:
-                    eprint(
-                        f"note: failed to fetch live state for {zone} (dnscontrol get-zones "
-                        "failed) - falling back to the token-count heuristic only."
-                    )
-                    live_active = False
-                    live_by_zone = {}
-                    break
-                live_by_zone[zone] = live
+        live_active = True
+        for zone in zones_to_check:
+            print(f"Fetching live state for {zone} ...", file=sys.stderr)
+            live = fetch_live_acme_entries(zone)
+            if live is None:
+                eprint(
+                    f"note: failed to fetch live state for {zone} (dnscontrol get-zones "
+                    "failed) - falling back to the token-count heuristic only."
+                )
+                live_active = False
+                live_by_zone = {}
+                break
+            live_by_zone[zone] = live
 
     groups = collections.defaultdict(list)
     for e in entries:
@@ -1608,9 +1559,9 @@ def cmd_record_prune_acme(args) -> int:
             if live_active:
                 key = (e[3]["name"], e[3]["value"])
                 marker = (
-                    "  [confirmed gone from Cloudflare - safe to remove]"
+                    "  [gone from the live zone - safe to remove]"
                     if key not in live_by_zone.get(zone, set())
-                    else "  [still live on Cloudflare]"
+                    else "  [still live]"
                 )
             print(f"  [{len(flat)}] {e[2].strip()}{marker}")
             flat.append(e)
@@ -1621,17 +1572,16 @@ def cmd_record_prune_acme(args) -> int:
             extra_live = live_by_zone.get(zone, set()) - local_keys
             if extra_live:
                 print(
-                    f"\n[!] Live on Cloudflare ({zone}) but NOT in {DNSCONFIG_FILE.name} - "
-                    "the next `apply` (from any merged PR, not just an ACME-related one) would "
-                    "DELETE these from Cloudflare, since dnscontrol makes Cloudflare match "
-                    "dnsconfig.js:"
+                    f"\n[!] Live in {zone} but NOT in {DNSCONFIG_FILE.name} - "
+                    "the next apply (from any merged PR, not just an ACME-related one) would "
+                    "DELETE these, since dnscontrol makes the live zone match dnsconfig.js:"
                 )
                 for name, value in sorted(extra_live):
                     print(f"    {fqdn_for(name, zone)}  {value!r}")
                 print(
                     "    If one of these is mid-renewal, do nothing and re-run this check "
-                    "shortly. Otherwise fold it into dnsconfig.js (see "
-                    "docs/operations.md#re-baselining-a-zone) before merging anything else."
+                    "shortly. Otherwise fold it into dnsconfig.js (`record sync-acme`) "
+                    "before merging anything else."
                 )
 
     if not args.remove:
@@ -1639,7 +1589,7 @@ def cmd_record_prune_acme(args) -> int:
             "\nThese aren't deleted automatically - only your cert issuer/reverse proxy "
             "knows which tokens are still live. Re-run with --remove <index> [<index> ...] "
             "once you've confirmed which ones are stale"
-            + (" (see the [confirmed gone from Cloudflare] markers above)." if live_active else ".")
+            + (" (see the [gone from the live zone] markers above)." if live_active else ".")
         )
         return 0
 
@@ -1668,15 +1618,10 @@ def cmd_record_prune_acme(args) -> int:
 
 
 def cmd_record_sync_acme(args, offer_submit: bool = True) -> int:
-    """Fold live Cloudflare's _acme-challenge TXT records into dnsconfig.js -
+    """Fold the live zone's _acme-challenge TXT records into dnsconfig.js -
     adding what's missing locally, removing what's gone upstream - since an
     out-of-band ACME client (e.g. Caddy) is the real source of truth for these
     specific records, unlike everything else dnsconfig.js manages."""
-    env = load_cloudflare_env()
-    if "CLOUDFLARE_API_TOKEN" not in env and "CLOUDFLARE_API_TOKEN" not in os.environ:
-        eprint("error: CLOUDFLARE_API_TOKEN not set in .env, the environment, or Key Vault.")
-        return 1
-
     if args.zone and args.zone not in ZONES:
         eprint(f"error: '{args.zone}' is not a zone this project manages ({', '.join(ZONES)}).")
         return 1
@@ -1686,7 +1631,7 @@ def cmd_record_sync_acme(args, offer_submit: bool = True) -> int:
     to_add = []     # (zone, name, value, ttl)
     for zone in zones_to_check:
         print(f"Fetching live state for {zone} ...", file=sys.stderr)
-        live = fetch_live_acme_snapshot(zone, env)
+        live = fetch_live_acme_snapshot(zone)
         if live is None:
             eprint(f"error: failed to fetch live state for {zone} (dnscontrol get-zones failed).")
             return 1
@@ -1703,21 +1648,21 @@ def cmd_record_sync_acme(args, offer_submit: bool = True) -> int:
                 to_add.append((zone, p["name"], p["value"], p.get("ttl") or None))
 
     if not to_remove and not to_add:
-        print("dnsconfig.js already matches live Cloudflare state for all _acme-challenge records.")
+        print("dnsconfig.js already matches the live zone for all _acme-challenge records.")
         return 0
 
     if to_remove:
-        print(f"\nIn dnsconfig.js but not live on Cloudflare - would remove {len(to_remove)}:")
+        print(f"\nIn dnsconfig.js but not live - would remove {len(to_remove)}:")
         for zone, _i, line in to_remove:
             print(f"  ({zone})  {line.strip()}")
     if to_add:
-        print(f"\nLive on Cloudflare but not in dnsconfig.js - would add {len(to_add)}:")
+        print(f"\nLive but not in dnsconfig.js - would add {len(to_add)}:")
         for zone, name, value, ttl in to_add:
             print(f"  ({zone})  {fqdn_for(name, zone)}  {value!r}")
 
     interactive = not args.yes
     if interactive and not prompt_yes_no(
-        "\nApply this to dnsconfig.js so it matches live Cloudflare state?", default_yes=False
+        "\nApply this to dnsconfig.js so it matches the live zone?", default_yes=False
     ):
         print("Aborted.")
         return 1
@@ -1747,7 +1692,7 @@ def cmd_record_sync_acme(args, offer_submit: bool = True) -> int:
         "_acme-challenge record(s)"
     )
     offer_preview_and_submit(
-        "Sync _acme-challenge TXT records with live Cloudflare state", interactive=interactive
+        "Sync _acme-challenge TXT records with the live zone", interactive=interactive
     )
     return 0
 
@@ -1848,7 +1793,6 @@ def collect_show_rows(zone_filter: str | None) -> tuple[list[list[str]], list[tu
                 parsed["value"],
                 parsed["priority"],
                 parsed["ttl"],
-                parsed["proxied"],
             ])
     return rows, skipped
 
@@ -1893,14 +1837,14 @@ def cmd_show(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Cross-platform helper for this dnscontrol/Cloudflare project."
+        description="Cross-platform helper for this dnscontrol/PowerDNS project."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_doctor = sub.add_parser("doctor", help="Check local environment setup.")
     p_doctor.set_defaults(func=cmd_doctor)
 
-    p_setup = sub.add_parser("setup", help="One-time local setup (git hook + .env).")
+    p_setup = sub.add_parser("setup", help="One-time local setup (enable git hooks, create .env, add the `dnsc` alias).")
     p_setup.set_defaults(func=cmd_setup)
 
     p_install = sub.add_parser(
@@ -1985,7 +1929,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_review.set_defaults(func=cmd_review)
 
     p_approve = sub.add_parser(
-        "approve", help="Approve a PR (fails on your own PR - GitHub restriction)."
+        "approve", help="Approve someone else's PR (you can't approve your own)."
     )
     p_approve.add_argument("pr", type=int, help="Pull request number.")
     p_approve.add_argument("--body", default=None, help="Review comment body.")
@@ -2004,8 +1948,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_merge.add_argument(
         "--wait", action="store_true",
-        help="After merging, wait for 'DNS Apply' to complete and confirm live Cloudflare "
-        "state matches dnsconfig.js (equivalent to running `validate` immediately after).",
+        help="After merging, wait for 'DNS Apply' to complete and confirm the live zone "
+        "matches dnsconfig.js (equivalent to running `validate` immediately after).",
     )
     p_merge.add_argument(
         "--timeout", type=int, default=DEFAULT_VALIDATE_TIMEOUT,
@@ -2036,7 +1980,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_validate = sub.add_parser(
         "validate",
-        help="Confirm a merged change's 'DNS Apply' run succeeded and live Cloudflare "
+        help="Confirm a merged change's 'DNS Apply' run succeeded and the live zone "
         "matches dnsconfig.js.",
     )
     p_validate.add_argument(
@@ -2054,12 +1998,12 @@ def build_parser() -> argparse.ArgumentParser:
     record_sub = p_record.add_subparsers(dest="record_command", required=True)
 
     p_record_add = record_sub.add_parser(
-        "add", help='Add a record, e.g. `record add plex.example.com`.'
+        "add", help='Add a record, e.g. `record add www.dojo.test`.'
     )
     p_record_add.add_argument(
         "target",
-        help='Record name - fully-qualified (e.g. "plex.example.com") or, with '
-             '--zone, a bare relative name (e.g. "plex").',
+        help='Record name - fully-qualified (e.g. "www.dojo.test") or, with '
+             '--zone, a bare relative name (e.g. "www").',
     )
     p_record_add.add_argument(
         "--zone", choices=ZONES, default=None,
@@ -2072,14 +2016,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_record_add.add_argument("--value", default=None, help="Target/value. Prompted for if omitted.")
     p_record_add.add_argument("--priority", type=int, default=None, help="MX priority.")
-    p_record_add.add_argument(
-        "--proxy", dest="proxy", action="store_true", default=None,
-        help="Enable the Cloudflare proxy (A/CNAME only).",
-    )
-    p_record_add.add_argument(
-        "--no-proxy", dest="proxy", action="store_false",
-        help="Disable the Cloudflare proxy (A/CNAME only).",
-    )
     p_record_add.add_argument("--ttl", type=int, default=None, help="TTL override in seconds.")
     p_record_add.add_argument(
         "--yes", action="store_true",
@@ -2089,13 +2025,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_record_edit = record_sub.add_parser(
         "edit",
-        help='Change the value/priority/proxy/TTL of an existing record in place '
+        help='Change the value/priority/TTL of an existing record in place '
              '(instead of remove + add).',
     )
     p_record_edit.add_argument(
         "target",
-        help='Record name - fully-qualified (e.g. "plex.example.com") or, with '
-             '--zone, a bare relative name (e.g. "plex").',
+        help='Record name - fully-qualified (e.g. "www.dojo.test") or, with '
+             '--zone, a bare relative name (e.g. "www").',
     )
     p_record_edit.add_argument(
         "--zone", choices=ZONES, default=None,
@@ -2111,14 +2047,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_record_edit.add_argument("--value", default=None, help="New target/value. Prompted for if omitted.")
     p_record_edit.add_argument("--priority", type=int, default=None, help="New MX priority.")
-    p_record_edit.add_argument(
-        "--proxy", dest="proxy", action="store_true", default=None,
-        help="Enable the Cloudflare proxy (A/CNAME only).",
-    )
-    p_record_edit.add_argument(
-        "--no-proxy", dest="proxy", action="store_false",
-        help="Disable the Cloudflare proxy (A/CNAME only).",
-    )
     p_record_edit.add_argument("--ttl", type=int, default=None, help="New TTL override in seconds.")
     p_record_edit.add_argument(
         "--yes", action="store_true",
@@ -2127,12 +2055,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_record_edit.set_defaults(func=cmd_record_edit)
 
     p_record_remove = record_sub.add_parser(
-        "remove", help='Remove a record, e.g. `record remove plex.example.com`.'
+        "remove", help='Remove a record, e.g. `record remove www.dojo.test`.'
     )
     p_record_remove.add_argument(
         "target",
-        help='Record name - fully-qualified (e.g. "plex.example.com") or, with '
-             '--zone, a bare relative name (e.g. "plex").',
+        help='Record name - fully-qualified (e.g. "www.dojo.test") or, with '
+             '--zone, a bare relative name (e.g. "www").',
     )
     p_record_remove.add_argument(
         "--zone", choices=ZONES, default=None,
@@ -2157,7 +2085,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_record_list.add_argument(
         "name", nargs="?", default=None,
-        help='Filter by name, e.g. "plex" or "plex.example.com". Omit to list all zones.',
+        help='Filter by name, e.g. "www" or "www.dojo.test". Omit to list all zones.',
     )
     p_record_list.add_argument(
         "--zone", choices=ZONES, default=None,
@@ -2168,7 +2096,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_record_update_ip = record_sub.add_parser(
         "update-ip",
         help="Bulk-replace an IP across every A record that currently points at it, "
-             "e.g. after a residential IP change.",
+             "e.g. after a server moves.",
     )
     p_record_update_ip.add_argument("old_ip", help="The current IP to find, e.g. 203.0.113.10.")
     p_record_update_ip.add_argument("new_ip", help="The new IP to replace it with.")
@@ -2184,7 +2112,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_record_prune_acme = record_sub.add_parser(
         "prune-acme",
-        help="List _acme-challenge TXT records, cross-checked against live Cloudflare state "
+        help="List _acme-challenge TXT records, cross-checked against the live zone "
              "by default, and optionally remove specific ones.",
     )
     p_record_prune_acme.add_argument(
@@ -2199,10 +2127,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_record_prune_acme.add_argument(
         "--offline", action="store_true",
-        help="Skip the live Cloudflare cross-check (the default) and only use the token-count "
-             "heuristic - no .env/network needed. By default, with .env configured, each entry "
-             "is annotated against real Cloudflare state instead of only flagging by token "
-             "count, and live records missing from dnsconfig.js (which a future apply would "
+        help="Skip the live-zone cross-check (the default) and only use the token-count "
+             "heuristic - no network needed. By default each entry is annotated against the "
+             "live zone instead of only flagging by token count, and live records missing from dnsconfig.js (which a future apply would "
              "otherwise delete) are also reported. Read-only either way - never modifies "
              "dnsconfig.js by itself.",
     )
@@ -2214,7 +2141,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_record_sync_acme = record_sub.add_parser(
         "sync-acme",
-        help="Fold live Cloudflare's _acme-challenge TXT records into dnsconfig.js "
+        help="Fold the live zone's _acme-challenge TXT records into dnsconfig.js "
              "(add what's missing, remove what's gone upstream).",
     )
     p_record_sync_acme.add_argument(
@@ -2265,6 +2192,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    apply_env_file(ENV_FILE)
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)

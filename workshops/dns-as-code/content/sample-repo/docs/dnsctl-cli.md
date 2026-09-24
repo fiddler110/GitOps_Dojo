@@ -1,10 +1,10 @@
 # `dnsctl.py` — the CLI wrapper
 
-`scripts/dnsctl.py` is the same script a real dns-as-code repo ships —
-copied in unmodified except for two constants (`CREDKEY`/`ZONES`, pointed
-at this lab's `dojo.test` PowerDNS zone instead of the upstream template's
-Cloudflare zones) and one small addition: it picks between the GitHub CLI
-(`gh`) and a Forgejo API client (`scripts/dnsctl_lib/forgejo.py`)
+`scripts/dnsctl.py` wraps this repo's whole change loop (edit, preview,
+commit, pull request, review, merge, confirm) into one command per step.
+It is set up for this repo: `dnscontrol` with the PowerDNS provider in
+`creds.json`, and pull requests on Forgejo. It picks between a Forgejo API
+client (`scripts/dnsctl_lib/forgejo.py`) and the GitHub CLI (`gh`)
 automatically, based on your `origin` remote — see
 [making-changes.md](making-changes.md) for why that matters here. Python 3
 standard library only — no `pip install` needed.
@@ -17,8 +17,8 @@ python3 scripts/dnsctl.py <command> [options]
 
 | Command | Does |
 | --- | --- |
-| `doctor` | Checks dnscontrol is on PATH, creds.json/.env are set up, git hooks are enabled. Run this first. |
-| `setup` | One-time: enables `.githooks`, creates `.env` from `.env.example`. |
+| `doctor` | Checks dnscontrol is on PATH, `creds.json` is complete, the PowerDNS API answers, and git hooks are enabled. Run this first. |
+| `setup` | One-time: enables `.githooks`, creates the optional `.env` from `.env.example`, and adds a `dnsc` alias to `~/.zshrc_aliases` if that file exists. |
 | `preview` | `dnscontrol preview` — the dry-run diff. Changes nothing. |
 | `push` | `dnscontrol push` — applies the diff. Prompts for confirmation. |
 | `record add <name>` | Interactive wizard to add a record — shows the exact line before writing it. |
@@ -61,10 +61,12 @@ python3 scripts/dnsctl.py approve <PR#>                           # approve some
 python3 scripts/dnsctl.py merge <PR#>                             # merge once checks pass and it's approved
 ```
 
-The Forgejo path will prompt for your Forgejo username/password the first
-time it needs to call the API (same credentials as `git push`) and cache
-them for the rest of your terminal session — or set `FORGEJO_TOKEN` in
-`.env` to skip that.
+The Forgejo commands log in with the same username and password as
+`git push`, asked for through git itself: if git already remembers your
+login from an earlier push, you won't be asked again, and if you're asked
+now, your next `git push` won't ask either. dnsctl never writes the
+password to disk. To use an access token instead, set `FORGEJO_TOKEN` in
+`.env`.
 
 `merge`/`validate` check for a passing "DNS Preview"/"DNS Apply" CI
 status before proceeding — this lab actually has that wired up:
@@ -75,14 +77,14 @@ change for real, sets "DNS Apply" — what `validate`/`merge --wait` poll
 for). If a status genuinely isn't showing up yet, give it a few seconds —
 it's a real background job, not instant.
 
-## Why some of this still says "Cloudflare"
+## No secrets of its own
 
-This is the real script, not a rewrite — the record wizard's "Proxy through
-Cloudflare (orange cloud)?" prompt, the `CLOUDFLARE_API_TOKEN` environment
-variable name, and references to "live Cloudflare state" throughout its
-output are all inherited as-is. None of it is wired to anything in this
-lab (PowerDNS doesn't have a proxy concept — answer `n`), but leaving it
-visible is deliberate: it's a fast way to see, concretely, what "a wrapper
-written against one specific provider" costs when you point it somewhere
-else. A real fork for a new provider would clean these up; this lab
-doesn't, on purpose.
+Nothing here needs a secret beyond what's already in the repo:
+`dnscontrol` reads the PowerDNS API URL and key from `creds.json` (a lab
+key: your terminal can read `dojo.test` but only CI may change it), and
+the Forgejo commands reuse your git login. `.env` is optional and
+git-ignored; the `pre-commit` hook refuses to commit it.
+
+In a real repo `creds.json` would reference environment variables
+(`"apiKey": "$PDNS_API_KEY"`) and the write key would live only in CI's
+secrets. Same script, same commands.

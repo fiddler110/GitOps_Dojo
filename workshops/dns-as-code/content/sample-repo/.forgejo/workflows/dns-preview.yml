@@ -56,11 +56,9 @@ jobs:
       - name: Post preview as a PR comment
         if: always()
         run: |
-          # Marker text must stay "### dnscontrol preview" (lowercase,
-          # matching the upstream dns-as-code-template's own convention) -
-          # dnsctl.py's `review` command greps a PR's comments for the
-          # literal substring "dnscontrol preview" to find this one; it's
-          # real production code, not something this lab modifies.
+          # Marker text must stay "### dnscontrol preview" - dnsctl.py's
+          # `review` command finds this comment by the literal substring
+          # "dnscontrol preview".
           jq -Rs '{body: ("### dnscontrol preview\n\n```\n" + . + "\n```")}' preview-output.txt >comment.json
 
           # Update-in-place on a re-run (another push to the same PR)

@@ -102,7 +102,7 @@ dig @dns-server <name> TXT +short      # TXT record(s)
 
 ## `dnsctl.py` — the CLI Wrapper
 
-See [lab3.md](lab3.md) for a full walkthrough, and `docs/dnsctl-cli.md` in the repo for why some of its output still says "Cloudflare."
+See [lab4.md](lab4.md) for a full walkthrough, and `docs/dnsctl-cli.md` in the repo for every command.
 
 ```sh
 python3 scripts/dnsctl.py <command> [options]
@@ -112,8 +112,8 @@ python3 scripts/dnsctl.py <command> [options]
 
 | Command | Does |
 | --- | --- |
-| `doctor` | Checks dnscontrol is on PATH, `.env`/`creds.json` are set up, git hooks enabled. Run this first. |
-| `setup` | One-time: enables `.githooks`, creates `.env` from `.env.example`. |
+| `doctor` | Checks dnscontrol is on PATH, `creds.json` and the PowerDNS API work, git hooks enabled. Run this first. |
+| `setup` | One-time: enables `.githooks`, creates `.env` from `.env.example`, adds the `dnsc` alias (short for `python3 scripts/dnsctl.py`). |
 | `preview` | `dnscontrol preview` — the dry-run diff. |
 | `push` | `dnscontrol push` — applies the diff. Prompts for confirmation. Refused for `dojo.test` from your terminal (only CI may). |
 | `record add <name>` | Interactive wizard to add a record. |
@@ -137,7 +137,7 @@ python3 scripts/dnsctl.py <command> [options]
 | `rollback <PR#\|commit>` | Revert a merged change via a *new* PR — never pushes to `main` directly. See [lab5.md](lab5.md). |
 | `validate [target]` | Confirm a merge's "DNS Apply" run succeeded and live state matches `dnsconfig.js` (waits for the run by default). |
 
-These pick `gh` or a Forgejo API client automatically based on your `origin` remote — against this lab's Forgejo, the first one that needs to talk to the API will prompt for your username/password (same as `git push`) and cache it for the rest of the session.
+These pick `gh` or a Forgejo API client automatically based on your `origin` remote — against this lab's Forgejo, they log in with your `git push` login, asked for through git, so if git already remembers it you won't be asked again.
 
 ---
 

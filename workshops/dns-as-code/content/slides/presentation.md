@@ -337,30 +337,15 @@ skipping the wrapper entirely, so both tracks are teachable here.
 
 ---
 
-## What's still rough — and why that's left in
+## What the wrapper does and doesn't check
 
-- The `record add`/`record edit` wizard still asks **"Proxy through
-  Cloudflare (orange cloud)?"** for `A`/`CNAME` records — meaningless for
-  PowerDNS. Answer `n`. This is the real script, unmodified on purpose:
-  it's what a wrapper written against one specific provider looks like
-  once you point it somewhere else.
-- `merge`/`validate` check for a passing "DNS Preview"/"DNS Apply" CI
-  status before proceeding — and now find a real one, same as against a
-  GitHub repo with CI configured.
+- `doctor` checks `dnscontrol`, `creds.json`, the PowerDNS API and git
+  hooks. `setup` turns the hooks on: git never does that for a clone.
+- `merge` checks "DNS Preview" once and only warns if CI hasn't posted
+  yet. Forgejo still won't merge without a passing check and an approval.
+- `validate` waits for "DNS Apply", then confirms the live zone matches.
 
----
-
-## Same rough edges, continued
-
-- `merge` checks once, not on a retry loop — before a "DNS Preview"
-  check has posted it just warns ("no check found"), and `--force` skips
-  its refusal of a failed one. Here that doesn't matter: Forgejo's branch
-  protection still won't merge without a passing check and an approval.
-- `validate`, unlike `merge`, does poll and wait for its check to appear.
-
-> A wrapper doesn't remove the underlying tool's assumptions — it just
-> gives them a shorter name. Worth knowing which assumptions you inherited
-> before you trust a green checkmark.
+> A wrapper shortens the steps. The server still owns the gates.
 
 ---
 

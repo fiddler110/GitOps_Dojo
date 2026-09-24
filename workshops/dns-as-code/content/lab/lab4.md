@@ -1,6 +1,6 @@
 # Lab 4 — `dnsctl.py`, the CLI Wrapper
 
-**Optional. Part 2.** Lab 3 did every step by hand: edit the file, run `dnscontrol preview` yourself, `git add`/`commit`/`push` yourself, open the PR in the browser yourself. `scripts/dnsctl.py` is the real production wrapper script that automates that whole loop into one command per step — same file, same gates, same PR review and CI in between. See `docs/dnsctl-cli.md` in the repo for the full command reference and why some of its output still says "Cloudflare."
+**Optional. Part 2.** Lab 3 did every step by hand: edit the file, run `dnscontrol preview` yourself, `git add`/`commit`/`push` yourself, open the PR in the browser yourself. `scripts/dnsctl.py` is a wrapper script that automates that whole loop into one command per step — same file, same gates, same PR review and CI in between. See `docs/dnsctl-cli.md` in the repo for the full command reference.
 
 Work in your clone of the shared repo, starting from `main` with a clean working tree:
 
@@ -19,16 +19,25 @@ git status   # should be clean — finish or discard anything from Lab 3 first
 python3 scripts/dnsctl.py doctor
 ```
 
-`doctor` checks that `dnscontrol` is on `PATH`, that `.env`/`creds.json` are set up, and that git hooks are enabled. This is the first thing to run in any DNS-as-code repo, including a real one.
+`doctor` checks that `dnscontrol` is on `PATH`, that `creds.json` names the PowerDNS API, that the API answers, and that git hooks are enabled. This is the first thing to run in any DNS-as-code repo, including a real one.
 
-It'll flag a missing `.env` — fix it:
+Every check should say `[ok]` except one `[warn]`: git hooks aren't enabled yet. Git never turns on hooks from a repo you cloned, because a hook runs code on your machine, so each person enables them once per clone. Fix it:
 
 ```sh
 python3 scripts/dnsctl.py setup
-python3 scripts/dnsctl.py doctor   # should be clean now
+python3 scripts/dnsctl.py doctor   # all [ok] now
 ```
 
-`setup` creates `.env` from `.env.example` and enables `.githooks` (the same `pre-commit`/`pre-push` hooks you can read about in `.githooks/` — a lint check before every commit, and a `dnscontrol preview` check before anything pushes to `main` locally).
+`setup` enables `.githooks` (read them in `.githooks/`: a lint and secret check before every commit, and a `dnscontrol preview` check before anything is pushed to `main`) and creates `.env` from `.env.example`. `.env` is for optional personal settings and is never committed; nothing in this lab needs it.
+
+`setup` also adds a shortcut to `~/.zshrc_aliases` (your own alias file, loaded by every new terminal): `dnsc` means `python3 scripts/dnsctl.py`. Load it into this terminal and try it:
+
+```sh
+source ~/.zshrc_aliases
+dnsc doctor
+```
+
+The rest of this lab spells out the full command so it's clear what runs; `dnsc` works anywhere it says `python3 scripts/dnsctl.py`, from any folder.
 
 ---
 
@@ -40,9 +49,7 @@ Use a different name than your Lab 3 record, with your username in it:
 python3 scripts/dnsctl.py record add $USER-api.dojo.test
 ```
 
-It'll ask for a record type and value, then a `Proxy through Cloudflare (orange cloud)?` question for `A`/`CNAME` records — **answer `n`**. That prompt is real, unmodified production-script code; it's Cloudflare-specific and meaningless against this lab's PowerDNS backend. `docs/dnsctl-cli.md` explains why it's left in rather than patched out.
-
-After you confirm, it'll offer to preview and submit right there — say no for now, you'll do those as separate steps next so you can see each one.
+It asks for a record type and a value, shows the exact line it will add to `dnsconfig.js`, and asks you to confirm. After you confirm, it'll offer to preview and submit right there — say no for now, you'll do those as separate steps next so you can see each one.
 
 ---
 
@@ -58,7 +65,7 @@ Same `dnscontrol preview` you've been running by hand — confirm the diff shows
 python3 scripts/dnsctl.py submit "Add $USER-api.dojo.test"
 ```
 
-`submit` previews once more, commits, pushes a branch (creating one automatically since you started on `main`), and opens the PR for you — four manual steps from Lab 3 in one command. The first time it needs to talk to Forgejo, it'll prompt for your Forgejo username/password (same as your `git push` login) and cache it for the rest of this terminal session.
+`submit` previews once more, commits, pushes a branch (creating one automatically since you started on `main`), and opens the PR for you — four manual steps from Lab 3 in one command. It logs in to Forgejo with your `git push` login, so if git already remembers it from Lab 3 you won't be asked; otherwise git asks once, as it did for your first push.
 
 ---
 
