@@ -523,7 +523,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.6** *(3e1638c)* (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
       to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
       stored credential; a run from another repo is refused.
-- [x] **T0.7** *(SHA_T07)* (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
+- [x] **T0.7** *(79e2ac0)* (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
       waiting jobs and runner state; start-up time; memory while running a job.
       *Verify:* numbers recorded in §10/§15; a runner exits after exactly one job.
 - [ ] **T0.8** (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
