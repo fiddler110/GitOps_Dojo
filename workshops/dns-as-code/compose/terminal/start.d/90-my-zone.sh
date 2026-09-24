@@ -56,8 +56,16 @@ EOF
 }
 EOF
 
+  # Same path as in the shared repo, so Lab 1 can point at it. The mount comes
+  # from compose/docker-compose.override.yml; without it, just skip the docs.
+  if [ -f /opt/dojo/dns-docs/record-types.md ]; then
+    mkdir -p "$dir/docs"
+    cp /opt/dojo/dns-docs/record-types.md "$dir/docs/"
+  fi
+
   git -C "$dir" init -q -b main
   git -C "$dir" add dnsconfig.js creds.json
+  [ -f "$dir/docs/record-types.md" ] && git -C "$dir" add docs/record-types.md
   git -C "$dir" -c user.name="$user" -c user.email="$user@example.com" \
     commit -q -m "Start $zone"
   chown -R "$user:$(id -gn "$user")" "$dir"

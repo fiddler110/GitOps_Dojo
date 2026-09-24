@@ -118,6 +118,10 @@ services:
     depends_on:
       - dns-server
       - dns-api
+    # The seed repo's docs, read by start.d/90-my-zone.sh so each sandbox gets
+    # docs/record-types.md from the one source copy.
+    volumes:
+      - ../workshops/dns-as-code/content/sample-repo/docs:/opt/dojo/dns-docs:ro
 
   # Same runner as modules/forgejo-runner/, built from compose/runner/ so
   # CI jobs (which run in the runner container itself) have dnscontrol.

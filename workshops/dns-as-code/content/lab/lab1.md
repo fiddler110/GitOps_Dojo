@@ -76,7 +76,7 @@ Open `dnsconfig.js` and add these lines inside the `D(...)` block, after the `TX
 - `CNAME` makes a name an alias of another name. Targets are full names ending in a dot.
 - `MX` says which server receives mail for the zone, with a priority (lower wins).
 
-See `~/lab/dns-as-code/docs/record-types.md` once you've cloned the shared repo in Lab 3, or the [cheat sheet](cheat-sheet.md), for more record types.
+See `docs/record-types.md` in `my-zone`, or the [cheat sheet](cheat-sheet.md), for more record types.
 
 Pick whichever editor suits you:
 
