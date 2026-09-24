@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **M0 done (all three spikes pass, findings in §9). Waiting on the user for Q1 (module folder) and the go-ahead for M1.** |
+| Overall status | **M1 in progress (user go-ahead 2026-09-24).** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -36,8 +36,9 @@ before editing engine/ files, and about anything in section 8.
 | M4 | Carried over from vault S14/S17: no new per-workshop flags; once proven, **every workshop moves onto the mechanism** and `DEMO_APP_ENABLED` / `CLOUD_ENABLED` are deleted. | user, 2026-09-23 |
 | M5 | Gates are **fixed templates owned by the engine**. A manifest picks a gate by name and fills in checked values; it can never supply raw Caddy config, HTML or SVG. | proposed |
 | M6 | What `run.sh` needs in bash stays in env files (`MODULES=` in `workshop.env`, settings in `module.env`); what the engine renders goes in JSON (`extensions.json`). No JSON parsing in bash. | proposed |
-| M7 | A module is found **by convention**, not by config: `workshops/modules/<name>/{module.env, extensions.json, compose.yml, terminal/Dockerfile}`, each optional. | proposed |
+| M7 | A module is found **by convention**, not by config: top-level `modules/<name>/{module.env, extensions.json, compose.yml, terminal/Dockerfile, start.d/}`, each optional. | user (folder), 2026-09-24 |
 | M8 | Terminal tools stack by **chained builds**: every tools Dockerfile starts `ARG BASE` / `FROM ${BASE}`; `run.sh` builds base → module … → workshop. | proposed |
+| M11 | Terminal start-up work goes in **`/etc/dojo/start.d/*.sh` hooks** run by the base web-terminal entrypoint (engine edit, M2); no more per-workshop `ENTRYPOINT` wrappers. | user, 2026-09-24 |
 | M10 | The facilitator gets **their own demo site** (a vhost under the demo zone), not student01's. | user, 2026-09-24 |
 | M9 | The manifest is checked and rendered **before anything starts**, by a one-shot run of the allocator image (it already has Python; the host has no Python prerequisite). A bad manifest stops `./run.sh` with a clear error. | proposed |
 
@@ -120,7 +121,7 @@ Per-route options (all checked): `strip_prefix` (bool), `host` (upstream `Host` 
 ### 4.1 Layout
 
 ```
-workshops/modules/<name>/
+modules/<name>/
   module.env          # settings with defaults (e.g. DEMO_APP_ZONE=certs.dojo.test); workshop.env overrides
   extensions.json     # same format as §3.1
   compose.yml         # services/volumes/networks; relative paths resolve against engine/ (as overlays do today)
@@ -128,7 +129,7 @@ workshops/modules/<name>/
   README.md           # what it provides, which settings, which workshops use it
 ```
 
-`./run.sh list` ignores `workshops/modules/` (no `workshop.env`). A `./run.sh modules` listing is nice-to-have.
+`modules/` is outside `workshops/`, so `./run.sh list` never sees it. A `./run.sh modules` listing is nice-to-have.
 
 ### 4.2 Using modules
 
@@ -191,7 +192,8 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 ### M1: extensions (engine edits; ask before each)
 
-- [ ] **T1.1** `render_extensions.py` (+ unit tests for every rule in §3.1, run in the allocator image).
+- [x] **T1.1** (SHA below) `render_extensions.py` (+ unit tests for every rule in §3.1, run in the allocator image).
+  Verify: `podman run --rm --network none -v ./engine/allocator:/src:ro -w /src gitopsdojo/allocator:local python3 -B -m unittest discover -s tests` (31 pass).
 - [ ] **T1.2** `run.sh`: merge + render + `.generated/`; `docker-compose.yml` bind mounts; `.gitignore`.
 - [ ] **T1.3** Caddyfile `import`; gate templates.
 - [ ] **T1.4** Allocator: cards, admin tabs, status checks and `/auth-check?route=` from the manifest.
@@ -216,11 +218,11 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 ## 8. Open questions
 
-- **Q1** Module folder: `workshops/modules/<name>/` (M7, as the vault plan sketched) or top-level `modules/`?
+- ~~Q1~~ Answered (M7): top-level `modules/`.
 - ~~Q2~~ Answered (M10): the facilitator gets their own demo site.
 - ~~Q3~~ Answered by T0.1: modules **may** extend engine services (env, volumes, networks, depends_on all merge),
   provided they follow the network-form rule in §9.
-- **Q4** Terminal start-up hooks (§9 T0.3 finding): add a small `/etc/dojo/start.d/*.sh` hook runner to the base
+- ~~Q4~~ Answered (M11): yes. Terminal start-up hooks (§9 T0.3 finding): add a small `/etc/dojo/start.d/*.sh` hook runner to the base
   web-terminal entrypoint (engine edit; no hooks = no change), replacing the per-workshop `ENTRYPOINT` wrappers?
 
 ## 9. Findings
