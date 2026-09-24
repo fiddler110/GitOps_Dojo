@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **M1 done (all four workshops re-tested live; no workshop flags left in the engine). Waiting for the user's go-ahead for M2.** |
+| Overall status | **M2 done (two modules extracted; all four workshops re-tested live). Waiting for the user's go-ahead for M3.** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -223,11 +223,12 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 ### M2: modules
 
-- [ ] **T2.1** `run.sh`: `MODULES`, `module.env`, multi `-f`, `.last-overlay` list + `teardown.sh`.
-- [ ] **T2.2** `WEB_TERMINAL_IMAGE` + chained terminal builds; drop `image:` lines from overlays.
-- [ ] **T2.3** Extract `forgejo-runner` from dns-as-code. Real-stack test of dns-as-code's CI lab.
-- [ ] **T2.4** Extract `dojo-cloud` from tofu-basics. Real-stack test of tofu-basics (Track A and Dojo Cloud).
-- [ ] **T2.5** All four workshops start, `./run.sh stop` cleans up every module's volumes.
+- [x] **T2.1** `run.sh`: `MODULES`, `module.env`, multi `-f`, `.last-overlay` list + `teardown.sh`. 63d002f
+- [x] **T2.2** `WEB_TERMINAL_IMAGE` + chained terminal builds; drop `image:` lines from overlays. 63d002f, b28fc2b
+- [x] **T2.2b** (M11) `/etc/dojo/start.d/*.sh` hook runner; cert-autorenewal and dojo-cloud wrappers become hooks. 63d002f, b28fc2b
+- [x] **T2.3** Extract `forgejo-runner` from dns-as-code. Real-stack test of dns-as-code's CI lab. b28fc2b
+- [x] **T2.4** Extract `dojo-cloud` from tofu-basics. Real-stack test of tofu-basics (Track A and Dojo Cloud). b28fc2b
+- [x] **T2.5** All four workshops start, `./run.sh stop` cleans up every module's volumes. (test only)
 
 ### M3: docs and hand-over
 
@@ -312,3 +313,30 @@ names beside the running vault spike stack (untouched).
   - This machine's facilitator username is `admin` (not the `root` default), which is why M10's site is
     `admin.certs.dojo.test` here.
   - Not done in M1: a real-browser pass (no headless browser here) and docs (M3).
+
+### 2026-09-24: M2 modules
+- User: go for M2; also asked to re-check dns-as-code on M1 code (live: 4 cards, 5 admin tabs, 3 green checks, no
+  extension routes; same as `main`).
+- T2.1/T2.2/M11 (63d002f): `MODULES` in `workshop.env`; `module.env` sourced first, then `.env` and `workshop.env` again
+  (workshop wins); `-f` order engine, modules, overlay; `.last-overlay` is one file per line (old one-line files
+  still work); build detection hashes every module dir plus the overlay dir together; module manifests render as
+  `50-NN-module-<name>.json` before the workshop's `90-...`; `${VAR}` may name `module.env` keys too. Terminal chain
+  tags are `gitopsdojo/web-terminal:<workshop>.<module>` then `:<workshop>`. Hooks run after accounts exist, as
+  root, in name order (modules `50-`, workshops `90-`); a failing hook stops the container.
+- T2.3/T2.4 (b28fc2b): `modules/forgejo-runner/` and `modules/dojo-cloud/`, each with a README. tofu-basics has no
+  overlay left. Container names and image tags of dojo-cloud kept (tests use them); the runner's became
+  `workshop_runner` / `workshop_runner_setup`, volume `runner_config`.
+- Live results: dns-as-code DNS Apply (seed push) and DNS Preview (a real PR) both `success` on the module runner;
+  tofu-basics full `e2e.sh` 284 passed / 0 failed (track_a, track_b, policy, curl_ca, security), card, `/cloud`
+  gate (200 / 303), admin tab and green status from the module; cert-autorenewal hook ran, cron up, webroots owned
+  per account, `/demo` gives student01, student02 and the facilitator their own site, forged `X-Dojo-Host`
+  ignored, `acme.sh --issue` as the facilitator works; git-fundamentals runs on `:base`, cards/tabs unchanged.
+  `./run.sh stop` left no named volumes, networks or containers after each.
+- Worth knowing:
+  - A module that extends an engine service's list (`networks`, `volumes`) should list only what it adds: lists
+    append, so repeating `workshop_lab` duplicates it.
+  - A module's service image can be swapped per workshop by overriding `build.context` in the overlay (later file
+    wins); used for the runner's job tools instead of chaining a second image family.
+  - Not from M2: every dns-as-code start leaves one anonymous volume (seen on M1 code too; likely a `VOLUME` in the
+    PowerDNS image). Worth a named volume later.
+  - Still not done: a real-browser pass; docs (M3); `./run.sh list` doesn't show modules (nice-to-have).
