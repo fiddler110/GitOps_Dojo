@@ -1,5 +1,7 @@
 # dojo-cloud module
 
+Azure-inspired training cloud (API, portal, real containers) at /cloud.
+
 **Dojo Cloud**: an Azure-inspired training cloud with an ARM-style API, a portal and
 real containers. Students deploy to it with the `azurerm` provider. Add it with
 `MODULES="dojo-cloud"` in a `workshop.env`. The design and its history are in

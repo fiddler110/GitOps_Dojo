@@ -11,6 +11,7 @@
 #   ./run.sh <workshop-name> --test 14    # ...or N bots: 1-3 fixed personas, rest random
 #   ./run.sh <workshop-name> --dry-run    # preview: what would rebuild/start, builds nothing
 #   ./run.sh list                         # show available workshops
+#   ./run.sh modules                      # show available modules and who uses them
 #   ./run.sh stop | teardown              # stop the stack, wipe all volumes
 #   ./run.sh stop --dry-run               # preview what stop would remove, removes nothing
 #   ./run.sh help | -h | --help           # this overview + available workshops
@@ -94,6 +95,8 @@ Commands:
                                 --dry-run only previews what would be rebuilt
                                 and started
   list                          show available workshops
+  modules                       show available modules (../modules/) and which
+                                workshops use them (MODULES= in workshop.env)
   setup [--default] [--force]   create engine/.env
   capacity --students N [...]   size the terminal resource limits for this machine
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
@@ -112,14 +115,41 @@ list_workshops() {
     [ -f "${d}workshop.env" ] || continue
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
     case "$name" in
-      setup | capacity | stop | teardown | help | list)
+      setup | capacity | stop | teardown | help | list | modules)
         title="(unreachable: '${name}' is also a command, rename the folder)" ;;
     esac
     printf '  %-20s %s\n' "$name" "${title:-}"
   done
 }
 
+# A module's summary is the first plain line of its README.md, after the
+# heading (keep it to one short line); "used by" reads each MODULES= line.
+list_modules() {
+  echo "Available modules (add to a workshop with MODULES=\"name ...\" in its workshop.env):"
+  for d in ../modules/*/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    summary=""
+    if [ -f "${d}README.md" ]; then
+      summary="$(grep -v -e '^#' -e '^[[:space:]]*$' "${d}README.md" | head -1 | tr -d '*' | cut -c1-80)"
+    fi
+    users=""
+    for w in ../workshops/*/workshop.env; do
+      [ -f "$w" ] || continue
+      mods="$(sed -n 's/^MODULES=//p' "$w" | tail -1 | tr -d '"'"'")"
+      case " ${mods} " in
+        *" ${name} "*) users="${users:+${users}, }$(basename "$(dirname "$w")")" ;;
+      esac
+    done
+    printf '  %-20s %s\n' "$name" "${summary}"
+    printf '  %-20s used by: %s\n' "" "${users:-(none)}"
+  done
+}
+
 case "${1:-}" in
+  modules)
+    list_modules
+    exit 0 ;;
   help | -h | --help)
     usage
     echo

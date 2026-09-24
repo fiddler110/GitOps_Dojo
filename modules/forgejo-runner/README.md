@@ -1,5 +1,7 @@
 # forgejo-runner module
 
+Forgejo Actions runner that runs the sample repo's workflows.
+
 A Forgejo Actions runner for the workshop repo, so the sample repo's
 `.forgejo/workflows/` run on every push and pull request. Add it with
 `MODULES="forgejo-runner"` in a `workshop.env`.
