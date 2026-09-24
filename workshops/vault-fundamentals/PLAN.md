@@ -502,7 +502,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       back to `/ui/...`, through the issuer shim (S23). Test the laptop path for real, and the VM path
       with a non-`localhost` HTTPS name and the shim's CA. *Verify:* a student logs in to the UI with their Forgejo account and lands in
       the right identity/policy.
-- [x] **T0.6** *(SHA_T06)* (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
+- [x] **T0.6** *(3e1638c)* (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
       to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
       stored credential; a run from another repo is refused.
 - [ ] **T0.7** (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
