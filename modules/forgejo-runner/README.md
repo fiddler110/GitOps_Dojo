@@ -6,7 +6,7 @@ A Forgejo Actions runner for the workshop repo, so the sample repo's
 
 | Part | What it does |
 |---|---|
-| `compose.yml` | Turns on Actions in `git-server`, adds `runner-setup` (one-shot registration) and `forgejo-runner`, the `runner_config` volume and the internal `runner_net` network. |
+| `compose.yml` | Turns on Actions in `git-server`, adds `runner-setup` (one-shot registration) and `forgejo-runner`, the `runner_config` and `runner_data` volumes and the internal `runner_net` network. |
 | `runner/register.sh` | Registers the runner server-side, scoped to `${FORGEJO_ORG}/${FORGEJO_REPO}`, with the label `host`. |
 | `runner/Dockerfile` | Default runner image: upstream runner plus `curl` and `jq`. |
 

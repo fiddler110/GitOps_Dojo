@@ -59,6 +59,10 @@ services:
         condition: service_completed_successfully
     volumes:
       - runner_config:/runner-config:ro
+      # The runner image declares VOLUME /data (its working directory). Left
+      # unmounted, every start creates an anonymous volume that `down
+      # --volumes` (./run.sh stop) never removes; named, it goes with the rest.
+      - runner_data:/data
     command: ["/bin/forgejo-runner", "daemon", "--config", "/runner-config/config.yaml"]
     # Runs student-authored CI directly on this container's own filesystem
     # (host label, no sandbox) - isolated to runner_net so a compromised
@@ -71,6 +75,7 @@ services:
 
 volumes:
   runner_config:
+  runner_data:
 
 networks:
   # Isolates the runner (which executes student-authored CI) from the

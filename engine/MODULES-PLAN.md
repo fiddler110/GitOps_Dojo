@@ -337,6 +337,8 @@ names beside the running vault spike stack (untouched).
     append, so repeating `workshop_lab` duplicates it.
   - A module's service image can be swapped per workshop by overriding `build.context` in the overlay (later file
     wins); used for the runner's job tools instead of chaining a second image family.
-  - Not from M2: every dns-as-code start leaves one anonymous volume (seen on M1 code too; likely a `VOLUME` in the
-    PowerDNS image). Worth a named volume later.
+  - Fixed after M2: every dns-as-code start left one anonymous volume (also on `main`). Cause: the runner image
+    declares `VOLUME /data` and nothing mounted it; the module now mounts a named `runner_data` volume there, which
+    `./run.sh stop` removes (verified: unnamed-volume count unchanged across a start/stop). When adding a service,
+    check `podman image inspect <img> --format '{{json .Config.Volumes}}'` and name every declared path.
   - Still not done: a real-browser pass; docs (M3); `./run.sh list` doesn't show modules (nice-to-have).
