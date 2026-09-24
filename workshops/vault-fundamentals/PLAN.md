@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 (spike) approved 2026-09-23. Decisions S1-S23 (§1). No open questions.** |
+| Overall status | **P0 (spike) approved 2026-09-23. Decisions S1-S24 (§1). No open questions.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-23 (S18-S22 added after the plan review; P0 risks added to §10) |
 
@@ -83,6 +83,7 @@ phase, before editing engine/, and about anything in section 12.
 | S20 | **CI logs in to OpenBao with plain scripts, no `uses:` actions** (2026-09-23): the job fetches its OIDC token with `curl` and runs `bao login`. The runners have no internet. A slide shows how you'd do it at work with a ready-made action. Mirroring a small pinned set of actions into Forgejo is a follow-up (§13). |
 | S21 | **P0 T0.4 uses an uncommitted local edit** to `engine/gateway/Caddyfile` for the `/ui/*` and `/v1/*` routes, reverted after the spike (2026-09-23). The real change comes through P0.5. |
 | S23 |  **UI single sign-on reaches Forgejo's issuer through an overlay-only "issuer shim"** (2026-09-23, answers Q1): a small Caddy container sharing OpenBao's network namespace answers for `PUBLIC_BASE_URL` and forwards `/git/*` straight to `git-server:3000`. On the VM, `extra_hosts` points the public name at it and it serves HTTPS with its own CA, which OpenBao trusts (`oidc_discovery_ca_pem`). No engine edit, no gate exemption. Fallback if it fails T0.5: token login in the UI, SSO on a slide. The VM's HTTPS path is only approximated until the P5 Azure VM run. |
+| S24 | **Fix Forgejo's broken Actions token URL inside the lab, don't file upstream** (2026-09-23): the S23 issuer shim also runs in the runners' network namespace and maps `/git//gitapi/actions/...` to `/api/actions/...`, so jobs use `$ACTIONS_ID_TOKEN_REQUEST_URL` exactly as Forgejo gives it. No `dojo-ci-token` helper needed. Proven in T0.6. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -168,7 +169,8 @@ certificates (ties in with `cert-autorenewal`).
 | Service | Purpose |
 |---|---|
 | `openbao` | One server for the class. Raft storage on a volume, UI on. |
-| `openbao-setup` | One-shot: initialise, unseal, create the tenancy layout (§5.3), the auth methods (§5.4), the facilitator policy, the audit device; then **revoke the root token**. Re-unseals after a restart. |
+| `openbao-setup` | One-shot: initialise, unseal, create the tenancy layout (§5.3), the auth methods (§5.4), the facilitator policy; then **revoke the root token**. Re-unseals after a restart. (The audit device is declared in `config.hcl`, not by setup: §14.) |
+| issuer shim | A small Caddy sharing the network namespace of OpenBao and of the runner pool; answers for `PUBLIC_BASE_URL` there and forwards to `git-server` (S23, S24). |
 | `runner-pool` + `runner-controller` | CI runners (one job each at a time) and the controller that scales them and serves the Runners panel (§6). |
 | `app-host` | The deployment target: a small "platform" with one slot per student and a platform identity (§5.6). |
 | `postgres` | A shared database for lab 10's dynamic credentials. |
@@ -236,10 +238,11 @@ JWT auth trusts Forgejo's signing keys, and a role bound to `repository` + `ref`
 are GitHub's (`repository`, `ref`, `ref_type`, `sha`, `workflow`, `event_name`, `actor`...), and a role bound to
 `repository` + `ref` let `main` read and refused another branch and another repo.
 **Catch:** Forgejo builds the token URL from its public `ROOT_URL`, and with our `/git/` sub-path it comes out
-malformed (`${PUBLIC_BASE_URL}/git//gitapi/actions/...`, §14). Jobs must rewrite it to
-`http://git-server:3000/api/actions/...`. The runner-pool image will carry a small pinned helper (`dojo-ci-token`,
-prints the job's JWT for a given audience) that does this, so student workflows stay clean; it plays the part of
-the ready-made login action a company would use (S20).
+malformed (`${PUBLIC_BASE_URL}/git//gitapi/actions/...`, §14), on the public address the runners can't reach.
+**Resolved (S24):** the issuer shim (`spike/shim/Caddyfile`) runs in the runners' network namespace too, answers
+for `PUBLIC_BASE_URL` and maps the broken path to `/api/actions/...` on `git-server:3000`. Jobs use
+`$ACTIONS_ID_TOKEN_REQUEST_URL` unchanged, which also keeps a later mirrored login action (§13) working as-is.
+One shim design serves both OpenBao (UI SSO) and the runners.
 OpenBao reaches the keys **directly** (`jwks_url` on `git-server:3000`, with `bound_issuer` set to the public issuer
 string), so CI login avoids the issuer-reachability problem in §5.4.
 **To verify in P0.** Fallback: AppRole only, and teach OIDC on a slide.
@@ -552,8 +555,14 @@ Surprises, gotchas and problems found in other workshops while working on this o
   (as tofu-basics does), not only `/etc/profile.d`. Found in T0.2 when `BAO_ADDR` was empty.
 - **Forgejo 16.0.4 builds a broken Actions ID-token URL under a sub-path `ROOT_URL`**: the job sees
   `http://localhost:8080/git//gitapi/actions/_apis/pipelines/workflows/<n>/idtoken` (the sub-path twice, a slash
-  missing). The issuer (`.../git/api/actions`) and the JWKS URL are correct. Worked around by rewriting to
-  `http://git-server:3000/api/actions/...` (§5.5). Worth an upstream Forgejo issue (ask the user before filing).
+  missing). The issuer (`.../git/api/actions`) and the JWKS URL are correct. Resolved in the lab by the issuer
+  shim (S24, §5.5). The user chose not to file it upstream.
+- **OpenBao 2.6 refuses to enable audit devices through the API** ("use declarative, config-based audit device
+  management"). The audit device is an `audit "file" "file" { options { file_path = ... } }` block in `config.hcl`.
+- **Audit entries HMAC every string**, error messages included. `bao write sys/audit-hash/file input="<text>"`
+  turns a guess into the same hash, which confirmed the T0.6 refusals (`error validating claims: claim "ref" ...`
+  and `claim "repository" ...`). Good material for labs 3 and 11.
+- **Caddy cleans `//` out of the path before `path_regexp` sees it**: match `/git/+git...`, not `/git//git...`.
 - **Job logs are not in the runner's stdout**, only in Forgejo: `/data/gitea/actions_log/<owner>/<repo>/<nn>/<id>.log.zst`
   (zstd; Python 3.14's `compression.zstd` reads them, the Forgejo image has no `zstd`).
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
@@ -616,7 +625,14 @@ Surprises, gotchas and problems found in other workshops while working on this o
   `other-app` were refused with HTTP 400. The 400 body wasn't visible (busybox `wget`); since the three runs differ
   only in the bound claims, that is almost certainly the claim check. Labs will use `curl`, which shows the message.
 - Found the malformed token URL (§14) and planned the `dojo-ci-token` helper (§5.5).
-- Left running for T0.7: container `spike_runner`, repo `platform-team/other-app`, branch `feature-x`.
+- **Follow-up the same day:** the user asked to resolve the URL bug inside the lab rather than upstream (S24). The
+  issuer shim (`spike/shim/Caddyfile`, run with the gateway's Caddy 2.11.4 for the spike) in `spike_runner`'s network
+  namespace makes the unmodified `$ACTIONS_ID_TOKEN_REQUEST_URL` work; all three runs gave the same results
+  (`9da105f`).
+- Added a declarative file audit device to `compose/openbao/config.hcl` (the API refuses, §14). The audit log,
+  via `sys/audit-hash`, confirmed the refusals: `claim "ref"` for the branch, `claim "repository"` for the other repo.
+- Left running for T0.7: containers `spike_runner` + `spike_runner_shim`, repo `platform-team/other-app`,
+  branch `feature-x`.
 - Next: T0.7 (one-job runners, Forgejo API for waiting jobs and runner state, start-up time, memory).
 
 ## Appendix: considered, not chosen
