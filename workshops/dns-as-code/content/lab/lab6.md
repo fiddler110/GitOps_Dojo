@@ -1,10 +1,11 @@
-# Lab 5 — Merge Conflicts in `dnsconfig.js`
+# Lab 6 — Merge Conflicts in `dnsconfig.js`
 
-**Optional.** What happens when git can't automatically combine two changes to the same DNS record — and why that's a bigger deal here than in a roster file.
+**Optional. Part 2.** What happens when git can't automatically combine two changes to the same DNS record — and why that's a bigger deal here than in a roster file.
 
-This lab creates its own throwaway local branches and never pushes them, so it's safe to run regardless of what you did in Labs 1-4 and won't interfere with anyone else's work.
+This lab creates its own throwaway local branches and never pushes them, so it's safe to run regardless of what you did in the other labs and won't interfere with anyone else's work.
 
 ```sh
+cd ~/lab/dns-as-code
 git checkout main
 git pull
 ```
@@ -123,11 +124,12 @@ git branch -D conflict-a conflict-b
 
 ## Why this is higher-stakes than it looks
 
-A merge conflict in a roster file, resolved wrong, means someone's job title is momentarily incorrect. A merge conflict in `dnsconfig.js`, resolved wrong, can silently point a real hostname at the wrong IP, or drop an `MX`/`TXT` record that mail delivery depended on — and git will happily let you commit that, because the *markers* were removed correctly even if the *content* is wrong. Three things stand between a bad resolution and production DNS in a real setup like this one:
+A merge conflict in a roster file, resolved wrong, means someone's job title is momentarily incorrect. A merge conflict in `dnsconfig.js`, resolved wrong, can silently point a real hostname at the wrong IP, or drop an `MX`/`TXT` record that mail delivery depended on — and git will happily let you commit that, because the *markers* were removed correctly even if the *content* is wrong. Four things stand between a bad resolution and production DNS in a real setup like this one:
 
 - **You, previewing locally** before you push — Part B, above.
-- **The `pre-push` git hook** (`.githooks/pre-push`, enabled by `dnsctl.py setup` in [lab3.md](lab3.md)) — runs `dnscontrol preview` automatically before anything reaches `main` from your machine, and blocks the push if it fails.
-- **CI's "DNS Preview" check** — posts the diff on the PR for a human to actually read before merging, same as every other change in this workshop.
+- **The `pre-push` git hook** (`.githooks/pre-push`, enabled by `dnsctl.py setup` in [lab4.md](lab4.md)) — runs `dnscontrol preview` automatically before anything reaches `main` from your machine, and blocks the push if it fails.
+- **CI's "DNS Preview" check** — previews the PR merged into `main` and posts the diff for a human to actually read before merging. Branch protection won't let a PR merge until it passes.
+- **A reviewer** — someone other than the author has to approve the PR, reading the same diff and preview.
 
 None of those replace reading the diff yourself — they're a safety net, not a substitute for understanding what you just resolved.
 
@@ -137,6 +139,6 @@ None of those replace reading the diff yourself — they're a safety net, not a 
 
 - **Conflict:** git marks `<<<<<<<`/`=======`/`>>>>>>>` around the disputed lines; resolve by hand, then `git add` + `git commit`. `git merge --abort` bails out entirely if needed.
 - **Always `dnscontrol preview` after resolving, before committing the merge** — git validates the markers are gone; only `preview` validates the DNS is still correct.
-- **Undoing an already-merged change:** don't hand-edit it back — `dnsctl.py rollback` (or plain `git revert`), covered in [lab4.md](lab4.md).
+- **Undoing an already-merged change:** don't hand-edit it back — `dnsctl.py rollback` (or plain `git revert`), covered in [lab5.md](lab5.md).
 
-You've now covered the full loop (Lab 1) plus editing/removing/catching mistakes (Lab 2), automating it (Lab 3), investigating and rolling back history (Lab 4), and resolving conflicts safely (this lab). See [README.md](README.md) for the quick reference, and [cheat-sheet.md](cheat-sheet.md) for the full command list.
+You've now covered DNS as code in your own zone (Labs 1-2), the change process on a shared zone (Lab 3), automating it (Lab 4), investigating and rolling back history (Lab 5), and resolving conflicts safely (this lab). See [README.md](README.md) for the quick reference, and [cheat-sheet.md](cheat-sheet.md) for the full command list.

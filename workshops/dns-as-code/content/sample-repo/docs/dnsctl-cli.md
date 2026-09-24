@@ -32,10 +32,13 @@ python3 scripts/dnsctl.py <command> [options]
 Example:
 
 ```sh
-python3 scripts/dnsctl.py record add yourname.dojo.test --type A --value 203.0.113.30 --yes
+python3 scripts/dnsctl.py record add $USER-api.dojo.test --type A --value 203.0.113.30 --yes
 python3 scripts/dnsctl.py preview
-python3 scripts/dnsctl.py push
 ```
+
+`push` works too, but in this lab only CI may change `dojo.test`, so from
+your terminal the PowerDNS API answers it with `403`. Changes go through
+`submit` and a reviewed merge instead.
 
 `record prune-acme` / `record sync-acme` also exist (ACME/`_acme-challenge`
 TXT record housekeeping) but aren't exercised in this lab — `dojo.test`
@@ -51,10 +54,11 @@ merging pull requests, checking CI status. Against a GitHub remote that's
 `procutil.detect_forge()`. Same commands either way:
 
 ```sh
-python3 scripts/dnsctl.py submit "Add A record for yourname"   # commit, push, open a PR
+python3 scripts/dnsctl.py submit "Add $USER-api.dojo.test"    # commit, push, open a PR
 python3 scripts/dnsctl.py status                                # list open PRs + check status
 python3 scripts/dnsctl.py review <PR#>                           # diff + preview comment
-python3 scripts/dnsctl.py merge <PR#>                             # merge once checks pass
+python3 scripts/dnsctl.py approve <PR#>                           # approve someone else's PR
+python3 scripts/dnsctl.py merge <PR#>                             # merge once checks pass and it's approved
 ```
 
 The Forgejo path will prompt for your Forgejo username/password the first

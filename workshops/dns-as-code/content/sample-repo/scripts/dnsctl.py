@@ -692,10 +692,10 @@ def cmd_approve(args) -> int:
         stderr = result.stderr.strip()
         if "own pull request" in stderr.lower():
             print(
-                "GitHub does not allow approving your own pull request - this will "
-                "always happen on a solo-maintained repo like this one.\n"
-                "This repo has no required-review branch rule, so approval isn't "
-                "needed to merge anyway - once the DNS Preview check has passed, run:\n"
+                "You can't approve your own pull request. main needs one approval "
+                "from someone else: ask a teammate to run\n"
+                f"  python scripts/dnsctl.py approve {number}\n"
+                "and once it's approved and the DNS Preview check has passed, run:\n"
                 f"  python scripts/dnsctl.py merge {number}"
             )
             return 1

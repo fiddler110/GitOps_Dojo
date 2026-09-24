@@ -27,11 +27,12 @@ footer: '[&larr; Hub](index.md)'
 </div>
 
 <ul class="lab-links">
-<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Core workflow: preview → branch → edit → PR → CI → merge → verify</span></li>
-<li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Editing/removing records, catching mistakes</span></li>
-<li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">dnsctl.py — the same workflow, one command per step</span></li>
-<li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Investigating history and rolling back a merged change</span></li>
-<li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">Merge conflicts in dnsconfig.js</span></li>
+<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Your own zone: preview, push, verify; add, edit, remove</span></li>
+<li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Your own zone: drift, and undoing your own changes</span></li>
+<li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">Shared zone: PR, CI preview, review, CI applies</span></li>
+<li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">dnsctl.py — the same process, one command per step</span></li>
+<li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">Investigating history and rolling back a merged change</span></li>
+<li><a href="assets/lab-reader.html?file=lab6.md.txt">Lab 6</a><span class="topic">Merge conflicts in dnsconfig.js</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 <li><a href="assets/lab-reader.html?file=tmux-guide.md.txt">tmux guide</a><span class="topic">Splitting panes, switching focus</span></li>
 </ul>
