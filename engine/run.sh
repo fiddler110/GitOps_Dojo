@@ -146,16 +146,34 @@ list_modules() {
   done
 }
 
+# list and modules take no options; --help shows the overview, anything else
+# is an error rather than silently ignored.
+case "${1:-}" in
+  list | modules)
+    case "${2:-}" in
+      '') ;;
+      -h | --help)
+        usage
+        exit 0 ;;
+      *)
+        echo "Unrecognized argument: ${2} ('${1}' takes no options)" >&2
+        exit 1 ;;
+    esac ;;
+esac
+
 case "${1:-}" in
   modules)
     list_modules
+    exit 0 ;;
+  list)
+    list_workshops
     exit 0 ;;
   help | -h | --help)
     usage
     echo
     list_workshops
     exit 0 ;;
-  "" | list)
+  "")
     list_workshops
     echo
     usage
@@ -164,6 +182,16 @@ esac
 
 workshop="$1"
 shift
+# Same rule as module names: the name becomes an image tag
+# (gitopsdojo/web-terminal:<workshop>) and a state-file name, so a trailing
+# '/' from path completion or a stray flag must fail here, before any build.
+case "$workshop" in
+  *[!a-z0-9-]* | -*)
+    echo "'${workshop}' is not a workshop name (lowercase letters, digits and '-')." >&2
+    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--dry-run]" >&2
+    echo "Run './run.sh list' to see available workshops." >&2
+    exit 1 ;;
+esac
 test_mode=0
 test_count=""
 while [ "$#" -gt 0 ]; do
@@ -277,6 +305,15 @@ if [ "$url_port" != "$gateway_port" ]; then
   echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
 fi
 
+if [ "$dry_run" = "1" ]; then
+  echo "DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/)."
+  echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"
+  echo "Content:   ${WORKSHOP_CONTENT_DIR:-<unset>}"
+  echo "Modules:   ${modules:-none}"
+  echo "Overlay:   ${COMPOSE_OVERLAY:-none}"
+  echo
+fi
+
 # --test [N]: spin up demo/test bot student accounts (see
 # engine/web-terminal/bot-runner.sh and README.md's "Demo bots (--test)"
 # section) -- simulated students (an expert, an intermediate, and a
@@ -301,14 +338,6 @@ if [ "$test_mode" = "1" ]; then
   fi
 fi
 
-if [ "$dry_run" = "1" ]; then
-  echo "DRY RUN -- nothing will be built, started, or written."
-  echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"
-  echo "Content:   ${WORKSHOP_CONTENT_DIR:-<unset>}"
-  echo "Modules:   ${modules:-none}"
-  echo "Overlay:   ${COMPOSE_OVERLAY:-none}"
-  echo
-fi
 
 # Prefer docker if it's actually present and working; fall back to podman
 # otherwise (same detection teardown.sh uses, so both scripts agree on which
@@ -738,7 +767,7 @@ if [ "$dry_run" = "1" ]; then
   fi
   echo
   echo "Would run: compose ${compose_args} up -d"
-  echo "Dry run complete: nothing was built, started, or written."
+  echo "Dry run complete: nothing was built or started."
   exit 0
 fi
 

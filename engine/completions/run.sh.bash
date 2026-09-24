@@ -3,8 +3,8 @@
 #
 # Usage:
 #   type `./run.sh <TAB>` (from the repo root or engine/) and it lists
-#   workshop names plus `setup`, `capacity`, `list`, `stop`, `teardown`,
-#   `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
+#   workshop names plus `setup`, `capacity`, `list`, `modules`, `stop`,
+#   `teardown`, `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
 #   `setup`, `--default`/`--force`; after `stop`, `--dry-run`; after
 #   `capacity`, its sizing flags.
 #
@@ -35,7 +35,7 @@ _run_sh_complete() {
   workshops_dir="${_run_sh_engine_dir}/../workshops"
 
   if [ "$COMP_CWORD" -eq 1 ]; then
-    opts="setup capacity list stop teardown help --help"
+    opts="setup capacity list modules stop teardown help --help"
     if [ -d "$workshops_dir" ]; then
       for d in "$workshops_dir"/*/; do
         [ -f "${d}workshop.env" ] || continue
@@ -49,7 +49,8 @@ _run_sh_complete() {
   # Options depend on the first word (command or workshop name), at any
   # later position -- so `./run.sh <workshop> --test --dry-run` completes too.
   case "${COMP_WORDS[1]}" in
-    list | help | --help) ;;
+    list | modules) COMPREPLY=($(compgen -W "--help" -- "$cur")) ;;
+    help | --help) ;;
     stop | teardown) COMPREPLY=($(compgen -W "--dry-run --help" -- "$cur")) ;;
     setup | --setup) COMPREPLY=($(compgen -W "--default --force --help" -- "$cur")) ;;
     capacity | --capacity) COMPREPLY=($(compgen -W "$capacity_opts" -- "$cur")) ;;

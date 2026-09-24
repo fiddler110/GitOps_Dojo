@@ -3,8 +3,8 @@
 #
 # Usage:
 #   type `./run.sh <TAB>` (from the repo root or engine/) and it lists
-#   workshop names plus `setup`, `capacity`, `list`, `stop`, `teardown`,
-#   `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
+#   workshop names plus `setup`, `capacity`, `list`, `modules`, `stop`,
+#   `teardown`, `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
 #   `setup`, `--default`/`--force`; after `stop`, `--dry-run`; after
 #   `capacity`, its sizing flags.
 #
@@ -30,6 +30,7 @@ _run_sh() {
     "capacity:size the terminal resource limits for this machine"
     "help:show usage (also: ./run.sh <command> --help)"
     "list:show available workshops"
+    "modules:show available modules and which workshops use them"
     "stop:stop the stack, wipe all volumes"
     "teardown:same as stop"
   )
@@ -48,7 +49,9 @@ _run_sh() {
     _describe 'workshop' entries
   elif [ "$CURRENT" -ge 3 ]; then
     case "${words[2]}" in
-      list | help) ;;
+      list | modules)
+        _values 'option' '--help[show usage]' ;;
+      help) ;;
       stop | teardown)
         _values 'option' \
           '--dry-run[list what would be removed, remove nothing]' \
