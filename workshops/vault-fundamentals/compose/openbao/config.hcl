@@ -16,3 +16,11 @@ listener "tcp" {
 
 api_addr     = "http://openbao:8200"
 cluster_addr = "http://openbao:8201"
+
+# Audit (PLAN.md §3 principle 6, labs 3 and 11). OpenBao 2.6 refuses to
+# enable audit devices through the API; they are declared here instead.
+audit "file" "file" {
+  options {
+    file_path = "/openbao/logs/audit.log"
+  }
+}

@@ -48,9 +48,14 @@ server:
   connections:
     spike: {url: "http://git-server:3000/", uuid: "$uuid", token: "$secret"}
 EOF
-podman rm -f spike_runner >/dev/null 2>&1 || true
+podman rm -f spike_runner_shim >/dev/null 2>&1 || true; podman rm -f spike_runner >/dev/null 2>&1 || true
 podman run -d --name spike_runner --network engine_workshop_lab -v "$SPIKE_DIR/runner:/runner-config:Z" \
   data.forgejo.org/forgejo/runner:13 forgejo-runner daemon --config /runner-config/config.yaml >/dev/null
+# The issuer shim shares the runner's network namespace and answers for PUBLIC_BASE_URL there.
+podman rm -f spike_runner_shim >/dev/null 2>&1 || true
+podman run -d --name spike_runner_shim --network container:spike_runner -e PUBLIC_BASE_URL="$PUBLIC_BASE_URL" \
+  -v "$PWD/workshops/vault-fundamentals/spike/shim/Caddyfile:/etc/caddy/Caddyfile:ro,Z" \
+  --entrypoint caddy gitopsdojo/gateway:local run --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
 
 echo "== Forgejo: workflow that logs in with the job's OIDC token"
 WF="$(cat <<'EOF'
@@ -65,9 +70,8 @@ jobs:
         run: |
           set -eu
           echo "TOKEN URL (host part): $(printf '%s' "$ACTIONS_ID_TOKEN_REQUEST_URL" | cut -d? -f1)"
-          # Forgejo builds this URL from its public ROOT_URL; inside the stack go to git-server directly.
-          url=$(printf '%s' "$ACTIONS_ID_TOKEN_REQUEST_URL" | sed -E 's#^https?://[^/]+/git//git#http://git-server:3000/#; s#^https?://[^/]+/git/#http://git-server:3000/#')
-          resp=$(wget -qO- --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$url&audience=openbao")
+          # Used as Forgejo gives it: the issuer shim next to the runner makes it work (spike/shim).
+          resp=$(wget -qO- --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=openbao")
           jwt=$(printf '%s' "$resp" | sed -E 's/.*"value":"([^"]+)".*/\1/')
           payload=$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+'); while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
           echo "CLAIMS: $(printf '%s' "$payload" | base64 -d)"

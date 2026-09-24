@@ -1,0 +1,30 @@
+# Issuer shim (PLAN.md S23, §5.4, §5.5). Runs inside the network namespace of
+# one service (OpenBao, or the CI runners) and answers for PUBLIC_BASE_URL
+# there, so server-to-server calls to Forgejo's public URLs reach git-server
+# directly instead of looping back to the service itself (laptop) or
+# failing to leave workshop_lab (VM). Browsers never see it.
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$PUBLIC_BASE_URL} {
+	# The VM has a real HTTPS name: serve it with Caddy's own CA, which the
+	# service is told to trust. (No effect for http:// on a laptop.)
+	tls internal
+
+	# Forgejo 16 builds the Actions ID-token URL from a sub-path ROOT_URL as
+	# /git//gitapi/actions/...: map it back to /api/actions/... (§14).
+	@idtoken path_regexp idtoken ^/git/+git(api/actions/.*)$
+	rewrite @idtoken /{re.idtoken.1}
+
+	handle_path /git/* {
+		reverse_proxy git-server:3000
+	}
+	handle /api/actions/* {
+		reverse_proxy git-server:3000
+	}
+	handle {
+		respond "not served by the issuer shim" 404
+	}
+}
