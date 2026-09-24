@@ -39,6 +39,9 @@
 
 ### Where we stopped (2026-09-24)
 
+- **Paused after T0.4 for a brief pivot of priorities (user, 2026-09-24).** Before resuming, check whether the
+  stack is still up and the spike vault unsealed; if the scratchpad `init.json` is gone, `./run.sh stop` and start
+  clean (steps below).
 - **Done:** T0.1-T0.4, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
 - **The T0.4 edit to `engine/gateway/Caddyfile` is still applied and uncommitted** (S21): the `@openbao` block after
   `/git`. T0.5 needs it. Never stage it; revert it (`git checkout engine/gateway/Caddyfile`) when P0 ends.
