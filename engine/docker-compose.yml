@@ -231,8 +231,6 @@ services:
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
       - DEMO_APP_ENABLED=${DEMO_APP_ENABLED:-0}
       - DEMO_APP_ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
-      # Cloud console button + /cloud route; a workshop's compose overlay turns it on.
-      - CLOUD_ENABLED=${CLOUD_ENABLED:-0}
       # SSO into Forgejo (see /forgejo-login in allocator/server.py): the
       # allocator logs the browser straight into the Forgejo account
       # matching whatever identity it already resolved (studentNN or the

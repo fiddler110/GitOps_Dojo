@@ -161,28 +161,6 @@
 			}
 		}
 
-		# Cloud console, for workshops that ship one (allocator's CLOUD_ENABLED;
-		# /auth-check answers 404 otherwise, so no other workshop ever reaches
-		# the upstream). forward_auth resolves who this is -- a student's
-		# identity lives in their dojo_session cookie, so the allocator hands
-		# it back as X-Cloud-User -- and the upstream gets it as X-Auth-User
-		# with X-Gateway-Token, the same pair the allocator trusts (see
-		# gateway_authorized()). Both are set here, never taken from the client.
-		@cloud path /cloud /cloud/*
-		handle @cloud {
-			forward_auth allocator:8080 {
-				uri /auth-check?tool=cloud
-				header_up X-Auth-User {http.auth.user.id}
-				header_up X-Gateway-Token {$GATEWAY_TOKEN}
-				copy_headers X-Cloud-User
-			}
-			reverse_proxy cloud-api:8080 {
-				header_up X-Auth-User {http.request.header.X-Cloud-User}
-				header_up X-Gateway-Token {$GATEWAY_TOKEN}
-				header_up -X-Cloud-User
-			}
-		}
-
 		# Workshop and module routes, declared in their extensions.json and
 		# rendered by run.sh (allocator/render_extensions.py) into fixed gate
 		# templates. After every engine route above, so none can shadow one;

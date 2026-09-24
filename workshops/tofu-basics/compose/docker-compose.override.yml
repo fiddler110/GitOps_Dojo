@@ -97,14 +97,8 @@ services:
     mem_limit: ${CLOUD_API_MEM_LIMIT:-256m}
     restart: unless-stopped
 
-  # Landing-page "Dojo Cloud" button + the gateway's /cloud route (engine D4).
-  # Off in the base file, so no other workshop is affected.
-  allocator:
-    environment:
-      - CLOUD_ENABLED=1
-      # Extra facilitator status-strip entry (Label=URL): green once cloud-api's /readyz
-      # answers 200 (cloud-host up, images loaded, cloud-api ready for work).
-      - STATUS_CHECKS=Dojo Cloud=http://cloud-api:8080/readyz
+  # The "Dojo Cloud" card, /admin tab, /cloud route and status-strip entry
+  # (green once cloud-api's /readyz answers) are in ../extensions.json.
 
   web-terminal:
     build:

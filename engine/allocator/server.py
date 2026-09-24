@@ -89,10 +89,6 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
 DEMO_APP_ENABLED = os.environ.get("DEMO_APP_ENABLED", "0") == "1"
 DEMO_APP_ZONE = os.environ.get("DEMO_APP_ZONE", "certs.dojo.test")
-# Cloud console (/cloud*): a workshop that ships its own "cloud" service (see
-# workshops/tofu-basics) sets this in its compose overlay. Off by default, so
-# every other workshop is unchanged -- same shape as DEMO_APP_ENABLED above.
-CLOUD_ENABLED = os.environ.get("CLOUD_ENABLED", "0") == "1"
 
 # Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
@@ -649,11 +645,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
                 "desc": "The live site your lab work is serving.",
             })
-        if CLOUD_ENABLED:
-            tools.append({
-                "href": "/cloud/", "label": "Dojo Cloud", "icon": ICON_CLOUD,
-                "desc": "The portal for the resources you deploy.",
-            })
         for card in EXTENSIONS["cards"]:
             tools.append({
                 "href": card["href"], "label": card["label"], "desc": card["desc"],
@@ -800,7 +791,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
   <button class="tab" data-tab="term">Terminal</button>
   <button class="tab" data-tab="forgejo">Forgejo</button>
   <button class="tab" data-tab="slides">Slides</button>
-CLOUD_TAB_PLACEHOLDER
 EXT_TABS_PLACEHOLDER</div>
 
 <div class="panel active" id="panel-roster">
@@ -812,7 +802,6 @@ EXT_TABS_PLACEHOLDER</div>
 <div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
 <div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
 <div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
-CLOUD_PANEL_PLACEHOLDER
 EXT_PANELS_PLACEHOLDER
 <script>
 // -- tabs ---------------------------------------------------------------
@@ -1055,16 +1044,8 @@ refresh();
 setInterval(refresh, 5000);
 </script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
-        # The facilitator gets every tool a student has (see the /cloud block
-        # in gateway/Caddyfile): the cloud portal, when the workshop has one.
-        body = body.replace(
-            "CLOUD_TAB_PLACEHOLDER",
-            '  <button class="tab" data-tab="cloud">Dojo Cloud</button>\n' if CLOUD_ENABLED else "",
-        ).replace(
-            "CLOUD_PANEL_PLACEHOLDER",
-            '<div class="panel" id="panel-cloud"><iframe data-src="/cloud/#/progress"></iframe></div>\n' if CLOUD_ENABLED else "",
-        )
-        # ...and every tab a workshop or module declares (extensions.json).
+        # The facilitator gets every tool a student has: every tab a workshop
+        # or module declares next to its cards (extensions.json).
         # Ids are [a-z0-9-] and src a checked same-origin path; escaped anyway.
         body = body.replace(
             "EXT_TABS_PLACEHOLDER",
@@ -1232,7 +1213,7 @@ setInterval(refresh, 5000);
             self.handle_route_check((qs.get("route") or [""])[0])
             return
         tool = (qs.get("tool") or [""])[0]
-        if tool not in ("ide", "term", "demo", "cloud"):
+        if tool not in ("ide", "term", "demo"):
             self.send_response(400)
             self.end_headers()
             return
@@ -1254,20 +1235,6 @@ setInterval(refresh, 5000);
             demo_host = f"{student_id or STUDENT_PREFIX + '01'}.{DEMO_APP_ZONE}"
             self.send_response(200)
             self.send_header("X-Demo-Host", demo_host)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-
-        if tool == "cloud":
-            if not CLOUD_ENABLED:
-                self.send_response(404)
-                self.end_headers()
-                return
-            # A student's identity only exists in their dojo_session cookie,
-            # which the cloud portal never sees, so it is handed back here and
-            # Caddy copies it onto the request (see gateway/Caddyfile's @cloud).
-            self.send_response(200)
-            self.send_header("X-Cloud-User", username)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
