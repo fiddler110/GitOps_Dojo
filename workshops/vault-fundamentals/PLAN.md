@@ -554,7 +554,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.3** *(ef0d1bc)* (§10.1) Pick the OpenBao release with **namespaces**; record version and image
       digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
       *Verify:* digests match the registry; `bao namespace create` works on the spike server.
-- [x] **T0.4** *(SHA_T04)* (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
+- [x] **T0.4** *(3c49e9a)* (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
       framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
       `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
       gateway URL and inside an `/admin` iframe.
