@@ -441,7 +441,7 @@ workshop-agnostic.
 Spike code lives under `workshops/vault-fundamentals/spike/` (throwaway; may be
 deleted or folded into P1). No `engine/` edits without asking the user first.
 
-- [x] **T0.1** *(2026-09-23)* Branch `feat/vault-fundamentals` from `main`; move the plan to
+- [x] **T0.1** *(`54ed028`)* Branch `feat/vault-fundamentals` from `main`; move the plan to
       `workshops/vault-fundamentals/PLAN.md`; add resume section, task list and session log;
       point `CLAUDE.md` and the root README at it.
       *Verify:* `git log --oneline -1 -- workshops/vault-fundamentals/PLAN.md`.
