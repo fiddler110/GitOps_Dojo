@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; next T0.5 → T0.9 → T0.10. The user asked for a brief priority pivot after T0.4 (2026-09-24). Decisions S1-S24 (§1). No open questions. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; next T0.5 → T0.9 → T0.10. The user asked for a brief priority pivot after T0.4 (2026-09-24). Decisions S1-S25 (§1). No open questions. Read "Where we stopped" in §0 first. P0.5 and P6 are replaced by `feat/workshop-modules` (S25): bring that in before P1.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-24 (T0.4 done; the Caddyfile spike edit is still applied, uncommitted) |
+| Last updated | 2026-09-24 (P0.5/P6 replaced by `feat/workshop-modules`, S25; T0.4's Caddyfile edit is in `git stash`) |
 
 ---
 
@@ -26,7 +26,7 @@
 3. Check §1 (decisions) and §12 (open questions). Do not start work that
    depends on an open question. Read **§14 (Worth knowing)** for surprises and
    problems found along the way.
-4. **Ask the user before moving from one phase to the next** (P0 → P0.5 → P1 …).
+4. **Ask the user before moving from one phase to the next** (P0 → P1 → P2 …).
    Ask before editing any `engine/` file, even for a spike.
 5. Find the first `[ ]` or `[~]` task in §11. Before starting it, run the
    **Verify** line of the previous finished task to make sure the foundation
@@ -43,11 +43,18 @@
   stack is still up and the spike vault unsealed; if the scratchpad `init.json` is gone, `./run.sh stop` and start
   clean (steps below).
 - **Done:** T0.1-T0.4, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
-- **The T0.4 edit to `engine/gateway/Caddyfile` is still applied and uncommitted** (S21): the `@openbao` block after
-  `/git`. T0.5 needs it. Never stage it; revert it (`git checkout engine/gateway/Caddyfile`) when P0 ends.
+- **The T0.4 edit to `engine/gateway/Caddyfile` is in `git stash`** (S21), saved as "vault-fundamentals T0.4 spike:
+  @openbao Caddyfile routes (S21)": the `@openbao` block after `/git`. T0.5 needs it: `git stash pop` on this branch
+  first. Never stage it; revert it (`git checkout engine/gateway/Caddyfile`) when P0 ends.
+- **The spike stack was stopped** from this branch on 2026-09-24 (for the modules work), so its volumes are gone:
+  resuming means a fresh init (steps below).
+- **Before P1, bring in `feat/workshop-modules`** (S25): merge `main` once that branch's PR lands, or merge the
+  branch itself. It provides what P0.5 would have built. After merging, drop `image: gitopsdojo/web-terminal:...`
+  from `compose/docker-compose.override.yml` (run.sh now picks the terminal image) and start the terminal
+  Dockerfile with `ARG BASE=gitopsdojo/web-terminal:base` / `FROM ${BASE}`; see `workshops/README.md` there.
 - **Next, in the S22 order:** **T0.5** (UI SSO through the issuer shim,
   S23; reuse `spike/shim/Caddyfile` in OpenBao's network namespace, as `t06-ci-oidc.sh` does for the runner),
-  then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user before starting P0.5**).
+  then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user before starting P1**, after bringing in `feat/workshop-modules`).
 - After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
   which won't exist tomorrow. So start clean:
@@ -57,7 +64,7 @@
      and prints `export BAO_TOKEN=...`. After a plain restart of `workshop_openbao`, run it again to unseal.
   3. `students/` + `students/student01` namespaces: `t06-ci-oidc.sh` expects them. Create them with
      `bao namespace create students/` and `bao namespace create -namespace=students student01` (T0.3 steps).
-- **Nothing uncommitted is left** in `engine/` (T0.4's Caddyfile edit hasn't been made yet).
+- **Nothing uncommitted is left** in `engine/` (T0.4's Caddyfile edit is in the stash, above).
 
 **Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) ·
 `[!]` blocked · `[-]` dropped (say why).
@@ -96,16 +103,17 @@ phase, before editing engine/, and about anything in section 12.
 | S11 | **Policy as code is deferred** to a later lab or a follow-up workshop (§13). Policies are still written in the UI and CLI (lab 3). This workshop's "as code" focus is **CI**. |
 | S12 | **CI runners: one job each at a time, autoscaled**, with an `/admin` **Runners panel**: a status light per runner and **− / +** buttons (§6). |
 | S13 | **Runs on one machine**: the facilitator's laptop for testing, an Azure VM for real classes. Nothing may need extra ports, extra DNS names or anything outside the stack. |
-| S14 | **Engine changes go through a new general "workshop extensions" mechanism** (option B, §8.1): a workshop declares its own landing cards, `/admin` tabs and gated routes. No more per-workshop flags. |
+| S14 | *(Done by `feat/workshop-modules`, S25.)* **Engine changes go through a new general "workshop extensions" mechanism** (option B, §8.1): a workshop declares its own landing cards, `/admin` tabs and gated routes. No more per-workshop flags. |
 | S15 | **The Runners panel starts every class in Auto.** |
 | S16 | **Runner isolation: the process pool** (§6.2 A), with **Docker-in-Docker as the fallback** if it fails P0. Chosen to balance security and resource use. |
-| S17 | **The extensions mechanism is foundational.** Once it's proven, **every workshop moves onto it** (`CLOUD_ENABLED` and `DEMO_APP_ENABLED` retired), each re-tested on the real stack. Design its format so it can later describe reusable **modules** too (§13). |
+| S17 | *(Done by `feat/workshop-modules`, S25.)* **The extensions mechanism is foundational.** Once it's proven, **every workshop moves onto it** (`CLOUD_ENABLED` and `DEMO_APP_ENABLED` retired), each re-tested on the real stack. Design its format so it can later describe reusable **modules** too (§13). |
 | S18 | **Lab count follows the concepts, not the clock** (2026-09-23): use as many labs as it takes to cover the concepts properly; S6's 2-3 h is a guide, not a cap. Core: every lab except **lab 10 (dynamic database credentials), which is optional**. Lab 6 (`sops`) and lab 7 (Actions secrets) are core. |
 | S19 | **Labs 8-9 start half-configured** (2026-09-23): setup has already enabled and pointed the JWT auth methods in each student's namespace; students write the role (bound claims) and the policy. |
 | S20 | **CI logs in to OpenBao with plain scripts, no `uses:` actions** (2026-09-23): the job fetches its OIDC token with `curl` and runs `bao login`. The runners have no internet. A slide shows how you'd do it at work with a ready-made action. Mirroring a small pinned set of actions into Forgejo is a follow-up (§13). |
 | S21 | **P0 T0.4 uses an uncommitted local edit** to `engine/gateway/Caddyfile` for the `/ui/*` and `/v1/*` routes, reverted after the spike (2026-09-23). The real change comes through P0.5. |
 | S23 |  **UI single sign-on reaches Forgejo's issuer through an overlay-only "issuer shim"** (2026-09-23, answers Q1): a small Caddy container sharing OpenBao's network namespace answers for `PUBLIC_BASE_URL` and forwards `/git/*` straight to `git-server:3000`. On the VM, `extra_hosts` points the public name at it and it serves HTTPS with its own CA, which OpenBao trusts (`oidc_discovery_ca_pem`). No engine edit, no gate exemption. Fallback if it fails T0.5: token login in the UI, SSO on a slide. The VM's HTTPS path is only approximated until the P5 Azure VM run. |
 | S24 | **Fix Forgejo's broken Actions token URL inside the lab, don't file upstream** (2026-09-23): the S23 issuer shim also runs in the runners' network namespace and maps `/git//gitapi/actions/...` to `/api/actions/...`, so jobs use `$ACTIONS_ID_TOKEN_REQUEST_URL` exactly as Forgejo gives it. No `dojo-ci-token` helper needed. Proven in T0.6. |
+| S25 | **P0.5 and P6 are replaced by `feat/workshop-modules`** (user, 2026-09-24; its plan is `engine/MODULES-PLAN.md`). That branch built extensions (`extensions.json`: cards, `/admin` tabs, gated routes, status checks) and modules (`modules/<name>/`, listed in `MODULES=`), moved every workshop onto them and deleted `CLOUD_ENABLED`/`DEMO_APP_ENABLED`. **OpenBao becomes a module** (`modules/openbao/`, §8.1), so a later workshop (policy as code, cert-autorenewal's PKI) can reuse it. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -186,7 +194,7 @@ certificates (ties in with `cert-autorenewal`).
 
 ## 5. Architecture
 
-### 5.1 Services (all in the workshop overlay)
+### 5.1 Services (split between the `openbao` module and the workshop, §8.1)
 
 | Service | Purpose |
 |---|---|
@@ -448,7 +456,7 @@ For every student-facing piece there is a facilitator entry:
   - a **Vault** card on the landing page
   - **Vault** and **Runners** tabs in `/admin`
 
-  These go through the workshop extensions mechanism (S14, §8.1), not a new flag.
+  These go in `extensions.json` files (S25, §8.1), not a new flag. No `engine/` edit is expected for them.
 - **Secret names, entity names, repo names and slot output are student-controlled strings** shown to others: render
   with `textContent` only, and keep the strict CSP.
 - **Anything on `workshop_lab` must check `X-Gateway-Token`** unless, like OpenBao, it does its own authentication.
@@ -457,30 +465,46 @@ For every student-facing piece there is a facilitator entry:
 - **"Dojo" branding for anything we build.** Naming Azure Key Vault on the comparison slide is factual comparison, not
   branding.
 
-### 8.1 Workshop extensions mechanism (engine, option B; a first sketch)
+### 8.1 Extensions and modules (built on `feat/workshop-modules`, S25)
 
-**Goal:** a workshop pack adds landing cards, `/admin` tabs and gated routes **declaratively**, and the engine stays
-workshop-agnostic.
+The sketch that was here was built on `feat/workshop-modules`; `engine/MODULES-PLAN.md` there has the design and
+`workshops/README.md` the author's guide. What changed from the sketch: the gates are `shared`, `identity`,
+`facilitator`; `/demo` and `/cloud` are ordinary manifest routes, not reserved; terminal tools stack as chained
+images (`ARG BASE` / `FROM ${BASE}`); start-up work goes in `/etc/dojo/start.d/*.sh` hooks, not an `ENTRYPOINT`
+wrapper; a card with no `/admin` tab of the same id is a start-up warning.
 
-- **Declared in the pack.** A file such as `workshops/<name>/extensions.json` (or `workshop.env` keys) lists:
-  - **cards:** title, link, icon; shown to students
-  - **admin tabs:** title and iframe source
-  - **routes:** path prefixes, upstream `service:port`, and the **gate** to apply
-- **Gates are fixed templates** that the engine owns, so a pack **cannot inject raw Caddy config**. For example:
-  - `shared` (the normal login gate)
-  - `student-identity` (adds `X-Auth-User` + `X-Gateway-Token`, like `/cloud`)
-  - `facilitator-only`
-- **Checked at start-up.** The engine rejects paths that collide with its own (`/admin`, `/git`, `/ide`, `/term`,
-  `/slides`, `/demo`, `/cloud`, `/watch`, ...) and upstreams that aren't services in the stack.
-- **Rendered to config.** `run.sh` turns the file into a Caddy snippet that the base Caddyfile imports, plus
-  config that `allocator` reads for the cards and tabs.
-- **Migration (S17):** once the mechanism is proven, move `DEMO_APP_ENABLED` (cert-autorenewal) and `CLOUD_ENABLED`
-  (tofu-basics) onto it and delete the flags. Re-test each workshop on the real stack; `git-fundamentals` and
-  `dns-as-code` just need to confirm nothing changed.
-- **Module-ready format:** the same file format must work in a module folder as well as a workshop folder, so the
-  modules idea in §13 needs no redesign.
-- **Rules:** still ask before editing `engine/` files. The facilitator rule becomes part of the mechanism: a declared
-  student card with no matching admin tab is a start-up warning.
+**Where the pieces go (draft, settle in P1):**
+
+| `modules/openbao/` | `workshops/vault-fundamentals/` |
+|---|---|
+| `openbao`, `openbao-setup`, the issuer shim (`compose.yml`) | `runner-pool`, `runner-controller` (P3; a separate module only if a second workshop wants single-use runners) |
+| terminal link: `bao`, the identity broker, a `50-openbao.sh` hook | terminal link: `sops`, `gitleaks`, Python with `hvac` |
+| `extensions.json`: Vault card and tab, `/ui` and `/v1` routes, status check | `extensions.json`: Runners tab and route |
+| settings in `module.env` (namespace layout, auth mounts) | `app-host`, `postgres`, the labs; per-student namespaces for this class |
+
+Workshop-specific setup (lab seed secrets, lab 8-9 half-configured JWT roles) stays in the workshop, run after the
+module's setup. Draft manifests, checked against the renderer's rules (`/ui` and `/v1` are free paths; OpenBao does
+its own auth, so `shared` is the right gate and `Authorization` is stripped as in T0.4):
+
+```json
+{ "version": 1,
+  "cards": [ { "id": "vault", "label": "Vault", "desc": "Your secrets, in your own namespace.",
+               "href": "/ui/", "icon": "key" } ],
+  "admin_tabs": [ { "id": "vault", "label": "Vault", "src": "/ui/" } ],
+  "routes": [ { "id": "openbao-ui",  "path": "/ui", "upstream": "openbao:8200", "gate": "shared" },
+              { "id": "openbao-api", "path": "/v1", "upstream": "openbao:8200", "gate": "shared" } ],
+  "status_checks": [ { "label": "OpenBao", "url": "http://openbao:8200/v1/sys/health" } ] }
+```
+
+```json
+{ "version": 1,
+  "admin_tabs": [ { "id": "runners", "label": "Runners", "src": "/runners/" } ],
+  "routes": [ { "id": "runners", "path": "/runners", "upstream": "runner-controller:8080",
+                "gate": "facilitator", "strip_prefix": true } ] }
+```
+
+`sys/health` answers 200 only when unsealed and active, so the status chip also shows a sealed vault. The
+`runner-controller` must still check `X-Gateway-Token`: runners and terminals can reach it on their networks.
 
 ## 9. Talk slide: OpenBao ↔ Azure Key Vault
 
@@ -525,18 +549,15 @@ workshop-agnostic.
 
 
 - **P0 spike**: §10 on the real stack; write down the findings.
-- **P0.5 engine extensions** (§8.1): build and test the mechanism with the Vault card, routes and tab; leave the
-  existing flags alone.
-- **P1 core**: OpenBao + setup + SSO + terminal tools + labs 0-3.
+- ~~**P0.5 engine extensions**~~: replaced by `feat/workshop-modules` (S25). Bring it in before P1.
+- **P1 core**: the `openbao` module (§8.1) + setup + SSO + terminal tools + labs 0-3.
 - **P2 code and git**: labs 4-6.
 - **P3 pipelines**: `runner-pool`, `runner-controller`, the Runners panel (manual − / + first, then autoscale) +
   labs 7-8.
 - **P4 deployments**: `app-host`, Postgres, labs 9-11.
 - **P5 facilitator, talk, tests**: the remaining `/admin` pieces, slides (with §9), `e2e.sh`, demo bots, sizing docs,
   a run on an Azure VM.
-- **P6 migrate every workshop to extensions** (S17): cert-autorenewal and tofu-basics off their flags, all four
-  re-tested, flags removed, `workshops/README.md` and `engine/README.md` updated. (Could run right after P0.5 instead
-  if it proves stable early; ask then.)
+- ~~**P6 migrate every workshop to extensions**~~: done on `feat/workshop-modules` (S25).
 
 ### P0 — Spike (§10 on the real stack; findings go into §10 and §14)
 
@@ -578,11 +599,11 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [ ] **T0.9** (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
       with a token that has transit decrypt only; a token without it fails.
 - [ ] **T0.10** Write up: findings into §10, plan changes into the relevant sections, new questions
-      into §12, a P0 entry in §15. **Ask the user before starting P0.5.**
+      into §12, a P0 entry in §15. **Ask the user before starting P1.**
 
-### P0.5 onwards
+### P1 onwards
 
-Each later phase gets its own task block here (IDs `TX.x` for P0.5 extensions, then `T1.x` … `T6.x`) when it starts,
+Each later phase gets its own task block here (IDs `T1.x` … `T5.x`) when it starts,
 written from the phase description above and the P0 findings.
 
 ## 12. Open questions for the user
@@ -598,14 +619,8 @@ None open. Q1 (how OpenBao reaches Forgejo's OIDC issuer) was answered on 2026-0
 - Could `cert-autorenewal` use OpenBao's PKI engine?
 - **Mirror a small, pinned set of actions into Forgejo** (deferred 2026-09-23, S20): e.g. checkout and a vault-login
   action, copied into the local Forgejo at setup and pinned by commit, so labs can show `uses:` the way companies do.
-- **Modules: reusing one workshop's pieces in another** (e.g. Dojo Cloud from tofu-basics in vault-fundamentals).
-  Extensions only cover the *front door* (cards, tabs, routes). A module also needs its **services** and its
-  **terminal tools**, and today each workshop has exactly one compose overlay (`COMPOSE_OVERLAY`, `engine/run.sh`) and
-  one terminal Dockerfile. Sketch: move shared pieces into `workshops/modules/<name>/` (compose fragment +
-  extensions file + a tools fragment), a workshop lists `MODULES=dojo-cloud,openbao`, and `run.sh` adds one `-f` per
-  module and merges their extensions. Terminal tools are the hard part: they're baked into one image per workshop,
-  so modules need a shared way to contribute pinned tools. Build this only when a second workshop actually needs a
-  module; the first real case would be the tofu tie-in.
+- ~~**Modules: reusing one workshop's pieces in another**~~: built on `feat/workshop-modules` (S25). The tofu
+  tie-in is now `MODULES="openbao dojo-cloud"`.
 
 ## 14. Worth knowing & follow-ups
 
@@ -737,6 +752,12 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - Tested with curl and real Chromium (Playwright container). Not tested: an `/admin` tab itself (needs allocator,
   comes in P0.5); the VM's HTTPS path.
 - The user asked for a brief pivot of priorities after this test.
+
+### 2026-09-24 — P0.5/P6 replaced by `feat/workshop-modules`
+- The user paused this workshop to build extensions and modules on `feat/workshop-modules` (M0-M2 done and
+  live-tested there; M3 docs). That covers P0.5 and P6, so both are struck from §11 (S25).
+- Updated §0 (stash, stopped stack, merge before P1), §1 (S25), §5.1, §8, §8.1 (module split and draft manifests),
+  §11 and §13. Nothing else in the design changes.
 
 ## Appendix: considered, not chosen
 
