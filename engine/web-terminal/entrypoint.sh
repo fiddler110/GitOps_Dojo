@@ -83,6 +83,10 @@ ln -s /opt/dojo-shell/zshrc.facilitator "$facilitator_home/.zshrc"
 # (redhat.vscode-yaml), JSON schema downloads and extension update checks
 # would just retry for nothing in every account's extension host. Same
 # settings in the student settings.json further down.
+# restoreEditors is off because the browser, not this container, remembers
+# open tabs, keyed by URL and folder path; both are the same on every run,
+# so a new stack would reopen files from the last one that may not exist yet
+# (e.g. a repo the student hasn't cloned).
 code_server_settings_dir="$facilitator_home/.local/share/code-server/User"
 if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   mkdir -p "$code_server_settings_dir"
@@ -92,6 +96,7 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   "editor.fontSize": 16,
   "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
+  "workbench.editor.restoreEditors": false,
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
@@ -236,6 +241,7 @@ EOF
   "editor.fontSize": 16,
   "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
+  "workbench.editor.restoreEditors": false,
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
