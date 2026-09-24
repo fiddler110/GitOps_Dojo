@@ -231,8 +231,15 @@ The unseal key sits on a setup-only volume. Say openly that this is a lab shortc
 
 Forgejo 16 (our pinned version) should be able to give a job its own **OIDC token**, as GitHub Actions does. OpenBao's
 JWT auth trusts Forgejo's signing keys, and a role bound to `repository` + `ref` claims decides what the job can read.
-**Early sign (2026-09-23):** the `forgejo:16.0.4` binary contains `actions.IDTokenContext` / `IDTokenCustomClaims`, so
-the feature is there; the workflow switch and claim names are still to confirm in T0.6.
+**Confirmed in T0.6 (2026-09-23):** a job with `enable-openid-connect: true` gets `ACTIONS_ID_TOKEN_REQUEST_URL` and
+`..._TOKEN`, as on GitHub; `&audience=openbao` sets `aud`. The issuer is `${PUBLIC_BASE_URL}/git/api/actions`, the claims
+are GitHub's (`repository`, `ref`, `ref_type`, `sha`, `workflow`, `event_name`, `actor`...), and a role bound to
+`repository` + `ref` let `main` read and refused another branch and another repo.
+**Catch:** Forgejo builds the token URL from its public `ROOT_URL`, and with our `/git/` sub-path it comes out
+malformed (`${PUBLIC_BASE_URL}/git//gitapi/actions/...`, §14). Jobs must rewrite it to
+`http://git-server:3000/api/actions/...`. The runner-pool image will carry a small pinned helper (`dojo-ci-token`,
+prints the job's JWT for a given audience) that does this, so student workflows stay clean; it plays the part of
+the ready-made login action a company would use (S20).
 OpenBao reaches the keys **directly** (`jwks_url` on `git-server:3000`, with `bound_issuer` set to the public issuer
 string), so CI login avoids the issuer-reachability problem in §5.4.
 **To verify in P0.** Fallback: AppRole only, and teach OIDC on a slide.
@@ -495,7 +502,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       back to `/ui/...`, through the issuer shim (S23). Test the laptop path for real, and the VM path
       with a non-`localhost` HTTPS name and the shim's CA. *Verify:* a student logs in to the UI with their Forgejo account and lands in
       the right identity/policy.
-- [ ] **T0.6** (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
+- [x] **T0.6** *(SHA_T06)* (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
       to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
       stored credential; a run from another repo is refused.
 - [ ] **T0.7** (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
@@ -543,6 +550,12 @@ Surprises, gotchas and problems found in other workshops while working on this o
 
 - **Student shells are zsh** (`su - <name>` login shell): environment variables for students go in `/etc/zsh/zshenv`
   (as tofu-basics does), not only `/etc/profile.d`. Found in T0.2 when `BAO_ADDR` was empty.
+- **Forgejo 16.0.4 builds a broken Actions ID-token URL under a sub-path `ROOT_URL`**: the job sees
+  `http://localhost:8080/git//gitapi/actions/_apis/pipelines/workflows/<n>/idtoken` (the sub-path twice, a slash
+  missing). The issuer (`.../git/api/actions`) and the JWKS URL are correct. Worked around by rewriting to
+  `http://git-server:3000/api/actions/...` (§5.5). Worth an upstream Forgejo issue (ask the user before filing).
+- **Job logs are not in the runner's stdout**, only in Forgejo: `/data/gitea/actions_log/<owner>/<repo>/<nn>/<id>.log.zst`
+  (zstd; Python 3.14's `compression.zstd` reads them, the Forgejo image has no `zstd`).
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
   `openbao-setup` must retry or wait after `bao secrets enable kv-v2` before writing seed secrets.
 
@@ -593,6 +606,18 @@ Surprises, gotchas and problems found in other workshops while working on this o
   `students/student01` work, a KV v2 secret written in the namespace reads back, and the root namespace can't see it.
 - Not tested: arm64 (checksums come from the release files but no arm64 build was run).
 - Next: T0.6 (Actions OIDC), per the S22 order.
+
+### 2026-09-23 — T0.6 (Forgejo Actions OIDC → OpenBao)
+- Spike: `spike/t06-ci-oidc.sh` (re-runnable). JWT auth in `students/student01` with
+  `jwks_url=http://git-server:3000/api/actions/.well-known/keys` and `bound_issuer=${PUBLIC_BASE_URL}/git/api/actions`;
+  role `ci-main` bound to `repository=platform-team/vault-fundamentals`, `ref=refs/heads/main`, `aud=openbao`, policy
+  reading `kv/data/ci/*`. A temporary instance-wide runner (`runner:13`, v13.2.0, `host` label) on `workshop_lab`.
+- Result: main of the right repo logged in and read the secret; a `feature-x` push of the same repo and a push to
+  `other-app` were refused with HTTP 400. The 400 body wasn't visible (busybox `wget`); since the three runs differ
+  only in the bound claims, that is almost certainly the claim check. Labs will use `curl`, which shows the message.
+- Found the malformed token URL (§14) and planned the `dojo-ci-token` helper (§5.5).
+- Left running for T0.7: container `spike_runner`, repo `platform-team/other-app`, branch `feature-x`.
+- Next: T0.7 (one-job runners, Forgejo API for waiting jobs and runner state, start-up time, memory).
 
 ## Appendix: considered, not chosen
 
