@@ -191,10 +191,10 @@ gitGraph
 
 <div class="small">
 
-- **Step 1:** Branch `add-api-record` and `fix-typo` off `main`
-- **Step 2:** Each branch commits its own work in isolation
-- **Step 3:** Merge each branch back into `main` on its own
-- **Step 4:** `main` never gets a direct commit
+- **Step 1:** Branch off `main`
+- **Step 2:** Commit on each branch, in isolation
+- **Step 3:** Merge each one back on its own
+- **Step 4:** Never commit to `main` directly
 
 </div>
 
@@ -310,7 +310,12 @@ git checkout -b add-yourname
 
 > A current starting point means fewer surprises later.
 
-**A note on `checkout` vs `switch`:** `checkout` is the classic, do-everything command — it switches branches, but it also checks out individual commits and restores files. Newer Git versions added `git switch` (and `git restore`) to split branch-switching into its own, more focused command: `git switch main` / `git switch -c add-yourname` do exactly the same thing as above. We teach `checkout` here because it's the one you'll see in most existing docs, tutorials, and scripts — but don't be surprised to see `switch` used instead.
+**`checkout` or `switch`?** Newer Git also has `git switch -c add-yourname`: same result.
+
+<!-- checkout vs switch: checkout is the classic do-everything command. It switches branches, but also checks out
+individual commits and restores files. Newer Git added git switch (and git restore) to split branch-switching into
+its own focused command: `git switch main` / `git switch -c add-yourname` do exactly what the slide does. We teach
+checkout because most existing docs, tutorials and scripts use it, but students will see switch too. -->
 
 ---
 

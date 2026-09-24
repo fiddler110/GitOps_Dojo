@@ -38,29 +38,25 @@ Open `roster/team.yaml` and add yourself to the team list:
   role: Your Role
 ```
 
-Use the editor method unless the facilitator tells you otherwise. The copy-paste method is available if editing in the terminal is getting in the way of learning the Git workflow. If you're in VS Code, you can also just click `roster/team.yaml` in the file explorer and edit it normally — the Nano/Vim instructions below are for the plain-terminal path.
+Pick whichever of these suits you. All three give the same result.
 
-### Recommended: Nano
+### Option 1: VS Code (recommended)
+
+In the VS Code tab, open `sample-training-repo/roster/team.yaml` from the file explorer on the left, add your
+entry at the bottom, and save with `Ctrl+S` (`Cmd+S` on a Mac). Keep the same indentation as the entries above
+yours.
+
+### Option 2: nano, in the terminal
 
 ```sh
 nano roster/team.yaml
 ```
 
-This opens the roster file in Nano, a beginner-friendly terminal text editor. Use the arrow keys to move to the bottom of the file, then add your entry.
+This opens the roster file in nano, a beginner-friendly terminal text editor. Use the arrow keys to move to the
+bottom of the file, then add your entry. To save and exit, press `Ctrl+O` (write out), `Enter` (keep the file
+name), then `Ctrl+X` (exit).
 
-To save and exit:
-
-```text
-Ctrl+O
-Enter
-Ctrl+X
-```
-
-- `Ctrl+O` means "write out". It saves the file.
-- `Enter` accepts the current file name, `roster/team.yaml`.
-- `Ctrl+X` exits Nano and returns you to the shell.
-
-### Fallback: Copy-paste append
+### Option 3: append with `cat`
 
 Replace the name and role, then paste the whole command:
 
@@ -71,36 +67,8 @@ cat >> roster/team.yaml <<'EOF'
 EOF
 ```
 
-- `cat` reads the lines you paste.
-- `>> roster/team.yaml` appends those lines to the end of the roster file.
-- `<<'EOF'` starts a pasted block of text.
-- The final `EOF` ends the pasted block.
-
-### Optional: Vim
-
-Use this if you already know Vim or want to try it:
-
-```sh
-vim roster/team.yaml
-```
-
-This opens the roster file in Vim, a powerful terminal editor with different modes.
-
-Press these keys:
-
-```text
-G
-o
-Esc
-:wq
-Enter
-```
-
-- `G` jumps to the bottom of the file.
-- `o` opens a new line below the current line and switches into insert mode so you can type.
-- `Esc` leaves insert mode and returns to command mode.
-- `:wq` means "write and quit". It saves the file and exits Vim.
-- `Enter` runs the `:wq` command.
+- `>> roster/team.yaml` appends the lines to the end of the file (a single `>` would overwrite it).
+- `<<'EOF'` starts the pasted block of text, and the final `EOF` ends it.
 
 After editing, read the file to make sure your entry is there:
 
