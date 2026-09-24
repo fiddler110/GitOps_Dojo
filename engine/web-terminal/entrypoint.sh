@@ -417,6 +417,21 @@ echo "Provisioned $student_count student terminal accounts."
 echo "Facilitator shell username: $facilitator_username"
 echo "Student shell usernames: ${student_prefix}01 through $(printf '%s%02d' "$student_prefix" "$student_count")"
 
+# Start-up hooks (engine/MODULES-PLAN.md M11): modules and workshops drop
+# /etc/dojo/start.d/NN-<name>.sh into their terminal image instead of
+# replacing this ENTRYPOINT (wrappers can't stack). They run in name order,
+# as root, after every account exists and before the workspaces are served;
+# a hook that needs to keep running starts its own background job. A failing
+# hook stops the container, so a broken lab shows up at start, not mid-class.
+for hook in /etc/dojo/start.d/*.sh; do
+  [ -f "$hook" ] || continue
+  echo "start.d: running ${hook}"
+  if ! sh "$hook"; then
+    echo "start.d: ${hook} failed" >&2
+    exit 1
+  fi
+done
+
 # No per-account login prompt here anymore: the allocator service (see
 # engine/allocator/) assigns each browser session an account and tells
 # workspace-control.py (over the internal workshop_lab network only, never

@@ -199,6 +199,37 @@ set -a
 . "$workshop_env"
 set +a
 
+# Modules (engine/MODULES-PLAN.md §4): MODULES="a b" in workshop.env pulls in
+# ../modules/<name>/, found by convention. Each part is optional: module.env
+# (defaults, sourced before workshop.env is re-read so the workshop wins),
+# compose.yml, terminal/Dockerfile, extensions.json.
+modules="${MODULES:-}"
+for m in $modules; do
+  case "$m" in
+    *[!a-z0-9-]* | -*)
+      echo "MODULES: '${m}' is not a module name (lowercase letters, digits and '-')." >&2
+      exit 1 ;;
+  esac
+  if [ ! -d "../modules/${m}" ]; then
+    echo "MODULES: no such module '${m}' (expected ../modules/${m}/)." >&2
+    exit 1
+  fi
+done
+if [ -n "$modules" ]; then
+  set -a
+  for m in $modules; do
+    if [ -f "../modules/${m}/module.env" ]; then
+      # shellcheck disable=SC1090
+      . "../modules/${m}/module.env"
+    fi
+  done
+  # shellcheck disable=SC1091
+  . ./.env
+  # shellcheck disable=SC1090
+  . "$workshop_env"
+  set +a
+fi
+
 # PUBLIC_BASE_URL is baked into links the lab prints (Forgejo clone URLs, the
 # tofu-basics `url` output), so it has to name the port the gateway is
 # published on. Warn rather than fail: a NAT or proxy in front can make a
@@ -244,6 +275,7 @@ if [ "$dry_run" = "1" ]; then
   echo "DRY RUN -- nothing will be built, started, or written."
   echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"
   echo "Content:   ${WORKSHOP_CONTENT_DIR:-<unset>}"
+  echo "Modules:   ${modules:-none}"
   echo "Overlay:   ${COMPOSE_OVERLAY:-none}"
   echo
 fi
@@ -481,20 +513,23 @@ build_if_changed() {
 # even though nothing changed (confirmed: this actually happened while
 # developing this function). Any service without a build: block at all
 # (e.g. dns-server, git-server) is silently skipped by `compose build`.
+#
+# $1 is a space-separated list of directories (each module's, then the
+# overlay's); a change in any of them rebuilds.
 compose_overlay_build_if_changed() {
-  overlay_dir="$1"; state_file="$2"; shift 2
-  new_hash="$(hash_dir "$overlay_dir")"
+  overlay_dirs="$1"; state_file="$2"; shift 2
+  new_hash="$(for d in $overlay_dirs; do hash_dir "$d"; done | sha256_cmd | awk '{print $1}')"
   old_hash=""
   [ -f "$state_file" ] && old_hash="$(cat "$state_file")"
   if [ "$old_hash" = "$new_hash" ]; then
-    echo "  ${overlay_dir}: source unchanged, reusing existing overlay images."
+    echo "  ${overlay_dirs# }: source unchanged, reusing existing overlay images."
     return 0
   fi
   if [ "$dry_run" = "1" ]; then
-    echo "  ${overlay_dir}: WOULD BUILD overlay images (source changed, or first run for this workshop)."
+    echo "  ${overlay_dirs# }: WOULD BUILD overlay images (source changed, or first run for this workshop)."
     return 0
   fi
-  echo "  ${overlay_dir}: building (source changed, or first run for this workshop)..."
+  echo "  ${overlay_dirs# }: building (source changed, or first run for this workshop)..."
   other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway -e presentation || true)"
   if [ -n "$other_services" ]; then
     # shellcheck disable=SC2086
@@ -535,48 +570,74 @@ would_build=""
 # shellcheck disable=SC2086
 build_if_changed gitopsdojo/web-terminal:base ./web-terminal $build_secret_args
 
-# A workshop's own compose/terminal/Dockerfile (if any) FROMs the base
-# image above and is tagged separately per-workshop
-# (gitopsdojo/web-terminal:<name>), never reusing ":base" -- see the
-# comment on the web-terminal block in that workshop's
-# docker-compose.override.yml for why reusing ":base" here would silently
-# clobber the shared base image for every other workshop.
-workshop_terminal_dir="${workshop_dir}/compose/terminal"
-if [ -d "$workshop_terminal_dir" ]; then
-  # It's FROM the base image, so a rebuilt base has to rebuild this too --
-  # otherwise it stays on the old base, which then can't be cleaned up.
-  # Folding base's image ID into the hash does that; the directory's own
-  # contents alone wouldn't change when only the base did.
+# Terminal tools stack as a chain of builds (engine/MODULES-PLAN.md §4.2):
+# :base -> each module's terminal/ (gitopsdojo/web-terminal:<workshop>.<module>)
+# -> the workshop's compose/terminal/ (gitopsdojo/web-terminal:<workshop>).
+# Every link's Dockerfile starts `ARG BASE` / `FROM ${BASE}` and is built with
+# BASE set to the link before it. Never tagged ":base", which would clobber the
+# shared base image for every other workshop. The last link is what the stack
+# runs, passed to docker-compose.yml as WEB_TERMINAL_IMAGE.
+terminal_links=""
+for m in $modules; do
+  if [ -d "../modules/${m}/terminal" ]; then
+    terminal_links="${terminal_links} gitopsdojo/web-terminal:${workshop}.${m}=../modules/${m}/terminal"
+  fi
+done
+if [ -d "${workshop_dir}/compose/terminal" ]; then
+  terminal_links="${terminal_links} gitopsdojo/web-terminal:${workshop}=${workshop_dir}/compose/terminal"
+fi
+parent="gitopsdojo/web-terminal:base"
+for link in $terminal_links; do
+  image="${link%%=*}"
+  # Each link is FROM its parent, so a rebuilt parent has to rebuild it too --
+  # otherwise it stays on the old parent, which then can't be cleaned up.
+  # Folding the parent's image ID into the hash does that; the directory's own
+  # contents alone wouldn't change when only the parent did.
   saved_salt="$build_salt"
-  build_salt="${build_salt}$(inspect -f '{{.Id}}' gitopsdojo/web-terminal:base 2>/dev/null || true)"
+  build_salt="${build_salt}$(inspect -f '{{.Id}}' "$parent" 2>/dev/null || true)"
   case "$would_build" in
-    *" gitopsdojo/web-terminal:base "*)
-      echo "  gitopsdojo/web-terminal:${workshop}: WOULD BUILD (the base image it is built on would be rebuilt)." ;;
+    *" ${parent} "*)
+      echo "  ${image}: WOULD BUILD (the image it is built on would be rebuilt)."
+      would_build="${would_build} ${image} " ;;
     *)
       # shellcheck disable=SC2086
-      build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args ;;
+      build_if_changed "$image" "${link#*=}" $build_secret_args --build-arg "BASE=${parent}" ;;
   esac
   build_salt="$saved_salt"
-fi
+  parent="$image"
+done
+export WEB_TERMINAL_IMAGE="$parent"
 
 build_if_changed gitopsdojo/allocator:local ./allocator
 build_if_changed gitopsdojo/gateway:local ./gateway
 build_if_changed gitopsdojo/presentation:local ./presentation
 
-compose_args="-f docker-compose.yml"
+# Compose files: the engine's, each module's compose.yml in MODULES order,
+# then the workshop's overlay (later files win on the same key).
+extra_files=""
+overlay_dirs=""
+for m in $modules; do
+  if [ -f "../modules/${m}/compose.yml" ]; then
+    extra_files="${extra_files} ../modules/${m}/compose.yml"
+    overlay_dirs="${overlay_dirs} ../modules/${m}"
+  fi
+done
 if [ -n "${COMPOSE_OVERLAY:-}" ]; then
-  compose_args="$compose_args -f ${COMPOSE_OVERLAY}"
+  extra_files="${extra_files} ${COMPOSE_OVERLAY}"
+  overlay_dirs="${overlay_dirs} $(dirname "${COMPOSE_OVERLAY}")"
 fi
+compose_args="-f docker-compose.yml"
+for f in $extra_files; do
+  compose_args="$compose_args -f $f"
+done
 
-# Any other build: blocks this workshop's overlay adds beyond web-terminal
-# (already handled above) -- e.g. dns-as-code's forgejo-runner,
-# cert-autorenewal's dns-seed/step-ca/demo-app -- only rebuild when that
-# overlay's compose/ directory has actually changed since this workshop
-# last ran.
-if [ -n "${COMPOSE_OVERLAY:-}" ]; then
-  overlay_dir="$(dirname "${COMPOSE_OVERLAY}")"
+# Any other build: blocks the modules and the overlay add beyond web-terminal
+# (already handled above) -- e.g. forgejo-runner, cert-autorenewal's
+# dns-seed/step-ca/demo-app -- only rebuild when one of those directories
+# has actually changed since this workshop last ran.
+if [ -n "$overlay_dirs" ]; then
   # shellcheck disable=SC2086
-  compose_overlay_build_if_changed "$overlay_dir" ".build-state/${workshop}.overlay-hash" $compose_args
+  compose_overlay_build_if_changed "$overlay_dirs" ".build-state/${workshop}.overlay-hash" $compose_args
 fi
 
 # Workshop extensions (engine/MODULES-PLAN.md §3): the workshop's
@@ -588,12 +649,25 @@ if [ "$dry_run" = "1" ]; then gen_dir=".generated/dry-run"; else gen_dir=".gener
 rm -rf "${gen_dir:?}/in"
 mkdir -p "${gen_dir}/in" "${gen_dir}/gateway" "${gen_dir}/allocator"
 ext_env_args=""
+# Modules first (50-...), in MODULES order, then the workshop (90-...).
+n=10
+for m in $modules; do
+  if [ -f "../modules/${m}/extensions.json" ]; then
+    cp "../modules/${m}/extensions.json" "${gen_dir}/in/50-${n}-module-${m}.json"
+  fi
+  n=$((n + 1))
+done
 if [ -f "${workshop_dir}/extensions.json" ]; then
   cp "${workshop_dir}/extensions.json" "${gen_dir}/in/90-workshop-${workshop}.json"
 fi
-# ${NAME} in a manifest may name any variable workshop.env sets; pass just
-# those (never .env, which holds secrets) through by name.
-for key in $(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$workshop_env" | tr -d '='); do
+# ${NAME} in a manifest may name any variable workshop.env or a module.env
+# sets; pass just those (never .env, which holds secrets) through by name.
+env_files="$workshop_env"
+for m in $modules; do
+  [ ! -f "../modules/${m}/module.env" ] || env_files="$env_files ../modules/${m}/module.env"
+done
+# shellcheck disable=SC2086
+for key in $(cat $env_files | grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' | tr -d '=' | sort -u); do
   ext_env_args="$ext_env_args -e $key"
 done
 # shellcheck disable=SC2086
@@ -617,12 +691,12 @@ else
   fi
 fi
 
-# Record which overlay (if any) this run used, so teardown.sh tears down
-# with the exact same -f set instead of only ever seeing docker-compose.yml.
-# Without this, `down` has no idea an overlay's extra services/volumes
-# (e.g. dns-as-code's dns-server/runner-setup/forgejo-runner and
-# dns_runner_config volume) ever existed, and can't respect their
-# depends_on ordering or clean up their volumes.
+# Record which module and overlay files this run used (in .last-overlay,
+# below), so teardown.sh tears down with the exact same -f set instead of
+# only ever seeing docker-compose.yml. Without this, `down` has no idea the
+# extra services/volumes (e.g. forgejo-runner's runner-setup and
+# runner_config volume) ever existed, and can't respect their depends_on
+# ordering or clean up their volumes.
 if [ "$dry_run" = "1" ]; then
   echo
   echo "Validating the Compose config..."
@@ -638,7 +712,8 @@ if [ "$dry_run" = "1" ]; then
   exit 0
 fi
 
-echo "${COMPOSE_OVERLAY:-}" > .last-overlay
+# One extra -f file per line (modules, then the overlay); empty = engine only.
+printf '%s\n' $extra_files > .last-overlay
 
 sync_lab_docs "$WORKSHOP_CONTENT_DIR"
 

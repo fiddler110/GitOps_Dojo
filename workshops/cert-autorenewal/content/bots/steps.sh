@@ -6,7 +6,7 @@
 # so none of bot-runner.sh's git/PR steps or PENDING_PR_* are used here.
 #
 # BOT_USER is "testuserN", not a seeded "studentNN" account, so two things
-# dns-seed/entrypoint-wrapper.sh only do for real students -- the DNS A record
+# dns-seed and the terminal's start.d hook only do for real students -- the DNS A record
 # and the /srv/webroot/<user>/ subdirectory -- don't exist yet for a bot. The
 # webroot dir is a non-issue (lab2.md's own `mkdir -p` creates+claims it on
 # /srv/webroot's sticky 1777, same as a real student's first run would if it

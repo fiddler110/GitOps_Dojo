@@ -58,18 +58,23 @@ compose() {
 # depends_on shutdown order) and its volumes (so they survive --volumes).
 # Use the same -f set run.sh used, falling back to the base file alone if
 # no overlay was recorded (or nothing was ever started).
+# .last-overlay holds one extra -f file per line (each module's compose.yml,
+# then the workshop overlay), as the last ./run.sh <workshop> wrote it.
 compose_args="-f docker-compose.yml"
 overlay=""
 if [ -f .last-overlay ]; then
-  overlay="$(cat .last-overlay)"
-  [ -n "$overlay" ] && compose_args="$compose_args -f ${overlay}"
+  overlay="$(grep -v '^$' .last-overlay | tr '\n' ' ' || true)"
+  overlay="${overlay% }"
+  for f in $overlay; do
+    compose_args="$compose_args -f $f"
+  done
 fi
 
 if [ "$dry_run" = "1" ]; then
   echo "DRY RUN -- nothing will be removed."
   echo
   if [ -n "$overlay" ]; then
-    echo "Compose files: docker-compose.yml + ${overlay} (from .last-overlay)"
+    echo "Compose files: docker-compose.yml ${overlay} (from .last-overlay)"
   else
     echo "Compose files: docker-compose.yml only (no overlay recorded in .last-overlay)"
   fi

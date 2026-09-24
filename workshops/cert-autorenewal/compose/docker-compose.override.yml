@@ -126,16 +126,8 @@ services:
         ipv4_address: 172.30.0.20
     restart: unless-stopped
 
+  # Image: compose/terminal/, built and selected by engine/run.sh.
   web-terminal:
-    build:
-      context: ../workshops/cert-autorenewal/compose/terminal
-    # Without this, Compose would inherit the base file's
-    # `image: gitopsdojo/web-terminal:base` and tag this workshop-specific
-    # build as ":base" too -- clobbering the shared base tag every time
-    # this workshop runs (see engine/run.sh, which relies on ":base" always
-    # meaning the plain, un-augmented image so it can skip rebuilding it
-    # when nothing's changed).
-    image: gitopsdojo/web-terminal:cert-autorenewal
     # dns-seed is deliberately not listed here: it's a one-shot container
     # that exits(0) once it's done seeding, and podman-compose's plain
     # depends_on waits for a "running" state — depending on a service that's
