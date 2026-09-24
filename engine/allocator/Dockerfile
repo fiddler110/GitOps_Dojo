@@ -2,9 +2,6 @@ FROM docker.io/library/python:3.12-alpine
 
 # Stdlib only -- no pip installs, matches this repo's minimal-deps convention.
 COPY server.py /usr/local/bin/allocator-server.py
-# Run once per ./run.sh start, in a throwaway container of this image, to
-# check and render the workshop's extensions.json (see the script).
-COPY render_extensions.py /usr/local/bin/render_extensions.py
 
 EXPOSE 8080
 # Must send X-Gateway-Token -- server.py now rejects every request

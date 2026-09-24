@@ -1,6 +1,7 @@
 engine/.env
 engine/.last-overlay
 engine/.build-state/
+engine/.generated/
 .infra/**/*.auto.tfvars
 .infra/**/.terraform/
 .infra/**/*.tfstate*

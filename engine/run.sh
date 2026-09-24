@@ -257,6 +257,9 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   inspect() { docker inspect "$@"; }
   images() { docker images "$@"; }
   rmi() { docker rmi "$@"; }
+  # One-shot helper containers write into engine/ (render_extensions);
+  # rootful docker would leave those files owned by root without --user.
+  run_once() { docker run --rm --user "$(id -u):$(id -g)" "$@"; }
   build_salt=""
 else
   build() { podman build "$@"; }
@@ -264,6 +267,9 @@ else
   inspect() { podman inspect "$@"; }
   images() { podman images "$@"; }
   rmi() { podman rmi "$@"; }
+  # Rootless podman maps the container's root to the calling user already;
+  # --user <uid> here would map to a subordinate uid that can't write engine/.
+  run_once() { podman run --rm "$@"; }
   # Podman builds OCI-format images by default, and OCI has no HEALTHCHECK
   # instruction -- podman warns and silently drops it, so the allocator and
   # web-terminal images would never report healthy/unhealthy. Docker format
@@ -571,6 +577,44 @@ if [ -n "${COMPOSE_OVERLAY:-}" ]; then
   overlay_dir="$(dirname "${COMPOSE_OVERLAY}")"
   # shellcheck disable=SC2086
   compose_overlay_build_if_changed "$overlay_dir" ".build-state/${workshop}.overlay-hash" $compose_args
+fi
+
+# Workshop extensions (engine/MODULES-PLAN.md §3): the workshop's
+# extensions.json declares its routes, landing cards, /admin tabs and status
+# checks. allocator/render_extensions.py checks it against this run's services and writes what the gateway imports
+# and the allocator reads. A bad manifest stops here, before anything starts.
+# A dry run renders into its own folder so a running stack's files stay put.
+if [ "$dry_run" = "1" ]; then gen_dir=".generated/dry-run"; else gen_dir=".generated"; fi
+rm -rf "${gen_dir:?}/in"
+mkdir -p "${gen_dir}/in" "${gen_dir}/gateway" "${gen_dir}/allocator"
+ext_env_args=""
+if [ -f "${workshop_dir}/extensions.json" ]; then
+  cp "${workshop_dir}/extensions.json" "${gen_dir}/in/90-workshop-${workshop}.json"
+fi
+# ${NAME} in a manifest may name any variable workshop.env sets; pass just
+# those (never .env, which holds secrets) through by name.
+for key in $(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$workshop_env" | tr -d '='); do
+  ext_env_args="$ext_env_args -e $key"
+done
+# shellcheck disable=SC2086
+ext_services="$(compose $compose_args config --services 2>/dev/null | tr '\n' ' ')"
+if [ -z "$ext_services" ]; then
+  echo "Could not list this run's Compose services ('compose ${compose_args} config --services' failed)." >&2
+  exit 1
+fi
+# The script is mounted from the source tree, not baked in, so a dry run
+# (which builds nothing) still checks with the current rules; the image is
+# only its Python.
+if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
+  echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
+else
+  # shellcheck disable=SC2086
+  if ! run_once --network none $ext_env_args -v "$PWD/${gen_dir}:/gen" \
+      -v "$PWD/allocator/render_extensions.py:/render_extensions.py:ro" gitopsdojo/allocator:local \
+      python3 -B /render_extensions.py --in /gen/in --out /gen --services "$ext_services"; then
+    echo "The workshop's extensions.json was rejected (see above); nothing was started." >&2
+    exit 1
+  fi
 fi
 
 # Record which overlay (if any) this run used, so teardown.sh tears down

@@ -194,7 +194,10 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 - [x] **T1.1** (SHA below) `render_extensions.py` (+ unit tests for every rule in §3.1, run in the allocator image).
   Verify: `podman run --rm --network none -v ./engine/allocator:/src:ro -w /src gitopsdojo/allocator:local python3 -B -m unittest discover -s tests` (31 pass).
-- [ ] **T1.2** `run.sh`: merge + render + `.generated/`; `docker-compose.yml` bind mounts; `.gitignore`.
+- [x] **T1.2** (SHA below) `run.sh`: merge + render + `.generated/`; `docker-compose.yml` bind mounts; `.gitignore`.
+  Verify: `./run.sh git-fundamentals --dry-run` prints `extensions: 0 manifest(s) ...`; a manifest with an unknown
+  upstream makes it exit 1 with `rejected`. The renderer is mounted from source (not baked into the image) so dry runs
+  check with current rules; rootless podman needs no `--user` (docker gets `--user uid:gid`).
 - [ ] **T1.3** Caddyfile `import`; gate templates.
 - [ ] **T1.4** Allocator: cards, admin tabs, status checks and `/auth-check?route=` from the manifest.
 - [ ] **T1.5** tofu-basics → `extensions.json`; delete `CLOUD_ENABLED`. Real-stack test incl. facilitator tab.
