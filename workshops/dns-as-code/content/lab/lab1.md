@@ -65,15 +65,21 @@ A("yourname", "203.0.113.30"),
 
 `203.0.113.0/24` is IETF-reserved "documentation" address space (RFC 5737) — safe to use here since it can never be a real, routable address. See `docs/record-types.md` in the repo (`cat docs/record-types.md` or `glow docs/record-types.md`) for the full syntax reference covering A/CNAME/MX/TXT — you'll use the others in Lab 2.
 
-### Recommended: Nano
+Pick whichever of these suits you. All three give the same result.
+
+### Option 1: VS Code (recommended)
+
+In the VS Code tab, open `dns-as-code/dnsconfig.js` from the file explorer on the left, add your record near the other `A` records and save with `Ctrl+S` (`Cmd+S` on a Mac).
+
+### Option 2: nano, in the terminal
 
 ```sh
 nano dnsconfig.js
 ```
 
-To save and exit: `Ctrl+O`, `Enter`, `Ctrl+X`.
+To save and exit: `Ctrl+O` (write out), `Enter` (keep the file name), `Ctrl+X` (exit).
 
-### Fallback: python3 one-liner
+### Option 3: a python3 one-liner
 
 Replace `yourname` and the IP, then paste the whole command:
 
@@ -85,14 +91,6 @@ s = s.replace("A(\"mail\"", "A(\"yourname\", \"203.0.113.30\"),\n\tA(\"mail\"", 
 open(p, "w").write(s)
 '
 ```
-
-### Optional: Vim
-
-```sh
-vim dnsconfig.js
-```
-
-Jump to the right spot, `o` to open a new line, type your record, `Esc`, `:wq`, `Enter`.
 
 After editing, check the file:
 
