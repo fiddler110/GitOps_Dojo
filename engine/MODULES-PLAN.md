@@ -210,9 +210,11 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
   forged `X-Auth-User`/`X-Dojo-User`/`X-Gateway-Token` ignored, 303 without session, 401 without login, `/admin` tab
   frames `/cloud/#/progress`, status strip `Dojo Cloud=green`) and `bash workshops/tofu-basics/tests/e2e.sh --only
   security,track_b` (157 passed, 0 failed). Not done: a real-browser pass (no headless browser on this machine).
-- [~] **T1.6** cert-autorenewal → `extensions.json` (`/demo` with `host`); delete `DEMO_APP_*`. Real-stack test.
+- [x] **T1.6** (958b675) cert-autorenewal → `extensions.json` (`/demo` with `host`); delete `DEMO_APP_*`. Real-stack test.
   Also M10 (facilitator's own site: DNS record + webroot) and a new `/admin` Demo Site tab (there was none).
-  Code in (SHA below); live test pending.
+  Verify: live checks 8/8 (card; student and facilitator each see their own `<user>.certs.dojo.test` after lab 2's
+  vhost steps; forged `X-Dojo-Host`/`X-Dojo-User` ignored; 303 without session; `/admin` tab frames `/demo/`), and
+  lab 3's `acme.sh --issue` as the facilitator succeeds (HTTP-01 through their own site).
 - [ ] **T1.7** git-fundamentals and dns-as-code: start, confirm nothing changed. Spoofed-header test on each gate.
 
 ### M2: modules
