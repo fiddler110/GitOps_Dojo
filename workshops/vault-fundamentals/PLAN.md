@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 (spike) approved 2026-09-23. Decisions S1-S24 (§1). No open questions.** |
+| Overall status | **P0 spike in progress: T0.1-T0.3 and T0.6-T0.8 done; next T0.4 → T0.5 → T0.9 → T0.10. Decisions S1-S24 (§1). No open questions. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-23 (S18-S22 added after the plan review; P0 risks added to §10) |
+| Last updated | 2026-09-23, end of day (T0.8 done; wrap-up and restart notes in §0) |
 
 ---
 
@@ -36,6 +36,23 @@
    relevant section — do not just note it in the log.
 7. If you are blocked, mark the task `[!]`, say why in §15, and move to the
    next unblocked task.
+
+### Where we stopped (2026-09-23, end of day)
+
+- **Done:** T0.1-T0.3, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
+- **Next, in the S22 order:** **T0.4** (UI through the gateway: an *uncommitted* local edit to
+  `engine/gateway/Caddyfile`, S21, with `header_up -Authorization`), then **T0.5** (UI SSO through the issuer shim,
+  S23; reuse `spike/shim/Caddyfile` in OpenBao's network namespace, as `t06-ci-oidc.sh` does for the runner),
+  then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user before starting P0.5**).
+- **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
+  which won't exist tomorrow. So start clean:
+  1. `./run.sh stop` (wipes all volumes, including the spike vault and the test repos) then
+     `./run.sh vault-fundamentals`.
+  2. `SPIKE_DIR=<scratch dir> sh workshops/vault-fundamentals/spike/init-bao.sh` initialises and unseals OpenBao
+     and prints `export BAO_TOKEN=...`. After a plain restart of `workshop_openbao`, run it again to unseal.
+  3. `students/` + `students/student01` namespaces: `t06-ci-oidc.sh` expects them. Create them with
+     `bao namespace create students/` and `bao namespace create -namespace=students student01` (T0.3 steps).
+- **Nothing uncommitted is left** in `engine/` (T0.4's Caddyfile edit hasn't been made yet).
 
 **Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) ·
 `[!]` blocked · `[-]` dropped (say why).
@@ -325,8 +342,25 @@ Hardening for A:
 - the controller's web panel and the supervisor that starts processes are separate programs; the panel only writes
   the desired count, and the supervisor has no network listener
 
-To verify in P0: that other users' processes can be hidden inside an unprivileged container (the way `web-terminal`
-already isolates students), and that Forgejo's `host` label jobs work with one registered runner per Linux user.
+**Verified in T0.8 (2026-09-23), rootless podman, default capabilities** (`spike/pool/`, `spike/t08-pool.sh`):
+
+- `hidepid` can't be set from inside the container (remounting `/proc` needs CAP_SYS_ADMIN), and `web-terminal`
+  does **not** hide processes between students (it only firewalls their ports). The plan's earlier assumption was
+  wrong.
+- **What works: each runner in its own user + PID namespace.** The supervisor starts each runner as
+  `su rN -c 'unshare -U --map-current-user -p -f --mount-proc forgejo-runner one-job ...'`. No extra capability is
+  needed. The job keeps its real uid (files are owned by `rN`) and sees only its own processes.
+- Two runners (r1, r2) ran two jobs at the same time. Each job saw 7 processes (its own), found **no** trace of the
+  other's secret in any command line, and couldn't read the other's home (0700), workspace or `/tmp` file
+  (umask 077). Other users' environment, memory and signals are blocked by the kernel anyway.
+- Cleanup works: after `one-job` exits, `su rN -c 'kill -9 -1'` then `userdel -r` (both runners' users gone).
+  `useradd`/`userdel` lock `/etc/passwd`: run them one at a time (`flock`).
+- Alternative seen: podman's `--security-opt proc-opts=hidepid=2` also hides processes (even container root can't
+  see other users' processes, since it lacks CAP_SYS_PTRACE). It's podman-only, so the namespace approach is preferred.
+- **Risk for the VM (P5):** unprivileged user namespaces can be switched off on the host (e.g. Ubuntu 24.04's
+  AppArmor `kernel.apparmor_restrict_unprivileged_userns`). Check on the Azure VM; if blocked, use
+  `proc-opts=hidepid=2` or relax that setting for the pool.
+- Not yet tested: `prlimit` caps per runner, the issuer shim inside the pool, and a pool on `runner_net`.
 
 **If A fails P0:** fall back to B with the runner image pre-loaded into the dind image. **C only** with a
 body-checking proxy that we write ourselves, never with a generic endpoint filter.
@@ -526,7 +560,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.7** *(79e2ac0)* (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
       waiting jobs and runner state; start-up time; memory while running a job.
       *Verify:* numbers recorded in §10/§15; a runner exits after exactly one job.
-- [ ] **T0.8** (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
+- [x] **T0.8** *(SHA_T08)* (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
       unprivileged container; several runners (one Linux user each) side by side. If it fails, record
       why and fall back to Docker-in-Docker (S16). *Verify:* a job cannot see or signal another job's
       processes or files.
@@ -578,6 +612,11 @@ Surprises, gotchas and problems found in other workshops while working on this o
   turns a guess into the same hash, which confirmed the T0.6 refusals (`error validating claims: claim "ref" ...`
   and `claim "repository" ...`). Good material for labs 3 and 11.
 - **Caddy cleans `//` out of the path before `path_regexp` sees it**: match `/git/+git...`, not `/git//git...`.
+- **Pushing again to a branch cancels that branch's running runs** in Forgejo 16, and cancelling a job on an
+  **ephemeral** runner deletes its registration at once. The runner then retries its final log upload with 401s
+  for about 40 s before exiting. The controller should treat this as normal (runner exits; not 🔴).
+- **The job-logs API takes a job id, not a task id**: `GET /repos/{o}/{r}/actions/jobs/{task id}/logs` returned a
+  different job's log. Archived logs appear in `/data/gitea/actions_log/...` only some seconds after a job ends.
 - **Job logs are not in the runner's stdout**, only in Forgejo: `/data/gitea/actions_log/<owner>/<repo>/<nn>/<id>.log.zst`
   (zstd; Python 3.14's `compression.zstd` reads them, the Forgejo image has no `zstd`).
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
@@ -663,6 +702,16 @@ Surprises, gotchas and problems found in other workshops while working on this o
   containers removed. Test repos `other-app` and `runner-test` stay until P0 ends.
 - Not measured: the `active` status value (the runner list wasn't queried mid-job); memory of real lab jobs.
 - Next: T0.8 (process-pool isolation).
+
+### 2026-09-23 — T0.8 (process pool) and wrap-up for the day
+- Spike: `spike/pool/` (runner:13 + util-linux + shadow, a small supervisor) and `spike/t08-pool.sh`. Results and
+  the chosen mechanism (a user + PID namespace per runner via `unshare`) are in §6.2.
+- Two gotchas on the way (§14): parallel `useradd`/`userdel` collide; a new push cancelled queued runs from an
+  earlier attempt, which unregistered their ephemeral runners.
+- Added `spike/init-bao.sh` so a new session can re-create the spike vault (keys were only in today's scratchpad).
+- Stack left running; the spike containers (`spike_*`) removed. Test repos (`other-app`, `runner-test`,
+  `pool-a/b`, `pa-*/pb-*`) and the unsealed spike vault go away with the next `./run.sh stop`.
+- Next session: see "Where we stopped" in §0.
 
 ## Appendix: considered, not chosen
 
