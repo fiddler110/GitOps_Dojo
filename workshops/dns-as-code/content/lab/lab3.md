@@ -50,6 +50,8 @@ git commit -am "Quick fix to mail"
 git push
 ```
 
+Git asks you to sign in to Forgejo (a prompt in the terminal, or a popup at the top of VS Code): use your student account name (`studentXX`) and your **Forgejo password**, both shown on your landing page. Git remembers it after that, so later pushes don't ask again.
+
 Forgejo rejects it: `main` is a protected branch. Put everything back the way it was:
 
 ```sh

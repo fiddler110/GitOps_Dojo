@@ -30,6 +30,11 @@ RUN set -eux; \
     install -m 0755 /tmp/dnscontrol /usr/local/bin/dnscontrol; \
     rm -f /tmp/dnscontrol.tar.gz /tmp/dnscontrol
 
+# Remember each account's Forgejo login after its first push instead of asking on
+# every push. credential-cache keeps it in memory only (a per-user daemon behind
+# a 0700 socket in that user's home), never on disk, and forgets it after 8 h.
+RUN git config --system credential.helper 'cache --timeout=28800'
+
 # ENTRYPOINT is inherited from the base image (web-terminal-entrypoint) —
 # same account provisioning and workspace-control.py launch as every other
 # workshop. No USER override either: the base image needs root for the
