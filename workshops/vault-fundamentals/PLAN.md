@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.3 and T0.6-T0.8 done; next T0.4 → T0.5 → T0.9 → T0.10. Decisions S1-S24 (§1). No open questions. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; next T0.5 → T0.9 → T0.10. The user asked for a brief priority pivot after T0.4 (2026-09-24). Decisions S1-S24 (§1). No open questions. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-23, end of day (T0.8 done; wrap-up and restart notes in §0) |
+| Last updated | 2026-09-24 (T0.4 done; the Caddyfile spike edit is still applied, uncommitted) |
 
 ---
 
@@ -37,13 +37,15 @@
 7. If you are blocked, mark the task `[!]`, say why in §15, and move to the
    next unblocked task.
 
-### Where we stopped (2026-09-23, end of day)
+### Where we stopped (2026-09-24)
 
-- **Done:** T0.1-T0.3, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
-- **Next, in the S22 order:** **T0.4** (UI through the gateway: an *uncommitted* local edit to
-  `engine/gateway/Caddyfile`, S21, with `header_up -Authorization`), then **T0.5** (UI SSO through the issuer shim,
+- **Done:** T0.1-T0.4, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
+- **The T0.4 edit to `engine/gateway/Caddyfile` is still applied and uncommitted** (S21): the `@openbao` block after
+  `/git`. T0.5 needs it. Never stage it; revert it (`git checkout engine/gateway/Caddyfile`) when P0 ends.
+- **Next, in the S22 order:** **T0.5** (UI SSO through the issuer shim,
   S23; reuse `spike/shim/Caddyfile` in OpenBao's network namespace, as `t06-ci-oidc.sh` does for the runner),
   then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user before starting P0.5**).
+- After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
   which won't exist tomorrow. So start clean:
   1. `./run.sh stop` (wipes all volumes, including the spike vault and the test repos) then
@@ -244,7 +246,13 @@ The unseal key sits on a setup-only volume. Say openly that this is a lab shortc
   JWT, and `bao login -method=jwt` uses it. Setup links both logins to **one identity entity** per student, so the
   same policies apply to both.
 - **Facilitator**: the same OIDC login with the facilitator account gets the facilitator policy. The `/admin`
-  workspace gets a **Vault** tab (OpenBao may refuse to be framed; its response headers are configurable, to verify).
+  workspace gets a **Vault** tab.
+- **Verified in T0.4 (2026-09-24):** `/ui/*` and `/v1/*` through the gateway work for a student and the facilitator
+  (401 without the gate login; a Basic Auth header alone gives OpenBao's 403, so it isn't taken as a token). The UI
+  ships `Content-Security-Policy: ... frame-ancestors 'none'`, so **`openbao-setup` must set**
+  `sys/config/ui/headers/Content-Security-Policy` to the same policy with `frame-ancestors 'self'`. With that, the UI
+  renders and signs in inside a same-origin iframe (real Chromium). The UI keeps its token in memory, not
+  `localStorage`, so every tab or frame signs in separately: SSO (T0.5) makes that one click.
 
 ### 5.5 CI identity (lab 8)
 
@@ -546,7 +554,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.3** *(ef0d1bc)* (§10.1) Pick the OpenBao release with **namespaces**; record version and image
       digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
       *Verify:* digests match the registry; `bao namespace create` works on the spike server.
-- [ ] **T0.4** (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
+- [x] **T0.4** *(SHA_T04)* (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
       framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
       `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
       gateway URL and inside an `/admin` iframe.
@@ -619,6 +627,11 @@ Surprises, gotchas and problems found in other workshops while working on this o
   different job's log. Archived logs appear in `/data/gitea/actions_log/...` only some seconds after a job ends.
 - **Job logs are not in the runner's stdout**, only in Forgejo: `/data/gitea/actions_log/<owner>/<repo>/<nn>/<id>.log.zst`
   (zstd; Python 3.14's `compression.zstd` reads them, the Forgejo image has no `zstd`).
+- **OpenBao's UI refuses to be framed by default** (`frame-ancestors 'none'`). Override it through
+  `sys/config/ui/headers`, not in Caddy (T0.4).
+- **The UI's sign-in lands on `/ui/vault/secrets`**, not a dashboard, and doesn't share a session between tabs.
+- **No browser on this laptop**: the browser tests run in `mcr.microsoft.com/playwright/python:v1.55.0-noble`
+  with `--network host`, serving the same-origin test page through a Playwright route (`spike/t04-*.py`).
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
   `openbao-setup` must retry or wait after `bao secrets enable kv-v2` before writing seed secrets.
 
@@ -712,6 +725,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - Stack left running; the spike containers (`spike_*`) removed. Test repos (`other-app`, `runner-test`,
   `pool-a/b`, `pa-*/pb-*`) and the unsealed spike vault go away with the next `./run.sh stop`.
 - Next session: see "Where we stopped" in §0.
+
+### 2026-09-24 — T0.4 (UI through the gateway)
+- User approved the S21 Caddyfile edit: `@openbao path /ui /ui/* /v1/*` → `openbao:8200` with
+  `header_up -Authorization`, in the shared-gate block after `/git`. Uncommitted, still applied.
+- Fresh stack; `spike/init-bao.sh` re-initialised the vault. Results in §5.4: routes work for both roles,
+  the gate holds, the framing header needed overriding (`sys/config/ui/headers`), then framed sign-in worked.
+- Tested with curl and real Chromium (Playwright container). Not tested: an `/admin` tab itself (needs allocator,
+  comes in P0.5); the VM's HTTPS path.
+- The user asked for a brief pivot of priorities after this test.
 
 ## Appendix: considered, not chosen
 
