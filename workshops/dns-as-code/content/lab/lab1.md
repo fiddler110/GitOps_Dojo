@@ -15,7 +15,7 @@ batcat dnsconfig.js
 git log --oneline
 ```
 
-- `dnsconfig.js` is the whole zone, as code. The `D("student07.dojo.test", ...)` block (with your username) lists every record in it. `A("www", "203.0.113.10")` means "`www.student07.dojo.test` has the address `203.0.113.10`": names inside the block are relative to the zone, and `@` means the zone itself.
+- `dnsconfig.js` is the whole zone, as code. The `D("studentXX.dojo.test", ...)` block (with your username) lists every record in it. `A("www", "203.0.113.10")` means "`www.studentXX.dojo.test` has the address `203.0.113.10`": names inside the block are relative to the zone, and `@` means the zone itself.
 - The `SOA` and `NAMESERVER` lines are bookkeeping every zone needs. Leave them alone.
 - `creds.json` tells `dnscontrol` where the PowerDNS API is and which key to use.
 - It's a git repo with one commit and no remote: your history stays on your machine.
@@ -47,7 +47,7 @@ dig @dns-server www.$USER.dojo.test A +short
 dig @dns-server $USER.dojo.test TXT +short
 ```
 
-`$USER` is your username, so these ask for `www.student07.dojo.test` and so on. `@dns-server` asks the lab's PowerDNS directly.
+`$USER` is your username, so these ask for `www.studentXX.dojo.test` and so on. `@dns-server` asks the lab's PowerDNS directly.
 
 Now preview again:
 
@@ -63,12 +63,12 @@ Open the **DNS Zones** card from the workshop landing page. Your zone is listed 
 
 ## 4. Add records
 
-Open `dnsconfig.js` and add these lines inside the `D(...)` block, after the `TXT` line. Replace `student07` with your username:
+Open `dnsconfig.js` and add these lines inside the `D(...)` block, after the `TXT` line (`studentXX` is your username; the lab reader fills it in for you):
 
 ```js
 	A("app", "203.0.113.30"),
-	CNAME("docs", "www.student07.dojo.test."),
-	MX("@", 10, "mail.student07.dojo.test."),
+	CNAME("docs", "www.studentXX.dojo.test."),
+	MX("@", 10, "mail.studentXX.dojo.test."),
 	A("mail", "203.0.113.20"),
 ```
 
@@ -143,7 +143,7 @@ git commit -m "Add app, mail and MX records"
 The most common mistake in `dnsconfig.js` is a `CNAME` or `MX` target without its trailing dot. Make it on purpose:
 
 ```js
-	CNAME("broken", "www.student07.dojo.test"),   // no trailing dot, on purpose
+	CNAME("broken", "www.studentXX.dojo.test"),   // no trailing dot, on purpose
 ```
 
 ```sh

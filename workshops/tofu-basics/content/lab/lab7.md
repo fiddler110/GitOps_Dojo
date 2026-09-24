@@ -44,7 +44,7 @@ OpenTofu will perform the following actions:
           - "edited_by"  = "portal" -> null
             "env"        = "dev"
             "managed_by" = "opentofu"
-            "owner"      = "student01"
+            "owner"      = "studentXX"
         }
         # (13 unchanged attributes hidden)
 
@@ -94,13 +94,13 @@ last "tofu apply" which may have affected this plan:
 
   # azurerm_container_group.hello has been deleted
   - resource "azurerm_container_group" "hello" {
-      - fqdn                        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> null
+      - fqdn                        = "hello-dev-studentXX.canadacentral.dojo-cloud.test" -> null
       - id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> null
         name                        = "ci-hello-dev"
         tags                        = {
             "env"        = "dev"
             "managed_by" = "opentofu"
-            "owner"      = "student01"
+            "owner"      = "studentXX"
         }
         # (12 unchanged attributes hidden)
 
@@ -121,14 +121,14 @@ OpenTofu will perform the following actions:
 
   # azurerm_container_group.hello will be created
   + resource "azurerm_container_group" "hello" {
-      + dns_name_label              = "hello-dev-student01"
+      + dns_name_label              = "hello-dev-studentXX"
       ...
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
 
 Changes to Outputs:
-  ~ fqdn        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> (known after apply)
+  ~ fqdn        = "hello-dev-studentXX.canadacentral.dojo-cloud.test" -> (known after apply)
   ~ resource_id = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> (known after apply)
 ```
 

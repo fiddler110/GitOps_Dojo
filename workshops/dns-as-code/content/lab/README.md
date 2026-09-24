@@ -10,7 +10,7 @@ You are working in your own student account. Keep all lab work under this `~/lab
 
 The session slides cover the *why*. This lab is the *how*, in two parts.
 
-**Part 1: your own zone.** Every student has a zone of their own, `<your-username>.dojo.test` (for example `student07.dojo.test`), in `~/lab/my-zone`. Nobody else's config touches it, so you can add, break, fix and delete records freely, and apply them yourself with `dnscontrol push`. This is where you learn how DNS as code works.
+**Part 1: your own zone.** Every student has a zone of their own, `<your-username>.dojo.test` (yours is `studentXX.dojo.test`), in `~/lab/my-zone`. Nobody else's config touches it, so you can add, break, fix and delete records freely, and apply them yourself with `dnscontrol push`. This is where you learn how DNS as code works.
 
 **Part 2: the shared zone, the company way.** `dojo.test` is the whole class's zone, standing in for a company's production DNS. Its config lives in the shared `dns-team/dns-as-code` repo, and **only CI can change it**: a `dnscontrol push` from your terminal is refused, and nobody can push to `main`. Every change goes through a branch, a pull request, an automatic preview, a review by someone else, and a merge, and then the pipeline applies it. This is where you learn the process around DNS as code.
 

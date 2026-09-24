@@ -100,7 +100,7 @@ ARM_RESOURCE_PROVIDER_REGISTRATIONS=none
 ARM_SUBSCRIPTION_ID=260eb175-2be3-5b4e-a481-d14ff2e938cf
 ARM_TENANT_ID=5f2c1a40-7d3e-4b6a-9c11-3a7e2d9b8f10
 ARM_USE_CLI=false
-TF_VAR_owner=student01
+TF_VAR_owner=studentXX
 TF_VAR_portal_base_url=http://localhost/cloud
 ```
 

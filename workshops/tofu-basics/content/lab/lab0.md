@@ -15,7 +15,7 @@ curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
 
 `curl` asks for your **Forgejo password**, which is shown on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON describing the new repo means it worked. If you see `repository is already forked`, you made it earlier; carry on.
 
-Now clone **your** fork (`$USER` is your account name, for example `student01`):
+Now clone **your** fork (`$USER` is your account name, `studentXX`):
 
 ```sh
 cd ~/lab

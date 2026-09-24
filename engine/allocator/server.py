@@ -510,11 +510,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def send_json(self, data, status=200):
+    def send_json(self, data, status=200, headers=None):
         encoded = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
+        for k, v in (headers or {}):
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(encoded)
 
@@ -1174,6 +1176,14 @@ setInterval(refresh, 5000);
                 self.send_header("Set-Cookie", cookie)
             self.send_header("Content-Length", "0")
             self.end_headers()
+            return
+
+        if path == "/whoami":
+            # The browser's own student ID, for pages that personalise
+            # themselves (the lab reader swaps it in for "studentXX").
+            # null for the facilitator and for a browser holding no slot.
+            _, sid = self.resolve_identity()
+            self.send_json({"user": sid}, headers=NO_STORE_HEADERS)
             return
 
         if path == "/auth-check":

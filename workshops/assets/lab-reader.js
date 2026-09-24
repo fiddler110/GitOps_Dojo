@@ -106,12 +106,27 @@
     return;
   }
 
-  fetch('../lab/' + file, { credentials: 'same-origin' })
+  // Labs write "studentXX" wherever the reader's own username belongs, so
+  // they still read correctly in an editor. Here it becomes the real name,
+  // from the allocator's /whoami (null for the facilitator, or on any error,
+  // which leaves the placeholder as it is).
+  var whoami = fetch('/whoami', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (res) { return res.ok ? res.json() : {}; })
+    .then(function (data) {
+      var user = data && data.user;
+      return typeof user === 'string' && /^[a-z][a-z0-9]{0,30}$/.test(user) ? user : null;
+    })
+    .catch(function () { return null; });
+
+  var lab = fetch('../lab/' + file, { credentials: 'same-origin' })
     .then(function (res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.text();
-    })
-    .then(function (text) {
+    });
+
+  Promise.all([lab, whoami])
+    .then(function (results) {
+      var text = results[1] ? results[0].replace(/studentXX/g, results[1]) : results[0];
       render(text, file);
       renderPager(file);
     })

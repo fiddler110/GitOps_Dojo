@@ -39,7 +39,7 @@ VERSION = 1
 # The allocator-only paths are exact, but the allocator is the catch-all,
 # so an extension route there would hijack it.
 ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term")
-ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/auth-check", "/auth-check-watch")
+ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch")
 
 # Built-in /admin tab ids (allocator/server.py render_facilitator_workspace).
 ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")

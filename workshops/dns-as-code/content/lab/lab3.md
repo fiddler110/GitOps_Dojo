@@ -67,10 +67,10 @@ Create a branch:
 git checkout -b add-$USER-app
 ```
 
-Add a record for an app of yours. Use your username in the name, so it can't clash with anyone else's: add this line near the other `A` records, with your username instead of `student07`:
+Add a record for an app of yours. Use your username in the name, so it can't clash with anyone else's: add this line near the other `A` records, with your username (`studentXX`) in it:
 
 ```js
-	A("student07-app", "203.0.113.30"),
+	A("studentXX-app", "203.0.113.30"),
 ```
 
 Or let Python add it with your real username:
