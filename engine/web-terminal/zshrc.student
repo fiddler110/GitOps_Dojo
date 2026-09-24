@@ -13,6 +13,21 @@ setopt auto_cd
 setopt correct
 setopt interactive_comments
 
+# Word and line movement. Without these, Ctrl/Alt+arrows print a stray "5D"
+# or "3C": zsh has no default binding for the xterm-style codes that
+# browsers send and tmux passes through (xterm-keys is on).
+bindkey '^[[1;5D' backward-word   # Ctrl+Left
+bindkey '^[[1;5C' forward-word    # Ctrl+Right
+bindkey '^[[1;3D' backward-word   # Alt+Left
+bindkey '^[[1;3C' forward-word    # Alt+Right
+bindkey '^[[H' beginning-of-line  # Home
+bindkey '^[[F' end-of-line        # End
+bindkey '^[[1~' beginning-of-line # Home (tmux)
+bindkey '^[[4~' end-of-line       # End (tmux)
+bindkey '^[[3~' delete-char       # Delete
+bindkey '^[[3;5~' kill-word       # Ctrl+Delete
+bindkey '^H' backward-kill-word   # Ctrl+Backspace (xterm.js sends DEL, not ^H, for plain Backspace)
+
 # Per-account ceiling so one account (fork bomb, runaway `dd`, etc.) can't
 # take down the shared web-terminal container for every other student.
 # Hard and soft set equal and to the same value at every login so a
