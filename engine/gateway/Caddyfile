@@ -183,6 +183,12 @@
 			}
 		}
 
+		# Workshop and module routes, declared in their extensions.json and
+		# rendered by run.sh (allocator/render_extensions.py) into fixed gate
+		# templates. After every engine route above, so none can shadow one;
+		# the renderer also rejects paths that collide with them.
+		import /etc/caddy/extensions/*.caddy
+
 		handle {
 			# header_up (no +/- prefix) REPLACES this header rather than
 			# appending to it, so a client can't just send its own

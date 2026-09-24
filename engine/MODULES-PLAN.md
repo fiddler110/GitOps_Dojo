@@ -198,7 +198,9 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
   Verify: `./run.sh git-fundamentals --dry-run` prints `extensions: 0 manifest(s) ...`; a manifest with an unknown
   upstream makes it exit 1 with `rejected`. The renderer is mounted from source (not baked into the image) so dry runs
   check with current rules; rootless podman needs no `--user` (docker gets `--user uid:gid`).
-- [ ] **T1.3** Caddyfile `import`; gate templates.
+- [x] **T1.3** (SHA below) Caddyfile `import`; gate templates (in the renderer, T1.1).
+  Verify: `caddy adapt` of the real Caddyfile in the gateway image, with an empty and a 4-route snippet. Note: Caddy
+  re-sorts path-matched `handle`s, so correctness relies on the renderer's no-overlap rule, not on position.
 - [ ] **T1.4** Allocator: cards, admin tabs, status checks and `/auth-check?route=` from the manifest.
 - [ ] **T1.5** tofu-basics → `extensions.json`; delete `CLOUD_ENABLED`. Real-stack test incl. facilitator tab.
 - [ ] **T1.6** cert-autorenewal → `extensions.json` (`/demo` with `host`); delete `DEMO_APP_*`. Real-stack test.
