@@ -1,10 +1,12 @@
-# Shared .zshrc for the facilitator account, used by both the ttyd
-# web-terminal and code-server's integrated terminal (same account, same
-# container -- see entrypoint.sh, which symlinks the facilitator's
-# ~/.zshrc to this file on every container start, so edits here take
-# effect on the next restart without touching entrypoint.sh).
+# Shared .zshrc for every account in the web-terminal container (students,
+# demo bots and the facilitator), used by both the ttyd web-terminal and
+# code-server's integrated terminal. entrypoint.sh symlinks each account's
+# ~/.zshrc to this file on every container start, so edits here take effect
+# for everyone on the next restart without touching entrypoint.sh. The only
+# per-role difference is the ulimit block below.
 #
-# Edit this file directly to add aliases, tool init, etc.
+# Edit this file directly to add aliases, tool init, etc. for everyone;
+# personal aliases go in ~/.zshrc_aliases (loaded at the end).
 
 autoload -Uz compinit
 compinit
@@ -28,10 +30,22 @@ bindkey '^[[3~' delete-char       # Delete
 bindkey '^[[3;5~' kill-word       # Ctrl+Delete
 bindkey '^H' backward-kill-word   # Ctrl+Backspace (xterm.js sends DEL, not ^H, for plain Backspace)
 
-# Per-account ceiling so this account can't starve the shared container --
-# see the matching comment in zshrc.student for rationale.
-ulimit -Hu 256 -Su 256
-ulimit -Hf 2097152 -Sf 2097152
+# Per-account ceiling so one account (fork bomb, runaway `dd`, etc.) can't
+# take down the shared web-terminal container for every other student.
+# Hard and soft set equal and to the same value at every login so a
+# student can't raise it mid-session; see docker-compose.yml's web-terminal
+# pids_limit/mem_limit for the container-wide backstop behind this.
+# Approximate on purpose: shells don't agree on ulimit -f's block size, so
+# treat this as "generously large", not an exact byte count.
+# The facilitator (entrypoint.sh puts them in the dojo-facilitator group)
+# gets twice the headroom, since they may work in several places at once.
+if (( ${${(s: :)$(id -Gn)}[(Ie)dojo-facilitator]} )); then
+  ulimit -Hu 256 -Su 256
+  ulimit -Hf 2097152 -Sf 2097152
+else
+  ulimit -Hu 128 -Su 128
+  ulimit -Hf 1048576 -Sf 1048576
+fi
 
 eval "$(zoxide init zsh)"
 
@@ -87,3 +101,15 @@ by_ext() {
 }
 # Create an alias that uses the function to sort
 alias lse="ls -G *(oe:by_ext:)"
+
+# ── Your own aliases ──────────────────────────────────────────────────────────
+# ~/.zshrc is read-only (a symlink to this shared file), so personal aliases
+# and functions go in ~/.zshrc_aliases instead, which you own. It's loaded
+# last, so it can override anything above; `aliases` lists what's in it.
+# Tools may add to it too (e.g. dns-as-code's `dnsctl.py setup` adds `dnsc`).
+# After editing it, run `source ~/.zshrc_aliases` or open a new terminal.
+if [[ ! -e ~/.zshrc_aliases ]]; then
+  print -r -- '# Your own aliases and functions. Loaded by every new shell.
+# Example:  alias gs="git status"' > ~/.zshrc_aliases 2>/dev/null
+fi
+[[ -r ~/.zshrc_aliases ]] && source ~/.zshrc_aliases

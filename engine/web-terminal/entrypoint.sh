@@ -57,6 +57,9 @@ echo "$facilitator_username:$facilitator_password" | chpasswd
 mkdir -p /etc/sudoers.d
 printf '%s ALL=(ALL) ALL\n' "$facilitator_username" > /etc/sudoers.d/facilitator
 chmod 440 /etc/sudoers.d/facilitator
+# Lets the shared zshrc give this account the facilitator's ulimits.
+groupadd -f dojo-facilitator
+usermod -aG dojo-facilitator "$facilitator_username"
 
 facilitator_home="$(getent passwd "$facilitator_username" | cut -d: -f6)"
 mkdir -p "$facilitator_home/lab"
@@ -72,11 +75,11 @@ if [ -f "$lab_seed_dir/README.md" ]; then
   ln -s "$lab_seed_dir/README.md" "$facilitator_home/lab/README.md"
 fi
 
-# Authored under engine/web-terminal/zshrc.facilitator (see that file to
-# add aliases etc.). Always resynced to the current version on every
+# Authored under engine/web-terminal/zshrc, shared by every account (see
+# that file to add aliases etc.). Always resynced to the current version on every
 # container start, same as the README.md symlink above.
 rm -f "$facilitator_home/.zshrc"
-ln -s /opt/dojo-shell/zshrc.facilitator "$facilitator_home/.zshrc"
+ln -s /opt/dojo-shell/zshrc "$facilitator_home/.zshrc"
 
 # The schema/update settings below switch off background fetches that can
 # only fail here: this container has no network route out, so SchemaStore
@@ -299,11 +302,11 @@ EOF
     chown -R "$username:$username" "/home/$username/lab/.vscode"
   fi
 
-  # Authored under engine/web-terminal/zshrc.student (see that file to add
+  # Authored under engine/web-terminal/zshrc (see that file to add
   # aliases etc.). Always resynced to the current version on every
   # container start, same as the README.md symlink above.
   rm -f "/home/$username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc.student "/home/$username/.zshrc"
+  ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
 
   counter=$((counter + 1))
 done
@@ -373,7 +376,7 @@ EOF
   chmod 600 "/home/$bot_username/.dojo-bot.env"
 
   rm -f "/home/$bot_username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc.student "/home/$bot_username/.zshrc"
+  ln -s /opt/dojo-shell/zshrc "/home/$bot_username/.zshrc"
 
   chown -R "$bot_username:$bot_username" "/home/$bot_username"
 
