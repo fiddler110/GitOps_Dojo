@@ -201,7 +201,10 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 - [x] **T1.3** (SHA below) Caddyfile `import`; gate templates (in the renderer, T1.1).
   Verify: `caddy adapt` of the real Caddyfile in the gateway image, with an empty and a 4-route snippet. Note: Caddy
   re-sorts path-matched `handle`s, so correctness relies on the renderer's no-overlap rule, not on position.
-- [ ] **T1.4** Allocator: cards, admin tabs, status checks and `/auth-check?route=` from the manifest.
+- [x] **T1.4** (SHA below) Allocator: cards, admin tabs, status checks and `/auth-check?route=` from the manifest.
+  Verify (standalone allocator container, sample manifest): identity route 303 without a session, 200 with
+  `X-Dojo-User`/`X-Dojo-Host` for a student and the facilitator; facilitator gate 403 for a student; shared/unknown
+  route 404; no token 403; card, `/admin` tab + panel and status entry rendered. Live-stack test is T1.5.
 - [ ] **T1.5** tofu-basics → `extensions.json`; delete `CLOUD_ENABLED`. Real-stack test incl. facilitator tab.
 - [ ] **T1.6** cert-autorenewal → `extensions.json` (`/demo` with `host`); delete `DEMO_APP_*`. Real-stack test.
 - [ ] **T1.7** git-fundamentals and dns-as-code: start, confirm nothing changed. Spoofed-header test on each gate.
