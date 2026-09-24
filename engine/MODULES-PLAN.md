@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **Plan written; waiting for the user's review and go-ahead for M0.** |
+| Overall status | **M0 done (all three spikes pass, findings in §9). Waiting on the user for Q1 (module folder) and the go-ahead for M1.** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -38,6 +38,7 @@ before editing engine/ files, and about anything in section 8.
 | M6 | What `run.sh` needs in bash stays in env files (`MODULES=` in `workshop.env`, settings in `module.env`); what the engine renders goes in JSON (`extensions.json`). No JSON parsing in bash. | proposed |
 | M7 | A module is found **by convention**, not by config: `workshops/modules/<name>/{module.env, extensions.json, compose.yml, terminal/Dockerfile}`, each optional. | proposed |
 | M8 | Terminal tools stack by **chained builds**: every tools Dockerfile starts `ARG BASE` / `FROM ${BASE}`; `run.sh` builds base → module … → workshop. | proposed |
+| M10 | The facilitator gets **their own demo site** (a vhost under the demo zone), not student01's. | user, 2026-09-24 |
 | M9 | The manifest is checked and rendered **before anything starts**, by a one-shot run of the allocator image (it already has Python; the host has no Python prerequisite). A bad manifest stops `./run.sh` with a clear error. | proposed |
 
 ## 2. Problem: where workshops edit the engine today
@@ -180,13 +181,13 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 
 ### M0: spikes (throwaway, in the scratchpad; no engine edits kept)
 
-- [ ] **T0.1** podman-compose merge test (§5.1, §5.4) with two tiny fragments on a scratch project.
+- [x] **T0.1** (findings in §9) podman-compose merge test (§5.1, §5.4) with two tiny fragments on a scratch project.
   Verify: `podman-compose -f a.yml -f b.yml config` output recorded in §9.
-- [ ] **T0.2** Caddy glob import + bind mount (§5.2) with the `caddy:2-alpine` image in the scratchpad.
+- [x] **T0.2** (findings in §9) Caddy glob import + bind mount (§5.2) with the `caddy:2-alpine` image in the scratchpad.
   Verify: request to an imported route answers; empty snippet still starts.
-- [ ] **T0.3** Chained terminal build (§5.3) with two dummy tool layers on `web-terminal:base`.
+- [x] **T0.3** (findings in §9) Chained terminal build (§5.3) with two dummy tool layers on `web-terminal:base`.
   Verify: final image has both tools and `podman inspect` shows the HEALTHCHECK.
-- [ ] **T0.4** Write findings into §9, update §3/§4 if anything changed. **Ask before M1.**
+- [x] **T0.4** Write findings into §9, update §3/§4 if anything changed. **Ask before M1.**
 
 ### M1: extensions (engine edits; ask before each)
 
@@ -216,14 +217,49 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 ## 8. Open questions
 
 - **Q1** Module folder: `workshops/modules/<name>/` (M7, as the vault plan sketched) or top-level `modules/`?
-- **Q2** `/demo` for the facilitator: today it shows `student01`'s site. Keep that (a `facilitator_as` option), or
-  give the facilitator their own demo vhost?
-- **Q3** Should a module be allowed to add environment/volumes to **engine** services (web-terminal, allocator), or
-  only add its own services? Depends on T0.1; tofu-basics' Dojo Cloud needs to add mounts to web-terminal today.
+- ~~Q2~~ Answered (M10): the facilitator gets their own demo site.
+- ~~Q3~~ Answered by T0.1: modules **may** extend engine services (env, volumes, networks, depends_on all merge),
+  provided they follow the network-form rule in §9.
+- **Q4** Terminal start-up hooks (§9 T0.3 finding): add a small `/etc/dojo/start.d/*.sh` hook runner to the base
+  web-terminal entrypoint (engine edit; no hooks = no change), replacing the per-workshop `ENTRYPOINT` wrappers?
 
 ## 9. Findings
 
-(filled in by M0)
+All run on 2026-09-24 in the session scratchpad with podman 5.7.0 / podman-compose 1.5.0, on separate project
+names beside the running vault spike stack (untouched).
+
+**T0.1 podman-compose merging: PASS, with one rule.**
+- Four files (`base`, two modules, one in a sub-folder) changing the same service: `environment` merges per key
+  (later file wins, list and map forms can be mixed), `volumes` and `depends_on` append (list and map `depends_on`
+  mix fine), module-only services/volumes/networks are added. Confirmed at runtime (`env`, mounts, a pinned
+  `ipv4_address` on a module network), and `down -v` left no volumes or networks.
+- Relative paths in any fragment resolve against the **first** file's folder (`engine/`), same as today.
+- **Rule:** `networks:` on one service must use the **same form in every file**. List + map fails at `up` (not at
+  `config`): `ValueError: can't merge value of [networks] of type <class 'list'> and <class 'dict'>`. The engine uses
+  list form, so a module adding a network to an engine service uses list form; pinned IPs only on the module's own
+  services. The renderer/`run.sh` should catch this before `up` (a check over the merged files), since `config`
+  alone does not.
+
+**T0.2 Caddy import: PASS.**
+- `import /etc/caddy/extensions/*.caddy` inside the shared-gate `handle`, before the catch-all `handle`, from a
+  read-only bind mount (`:ro,Z`) under rootless podman: the imported route answers, basic auth still applies (401
+  without it), other paths still reach the catch-all.
+- No matching file and an empty file both only log a warning (`No files matching import glob pattern`,
+  `Import file is empty`). Caddy still starts. We'll still always write the file so the log stays clean.
+- `{$GATEWAY_TOKEN}` expands inside the imported snippet, and `header_up` overwrote a client's forged
+  `X-Auth-User: facilitator` / `X-Gateway-Token: forged` with the real values.
+- The gateway image bakes the Caddyfile in (`COPY`), so the snippet dir needs a bind mount on `gateway` in
+  `docker-compose.yml`.
+
+**T0.3 chained terminal builds: PASS.**
+- `ARG BASE` / `FROM ${BASE}` chain base → m1 → m2 → workshop with `BUILDAH_FORMAT=docker` (as `run.sh` sets):
+  every tool present, `TARGETARCH` reaches each link (`amd64`), HEALTHCHECK is **inherited** without restating
+  it, ENTRYPOINT stays the base's. A missing `BASE` fails loudly (`no FROM statement found`). An unchanged
+  rebuild takes ~3 s (cache).
+- **Finding:** cert-autorenewal and tofu-basics each replace `ENTRYPOINT` with a wrapper that starts background jobs
+  and then `exec`s `/usr/local/bin/web-terminal-entrypoint`. Two modules doing that would override each other.
+  Proposed fix (Q4): the base entrypoint runs `/etc/dojo/start.d/*.sh` in order before its own work, and modules
+  drop a hook there instead of wrapping.
 
 ## 10. Session log
 
@@ -231,3 +267,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
 - vault-fundamentals paused; its T0.4 Caddyfile spike is in `git stash` ("vault-fundamentals T0.4 spike ...").
 - Branch `feat/workshop-modules` from `main`. Mapped every per-workshop engine touch point (§2).
 - User decisions M1-M3. Proposed M5-M9 and the task list; waiting for review.
+
+### 2026-09-24: M0 spikes
+- User: facilitator gets their own demo site (M10); run M0 before deciding Q1.
+- T0.1-T0.3 pass (§9). New rule: same `networks:` form per service across files. New Q4: entrypoint hooks.
