@@ -249,6 +249,11 @@ def build_record_line(
     extras: list[str] | None = None,
     comment: str = "",
 ) -> str:
+    # dnscontrol reads an empty target as the zone apex, so CNAME("x", "")
+    # silently becomes "x -> dojo.test." instead of an error.
+    if record_type in ("A", "CNAME", "MX") and not value.strip():
+        raise ValueError(f"{record_type} records need a value - it can't be empty.")
+
     quoted_name = json.dumps(name)
     quoted_value = json.dumps(value)
     extras = extras or []

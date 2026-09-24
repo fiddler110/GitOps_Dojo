@@ -4,12 +4,20 @@ printing, interactive prompts, and a couple of string/argument parsers."""
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+
+def heading(text: str) -> None:
+    """Print a step heading, bold cyan on a terminal, plain when piped or NO_COLOR is set."""
+    if sys.stdout.isatty() and not os.environ.get("NO_COLOR"):
+        text = f"\033[1;36m{text}\033[0m"
+    print(f"\n{text}", flush=True)
 
 
 def slugify(text: str, max_len: int = 40) -> str:

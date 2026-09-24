@@ -82,6 +82,7 @@ from dnsctl_lib import install, procutil, records, render  # noqa: E402
 from dnsctl_lib.env import apply_env_file  # noqa: E402
 from dnsctl_lib.cli_utils import (  # noqa: E402
     eprint,
+    heading,
     parse_index_arg,
     prompt,
     prompt_yes_no,
@@ -539,56 +540,80 @@ def cmd_submit(args) -> int:
         eprint("error: no local changes to commit.")
         return 1
 
+    current_branch = git_output(["rev-parse", "--abbrev-ref", "HEAD"])
+    base_branch = args.base
+    make_branch = current_branch == base_branch
+    branch = (args.branch or f"dns/{slugify(args.message)}") if make_branch else current_branch
+    files = args.files or ["dnsconfig.js"]
+
     if not args.skip_preview:
-        print("Running dnscontrol preview to sanity-check your change before committing...\n")
+        heading("Check: dnscontrol preview")
+        print(
+            "Before anything is committed, preview compares dnsconfig.js with the live zone.\n"
+            "The diff below is exactly what CI will apply once your PR is merged.\n",
+            flush=True,
+        )
         rc = cmd_preview(args)
         print()
         if rc != 0:
             eprint("error: dnscontrol preview failed - fix the error above before submitting.")
             return 1
-        if not args.yes:
-            confirm = input("Does the diff above look correct? [y/N]: ").strip().lower()
-            if confirm != "y":
-                print("Aborted.")
-                return 1
+        if not args.yes and not prompt_yes_no("Does the diff above look correct?", default_yes=False):
+            print("Aborted. Nothing was committed.")
+            return 1
 
-    current_branch = git_output(["rev-parse", "--abbrev-ref", "HEAD"])
-    base_branch = args.base
-    created_branch = False
+    steps = [
+        (f"Create branch '{branch}' from '{base_branch}'", f"git checkout -b {branch}")
+        if make_branch
+        else (f"Use the branch you're on, '{branch}'", None),
+        (f"Stage {', '.join(files)}", f"git add {' '.join(files)}"),
+        (f"Commit it as \"{args.message}\" (the pre-commit hook lints it first)", "git commit -m ..."),
+        (f"Push '{branch}' to Forgejo", f"git push -u origin {branch}"),
+        (f"Open a pull request from '{branch}' into '{base_branch}'", None),
+    ]
+    heading("Plan: submit will now")
+    for n, (what, cmd) in enumerate(steps, 1):
+        print(f"  {n}. {what}")
+        if cmd:
+            print(f"       $ {cmd}")
+    print()
+    if not args.yes and not prompt_yes_no("Run these steps?", default_yes=False):
+        print("Aborted. Nothing was committed; your change is still in dnsconfig.js.")
+        return 1
 
-    if current_branch == base_branch:
-        branch = args.branch or f"dns/{slugify(args.message)}"
-        print(f"Creating branch '{branch}' from '{base_branch}'...")
+    def step(n: int) -> None:
+        heading(f"[{n}/{len(steps)}] {steps[n - 1][0]}")
+
+    step(1)
+    if make_branch:
         if git(["checkout", "-b", branch]).returncode != 0:
             return 1
-        created_branch = True
-    else:
-        branch = current_branch
-        print(f"Already on branch '{branch}' - using it.")
 
-    files = args.files or ["dnsconfig.js"]
+    step(2)
     git(["add", *files])
-
     staged = git_output(["diff", "--cached", "--name-only"])
     if not staged:
         eprint(f"error: nothing staged from {files} - check --files matches your edited file(s).")
-        if created_branch:
+        if make_branch:
             git(["checkout", base_branch])
             git(["branch", "-D", branch])
         return 1
+    print(f"Staged: {', '.join(staged.splitlines())}", flush=True)
 
-    print(f"Staged: {', '.join(staged.splitlines())}")
-
+    step(3)
     if git(["commit", "-m", args.message]).returncode != 0:
         return 1
 
-    print(f"Pushing '{branch}'...")
+    step(4)
     push_result = subprocess.run(["git", "push", "-u", "origin", branch], cwd=REPO_ROOT)
     if push_result.returncode != 0:
-        eprint("error: git push failed (see above).")
+        eprint(
+            "error: git push failed (see above). Your commit is saved on this branch: fix the "
+            f"problem, run `git push -u origin {branch}`, then open the PR in the Forgejo web page."
+        )
         return push_result.returncode
 
-    print("Opening pull request...")
+    step(5)
     pr_args = [
         "pr", "create",
         "--title", args.message,
@@ -600,12 +625,18 @@ def cmd_submit(args) -> int:
     if result.returncode != 0:
         eprint(result.stderr.strip() or result.stdout.strip())
         return result.returncode
-    print(result.stdout.strip())
+    url = result.stdout.strip()
+    number = url.rstrip("/").rsplit("/", 1)[-1]
+    pr = number if number.isdigit() else "<PR#>"
+    print(f"Pull request opened: {url}")
+    if number.isdigit():
+        print(f"Your PR number is {number}.")
 
+    heading("Done")
     print(
-        "\nNext: wait for the 'DNS Preview' check (python3 scripts/dnsctl.py status), "
-        "review it (python3 scripts/dnsctl.py review <PR#>), then "
-        "python3 scripts/dnsctl.py merge <PR#>."
+        f"Next: python3 scripts/dnsctl.py status        (wait for the 'DNS Preview' check)\n"
+        f"      python3 scripts/dnsctl.py review {pr}\n"
+        f"      python3 scripts/dnsctl.py merge {pr}      (once it's approved)"
     )
     return 0
 
@@ -752,6 +783,13 @@ def cmd_merge(args) -> int:
     # this also works against a Forgejo remote - see procutil.detect_forge().
     result = gh(["pr", "merge", number, "--merge", "--delete-branch"], capture=False)
     if result.returncode != 0:
+        if result.stderr:
+            eprint(result.stderr.strip())
+        eprint(
+            f"error: PR #{number} was not merged. main only accepts a PR once its DNS Preview "
+            "check has passed and someone other than the author has approved it. Check both "
+            "with `python3 scripts/dnsctl.py status` and the PR page in Forgejo."
+        )
         return result.returncode
 
     if not args.wait:
@@ -1168,6 +1206,9 @@ def cmd_record_add(args) -> int:
             "TXT": "text value",
         }[record_type]
         value = prompt(f"{label} for {fqdn_for(name, zone)}")
+        while not value and record_type != "TXT":
+            print(f"A {record_type} record needs a {label}; it can't be blank.")
+            value = prompt(f"{label} for {fqdn_for(name, zone)}")
 
     if record_type in ("CNAME", "MX") and value and not value.endswith("."):
         if interactive:
