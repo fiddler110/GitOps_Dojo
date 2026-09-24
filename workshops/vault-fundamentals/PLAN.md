@@ -560,7 +560,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.7** *(79e2ac0)* (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
       waiting jobs and runner state; start-up time; memory while running a job.
       *Verify:* numbers recorded in §10/§15; a runner exits after exactly one job.
-- [x] **T0.8** *(SHA_T08)* (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
+- [x] **T0.8** *(5eae970)* (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
       unprivileged container; several runners (one Linux user each) side by side. If it fails, record
       why and fall back to Docker-in-Docker (S16). *Verify:* a job cannot see or signal another job's
       processes or files.
