@@ -116,7 +116,7 @@ automation instead of being made by hand.
 | DNS as Code | Ready |
 | Certificate Autorenewal | Ready |
 | OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
-| **Vault Fundamentals** (OpenBao) | Planned: secrets in code, git, pipelines and deployments, on a real OpenBao with CI runners ([`keyvault-workshop-plan.md`](keyvault-workshop-plan.md)). |
+| **Vault Fundamentals** (OpenBao) | In progress, about to start the P0 spike: secrets in code, git, pipelines and deployments, on a real OpenBao with CI runners ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout
@@ -132,10 +132,10 @@ automation instead of being made by hand.
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
 │   ├── dns-as-code/          # + PowerDNS, Forgejo Actions runner
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   └── tofu-basics/          # + Dojo Cloud (cloud-api, cloud-host); PLAN.md, FACILITATOR.md, tests/
+│   ├── tofu-basics/          # + Dojo Cloud (cloud-api, cloud-host); PLAN.md, FACILITATOR.md, tests/
+│   └── vault-fundamentals/   # In progress (OpenBao); PLAN.md only so far
 ├── handouts/                 # Take-home versions of the labs
-├── assets/branding/          # Shared branding
-└── keyvault-workshop-plan.md # Plan for the next workshop (vault-fundamentals)
+└── assets/branding/          # Shared branding
 ```
 
 ```mermaid

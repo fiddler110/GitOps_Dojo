@@ -1,8 +1,61 @@
-# vault-fundamentals workshop: plan
+# PLAN — `vault-fundamentals`: secrets in code, git, pipelines and deployments (OpenBao)
 
-*Started 2026-09-23 as a parked idea; reworked the same day over a design conversation with the user.
-Not started. Pick up after tofu-basics ships. When work starts, move this file to
-`workshops/vault-fundamentals/PLAN.md` and give it a task checklist and session log like tofu-basics has.*
+> **Purpose of this file:** the single source of truth for building this
+> workshop. It is written so a brand-new session (human or Claude) can pick up
+> exactly where the last one stopped. Keep it current — tick boxes in §11 and
+> append to the Session Log (§15) as you go.
+
+| | |
+|---|---|
+| Created | 2026-09-23 (design conversation with the user; moved here from `keyvault-workshop-plan.md` the same day) |
+| Owner | scott |
+| Workshop folder | `workshops/vault-fundamentals/` |
+| Run command (when built) | `./run.sh vault-fundamentals` |
+| Overall status | **Design agreed (§1, S1-S17). No code yet. Ready to start P0 (spike), waiting on the user's go-ahead.** |
+| Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
+| Last updated | 2026-09-23 (plan moved into the workshop folder; resume section, task list and session log added) |
+
+---
+
+## 0. HOW TO RESUME (read this first)
+
+1. Read this whole file once.
+2. `git status` and `git log --oneline -20`. Every finished task records its
+   commit SHA (or "findings in §10") next to its checkbox in §11. If a box is
+   ticked but the SHA is not in `git log`, treat the task as **not done**.
+3. Check §1 (decisions) and §12 (open questions). Do not start work that
+   depends on an open question. Read **§14 (Worth knowing)** for surprises and
+   problems found along the way.
+4. **Ask the user before moving from one phase to the next** (P0 → P0.5 → P1 …).
+   Ask before editing any `engine/` file, even for a spike.
+5. Find the first `[ ]` or `[~]` task in §11. Before starting it, run the
+   **Verify** line of the previous finished task to make sure the foundation
+   still holds.
+6. Work the task. When finished: tick the box, add the commit SHA, and append a
+   dated entry to §15. If you learned something that changes the plan, edit the
+   relevant section — do not just note it in the log.
+7. If you are blocked, mark the task `[!]`, say why in §15, and move to the
+   next unblocked task.
+
+**Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) ·
+`[!]` blocked · `[-]` dropped (say why).
+
+**Working style (from `CLAUDE.md` and memory):** podman + podman-compose only,
+build and start through `./run.sh`; verify on the real stack; keep the main
+context small and hand builds, live tests and wide searches to sub-agents with
+token rules in every brief (tail/grep logs, capped retries, cheaper models).
+
+**Prompt to paste into a fresh Claude Code session:**
+
+```text
+Read workshops/vault-fundamentals/PLAN.md fully. Follow its "HOW TO RESUME"
+section: check git log against the ticked tasks, verify the last completed task
+still works, then continue with the first unchecked task. Update PLAN.md
+(checkboxes, commit SHAs, Session Log) as you go. Ask me before moving to a new
+phase, before editing engine/, and about anything in section 12.
+```
+
+---
 
 ## 1. Decisions so far (user, 2026-09-23)
 
@@ -366,7 +419,8 @@ workshop-agnostic.
      runners (one per Linux user) work side by side?
 6. `sops` with transit against OpenBao.
 
-## 11. Phases (ask the user before moving between phases)
+## 11. Phases and task list (ask the user before moving between phases)
+
 
 - **P0 spike**: §10 on the real stack; write down the findings.
 - **P0.5 engine extensions** (§8.1): build and test the mechanism with the Vault card, routes and tab; leave the
@@ -381,6 +435,50 @@ workshop-agnostic.
 - **P6 migrate every workshop to extensions** (S17): cert-autorenewal and tofu-basics off their flags, all four
   re-tested, flags removed, `workshops/README.md` and `engine/README.md` updated. (Could run right after P0.5 instead
   if it proves stable early; ask then.)
+
+### P0 — Spike (§10 on the real stack; findings go into §10 and §14)
+
+Spike code lives under `workshops/vault-fundamentals/spike/` (throwaway; may be
+deleted or folded into P1). No `engine/` edits without asking the user first.
+
+- [x] **T0.1** *(2026-09-23)* Branch `feat/vault-fundamentals` from `main`; move the plan to
+      `workshops/vault-fundamentals/PLAN.md`; add resume section, task list and session log;
+      point `CLAUDE.md` and the root README at it.
+      *Verify:* `git log --oneline -1 -- workshops/vault-fundamentals/PLAN.md`.
+- [ ] **T0.2** Skeleton: `workshop.env` (no labs yet) and a spike compose overlay that adds an
+      OpenBao container on `workshop_lab` (own `image:` tag for the terminal, per the overlay rules).
+      *Verify:* `./run.sh list` shows the workshop; `./run.sh vault-fundamentals` starts and
+      `bao status` answers from the student terminal (tools may be a temporary download on the host
+      side for the spike).
+- [ ] **T0.3** (§10.1) Pick the OpenBao release with **namespaces**; record version and image
+      digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
+      *Verify:* digests match the registry; `bao namespace create` works on the spike server.
+- [ ] **T0.4** (§10.2) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
+      framed in `/admin`. **Needs a gateway change: ask the user whether to do it as an uncommitted
+      local edit or wait for P0.5.** *Verify:* UI loads and works through the gateway URL and inside
+      an `/admin` iframe.
+- [ ] **T0.5** (§10.3) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
+      back to `/ui/...`. *Verify:* a student logs in to the UI with their Forgejo account and lands in
+      the right identity/policy.
+- [ ] **T0.6** (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
+      to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
+      stored credential; a run from another repo is refused.
+- [ ] **T0.7** (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
+      waiting jobs and runner state; start-up time; memory while running a job.
+      *Verify:* numbers recorded in §10/§15; a runner exits after exactly one job.
+- [ ] **T0.8** (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
+      unprivileged container; several runners (one Linux user each) side by side. If it fails, record
+      why and fall back to Docker-in-Docker (S16). *Verify:* a job cannot see or signal another job's
+      processes or files.
+- [ ] **T0.9** (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
+      with a token that has transit decrypt only; a token without it fails.
+- [ ] **T0.10** Write up: findings into §10, plan changes into the relevant sections, new questions
+      into §12, a P0 entry in §15. **Ask the user before starting P0.5.**
+
+### P0.5 onwards
+
+Each later phase gets its own task block here (IDs `TX.x` for P0.5 extensions, then `T1.x` … `T6.x`) when it starts,
+written from the phase description above and the P0 findings.
 
 ## 12. Open questions for the user
 
@@ -401,6 +499,24 @@ None open right now (S16 and S17 settled the last two on 2026-09-23). P0 finding
   module and merges their extensions. Terminal tools are the hard part: they're baked into one image per workshop,
   so modules need a shared way to contribute pinned tools. Build this only when a second workshop actually needs a
   module; the first real case would be the tofu tie-in.
+
+## 14. Worth knowing & follow-ups
+
+Surprises, gotchas and problems found in other workshops while working on this one. Nothing yet.
+
+## 15. SESSION LOG (append-only, newest at the bottom)
+
+### 2026-09-23 — Design session
+- Design conversation with the user: decisions S1-S17 (§1), labs (§4), architecture (§5), runners (§6),
+  extensions mechanism (§8.1), phases (§11). Written as `keyvault-workshop-plan.md` at the repo root
+  (`27b5f59`). No code.
+
+### 2026-09-23 — Set-up for P0
+- tofu-basics merged to `main` (PR #1, merge commit `ebd0457`). Branch `feat/vault-fundamentals` created
+  from it.
+- Plan moved to `workshops/vault-fundamentals/PLAN.md`; added the header table, §0 HOW TO RESUME, the
+  P0 task list (§11), §14 and this log. `CLAUDE.md` and the root README now point here.
+- Next: T0.2, once the user says go for P0.
 
 ## Appendix: considered, not chosen
 
