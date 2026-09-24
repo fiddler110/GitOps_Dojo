@@ -79,7 +79,7 @@ class RouteRuleTests(unittest.TestCase):
         self.assertEqual(warnings, [])
 
     def test_engine_prefix_collisions(self):
-        for p in ("/admin", "/gitea", "/ide2", "/terminal", "/slides", "/demo"):
+        for p in ("/admin", "/gitea", "/ide2", "/terminal", "/slides"):
             self.bad("collides", path=p)
 
     def test_allocator_paths(self):

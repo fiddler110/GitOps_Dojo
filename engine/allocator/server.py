@@ -87,8 +87,6 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 # default -- same fail-fast pattern as CONTROL_TOKEN above. Must match
 # gateway's own GATEWAY_TOKEN (gateway/Caddyfile).
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
-DEMO_APP_ENABLED = os.environ.get("DEMO_APP_ENABLED", "0") == "1"
-DEMO_APP_ZONE = os.environ.get("DEMO_APP_ZONE", "certs.dojo.test")
 
 # Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
@@ -640,11 +638,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "desc": "Today's material, for reference as you go.",
             },
         ]
-        if DEMO_APP_ENABLED:
-            tools.append({
-                "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
-                "desc": "The live site your lab work is serving.",
-            })
         for card in EXTENSIONS["cards"]:
             tools.append({
                 "href": card["href"], "label": card["label"], "desc": card["desc"],
@@ -1213,7 +1206,7 @@ setInterval(refresh, 5000);
             self.handle_route_check((qs.get("route") or [""])[0])
             return
         tool = (qs.get("tool") or [""])[0]
-        if tool not in ("ide", "term", "demo"):
+        if tool not in ("ide", "term"):
             self.send_response(400)
             self.end_headers()
             return
@@ -1222,19 +1215,6 @@ setInterval(refresh, 5000);
         if username is None:
             self.send_response(303)
             self.send_header("Location", "/")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-
-        if tool == "demo":
-            if not DEMO_APP_ENABLED:
-                self.send_response(404)
-                self.end_headers()
-                return
-            student_id = username if username != FACILITATOR_USERNAME else None
-            demo_host = f"{student_id or STUDENT_PREFIX + '01'}.{DEMO_APP_ZONE}"
-            self.send_response(200)
-            self.send_header("X-Demo-Host", demo_host)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return

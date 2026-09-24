@@ -147,20 +147,6 @@
 			}
 		}
 
-		@demo path /demo*
-		handle @demo {
-			forward_auth allocator:8080 {
-				uri /auth-check?tool=demo
-				header_up X-Auth-User {http.auth.user.id}
-				header_up X-Gateway-Token {$GATEWAY_TOKEN}
-				copy_headers X-Demo-Host
-			}
-			uri strip_prefix /demo
-			reverse_proxy demo-app:80 {
-				header_up Host {http.request.header.X-Demo-Host}
-			}
-		}
-
 		# Workshop and module routes, declared in their extensions.json and
 		# rendered by run.sh (allocator/render_extensions.py) into fixed gate
 		# templates. After every engine route above, so none can shadow one;

@@ -80,6 +80,7 @@ services:
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - CERT_LAB_ZONE=${CERT_LAB_ZONE:-certs.dojo.test}
       - POWERDNS_API_KEY=${POWERDNS_API_KEY:-workshop-not-a-secret}
       - DEMO_APP_IP=172.30.0.20

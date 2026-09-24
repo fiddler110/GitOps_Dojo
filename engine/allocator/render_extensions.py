@@ -38,7 +38,7 @@ VERSION = 1
 # an extension path merely *starting with* one of these would be shadowed.
 # The allocator-only paths are exact, but the allocator is the catch-all,
 # so an extension route there would hijack it.
-ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/demo")
+ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term")
 ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/auth-check", "/auth-check-watch")
 
 # Built-in /admin tab ids (allocator/server.py render_facilitator_workspace).

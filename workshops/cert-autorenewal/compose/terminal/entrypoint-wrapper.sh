@@ -73,6 +73,18 @@ cron
 
     counter=$((counter + 1))
   done
+
+  # The facilitator gets a demo site of their own too (the /demo route sends
+  # them to <facilitator>.<zone>, see ../../extensions.json), so pre-create
+  # theirs for the same reason. Their account exists before any student's.
+  fac="${FACILITATOR_USERNAME:-root}"
+  if id -u "$fac" >/dev/null 2>&1; then
+    mkdir -p "/srv/webroot/$fac/conf.d" "/srv/webroot/$fac/html" "/srv/webroot/$fac/certs"
+    chown -R "$fac:$(id -gn "$fac")" "/srv/webroot/$fac"
+    chmod 0755 "/srv/webroot/$fac" "/srv/webroot/$fac/conf.d" "/srv/webroot/$fac/html" "/srv/webroot/$fac/certs"
+  else
+    echo "cert-autorenewal: facilitator account $fac not found, skipping its webroot pre-create" >&2
+  fi
 ) &
 
 exec /usr/local/bin/web-terminal-entrypoint "$@"
