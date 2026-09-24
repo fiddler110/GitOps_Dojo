@@ -43,3 +43,7 @@ RUN set -eux; \
 # X-Control-Token header and lives in engine/web-terminal/healthcheck.sh only.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
     CMD web-terminal-healthcheck
+
+# Part 1 sandbox: ~/lab/my-zone for every account, declaring only <user>.dojo.test.
+# Runs as a start.d hook from the base entrypoint, after every account exists.
+COPY start.d/90-my-zone.sh /etc/dojo/start.d/90-my-zone.sh

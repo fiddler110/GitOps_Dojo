@@ -1,142 +1,86 @@
-# Lab 5 — Merge Conflicts in `dnsconfig.js`
+# Lab 4 — Investigating & Rolling Back History
 
-**Optional.** What happens when git can't automatically combine two changes to the same DNS record — and why that's a bigger deal here than in a roster file.
-
-This lab creates its own throwaway local branches and never pushes them, so it's safe to run regardless of what you did in Labs 1-4 and won't interfere with anyone else's work.
+**Optional.** "Who changed this, when, and how do I undo it safely?" — the tools for answering that without hand-editing `dnsconfig.js` back to what it used to be. This lab uses `dnsctl.py`, so run [lab3.md](lab3.md)'s setup steps first if you haven't (`python3 scripts/dnsctl.py doctor` should be clean). You'll also need a merged PR to work with — Lab 1's is exactly right; grab its PR number if you wrote it down.
 
 ```sh
 git checkout main
 git pull
+git status   # should be clean
 ```
 
 ---
 
-## Part A — Causing and resolving a conflict
-
-A conflict happens when two branches change the *same line* in different ways. Normally that's two different people; here, you'll play both parts yourself so you can see it end to end without needing a partner.
+## 1. Browse DNS history
 
 ```sh
-git checkout main
-git checkout -b conflict-a
+python3 scripts/dnsctl.py history
 ```
 
-Edit `dnsconfig.js` and change the `www` record's IP:
-
-```js
-A("www", "203.0.113.40"),
-```
+This lists every merge to `main` that touched `dnsconfig.js`, newest first, with the commit, date, and PR number — a filtered `git log` purpose-built for this repo. The raw-git equivalent, if you ever need it without the wrapper:
 
 ```sh
-git add dnsconfig.js
-git commit -m "conflict-a: repoint www"
-git checkout main
-git checkout -b conflict-b
+git log --oneline -- dnsconfig.js
+git show <commit-hash>              # exactly what one commit changed
 ```
 
-Now, on this second branch, edit **the same line** to a different value:
+Find your Lab 1 PR in the list (the one that added your `A` record).
 
-```js
-A("www", "203.0.113.50"),
-```
+---
+
+## 2. Roll it back
 
 ```sh
-git add dnsconfig.js
-git commit -m "conflict-b: repoint www"
+python3 scripts/dnsctl.py rollback <your-lab1-pr-number>
 ```
 
-Now try to bring both changes together:
+Read what happens carefully — this is worth understanding, not just running:
+
+1. It creates a **new branch** and runs `git revert` on your original commit — a new commit that undoes the change, not a rewrite of history.
+2. It runs `dnscontrol preview` automatically and shows you the diff, then asks you to confirm it looks like the exact inverse of the original change.
+3. Once you confirm, it pushes the branch and **opens a new PR** — rollback never touches `main` directly, same as every other change in this system.
+
+This is the DNS-as-code equivalent of `git revert` from Git Fundamentals: undo by adding a new commit, never by rewriting something that might already be shared. `dnsctl.py rollback` is that pattern, wired specifically for `dnsconfig.js`.
+
+---
+
+## 3. Review and merge the rollback PR
+
+Same lifecycle as every other change so far:
 
 ```sh
-git merge conflict-a
-```
-
-Git stops and reports a conflict. Look at the file:
-
-```sh
-batcat dnsconfig.js
-```
-
-You'll see something like:
-
-```js
-A("www", "203.0.113.50"),
-```
-
-wrapped in git's markers:
-
-```text
-<<<<<<< HEAD
-	A("www", "203.0.113.50"),
-=======
-	A("www", "203.0.113.40"),
->>>>>>> conflict-a
-```
-
-- Everything between `<<<<<<< HEAD` and `=======` is your current branch's version.
-- Everything between `=======` and `>>>>>>> conflict-a` is the incoming branch's version.
-
-**Resolve it:** decide which value to keep (or a third one entirely), and delete the `<<<<<<<`/`=======`/`>>>>>>>` markers yourself — git won't do this part for you. For example, keep just:
-
-```js
-A("www", "203.0.113.40"),
+python3 scripts/dnsctl.py status
+python3 scripts/dnsctl.py review <rollback-PR#>
+python3 scripts/dnsctl.py merge <rollback-PR#>
 ```
 
 ---
 
-## Part B — Don't just commit: preview first
-
-This is the one step that has no equivalent in a plain git conflict, and it's the important part of this lab. Before finishing the merge, run:
+## 4. Confirm it's actually gone
 
 ```sh
-dnscontrol preview
+python3 scripts/dnsctl.py validate <rollback-PR#>
+dig @dns-server yourname.dojo.test A +short   # should return nothing now
 ```
 
-Git's conflict resolution only checked that the file has no leftover `<<<<<<<`/`=======`/`>>>>>>>` markers — it has no idea whether the JavaScript is still syntactically valid, whether you left a stray comma, or whether you accidentally kept *both* lines instead of picking one (which would leave two `A` records with the same name — legal DNS, almost never what you meant). `preview` is what actually tells you the resolved file makes sense. Confirm it shows a clean, expected diff before you go any further.
-
-**Rule of thumb: always run `dnscontrol preview` after resolving any conflict in `dnsconfig.js`, before you commit the merge — not just here, in a real repo too.** A bad resolution that looks fine to git can still be wrong DNS.
-
-Now finish the merge:
-
-```sh
-git add dnsconfig.js
-git commit
-```
-
-Git pre-fills a merge commit message — accepting the default is fine.
-
-If you ever want to back out of a conflict entirely and start over:
-
-```sh
-git merge --abort
-```
-
-(No need to run that now — your merge is already resolved.)
-
-Clean up — none of this was ever pushed, so deleting the branches is all that's needed:
-
-```sh
-git checkout main
-git branch -D conflict-a conflict-b
-```
+`validate` waits for the "DNS Apply" CI run and confirms live PowerDNS matches `dnsconfig.js` — same command you used in Lab 3, working just as well on a rollback as on a forward change.
 
 ---
 
-## Why this is higher-stakes than it looks
+## 5. (Optional) Bring it back
 
-A merge conflict in a roster file, resolved wrong, means someone's job title is momentarily incorrect. A merge conflict in `dnsconfig.js`, resolved wrong, can silently point a real hostname at the wrong IP, or drop an `MX`/`TXT` record that mail delivery depended on — and git will happily let you commit that, because the *markers* were removed correctly even if the *content* is wrong. Three things stand between a bad resolution and production DNS in a real setup like this one:
+If you want your record back for later labs, just repeat Lab 1 or Lab 3's "add a record" flow again — there's nothing special about a rolled-back record that stops you from re-adding it:
 
-- **You, previewing locally** before you push — Part B, above.
-- **The `pre-push` git hook** (`.githooks/pre-push`, enabled by `dnsctl.py setup` in [lab3.md](lab3.md)) — runs `dnscontrol preview` automatically before anything reaches `main` from your machine, and blocks the push if it fails.
-- **CI's "DNS Preview" check** — posts the diff on the PR for a human to actually read before merging, same as every other change in this workshop.
-
-None of those replace reading the diff yourself — they're a safety net, not a substitute for understanding what you just resolved.
+```sh
+python3 scripts/dnsctl.py record add yourname.dojo.test --type A --value 203.0.113.30
+python3 scripts/dnsctl.py submit "Re-add A record for yourname"
+```
 
 ---
 
 ## Recap
 
-- **Conflict:** git marks `<<<<<<<`/`=======`/`>>>>>>>` around the disputed lines; resolve by hand, then `git add` + `git commit`. `git merge --abort` bails out entirely if needed.
-- **Always `dnscontrol preview` after resolving, before committing the merge** — git validates the markers are gone; only `preview` validates the DNS is still correct.
-- **Undoing an already-merged change:** don't hand-edit it back — `dnsctl.py rollback` (or plain `git revert`), covered in [lab4.md](lab4.md).
+- `dnsctl.py history` (or `git log -- dnsconfig.js`) shows what's changed and when.
+- `dnsctl.py rollback <PR#>` undoes a merged change via a **new** PR with an inverse diff — never a rewrite of `main`. It's the DNS-flavored version of `git revert`.
+- `dnsctl.py validate` is how you confirm a change — forward or backward — actually reached live PowerDNS, instead of trusting CI's word for it.
 
-You've now covered the full loop (Lab 1) plus editing/removing/catching mistakes (Lab 2), automating it (Lab 3), investigating and rolling back history (Lab 4), and resolving conflicts safely (this lab). See [README.md](README.md) for the quick reference, and [cheat-sheet.md](cheat-sheet.md) for the full command list.
+**Next:** [lab5.md](lab5.md) — resolving a merge conflict in `dnsconfig.js`.
