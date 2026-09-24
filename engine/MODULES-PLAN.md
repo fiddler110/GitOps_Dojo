@@ -383,3 +383,6 @@ names beside the running vault spike stack (untouched).
   (highlight.js bash marks no commands or flags): `engine/presentation/engine.js` now colours commands and flags and
   adds gitignore and cron (user approved the engine edit). Lab 1 and its handout: roster edit is VS Code, nano or
   `cat`; vim removed. Local `CLAUDE.md` rewritten for extensions/modules.
+- tmux guide (git-fundamentals, dns-as-code) rewritten: `Ctrl+b` callout, real key presses (`Shift+5`, `Shift+'`),
+  mouse, vi copy mode. User confirmed in a browser: Shift-drag copies to the system clipboard, and `Ctrl+b` reaches
+  tmux in the VS Code terminal panel (code-server doesn't keep it for the sidebar).
