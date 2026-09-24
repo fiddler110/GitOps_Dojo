@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **Design agreed (§1, S1-S17). No code yet. Ready to start P0 (spike), waiting on the user's go-ahead.** |
+| Overall status | **P0 (spike) approved 2026-09-23. Decisions S1-S23 (§1). No open questions.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-23 (plan moved into the workshop folder; resume section, task list and session log added) |
+| Last updated | 2026-09-23 (S18-S22 added after the plan review; P0 risks added to §10) |
 
 ---
 
@@ -78,6 +78,12 @@ phase, before editing engine/, and about anything in section 12.
 | S15 | **The Runners panel starts every class in Auto.** |
 | S16 | **Runner isolation: the process pool** (§6.2 A), with **Docker-in-Docker as the fallback** if it fails P0. Chosen to balance security and resource use. |
 | S17 | **The extensions mechanism is foundational.** Once it's proven, **every workshop moves onto it** (`CLOUD_ENABLED` and `DEMO_APP_ENABLED` retired), each re-tested on the real stack. Design its format so it can later describe reusable **modules** too (§13). |
+| S18 | **Lab count follows the concepts, not the clock** (2026-09-23): use as many labs as it takes to cover the concepts properly; S6's 2-3 h is a guide, not a cap. Core: every lab except **lab 10 (dynamic database credentials), which is optional**. Lab 6 (`sops`) and lab 7 (Actions secrets) are core. |
+| S19 | **Labs 8-9 start half-configured** (2026-09-23): setup has already enabled and pointed the JWT auth methods in each student's namespace; students write the role (bound claims) and the policy. |
+| S20 | **CI logs in to OpenBao with plain scripts, no `uses:` actions** (2026-09-23): the job fetches its OIDC token with `curl` and runs `bao login`. The runners have no internet. A slide shows how you'd do it at work with a ready-made action. Mirroring a small pinned set of actions into Forgejo is a follow-up (§13). |
+| S21 | **P0 T0.4 uses an uncommitted local edit** to `engine/gateway/Caddyfile` for the `/ui/*` and `/v1/*` routes, reverted after the spike (2026-09-23). The real change comes through P0.5. |
+| S23 |  **UI single sign-on reaches Forgejo's issuer through an overlay-only "issuer shim"** (2026-09-23, answers Q1): a small Caddy container sharing OpenBao's network namespace answers for `PUBLIC_BASE_URL` and forwards `/git/*` straight to `git-server:3000`. On the VM, `extra_hosts` points the public name at it and it serves HTTPS with its own CA, which OpenBao trusts (`oidc_discovery_ca_pem`). No engine edit, no gate exemption. Fallback if it fails T0.5: token login in the UI, SSO on a slide. The VM's HTTPS path is only approximated until the P5 Azure VM run. |
+| S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
 
@@ -134,17 +140,20 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 
 **Part 5: Secrets in pipelines**
 
-7. **Forgejo Actions secrets.** A repository secret used in a workflow. Masking in logs, and how easily masking is
+7. **Forgejo Actions secrets** (core, S18). A repository secret used in a workflow. Masking in logs, and how easily masking is
    bypassed (`base64`). Why a workflow from a pull request can steal secrets.
 8. **CI logs in to OpenBao.** First with AppRole: it works, but the AppRole login secret is itself stored in the
    pipeline (secret zero). Then with the **job's own OIDC token**, bound to *this repo on the `main` branch*, so nothing
-   is stored at all. A job on another branch is refused.
+   is stored at all. A job on another branch is refused. The JWT auth method is already set up in the student's
+   namespace (S19); the student writes the role and policy. The workflow uses `curl` + `bao login`, no `uses:` (S20),
+   and a slide shows the ready-made action you'd use at work.
 
 **Part 6: Secrets in deployments**
 
 9. **Deploy with workload identity** (§5.6). The pipeline deploys the app to `app-host` but **cannot read the app's
-   secrets**. The app proves its identity to OpenBao through the platform and gets its own secrets.
-10. **Dynamic database credentials.** The app gets a Postgres login made for it, with a lease. Watch it expire, renew
+   secrets**. The app proves its identity to OpenBao through the platform and gets its own secrets. Half-configured,
+   as in lab 8 (S19).
+10. **Dynamic database credentials** (optional, S18). The app gets a Postgres login made for it, with a lease. Watch it expire, renew
     it, revoke it. There is no shared database password left to leak.
 11. **Incident drill (capstone).** "A token leaked." Use the audit log to find what it read, revoke it (and
     everything under it), rotate what it touched, and check that the app recovers by itself.
@@ -164,6 +173,12 @@ certificates (ties in with `cert-autorenewal`).
 | `app-host` | The deployment target: a small "platform" with one slot per student and a platform identity (§5.6). |
 | `postgres` | A shared database for lab 10's dynamic credentials. |
 | terminal image | Adds `bao`, `sops`, `gitleaks`, Python with `hvac`, and the identity broker for CLI login. All pinned and sha256-verified per architecture. |
+| runner-pool image | `host`-label jobs run on whatever the pool image has, so it carries the same pinned `bao`, `curl`, `sops` and Python as the terminal. |
+
+**No root after setup, but a provisioner.** Root is revoked once setup finishes. Re-running setup, resetting one
+student or re-creating a namespace mid-class needs a scoped **provisioner** identity (a policy that can manage
+`students/*` namespaces, the shared templated policy and the auth roles, but not read secrets), kept on the
+setup-only volume.
 
 The unseal key sits on a setup-only volume. Say openly that this is a lab shortcut: in production you use
 **auto-unseal** with a cloud key service or an HSM. That makes a good slide.
@@ -196,8 +211,15 @@ The unseal key sits on a setup-only volume. Say openly that this is a lab shortc
     firewalls.
   - The terminal CLI doesn't go through Caddy: it talks to `openbao:8200` directly on `workshop_lab`.
   - The routes only exist when the workshop turns them on (§8).
+  - The route must drop the shared Basic Auth header (`header_up -Authorization`, as `/git` does): OpenBao reads
+    `Authorization` as a possible token.
 - **UI login is single sign-on through Forgejo.** OpenBao's OIDC auth method uses Forgejo as the identity provider,
   so logging in is "Sign in with Forgejo". It's the same pattern as Entra ID at work.
+  **Solved by the issuer shim (S23):** Forgejo's issuer is `${PUBLIC_BASE_URL}/git/`, and OpenBao must fetch that URL from *inside*
+  the stack (discovery, token exchange, keys). On a laptop that is `http://localhost`, which inside the OpenBao
+  container means OpenBao itself; on the VM the public name has no route from the internal `workshop_lab`, and
+  `/git/*` sits behind the shared Basic Auth gate. The shim answers for the public URL inside OpenBao's own network
+  namespace only, so the browser still goes through the gateway as normal.
 - **CLI login is automatic.** The browser can't reach the terminal's `localhost`, so the CLI OIDC flow won't work.
   Instead, a broker in the terminal (the `SO_PEERCRED` pattern from tofu-basics D3) gives each Linux user a signed
   JWT, and `bao login -method=jwt` uses it. Setup links both logins to **one identity entity** per student, so the
@@ -209,6 +231,10 @@ The unseal key sits on a setup-only volume. Say openly that this is a lab shortc
 
 Forgejo 16 (our pinned version) should be able to give a job its own **OIDC token**, as GitHub Actions does. OpenBao's
 JWT auth trusts Forgejo's signing keys, and a role bound to `repository` + `ref` claims decides what the job can read.
+**Early sign (2026-09-23):** the `forgejo:16.0.4` binary contains `actions.IDTokenContext` / `IDTokenCustomClaims`, so
+the feature is there; the workflow switch and claim names are still to confirm in T0.6.
+OpenBao reaches the keys **directly** (`jwks_url` on `git-server:3000`, with `bound_issuer` set to the public issuer
+string), so CI login avoids the issuer-reachability problem in §5.4.
 **To verify in P0.** Fallback: AppRole only, and teach OIDC on a slide.
 
 ### 5.6 Deployment secrets: the "proper" way (labs 9-10)
@@ -253,6 +279,8 @@ This copies GitHub's Actions Runner Controller on Kubernetes:
 - **Instance-wide registration.** Runners serve the whole instance, so any free runner takes any student's next job.
 - To verify in P0: whether our `forgejo-runner:13` can run once and exit (a one-job / ephemeral mode). If it can't, the
   fallback is long-lived runners with `capacity: 1` that the controller wipes after each job.
+  **Early sign (2026-09-23):** `forgejo-runner:13` has a `one-job` command ("Run only one job"); T0.7 confirms how it
+  registers and exits.
 
 ### 6.2 Where runners run, and who may start them
 
@@ -418,6 +446,10 @@ workshop-agnostic.
    - process pool (§6.2 A): can other users' processes be hidden in an unprivileged container, and do several
      runners (one per Linux user) work side by side?
 6. `sops` with transit against OpenBao.
+7. **Where Forgejo's OIDC issuer is reachable from** (§5.4, §12 Q1): OpenBao's OIDC method must reach
+   `${PUBLIC_BASE_URL}/git/` from inside the stack on both the laptop (`http://localhost`) and the VM (a public HTTPS
+   name with a Let's Encrypt certificate), and the ID token's `iss` must match that string exactly.
+8. The `/ui/*` and `/v1/*` routes strip the shared Basic Auth `Authorization` header before OpenBao sees it.
 
 ## 11. Phases and task list (ask the user before moving between phases)
 
@@ -438,6 +470,8 @@ workshop-agnostic.
 
 ### P0 — Spike (§10 on the real stack; findings go into §10 and §14)
 
+**Order (S22):** T0.2 → T0.3 → T0.6 → T0.7 → T0.8 → T0.4 → T0.5 → T0.9 → T0.10.
+
 Spike code lives under `workshops/vault-fundamentals/spike/` (throwaway; may be
 deleted or folded into P1). No `engine/` edits without asking the user first.
 
@@ -445,20 +479,21 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       `workshops/vault-fundamentals/PLAN.md`; add resume section, task list and session log;
       point `CLAUDE.md` and the root README at it.
       *Verify:* `git log --oneline -1 -- workshops/vault-fundamentals/PLAN.md`.
-- [ ] **T0.2** Skeleton: `workshop.env` (no labs yet) and a spike compose overlay that adds an
+- [x] **T0.2** *(SHA_T02)* Skeleton: `workshop.env` (no labs yet) and a spike compose overlay that adds an
       OpenBao container on `workshop_lab` (own `image:` tag for the terminal, per the overlay rules).
       *Verify:* `./run.sh list` shows the workshop; `./run.sh vault-fundamentals` starts and
       `bao status` answers from the student terminal (tools may be a temporary download on the host
       side for the spike).
-- [ ] **T0.3** (§10.1) Pick the OpenBao release with **namespaces**; record version and image
+- [x] **T0.3** *(SHA_T02)* (§10.1) Pick the OpenBao release with **namespaces**; record version and image
       digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
       *Verify:* digests match the registry; `bao namespace create` works on the spike server.
-- [ ] **T0.4** (§10.2) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
-      framed in `/admin`. **Needs a gateway change: ask the user whether to do it as an uncommitted
-      local edit or wait for P0.5.** *Verify:* UI loads and works through the gateway URL and inside
-      an `/admin` iframe.
-- [ ] **T0.5** (§10.3) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
-      back to `/ui/...`. *Verify:* a student logs in to the UI with their Forgejo account and lands in
+- [ ] **T0.4** (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
+      framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
+      `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
+      gateway URL and inside an `/admin` iframe.
+- [ ] **T0.5** (§10.3, §10.7) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
+      back to `/ui/...`, through the issuer shim (S23). Test the laptop path for real, and the VM path
+      with a non-`localhost` HTTPS name and the shim's CA. *Verify:* a student logs in to the UI with their Forgejo account and lands in
       the right identity/policy.
 - [ ] **T0.6** (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
       to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
@@ -482,7 +517,7 @@ written from the phase description above and the P0 findings.
 
 ## 12. Open questions for the user
 
-None open right now (S16 and S17 settled the last two on 2026-09-23). P0 findings will raise new ones.
+None open. Q1 (how OpenBao reaches Forgejo's OIDC issuer) was answered on 2026-09-23 with option A, the issuer shim (S23).
 
 ## 13. Later / follow-ups
 
@@ -491,6 +526,8 @@ None open right now (S16 and S17 settled the last two on 2026-09-23). P0 finding
   `vault` provider (builds on tofu-basics) or `bao policy write` in CI. Could be an extra lab here or its own
   workshop.
 - Could `cert-autorenewal` use OpenBao's PKI engine?
+- **Mirror a small, pinned set of actions into Forgejo** (deferred 2026-09-23, S20): e.g. checkout and a vault-login
+  action, copied into the local Forgejo at setup and pinned by commit, so labs can show `uses:` the way companies do.
 - **Modules: reusing one workshop's pieces in another** (e.g. Dojo Cloud from tofu-basics in vault-fundamentals).
   Extensions only cover the *front door* (cards, tabs, routes). A module also needs its **services** and its
   **terminal tools**, and today each workshop has exactly one compose overlay (`COMPOSE_OVERLAY`, `engine/run.sh`) and
@@ -502,7 +539,12 @@ None open right now (S16 and S17 settled the last two on 2026-09-23). P0 finding
 
 ## 14. Worth knowing & follow-ups
 
-Surprises, gotchas and problems found in other workshops while working on this one. Nothing yet.
+Surprises, gotchas and problems found in other workshops while working on this one.
+
+- **Student shells are zsh** (`su - <name>` login shell): environment variables for students go in `/etc/zsh/zshenv`
+  (as tofu-basics does), not only `/etc/profile.d`. Found in T0.2 when `BAO_ADDR` was empty.
+- **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
+  `openbao-setup` must retry or wait after `bao secrets enable kv-v2` before writing seed secrets.
 
 ## 15. SESSION LOG (append-only, newest at the bottom)
 
@@ -517,6 +559,40 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - Plan moved to `workshops/vault-fundamentals/PLAN.md`; added the header table, §0 HOW TO RESUME, the
   P0 task list (§11), §14 and this log. `CLAUDE.md` and the root README now point here.
 - Next: T0.2, once the user says go for P0.
+
+### 2026-09-23 — Plan review with the user
+- User approved P0. New decisions S18-S22 (§1): lab count follows the concepts (lab 10 optional; 6 and 7 core),
+  labs 8-9 half-configured, CI login by script with a "how you'd do it at work" slide (mirroring actions is a
+  follow-up in §13), T0.4 as an uncommitted local Caddyfile edit, and the risky P0 tasks first.
+- Checked in the repo: `/ui` and `/v1` are free in the gateway. Laptop `PUBLIC_BASE_URL` is `http://localhost`
+  (no TLS); the VM uses a real name with a Let's Encrypt certificate. Forgejo's `ROOT_URL` is
+  `${PUBLIC_BASE_URL}/git/`. `STUDENT_COUNT` is a fixed pool (30 by default).
+- Early signs from the pinned images: Forgejo 16.0.4 has Actions ID-token code; `forgejo-runner:13` has `one-job`.
+- Added to the plan: a provisioner identity instead of root (§5.1), pinned tools in the runner-pool image, the
+  `Authorization` header strip (§5.4), and the issuer-reachability risk (§10.7, §12 Q1).
+- Q1 options for UI single sign-on: (A) an overlay-only "issuer shim" in OpenBao's network namespace that answers
+  for the public URL and forwards `/git/*` straight to `git-server:3000`; (B) engine changes: a network alias for the
+  public name on the gateway plus a gate exemption for Forgejo's OIDC endpoints (doesn't work for `localhost`);
+  (C) no SSO: log in to the UI with a token from the CLI, and show SSO on a slide. User chose **A** (S23), with C
+  as the fallback.
+
+### 2026-09-23 — T0.2, T0.3 (skeleton and pins)
+- `workshop.env`, placeholder content and a spike overlay: one `openbao` service (raft storage on the
+  `openbao_data` volume, UI on, plain HTTP on `workshop_lab`, config in `compose/openbao/config.hcl`) and the
+  terminal image `gitopsdojo/web-terminal:vault-fundamentals`.
+- **Pins** (all sha256-verified in the Dockerfile per architecture; OpenBao 2.7.0 came out today, so 2.6.3, the
+  patch on the stable line, is used for now):
+  - OpenBao image `ghcr.io/openbao/openbao:2.6.3`, index
+    `sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889`; amd64
+    `sha256:99c8dd178200d9a5f1a0420d6b1923514280e31e9271bdd92c69f765738c42aa`, arm64
+    `sha256:24907b790a5e1480193fcdc8ef4a05ecf8d35d942ce8aa38294277b2a23f43b6`. The pulled image's digest matched.
+  - `bao` 2.6.3 (`openbao_2.6.3_linux_<arch>.tar.gz`), `sops` 3.13.3, `gitleaks` 8.30.1 (amd64 asset is `x64`).
+- Verified on the real stack (amd64 laptop): `./run.sh list` shows the workshop; all containers up and healthy;
+  `bao status` from `su - student01` answers (after moving `BAO_ADDR` into zshenv, §14); tool versions print.
+  After a manual init/unseal (spike only, keys kept out of the repo), `bao namespace create students/` and
+  `students/student01` work, a KV v2 secret written in the namespace reads back, and the root namespace can't see it.
+- Not tested: arm64 (checksums come from the release files but no arm64 build was run).
+- Next: T0.6 (Actions OIDC), per the S22 order.
 
 ## Appendix: considered, not chosen
 

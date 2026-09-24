@@ -1,0 +1,35 @@
+# Overlay for the vault-fundamentals workshop, layered on top of
+# engine/docker-compose.yml (see engine/run.sh). Relative paths resolve
+# against engine/, not this folder (see workshops/README.md).
+#
+# P0 spike state (PLAN.md §11): one OpenBao server on workshop_lab and a
+# terminal image with the pinned CLI tools. Initialisation, unsealing and the
+# tenancy layout (openbao-setup) come later.
+
+services:
+  openbao:
+    # 2.6.3, pinned by its multi-arch index digest (amd64 + arm64 manifests are
+    # recorded in PLAN.md §15).
+    image: ghcr.io/openbao/openbao:2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889
+    container_name: workshop_openbao
+    command: ["server", "-config=/openbao/config/config.hcl"]
+    volumes:
+      - ../workshops/vault-fundamentals/compose/openbao/config.hcl:/openbao/config/config.hcl:ro
+      - openbao_data:/openbao/file
+    networks:
+      - workshop_lab
+    mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
+    restart: unless-stopped
+
+  web-terminal:
+    build:
+      context: ../workshops/vault-fundamentals/compose/terminal
+    # Own tag, or Compose tags this build as :base and clobbers the shared
+    # base image (see workshops/README.md).
+    image: gitopsdojo/web-terminal:vault-fundamentals
+    depends_on:
+      openbao:
+        condition: service_started
+
+volumes:
+  openbao_data:
