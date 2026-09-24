@@ -101,6 +101,10 @@ services:
       context: ./presentation
     image: gitopsdojo/presentation:local
     container_name: workshop_presentation
+    # PID 1 here is python/node with no SIGTERM handler, and the kernel ignores
+    # SIGTERM for PID 1, so `stop` waited 10 s then SIGKILLed. init: true runs a
+    # tiny init as PID 1 that forwards the signal.
+    init: true
     volumes:
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
       # Shared slide CSS (workshops/assets/themes/*.css), mounted as a
@@ -130,6 +134,7 @@ services:
     # last link. Overlays no longer set image: here themselves.
     image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_terminal
+    init: true  # PID 1 is python; see presentation's note
     environment:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
@@ -207,6 +212,7 @@ services:
     # auto-generated.
     image: gitopsdojo/allocator:local
     container_name: workshop_allocator
+    init: true  # PID 1 is python; see presentation's note
     environment:
       # Read only to decide whether the session cookie should be marked
       # Secure (see allocator/server.py's COOKIE_SECURE) -- allocator never

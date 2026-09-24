@@ -386,3 +386,7 @@ names beside the running vault spike stack (untouched).
 - tmux guide (git-fundamentals, dns-as-code) rewritten: `Ctrl+b` callout, real key presses (`Shift+5`, `Shift+'`),
   mouse, vi copy mode. User confirmed in a browser: Shift-drag copies to the system clipboard, and `Ctrl+b` reaches
   tmux in the VS Code terminal panel (code-server doesn't keep it for the sidebar).
+- Teardown warned `StopSignal SIGTERM failed to stop container ... resorting to SIGKILL` for terminal, presentation
+  and allocator (10 s each). Cause: PID 1 was python/node with no SIGTERM handler, which the kernel ignores for PID 1.
+  `init: true` on those three services (engine/docker-compose.yml, user approved): `podman stop` 13.2 s → ~3 s each;
+  a real dns-as-code `./run.sh stop` printed no warnings.
