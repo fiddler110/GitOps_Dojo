@@ -45,7 +45,7 @@ ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/auth-check", "/auth-check-wa
 ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")
 
 # Icons the allocator has inline SVG for; a manifest picks one by name.
-ICONS = ("code", "terminal", "git", "slides", "rocket", "cloud", "key")
+ICONS = ("code", "terminal", "git", "slides", "rocket", "cloud", "key", "dns")
 
 GATES = ("shared", "identity", "facilitator")
 
