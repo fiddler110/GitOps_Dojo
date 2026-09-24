@@ -479,12 +479,12 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       `workshops/vault-fundamentals/PLAN.md`; add resume section, task list and session log;
       point `CLAUDE.md` and the root README at it.
       *Verify:* `git log --oneline -1 -- workshops/vault-fundamentals/PLAN.md`.
-- [x] **T0.2** *(SHA_T02)* Skeleton: `workshop.env` (no labs yet) and a spike compose overlay that adds an
+- [x] **T0.2** *(ef0d1bc)* Skeleton: `workshop.env` (no labs yet) and a spike compose overlay that adds an
       OpenBao container on `workshop_lab` (own `image:` tag for the terminal, per the overlay rules).
       *Verify:* `./run.sh list` shows the workshop; `./run.sh vault-fundamentals` starts and
       `bao status` answers from the student terminal (tools may be a temporary download on the host
       side for the spike).
-- [x] **T0.3** *(SHA_T02)* (§10.1) Pick the OpenBao release with **namespaces**; record version and image
+- [x] **T0.3** *(ef0d1bc)* (§10.1) Pick the OpenBao release with **namespaces**; record version and image
       digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
       *Verify:* digests match the registry; `bao namespace create` works on the spike server.
 - [ ] **T0.4** (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
