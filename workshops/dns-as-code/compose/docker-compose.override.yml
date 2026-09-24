@@ -38,9 +38,12 @@ services:
     # workshop_lab for students' own terminal sessions (dig/dnscontrol),
     # runner_net (from the forgejo-runner module) so CI workflow runs (dnscontrol push)
     # can reach it too, without forgejo-runner needing the rest of workshop_lab.
+    # Map form, not list: the dns-ui module adds dns_admin_net to this
+    # service in map form, and podman-compose fails at `up` when one
+    # service's networks mix the two.
     networks:
-      - workshop_lab
-      - runner_net
+      workshop_lab: {}
+      runner_net: {}
     restart: unless-stopped
 
   # Image: compose/terminal/, built and selected by engine/run.sh.
