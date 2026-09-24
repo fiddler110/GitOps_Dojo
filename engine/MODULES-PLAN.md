@@ -378,5 +378,8 @@ names beside the running vault spike stack (untouched).
   module), `engine/README.md` (routing row, extensions and module wiring replace "Workshop hooks", ops notes on
   `.last-overlay` and `WEB_TERMINAL_IMAGE`), root `README.md` (layout, summary table, Dojo Cloud paragraph).
 - fbac73e on `feat/vault-fundamentals`: P0.5/P6 struck (S25), `openbao` module split and draft manifests (§8.1).
-- Still stale: the local, git-ignored `CLAUDE.md` still describes the overlay `image:` rule and names P0.5. It's
-  shared by every branch, so update it when this branch merges.
+- The user's first browser look (git-fundamentals): slides 11 and 17 overflowed (fixed; screenshot check finds no
+  other overflow in its presentation, cheat-sheet, labs and index pages); code in Marp pages was nearly uncoloured
+  (highlight.js bash marks no commands or flags): `engine/presentation/engine.js` now colours commands and flags and
+  adds gitignore and cron (user approved the engine edit). Lab 1 and its handout: roster edit is VS Code, nano or
+  `cat`; vim removed. Local `CLAUDE.md` rewritten for extensions/modules.
