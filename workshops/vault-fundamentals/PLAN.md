@@ -289,8 +289,9 @@ This copies GitHub's Actions Runner Controller on Kubernetes:
 - **Instance-wide registration.** Runners serve the whole instance, so any free runner takes any student's next job.
 - To verify in P0: whether our `forgejo-runner:13` can run once and exit (a one-job / ephemeral mode). If it can't, the
   fallback is long-lived runners with `capacity: 1` that the controller wipes after each job.
-  **Early sign (2026-09-23):** `forgejo-runner:13` has a `one-job` command ("Run only one job"); T0.7 confirms how it
-  registers and exits.
+  **Confirmed in T0.7 (2026-09-23):** register through the API with `"ephemeral": true`, then run
+  `forgejo-runner one-job --wait`. It takes exactly one job, exits 0, and Forgejo deletes the ephemeral registration
+  itself. So the long-lived fallback isn't needed.
 
 ### 6.2 Where runners run, and who may start them
 
@@ -340,10 +341,20 @@ and then:
 - **Keep a warm pool:** always keep **min idle** runners ready so the first jobs start at once.
 - **Scale down:** remove idle runners above the warm pool after about 2 minutes idle. **Never remove a busy runner.**
 
-It's feasible because the loop is simple. The two unknowns are both **to verify in P0**:
+It's feasible because the loop is simple. **Both unknowns were answered in T0.7 (2026-09-23):**
 
-- whether Forgejo's API reports waiting jobs and runner state
-- how quickly a fresh runner comes up
+- **The API has everything the controller needs** (admin basic auth or an admin token):
+  - `POST /api/v1/admin/actions/runners` `{"name","ephemeral":true}` → `uuid`, `token` (no CLI, no shared secret)
+  - `GET /api/v1/admin/actions/runners` → `id`, `name`, `status` (`idle`, `offline` seen), `ephemeral`
+  - `DELETE /api/v1/admin/actions/runners/{id}`
+  - `GET /api/v1/admin/actions/runners/jobs?labels=host` → waiting jobs: `id`, `repo_id`, `name`, `runs_on`,
+    `status: waiting`, and a `handle`. `one-job --handle <handle>` (Forgejo ≥ 15) claims that exact job, so scale-up
+    can start one runner per waiting job. `repo_id` needs a lookup to show the repo name in the panel.
+  - `GET /api/v1/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` for job logs.
+  - **A runner whose process died keeps `status: idle` for a while.** The controller must trust its own process table,
+    not Forgejo's status, and `DELETE` registrations whose process is gone (🔴 on the panel).
+- **A fresh runner picks up a waiting job in about 3.8 s**, counted from starting a *container*; a process in the
+  pool should be quicker. An idle one-job runner polls Forgejo about every 2 s.
 
 Starting points (to measure):
 
@@ -352,6 +363,10 @@ Starting points (to measure):
 | 10 | 2 | 4 |
 | 20 | 3 | 7 |
 | 30 | 4 | 10 |
+
+**Memory (T0.7):** the runner process itself is about 23 MB RSS while running a job (container cgroup 7 MB idle,
+10 MB during a light job). The job's own tools dominate, so size by what the lab's jobs run (`bao`, `curl`, `sops`)
+and cap each runner with `prlimit` (a starting cap of 256 MB per runner, to confirm with the real lab jobs in P3).
 
 The formula is **max = `ceil(STUDENT_COUNT / 3)`**, with at least 2 and at most 12. With jobs of 30-45 s, three jobs
 queued per runner means a worst wait of about 2 minutes. Both numbers can be set in `workshop.env`. The Azure VM size
@@ -508,7 +523,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
 - [x] **T0.6** *(3e1638c)* (§10.4) Forgejo Actions OIDC job tokens: record the claims; configure OpenBao JWT auth
       to accept them and bind a role to repo/branch. *Verify:* a workflow run reads a secret with no
       stored credential; a run from another repo is refused.
-- [ ] **T0.7** (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
+- [x] **T0.7** *(SHA_T07)* (§10.5 a-d) Runners: one-job/ephemeral mode in `forgejo-runner:13`; Forgejo API for
       waiting jobs and runner state; start-up time; memory while running a job.
       *Verify:* numbers recorded in §10/§15; a runner exits after exactly one job.
 - [ ] **T0.8** (§10.5 e) Process-pool isolation (§6.2 A): hide other users' processes in an
@@ -634,6 +649,20 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - Left running for T0.7: containers `spike_runner` + `spike_runner_shim`, repo `platform-team/other-app`,
   branch `feature-x`.
 - Next: T0.7 (one-job runners, Forgejo API for waiting jobs and runner state, start-up time, memory).
+
+### 2026-09-23 — T0.7 (one-job runners, API, timing, memory)
+- Spike: `spike/t07-runners.sh`. Queued a job with no runner online, registered an ephemeral runner through
+  `POST /admin/actions/runners`, ran `forgejo-runner one-job --wait` in a container.
+- Results (details in §6.1 and §6.3): the job was picked up 3.8 s after the container started, ran 25 s, the runner
+  exited 0 and Forgejo removed the ephemeral registration. The jobs endpoint lists waiting jobs with a `handle` that
+  `one-job --handle` can claim. Runner RSS about 23 MB during a job. A killed runner's registration stays `idle`
+  (stale), so the controller must reconcile against its own processes.
+- Jobs ran as the runner's user with the workspace under `$HOME/.cache/act/<hash>/`, so a Linux user and home per
+  runner (T0.8) isolates workspaces.
+- Cleaned up: all spike runner registrations deleted through the API (all `204`), queued runs cancelled, spike
+  containers removed. Test repos `other-app` and `runner-test` stay until P0 ends.
+- Not measured: the `active` status value (the runner list wasn't queried mid-job); memory of real lab jobs.
+- Next: T0.8 (process-pool isolation).
 
 ## Appendix: considered, not chosen
 
