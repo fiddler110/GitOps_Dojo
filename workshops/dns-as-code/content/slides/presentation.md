@@ -57,18 +57,15 @@ web console.
 > not a description of it, the actual, enforced state.
 
 - `dnscontrol push` makes live DNS match the file **exactly**: additions,
-  edits, and **removals** — anything live but not declared in the file
-  gets deleted
-- There's no reconciliation the other direction. Click a record into
-  existence in the provider's dashboard, and the next `push` deletes it —
-  nothing "remembers" a manual edit, because the file was never updated
-  to say it should exist
-- This isn't a DNS-specific idea — it's the same guarantee Terraform,
-  Kubernetes, or any GitOps tool gives you for its own kind of file
+  edits, and **removals** — anything live but undeclared gets deleted
+- No reconciliation the other way. Click a record into existence in the
+  dashboard, and the next `push` deletes it — nothing "remembers" a
+  manual edit the file never mentioned
+- Not DNS-specific — the same guarantee Terraform, Kubernetes, or any
+  GitOps tool gives you for its own kind of file
 
-This is the one thing worth landing before anything else: the dashboard
-isn't a second way to make changes anymore. It's not a way to make
-changes at all.
+The dashboard isn't a second way to make changes anymore. It's not a way
+to make changes at all.
 
 <!--
 This reframes the whole session: everything that follows (preview/push,
@@ -339,13 +336,18 @@ skipping the wrapper entirely, so both tracks are teachable here.
   it's what a wrapper written against one specific provider looks like
   once you point it somewhere else.
 - `merge`/`validate` check for a passing "DNS Preview"/"DNS Apply" CI
-  status before they'll proceed — and now find a real one, same as
-  against a GitHub repo with CI configured. `merge` checks once, not on a
-  retry loop — if you merge before a "DNS Preview" check has posted yet,
-  it just warns ("no check found") and merges anyway; it only *refuses*
-  once a check exists and has actually failed, and `--force` skips that
-  refusal too. `validate`, unlike `merge`, does poll and wait for its
-  check to appear.
+  status before proceeding — and now find a real one, same as against a
+  GitHub repo with CI configured.
+
+---
+
+## Same rough edges, continued
+
+- `merge` checks once, not on a retry loop — if you merge before a "DNS
+  Preview" check has posted yet, it just warns ("no check found") and
+  merges anyway; it only *refuses* once a check exists and has actually
+  failed, and `--force` skips that refusal too.
+- `validate`, unlike `merge`, does poll and wait for its check to appear.
 
 > A wrapper doesn't remove the underlying tool's assumptions — it just
 > gives them a shorter name. Worth knowing which assumptions you inherited
