@@ -6,7 +6,9 @@
 # provisioning, code-server/ttyd, shell helpers) is inherited unchanged
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-FROM gitopsdojo/web-terminal:base
+# engine/run.sh sets BASE to the image below this one in the chain (MODULES-PLAN.md §4.2).
+ARG BASE=gitopsdojo/web-terminal:base
+FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends dnsutils \
     && rm -rf /var/lib/apt/lists/*

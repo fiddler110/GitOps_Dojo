@@ -1,14 +1,15 @@
 #!/bin/sh
-# tofu-basics wrapper around the base web-terminal entrypoint. It never waits for
-# Dojo Cloud: the terminal starts at once and Track A (the offline sandbox) needs
-# none of the rest. For Track B it
+# dojo-cloud start.d hook, run by the base web-terminal entrypoint as root
+# after every account exists (see engine/web-terminal/entrypoint.sh). It never
+# waits for Dojo Cloud: the terminal starts at once and anything that doesn't
+# use the cloud needs none of this. It
 #   1. starts a background loop that waits, with no time limit, for Dojo Cloud's CA
 #      certificate and signing key (cloud-api creates them when it starts, which can
 #      be after this container), then writes the trust bundle /etc/dojo/ca-bundle.pem
 #      (system CAs + that CA) atomically and stops. It says so once if that has not
 #      happened after 60 s, and keeps waiting;
 #   2. starts the credential broker, restarted if it dies (it waits for the key too);
-# then hands off to the base entrypoint unchanged.
+# then returns, leaving both running.
 # A shell captures its ARM_* / SSL_CERT_FILE values when it starts, so a shell opened
 # before Dojo Cloud was ready needs a new terminal tab.
 set -eu
@@ -39,14 +40,14 @@ write_bundle() {
   until cloud_files_ready; do
     waited=$((waited + 1))
     if [ "$waited" -eq "$NOTICE_AFTER" ]; then
-      echo "tofu-basics: Dojo Cloud not available yet, Track A works; still waiting for it in the background." >&2
+      echo "dojo-cloud: Dojo Cloud not available yet; still waiting for it in the background." >&2
     fi
     sleep "$POLL"
   done
-  write_bundle || echo "tofu-basics: could not write $BUNDLE; Dojo Cloud's certificate will not be trusted." >&2
+  write_bundle || echo "dojo-cloud: could not write $BUNDLE; Dojo Cloud's certificate will not be trusted." >&2
 ) &
 
-# Restarted if it ever dies; a child of PID 1 like cert-autorenewal's helpers.
+# Restarted if it ever dies; a child of PID 1, reaped by workspace-control.py.
 (
   while true; do
     /usr/local/bin/dojo-broker || true
@@ -54,4 +55,3 @@ write_bundle() {
   done
 ) &
 
-exec /usr/local/bin/web-terminal-entrypoint "$@"

@@ -1,34 +1,18 @@
 # Overlay for the dns-as-code workshop, layered on top of engine/docker-compose.yml
-# via `docker compose -f docker-compose.yml -f <this file>` (see engine/run.sh).
+# and the forgejo-runner module (MODULES in workshop.env) by engine/run.sh.
 #
 # IMPORTANT: because this file is merged with a base file, Compose resolves
-# every relative path in BOTH files relative to the base file's directory —
+# every relative path in it relative to the base file's directory —
 # engine/, not this file's own directory. That's why `build.context` below
-# is `../workshops/dns-as-code/compose/terminal`, not `./terminal`.
+# is `../workshops/dns-as-code/compose/runner`, not `./runner`.
 #
 # Adds dns-server (a PowerDNS authoritative server students push real
-# records to and `dig` against), swaps the web-terminal image for one with
-# dnscontrol + python3 preinstalled, turns on Forgejo Actions on the
-# existing git-server (additive env var - see the merge rules linked
-# below, base git-server config is otherwise untouched), and adds a
-# runner-setup + forgejo-runner pair so the sample repo's .forgejo/
-# workflows/ actually run — everything else (gateway, bootstrap,
-# presentation) is untouched.
-#
-# `environment:` entries added here for a service the base file already
-# defines (git-server) merge key-by-key with the base's own list rather
-# than replacing it: https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
+# records to and `dig` against) and builds the Actions runner from
+# compose/runner/ so CI jobs have dnscontrol. The terminal image
+# (dnscontrol + python3) is compose/terminal/, built by engine/run.sh.
+# Forgejo Actions and the runner itself come from modules/forgejo-runner/.
 
 services:
-  git-server:
-    environment:
-      - FORGEJO__actions__ENABLED=true
-    # workshop_lab for the gateway/allocator/bootstrap/students, runner_net
-    # so the (student-code-executing) Forgejo Actions runner can poll it
-    # for jobs without also reaching the control plane.
-    networks:
-      - workshop_lab
-      - runner_net
   # PowerDNS authoritative server. Ephemeral by design, same as every other
   # service in this stack: sqlite backend lives in the container's own
   # filesystem (no volume), so it resets on every `docker compose down` /
@@ -52,80 +36,20 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     # workshop_lab for students' own terminal sessions (dig/dnscontrol),
-    # runner_net so CI workflow runs (dnscontrol push from forgejo-runner)
+    # runner_net (from the forgejo-runner module) so CI workflow runs (dnscontrol push)
     # can reach it too, without forgejo-runner needing the rest of workshop_lab.
     networks:
       - workshop_lab
       - runner_net
     restart: unless-stopped
 
+  # Image: compose/terminal/, built and selected by engine/run.sh.
   web-terminal:
-    build:
-      context: ../workshops/dns-as-code/compose/terminal
-    # Without this, Compose would inherit the base file's
-    # `image: gitopsdojo/web-terminal:base` and tag this workshop-specific
-    # build as ":base" too -- clobbering the shared base tag every time
-    # this workshop runs (see engine/run.sh, which relies on ":base" always
-    # meaning the plain, un-augmented image so it can skip rebuilding it
-    # when nothing's changed).
-    image: gitopsdojo/web-terminal:dns-as-code
     depends_on:
       - dns-server
 
-  # One-shot: registers a Forgejo Actions runner (server-side, via the
-  # `forgejo` CLI already used by engine/git-server/bootstrap.sh) and
-  # writes its config.yaml to the dns_runner_config volume. See
-  # compose/runner/register.sh. Uses the same image/admin volume access
-  # bootstrap.sh already has - no new credentials needed.
-  runner-setup:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
-    container_name: workshop_dns_runner_setup
-    depends_on:
-      bootstrap:
-        condition: service_completed_successfully
-    user: "1000:1000"
-    environment:
-      - FORGEJO_ORG=${FORGEJO_ORG:-training}
-      - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
-    volumes:
-      - forgejo_data:/data
-      - ../workshops/dns-as-code/compose/runner/register.sh:/register.sh:ro
-      - dns_runner_config:/runner-config
-    entrypoint: ["/bin/sh", "/register.sh"]
-    # Only needs git-server (for the config.yaml URL the runner daemon will
-    # use), not the rest of workshop_lab.
-    networks:
-      - runner_net
-    restart: "no"
-
-  # The Actions runner itself - built from compose/runner/Dockerfile
-  # (dnscontrol/git/curl/jq baked in, since jobs run directly in this
-  # container via a `host` label rather than in spun-up Docker
-  # containers - no docker.sock is mounted anywhere in this stack).
+  # Same runner as modules/forgejo-runner/, built from compose/runner/ so
+  # CI jobs (which run in the runner container itself) have dnscontrol.
   forgejo-runner:
     build:
       context: ../workshops/dns-as-code/compose/runner
-    container_name: workshop_dns_runner
-    depends_on:
-      runner-setup:
-        condition: service_completed_successfully
-    volumes:
-      - dns_runner_config:/runner-config:ro
-    command: ["/bin/forgejo-runner", "daemon", "--config", "/runner-config/config.yaml"]
-    # Runs student-authored CI directly on this container's own filesystem
-    # (host label, no sandbox) - isolated to runner_net so a compromised
-    # runner can only reach git-server and dns-server, never allocator or
-    # web-terminal (the control plane).
-    networks:
-      - runner_net
-    restart: unless-stopped
-
-volumes:
-  dns_runner_config:
-
-networks:
-  # Isolates the Forgejo Actions runner (which executes student-authored
-  # CI) from the control plane (allocator, web-terminal) - it can only
-  # reach git-server and dns-server.
-  runner_net:
-    internal: true

@@ -26,7 +26,7 @@ cd engine
 ./run.sh stop             # stop and wipe everything, including all deployed containers
 ```
 
-- `engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the overlay refuses to start without them.
+- `engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the dojo-cloud module refuses to start without them.
 - Always start through `./run.sh`. A plain `podman build` / `docker build` drops the image HEALTHCHECK.
 - After changing any image source, run `./run.sh stop` first: Compose does not recreate a running
   container when its image was rebuilt.
@@ -39,16 +39,15 @@ cd engine
 | `content/slides/` | Marp deck: `presentation.md`, `labs.md`, `cheat-sheet.md`, and the `index.md` hub |
 | `content/lab/` | `README.md` + `lab0.md`-`lab10.md` + `cheat-sheet.md`, seeded into each student's `~/lab` |
 | `content/sample-repo/` | The starter repo, seeded into Forgejo as `iac-team/tofu-basics` (`*.tf` files + `sandbox/`) |
-| `compose/docker-compose.override.yml` | Adds `cloud-host` and `cloud-api`, swaps the terminal image, turns on `CLOUD_ENABLED` |
-| `compose/terminal/` | Student terminal image: OpenTofu, `terraform` symlink, offline provider mirror, credential broker |
-| `compose/cloud-api/` | The Dojo Cloud control plane (ARM-style API, policy, executor, portal SPA) and its unit tests |
-| `compose/cloud-host/` | The Docker-in-Docker host student containers run on, plus the `dojo/hello` image |
+| `workshop.env` | `MODULES="dojo-cloud"` brings in Dojo Cloud from `modules/dojo-cloud/` |
+| `compose/terminal/` | Student terminal image: OpenTofu, `terraform` symlink, offline provider mirror |
+| `modules/dojo-cloud/` (repo root) | Dojo Cloud: `cloud-api` (ARM-style API, policy, executor, portal SPA, unit tests), `cloud-host` (Docker-in-Docker host plus the `dojo/hello` image), the terminal's credential broker, and the card, `/admin` tab, `/cloud` route and status check (`extensions.json`) |
 | `FACILITATOR.md` | Facilitator guide |
 | `PLAN.md` | Design, decisions, task list, session log |
 
-The engine-side hooks are two settings on the `allocator` that this overlay switches on: `CLOUD_ENABLED`
-(landing-page card, `/cloud` route, the facilitator's **Dojo Cloud** tab in `/admin`) and `STATUS_CHECKS`
-(adds Dojo Cloud to the facilitator's service-status strip). Both are off or empty by default. Two engine
+There are no engine settings for this workshop: the landing-page card, `/cloud` route, the facilitator's
+**Dojo Cloud** tab in `/admin` and the status-strip entry all come from `modules/dojo-cloud/extensions.json`
+(see `engine/MODULES-PLAN.md`). Two engine
 features are on for every workshop: each student's landing page shows their **Forgejo password**, and `/admin`
 shows the status strip. See `engine/README.md`.
 
@@ -80,7 +79,7 @@ Docker answers, both hello images are loaded and its start-up reconcile has fini
 facilitator's status strip shows that as green, yellow or red. Until it is ready, `cloud-api` refuses
 writes (PUT / PATCH / DELETE of container groups, portal delete and tag edits) with an ARM-shaped `503
 ServiceUnavailable`, before changing any state; reads keep working. In the terminal, a background loop in
-`entrypoint-wrapper.sh` waits with no time limit for the cloud's CA and signing key and then writes the
+the module's start.d hook (`terminal/start.d/50-dojo-cloud.sh`) waits with no time limit for the cloud's CA and signing key and then writes the
 trust bundle; the broker gives a shell no credentials until that bundle exists. A shell captures its
 `ARM_*` variables when it starts, and the broker only hands them out once `cloud-api` has created its CA and
 key, so **a shell opened before that needs a new terminal tab** (Lab 4 says so). Credentials do not depend on
@@ -93,7 +92,7 @@ with Microsoft.
 
 ## Policy and quota
 
-Everything a student can deploy is bounded by `compose/cloud-api/policy.py`. Each rule is a lesson in Lab 6.
+Everything a student can deploy is bounded by `modules/dojo-cloud/cloud-api/policy.py`. Each rule is a lesson in Lab 6.
 
 | Rule | Error the student sees |
 | ---- | ---------------------- |
@@ -112,13 +111,13 @@ Everything a student can deploy is bounded by `compose/cloud-api/policy.py`. Eac
   on the quota:** Lab 5's container plus a two-instance `for_each` is three groups, which is what trips the
   limit of 2. Raising it to 3 breaks the lab.
 - **Add a rule:** add a check to `policy.py` (pure functions, no I/O), add a test in
-  `compose/cloud-api/test_policy_auth.py`, and run the tests. If students will hit it, add it to a lab,
+  `modules/dojo-cloud/cloud-api/test_policy_auth.py`, and run the tests. If students will hit it, add it to a lab,
   and paste the error text from a real run: the labs contain real output, not invented output.
 - **Add an image:** add it to `ALLOWED_IMAGES` in `policy.py`, and make `cloud-host` import it
-  (`compose/cloud-host/entrypoint.sh`, `import_hello` for another version of hello; a different app needs
-  its root filesystem baked into `compose/cloud-host/Dockerfile`). The executor still forces port 80 and no
+  (`modules/dojo-cloud/cloud-host/entrypoint.sh`, `import_hello` for another version of hello; a different app needs
+  its root filesystem baked into `modules/dojo-cloud/cloud-host/Dockerfile`). The executor still forces port 80 and no
   command. Update the labs that name `1.0` and `2.0` (Lab 6 and Lab 8's `validation` block).
-- After any change under `compose/`, `./run.sh stop` and start again. `run.sh` notices overlay changes.
+- After any change under `compose/` or `modules/dojo-cloud/`, `./run.sh stop` and start again. `run.sh` notices the changes.
 
 ## Security model, in short
 
@@ -157,7 +156,7 @@ Assume 30 curious students who each have a shell. Full table in `PLAN.md` §7.
 Offline, host Python only, no containers:
 
 ```sh
-cd compose/cloud-api && python3 -B -m unittest test_portal_api test_executor test_policy_auth test_readiness   # 131 tests
+cd ../../modules/dojo-cloud/cloud-api && python3 -B -m unittest test_portal_api test_executor test_policy_auth test_readiness   # 131 tests
 cd .. && python3 -B -m unittest test_parity                                                                     #   5 tests
 ```
 

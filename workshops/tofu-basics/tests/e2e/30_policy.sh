@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Area policy: every rule in compose/cloud-api/policy.py, refused by the real cloud through the real azurerm provider,
+# Area policy: every rule in modules/dojo-cloud/cloud-api/policy.py, refused by the real cloud through the real azurerm provider,
 # with the message text the labs quote. Each refusal must be
 #   * an error (non-zero exit) whose text names the code and the rule,
 #   * fast (a request that is refused at the door, not a 35 s deployment),
