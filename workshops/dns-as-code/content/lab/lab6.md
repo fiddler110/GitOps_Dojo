@@ -10,6 +10,8 @@ git checkout main
 git pull
 ```
 
+> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `lab-prep 6` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## Part A — Causing and resolving a conflict

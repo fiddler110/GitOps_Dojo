@@ -9,6 +9,8 @@ git pull
 git status   # should be clean
 ```
 
+> **Starting here?** This lab rolls back your Lab 3 record, so it needs that pull request merged. `lab-prep 5` clones the repo, runs the Lab 4 setup and opens the pull request; a classmate still has to approve it before you merge it. Safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Browse DNS history

@@ -29,6 +29,8 @@ each.
 | [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min | **Yes**              |
 | [lab5.md](lab5.md) | Capstone: the dns-01 challenge, against real DNS records you write | ~15 min | Optional             |
 
+**Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
+
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab
 while you work — it's a condensed reference to every command used across
 all five labs.

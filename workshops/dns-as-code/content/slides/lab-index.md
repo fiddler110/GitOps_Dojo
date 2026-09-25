@@ -26,7 +26,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every Part 2 lab (3–6) works in the shared repo. Clone it once, whichever lab you start from:</p>
+<p class="setup-label">Labs 3–6 work in the shared repo. Clone it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
 
 ```sh
 cd ~/lab

@@ -16,6 +16,8 @@ The session slides cover the *why*. This lab is the *how* — five short, self-c
 | [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min | Optional |
 | [lab5.md](lab5.md) | Merge conflicts and safely undoing a shared change | ~12 min | Optional |
 
+**Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
+
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab while you work — it's a condensed reference to every command used across all five labs, with a short explanation of how each one works.
 
 Your terminal runs inside `tmux`, which is what lets you open that split pane in the first place (`Ctrl+b %`) — see [tmux-guide.md](tmux-guide.md) for that and a few other handy shortcuts. None of it is required for the labs.

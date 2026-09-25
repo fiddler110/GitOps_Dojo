@@ -4,6 +4,8 @@
 
 Do this from your `sample-training-repo` clone. This lab creates its own throwaway branches, so it won't interfere with your Lab 1 branch.
 
+> **Starting here?** This lab needs the sample repo cloned. Run `lab-prep 5` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## Part A — Causing and resolving a conflict

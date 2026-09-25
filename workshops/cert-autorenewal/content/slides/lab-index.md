@@ -26,7 +26,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every lab needs the step CLI to trust the CA (Lab 1). Run this once, whichever lab you start from:</p>
+<p class="setup-label">Every lab needs the step CLI to trust the CA (Lab 1). Run this once, or <code>lab-prep N</code> to catch up to lab N:</p>
 
 ```sh
 step ca bootstrap --ca-url https://step-ca:9443 \

@@ -7,6 +7,8 @@ cd ~/lab/my-zone
 dnscontrol preview   # start from 0 corrections; if not, finish Lab 1 first
 ```
 
+> **Starting here?** This lab needs Lab 1's records pushed to your own zone. Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## Part A — Someone changes the zone behind your back

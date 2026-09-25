@@ -5,6 +5,8 @@ renews itself before it expires, with no one watching it happen. By the end
 of this lab you'll have a cron job doing that for real, and you'll have
 watched it fire.
 
+> **Starting here?** This lab renews Lab 2's certificate, so it needs that site serving HTTPS. Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Build your renewal script

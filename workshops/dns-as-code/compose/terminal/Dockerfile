@@ -42,6 +42,11 @@ RUN git config --system credential.helper 'cache --timeout=28800'
 # code-server/ttyd processes), not just setup — see the comment in
 # engine/web-terminal/Dockerfile.
 
+# `lab-prep <lab>` brings a student's workspace to where that lab starts, so
+# they can resume mid-workshop (see the script's header for what each lab needs).
+COPY lab-prep /usr/local/bin/lab-prep
+RUN chmod 0755 /usr/local/bin/lab-prep
+
 # Base image's HEALTHCHECK is inherited too; restated here so a static scan
 # of this file alone (which doesn't resolve FROM) doesn't flag it missing.
 # Call the base image's script rather than copying its wget line: the command needs the

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# from, so someone joining late (or coming back another day) can resume there
+# instead of redoing every earlier lab. Each step checks before it acts, so
+# running it twice, or after doing some labs by hand, is safe. It never
+# pushes, resets or undoes an edit.
+#
+# What each lab needs (keep in step with content/lab/*.md when a lab changes):
+#   2-5   training/sample-training-repo cloned to ~/lab (Lab 1 step 1)
+#   2-4   your add-<you> branch with a roster commit of your own (Lab 1
+#         steps 2-5). Pushing and the pull request are Lab 1's to teach, and
+#         no later lab needs them.
+set -euo pipefail
+
+GIT_SERVER=http://git-server:3000
+SHARED_REPO=training/sample-training-repo
+REPO_DIR=$HOME/lab/sample-training-repo
+BRANCH=add-$USER
+LAST_LAB=5
+
+say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+done_() { printf '    already done: %s\n' "$*"; }
+run()  { printf '    $ %s\n' "$*"; "$@"; }
+die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF2
+Usage: lab-prep <lab>       (1-$LAST_LAB)
+
+Sets up everything the earlier labs would have left behind, so you can start
+lab <lab> right away. Safe to run more than once.
+
+  lab-prep 2    clone the repo and commit yourself to the roster on $BRANCH
+  lab-prep 5    clone the repo
+EOF2
+}
+
+clone() {
+  say "Lab 1 step 1: clone $SHARED_REPO to ~/lab"
+  if [ -d "$REPO_DIR/.git" ]; then
+    done_ "$REPO_DIR exists"
+  else
+    mkdir -p "$HOME/lab"
+    (cd "$HOME/lab" && run git clone "$GIT_SERVER/$SHARED_REPO.git")
+  fi
+}
+
+roster_commit() {
+  say "Lab 1 steps 2-5: yourself in the roster, committed on $BRANCH"
+  cd "$REPO_DIR"
+  if git rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then
+    done_ "branch $BRANCH exists"
+    [ "$(git branch --show-current)" = "$BRANCH" ] ||
+      echo "    (you're on '$(git branch --show-current)'; 'git checkout $BRANCH' to get back to it)"
+    return
+  fi
+  [ -z "$(git status --porcelain)" ] ||
+    die "the repo has uncommitted edits. Commit or 'git restore' them, then run lab-prep again."
+  run git checkout -q -b "$BRANCH"
+  printf -- '- name: %s\n  role: Student\n' "$USER" >> roster/team.yaml
+  echo "    added $USER to roster/team.yaml"
+  run git add roster/team.yaml
+  if [ -z "$(git config user.name || true)" ]; then
+    run git -c user.name="$USER" -c user.email="$USER@example.com" commit -q -m "Add $USER to team roster"
+  else
+    run git commit -q -m "Add $USER to team roster"
+  fi
+}
+
+case "${1:-}" in
+  -h|--help|"") usage; exit 0 ;;
+esac
+lab=$1
+[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -ge 1 ] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+
+if [ "$lab" -eq 1 ]; then
+  echo "Lab 1 is the start: nothing to set up. Open lab1.md and go."
+  exit 0
+fi
+
+clone
+[ "$lab" -le 4 ] && roster_commit
+
+say "Ready for Lab $lab"
+echo "    cd ~/lab/sample-training-repo    then open lab$lab.md"
