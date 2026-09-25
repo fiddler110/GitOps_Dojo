@@ -1,0 +1,12 @@
+# Overlay for vault-fundamentals, layered on top of engine/docker-compose.yml
+# and the openbao module (MODULES in workshop.env) by engine/run.sh. Relative
+# paths resolve against engine/, not this folder.
+#
+# The workshop's own OpenBao set-up runs as hooks in the module's
+# openbao-setup (PLAN.md S29): it sources every /etc/openbao-setup.d/*.sh on
+# each start with the provisioner token, after the module's own set-up.
+
+services:
+  openbao-setup:
+    volumes:
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d:/etc/openbao-setup.d:ro
