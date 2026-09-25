@@ -45,3 +45,15 @@ Open the **Vault** card on your landing page too. The first time, Forgejo asks y
 | **3** | your namespace: an engine, a policy (UI, then code), a token      | ~15 min |
 
 Everything stays in the class vault and your own terminal. Nothing is pushed anywhere.
+
+---
+
+## Part 3: Secrets in code, and Part 4: Secrets in git
+
+| Lab   | You will                                                              | Time    |
+| ----- | --------------------------------------------------------------------- | ------- |
+| **4** | one app three ways: in the code, a `.env` file, the vault with `hvac` | ~15 min |
+| **5** | OpenBao Agent logs in for the app; rotate a secret with no restart    | ~15 min |
+| **6** | sops + transit: encrypted config in git, who can decrypt, key rotation | ~15 min |
+
+Labs 5 and 6 work in your namespace (`students/<you>`); lab 5 reuses lab 3's `team/app` and `app-read`.

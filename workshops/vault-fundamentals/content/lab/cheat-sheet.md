@@ -51,6 +51,51 @@ path "team/data/app" {
 KV v2 paths inside a policy: `<mount>/data/...` (values), `<mount>/metadata/...` (list, history), `<mount>/delete/`,
 `undelete/`, `destroy/...`.
 
+## Apps and the Agent (labs 4-5)
+
+```python
+import hvac
+client = hvac.Client()   # VAULT_ADDR, and VAULT_TOKEN or ~/.vault-token
+resp = client.secrets.kv.v2.read_secret_version(mount_point="secret", path="students/<you>/app",
+                                                raise_on_deleted_version=True)
+resp["data"]["data"]     # the values; resp["data"]["metadata"]["version"]
+client.auth.token.renew_self()
+```
+
+```bash
+bao auth enable approle
+bao write auth/approle/role/app token_policies=app-read token_ttl=2m token_max_ttl=10m
+bao read -field=role_id auth/approle/role/app/role-id       # like a user name
+bao write -f -field=secret_id auth/approle/role/app/secret-id  # like a password: secret zero
+bao agent -config=agent.hcl > agent.log 2>&1 &              # log in, renew, render templates
+```
+
+Log that you loaded a secret, never its value.
+
+## sops and transit (lab 6)
+
+```bash
+bao secrets enable transit
+bao write -f transit/keys/sops                     # a key that never leaves the vault
+sops encrypt -i app.enc.yaml                       # uses .sops.yaml's hc_vault_transit_uri
+sops decrypt app.enc.yaml
+sops decrypt --extract '["database"]["password"]' app.enc.yaml
+sops set app.enc.yaml '["database"]["password"]' '"new"'
+sops edit app.enc.yaml                             # plaintext only in the editor
+git config diff.sopsdiffer.textconv "sops decrypt"  # with '*.enc.yaml diff=sopsdiffer' in .gitattributes
+bao write -f transit/keys/sops/rotate              # new key version; old ones still decrypt
+sops rotate -i app.enc.yaml                        # new data key, wrapped with the newest version
+bao write transit/keys/sops/config min_decryption_version=2  # retire old versions
+```
+
+`.sops.yaml` (the key URL carries your namespace):
+
+```yaml
+creation_rules:
+  - path_regex: \.enc\.yaml$
+    hc_vault_transit_uri: http://openbao:8200/v1/students/<you>/transit/keys/sops
+```
+
 ## Secrets in git (lab 1)
 
 ```bash

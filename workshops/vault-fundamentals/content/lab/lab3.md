@@ -122,3 +122,5 @@ unset BAO_NAMESPACE
 3. Why keep policies in files? *(Review, history and rollback, like any code. The UI is for exploring.)*
 
 **Rules used:** 1 (least privilege), 3 (short-lived and revocable), 7 (plan for leaks: revocation is routine).
+
+**Next:** [lab4.md](lab4.md)

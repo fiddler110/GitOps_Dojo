@@ -36,5 +36,8 @@ footer: '[&larr; Hub](index.md)'
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Leak a secret, find it, block the next</span></li>
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">The shared vault: versions, delete, policy</span></li>
 <li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">Your namespace: engine, policy, token</span></li>
+<li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">The app reads a secret: .env vs the vault</span></li>
+<li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">OpenBao Agent: rotate with no restart</span></li>
+<li><a href="assets/lab-reader.html?file=lab6.md.txt">Lab 6</a><span class="topic">Encrypted config in git with sops</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 </ul>

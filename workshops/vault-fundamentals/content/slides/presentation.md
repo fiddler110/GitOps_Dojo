@@ -24,7 +24,7 @@ Builds on Git Fundamentals: the same repos, now without the passwords in them
 **Talk + hands-on lab**
 
 <!--
-Parts 1-2 (labs 0-3) are written; later parts come with later build phases.
+Parts 1-4 (labs 0-6) are written; later parts come with later build phases.
 Assumes the room knows clone/commit/push.
 -->
 
@@ -38,6 +38,8 @@ Assumes the room knows clone/commit/push.
 4. **Labs 0-2:** the shared vault
 5. Namespaces: your own vault
 6. **Lab 3:** you are the admin
+7. Secrets in code: **labs 4-5**
+8. Secrets in git: **lab 6**
 
 ---
 
@@ -223,6 +225,97 @@ About **15 minutes**.
 
 ---
 
+<!-- _class: section-title -->
+
+# Part 3
+
+## Secrets in code
+
+---
+
+## Three places an app's secret can live
+
+| Where | Good | The catch |
+| ----- | ---- | --------- |
+| In the code | nothing to set up | in git forever (lab 1) |
+| A git-ignored `.env` | out of git | plaintext on every laptop, shared by hand, never expires, inherited by every child process |
+| **The vault** | one copy, access by policy, audited, rotated in one place | the app needs an identity and a token that stays fresh |
+
+**Never log a secret:** log *that* you loaded the config, not *what* it holds.
+
+---
+
+## OpenBao Agent: the vault work, done for the app
+
+```text
+  role ID + secret ID --> Agent --login--> OpenBao (AppRole)
+                            |  renews the token, logs in again at max TTL
+                            |  re-reads team/app every few seconds
+                            v
+                 /dev/shm/<you>/app.env  (0600, memory) --> the app reads a file
+```
+
+- The app knows nothing about vaults: no SDK, no token
+- **Rotate** in the vault and the file changes: no commit, no restart
+- The secret ID is **secret zero**: someone still had to deliver it (labs 8-9 remove it)
+
+---
+
+## Labs 4-5: secrets in code
+
+- **Lab 4:** one app, three versions (code, `.env`, `hvac`); a debug line that leaks; a token's TTL
+- **Lab 5:** AppRole in your namespace, the Agent renders to memory, rotate it live
+
+About **30 minutes** for both.
+
+---
+
+<!-- _class: section-title -->
+
+# Part 4
+
+## Secrets in git
+
+---
+
+## sops + transit: encrypted files, keys in the vault
+
+<div class="split">
+<div>
+
+```yaml
+database:
+  host: db.internal
+  password: ENC[AES256_GCM,data:...]
+sops:
+  hc_vault:
+    - enc: vault:v1:...
+```
+
+</div>
+<div>
+
+- Keys stay readable, **values** are encrypted
+- sops makes a **data key** per file; **transit** wraps it (envelope encryption)
+- The transit key **never leaves the vault**
+- Who can decrypt is a **policy**, and every decrypt is **audited**
+
+</div>
+</div>
+
+---
+
+## Lab 6: encrypted config in the repo
+
+- Transit in your namespace, a `.sops.yaml` that points at your key
+- Encrypt, commit, and a **readable diff** for those who can decrypt
+- An **encrypt-only** token: CI can write config it can't read
+- **Rotate** the key, re-wrap the file, retire version 1: old copies stop opening
+
+About **15 minutes**.
+
+---
+
 ## OpenBao and Azure, side by side
 
 | OpenBao | Azure |
@@ -233,6 +326,8 @@ About **15 minutes**.
 | ACL policy (paths + capabilities) | RBAC roles (Secrets User, Secrets Officer) |
 | OIDC auth method | Entra ID sign-in |
 | Terminal sign-in (JWT from the platform) | Managed identity |
+| AppRole | Service principal with a client secret |
+| Transit engine (sops) | Key Vault keys (sops `azure_kv`) |
 | Audit device | Diagnostic settings to Log Analytics |
 
 ---
