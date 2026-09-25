@@ -5,11 +5,14 @@
       "href": "/forgejo-login?next=/ui/vault/auth?with=oidc", "icon": "key" }
   ],
   "admin_tabs": [
-    { "id": "vault", "label": "Vault", "src": "/forgejo-login?next=/ui/vault/auth?with=oidc" }
+    { "id": "vault", "label": "Vault", "src": "/forgejo-login?next=/ui/vault/auth?with=oidc" },
+    { "id": "audit", "label": "Audit", "src": "/vault-audit/" }
   ],
   "routes": [
     { "id": "vault-ui", "path": "/ui", "upstream": "openbao:8200", "gate": "shared" },
-    { "id": "vault-api", "path": "/v1", "upstream": "openbao:8200", "gate": "shared" }
+    { "id": "vault-api", "path": "/v1", "upstream": "openbao:8200", "gate": "shared" },
+    { "id": "vault-audit", "path": "/vault-audit", "upstream": "openbao-audit:8080", "gate": "facilitator",
+      "strip_prefix": true }
   ],
   "status_checks": [
     { "label": "Vault", "url": "http://openbao:8200/v1/sys/health" }

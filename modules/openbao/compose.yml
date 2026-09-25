@@ -108,6 +108,10 @@ services:
     entrypoint: ["python3", "-B", "/opt/openbao-audit/audit.py"]
     environment:
       - BAO_ADDR=http://openbao:8200
+      # The facilitator's Audit tab (route /vault-audit): checked like the
+      # Runners panel, since workshop_lab reaches this port directly.
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
       - ../modules/openbao/audit:/opt/openbao-audit:ro
       - openbao_logs:/logs:ro

@@ -1,0 +1,31 @@
+:root { color-scheme: light dark; --bg: #fff; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb;
+  --card: #f9fafb; --accent: #2563eb; --red: #dc2626; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #1f2937; --accent: #60a5fa; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px 20px; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+h1 { margin: 0; font-size: 20px; }
+.sub, .help, .empty { color: var(--muted); margin: 4px 0; }
+.error { color: var(--red); }
+.controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: 14px 0 8px;
+  padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.controls label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+.controls label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--fg); }
+.controls input[type=text], .controls select { font: inherit; font-size: 14px; padding: 5px 8px; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; max-width: 100%; }
+.controls input[type=text] { width: 14em; }
+.controls button { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--fg); cursor: pointer; }
+.controls button:hover { border-color: var(--accent); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+td { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+td.time { white-space: nowrap; color: var(--muted); }
+td.path { word-break: break-all; min-width: 14em; }
+tr.bad td.result { color: var(--red); }
+button.acc { font: inherit; padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer;
+  text-decoration: underline; text-align: left; word-break: break-all; }
