@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike done (T0.1-T0.11, written up in §10). Next: P1, once the user says go and answers §12 Q4-Q5. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 done. P1 in progress: T1.1 done (`modules/openbao/`, OpenBao 2.7.0); next T1.2. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-24 (T0.10: P0 results in §10, P1 firmed up in §11, Q4-Q5 in §12) |
+| Last updated | 2026-09-24 (T1.1; S31-S32 answer Q4-Q5) |
 
 ---
 
@@ -53,7 +53,8 @@
 - **T0.9 done**: `spike/t09-sops.sh` (sops + transit in `students/student01`).
 - **P0 is finished** (T0.10): results in §10, P1 firmed up in §11, two new questions in §12 (Q4 OpenBao version,
   Q5 Forgejo session before SSO).
-- **Next:** **P1, T1.1**, only after the user says go and answers Q4-Q5.
+- **P1 started** (user answered Q4-Q5, 2026-09-24: S31, S32). **T1.1 done**: OpenBao is `modules/openbao/` on 2.7.0.
+- **Next:** **T1.2** (`openbao-setup`). Until it exists, `spike/init-bao.sh` unseals and `spike/t05-sso.sh` sets up SSO.
 - After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
   which won't exist tomorrow. So start clean:
@@ -118,6 +119,8 @@ phase, before editing engine/, and about anything in section 12.
 | S28 | *(User, 2026-09-24.)* **Split the issuer shim by job.** `modules/openbao/` gets a shim that only forwards `/git/*` to `git-server` (UI SSO, S23). `runner-pool` gets its own shim with the Actions ID-token rewrite (S24). Two small Caddyfiles instead of one module reaching into the other's folder. |
 | S29 | *(User, 2026-09-24.)* **Module setup, then workshop setup, in one container.** `openbao-setup` (module) initialises, unseals, sets the UI headers, OIDC-to-Forgejo, one entity per student and the facilitator policy, then runs every `/etc/openbao-setup.d/*.sh` in name order and revokes root **after** them, with the provisioner token (§5.1) still in hand. The workshop mounts its hooks (namespaces, templated policy, seed secrets, the half-configured JWT mounts of labs 8-9) there from its overlay; `volumes` append. Same shape as the terminal's `start.d`, and no token has to cross between containers. |
 | S30 | *(User, 2026-09-24.)* **Test the real HTTPS path at home, not only "approximately".** `./run.sh vault-fundamentals --env home` serves `https://dojo.macleodtech.ca` behind the home-lab Caddy: a real non-`localhost` HTTPS name, which is what T0.5's VM path needs. The P5 Azure VM run still happens. |
+| S31 | *(User, 2026-09-24, answers Q4.)* **Use the latest OpenBao release**: 2.7.0 from T1.1 on (pins in §15). P0's scripts were re-run on it. |
+| S32 | *(User, 2026-09-24, answers Q5.)* **`/forgejo-login?next=<local path>`**: a small, workshop-agnostic **engine** change (approved) so the Vault card and tab sign in to Forgejo first and SSO is one click. Only same-origin paths are accepted. Built in T1.3. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -555,7 +558,7 @@ line says otherwise. Details live in the section named; surprises in §14.
 
 | # | Question | Result | Where |
 |---|---|---|---|
-| 1 | OpenBao release with **namespaces**, digests per arch | ✅ OpenBao **2.6.3** (namespaces work; 2.7.0 came out 2026-09-23, see §12 Q4). Image, `bao`, `sops`, `gitleaks` pinned with sha256 per arch. arm64 not built. | §15 T0.3 |
+| 1 | OpenBao release with **namespaces**, digests per arch | ✅ OpenBao **2.6.3** (namespaces work); moved to 2.7.0 in T1.1 (S31), where the T0.5 and T0.9 scripts pass again. Image, `bao`, `sops`, `gitleaks` pinned with sha256 per arch. arm64 not built. | §15 T0.3 |
 | 2 | UI through Caddy at `/ui/` and `/v1/` behind the gate, framed in `/admin` | ✅ Routes from `extensions.json` (`shared` gate), no engine edit (S26). Framing needs `frame-ancestors 'self'` through `sys/config/ui/headers`. | §5.4 |
 | 3 | Forgejo as the OIDC provider for the UI | ✅ Student and facilitator (in the `/admin` Vault tab) sign in and land in their own entity and policy. Needs a Forgejo session first (§12 Q5). | §5.4, §14 |
 | 4 | Forgejo 16 Actions OIDC tokens accepted by OpenBao JWT auth | ✅ GitHub-style claims; a role bound to `repository` + `ref` lets `main` in and refuses another branch and repo. The token URL is malformed under `/git/`; the issuer shim fixes it (S24). | §5.5 |
@@ -644,11 +647,11 @@ Each task turns spike pieces into the module or the workshop and deletes them fr
 gone when P1 ends (the P3 pieces, `pool/` and `t06`-`t08`, move to `modules/runner-pool/` then). Every task is
 checked on the laptop; T1.3 and T1.6 also through `--env home` (S30), which needs the a24d0e7 `run.sh` fix.
 
-- [ ] **T1.1** `modules/openbao/` skeleton: move the `openbao` service, `config.hcl` (with the audit block), the SSO
+- [x] **T1.1** *(2f47607)* `modules/openbao/` skeleton: move the `openbao` service, `config.hcl` (with the audit block), the SSO
       shim and the spike manifest out of the workshop, card and tab pointing at `/ui/vault/auth?with=oidc`. `bao`,
       `BAO_ADDR` and `VAULT_ADDR` (zshenv and `ENV`) move to the module's `terminal/`; the workshop keeps `sops`,
       `gitleaks` and adds `SOPS_DISABLE_VERSION_CHECK=1`. `README.md` (one-line summary first); `MODULES="openbao"`;
-      `COMPOSE_OVERLAY` only if something is left. OpenBao version per §12 Q4.
+      `COMPOSE_OVERLAY` only if something is left (nothing was: removed). OpenBao 2.7.0 (S31).
       *Verify:* `./run.sh modules` lists it; `--dry-run` is clean; the stack starts, the Vault card and tab work,
       `./run.sh stop` leaves no volume behind.
 - [ ] **T1.2** `openbao-setup` in the module (S29): init, unseal, re-unseal after a restart; the UI CSP header with
@@ -657,8 +660,8 @@ checked on the laptop; T1.3 and T1.6 also through `--env home` (S30), which need
       *Verify:* after `./run.sh vault-fundamentals` the vault is unsealed with no manual step, root is revoked, a
       `podman restart workshop_openbao` re-unseals by itself.
 - [ ] **T1.3** SSO in the module, from `spike/t05-sso.sh`: Forgejo OAuth2 app, OIDC method and role (settings in
-      §5.4), the shim's CA on HTTPS, one entity per student and the facilitator. The Forgejo-session-first fix per
-      §12 Q5; check whether Forgejo 16 can skip its "Authorize Application" page for our own app.
+      §5.4), the shim's CA on HTTPS, one entity per student and the facilitator. The Forgejo session first: the
+      `engine/` change `/forgejo-login?next=` (S32, approved) and the card and tab pointing through it; check whether Forgejo 16 can skip its "Authorize Application" page for our own app.
       *Verify:* `t05-sso-browser.py` (moved to the module's tests) passes on the laptop and `--env home`.
 - [ ] **T1.4** CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
       `SO_PEERCRED` pattern), JWT auth in the root namespace, linked to the same entity as the UI login. It gives
@@ -683,19 +686,19 @@ Q1 (how OpenBao reaches Forgejo's OIDC issuer) was answered on 2026-09-23 with o
 Q2 (S26-S30) and Q3 (drop the S21 stash) were answered on 2026-09-24: all confirmed; `runner-pool` is a module
 from the start (S27), workshop setup runs as hooks in `openbao-setup` (S29), and the stash is dropped.
 
-**Open (from the P0 write-up, 2026-09-24):**
+**From the P0 write-up (2026-09-24), answered the same day (S31, S32):**
 
 - **Q4. Which OpenBao for P1?** P0 ran on 2.6.3 (the stable line's patch) because 2.7.0 came out the day T0.3
   pinned it. Options: (a) stay on 2.6.3 for the whole build and look again before P5; (b) move to the newest 2.7.x
   in T1.1 and re-run the T0.3/T0.5/T0.9 spikes once on it. *Recommendation: (b)*, so the workshop doesn't start
-  out one minor version behind; the spikes are scripted, so the re-check is cheap.
+  out one minor version behind; the spikes are scripted, so the re-check is cheap. **Answer: the latest (S31).**
 - **Q5. How does a student get a Forgejo session before Vault SSO?** Without one, the SSO popup shows Forgejo's
   password page, and students don't know that password (§14). `/forgejo-login` (in `engine/allocator/server.py`)
   signs them in but always lands on the seed repo. Options: (a) no engine change: lab 0 says "open the Forgejo card
   first", and the Vault card's description says so too; (b) a small **engine** change: `/forgejo-login?next=<local
   path>` (only same-origin paths allowed), so the Vault card and tab can go through it and SSO is one click.
   *Recommendation: (b)*, since it is workshop-agnostic and any module using Forgejo SSO needs it; (a) if you'd
-  rather not touch the engine.
+  rather not touch the engine. **Answer: (b) (S32).** None open.
 
 ## 13. Later / follow-ups
 
@@ -917,6 +920,27 @@ Surprises, gotchas and problems found in other workshops while working on this o
   and tab open `/ui/vault/auth?with=oidc` (§8.1); P1 tasks got verify lines and the spike clean-up (§11).
 - New questions Q4 (OpenBao 2.6.3 or 2.7.x) and Q5 (Forgejo session before SSO; option (b) is an `engine/` edit).
 - Stack still running on the laptop, OpenBao unsealed (keys in the session scratchpad).
+
+### 2026-09-24 — P1 starts; T1.1 (`modules/openbao/`)
+- User answered Q4 (latest OpenBao, S31) and Q5 (`/forgejo-login?next=`, an approved engine change for T1.3, S32).
+- **Pins, OpenBao 2.7.0** (released 2026-09-23): image `ghcr.io/openbao/openbao:2.7.0`, index
+  `sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315` (checked against the registry); amd64
+  `sha256:6d575d906d70d40b9d789149c8dc09897291c5a1707d4d0ba8a459eaaa94c8c4`, arm64
+  `sha256:4ca9310dd2a50c746d4227f44058088ee0470a8470031ee3f09cc8b1a69dd7f6`. `bao` tarballs from `checksums.txt`
+  (the file name changed from 2.6's `openbao_<v>_checksums.txt`).
+- T1.1 (2f47607): `modules/openbao/` has `compose.yml` (`openbao`, the SSO shim, all volumes named, plus
+  `openbao_logs` for the audit log), `config.hcl`, `sso-shim/Caddyfile` (`/git/*` only; the ID-token rewrite stays in
+  `spike/shim/` for `runner-pool`, S28), `module.env` (`OPENBAO_MEM_LIMIT`, `OPENBAO_PUBLIC_HOST`),
+  `extensions.json` (card and tab on `/ui/vault/auth?with=oidc`), `terminal/` (`bao` 2.7.0, `BAO_ADDR`, `VAULT_ADDR`),
+  `README.md`. The workshop has `MODULES="openbao"`, no overlay, and its terminal link adds sops, gitleaks and
+  `SOPS_DISABLE_VERSION_CHECK=1`.
+- Verified on the laptop: `./run.sh modules` lists it; `--dry-run` clean; `./run.sh vault-fundamentals` over the
+  running 2.6.3 stack (no `stop`) upgraded the vault in place (data kept, sealed until `init-bao.sh`); all containers
+  up, terminal and shim healthy. As `student01`: `BAO_ADDR`, `VAULT_ADDR`, `SOPS_DISABLE_VERSION_CHECK` set, `bao`
+  2.7.0; `t09-sops.sh` passes; `t05-sso.sh` + `t05-sso-browser.py` pass (student → `student`, facilitator in the
+  `/admin` tab → `facilitator`, the tab opening on `?with=oidc`). `./run.sh stop --dry-run` lists all four module
+  volumes. Not run: a real `stop` (stack kept up), `--env home`.
+- Next: T1.2.
 
 ## Appendix: considered, not chosen
 
