@@ -7,8 +7,11 @@
 #
 # What each lab needs (keep in step with content/lab/*.md when a lab changes):
 #   1     nothing: ~/lab/my-zone is seeded for every account
-#   2     Lab 1's records in my-zone, committed and pushed (0 corrections)
-#   3-6   the shared repo cloned to ~/lab/dns-as-code, dnsctl.py setup done
+#   2     your zone pushed to the server (Lab 1 step 3); Lab 1's extra records
+#         aren't needed
+#   3     nothing: its step 1 clones the shared repo
+#   4-6   the shared repo cloned to ~/lab/dns-as-code (Lab 4 step 1 runs
+#         dnsctl.py setup itself, and no other lab needs it)
 #   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
 #         classmate's approval, so lab-prep opens the pull request and stops.
 set -euo pipefail
@@ -32,53 +35,23 @@ Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once. It never reverts or undoes
 an edit you made.
 
-  lab-prep 2    push Lab 1's records to your own zone
-  lab-prep 4    clone the shared repo and run dnsctl.py setup
+  lab-prep 2    push your own zone to the server
+  lab-prep 4    clone the shared repo
 EOF
 }
 
-# Commit as the student even if git doesn't know their name yet.
-commit() {
-  if [ -z "$(git config user.name || true)" ]; then
-    run git -c user.name="$USER" -c user.email="$USER@example.com" commit -q "$@"
-  else
-    run git commit -q "$@"
-  fi
-}
-
 # -- Lab 1: your own zone -----------------------------------------------------
-lab1_records() {
-  say "Lab 1: app, mail and MX records in $USER.dojo.test, pushed"
+zone_pushed() {
+  say "Lab 1 step 3: push $USER.dojo.test to the server"
   [ -d "$ZONE_DIR/.git" ] || die "$ZONE_DIR is missing. Ask the facilitator."
   cd "$ZONE_DIR"
-  if grep -q 'A("app"' dnsconfig.js; then
-    done_ "dnsconfig.js has the Lab 1 records"
-  else
-    [ -z "$(git status --porcelain)" ] ||
-      die "my-zone has uncommitted edits. Commit or 'git restore' them, then run lab-prep again."
-    # Lab 1 steps 4-6 in one go: add four records, move app to .31, drop docs.
-    python3 - "$USER" <<'PY'
-import sys
-p, user = "dnsconfig.js", sys.argv[1]
-s = open(p).read()
-txt = '\tTXT("@", "owner=%s"),\n' % user
-if txt not in s:
-    sys.exit("lab-prep: can't find the TXT line in dnsconfig.js")
-s = s.replace(txt, txt + '\tA("app", "203.0.113.31"),\n'
-              '\tMX("@", 10, "mail.%s.dojo.test."),\n'
-              '\tA("mail", "203.0.113.20"),\n' % user, 1)
-open(p, "w").write(s)
-PY
-    echo "    added app (203.0.113.31), mail and MX to dnsconfig.js"
-    run git add dnsconfig.js
-    commit -m "Add app, mail and MX records"
-  fi
+  # push is a no-op when the zone already matches the file.
   run dnscontrol push
 }
 
 # -- Part 2: the shared repo --------------------------------------------------
 clone_shared() {
-  say "Lab 3: clone $SHARED_REPO to ~/lab/dns-as-code"
+  say "Lab 3 step 1: clone $SHARED_REPO to ~/lab/dns-as-code"
   if [ -d "$REPO_DIR/.git" ]; then
     done_ "$REPO_DIR exists"
   else
@@ -86,11 +59,6 @@ clone_shared() {
     (cd "$HOME/lab" && run git clone "$GIT_SERVER/$SHARED_REPO.git")
   fi
   cd "$REPO_DIR"
-  if [ "$(git config core.hooksPath || true)" = .githooks ] && [ -f .env ]; then
-    done_ "dnsctl.py setup"
-  else
-    run python3 scripts/dnsctl.py setup
-  fi
 }
 
 # Lab 5 rolls back your Lab 3 record, so it has to be on main already.
@@ -149,8 +117,13 @@ if [ "$lab" -eq 1 ]; then
   exit 0
 fi
 
+if [ "$lab" -eq 3 ]; then
+  echo "Lab 3 needs nothing from Part 1: its step 1 clones the shared repo. Open lab3.md and go."
+  exit 0
+fi
+
 if [ "$lab" -eq 2 ]; then
-  lab1_records
+  zone_pushed
   say "Ready for Lab 2"
   echo "    cd ~/lab/my-zone    then open lab2.md"
   exit 0
@@ -160,12 +133,6 @@ clone_shared
 if [ "$lab" -eq 5 ]; then
   lab3_record || { say "Not ready for Lab 5 yet: merge the pull request above first"; exit 0; }
 fi
-if [ "$(git branch --show-current)" = main ] && [ -z "$(git status --porcelain)" ]; then
-  run git pull -q --ff-only
-fi
 
 say "Ready for Lab $lab"
 echo "    cd ~/lab/dns-as-code    then open lab$lab.md"
-if [ "$(git branch --show-current)" != main ] || [ -n "$(git status --porcelain)" ]; then
-  echo "    You're on '$(git branch --show-current)'; the lab starts with 'git checkout main && git pull'."
-fi

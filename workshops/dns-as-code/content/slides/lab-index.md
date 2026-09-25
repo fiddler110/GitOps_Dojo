@@ -31,7 +31,7 @@ footer: '[&larr; Hub](index.md)'
 ```sh
 cd ~/lab
 git clone http://git-server:3000/dns-team/dns-as-code.git
-cd dns-as-code && python3 scripts/dnsctl.py setup
+cd dns-as-code
 ```
 
 <ul class="lab-links">

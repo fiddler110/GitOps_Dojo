@@ -2,7 +2,7 @@
 
 **Goal:** create several similar resources from one block with `for_each`, then run into a **quota**, and learn why the plan couldn't warn you.
 
-> **Starting here?** This lab needs hello deployed with Lab 8's three changes. Run `lab-prep 9` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 9` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics

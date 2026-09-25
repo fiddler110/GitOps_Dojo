@@ -26,11 +26,10 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every lab needs the step CLI to trust the CA (Lab 1). Run this once, or <code>lab-prep N</code> to catch up to lab N:</p>
+<p class="setup-label">Labs 3–5 build on your Lab 2 site on demo-app. Starting partway through? Catch up to lab N with:</p>
 
 ```sh
-step ca bootstrap --ca-url https://step-ca:9443 \
-  --fingerprint "$(step certificate fingerprint /opt/step-ca-root/root_ca.crt)"
+lab-prep 4    # e.g. sets up Lab 2's site and certificate for Lab 4
 ```
 
 <ul class="lab-links">

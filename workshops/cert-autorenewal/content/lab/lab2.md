@@ -5,8 +5,6 @@ this is the most transferable skill in the whole workshop. By the end of
 this lab you'll have a real certificate, issued by `step-ca`, actually
 serving HTTPS for your own site on the shared `demo-app`.
 
-> **Starting here?** This lab needs the step CLI to trust step-ca (Lab 1). Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
-
 ---
 
 ## 1. Set up your own space on demo-app

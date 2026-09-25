@@ -11,9 +11,8 @@
 #   3     learner set in sandbox/terraform.tfvars, applied (Lab 2)
 #   4     the clone only: Track B doesn't use the sandbox
 #   5     `terraform init` in the repo root (Lab 4)
-#   6-8   hello deployed to Dojo Cloud (Lab 5; Labs 6 and 7 end where they began)
-#   9     Lab 8's edits: cost_center tag, "Hello, Canada!", image 2.0
-#   10    Lab 9's for_each site, trimmed to the one the quota allows
+#   6-10  hello deployed to Dojo Cloud (Lab 5). Labs 9 and 10 run fine without
+#         Lab 8's edits or Lab 9's extra site, so lab-prep doesn't make them.
 set -euo pipefail
 
 GIT_SERVER=http://git-server:3000
@@ -36,7 +35,7 @@ lab <lab> right away. Safe to run more than once. It never runs destroy
 or undoes an edit you made.
 
   lab-prep 5    fork + clone the repo, and terraform init for Dojo Cloud
-  lab-prep 9    ...and deploy hello with Lab 8's changes
+  lab-prep 9    ...and deploy hello
 EOF
 }
 
@@ -111,69 +110,6 @@ cloud_init() {
   fi
 }
 
-lab8_edits() {
-  say "Lab 8: cost_center tag, \"Hello, Canada!\", image 2.0"
-  cd "$REPO_DIR"
-  if grep -q 'cost_center' locals.tf; then
-    done_ "cost_center tag"
-  else
-    run sed -i '/managed_by = "opentofu"/a\    cost_center = "training"' locals.tf
-    run terraform fmt
-  fi
-  run sed -i 's/^message .*/message     = "Hello, Canada!"/' terraform.tfvars
-  run sed -i 's/^image_tag .*/image_tag   = "2.0"/' terraform.tfvars
-}
-
-lab9_for_each() {
-  say "Lab 9: one extra site with for_each (the quota allows only one)"
-  cd "$REPO_DIR"
-  if grep -q 'resource "azurerm_container_group" "extra"' main.tf; then
-    done_ "main.tf has the extra sites"
-    return
-  fi
-  # Lab 9 section 2's block, with section 5's fix already made: the quota is 2
-  # container groups, and hello is the first.
-  cat >> main.tf <<'HCL'
-
-resource "azurerm_container_group" "extra" {
-  for_each = toset(["blue"])
-
-  name                = "${local.ci_name}-${each.key}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  os_type             = "Linux"
-  ip_address_type     = "Public"
-  dns_name_label      = "${local.dns_label}-${each.key}"
-
-  exposed_port {
-    port     = 80
-    protocol = "TCP"
-  }
-
-  container {
-    name   = "hello"
-    image  = "dojo/hello:${var.image_tag}"
-    cpu    = 0.25
-    memory = 0.125
-
-    ports {
-      port     = 80
-      protocol = "TCP"
-    }
-
-    environment_variables = {
-      MESSAGE = "${var.message} (${each.key})"
-      OWNER   = var.owner
-    }
-  }
-
-  tags = local.tags
-}
-HCL
-  echo "    appended azurerm_container_group.extra to main.tf"
-  run terraform validate
-}
-
 cloud_apply() {
   say "Deploy to Dojo Cloud"
   cd "$REPO_DIR"
@@ -199,8 +135,6 @@ if [ "$lab" -le 3 ]; then
 elif [ "$lab" -ge 5 ]; then
   ensure_cloud_creds
   cloud_init
-  [ "$lab" -ge 9 ] && lab8_edits
-  [ "$lab" -ge 10 ] && lab9_for_each
   [ "$lab" -ge 6 ] && cloud_apply
 fi
 

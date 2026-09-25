@@ -4,7 +4,7 @@
 
 Do this from your `sample-training-repo` clone, on your `add-yourname` branch from Lab 1 (or any branch — nothing here needs to be pushed).
 
-> **Starting here?** This lab needs the sample repo cloned and your branch from Lab 1. Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs the sample repo cloned. Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
 
 ---
 

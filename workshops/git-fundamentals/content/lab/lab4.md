@@ -4,7 +4,7 @@
 
 Do this from your `sample-training-repo` clone (Lab 1, step 1, if you haven't cloned it yet). If you haven't made a commit of your own yet either, do Lab 1 steps 3-5 first so you have something in your own history to look at.
 
-> **Starting here?** This lab needs the sample repo cloned and a commit of your own. Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs the sample repo cloned. Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
 
 ---
 

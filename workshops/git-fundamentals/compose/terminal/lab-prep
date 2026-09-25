@@ -7,9 +7,8 @@
 #
 # What each lab needs (keep in step with content/lab/*.md when a lab changes):
 #   2-5   training/sample-training-repo cloned to ~/lab (Lab 1 step 1)
-#   2-4   your add-<you> branch with a roster commit of your own (Lab 1
-#         steps 2-5). Pushing and the pull request are Lab 1's to teach, and
-#         no later lab needs them.
+#   3     a branch of your own to switch away from and back to (Lab 1 step
+#         2). No later lab needs Lab 1's commit, push or pull request.
 set -euo pipefail
 
 GIT_SERVER=http://git-server:3000
@@ -30,8 +29,8 @@ Usage: lab-prep <lab>       (1-$LAST_LAB)
 Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once.
 
-  lab-prep 2    clone the repo and commit yourself to the roster on $BRANCH
-  lab-prep 5    clone the repo
+  lab-prep 2    clone the repo
+  lab-prep 3    ...and create your $BRANCH branch
 EOF2
 }
 
@@ -45,25 +44,14 @@ clone() {
   fi
 }
 
-roster_commit() {
-  say "Lab 1 steps 2-5: yourself in the roster, committed on $BRANCH"
+own_branch() {
+  say "Lab 1 step 2: your own branch, $BRANCH"
   cd "$REPO_DIR"
   if git rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then
     done_ "branch $BRANCH exists"
-    [ "$(git branch --show-current)" = "$BRANCH" ] ||
-      echo "    (you're on '$(git branch --show-current)'; 'git checkout $BRANCH' to get back to it)"
-    return
-  fi
-  [ -z "$(git status --porcelain)" ] ||
-    die "the repo has uncommitted edits. Commit or 'git restore' them, then run lab-prep again."
-  run git checkout -q -b "$BRANCH"
-  printf -- '- name: %s\n  role: Student\n' "$USER" >> roster/team.yaml
-  echo "    added $USER to roster/team.yaml"
-  run git add roster/team.yaml
-  if [ -z "$(git config user.name || true)" ]; then
-    run git -c user.name="$USER" -c user.email="$USER@example.com" commit -q -m "Add $USER to team roster"
+    [ "$(git branch --show-current)" = "$BRANCH" ] || run git checkout -q "$BRANCH"
   else
-    run git commit -q -m "Add $USER to team roster"
+    run git checkout -q -b "$BRANCH"
   fi
 }
 
@@ -79,7 +67,7 @@ if [ "$lab" -eq 1 ]; then
 fi
 
 clone
-[ "$lab" -le 4 ] && roster_commit
+[ "$lab" -eq 3 ] && own_branch
 
 say "Ready for Lab $lab"
 echo "    cd ~/lab/sample-training-repo    then open lab$lab.md"
