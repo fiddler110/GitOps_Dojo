@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 done. P1 in progress: T1.1 (`modules/openbao/`, OpenBao 2.7.0) and T1.2 (`openbao-setup`) done; T1.3 (SSO) is next. Stack stopped. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 done. P1 in progress: T1.1 (`modules/openbao/`, OpenBao 2.7.0), T1.2 (`openbao-setup`) and T1.3 (SSO) done; T1.4 (CLI login) is next. Stack stopped. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-25 (T1.2 done) |
 
@@ -40,19 +40,21 @@
 ### Where we stopped (2026-09-25): start here next
 
 - **P0 is done** (results in §10). **P1 is in progress** (the user said go and answered Q4/Q5 as S31/S32).
-- **Done in P1:** T1.1 (`modules/openbao/`, OpenBao 2.7.0) and T1.2 (`openbao-setup`, 33e1d36): the vault comes up
-  initialised and unsealed, root revoked, and re-unseals itself within about 10 s after `podman restart
-  workshop_openbao`. The provisioner token is at `podman exec workshop_openbao_setup cat /setup/provisioner-token`.
+- **Done in P1:** T1.1 (`modules/openbao/`, OpenBao 2.7.0), T1.2 (`openbao-setup`, 33e1d36) and T1.3 (SSO,
+  ca89792 + 82ff676): the vault comes up initialised and unsealed, root revoked, SSO through Forgejo set up, and
+  re-unseals itself within about 10 s after `podman restart workshop_openbao`. The provisioner token is at
+  `podman exec workshop_openbao_setup cat /setup/provisioner-token`. The SSO browser test is
+  `modules/openbao/tests/sso_browser.py` (the command is in its header).
 - **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
   on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
-- **Next: T1.3** (SSO in the module, and the approved `engine/` change `/forgejo-login?next=`, S32). Ask the user
-  before starting it. Until it's done, SSO after a fresh start comes from `spike/t05-sso.sh` with the provisioner
-  token (the command is in its header).
+- **Next: T1.4** (CLI login: the identity broker and JWT auth, linked to the same entity). Ask the user before
+  starting it.
 - `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
   student's after T1.5); root is revoked and the provisioner can't.
 - **Local tests run in WSL on the user's desktop** (not a laptop): `http://localhost:8080`. The home HTTPS path is
   `./run.sh vault-fundamentals --env home` (https://dojo.macleodtech.ca).
-- **Nothing is left in `engine/`** apart from the committed a24d0e7 `run.sh` fix.
+- **`engine/` changes on this branch:** a24d0e7 (`run.sh --env` fix) and ca89792 (`/forgejo-login?next=`, S32),
+  both committed and self-contained, so either can be cherry-picked to `main`.
 
 **Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) ·
 `[!]` blocked · `[-]` dropped (say why).
@@ -660,10 +662,14 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
       `students/student01`, and a `podman restart workshop_openbao` re-unseals by itself. *(Passed locally
       2026-09-25: healthy in about 10 s, re-unseal in about 10 s, CSP `frame-ancestors 'self'`, audit log written,
       restarting the setup container doesn't re-init.)*
-- [ ] **T1.3** SSO in the module, from `spike/t05-sso.sh`: Forgejo OAuth2 app, OIDC method and role (settings in
+- [x] **T1.3** (ca89792, 82ff676) SSO in the module, from `spike/t05-sso.sh`: Forgejo OAuth2 app, OIDC method and role (settings in
       §5.4), the shim's CA on HTTPS, one entity per student and the facilitator. The Forgejo session first: the
       `engine/` change `/forgejo-login?next=` (S32, approved) and the card and tab pointing through it; check whether Forgejo 16 can skip its "Authorize Application" page for our own app.
       *Verify:* `t05-sso-browser.py` (moved to the module's tests) passes locally and on `--env home`.
+      *(Passed locally and on `--env home` (HTTPS) 2026-09-25 as `modules/openbao/tests/sso_browser.py`: student via
+      the card → entity `student01`/`02` with `student`, facilitator via the `/admin` tab → `facilitator`, both
+      land on `/ui/vault/secrets`; `?next=//example.com` falls back to the repo. Forgejo 16 **can't** skip the
+      Authorize page (§14): each account approves once.)*
 - [ ] **T1.4** CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
       `SO_PEERCRED` pattern), JWT auth in the root namespace, linked to the same entity as the UI login. It gives
       `bao` and sops a token (`VAULT_TOKEN` or `~/.vault-token`).
@@ -773,6 +779,14 @@ Surprises, gotchas and problems found in other workshops while working on this o
   Retry every write that follows an unseal (`setup.sh` does, 30 × 1 s; one retry was enough locally).
 - **A token made with `-no-default-policy` can't renew or look itself up** (T1.2): grant `auth/token/renew-self` and
   `auth/token/lookup-self` in its own policy.
+- **Forgejo 16 has no `skip_secondary_authorization`** (T1.3): the API ignores the field, so every account sees
+  "Authorize Application" once, on its first OIDC sign-in. Lab 0 should say so.
+- **`bao write -field=id identity/lookup/entity` prints "Success! …" when nothing matches** (T1.3), so an empty-output
+  test never fires. Writing an entity alias that already exists moves it to the given `canonical_id`, which makes a
+  plain write idempotent (and repairs an entity an early login created on its own).
+- **The OpenBao image's busybox `wget` does GET and POST only**, and there's no `curl` or `jq`: `sso.sh` never
+  deletes the Forgejo app, it keeps the client id and secret on `openbao_setup` and reuses them.
+- **Busybox `sh` runs a trap only after a foreground `sleep` ends**: `setup.sh` sleeps with `sleep 5 & wait $!`.
 - **The terminal sets `BAO_ADDR` only** *(fixed in T1.1: the `openbao` module sets `VAULT_ADDR` too)*; lab 6 needs `VAULT_ADDR` too (export it alongside `BAO_ADDR`, and the
   identity broker should provide `VAULT_TOKEN` or `~/.vault-token`, which sops also reads).
 
@@ -967,6 +981,17 @@ Surprises, gotchas and problems found in other workshops while working on this o
   deleted; `t05-sso.sh` uses the provisioner token; module README updated.
 - The user runs other workshop stacks here for manual validation: check `podman ps` first and hand the machine
   back (§0).
+
+### 2026-09-25 — T1.3 done (ca89792, 82ff676)
+
+- `engine/`: `/forgejo-login?next=<path>` (S32), same-origin paths only; the Vault card and `/admin` tab go
+  through it. `setup/sso.sh` (sourced by `setup.sh`, provisioner token): Forgejo OAuth2 app via busybox `wget`,
+  `oidc` method and role, the shim's CA on HTTPS, an entity and alias per account.
+- First browser run: logins made their own entities (the alias lookup always printed "Success!", §14); fixed by
+  always writing the alias. Forgejo 16 ignores `skip_secondary_authorization`. Stopping setup now takes ~4 s
+  (was 10 s and a kill).
+- `sso_browser.py` passed locally and on `--env home`; `./run.sh stop` left nothing; allocator unit tests pass.
+  `spike/t05-sso.sh` and `t05-sso-browser.py` retired (b5b9faa).
 
 ## Appendix: considered, not chosen
 
