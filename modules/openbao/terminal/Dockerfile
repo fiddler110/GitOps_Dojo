@@ -35,6 +35,18 @@ RUN set -eux; \
     printf 'export BAO_ADDR=http://openbao:8200\nexport VAULT_ADDR=http://openbao:8200\n' > /etc/profile.d/openbao.sh
 ENV BAO_ADDR=http://openbao:8200 VAULT_ADDR=http://openbao:8200
 
+# CLI login with no password (T1.4): a root-owned identity broker signs a
+# short-lived JWT for whoever asks (SO_PEERCRED says who), and openbao-login
+# trades it for a token in ~/.vault-token on every shell start. The start.d
+# hook makes the key and starts the broker.
+COPY openbao-broker.py /usr/local/bin/openbao-broker
+COPY openbao-login.py /usr/local/bin/openbao-login
+COPY start.d/50-openbao.sh /etc/dojo/start.d/50-openbao.sh
+RUN set -eux; \
+    command -v openssl; \
+    chmod 0755 /usr/local/bin/openbao-broker /usr/local/bin/openbao-login /etc/dojo/start.d/50-openbao.sh; \
+    printf '\n# openbao module: sign in to OpenBao through the broker (no-op while the token is good)\nif [ -x /usr/local/bin/openbao-login ]; then /usr/local/bin/openbao-login --quiet; fi\n' >> /etc/zsh/zshenv
+
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't
 # resolve FROM) doesn't flag it missing.

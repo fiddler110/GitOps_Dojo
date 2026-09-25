@@ -74,11 +74,15 @@ services:
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # For CLI login (setup/cli.sh): the facilitator's terminal account.
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
       - ../modules/openbao/setup:/etc/openbao-setup:ro
       - openbao_setup:/setup
       # The SSO shim's CA, which OpenBao must trust on an https:// name.
       - openbao_shim_data:/shim:ro
+      # The terminal broker's public key, for the jwt auth method.
+      - openbao_broker_pub:/broker:ro
     tmpfs:
       - /run/openbao-setup
     networks:
@@ -95,8 +99,13 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
-  # The terminal image gets bao from terminal/ (built and chained by run.sh).
+  # The terminal image gets bao and the identity broker from terminal/ (built
+  # and chained by run.sh). The broker's key stays here; its public half is
+  # shared with openbao-setup.
   web-terminal:
+    volumes:
+      - openbao_broker_key:/var/lib/openbao-broker
+      - openbao_broker_pub:/run/openbao-broker-pub
     depends_on:
       openbao:
         condition: service_started
@@ -107,3 +116,5 @@ volumes:
   openbao_shim_data:
   openbao_shim_config:
   openbao_setup:
+  openbao_broker_key:
+  openbao_broker_pub:

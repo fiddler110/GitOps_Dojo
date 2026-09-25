@@ -10,7 +10,7 @@
 #   waits on /setup until it is revoked, so a start that dies half-way is
 #   finished by the next one instead of leaving a live root token behind.
 # Every start, with the provisioner token:
-#   the UI's framing header, the facilitator policy, SSO (sso.sh), then every
+#   the UI's framing header, the facilitator policy, SSO (sso.sh), CLI login (cli.sh), then every
 #   /etc/openbao-setup.d/*.sh hook in name order (a workshop mounts its own
 #   there; each must be safe to re-run). Hooks are sourced in a subshell, so
 #   they get BAO_TOKEN and the helpers below; a failing hook stops setup.
@@ -113,6 +113,8 @@ retry 30 bao policy write facilitator "$policies/facilitator.hcl" >/dev/null
 
 # Single sign-on through Forgejo (sso.sh).
 . /etc/openbao-setup/sso.sh
+# CLI login from the terminal through its identity broker (cli.sh).
+. /etc/openbao-setup/cli.sh
 
 for hook in /etc/openbao-setup.d/*.sh; do
   [ -e "$hook" ] || continue
