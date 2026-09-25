@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Branch | `feat/workshop-modules` (from `main` at a840252, 2026-09-24) |
-| Overall status | **M3 in progress: docs (T3.1) and the vault plan (T3.2) done; the user is running the browser pass (T3.4, checklist in §7). PR (T3.3) only when asked.** |
+| Overall status | **Merged to `main` via PR #2 (2026-09-24). Only the user's browser pass (T3.4, checklist in §7) is still open.** |
 | Related | `workshops/vault-fundamentals/PLAN.md` §8.1 and §13 (where this idea started; vault is paused and will build on this) |
 
 ## 0. HOW TO RESUME (read this first)
@@ -238,7 +238,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done (SHA). Each task says how to v
   fbac73e **on `feat/vault-fundamentals`** (not this branch). Its draft `openbao` and Runners manifests pass the
   renderer.
 - [ ] **T3.4** Browser pass by the user, per workshop (checklist below). Findings go in §10.
-- [ ] **T3.3** PR to `main` (only when the user asks).
+- [x] **T3.3** PR to `main`: https://github.com/fiddler110/GitOps_Dojo/pull/2, merge commit (like PR #1), 2026-09-24.
 
 ### T3.4 browser checklist (done by the user)
 
@@ -390,3 +390,9 @@ names beside the running vault spike stack (untouched).
   and allocator (10 s each). Cause: PID 1 was python/node with no SIGTERM handler, which the kernel ignores for PID 1.
   `init: true` on those three services (engine/docker-compose.yml, user approved): `podman stop` 13.2 s → ~3 s each;
   a real dns-as-code `./run.sh stop` printed no warnings.
+- Home LAN hosting (user asked): `./run.sh <workshop> --env NAME` sources `engine/.env.NAME` over `.env`, and
+  `GATEWAY_LISTEN` (default `PUBLIC_BASE_URL`) lets the gateway serve plain `http://:8080` behind another TLS proxy;
+  the allocator's Slides probe uses it. A Caddy local-CA variant was tried first and dropped (every device would have
+  to trust the CA). Tested live through the user's home-lab Caddy and in the user's browser; default mode re-checked.
+  b44acc9
+- PR #2 opened and merged at the user's request, with T3.4 still open.
