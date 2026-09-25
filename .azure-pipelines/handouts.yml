@@ -1,0 +1,36 @@
+# Azure DevOps twin of .github/workflows/handouts.yml: fails when a slide deck
+# changed without re-exporting handouts/<workshop>_presentation.pptx. The check
+# reads only git's index, so it needs no browser; the fix is
+# `./run.sh update-decks` locally (or the pre-commit hook in .githooks/).
+#
+# Create a pipeline from this file (Pipelines > New > existing YAML). On a
+# GitHub repo the `pr:` block runs it on pull requests; on Azure Repos, PR
+# runs come from a build-validation branch policy on main instead.
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - workshops/*/content/slides
+      - workshops/assets
+      - engine/presentation/engine.js
+      - handouts
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - workshops/*/content/slides
+      - workshops/assets
+      - engine/presentation/engine.js
+      - handouts
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 1
+  - script: handouts/build-presentations.sh --check
+    displayName: Every presentation.pptx matches its deck

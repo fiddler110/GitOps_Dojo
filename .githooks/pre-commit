@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Keeps handouts/<workshop>_presentation.pptx in step with the slide decks:
+# any deck whose sources in this commit differ from the last export is
+# re-exported and added to the commit. Enable once per clone with
+#   git config core.hooksPath .githooks
+# Skip for one commit with `git commit --no-verify`; the next commit that
+# runs the hook catches the deck up.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+stale="$(handouts/build-presentations.sh --check 2>/dev/null | sed -n 's/^handouts: stale: //p' || true)"
+[ -n "$stale" ] || exit 0
+
+handouts/build-presentations.sh $stale
+for n in $stale; do git add "handouts/${n}_presentation.pptx"; done
+git add handouts/.presentation-sources

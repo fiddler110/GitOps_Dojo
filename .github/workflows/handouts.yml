@@ -1,0 +1,28 @@
+# Fails a pull request (or a push to main) whose slide decks changed without
+# re-exporting handouts/<workshop>_presentation.pptx. The check reads only
+# git's index, so it needs no browser; the fix is `./run.sh update-decks`
+# locally (or the pre-commit hook in .githooks/), then commit the result.
+name: handouts
+
+on:
+  pull_request:
+    paths:
+      - 'workshops/*/content/slides/**'
+      - 'workshops/assets/**'
+      - 'engine/presentation/engine.js'
+      - 'handouts/**'
+  push:
+    branches: [main]
+    paths:
+      - 'workshops/*/content/slides/**'
+      - 'workshops/assets/**'
+      - 'engine/presentation/engine.js'
+      - 'handouts/**'
+
+jobs:
+  decks-current:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every presentation.pptx matches its deck
+        run: handouts/build-presentations.sh --check
