@@ -47,8 +47,9 @@
   `modules/openbao/tests/sso_browser.py` (the command is in its header).
 - **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
   on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
-- **Next: T1.4** (CLI login: the identity broker and JWT auth, linked to the same entity). Ask the user before
-  starting it.
+- **T1.4 and T1.5 are built but not run** (the user is using the machine; they asked to build several items and
+  validate together when it is free). Next: T1.6 (labs 0-3), then one live pass: `./run.sh vault-fundamentals`,
+  `modules/openbao/tests/cli_login.sh`, `workshops/vault-fundamentals/tests/tenancy.sh`, `sso_browser.py` again.
 - `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
   student's after T1.5); root is revoked and the provisioner can't.
 - **Local tests run in WSL on the user's desktop** (not a laptop): `http://localhost:8080`. The home HTTPS path is
@@ -670,12 +671,12 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
       the card → entity `student01`/`02` with `student`, facilitator via the `/admin` tab → `facilitator`, both
       land on `/ui/vault/secrets`; `?next=//example.com` falls back to the repo. Forgejo 16 **can't** skip the
       Authorize page (§14): each account approves once.)*
-- [ ] **T1.4** CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
+- [~] **T1.4** *(built 55de8e1; live verify pending: `modules/openbao/tests/cli_login.sh`)* CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
       `SO_PEERCRED` pattern), JWT auth in the root namespace, linked to the same entity as the UI login. It gives
       `bao` and sops a token (`VAULT_TOKEN` or `~/.vault-token`).
       *Verify:* as `student01`, `bao token lookup` shows the student entity with no manual login; student02 can't
       get student01's JWT.
-- [ ] **T1.5** The workshop's hooks: per-student namespaces with an admin policy inside each, the shared `secret/`
+- [~] **T1.5** *(built 2109b9d; live verify pending: `workshops/vault-fundamentals/tests/tenancy.sh`)* The workshop's hooks: per-student namespaces with an admin policy inside each, the shared `secret/`
       mount and templated policy (§5.3), seed secrets.
       *Verify:* student01 reads `secret/students/student01/*`, gets 403 on student02's path, and is admin only in
       `students/student01`.
@@ -992,6 +993,19 @@ Surprises, gotchas and problems found in other workshops while working on this o
   (was 10 s and a kill).
 - `sso_browser.py` passed locally and on `--env home`; `./run.sh stop` left nothing; allocator unit tests pass.
   `spike/t05-sso.sh` and `t05-sso-browser.py` retired (b5b9faa).
+
+### 2026-09-25 — T1.4 and T1.5 built (not yet run)
+
+- **T1.4 (55de8e1):** `openbao-broker` (root, `SO_PEERCRED`) signs a two-minute RS256 JWT (`iss dojo-terminal`,
+  `aud openbao`, `sub` the login name) with `openssl` (from `ca-certificates`); key on `openbao_broker_key`, public
+  half on `openbao_broker_pub` for `setup/cli.sh`, which mounts `jwt` in the root namespace (role `terminal`) and
+  aliases each login name to the SSO entity. `openbao-login --quiet` in zshenv writes `~/.vault-token` when missing
+  or under an hour left, and leaves a user's own `bao login` token alone. Signature checked offline with `openssl`.
+- **T1.5 (2109b9d):** hook `compose/openbao-setup.d/10-tenancy.sh` (overlay `COMPOSE_OVERLAY`): `secret/` KV v2, a
+  `welcome` secret per student (`cas=0`, so re-runs add no versions), namespaces `students/<name>`, and the templated
+  `student` policy. **Deviation from §5.3:** namespace admin comes from `students/{{identity.entity.name}}/*` in the
+  root policy, not an admin policy plus group inside each namespace: same effect, nothing per namespace to keep in
+  step. Check in the live pass that templating works in that path.
 
 ## Appendix: considered, not chosen
 
