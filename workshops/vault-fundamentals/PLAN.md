@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 and P1 done (2026-09-25). P2 next, after the user's go. Stack stopped. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0, P1 and P2 done (2026-09-25). P3 next, after the user's go. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-25 (T1.2 done) |
 
@@ -47,9 +47,12 @@
   `modules/openbao/tests/sso_browser.py` (the command is in its header).
 - **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
   on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
+- **P2 is done** (T2.1-T2.6, 1f8d7c5 and 9ed5f8f): labs 4-6, their slides, `tests/labs_4_6.sh`. Verified locally
+  2026-09-25 (details in §15). **Next: P3 (pipelines: `runner-pool`, labs 7-8). Ask the user before starting it.**
+  The stack was left **running** at the end of P2.
 - **P1 is done** (T1.1-T1.7). The live pass ran locally on 2026-09-25: `cli_login.sh`, `tenancy.sh` and
   `sso_browser.py` pass, labs 0-3 were run as a student (terminal and UI), slides fit 16:9. The stack is stopped.
-  **Next: P2. Ask the user before starting it.** Not run on `--env home` this time (T1.3 was; nothing in T1.4-T1.6
+  Not run on `--env home` this time (T1.3 was; nothing in T1.4-T1.6
   depends on the public name).
 - `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
   student's after T1.5); root is revoked and the provisioner can't.
@@ -686,7 +689,37 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
 - [x] **T1.7** *(module README with T1.4; READMEs 898199b)* Docs: module `README.md`, the workshops table in `workshops/README.md`, root `README.md`,
       `CLAUDE.md` module list.
 
-Later phases get their own task block (IDs `T2.x` … `T5.x`) when they start.
+### P2 — Code and git (labs 4-6; the user said go 2026-09-25)
+
+Labs 4-5 carry on from lab 3's namespace where they can (`team/app`, the `app-read` policy): each lab starts with a
+short, idempotent catch-up block, so a student who skipped lab 3 isn't stuck. Everything stays in `~/lab` and the
+class vault; nothing is pushed (Forgejo repos per student come with P3's pipelines).
+
+- [x] **T2.1** *(1f8d7c5; built by `./run.sh`, `hvac.Client().is_authenticated()` is `True` as student01)* Terminal:
+      Python `hvac` 2.4.0 for lab 4 with requests, urllib3, idna, certifi and charset-normalizer, all `py3-none-any`
+      (one sha256 per package serves both architectures, `compose/terminal/hvac-wheels.sha256`). `wget` fetches the
+      wheels (system CA store; pip would use its own bundle and fail behind a corporate TLS proxy), `sha256sum -c`
+      checks them, and pip runs from its own wheel to install offline with `--no-index --no-deps`; no pip is left in
+      the image. No new binary: `bao agent` is in `bao`.
+      *Verify:* `python3 -c 'import hvac; print(hvac.Client().is_authenticated())'` prints `True` as a student.
+- [x] **T2.2** *(9ed5f8f)* Lab 4, "The app reads a secret": the same app hard-coded (lab 1's), from a git-ignored `.env`, then
+      from `secret/students/<you>/app` with `hvac` (it finds `VAULT_ADDR` and `~/.vault-token` by itself). Don't log
+      secrets (a debug line that prints the config); the token's TTL and `renew_self`.
+- [x] **T2.3** *(9ed5f8f)* Lab 5, "OpenBao Agent": in `students/<you>`, AppRole for the app (`app-read`, lab 3), role ID and
+      secret ID as files (the "secret zero" that labs 8-9 remove), `bao agent` with approle auto-auth renders
+      `team/app` to `/dev/shm/<you>/app.env` (`0600`, tmpfs); a small app reads the file on every loop. Rotate with
+      `bao kv put` and the app sees it within seconds, no commit, no restart.
+- [x] **T2.4** *(9ed5f8f)* Lab 6, "Encrypted config in the repo": transit in `students/<you>`, `.sops.yaml` with the key URL
+      that carries the namespace (§14), encrypt, commit, a readable `git diff` through a `textconv`, an encrypt-only
+      token that can't decrypt, rotating the key then `sops rotate -i`, and `min_decryption_version` so the old
+      commit's copy stops opening.
+- [x] **T2.5** *(9ed5f8f)* Slides and lab pages: presentation Parts 3-4 (code, git), `labs.md`, `lab-index.md`, `cheat-sheet.md`,
+      the lab `README.md` table; the lab reader copies.
+- [x] **T2.6** *(9ed5f8f; `labs_4_6.sh` PASS, `tenancy.sh` and `cli_login.sh` PASS, labs run literally as written, slides and lab reader checked in Playwright, locally 2026-09-25)* Tests and the live pass: `tests/labs_4_6.sh` runs each lab's commands as a student; a walk-through of
+      labs 4-6 in a real browser; slides within 16:9 (screenshot).
+      *Verify:* `tests/labs_4_6.sh` passes locally; `tenancy.sh` and `cli_login.sh` still pass.
+
+Later phases get their own task block (IDs `T3.x` … `T5.x`) when they start.
 
 ## 12. Open questions for the user
 
@@ -802,6 +835,17 @@ Surprises, gotchas and problems found in other workshops while working on this o
   namespace picker is at the bottom of the side menu (`root` → `students` →), and `?namespace=students/<name>` works.
 - **gitleaks 8.30.1:** `gitleaks git -v` and `gitleaks git --pre-commit --staged --redact -v` work; `ghp_` + 36
   characters trips `github-pat`.
+
+- **OpenBao Agent: `namespace` in the `auto_auth` method is enough** (T2.3): the templates' `secret "team/data/app"`
+  resolves in that namespace with no `BAO_NAMESPACE` in the Agent's environment.
+- **sops writes YAML with 4-space indents** (T2.4), so a decrypted file (and a `textconv` diff) doesn't match the
+  2-space file the student typed. Harmless; tests match `    password:`.
+- **`min_decryption_version` closes the `textconv` diff too** (T2.4): `git diff`/`git log -p` over an older commit
+  stops with "ciphertext or signature version is disallowed by policy (too old)". Lab 6 says so.
+- **`pkill -f "bao agent"` inside `su - x -c "..."` kills its own shell**, whose command line contains the same
+  text; use `pkill -f "[b]ao agent"` in scripts (T2.6). Typed at a prompt it's fine.
+- **Only `STUDENT_COUNT` accounts exist** (3 locally): tests default to student03, and a walk-through as a fresh
+  student needs one that hasn't done labs 3-6 yet.
 
 ## 15. SESSION LOG (append-only, newest at the bottom)
 
@@ -1039,6 +1083,21 @@ Surprises, gotchas and problems found in other workshops while working on this o
   1dbe33b). UI: click-through to the welcome secret, the namespace picker, and creating a policy in the
   namespace all work. Slides: no overflow; slide 9's emoji arrows replaced. A setup restart keeps the welcome
   secret at version 1. `./run.sh stop`: nothing left.
+
+### 2026-09-25 — P2 (labs 4-6) done
+
+- The user said go for P2. Task block written (T2.1-T2.6).
+- **T2.1 (1f8d7c5):** `hvac` 2.4.0 and deps as pinned pure-Python wheels (`hvac-wheels.sha256`), fetched with `wget`,
+  installed offline by pip run from its own wheel. Built through `./run.sh`; `is_authenticated()` True.
+- **T2.2-T2.6 (9ed5f8f):** labs 4-6, presentation Parts 3-4 (+2 rows on the Azure table), `labs.md`, `lab-index.md`,
+  cheat sheet, lab README, lab 3's "Next" link. `tests/labs_4_6.sh` (student03, resets itself): PASS after two test
+  fixes (sops' 4-space YAML; `pkill` killing its own shell, §14). `tenancy.sh` and `cli_login.sh` still PASS. A
+  literal walk-through of every block as student02: labs 4 and 6 as written; lab 5's catch-up `kv put` hit the
+  mount-upgrade error and broke the rest, so the block now retries (re-checked). Agent renewed and re-logged in within
+  ~130 s, the fingerprint changed ~3 s after a rotation. Slides 15-23 and `labs.md` 1-4: no overflow (Playwright
+  1280×720); lab reader renders labs 4-6 (lab 6's reader 404s prefetching `lab7.md.txt` until P3 writes it).
+- While the stack started, `workshop_cloud_api`/`workshop_cloud_host` (tofu-basics' `dojo-cloud`) were running too,
+  started a few minutes earlier than the vault stack, not by this session. Left alone; told the user.
 
 ## Appendix: considered, not chosen
 
