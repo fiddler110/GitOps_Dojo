@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11 and T0.5 done; next T0.9 → T0.10. `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11, T0.5 and T0.9 done; next T0.10 (then ask before P1). `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-24 (plan adapted to the module approach: S26-S30, §8.1, §11 P1 draft) |
 
@@ -50,8 +50,8 @@
 - **`feat/workshop-modules` is merged in** (S25): PR #2 landed on `main`, merged here in 8c71f83 (2026-09-24);
   `main` has nothing newer. The plan was adapted to it on 2026-09-24 (S26-S30, §8.1, the P1 draft in §11).
 - **T0.5 done** (laptop and `--env home` HTTPS): `spike/t05-sso.sh` sets it up, `spike/t05-sso-browser.py` checks it.
-- **Next:** **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user
-  before starting P1**).
+- **T0.9 done**: `spike/t09-sops.sh` (sops + transit in `students/student01`).
+- **Next:** **T0.10** (write-up; **ask the user before starting P1**).
 - After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
   which won't exist tomorrow. So start clean:
@@ -622,7 +622,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       unprivileged container; several runners (one Linux user each) side by side. If it fails, record
       why and fall back to Docker-in-Docker (S16). *Verify:* a job cannot see or signal another job's
       processes or files.
-- [ ] **T0.9** (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
+- [x] **T0.9** *(79a005d)* (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
       with a token that has transit decrypt only; a token without it fails.
 - [ ] **T0.10** Write up: findings into §10, plan changes into the relevant sections, new questions
       into §12, a P0 entry in §15. **Ask the user before starting P1.**
@@ -708,6 +708,17 @@ Surprises, gotchas and problems found in other workshops while working on this o
   `${PUBLIC_BASE_URL}/git/api/healthz` through itself instead.
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
   `openbao-setup` must retry or wait after `bao secrets enable kv-v2` before writing seed secrets.
+- **sops + transit works per student namespace** (T0.9, sops 3.13.3, OpenBao 2.6.3). sops uses the Vault client, so it
+  reads `VAULT_ADDR`, `VAULT_TOKEN` and `VAULT_NAMESPACE`, not the `BAO_*` names. Two forms work: `VAULT_NAMESPACE=students/<name>`
+  with `--hc-vault-transit $BAO_ADDR/v1/transit/keys/sops`, or the namespace in the URL path
+  (`.../v1/students/<name>/transit/keys/sops`) with no `VAULT_NAMESPACE`. The URL is stored in the file, so the
+  path form is self-contained and is the one to teach (P2). Policies: `update` on `transit/encrypt/sops` and
+  `transit/decrypt/sops`; an encrypt-only or default token gets `403 permission denied` on decrypt. After
+  `transit/keys/sops/rotate`, the file still opens, and `sops rotate -i` re-wraps it with `vault:v2`.
+- **`sops --version` calls GitHub** and prints a warning in the offline terminal. Set `SOPS_DISABLE_VERSION_CHECK=1`
+  in the terminal image (zshenv + `ENV`) in P2.
+- **The terminal sets `BAO_ADDR` only**; lab 6 needs `VAULT_ADDR` too (export it alongside `BAO_ADDR`, and the
+  identity broker should provide `VAULT_TOKEN` or `~/.vault-token`, which sops also reads).
 
 ## 15. SESSION LOG (append-only, newest at the bottom)
 
@@ -844,6 +855,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
   laptop (`http://localhost:8080`) and, after `./run.sh vault-fundamentals --env home` (no `stop`, then
   `init-bao.sh` to unseal), on `https://dojo.macleodtech.ca` with the shim's CA. Entities checked by id:
   student03/student01 → `student`, facilitator (`workshop-admin`) → `facilitator`. Findings in §5.4 and §14.
+
+### 2026-09-24 — `run.sh` fix, T0.9 (sops + transit)
+- With the user's approval, `engine/run.sh` (a24d0e7) re-reads `.env.<name>` in the modules block, so `--env home`
+  keeps its `PUBLIC_BASE_URL` for workshops with modules. Checked by replaying the source order for tofu-basics.
+- `./run.sh stop` (the user asked), then a clean `./run.sh vault-fundamentals` on the laptop and `init-bao.sh`.
+- `spike/t09-sops.sh` (79a005d), as `student01` in the real terminal: encrypted `secrets.yaml` with transit in
+  `students/student01`, committed it (plaintext absent), decrypted with a decrypt-only token; encrypt-only and
+  default tokens refused (403); rotate + `sops rotate` fine; path-embedded namespace also works. Findings in §14.
+  Stack left running (laptop), OpenBao unsealed, keys in the session scratchpad.
 
 ## Appendix: considered, not chosen
 
