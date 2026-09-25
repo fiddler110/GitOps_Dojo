@@ -606,7 +606,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       `gitopsdojo/web-terminal:vault-fundamentals` tag if `run.sh` would reuse it.
       *Verify:* `./run.sh vault-fundamentals --dry-run` is clean; after a start, `bao status` answers from a student
       terminal and the container is `healthy`.
-- [x] **T0.5** *(2a2e21f, SHA_T05)* (§10.3, §10.7) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
+- [x] **T0.5** *(2a2e21f, 0c8a3b0)* (§10.3, §10.7) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
       back to `/ui/...`, through the issuer shim (S23). Routes, card and `/admin` tab from a spike
       `workshops/vault-fundamentals/extensions.json` (S26, the draft in §8.1); no `engine/` edit. Test the laptop
       path for real, and the HTTPS path through `--env home` (S30) with the shim's CA.
