@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11, T0.5 and T0.9 done; next T0.10 (then ask before P1). `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike done (T0.1-T0.11, written up in §10). Next: P1, once the user says go and answers §12 Q4-Q5. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-24 (plan adapted to the module approach: S26-S30, §8.1, §11 P1 draft) |
+| Last updated | 2026-09-24 (T0.10: P0 results in §10, P1 firmed up in §11, Q4-Q5 in §12) |
 
 ---
 
@@ -51,7 +51,9 @@
   `main` has nothing newer. The plan was adapted to it on 2026-09-24 (S26-S30, §8.1, the P1 draft in §11).
 - **T0.5 done** (laptop and `--env home` HTTPS): `spike/t05-sso.sh` sets it up, `spike/t05-sso-browser.py` checks it.
 - **T0.9 done**: `spike/t09-sops.sh` (sops + transit in `students/student01`).
-- **Next:** **T0.10** (write-up; **ask the user before starting P1**).
+- **P0 is finished** (T0.10): results in §10, P1 firmed up in §11, two new questions in §12 (Q4 OpenBao version,
+  Q5 Forgejo session before SSO).
+- **Next:** **P1, T1.1**, only after the user says go and answers Q4-Q5.
 - After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
   which won't exist tomorrow. So start clean:
@@ -169,7 +171,9 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 **Part 4: Secrets in git**
 
 6. **Encrypted config in the repo.** `sops` with OpenBao's **transit** engine: the file lives in git, and the key
-   never leaves the vault. Show who can decrypt, what a diff looks like, and rotating the transit key (`rewrap`).
+   never leaves the vault. Show who can decrypt, what a diff looks like, and rotating the transit key (then
+   `sops rotate`). Teach the key URL with the namespace in its path (`$VAULT_ADDR/v1/students/<you>/transit/keys/sops`):
+   sops stores it in the file, so decrypting needs no extra setting (T0.9).
 
 **Part 5: Secrets in pipelines**
 
@@ -206,7 +210,7 @@ certificates (ties in with `cert-autorenewal`).
 | `runner-pool` + `runner-controller` | CI runners (one job each at a time) and the controller that scales them and serves the Runners panel (§6). The `runner-pool` module (S27). |
 | `app-host` | The deployment target: a small "platform" with one slot per student and a platform identity (§5.6). |
 | `postgres` | A shared database for lab 10's dynamic credentials. |
-| terminal image | Adds `bao`, `sops`, `gitleaks`, Python with `hvac`, and the identity broker for CLI login. All pinned and sha256-verified per architecture. |
+| terminal image | Adds `bao`, `sops`, `gitleaks`, Python with `hvac`, and the identity broker for CLI login. All pinned and sha256-verified per architecture. Sets `VAULT_ADDR` next to `BAO_ADDR` (sops and `hvac` read the `VAULT_*` names) and `SOPS_DISABLE_VERSION_CHECK=1` (T0.9). |
 | runner-pool image | `host`-label jobs run on whatever the pool image has, so it carries the same pinned `bao`, `curl`, `sops` and Python as the terminal. |
 
 **No root after setup, but a provisioner.** Root is revoked once setup finishes. Re-running setup, resetting one
@@ -292,7 +296,7 @@ for `PUBLIC_BASE_URL` and maps the broken path to `/api/actions/...` on `git-ser
 One shim design serves both OpenBao (UI SSO) and the runners.
 OpenBao reaches the keys **directly** (`jwks_url` on `git-server:3000`, with `bound_issuer` set to the public issuer
 string), so CI login avoids the issuer-reachability problem in §5.4.
-**To verify in P0.** Fallback: AppRole only, and teach OIDC on a slide.
+**Verified in T0.6**, so the AppRole-only fallback isn't needed (lab 8 still starts with AppRole to show secret zero).
 
 ### 5.6 Deployment secrets: the "proper" way (labs 9-10)
 
@@ -310,8 +314,9 @@ string), so CI login avoids the issuer-reachability problem in §5.4.
 
 **How the lab does this.** `app-host` is a small "platform":
 
-- **One slot per student.** Each slot is its own Linux user, and processes can't see other users' processes
-  (`hidepid`).
+- **One slot per student.** Each slot is its own Linux user, and processes can't see other users' processes.
+  `hidepid` can't be set inside an unprivileged container (T0.8); use a user + PID namespace per slot, as the runner
+  pool does (§6.2).
 - **A platform identity service** keeps a signed JWT for each slot in a file only that slot can read, refreshed every
   few minutes. This mirrors a Kubernetes projected service-account token and the Azure managed identity endpoint.
 - **In the student's namespace,** the student sets up JWT auth that trusts the platform's signing keys and a role bound
@@ -487,7 +492,7 @@ wrapper; a card with no `/admin` tab of the same id is a start-up warning.
 | `modules/openbao/` | `modules/runner-pool/` (P3) | `workshops/vault-fundamentals/` |
 |---|---|---|
 | `compose.yml`: `openbao`, `openbao-setup`, the SSO shim, their volumes | `compose.yml`: Actions on in `git-server`, `runner_net`, `runner-pool`, `runner-controller`, the ID-token shim | overlay: `app-host`, `postgres`; adds its setup hooks to `openbao-setup` and puts `openbao` / `app-host` on `runner_net` |
-| `terminal/`: `bao`, `BAO_ADDR` in zshenv, the identity broker, `start.d/50-openbao.sh` | runner image: `bao`, `curl`, `sops`, Python (what lab jobs call) | `compose/terminal/`: `sops`, `gitleaks`, Python with `hvac` |
+| `terminal/`: `bao`, `BAO_ADDR` and `VAULT_ADDR` in zshenv and `ENV`, the identity broker (gives `VAULT_TOKEN` / `~/.vault-token`), `start.d/50-openbao.sh` | runner image: `bao`, `curl`, `sops`, Python (what lab jobs call) | `compose/terminal/`: `sops`, `gitleaks`, Python with `hvac`, `SOPS_DISABLE_VERSION_CHECK=1` |
 | `extensions.json`: Vault card and tab, `/ui` and `/v1` routes, status check | `extensions.json`: Runners tab, `/runners` route | `extensions.json`: `app-host` slot status (P4) |
 | `module.env`: mem limit, per-student namespaces on/off, OIDC role names | `module.env`: `RUNNER_MIN_IDLE`, `RUNNER_MAX`, per-runner caps | `setup.d/` hooks (S29): namespaces, templated policy, seed secrets, labs 8-9 JWT mounts; labs, slides |
 
@@ -501,14 +506,14 @@ workshop that needs more tools in jobs overrides `build.context` from its overla
 `openbao` and `app-host` join `runner_net` from the workshop overlay (list form), never from the module: a
 module doesn't know which services a workshop's jobs may call.
 
-Draft manifests, checked against the renderer's rules (`/ui` and `/v1` are free paths; OpenBao does
+Draft manifests (the `openbao` one ran as `workshops/vault-fundamentals/extensions.json` in T0.5), checked against the renderer's rules (`/ui` and `/v1` are free paths; OpenBao does
 its own auth, so `shared` is the right gate and `Authorization` is stripped as in T0.4):
 
 ```json
 { "version": 1,
   "cards": [ { "id": "vault", "label": "Vault", "desc": "Your secrets, in your own namespace.",
-               "href": "/ui/", "icon": "key" } ],
-  "admin_tabs": [ { "id": "vault", "label": "Vault", "src": "/ui/" } ],
+               "href": "/ui/vault/auth?with=oidc", "icon": "key" } ],
+  "admin_tabs": [ { "id": "vault", "label": "Vault", "src": "/ui/vault/auth?with=oidc" } ],
   "routes": [ { "id": "openbao-ui",  "path": "/ui", "upstream": "openbao:8200", "gate": "shared" },
               { "id": "openbao-api", "path": "/v1", "upstream": "openbao:8200", "gate": "shared" } ],
   "status_checks": [ { "label": "OpenBao", "url": "http://openbao:8200/v1/sys/health" } ] }
@@ -543,25 +548,32 @@ its own auth, so `shared` is the right gate and `Authorization` is stripped as i
 | Seal / auto-unseal | Managed by Azure (HSM-backed) |
 | Single-use CI runners from a controller | GitHub Actions Runner Controller, Azure DevOps scale-set agents |
 
-## 10. Things to verify first (P0 spike, real stack)
+## 10. Things to verify first (P0 spike, real stack): results
 
-1. The OpenBao version that has **namespaces**, and its image digest per architecture.
-2. **The UI through Caddy at `/ui/` and `/v1/`** behind our login gate, including the OIDC redirect back to
-   `/ui/...`, and whether it can be framed in `/admin`.
-3. **Forgejo as the OIDC provider** for the OpenBao UI login.
-4. **Forgejo 16 Actions OIDC** job tokens: the claims, and whether OpenBao JWT auth accepts them.
-5. **Runners:**
-   - does `forgejo-runner:13` have a one-job / ephemeral mode?
-   - does the Forgejo API report waiting jobs and runner state?
-   - how long does a runner take to start?
-   - how much memory does one use while running a job?
-   - process pool (§6.2 A): can other users' processes be hidden in an unprivileged container, and do several
-     runners (one per Linux user) work side by side?
-6. `sops` with transit against OpenBao.
-7. **Where Forgejo's OIDC issuer is reachable from** (§5.4, §12 Q1): OpenBao's OIDC method must reach
-   `${PUBLIC_BASE_URL}/git/` from inside the stack on both the laptop (`http://localhost`) and the VM (a public HTTPS
-   name with a Let's Encrypt certificate), and the ID token's `iss` must match that string exactly.
-8. The `/ui/*` and `/v1/*` routes strip the shared Basic Auth `Authorization` header before OpenBao sees it.
+All verified on the real stack (amd64 laptop, rootless podman) between 2026-09-23 and 2026-09-24, except where a
+line says otherwise. Details live in the section named; surprises in §14.
+
+| # | Question | Result | Where |
+|---|---|---|---|
+| 1 | OpenBao release with **namespaces**, digests per arch | ✅ OpenBao **2.6.3** (namespaces work; 2.7.0 came out 2026-09-23, see §12 Q4). Image, `bao`, `sops`, `gitleaks` pinned with sha256 per arch. arm64 not built. | §15 T0.3 |
+| 2 | UI through Caddy at `/ui/` and `/v1/` behind the gate, framed in `/admin` | ✅ Routes from `extensions.json` (`shared` gate), no engine edit (S26). Framing needs `frame-ancestors 'self'` through `sys/config/ui/headers`. | §5.4 |
+| 3 | Forgejo as the OIDC provider for the UI | ✅ Student and facilitator (in the `/admin` Vault tab) sign in and land in their own entity and policy. Needs a Forgejo session first (§12 Q5). | §5.4, §14 |
+| 4 | Forgejo 16 Actions OIDC tokens accepted by OpenBao JWT auth | ✅ GitHub-style claims; a role bound to `repository` + `ref` lets `main` in and refuses another branch and repo. The token URL is malformed under `/git/`; the issuer shim fixes it (S24). | §5.5 |
+| 5a | One-job / ephemeral runner | ✅ `ephemeral: true` registration + `forgejo-runner one-job --wait`: one job, exit 0, registration removed. | §6.1 |
+| 5b | API for waiting jobs and runner state | ✅ Waiting jobs with a `handle`; runner list with `status`. Dead runners stay `idle`: the controller trusts its own process table. | §6.3 |
+| 5c | Start-up time | ✅ 3.8 s from container start to job picked up. | §6.3 |
+| 5d | Memory per running job | ✅ Runner about 23 MB RSS; the job's tools dominate. Real lab jobs to measure in P3. | §6.3 |
+| 5e | Process pool: hide other users' processes, several runners side by side | ✅ Not with `hidepid` (can't remount `/proc`), but with a **user + PID namespace per runner** (`unshare`), no extra capability. Two concurrent jobs couldn't see each other's processes or files. Risk: hosts that block unprivileged user namespaces (P5). | §6.2 |
+| 6 | `sops` with transit | ✅ Per student namespace; decrypt-only token decrypts, others get 403; key rotate + `sops rotate` work. Needs `VAULT_ADDR`, and `SOPS_DISABLE_VERSION_CHECK=1`. | §4 lab 6, §14 |
+| 7 | Where Forgejo's issuer is reachable from | ✅ The issuer shim in OpenBao's network namespace, on `http://localhost:8080` and on real HTTPS (`--env home`, S30) with the shim's CA. The Azure VM run is still P5. | §5.4 |
+| 8 | `/ui` and `/v1` strip Basic Auth `Authorization` | ✅ A Basic Auth header alone gets OpenBao's 403, so it isn't taken as a token. | §5.4 |
+
+**No fallback was needed:** SSO (S23), Actions OIDC, one-job runners and the process pool (S16 A) all hold, so
+AppRole-only CI, token-only UI login and Docker-in-Docker stay unused.
+
+**Not covered by P0** (carried into later tasks): arm64 builds; `prlimit` per runner, the ID-token shim inside the
+pool and the pool on `runner_net` (P3); memory of real lab jobs (P3); unprivileged user namespaces on the Azure VM
+(P5); the identity broker and CLI login (T1.4); `app-host` (P4).
 
 ## 11. Phases and task list (ask the user before moving between phases)
 
@@ -597,8 +609,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       digests for amd64 and arm64 in §15. Also pin `bao`, `sops`, `gitleaks` binaries + sha256.
       *Verify:* digests match the registry; `bao namespace create` works on the spike server.
 - [x] **T0.4** *(3c49e9a)* (§10.2, §10.8) OpenBao UI through Caddy at `/ui/` and `/v1/` behind the login gate, and
-      framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
-      `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
+      framed in `/admin`. Ran on an uncommitted `engine/gateway/Caddyfile` edit (S21), since dropped (S26). *Verify:* UI loads and works through the
       gateway URL and inside an `/admin` iframe.
 - [x] **T0.11** *(e610c57)* (before T0.5) Put the spike on the module-era image chain: drop `image:` from `web-terminal` in
       `compose/docker-compose.override.yml`, start `compose/terminal/Dockerfile` with
@@ -624,23 +635,42 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       processes or files.
 - [x] **T0.9** *(79a005d)* (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
       with a token that has transit decrypt only; a token without it fails.
-- [ ] **T0.10** Write up: findings into §10, plan changes into the relevant sections, new questions
+- [x] **T0.10** *(this commit; see §15)* Write up: findings into §10, plan changes into the relevant sections, new questions
       into §12, a P0 entry in §15. **Ask the user before starting P1.**
 
-### P1 — Core (draft, 2026-09-24; firm it up in T0.10 and ask the user before starting)
+### P1 — Core (firmed up in T0.10, 2026-09-24; waiting for the user's go)
 
-- [ ] **T1.1** `modules/openbao/` skeleton: move the `openbao` service, `config.hcl` and the spike manifest out of
-      the workshop; `bao` + `BAO_ADDR` move to the module's `terminal/` (the workshop keeps `sops`, `gitleaks`);
-      `README.md` (one-line summary first); `MODULES="openbao"`; `COMPOSE_OVERLAY` kept only if something is left.
-      *Verify:* `./run.sh modules` lists it; `--dry-run` is clean; the stack starts, the Vault card and tab work.
-- [ ] **T1.2** `openbao-setup` in the module (S29): init/unseal/re-unseal, UI headers (§5.4), audit in
-      `config.hcl`, facilitator policy, provisioner token, `setup.d` hooks, revoke root. Replaces `spike/init-bao.sh`.
-- [ ] **T1.3** SSO in the module: the OIDC auth method on Forgejo, the SSO shim (S28), one entity per student and
-      the facilitator, from T0.5.
+Each task turns spike pieces into the module or the workshop and deletes them from `spike/` as it goes; `spike/` is
+gone when P1 ends (the P3 pieces, `pool/` and `t06`-`t08`, move to `modules/runner-pool/` then). Every task is
+checked on the laptop; T1.3 and T1.6 also through `--env home` (S30), which needs the a24d0e7 `run.sh` fix.
+
+- [ ] **T1.1** `modules/openbao/` skeleton: move the `openbao` service, `config.hcl` (with the audit block), the SSO
+      shim and the spike manifest out of the workshop, card and tab pointing at `/ui/vault/auth?with=oidc`. `bao`,
+      `BAO_ADDR` and `VAULT_ADDR` (zshenv and `ENV`) move to the module's `terminal/`; the workshop keeps `sops`,
+      `gitleaks` and adds `SOPS_DISABLE_VERSION_CHECK=1`. `README.md` (one-line summary first); `MODULES="openbao"`;
+      `COMPOSE_OVERLAY` only if something is left. OpenBao version per §12 Q4.
+      *Verify:* `./run.sh modules` lists it; `--dry-run` is clean; the stack starts, the Vault card and tab work,
+      `./run.sh stop` leaves no volume behind.
+- [ ] **T1.2** `openbao-setup` in the module (S29): init, unseal, re-unseal after a restart; the UI CSP header with
+      `frame-ancestors 'self'` (§5.4); facilitator policy; provisioner token; `setup.d` hooks; revoke root. Retry the
+      first write after enabling a KV v2 mount (§14). Replaces `spike/init-bao.sh`.
+      *Verify:* after `./run.sh vault-fundamentals` the vault is unsealed with no manual step, root is revoked, a
+      `podman restart workshop_openbao` re-unseals by itself.
+- [ ] **T1.3** SSO in the module, from `spike/t05-sso.sh`: Forgejo OAuth2 app, OIDC method and role (settings in
+      §5.4), the shim's CA on HTTPS, one entity per student and the facilitator. The Forgejo-session-first fix per
+      §12 Q5; check whether Forgejo 16 can skip its "Authorize Application" page for our own app.
+      *Verify:* `t05-sso-browser.py` (moved to the module's tests) passes on the laptop and `--env home`.
 - [ ] **T1.4** CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
-      `SO_PEERCRED` pattern), linked to the same entity.
-- [ ] **T1.5** The workshop's hooks: per-student namespaces, the shared templated policy, seed secrets.
-- [ ] **T1.6** Labs 0-3 and their slides.
+      `SO_PEERCRED` pattern), JWT auth in the root namespace, linked to the same entity as the UI login. It gives
+      `bao` and sops a token (`VAULT_TOKEN` or `~/.vault-token`).
+      *Verify:* as `student01`, `bao token lookup` shows the student entity with no manual login; student02 can't
+      get student01's JWT.
+- [ ] **T1.5** The workshop's hooks: per-student namespaces with an admin policy inside each, the shared `secret/`
+      mount and templated policy (§5.3), seed secrets.
+      *Verify:* student01 reads `secret/students/student01/*`, gets 403 on student02's path, and is admin only in
+      `students/student01`.
+- [ ] **T1.6** Labs 0-3 and their slides (the lab reader copies, §4).
+      *Verify:* a full walk-through of labs 0-3 as a student in a real browser; slides within 16:9 (screenshot).
 - [ ] **T1.7** Docs: module `README.md`, the workshops table in `workshops/README.md`, root `README.md`,
       `CLAUDE.md` module list.
 
@@ -651,7 +681,21 @@ Later phases get their own task block (IDs `T2.x` … `T5.x`) when they start.
 Q1 (how OpenBao reaches Forgejo's OIDC issuer) was answered on 2026-09-23 with option A, the issuer shim (S23).
 
 Q2 (S26-S30) and Q3 (drop the S21 stash) were answered on 2026-09-24: all confirmed; `runner-pool` is a module
-from the start (S27), workshop setup runs as hooks in `openbao-setup` (S29), and the stash is dropped. None open.
+from the start (S27), workshop setup runs as hooks in `openbao-setup` (S29), and the stash is dropped.
+
+**Open (from the P0 write-up, 2026-09-24):**
+
+- **Q4. Which OpenBao for P1?** P0 ran on 2.6.3 (the stable line's patch) because 2.7.0 came out the day T0.3
+  pinned it. Options: (a) stay on 2.6.3 for the whole build and look again before P5; (b) move to the newest 2.7.x
+  in T1.1 and re-run the T0.3/T0.5/T0.9 spikes once on it. *Recommendation: (b)*, so the workshop doesn't start
+  out one minor version behind; the spikes are scripted, so the re-check is cheap.
+- **Q5. How does a student get a Forgejo session before Vault SSO?** Without one, the SSO popup shows Forgejo's
+  password page, and students don't know that password (§14). `/forgejo-login` (in `engine/allocator/server.py`)
+  signs them in but always lands on the seed repo. Options: (a) no engine change: lab 0 says "open the Forgejo card
+  first", and the Vault card's description says so too; (b) a small **engine** change: `/forgejo-login?next=<local
+  path>` (only same-origin paths allowed), so the Vault card and tab can go through it and SSO is one click.
+  *Recommendation: (b)*, since it is workshop-agnostic and any module using Forgejo SSO needs it; (a) if you'd
+  rather not touch the engine.
 
 ## 13. Later / follow-ups
 
@@ -864,6 +908,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
   `students/student01`, committed it (plaintext absent), decrypted with a decrypt-only token; encrypt-only and
   default tokens refused (403); rotate + `sops rotate` fine; path-embedded namespace also works. Findings in §14.
   Stack left running (laptop), OpenBao unsealed, keys in the session scratchpad.
+
+### 2026-09-24 — T0.10 (P0 write-up)
+- §10 is now a results table: every item verified, no fallback needed; what P0 didn't cover is listed there and
+  carried into P1/P3/P5.
+- Plan changes: lab 6 teaches the namespace-in-path key URL (§4); `VAULT_ADDR` and `SOPS_DISABLE_VERSION_CHECK`
+  in the terminal (§5.1, §8.1); `app-host` slots use a user + PID namespace, not `hidepid` (§5.6); the Vault card
+  and tab open `/ui/vault/auth?with=oidc` (§8.1); P1 tasks got verify lines and the spike clean-up (§11).
+- New questions Q4 (OpenBao 2.6.3 or 2.7.x) and Q5 (Forgejo session before SSO; option (b) is an `engine/` edit).
+- Stack still running on the laptop, OpenBao unsealed (keys in the session scratchpad).
 
 ## Appendix: considered, not chosen
 
