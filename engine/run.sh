@@ -307,6 +307,10 @@ if [ -n "$modules" ]; then
   done
   # shellcheck disable=SC1091
   . ./.env
+  if [ -n "$env_name" ]; then
+    # shellcheck disable=SC1090
+    . "./.env.${env_name}"
+  fi
   # shellcheck disable=SC1090
   . "$workshop_env"
   set +a

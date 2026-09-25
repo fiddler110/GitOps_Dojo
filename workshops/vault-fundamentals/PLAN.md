@@ -703,7 +703,7 @@ Surprises, gotchas and problems found in other workshops while working on this o
   Worth checking whether Forgejo 16 can skip it for our own app (T1.3).
 - **`engine/run.sh` with `MODULES` set re-reads `.env` but not `.env.<name>`** after the module defaults, so under
   `--env home` `PUBLIC_BASE_URL` falls back to `.env`'s value for any workshop with modules. Not hit in T0.5 (no
-  modules yet); it will be in T1.1. Engine fix, raised with the user (2026-09-24).
+  modules yet); it will be in T1.1. Fixed with the user's approval (2026-09-24): the modules block now re-reads `.env.<name>` too.
 - **The shim can't use the gateway image's healthcheck** (Caddy's admin API, which the shim turns off); it checks
   `${PUBLIC_BASE_URL}/git/api/healthz` through itself instead.
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
