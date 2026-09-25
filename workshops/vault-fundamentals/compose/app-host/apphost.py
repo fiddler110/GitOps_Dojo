@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""app-host: the deployment target of labs 9-11, a small "platform".
+"""app-host: the deployment target of labs 10-12, a small "platform".
 
 One slot per student (PLAN.md §5.6, P4). Each slot is its own Linux user with
 the student's name; its app runs as that user in its own user + PID

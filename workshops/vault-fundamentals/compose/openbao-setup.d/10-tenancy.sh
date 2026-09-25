@@ -1,12 +1,12 @@
 # vault-fundamentals setup hook, sourced by the openbao module's setup.sh on
 # every start with the provisioner token (BAO_TOKEN, `log`, `retry`,
 # STUDENT_COUNT, STUDENT_PREFIX and `class_users` (students, then demo bots) are set). Safe to re-run. It makes:
-#   - the shared KV v2 mount `secret/` (lab 2) and a welcome secret in each
+#   - the shared KV v2 mount `secret/` (lab 3) and a welcome secret in each
 #     student's folder, written once (a re-run doesn't add versions);
 #   - the `student` policy (student.hcl), which the module attaches to every
 #     student's entity: their own folder in `secret/`, admin in their own
 #     namespace;
-#   - the namespace students/<name> for each student (lab 3 onwards).
+#   - the namespace students/<name> for each student (lab 4 onwards).
 
 here=/etc/openbao-setup.d
 

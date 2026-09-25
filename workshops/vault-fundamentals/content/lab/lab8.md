@@ -1,216 +1,134 @@
-# Lab 8 — CI logs in to OpenBao
+# Lab 8 — Secrets in the pipeline: Forgejo Actions secrets
 
-**Goal:** let a pipeline read a secret from the vault. First the common way, **AppRole** with its login secret stored in the CI system, which works but leaves a long-lived secret behind. Then with the **job's own identity**: an OIDC token Forgejo issues for this one run, which the vault checks is from *your repo* on *`main`*. Nothing is stored at all.
+**Goal:** give a CI job a secret the way most teams start: a **repository secret** in the CI system. Watch the log hide it, then see how little that hiding protects, and who can really read it.
+
+Your jobs run on the class's **single-use runners**: each runner takes one job and is then thrown away.
 
 ---
 
-## 1. The secret the pipeline needs
+## 1. Your own copy of the repo
 
-This lab works in your namespace and your fork from Labs 3 and 7. If you skipped them, this block catches you up (it's safe to run anyway):
+The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone:
 
 ```bash
-export BAO_NAMESPACE=students/$USER
-bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
-bao auth list | grep -q '^approle/' || bao auth enable approle
-[ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
-    http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
-  git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
-}
-cd ~/lab/vault-fundamentals
+curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
+```
+
+`curl` asks for your **Forgejo password**, which is on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON means it worked; `repository is already forked` means you made it earlier.
+
+Clone it, and let git remember your password in memory for an hour so you don't type it on every push:
+
+```bash
+cd ~/lab
+git clone http://git-server:3000/$USER/vault-fundamentals.git
+cd vault-fundamentals
 git config credential.helper 'cache --timeout=3600'
 ```
 
-A deploy token for the pipeline, and a policy that reads it and nothing else:
+The `cache` helper keeps the password in memory only. The `store` helper would write it to a plaintext file in your home, which is exactly what this workshop is against (rule 8).
 
-```bash
-# a new KV mount refuses writes for a moment while it upgrades: retry
-until bao kv put team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"; do sleep 2; done
-printf 'path "team/data/ci" {\n  capabilities = ["read"]\n}\n' | bao policy write ci-read -
-```
+## 2. Add a repository secret
 
-The job will print a **fingerprint** of what it read, never the value. Here is the one to expect:
+In the browser, open the **Forgejo** card, then your fork (**studentXX/vault-fundamentals**) → **Settings** → **Actions** → **Secrets** → **Add secret**:
 
-```bash
-printf %s "$(bao kv get -field=deploy_token team/ci)" | sha256sum | cut -c1-12
-```
+| Field | Value |
+| ----- | ----- |
+| Name | `DEMO_API_KEY` |
+| Value | `demo-key-` followed by anything you like, e.g. `demo-key-blue-giraffe-42` |
 
-## 2. The usual way: AppRole, login secret in Forgejo
+Once saved, the value can't be shown again, not even to you. It's stored encrypted, and handed only to jobs.
 
-An AppRole for CI (as in Lab 5), whose secret ID lives a day:
-
-```bash
-bao write auth/approle/role/ci token_policies=ci-read token_ttl=5m secret_id_ttl=24h
-```
-
-Now store its two IDs as **repository secrets** in your fork. The API call below reads them from a file, so they never appear on a command line, where other users on this machine could see them:
-
-```bash
-put_secret() {  # put_secret NAME VALUE: a repository secret in your fork
-  (umask 077; printf '{"data":"%s"}' "$2" > ~/.secret-body.json)
-  curl -s -o /dev/null -w "$1: HTTP %{http_code}\n" -u "$USER" -X PUT \
-    -H "Content-Type: application/json" -d @$HOME/.secret-body.json \
-    http://git-server:3000/api/v1/repos/$USER/vault-fundamentals/actions/secrets/$1
-  rm -f ~/.secret-body.json
-}
-put_secret BAO_ROLE_ID "$(bao read -field=role_id auth/approle/role/ci/role-id)"
-put_secret BAO_SECRET_ID "$(bao write -f -field=secret_id auth/approle/role/ci/secret-id)"
-```
-
-`HTTP 201` (or `204`) for each means stored. Check Forgejo → your fork → **Settings** → **Actions** → **Secrets**: both names are there.
-
-The workflow logs in with them and reads the deploy token:
+## 3. A workflow that uses it
 
 ```bash
 mkdir -p .forgejo/workflows
-cat > .forgejo/workflows/vault-approle.yml <<'EOF'
-name: vault-approle
+cat > .forgejo/workflows/secrets-demo.yml <<'EOF'
+name: secrets-demo
 on: push
 jobs:
-  read:
+  demo:
     runs-on: host
-    env:
-      BAO_ADDR: http://openbao:8200
-      BAO_NAMESPACE: students/${{ github.repository_owner }}
     steps:
-      - name: Log in with AppRole and read the deploy token
+      - name: Where does this job run?
+        run: |
+          echo "runner user: $(id -un)   home: $HOME"
+          echo "processes this job can see: $(ls -d /proc/[0-9]* | wc -l)"
+      - name: Use the secret
         env:
-          ROLE_ID: ${{ secrets.BAO_ROLE_ID }}
-          SECRET_ID: ${{ secrets.BAO_SECRET_ID }}
+          API_KEY: ${{ secrets.DEMO_API_KEY }}
         run: |
-          export BAO_TOKEN="$(bao write -field=token auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID")"
-          token="$(bao kv get -field=deploy_token team/ci)"
-          echo "deploy token fingerprint: $(printf %s "$token" | sha256sum | cut -c1-12)"
+          echo "The key is $API_KEY"
+          echo "It is ${#API_KEY} characters long"
 EOF
-git add .forgejo/workflows/vault-approle.yml
-git commit -m "CI reads the deploy token with AppRole"
+git add .forgejo/workflows/secrets-demo.yml
+git commit -m "Add a workflow that uses a repository secret"
 git push
 ```
 
-In Forgejo → **Actions**, the run's log shows the same fingerprint as your terminal. It works. But look at what it took:
+`git push` asks for your username (`studentXX`) and Forgejo password once; the cache remembers them.
 
-- A **secret ID valid for a day** now sits in Forgejo. From Lab 7: anyone who can push a workflow to this repo can print it, and use it from anywhere until it expires.
-- Something had to put it there, and rotate it. That's **secret zero** again: the pipeline's first credential came from a person, and it's long-lived.
+Open your fork in Forgejo → **Actions** → the newest run → the **demo** job, and open each step.
 
-## 3. The job's own identity
+- **"The key is \*\*\*"**: Forgejo replaces the secret's exact value with `***` in the log.
+- **The runner user** is named like `pool-3f9a1c`. It was created for this job and deleted after it. Push again (`git commit --allow-empty -m again && git push`) and the next run gets a different one: nothing one job leaves behind reaches the next, not even another student's.
+- **Processes this job can see**: only its own handful, although the runners share one machine.
 
-Forgejo can give each job a signed **OIDC token** that says which repo, branch, workflow and person started it. It's valid for minutes, made for this one run, and never stored anywhere.
+## 4. Masking is not protection
 
-Your namespace already trusts Forgejo's signing keys (your facilitator set that up):
+Masking only matches the exact value. Add one more step at the end of the workflow file, at the same indent as the other `- name:` lines:
 
-```bash
-bao read auth/jwt-ci/config
-```
-
-`bound_issuer` is Forgejo's Actions issuer, and `jwks_url` is where the vault fetches the public keys to check signatures. What's missing is the **role**: who may log in, and what they get. Only jobs from **your fork**, on **`main`**, with the audience `openbao`:
-
-```bash
-bao write auth/jwt-ci/role/ci-main - <<EOF
-{
-  "role_type": "jwt",
-  "user_claim": "sub",
-  "bound_audiences": ["openbao"],
-  "bound_claims": {
-    "repository": "$USER/vault-fundamentals",
-    "ref": "refs/heads/main"
-  },
-  "token_policies": ["ci-read"],
-  "token_ttl": "5m"
-}
-EOF
-```
-
-The workflow asks Forgejo for its token (`enable-openid-connect: true` makes Forgejo offer one), shows the claims (never the token itself: it's a credential for as long as it's valid), and logs in with it:
-
-```bash
-cat > .forgejo/workflows/vault-oidc.yml <<'EOF'
-name: vault-oidc
-on: push
-jobs:
-  read:
-    runs-on: host
-    enable-openid-connect: true
-    env:
-      BAO_ADDR: http://openbao:8200
-      BAO_NAMESPACE: students/${{ github.repository_owner }}
-    steps:
-      - name: Log in with this job's identity and read the deploy token
+```yaml
+      - name: Print it in a form the mask doesn't know
+        env:
+          API_KEY: ${{ secrets.DEMO_API_KEY }}
         run: |
-          id_token="$(mktemp)"
-          curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=openbao" | jq -j .value > "$id_token"
-          echo "What this job's token says about it:"
-          jq -R 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson
-                 | {iss, aud, repository, ref, workflow, actor, exp}' "$id_token"
-          export BAO_TOKEN="$(bao write -field=token auth/jwt-ci/login role=ci-main jwt=@"$id_token")"
-          rm -f "$id_token"
-          echo "The vault token it got:"
-          bao token lookup -format=json | jq '.data | {display_name, policies, ttl}'
-          token="$(bao kv get -field=deploy_token team/ci)"
-          echo "deploy token fingerprint: $(printf %s "$token" | sha256sum | cut -c1-12)"
-EOF
-git add .forgejo/workflows/vault-oidc.yml
-git commit -m "CI reads the deploy token with its own identity"
+          echo "$API_KEY" | base64
+          echo "$API_KEY" | sed 's/./& /g'
+```
+
+```bash
+git commit -am "Show that masking is only cosmetic"
 git push
 ```
 
-Open the **vault-oidc** run. The claims show your repo, `refs/heads/main` and your name as `actor`; the vault token has `ci-read` and a TTL of about 5 minutes; the fingerprint matches. **No secret was stored in Forgejo for this.**
-
-## 4. Another branch is refused
-
-The role trusts `main` only. Push the same code from a branch:
+The new step prints the key base64-encoded and with spaces between the letters. Decode it in your terminal (paste the base64 line from the log):
 
 ```bash
-git switch -c try-a-branch
-git commit --allow-empty -m "Try the vault login from a branch"
-git push -u origin try-a-branch
+echo 'PASTE-THE-BASE64-LINE-HERE' | base64 -d
 ```
 
-In **Actions**, the two new runs differ:
+So **anyone who can change a workflow in this repo can read every one of its secrets**: a branch is enough, no review needed, because a push runs the workflow as the pusher wrote it. Masking stops accidents, not people.
 
-- **vault-oidc fails**: `error validating claims: claim "ref" does not match any associated bound claim values`. A branch, which anyone with write access can push without review, can't read what `main` reads.
-- **vault-approle succeeds**: the AppRole login can't tell a branch from `main`. Whoever holds the secret ID gets in.
+## 5. Who can read a repository secret?
+
+| Who | Can they get the secret? |
+| --- | ------------------------ |
+| Anyone with **write** access to the repo | **Yes**: push a branch with a changed workflow, as you just did. |
+| A **pull request from a fork** (`on: pull_request`) | No: Forgejo gives those runs no secrets, because the fork's author wrote the workflow. |
+| A workflow on `pull_request_target` | **Careful**: it runs the *base* repo's workflow *with* secrets. If it checks out and runs the pull request's code, that code gets the secrets. |
+| Anyone who reads the **job log** | Only what a workflow printed: never print a secret, even masked. |
+
+And the secret itself never changes by itself: it is valid until someone rotates it, however many people have had the chance to see it.
+
+## 6. Clean up: rotate what leaked
+
+The key is now in your job logs in two readable forms. In real life you'd **rotate it** at its source first (rule 7), then update the repository secret. Here, delete it: Forgejo → your fork → **Settings** → **Actions** → **Secrets** → **Remove** next to `DEMO_API_KEY`.
+
+Then remove the demo workflow, so later pushes don't run it:
 
 ```bash
-git switch main
-git push origin --delete try-a-branch
-```
-
-## 5. Retire the stored secret
-
-The OIDC login does the job, so the AppRole path goes: in the vault, then in Forgejo, then in the repo.
-
-```bash
-bao delete auth/approle/role/ci
-for s in BAO_ROLE_ID BAO_SECRET_ID; do
-  curl -s -o /dev/null -w "$s: HTTP %{http_code}\n" -u "$USER" -X DELETE \
-    http://git-server:3000/api/v1/repos/$USER/vault-fundamentals/actions/secrets/$s
-done
-git rm .forgejo/workflows/vault-approle.yml
-git commit -m "Drop the AppRole login: CI uses its own identity"
+git rm .forgejo/workflows/secrets-demo.yml
+git commit -m "Remove the secrets demo"
 git push
 ```
-
-Deleting the role first matters: it makes every secret ID issued for it useless at once, including any copy someone printed.
-
-```bash
-unset BAO_NAMESPACE
-```
-
-## At work
-
-The same pattern, with ready-made steps instead of `curl` and `bao`:
-
-- **GitHub Actions**: `permissions: id-token: write`, then `hashicorp/vault-action` with `method: jwt` (it works against OpenBao too), or `azure/login` with **workload identity federation** for Azure.
-- **Azure DevOps**: a service connection with workload identity federation.
-- **GitLab**: `id_tokens:` in the job, and the JWT auth method in the vault.
-
-In each, the vault (or the cloud) trusts the CI system's issuer, and a role binds **which repo, which branch or environment** may log in.
 
 ## Check yourself
 
-1. What does the vault check before it accepts the job's token? *(The signature against Forgejo's keys, the issuer, the audience `openbao`, expiry, and the bound claims: this repo, on `main`.)*
-2. Why is a pushed branch refused but `main` allowed? *(Changes reach `main` through review; a branch can be pushed by anyone with write access. Binding `ref` keeps unreviewed code away from the secret.)*
-3. What can someone do with a job's log from the OIDC run? *(Nothing: it holds claims and a fingerprint, no credential. The ID token was never printed and expires in minutes.)*
+1. A job's log shows `***`. Is the secret safe? *(No: masking hides exact matches only. Any transformation, such as base64, prints it.)*
+2. Who can read a repository secret? *(Anyone who can push a workflow to the repo, plus whoever reads a log that printed it.)*
+3. Why does it matter that each runner is used for one job only? *(A job can leave files and processes behind. On a single-use runner, the next job, maybe someone else's, starts clean.)*
 
-**Rules used:** 2 (identity over secrets), 4 (no secret zero left in the pipeline), 3 (a 5-minute token), 1 (one repo, one branch, one path), 7 (retiring the old credential).
+Lab 9 replaces the stored secret with the job's own identity.
+
+**Rules used:** 8 (never in logs), 7 (plan for leaks: rotate), 1 (least privilege: who can push is who can read), 4 (the repository secret is this pipeline's secret zero).

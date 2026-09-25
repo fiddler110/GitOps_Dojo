@@ -1,132 +1,132 @@
-# Lab 11 — Incident drill: a token leaked
+# Lab 11 (optional) — Dynamic database credentials
 
-**Goal:** practise the leak you'll one day get a message about. A vault token was pasted where it shouldn't be, and someone used it. Find out **what it did** from the audit log, **cut it off** (and anything it made), **rotate** what it saw, and check that the app recovers **by itself**.
+**Goal:** stop sharing a database password. The vault **makes a new Postgres login** for whoever asks (you, then your app), with a **lease**: it expires by itself, you can renew it, and you can revoke it early. There is no long-lived database password left to leak.
+
+This lab is optional. Lab 12 doesn't need it.
 
 ---
 
-## 1. Before the incident
+## 1. What's already set up
 
-A "nightly report" job got a token of its own, the way many teams still do it: a person made it, it lives a day, and it can make tokens for the job's workers.
+Your team has its own database on `app-db`, called `app_<you>`, with a `notes` table. Your namespace has a `database/` engine, and its connection to that database is already configured (by "the DBA", your facilitator):
 
 ```bash
 export BAO_NAMESPACE=students/$USER
-bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
-bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
-bao kv get team/ci >/dev/null 2>&1 || bao kv put team/ci deploy_token="deploy-$USER-$RANDOM"
-bao kv get team/admin >/dev/null 2>&1 || bao kv put team/admin root_password=do-not-share
-cat > ~/lab/nightly-report.hcl <<'EOF'
-path "team/data/app" { capabilities = ["read"] }
-path "team/data/ci"  { capabilities = ["read"] }
-# "The report starts workers, and each one needs a token."
-path "auth/token/create" { capabilities = ["update"] }
+bao read database/config/app-db
+```
+
+It logs in as `vault_<you>`, a Postgres user that may create logins. Its password isn't shown, and **no person knows it**: set-up gave the vault a first password and had the vault change it straight away (`rotate-root`). Only the vault can log in as `vault_<you>`.
+
+## 2. A role: what a login may do
+
+A **role** is the SQL the vault runs to make a login, and how long it lives. Each login joins `app_<you>_rw` (may read and add notes, nothing else), gets a random name and password, and expires in five minutes unless renewed:
+
+```bash
+bao write database/roles/app - <<EOF
+{
+  "db_name": "app-db",
+  "creation_statements": ["CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}' IN ROLE app_${USER}_rw;"],
+  "revocation_statements": ["DROP ROLE IF EXISTS \"{{name}}\";"],
+  "default_ttl": "5m",
+  "max_ttl": "30m"
+}
 EOF
-bao policy write nightly-report ~/lab/nightly-report.hcl
-LEAKED="$(bao token create -orphan -policy=nightly-report -ttl=24h -display-name=nightly-report -field=token)"
 ```
 
-## 2. The leak (you play the attacker)
-
-Someone pasted `$LEAKED` into a team chat to "help debug the job". Someone else copied it. With it, they:
+## 3. Get a login
 
 ```bash
-BAO_TOKEN=$LEAKED bao kv get -field=api_key team/app >/dev/null && echo "attacker: read team/app"
-BAO_TOKEN=$LEAKED bao kv get -field=deploy_token team/ci >/dev/null && echo "attacker: read team/ci"
-BAO_TOKEN=$LEAKED bao kv get team/admin >/dev/null 2>&1 || echo "attacker: team/admin refused"
-SPARE="$(BAO_TOKEN=$LEAKED bao token create -policy=nightly-report -ttl=24h -display-name=backup -field=token)"
-BAO_TOKEN=$SPARE bao kv get -field=api_key team/app >/dev/null && echo "attacker: made a spare token, and it works"
+creds="$(bao read -format=json database/creds/app)"
+DB_USER="$(jq -r .data.username <<<"$creds")"
+export PGPASSWORD="$(jq -r .data.password <<<"$creds")"
+LEASE="$(jq -r .lease_id <<<"$creds")"
+echo "user $DB_USER, lease $LEASE, $(jq .lease_duration <<<"$creds") s"
 ```
 
-A spare key: if you only revoke the token you know about, they keep a way in. In real life you wouldn't have `$SPARE`; below you find it in the audit log. (Keep the variable only to check at the end that it's dead.)
-
-## 3. The report: "this token was in the chat"
-
-You're the namespace's admin. You have the token itself (from the chat), so start there, without using it:
+The user name says where it came from (`v-...-app-...`). Use it:
 
 ```bash
-bao token lookup "$LEAKED"
-ACC="$(bao token lookup -format=json "$LEAKED" | jq -r .data.accessor)"
-echo "$ACC"
+psql -h app-db -U "$DB_USER" -d app_$USER -c "INSERT INTO notes (body) VALUES ('written with a login that expires')"
+psql -h app-db -U "$DB_USER" -d app_$USER -c "SELECT id, author, body FROM notes"
 ```
 
-The **accessor** is the token's reference number: it's in every audit entry the token made, and it can look the token up or revoke it, but it can't be used to log in. It's what you pass around during an incident, never the token.
+`author` is the login that wrote each row: every writer is its own identity now, so the database's own logs can tell them apart.
 
-## 4. What did it do?
-
-Every request is in the vault's audit log. `bao-audit` shows your namespace's part of it (your own sign-in proves you're this namespace's admin):
+It gets `app_<you>`, and no one else's database:
 
 ```bash
-bao-audit --accessor "$ACC"
+OTHER=student01; [ "$USER" = student01 ] && OTHER=student02
+psql -h app-db -U "$DB_USER" -d app_$OTHER -c "SELECT 1"   # permission denied for database
 ```
 
-Read it top to bottom:
-
-- **You** made the token (`auth/token/create`, *made token ...*). The audit log also answers "who created this?".
-- **It** read `team/data/app` and `team/data/ci`: both are now **known to the attacker**.
-- It was **denied** `team/data/admin`: least privilege (Rule 1) limited the damage.
-- It **made a token** (`made token ...`): the spare.
-
-Follow the spare:
+## 4. Leases: look, renew, revoke
 
 ```bash
-CHILD="$(bao-audit --accessor "$ACC" --json | jq -r --arg a "$ACC" '.[] | select(.accessor == $a) | .created_accessor // empty')"
-echo "$CHILD"
-bao-audit --accessor "$CHILD"
+bao lease lookup "$LEASE"      # ttl counting down from 5 minutes
+bao lease renew "$LEASE"       # back to 5 minutes, up to max_ttl (30 minutes)
+bao lease revoke "$LEASE"      # the vault runs the revocation SQL now
+psql -h app-db -U "$DB_USER" -d app_$USER -c "SELECT 1"   # the login is gone
 ```
 
-## 5. Contain: revoke the whole tree
+If nobody renews it, the same happens by itself when the lease runs out. A login that leaks from a log or a laptop is worth five minutes.
 
-Revoking a token revokes every token it made:
+## 5. The app gets its own
+
+Your app on `app-host` (Lab 10) can ask for a login the same way. Let its platform identity read `database/creds/app` too:
 
 ```bash
-bao token revoke -accessor "$ACC"
-bao token lookup -accessor "$CHILD"                  # invalid accessor: the spare died with its parent
-BAO_TOKEN=$SPARE bao kv get team/app                 # permission denied
-BAO_TOKEN=$LEAKED bao kv get team/app                # permission denied
+printf 'path "database/creds/app" {\n  capabilities = ["read"]\n}\n' | bao policy write db-app -
+bao write auth/jwt-platform/role/app \
+  role_type=jwt user_claim=sub bound_audiences=openbao \
+  bound_subject="slot:$USER" \
+  token_policies=app-read,db-app token_ttl=15m token_max_ttl=1h
 ```
 
-## 6. Rotate what it read
-
-Revoking stops *new* reads. It doesn't un-read `team/app` and `team/ci`: those values are out, so they change now. (At work you'd also change them at their source, e.g. issue a new API key at the provider; the vault holds the copy the apps use.)
+Add a second template to the Agent's config, then deploy:
 
 ```bash
-bao kv patch team/app api_key="rotated-$(date +%s)" db_password="rotated-$RANDOM$RANDOM"
-bao kv patch team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"
+cd ~/lab/vault-fundamentals
+cat >> app/agent.hcl <<EOF
+
+# Lab 11: a database login made for this app; the Agent renews its lease.
+template {
+  destination = "/srv/apps/$USER/secrets/db.env"
+  perms       = "0600"
+  contents    = <<-EOT
+  {{ with secret "database/creds/app" }}DB_USER={{ .Data.username }}
+  DB_PASSWORD={{ .Data.password }}{{ end }}
+  EOT
+}
+EOF
+git add app/agent.hcl
+git commit -m "The app gets its own database login from the vault"
+git push
 ```
 
-`team/admin` was refused, so it stays: the audit log tells you what you *don't* need to rotate, too.
-
-## 7. The app recovers by itself
-
-If you did Lab 9, your app on `app-host` picks up the new values with no deploy and no restart:
+When the **deploy** run is green:
 
 ```bash
-sleep 12
-curl -s http://app-host:8080/$USER/ | grep fingerprint
-printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12
+curl -s http://app-host:8080/$USER/ | grep database
 ```
 
-The CI pipeline needs nothing either: it never held `team/ci`'s value, it reads it at run time (Lab 8).
+`database: connected as v-...` and a count of notes. The app connected with a login made for it; nobody typed, stored or deployed a database password. The Agent renews the lease while the app runs, and asks for a new login when `max_ttl` is reached.
 
-## 8. Write it up
-
-A short post-incident review answers four questions. Yours:
-
-1. **What happened?** A 24-hour token was pasted in a chat and used to read `team/app` and `team/ci` and to make a spare token.
-2. **How did we find out what it did?** The audit log, by the token's accessor, including the spare.
-3. **What did we do?** Revoked the token tree, rotated both secrets; the app and CI picked them up with no deploy.
-4. **What stops it next time?** Give the job an **identity** instead of a token (Labs 8-9); if a token is unavoidable, a short TTL, no `auth/token/create`, and `token_bound_cidrs` so it only works from where the job runs.
-
-Here every terminal shares one address, so the audit's `remote_address` can't tell you who the attacker was; at work it's often the first clue.
+See both logins, yours (revoked) and the app's (live), from the vault's side:
 
 ```bash
-bao-audit --accessor "$ACC" --json | jq '.[0] | {time, remote_address, path, display_name}'
-unset BAO_NAMESPACE LEAKED SPARE ACC CHILD
+bao list sys/leases/lookup/database/creds/app
+unset BAO_NAMESPACE PGPASSWORD OTHER
 ```
+
+## At work
+
+- **Azure**: Azure SQL and Azure Database for PostgreSQL take **Entra ID authentication**, so the app's managed identity logs in with a token and there's no database password at all. Where a password is unavoidable, a vault's database engine (or Key Vault with rotation) makes it short-lived.
+- **Everywhere**: the same engine exists for MySQL, SQL Server, MongoDB, and cloud IAM (AWS, Azure, GCP credentials made on demand).
 
 ## Check yourself
 
-1. Why look the leaked token up by its accessor from then on? *(The accessor can't log in; passing the token around during the incident would leak it further.)*
-2. You revoked the token. Why rotate the secrets anyway? *(Revoking stops new reads; the values it already read are known to the attacker.)*
-3. Why didn't you rotate `team/admin`? *(The audit log shows the read was denied: the value never left the vault.)*
+1. Who knows `vault_<you>`'s password? *(Nobody but the vault. It was rotated right after set-up.)*
+2. A login leaks from a CI log. What's the damage? *(Up to the rest of its lease, at most `max_ttl`, and only on `app_<you>`'s notes; revoke its lease and it's gone at once.)*
+3. What does the app store to reach the database? *(Nothing it was given: its platform identity gets a vault token, and the vault makes it a login.)*
 
-**Rules used:** 6 (audit everything, and use it), 7 (plan for leaks: revoke, rotate, recover), 3 (a short-lived token would have limited it), 1 (least privilege kept `team/admin` safe), 2 (identity instead of a token is the real fix).
+**Rules used:** 3 (short-lived and revocable), 2 (the app's identity, not a password), 1 (one database, read and insert only), 7 (revoke is a normal operation), 6 (every login is its own name in the database's logs).

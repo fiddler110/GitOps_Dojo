@@ -41,8 +41,9 @@ Open the **Vault** card on your landing page too. The first time, Forgejo asks y
 | ----- | ----------------------------------------------------------------- | ------- |
 | **0** | sign in (browser and terminal), read your token, find your secret | ~8 min  |
 | **1** | leak a token into git, find it, block the next one with gitleaks  | ~12 min |
-| **2** | the shared vault: put, versions, delete vs destroy, the policy    | ~15 min |
-| **3** | your namespace: an engine, a policy (UI, then code), a token      | ~15 min |
+| **2** | `pass`: encrypted secrets on your own machine, and where it stops | ~12 min |
+| **3** | the shared vault: put, versions, delete vs destroy, the policy    | ~15 min |
+| **4** | your namespace: an engine, a policy (UI, then code), a token      | ~15 min |
 
 Everything stays in the class vault and your own terminal. Nothing is pushed anywhere.
 
@@ -52,11 +53,11 @@ Everything stays in the class vault and your own terminal. Nothing is pushed any
 
 | Lab   | You will                                                              | Time    |
 | ----- | --------------------------------------------------------------------- | ------- |
-| **4** | one app three ways: in the code, a `.env` file, the vault with `hvac` | ~15 min |
-| **5** | OpenBao Agent logs in for the app; rotate a secret with no restart    | ~15 min |
-| **6** | sops + transit: encrypted config in git, who can decrypt, key rotation | ~15 min |
+| **5** | one app three ways: in the code, a `.env` file, the vault with `hvac` | ~15 min |
+| **6** | OpenBao Agent logs in for the app; rotate a secret with no restart    | ~15 min |
+| **7** | sops + transit: encrypted config in git, who can decrypt, key rotation | ~15 min |
 
-Labs 5 and 6 work in your namespace (`students/<you>`); lab 5 reuses lab 3's `team/app` and `app-read`.
+Labs 6 and 7 work in your namespace (`students/<you>`); lab 6 reuses lab 4's `team/app` and `app-read`.
 
 ---
 
@@ -64,11 +65,11 @@ Labs 5 and 6 work in your namespace (`students/<you>`); lab 5 reuses lab 3's `te
 
 | Lab   | You will                                                                    | Time    |
 | ----- | --------------------------------------------------------------------------- | ------- |
-| **7** | fork the repo; a repository secret, masking, and who can really read it     | ~15 min |
-| **8** | CI reads the vault: AppRole first, then the job's own OIDC token, no secret | ~20 min |
+| **8** | fork the repo; a repository secret, masking, and who can really read it     | ~15 min |
+| **9** | CI reads the vault: AppRole first, then the job's own OIDC token, no secret | ~20 min |
 
 Your workflows run on **single-use runners**: each takes one job and is thrown away. Pushing asks for your
-**Forgejo password** (on your landing page); lab 7 sets git to remember it, in memory, for an hour.
+**Forgejo password** (on your landing page); lab 8 sets git to remember it, in memory, for an hour.
 
 ---
 
@@ -76,8 +77,8 @@ Your workflows run on **single-use runners**: each takes one job and is thrown a
 
 | Lab    | You will                                                                        | Time    |
 | ------ | ------------------------------------------------------------------------------- | ------- |
-| **9**  | deploy to app-host; the app logs in with its platform identity, CI can't read   | ~20 min |
-| **10** | *(optional)* database logins made on demand: lease, renew, revoke; the app's own | ~15 min |
-| **11** | incident drill: a leaked token, the audit trail, revoke the tree, rotate        | ~15 min |
+| **10** | deploy to app-host; the app logs in with its platform identity, CI can't read   | ~20 min |
+| **11** | *(optional)* database logins made on demand: lease, renew, revoke; the app's own | ~15 min |
+| **12** | incident drill: a leaked token, the audit trail, revoke the tree, rotate        | ~15 min |
 
 Your app is at `http://app-host:8080/<you>/` and on the **My App** card, with its log.

@@ -71,7 +71,7 @@ Try the same path with a neighbour's name, for example:
 bao kv get secret/students/student02/welcome
 ```
 
-`permission denied` (a 403). You can see that the folder exists, but not what is in it. Lab 2 shows you the rule that did that.
+`permission denied` (a 403). You can see that the folder exists, but not what is in it. Lab 3 shows you the rule that did that.
 
 ## Check yourself
 

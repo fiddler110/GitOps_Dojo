@@ -1,126 +1,106 @@
-# Lab 3 — You are the admin
+# Lab 3 — Use the shared vault
 
-**Goal:** run your own vault. In your own namespace you enable a secrets engine, write a least-privilege policy (in the UI, then as code), hand out a token with it, and prove what it can and can't do.
+**Goal:** store, read, version and delete secrets in the class's shared vault, and read the one policy that keeps everyone in their own folder.
 
-A **namespace** is a vault inside the vault: its own engines, policies, tokens and sign-in methods, invisible from the others. You are the admin of `students/<you>` and of nothing else. At work this is "the team's own vault"; on Azure it would be a Key Vault per team or per environment.
+`secret/` is a **KV version 2** engine: a key-value store that keeps every version of every secret. The whole class shares it, and each of you has one folder, `secret/students/<you>/`. This is how most companies start: one vault, one path per team.
+
+It's the same shape as your `pass` store from lab 2: a path pointing at key/value pairs. The difference is where it lives: one copy on a server, and every request passes the vault's checks first.
 
 ---
 
-## 1. Step into your namespace
+## 1. Put and get
 
-Every `bao` command in this shell now goes to your namespace:
+A secret is a small set of key-value pairs at a path:
 
 ```bash
-export BAO_NAMESPACE=students/$USER
-bao secrets list
+bao kv put secret/students/$USER/db username=app password=first-password
+bao kv get secret/students/$USER/db
+bao kv get -field=password secret/students/$USER/db
 ```
 
-Only the built-in engines: `secret/` from Lab 2 is in the root namespace, not in yours. Try your neighbour's:
+`-field` prints just the value, which is what a script wants. `-format=json` gives everything, for tools like `jq`.
+
+Open the same secret in the UI (**secret → students → your name → db**) and leave the tab open.
+
+## 2. Versions
+
+Change the password twice:
 
 ```bash
-bao secrets list -namespace=students/student02
+bao kv put secret/students/$USER/db username=app password=second-password
+bao kv patch secret/students/$USER/db password=third-password
+bao kv get secret/students/$USER/db
 ```
 
-`permission denied`. Admin of your own vault, nobody else's.
-
-## 2. Enable an engine and store the team's secrets
+`put` replaces the whole secret; `patch` changes only the keys you give. The `version` in the output went up each time. The old ones are still there:
 
 ```bash
-bao secrets enable -path=team kv-v2
-bao kv put team/app db_password=app-db-pass api_key=app-api-key
-bao kv put team/admin root_password=do-not-share
-bao kv list team/
+bao kv get -version=1 secret/students/$USER/db
+bao kv metadata get secret/students/$USER/db
 ```
 
-(If the first `put` says the mount is upgrading, wait two seconds and run it again.)
-
-## 3. A least-privilege policy, in the UI
-
-The app should read `team/app` and nothing else. In the Vault tab:
-
-1. Switch to your namespace: click the **namespace picker** at the bottom of the side menu (it says `root`), open **students**, and choose your name. (Or add `?namespace=students/<you>` to the end of the address.) The picker now shows your name.
-2. Open **Policies → ACL policies → Create ACL policy**.
-3. Name it `app-read`, and give it this body:
-
-   ```hcl
-   path "team/data/app" {
-     capabilities = ["read"]
-   }
-   ```
-
-4. Click **Create policy**.
-
-Check it arrived, from the terminal:
+Somebody set a bad password. Roll back to version 2 (this writes version 2's data as a new version 4, so nothing is lost):
 
 ```bash
-bao policy list
-bao policy read app-read
+bao kv rollback -version=2 secret/students/$USER/db
+bao kv get -field=password secret/students/$USER/db
 ```
 
-## 4. The same policy, as code
+In the UI, refresh and open **Version history**.
 
-Clicking is fine for trying things out, but a policy that decides who reads production secrets deserves review and history, like any other change. Write it as a file (the file is what you'd commit and review) and apply it:
+## 3. Delete, undelete, destroy
+
+These three are different, and the difference matters when something leaks.
 
 ```bash
-mkdir -p ~/lab/my-vault && cd ~/lab/my-vault
-cat > app-read.hcl <<'EOF'
-# The app reads its own secret, nothing else.
-path "team/data/app" {
-  capabilities = ["read"]
+bao kv delete secret/students/$USER/db          # the newest version: hidden, recoverable
+bao kv get secret/students/$USER/db             # "deleted"
+bao kv undelete -versions=4 secret/students/$USER/db
+bao kv get -field=password secret/students/$USER/db   # back
+
+bao kv destroy -versions=1 secret/students/$USER/db   # version 1: gone for good
+bao kv get -version=1 secret/students/$USER/db        # "destroyed"
+```
+
+| Command | What happens | Azure Key Vault calls it |
+| ------- | ------------ | ------------------------ |
+| `delete` | Hidden; `undelete` brings it back | soft delete / recover |
+| `destroy` | That version's data is wiped | purge |
+| `metadata delete` | Every version and the history, gone | purge the whole secret |
+
+If a secret leaked, destroying old copies doesn't un-leak it. **Rotate first** (a new password where it's used), then destroy.
+
+## 4. Knock on a neighbour's door
+
+```bash
+bao kv list secret/students/
+bao kv get secret/students/student02/db
+bao kv put secret/students/student02/db password=mine-now
+```
+
+You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class:
+
+```bash
+bao policy read student
+```
+
+Find this block:
+
+```hcl
+path "secret/data/students/{{identity.entity.name}}/*" {
+  capabilities = ["create", "read", "update", "patch", "delete", "list"]
 }
-EOF
-bao policy write app-read app-read.hcl
 ```
 
-Same name, same rules: the write changed nothing, which is what you want when a file and the live system agree.
+`{{identity.entity.name}}` is filled in on every request with the name of the entity asking, which is you. That one **templated policy** covers 30 students, or 3,000, with no per-person rule to keep up to date. Anything a policy doesn't allow is denied.
 
-## 5. A token for the app, and proof
-
-Make a short-lived token that carries only `app-read`:
-
-```bash
-APP_TOKEN=$(bao token create -orphan -policy=app-read -ttl=15m -field=token)
-BAO_TOKEN=$APP_TOKEN bao token lookup
-```
-
-`policies` is `[app-read default]`, `ttl` about 15 minutes, and `entity_id` is empty: it's a token for a program, not a person.
-
-Why `-orphan`? A token you make normally is your token's **child**, and it carries your identity along with it, which is the opposite of what an app should get. An orphan stands on its own: no parent, no identity, only the policy you gave it.
-
-Now test it. `BAO_TOKEN=...` in front of a command uses that token for that one command:
-
-```bash
-BAO_TOKEN=$APP_TOKEN bao kv get team/app                 # works
-BAO_TOKEN=$APP_TOKEN bao kv get team/admin               # permission denied
-BAO_TOKEN=$APP_TOKEN bao kv put team/app api_key=stolen  # permission denied
-BAO_TOKEN=$APP_TOKEN bao secrets list                    # permission denied
-```
-
-It does exactly one thing. If it leaks, the damage is one secret, for 15 minutes at most.
-
-## 6. Revoke it
-
-You don't have to wait 15 minutes:
-
-```bash
-bao token revoke "$APP_TOKEN"
-BAO_TOKEN=$APP_TOKEN bao kv get team/app     # permission denied: the token is gone
-```
-
-Normal tokens form a tree: revoking a token revokes every child it made, which is how you cut off everything a leaked credential handed out, in one go. An orphan is outside that tree, so you revoke it by itself, as here.
-
-Leave your namespace for the next labs:
-
-```bash
-unset BAO_NAMESPACE
-```
+Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the value under `data/`, and the history under `metadata/`, `delete/`, `undelete/` and `destroy/`, so a policy can allow reading a secret without allowing its history to be wiped.
 
 ## Check yourself
 
-1. Why does the policy say `team/data/app` and not `team/app`? *(KV v2 keeps values under `data/`. Lab 2, step 4.)*
-2. The app's token leaks. List two things that limit the damage. *(Least-privilege policy: one secret, read only. Short TTL, and it can be revoked at once.)*
-3. Why keep policies in files? *(Review, history and rollback, like any code. The UI is for exploring.)*
+1. Someone can `list` a folder but not `read` in it. What can they learn? *(The names of the secrets, not the values. Names can still leak something, so keep them boring.)*
+2. You deleted the newest version by mistake. Which command undoes it? *(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)*
 
-**Rules used:** 1 (least privilege), 3 (short-lived and revocable), 7 (plan for leaks: revocation is routine).
+**Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy).
 
 **Next:** [lab4.md](lab4.md)

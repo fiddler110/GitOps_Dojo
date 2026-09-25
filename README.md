@@ -289,7 +289,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
 | `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
-| `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
+| `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.

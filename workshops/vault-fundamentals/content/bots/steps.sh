@@ -1,11 +1,11 @@
 # vault-fundamentals demo bot steps (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE): replaces
-# the git-fundamentals default with Labs 0-9, run the way a student would, with the same commands as the
-# lab pages. Labs 8 and 9 take their workflows and app straight from /opt/workshop-content/lab/*.md, so
+# the git-fundamentals default with Labs 0-10, run the way a student would, with the same commands as the
+# lab pages. Labs 9 and 10 take their workflows and app straight from /opt/workshop-content/lab/*.md, so
 # the bots stay in step with the labs. openbao-setup gives each bot (testuserN) an entity, a namespace
 # students/testuserN, a database and an app-host slot, like a student (S33).
 #
-# How far a persona gets per round: novice Labs 0-3 (the vault user and admin); intermediate adds Labs
-# 4-6 (code and git) and 7-8 (pipelines); expert adds Lab 9 (a deploy to app-host). Every round starts by
+# How far a persona gets per round: novice Labs 0-4 (the vault user and admin); intermediate adds Labs
+# 5-7 (code and git) and 8-9 (pipelines); expert adds Lab 10 (a deploy to app-host). Every round starts by
 # undoing the last one (step_vf_reset), so each step can run again from scratch after a restart.
 # The Forgejo UI steps (a repository secret) are the same API calls, and git and curl read ~/.netrc,
 # made from the bot's own password file.
@@ -32,7 +32,7 @@ vf_env() {
   [ -s "$HOME/.vault-token" ]
 }
 
-# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined (as tests/labs_9_11.sh does).
+# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined (as tests/labs_10_12.sh does).
 vf_block() {
   local f="$1"; shift
   python3 -B - "$VF_LABS/$f" "$@" <<'EOF'
@@ -70,6 +70,8 @@ step_vf_reset() {
   vf_env || { narrate "no vault token yet (openbao-setup may still be running), trying again"; return 1; }
   narrate "start of round $ROUND -- clearing last round's work"
   pkill -u "$BOT_USER" -f '[b]ao agent' 2>/dev/null
+  gpgconf --kill gpg-agent 2>/dev/null
+  rm -rf "$HOME/.gnupg" "$HOME/.password-store"
   rm -rf "$HOME/lab/leak" "$HOME/lab/my-vault" "$HOME/lab/app" "$HOME/lab/agent" "$HOME/lab/config-repo" \
     "/dev/shm/$BOT_USER"
   (
@@ -84,7 +86,7 @@ step_vf_reset() {
   run_cmd "git fetch -q upstream && git checkout -q -B main upstream/main && git clean -qfd"
   # -u so main tracks origin/main again: without it, a later step's bare "git push" (as the lab
   # pages write it) still targets upstream/main from the checkout above and collides with every
-  # other bot pushing to the shared team repo, failing non-fast-forward (labs 7-9).
+  # other bot pushing to the shared team repo, failing non-fast-forward (labs 8-10).
   run_cmd "git push -q -f -u origin main"
   git push -q origin --delete try-a-branch >/dev/null 2>&1
   return 0
@@ -110,10 +112,25 @@ step_vf_lab1() {
   run_cmd "gitleaks git --no-banner . ; echo \"gitleaks exit: \$?\""
 }
 
+# Lab 2: pass, secrets encrypted on this machine. A bot has nobody to type a passphrase into the box,
+# so its key has none (a person's does); otherwise the lab's commands.
 step_vf_lab2() {
   vf_env || return 1
+  narrate "Lab 2 -- pass: a path, an encrypted file, key/value lines"
+  run_cmd "gpg --batch --passphrase '' --quick-gen-key \"\$USER <\$USER@dojo.test>\" default default 1y"
+  run_cmd "pass init \"\$USER@dojo.test\" && pass git init >/dev/null"
+  run_cmd "printf 'first-password\\nusername: app\\nhost: db.internal\\n' | pass insert -m dojo/db"
+  run_cmd "pass generate dojo/api-token 32 >/dev/null && pass && pass show dojo/db | sed -n 's/^username: //p'"
+  run_cmd "gpg --batch --passphrase '' --quick-gen-key 'teammate <teammate@dojo.test>' default default 1y"
+  run_cmd "pass init -p dojo \"\$USER@dojo.test\" teammate@dojo.test && pass init -p dojo \"\$USER@dojo.test\""
+  run_cmd "pass git show HEAD~1:dojo/db.gpg | gpg --list-packets 2>&1 | grep -A1 'encrypted with'"
+  narrate "the teammate's old copy still opens: removing access means rotating"
+}
+
+step_vf_lab3() {
+  vf_env || return 1
   local p="secret/students/$BOT_USER/db"
-  narrate "Lab 2 -- the shared vault: KV v2 in my own folder"
+  narrate "Lab 3 -- the shared vault: KV v2 in my own folder"
   run_cmd "bao kv get secret/students/\$USER/welcome"
   run_cmd "bao kv put $p username=app password=first-password"
   run_cmd "bao kv put $p username=app password=second-password"
@@ -130,9 +147,9 @@ step_vf_lab2() {
   run_cmd "bao kv metadata delete $p"
 }
 
-step_vf_lab3() {
+step_vf_lab4() {
   vf_env || return 1
-  narrate "Lab 3 -- I'm the admin of my own namespace"
+  narrate "Lab 4 -- I'm the admin of my own namespace"
   run_cmd "export BAO_NAMESPACE=students/\$USER"
   run_cmd "bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2"
   run_cmd "bao kv put team/app db_password=app-db-pass api_key=app-api-key"
@@ -149,11 +166,11 @@ step_vf_lab3() {
   unset BAO_NAMESPACE APP_TOKEN
 }
 
-# Labs 4-5: an app reads its secret with the SDK, then the Agent renders it to a file and follows a
+# Labs 5-6: an app reads its secret with the SDK, then the Agent renders it to a file and follows a
 # rotation. The agent is stopped at the end: a bot mustn't leave one running between rounds.
-step_vf_lab4_5() {
+step_vf_lab5_6() {
   vf_env || return 1
-  narrate "Lab 4 -- the app reads its secret from the vault"
+  narrate "Lab 5 -- the app reads its secret from the vault"
   run_cmd "mkdir -p ~/lab/app && cd ~/lab/app"
   run_cmd "bao kv put secret/students/\$USER/app db_password=vault-db-pass-789 api_key=vault-api-key-012"
   paste_cmd "cat > app_vault.py <<'EOF'
@@ -167,7 +184,7 @@ EOF"
   run_cmd "python3 app_vault.py"
   run_cmd "bao kv patch secret/students/\$USER/app db_password=rotated-db-pass-000 && python3 app_vault.py"
 
-  narrate "Lab 5 -- the Agent logs in by itself and writes the secret to a file in memory"
+  narrate "Lab 6 -- the Agent logs in by itself and writes the secret to a file in memory"
   run_cmd "export BAO_NAMESPACE=students/\$USER"
   run_cmd "bao auth enable approle"
   run_cmd "bao write auth/approle/role/app token_policies=app-read token_ttl=2m token_max_ttl=10m secret_id_ttl=1h"
@@ -208,9 +225,9 @@ EOF"
   unset BAO_NAMESPACE
 }
 
-step_vf_lab6() {
+step_vf_lab7() {
   vf_env || return 1
-  narrate "Lab 6 -- sops with the vault's transit engine: the file in git, the key in the vault"
+  narrate "Lab 7 -- sops with the vault's transit engine: the file in git, the key in the vault"
   run_cmd "export BAO_NAMESPACE=students/\$USER"
   run_cmd "bao secrets enable transit && bao write -f transit/keys/sops"
   run_cmd "mkdir -p ~/lab/config-repo && cd ~/lab/config-repo && git init -q -b main"
@@ -223,13 +240,13 @@ step_vf_lab6() {
   unset BAO_NAMESPACE
 }
 
-# Labs 7-8: a repository secret and how masking fails, then the job logs in to the vault with its own
-# OIDC token (lab8.md's vault-oidc workflow). Jobs run on the single-use runner pool.
-step_vf_lab7_8() {
+# Labs 8-9: a repository secret and how masking fails, then the job logs in to the vault with its own
+# OIDC token (lab9.md's vault-oidc workflow). Jobs run on the single-use runner pool.
+step_vf_lab8_9() {
   vf_env || return 1
   cd "$REPO_DIR" || return 1
   local api="http://${GIT_SERVER}/api/v1/repos/$BOT_USER/$FORGEJO_REPO"
-  narrate "Lab 7 -- a repository secret, used by a workflow (the UI step, by API)"
+  narrate "Lab 8 -- a repository secret, used by a workflow (the UI step, by API)"
   run_cmd "curl -s -o /dev/null -w 'secret: HTTP %{http_code}\n' --netrc -X PUT -H 'Content-Type: application/json' -d '{\"data\":\"demo-key-$BOT_USER-$ROUND\"}' $api/actions/secrets/DEMO_API_KEY"
   paste_cmd "mkdir -p .forgejo/workflows && cat > .forgejo/workflows/secrets-demo.yml <<'EOF'
 name: secrets-demo
@@ -251,7 +268,7 @@ EOF"
   run_cmd "curl -s -o /dev/null -w 'delete: HTTP %{http_code}\n' --netrc -X DELETE $api/actions/secrets/DEMO_API_KEY"
   run_cmd "git rm -q .forgejo/workflows/secrets-demo.yml && git commit -qm 'Remove the demo' && git push -q"
 
-  narrate "Lab 8 -- no stored secret at all: the job's own identity, bound to main"
+  narrate "Lab 9 -- no stored secret at all: the job's own identity, bound to main"
   run_cmd "export BAO_NAMESPACE=students/\$USER"
   run_cmd "bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2"
   run_cmd "bao kv put team/ci deploy_token=deploy-\$USER-\$RANDOM"
@@ -262,26 +279,26 @@ EOF"
  \"token_policies\":[\"ci-read\"],\"token_ttl\":\"5m\"}
 EOF"
   local wf
-  wf="$(sed -n "/cat > .forgejo\/workflows\/vault-oidc.yml <<'EOF'/,/^EOF\$/p" "$VF_LABS/lab8.md")"
-  [ -n "$wf" ] || { narrate "couldn't find the vault-oidc workflow in lab8.md"; return 1; }
+  wf="$(sed -n "/cat > .forgejo\/workflows\/vault-oidc.yml <<'EOF'/,/^EOF\$/p" "$VF_LABS/lab9.md")"
+  [ -n "$wf" ] || { narrate "couldn't find the vault-oidc workflow in lab9.md"; return 1; }
   paste_cmd "mkdir -p .forgejo/workflows && $wf"
   run_cmd "git add .forgejo/workflows/vault-oidc.yml && git commit -qm 'CI logs in with its own identity' && git push -q"
   unset BAO_NAMESPACE
 }
 
-# Lab 9: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
-# through its platform identity. Runs lab9.md's blocks 1-8 as written, then a rotation (block 11).
-step_vf_lab9() {
+# Lab 10: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
+# through its platform identity. Runs lab10.md's blocks 1-8 as written, then a rotation (block 11).
+step_vf_lab10() {
   vf_env || return 1
   cd "$REPO_DIR" || return 1
-  narrate "Lab 9 -- deploy with workload identity: the pipeline deploys, the app reads its own secrets"
-  paste_cmd "$(vf_block lab9.md 1 2 3 4)" || return 1
-  paste_cmd "$(vf_block lab9.md 5 6 7)" || return 1
-  paste_cmd "$(vf_block lab9.md 8)" || return 1
+  narrate "Lab 10 -- deploy with workload identity: the pipeline deploys, the app reads its own secrets"
+  paste_cmd "$(vf_block lab10.md 1 2 3 4)" || return 1
+  paste_cmd "$(vf_block lab10.md 5 6 7)" || return 1
+  paste_cmd "$(vf_block lab10.md 8)" || return 1
   narrate "waiting for the deploy job"
   if vf_wait_app 'API_KEY fingerprint' 240; then
     run_cmd "curl -s http://app-host:8080/\$USER/ | head -12"
-    paste_cmd "$(vf_block lab9.md 11)"
+    paste_cmd "$(vf_block lab10.md 11)"
   else
     narrate "no app yet after 4 minutes -- the runners may be busy; moving on"
   fi
@@ -290,15 +307,15 @@ step_vf_lab9() {
 
 case "$PERSONA" in
   expert)
-    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3
-           step_vf_lab4_5 step_vf_lab6 step_vf_lab7_8 step_vf_lab9 step_wrap_round)
+    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3 step_vf_lab4
+           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab10 step_wrap_round)
     ;;
   intermediate)
-    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab2 step_vf_lab3
-           step_vf_lab4_5 step_vf_lab6 step_vf_lab7_8 step_wrap_round)
+    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab2 step_vf_lab3 step_vf_lab4
+           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_wrap_round)
     ;;
   novice)
-    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3
+    STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3 step_vf_lab4
            step_wrap_round)
     ;;
 esac

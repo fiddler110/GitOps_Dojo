@@ -4,7 +4,7 @@
 # openbao module attaches it to each student's entity, so the web UI (SSO)
 # and the terminal (CLI login) get the same access.
 
-# Lab 2, the shared vault: your own folder in the shared `secret/` mount.
+# Lab 3, the shared vault: your own folder in the shared `secret/` mount.
 # Anyone else's folder is a 403.
 path "secret/data/students/{{identity.entity.name}}/*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list"]
@@ -33,13 +33,13 @@ path "secret/destroy/students/{{identity.entity.name}}/*" {
   capabilities = ["update"]
 }
 
-# Lab 3 onwards, your own vault: admin in your namespace students/<you>, and
+# Lab 4 onwards, your own vault: admin in your namespace students/<you>, and
 # nowhere else. A path in a root-namespace policy includes the namespace.
 path "students/{{identity.entity.name}}/*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
 }
 
-# Lab 2 reads this policy: `bao policy read student`.
+# Lab 3 reads this policy: `bao policy read student`.
 path "sys/policies/acl/student" {
   capabilities = ["read"]
 }

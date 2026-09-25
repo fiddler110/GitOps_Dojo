@@ -37,11 +37,11 @@ RUN set -eux; \
     install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks; \
     rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks
 
-# Python's Vault client, hvac, for lab 4 (the app reads its secret with the
-# SDK), the pure-Python Postgres driver pg8000 for lab 10, and their whole
+# Python's Vault client, hvac, for lab 5 (the app reads its secret with the
+# SDK), the pure-Python Postgres driver pg8000 for lab 11, and their whole
 # dependency trees. Every wheel is pure Python (py3-none-any or
 # py2.py3-none-any), so hvac-wheels.sha256 has one hash per package for both
-# architectures. app-host copies these packages from this image (labs 9-11). wget fetches them (it uses the system CA store, as the other
+# architectures. app-host copies these packages from this image (labs 10-12). wget fetches them (it uses the system CA store, as the other
 # downloads do; pip would use its own) and sha256sum checks them; pip then
 # runs straight from its own wheel (the base image has none) and installs
 # offline. /usr/local is pip's, not apt's, hence --break-system-packages.
@@ -61,17 +61,21 @@ RUN set -eux; \
     cd /; rm -rf /tmp/wheels; \
     python3 -c 'import hvac, requests, pg8000'
 
-# psql for lab 10's dynamic database logins, and jq for the JSON that bao
-# and the APIs print (labs 9-11). From Debian's archive, which apt checks
-# against Debian's signing keys.
-RUN apt-get update && apt-get install -y --no-install-recommends jq postgresql-client \
+# psql for lab 11's dynamic database logins, jq for the JSON that bao and
+# the APIs print (labs 10-12), and pass for lab 2 (it brings gnupg, its
+# pinentry-curses and tree). From Debian's archive, which apt checks against
+# Debian's signing keys.
+RUN apt-get update && apt-get install -y --no-install-recommends jq pass postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # sops checks GitHub for a newer release on every run, which only prints a
 # warning in the offline terminal. zshenv for `su -` login shells (see the
 # openbao module's Dockerfile), profile.d for sh/bash.
+# GPG_TTY tells gpg's passphrase prompt (pinentry-curses) which terminal to
+# draw on (lab 2); zshrc because it only means something in an interactive shell.
 RUN set -eux; \
     printf '\n# vault-fundamentals: no sops update check (no internet)\nexport SOPS_DISABLE_VERSION_CHECK=1\n' >> /etc/zsh/zshenv; \
+    printf '\n# vault-fundamentals: gpg prompts on this terminal (lab 2)\nexport GPG_TTY=$(tty)\n' >> /etc/zsh/zshrc; \
     printf 'export SOPS_DISABLE_VERSION_CHECK=1\n' > /etc/profile.d/sops.sh
 ENV SOPS_DISABLE_VERSION_CHECK=1
 

@@ -1,134 +1,155 @@
-# Lab 7 — Secrets in the pipeline: Forgejo Actions secrets
+# Lab 7 — Encrypted config in the repo
 
-**Goal:** give a CI job a secret the way most teams start: a **repository secret** in the CI system. Watch the log hide it, then see how little that hiding protects, and who can really read it.
+**Goal:** keep a config file with secrets in git, encrypted, with **sops**. The key that opens it never leaves the vault: OpenBao's **transit** engine does the encrypting and decrypting, and the vault decides who may. Then change who can read it, and rotate the key.
 
-Your jobs run on the class's **single-use runners**: each runner takes one job and is then thrown away.
+GitOps wants everything in git, and secrets are part of the config. Lab 1 showed why plaintext can't go there. Encrypted, it can.
 
 ---
 
-## 1. Your own copy of the repo
+## 1. A key in your vault
 
-The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone:
+**Transit** is encryption as a service: you send it data, it sends back ciphertext (or the reverse), and the key itself can't be read out. Enable it in your namespace and make a key for sops:
 
 ```bash
-curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
-  http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
+export BAO_NAMESPACE=students/$USER
+bao secrets enable transit
+bao write -f transit/keys/sops
+bao read transit/keys/sops       # latest_version 1, exportable false
 ```
 
-`curl` asks for your **Forgejo password**, which is on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON means it worked; `repository is already forked` means you made it earlier.
+## 2. Tell sops which key to use
 
-Clone it, and let git remember your password in memory for an hour so you don't type it on every push:
-
-```bash
-cd ~/lab
-git clone http://git-server:3000/$USER/vault-fundamentals.git
-cd vault-fundamentals
-git config credential.helper 'cache --timeout=3600'
-```
-
-The `cache` helper keeps the password in memory only. The `store` helper would write it to a plaintext file in your home, which is exactly what this workshop is against (rule 8).
-
-## 2. Add a repository secret
-
-In the browser, open the **Forgejo** card, then your fork (**studentXX/vault-fundamentals**) → **Settings** → **Actions** → **Secrets** → **Add secret**:
-
-| Field | Value |
-| ----- | ----- |
-| Name | `DEMO_API_KEY` |
-| Value | `demo-key-` followed by anything you like, e.g. `demo-key-blue-giraffe-42` |
-
-Once saved, the value can't be shown again, not even to you. It's stored encrypted, and handed only to jobs.
-
-## 3. A workflow that uses it
+A `.sops.yaml` at the top of the repo says which files to encrypt and with what. The key's URL has your namespace in its path, so the file carries everything sops needs:
 
 ```bash
-mkdir -p .forgejo/workflows
-cat > .forgejo/workflows/secrets-demo.yml <<'EOF'
-name: secrets-demo
-on: push
-jobs:
-  demo:
-    runs-on: host
-    steps:
-      - name: Where does this job run?
-        run: |
-          echo "runner user: $(id -un)   home: $HOME"
-          echo "processes this job can see: $(ls -d /proc/[0-9]* | wc -l)"
-      - name: Use the secret
-        env:
-          API_KEY: ${{ secrets.DEMO_API_KEY }}
-        run: |
-          echo "The key is $API_KEY"
-          echo "It is ${#API_KEY} characters long"
+mkdir -p ~/lab/config-repo && cd ~/lab/config-repo
+git init -b main
+cat > .sops.yaml <<EOF
+creation_rules:
+  - path_regex: \.enc\.yaml$
+    hc_vault_transit_uri: $VAULT_ADDR/v1/students/$USER/transit/keys/sops
 EOF
-git add .forgejo/workflows/secrets-demo.yml
-git commit -m "Add a workflow that uses a repository secret"
-git push
+cat .sops.yaml
 ```
 
-`git push` asks for your username (`studentXX`) and Forgejo password once; the cache remembers them.
+sops reads your token from `~/.vault-token`, like `hvac` in Lab 5.
 
-Open your fork in Forgejo → **Actions** → the newest run → the **demo** job, and open each step.
-
-- **"The key is \*\*\*"**: Forgejo replaces the secret's exact value with `***` in the log.
-- **The runner user** is named like `pool-3f9a1c`. It was created for this job and deleted after it. Push again (`git commit --allow-empty -m again && git push`) and the next run gets a different one: nothing one job leaves behind reaches the next, not even another student's.
-- **Processes this job can see**: only its own handful, although the runners share one machine.
-
-## 4. Masking is not protection
-
-Masking only matches the exact value. Add one more step at the end of the workflow file, at the same indent as the other `- name:` lines:
-
-```yaml
-      - name: Print it in a form the mask doesn't know
-        env:
-          API_KEY: ${{ secrets.DEMO_API_KEY }}
-        run: |
-          echo "$API_KEY" | base64
-          echo "$API_KEY" | sed 's/./& /g'
-```
+## 3. Encrypt a config file
 
 ```bash
-git commit -am "Show that masking is only cosmetic"
-git push
+cat > app.enc.yaml <<'EOF'
+database:
+  host: db.internal
+  password: s3cr3t-db-pass
+api:
+  url: https://api.example.test
+  key: s3cr3t-api-key
+EOF
+sops encrypt -i app.enc.yaml
+cat app.enc.yaml
 ```
 
-The new step prints the key base64-encoded and with spaces between the letters. Decode it in your terminal (paste the base64 line from the log):
+The **keys** are still readable (`database`, `password`, ...), so a reviewer can see what changed; the **values** are `ENC[AES256_GCM,...]`. At the bottom, under `sops:` → `hc_vault`, is the key's URL and `enc: vault:v1:...`.
+
+That's **envelope encryption**: sops made a random data key for this file and encrypted the values with it, then asked transit to encrypt the data key (`vault:v1` is key version 1). Only the vault can unwrap the data key, and it checks your policy every time.
+
+(Here the plaintext sat in a file for a moment before `sops encrypt`. At work, `sops edit app.enc.yaml` opens an editor and writes it encrypted, so the plaintext never lands on disk.)
+
+Read it back, whole or one value:
 
 ```bash
-echo 'PASTE-THE-BASE64-LINE-HERE' | base64 -d
+sops decrypt app.enc.yaml
+sops decrypt --extract '["database"]["password"]' app.enc.yaml
 ```
 
-So **anyone who can change a workflow in this repo can read every one of its secrets**: a branch is enough, no review needed, because a push runs the workflow as the pusher wrote it. Masking stops accidents, not people.
+## 4. Commit it, and make diffs readable
 
-## 5. Who can read a repository secret?
-
-| Who | Can they get the secret? |
-| --- | ------------------------ |
-| Anyone with **write** access to the repo | **Yes**: push a branch with a changed workflow, as you just did. |
-| A **pull request from a fork** (`on: pull_request`) | No: Forgejo gives those runs no secrets, because the fork's author wrote the workflow. |
-| A workflow on `pull_request_target` | **Careful**: it runs the *base* repo's workflow *with* secrets. If it checks out and runs the pull request's code, that code gets the secrets. |
-| Anyone who reads the **job log** | Only what a workflow printed: never print a secret, even masked. |
-
-And the secret itself never changes by itself: it is valid until someone rotates it, however many people have had the chance to see it.
-
-## 6. Clean up: rotate what leaked
-
-The key is now in your job logs in two readable forms. In real life you'd **rotate it** at its source first (rule 7), then update the repository secret. Here, delete it: Forgejo → your fork → **Settings** → **Actions** → **Secrets** → **Remove** next to `DEMO_API_KEY`.
-
-Then remove the demo workflow, so later pushes don't run it:
+A diff of two encrypted files is noise. Git can decrypt both sides for you, only on your machine, only if you can decrypt:
 
 ```bash
-git rm .forgejo/workflows/secrets-demo.yml
-git commit -m "Remove the secrets demo"
-git push
+echo '*.enc.yaml diff=sopsdiffer' > .gitattributes
+git config diff.sopsdiffer.textconv "sops decrypt"
+git add .
+git commit -m "Add the app's encrypted config"
+```
+
+Change the password and look at the diff:
+
+```bash
+sops set app.enc.yaml '["database"]["password"]' '"n3w-db-pass"'
+git diff                  # the real change: one line
+git diff --no-textconv    # what anyone without the key sees
+git commit -am "Rotate the database password"
+```
+
+## 5. Who can decrypt?
+
+Your token can do both. A CI job that only *writes* config shouldn't be able to *read* it. Make a policy that can encrypt and nothing else, and a token with it:
+
+```bash
+cat > sops-encrypt.hcl <<'EOF'
+# Encrypt with the sops key; decrypting is not allowed.
+path "transit/encrypt/sops" {
+  capabilities = ["update"]
+}
+EOF
+bao policy write sops-encrypt sops-encrypt.hcl
+ENC_TOKEN=$(bao token create -orphan -policy=sops-encrypt -ttl=15m -field=token)
+```
+
+sops takes a token from `VAULT_TOKEN` too:
+
+```bash
+VAULT_TOKEN=$ENC_TOKEN sops decrypt app.enc.yaml        # 403 permission denied
+printf 'region: north\nlicense: abc-123\n' > ci.enc.yaml
+VAULT_TOKEN=$ENC_TOKEN sops encrypt -i ci.enc.yaml      # works
+sops decrypt ci.enc.yaml                                # you can read it
+```
+
+Who can read the config is now a vault policy, not "whoever has the repo". Take a person's access away in the vault and every copy of every file is closed to them at once, and every decrypt is in the audit log.
+
+## 6. Rotate the key
+
+Make a new version of the transit key:
+
+```bash
+bao write -f transit/keys/sops/rotate
+sops decrypt app.enc.yaml > /dev/null && echo "still opens"
+grep 'enc: vault' app.enc.yaml       # still vault:v1
+```
+
+Old versions still decrypt, so nothing breaks. Re-wrap the file with the newest version (sops also makes a new data key):
+
+```bash
+sops rotate -i app.enc.yaml
+grep 'enc: vault' app.enc.yaml       # vault:v2
+git commit -am "Re-key the app config"
+```
+
+## 7. Retire the old key version
+
+The commit before this one still holds a copy wrapped with `vault:v1`, and so does every clone and backup. Tell transit to stop decrypting version 1:
+
+```bash
+bao write transit/keys/sops/config min_decryption_version=2
+git show HEAD~1:app.enc.yaml > old.enc.yaml
+sops decrypt old.enc.yaml            # fails: version 1 is retired
+sops decrypt app.enc.yaml            # the current file still opens
+rm old.enc.yaml
+```
+
+The readable `git diff` from step 4 can't open those old commits either now: `git log -p` stops at them with the same error. Retiring a key version closes every copy, yours included.
+
+Compare that with Lab 1: a plaintext secret in history stays readable forever. An encrypted one stops opening when the vault says so. (You still rotate the secrets themselves if the file leaked: someone may have decrypted it before.)
+
+```bash
+unset BAO_NAMESPACE
 ```
 
 ## Check yourself
 
-1. A job's log shows `***`. Is the secret safe? *(No: masking hides exact matches only. Any transformation, such as base64, prints it.)*
-2. Who can read a repository secret? *(Anyone who can push a workflow to the repo, plus whoever reads a log that printed it.)*
-3. Why does it matter that each runner is used for one job only? *(A job can leave files and processes behind. On a single-use runner, the next job, maybe someone else's, starts clean.)*
+1. The repo is public by mistake. What leaked? *(Key names and ciphertext. Nobody can decrypt without access to the transit key in the vault.)*
+2. What does transit encrypt: the file or something else? *(Only the file's data key, envelope encryption. The key never leaves the vault.)*
+3. How do you stop someone reading the config, including old copies they cloned? *(Take away their decrypt policy; retire old key versions with `min_decryption_version`.)*
 
-Lab 8 replaces the stored secret with the job's own identity.
-
-**Rules used:** 8 (never in logs), 7 (plan for leaks: rotate), 1 (least privilege: who can push is who can read), 4 (the repository secret is this pipeline's secret zero).
+**Rules used:** 8 (never in git in plaintext), 1 (least privilege: encrypt-only), 6 (every decrypt is audited), 7 (key rotation is routine).

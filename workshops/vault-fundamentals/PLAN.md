@@ -39,6 +39,9 @@
 
 ### Where we stopped (2026-09-25): start here next
 
+- **2026-09-25: the `pass` lab (S37, S38), tasks T5.7-T5.11.** New lab 2, labs renumbered 2-11 → 3-12. Older
+  bullets below and older log entries use the **old** numbers. T5.6 (the long live pass) runs after these, on the
+  new numbering.
 - **P4 is done** (T4.1-T4.8; 91031d6 `openbao-audit`, 21daddf app-host, app-db, labs 9-11). Passed locally:
   `tests/labs_9_11.sh` (student03, student01, and twice on student02, so a redeploy on a used slot is covered),
   `tests/p4_browser.py` (Apps page as student at 390 px and the facilitator's tab, labs 9-11 in the reader, Part 6
@@ -144,6 +147,8 @@ phase, before editing engine/, and about anything in section 12.
 | S34 | *(User, 2026-09-25, P5.)* **A facilitator Audit tab in `/admin`, in the `openbao` module**: `openbao-audit` serves the page (gateway token, facilitator only, `textContent`, strict CSP), filterable by student, path and accessor. |
 | S35 | *(User, 2026-09-25, P5.)* **No Azure VM task.** The VM run is a plain `git clone` + `./run.sh` there; nothing in the repo is needed for it. |
 | S36 | *(User, 2026-09-25, P5.)* **Size for 20 students** (load test with 20 bots); the sizing notes extrapolate to 35. Build all content first, then one long live pass at the end. |
+| S37 | *(User, 2026-09-25.)* **A new lab 2: `pass`, the local precursor.** Between the leak (lab 1) and the shared vault, students keep a secret in `pass` (passwordstore.org): a path is a folder, a secret is a GPG-encrypted file of key/value lines. Then they hit its limit (sharing means encrypting for each person; no audit, no expiry, can't take it back), which motivates the hosted vault. Order: local (you're owner and admin) → shared vault (you're a tenant) → your namespace (you're the admin). **Labs 2-11 become 3-12** everywhere (lab files, reader, index, cheat sheet, talk, bots, tests; the test scripts are renamed to the new numbers). The talk gets two slides in Part 1 before "A vault: one copy, behind one gate". Decisions S1-S36, §10, §14 and the §15 entries dated before this one keep the **old** numbers. `pass` and `gnupg` come from Debian's archive (as `jq` and `psql` do). |
+| S38 | *(User, 2026-09-25.)* **Name `gopass` for Windows** (and as a `pass`-compatible option everywhere): lab 2 and the cheat sheet say how to do the same at work on Windows (`winget install gopass.gopass` + Gpg4win), macOS and Linux, so the idea isn't Linux/mac-only. Not installed in the lab. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -166,7 +171,7 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 7. **Plan for leaks**: rotation, revocation and the incident drill are normal operations, not emergencies.
 8. **Never in git, never in logs, never in images**: including history, CI output and container layers.
 
-## 4. Lab outline (draft, 12 labs over 2-3 hours)
+## 4. Lab outline (13 labs over 2-3 hours; renumbered by S37)
 
 **Part 1: Foundations (the vault user)**
 
@@ -174,38 +179,42 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
    logged in. `bao token lookup`: tokens have a TTL and policies. Tour the UI.
 1. **Leak it.** Commit a secret, "delete" it, find it with `git log -p`. Rotating is the only fix. Add a `gitleaks`
    pre-commit hook and scan history. The next attempt is blocked before it leaves the machine.
-2. **Use the shared vault.** KV v2 in the shared `secret/` mount under `secret/students/<you>/`: put, get, versions,
+2. **Keep it encrypted on your own machine** (S37). `pass`: a GPG key, `pass insert`, the store is folders of
+   `.gpg` files, a secret holds key/value lines (`pass show`, `grep`). Encrypt it for a second person and see what
+   sharing costs (re-encrypt for everyone, no audit, no expiry). At work: `pass`, or `gopass` on Windows (S38).
+3. **Use the shared vault.** KV v2 in the shared `secret/` mount under `secret/students/<you>/`: put, get, versions,
    roll back, delete vs destroy. Try a neighbour's path and get a 403. Read the **templated policy** that did it.
+   The same shape as lab 2's store, on a server.
 
 **Part 2: Administering a vault (your namespace)**
 
-3. **You are the admin.** In your own namespace: enable a KV engine, write a least-privilege policy (first in the
+4. **You are the admin.** In your own namespace: enable a KV engine, write a least-privilege policy (first in the
    **UI**, then the same policy with `bao policy write`), create a token with it, prove what it can and can't do.
    Read your own audit trail.
 
 **Part 3: Secrets in code**
 
-4. **The app reads a secret.** The same small app in three versions:
+5. **The app reads a secret.** The same small app in three versions:
    - a secret hard-coded in the source
    - a secret from an env var loaded from a git-ignored `.env` file
    - the secret read from the vault with the SDK
 
    Don't log secrets; tokens need renewing.
-5. **OpenBao Agent.** Agent logs in by itself and writes the secret to a file (`0600`, in memory, not on disk).
+6. **OpenBao Agent.** Agent logs in by itself and writes the secret to a file (`0600`, in memory, not on disk).
    Rotate the secret in the vault and the app picks it up **without a commit or a redeploy**.
 
 **Part 4: Secrets in git**
 
-6. **Encrypted config in the repo.** `sops` with OpenBao's **transit** engine: the file lives in git, and the key
+7. **Encrypted config in the repo.** `sops` with OpenBao's **transit** engine: the file lives in git, and the key
    never leaves the vault. Show who can decrypt, what a diff looks like, and rotating the transit key (then
    `sops rotate`). Teach the key URL with the namespace in its path (`$VAULT_ADDR/v1/students/<you>/transit/keys/sops`):
    sops stores it in the file, so decrypting needs no extra setting (T0.9).
 
 **Part 5: Secrets in pipelines**
 
-7. **Forgejo Actions secrets** (core, S18). A repository secret used in a workflow. Masking in logs, and how easily masking is
+8. **Forgejo Actions secrets** (core, S18). A repository secret used in a workflow. Masking in logs, and how easily masking is
    bypassed (`base64`). Why a workflow from a pull request can steal secrets.
-8. **CI logs in to OpenBao.** First with AppRole: it works, but the AppRole login secret is itself stored in the
+9. **CI logs in to OpenBao.** First with AppRole: it works, but the AppRole login secret is itself stored in the
    pipeline (secret zero). Then with the **job's own OIDC token**, bound to *this repo on the `main` branch*, so nothing
    is stored at all. A job on another branch is refused. The JWT auth method is already set up in the student's
    namespace (S19); the student writes the role and policy. The workflow uses `curl` + `bao login`, no `uses:` (S20),
@@ -213,12 +222,12 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 
 **Part 6: Secrets in deployments**
 
-9. **Deploy with workload identity** (§5.6). The pipeline deploys the app to `app-host` but **cannot read the app's
+10. **Deploy with workload identity** (§5.6). The pipeline deploys the app to `app-host` but **cannot read the app's
    secrets**. The app proves its identity to OpenBao through the platform and gets its own secrets. Half-configured,
-   as in lab 8 (S19).
-10. **Dynamic database credentials** (optional, S18). The app gets a Postgres login made for it, with a lease. Watch it expire, renew
+   as in lab 9 (S19).
+11. **Dynamic database credentials** (optional, S18). The app gets a Postgres login made for it, with a lease. Watch it expire, renew
     it, revoke it. There is no shared database password left to leak.
-11. **Incident drill (capstone).** "A token leaked." Use the audit log to find what it read, revoke it (and
+12. **Incident drill (capstone).** "A token leaked." Use the audit log to find what it read, revoke it (and
     everything under it), rotate what it touched, and check that the app recovers by itself.
 
 **Stretch:** response wrapping for handing over an AppRole login secret safely; the PKI engine for short-lived
@@ -860,6 +869,17 @@ Build T5.1-T5.5 without long stack runs (unit tests and `--dry-run` only); T5.6 
       runs with 20 bots and records memory/CPU), sizing notes in the workshop README (20, extrapolated to 35).
 - [ ] **T5.6** The live pass: fresh stack with `--test 20`, `e2e.sh --load`, the Audit tab in a browser, the
       facilitator view of bots, `./run.sh stop` leaves nothing.
+- [x] **T5.7** *(uncommitted)* Plan: S37, S38, §4 outline, these tasks.
+- [x] **T5.8** *(uncommitted)* Terminal image: `pass` from Debian (brings `gnupg`, `pinentry-curses`, `tree`), `GPG_TTY` in
+      `/etc/zsh/zshrc`. No helper needed: students type a passphrase into pinentry (tested in a pty).
+- [x] **T5.9** *(uncommitted)* Lab 2 (`pass`), with the `gopass` note; cheat-sheet section (Linux, macOS, Windows);
+      `tests/lab_2.sh` (14 checks, in `e2e.sh` as `lab_2`); bot step `step_vf_lab2` for every persona (key without a
+      passphrase; the reset removes `~/.gnupg` and `~/.password-store`).
+- [x] **T5.10** *(uncommitted)* Renumber labs 2-11 → 3-12: lab files and their cross-references, README, `labs.md`, `lab-index.md`,
+      cheat sheet, slides, bots (`steps.sh`), tests (renamed), setup hooks' comments, module comments.
+- [x] **T5.11** *(uncommitted)* Talk: two slides in Part 1 (the `pass` store as the mental model; why it stops at your machine), a
+      back-reference on the KV slides, the labs map and wrap-up tables on the new numbers; 16:9 check.
+      Verify: the lab-2 steps in a fresh terminal image; `labs_*` tests on a stack (in T5.6 at the latest).
 
 Later phases get their own task block (IDs `T5.x`) when they start.
 
@@ -1349,3 +1369,21 @@ size for 20). Built without a stack: the Audit tab (`openbao-audit` serves it, f
 (`FORGEJO_ORG` bots fork, `FORGEJO_FORK_WORKFLOW=1`); `content/bots/steps.sh` (novice 0-3, intermediate to 8,
 expert to 9; labs 8-9 taken from the lab pages; each round undoes the last); three wrap-up slides; `tests/e2e.sh`
 (every area, `--load MIN`), `tests/p5_browser.py`, the workshop README. Not yet run on a stack: all of it is T5.6.
+
+### 2026-09-25 — The `pass` lab (S37, S38)
+
+The user asked for `pass` as a local precursor to the vault (a KV path is a folder holding an encrypted file of
+key/value pairs; local → hosted → shared), placed as a new lab 2 with the talk covering it early, and `gopass` named
+for Windows. Tasks T5.7-T5.11 added before T5.6.
+Built the same day: `pass` in the terminal image, lab 2, the cheat-sheet section with `gopass` for Windows, the
+renumbering (files `git mv`'d; tests renamed `labs_5_7.sh`, `labs_8_9.sh`, `labs_10_12.sh`; `p4_browser.py` now
+checks slides 37-44 and labs 10-12), two talk slides (7 "Step one: encrypt it on your own machine", 8 "Why that
+stops at your own machine") and a `pass` line on the first KV slide; the talk is now 51 slides. Verified: lab 2's
+steps (`tests/lab_2.sh`) and the bot step in a throwaway image built on `:vault-fundamentals`; pinentry-curses in
+a pty; every slide, `labs.md` and the lab index at 1280x720 on a throwaway presentation container (screenshots
+looked at).
+Then on a fresh local stack (`./run.sh vault-fundamentals`, image built through `run.sh`): `pass` 1.7.4 and gpg 2.2.40
+in the terminal, `GPG_TTY` in zshrc; `lab_2.sh`, `tenancy.sh`, `cli_login.sh`, `labs_5_7.sh`, `labs_8_9.sh`,
+`labs_10_12.sh` all PASS as student03; the lab reader serves lab2, lab3 and lab12 under their new titles. Stack left
+running for the user's browser pass. Not run: the bots (`--test`), the browser tests, a person typing a passphrase
+into pinentry in the browser terminal.

@@ -10,7 +10,24 @@ bao token lookup              # your token: entity, policies, TTL
 openbao-login                 # sign this shell in again (e.g. opened before the vault was ready)
 ```
 
-## KV v2 secrets (labs 2-3)
+## `pass`: secrets on your own machine (lab 2)
+
+```bash
+gpg --quick-gen-key "$USER <$USER@dojo.test>" default default 1y   # a key pair; asks for a passphrase
+pass init "$USER@dojo.test"            # a store in ~/.password-store, encrypted for that key
+pass git init                          # keep its history in git
+pass insert -m dojo/db                 # type lines, then Ctrl+D; stays out of shell history
+pass generate dojo/api-token 32        # a random one
+pass show dojo/db                      # decrypt and print (| head -1 for just the password)
+EDITOR=nano pass edit dojo/db          # change it (a commit)
+pass init -p dojo you@x them@x         # re-encrypt one folder for several people
+```
+
+On your own machine at work: Linux `apt install pass`; macOS `brew install pass gnupg`; **Windows**
+[gopass](https://www.gopass.pw/), which reads and writes the same store: `winget install gopass.gopass` and
+`winget install GnuPG.Gpg4win`, then `gopass setup` (commands: `gopass insert`, `gopass show`, `gopass generate`).
+
+## KV v2 secrets (labs 3-4)
 
 ```bash
 bao kv put    secret/students/$USER/db user=app password=pw   # new version, replaces all keys
@@ -27,7 +44,7 @@ bao kv destroy  -versions=1 secret/students/$USER/db          # wipe a version f
 bao kv metadata delete secret/students/$USER/db               # wipe the secret and its history
 ```
 
-## Policies and tokens (lab 3)
+## Policies and tokens (lab 4)
 
 ```bash
 export BAO_NAMESPACE=students/$USER     # work in your own namespace; `unset` to leave
@@ -51,7 +68,7 @@ path "team/data/app" {
 KV v2 paths inside a policy: `<mount>/data/...` (values), `<mount>/metadata/...` (list, history), `<mount>/delete/`,
 `undelete/`, `destroy/...`.
 
-## Apps and the Agent (labs 4-5)
+## Apps and the Agent (labs 5-6)
 
 ```python
 import hvac
@@ -72,7 +89,7 @@ bao agent -config=agent.hcl > agent.log 2>&1 &              # log in, renew, ren
 
 Log that you loaded a secret, never its value.
 
-## sops and transit (lab 6)
+## sops and transit (lab 7)
 
 ```bash
 bao secrets enable transit
@@ -96,7 +113,7 @@ creation_rules:
     hc_vault_transit_uri: http://openbao:8200/v1/students/<you>/transit/keys/sops
 ```
 
-## CI and the vault (labs 7-8)
+## CI and the vault (labs 8-9)
 
 ```yaml
 # .forgejo/workflows/ci.yml: a job that logs in with its own identity
@@ -127,7 +144,7 @@ EOF
 
 `${{ secrets.NAME }}` is masked as `***` in logs, but anyone who can push a workflow can print it (`| base64`).
 
-## Deployments (labs 9-11)
+## Deployments (labs 10-12)
 
 ```bash
 curl -s http://app-host:8080/.well-known/jwks.json      # the platform's public keys
@@ -156,10 +173,10 @@ tar -czf app.tgz -C src/app . && curl -sS --fail-with-body -H "Authorization: Be
 ```
 
 ```bash
-bao read database/creds/app                   # a Postgres login made now (lab 10)
+bao read database/creds/app                   # a Postgres login made now (lab 11)
 bao lease lookup|renew|revoke <lease_id>
 bao token lookup -format=json <token> | jq -r .data.accessor
-bao-audit --accessor <accessor>               # what that token did (lab 11)
+bao-audit --accessor <accessor>               # what that token did (lab 12)
 bao token revoke -accessor <accessor>         # it, and every token it made
 ```
 

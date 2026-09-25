@@ -1,104 +1,164 @@
-# Lab 2 — Use the shared vault
+# Lab 2 — Keep it encrypted on your own machine
 
-**Goal:** store, read, version and delete secrets in the class's shared vault, and read the one policy that keeps everyone in their own folder.
+**Goal:** keep secrets encrypted on your own machine with `pass`, see how its store is laid out (the same shape a vault uses), and find where it stops working for a team.
 
-`secret/` is a **KV version 2** engine: a key-value store that keeps every version of every secret. The whole class shares it, and each of you has one folder, `secret/students/<you>/`. This is how most companies start: one vault, one path per team.
+Lab 1 showed that a secret in a file ends up in git. A git-ignored `.env` is better, but it's still plain text: in backups, in `grep -r`, readable by anything running as you. `pass` ("the standard unix password manager") keeps each secret as a small **encrypted file** in a folder tree. It's a vault in miniature: a **path**, pointing at an **encrypted file**, holding **key/value pairs**. Hold on to that picture; the next lab puts it on a server.
+
+Everything here stays on your own terminal.
 
 ---
 
-## 1. Put and get
+## 1. A key of your own
 
-A secret is a small set of key-value pairs at a path:
-
-```bash
-bao kv put secret/students/$USER/db username=app password=first-password
-bao kv get secret/students/$USER/db
-bao kv get -field=password secret/students/$USER/db
-```
-
-`-field` prints just the value, which is what a script wants. `-format=json` gives everything, for tools like `jq`.
-
-Open the same secret in the UI (**secret → students → your name → db**) and leave the tab open.
-
-## 2. Versions
-
-Change the password twice:
+`pass` encrypts with GPG. Make yourself a key pair (the public half locks, the private half unlocks):
 
 ```bash
-bao kv put secret/students/$USER/db username=app password=second-password
-bao kv patch secret/students/$USER/db password=third-password
-bao kv get secret/students/$USER/db
+gpg --quick-gen-key "$USER <$USER@dojo.test>" default default 1y
 ```
 
-`put` replaces the whole secret; `patch` changes only the keys you give. The `version` in the output went up each time. The old ones are still there:
+A box asks for a **passphrase**, twice. Pick one with a number or symbol in it (three words and a number is fine), or GPG warns and asks again. The passphrase protects the private key file: whoever copies `~/.gnupg` still needs it.
 
 ```bash
-bao kv get -version=1 secret/students/$USER/db
-bao kv metadata get secret/students/$USER/db
+gpg --list-secret-keys
 ```
 
-Somebody set a bad password. Roll back to version 2 (this writes version 2's data as a new version 4, so nothing is lost):
+`[expires: ...]`: the key lives a year, then you make a new one. Remember that for rule 3.
+
+## 2. A store, and a secret in it
+
+Point a new store at your key, and keep its history in git:
 
 ```bash
-bao kv rollback -version=2 secret/students/$USER/db
-bao kv get -field=password secret/students/$USER/db
+pass init "$USER@dojo.test"
+pass git init
 ```
 
-In the UI, refresh and open **Version history**.
-
-## 3. Delete, undelete, destroy
-
-These three are different, and the difference matters when something leaks.
+Add the database login the app from lab 1 needs. `-m` takes several lines; type them, then press **Ctrl+D** on an empty line:
 
 ```bash
-bao kv delete secret/students/$USER/db          # the newest version: hidden, recoverable
-bao kv get secret/students/$USER/db             # "deleted"
-bao kv undelete -versions=4 secret/students/$USER/db
-bao kv get -field=password secret/students/$USER/db   # back
-
-bao kv destroy -versions=1 secret/students/$USER/db   # version 1: gone for good
-bao kv get -version=1 secret/students/$USER/db        # "destroyed"
+pass insert -m dojo/db
 ```
 
-| Command | What happens | Azure Key Vault calls it |
-| ------- | ------------ | ------------------------ |
-| `delete` | Hidden; `undelete` brings it back | soft delete / recover |
-| `destroy` | That version's data is wiped | purge |
-| `metadata delete` | Every version and the history, gone | purge the whole secret |
+```text
+first-password
+username: app
+host: db.internal
+```
 
-If a secret leaked, destroying old copies doesn't un-leak it. **Rotate first** (a new password where it's used), then destroy.
+By convention the first line is the password and the rest are `key: value` lines. Typing it at the prompt, instead of `echo ... | pass insert`, keeps it out of your shell history.
 
-## 4. Knock on a neighbour's door
+Let `pass` make the next one for you, 32 random characters nobody has to type:
 
 ```bash
-bao kv list secret/students/
-bao kv get secret/students/student02/db
-bao kv put secret/students/student02/db password=mine-now
+pass generate dojo/api-token 32
 ```
 
-You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class:
+## 3. What's on disk
 
 ```bash
-bao policy read student
+pass
+tree -a ~/.password-store
 ```
 
-Find this block:
+The path `dojo/db` **is** a folder and a file: `~/.password-store/dojo/db.gpg`. Look inside it:
 
-```hcl
-path "secret/data/students/{{identity.entity.name}}/*" {
-  capabilities = ["create", "read", "update", "patch", "delete", "list"]
-}
+```bash
+head -c 120 ~/.password-store/dojo/db.gpg | cat -v; echo
+gpg --list-packets ~/.password-store/dojo/db.gpg 2>&1 | head -3
 ```
 
-`{{identity.entity.name}}` is filled in on every request with the name of the entity asking, which is you. That one **templated policy** covers 30 students, or 3,000, with no per-person rule to keep up to date. Anything a policy doesn't allow is denied.
+Noise, and a note saying who it's encrypted for: your key. Now read it the way you'd use it:
 
-Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the value under `data/`, and the history under `metadata/`, `delete/`, `undelete/` and `destroy/`, so a policy can allow reading a secret without allowing its history to be wiped.
+```bash
+pass show dojo/db
+pass show dojo/db | head -1
+pass show dojo/db | sed -n 's/^username: //p'
+```
+
+GPG asked for your passphrase once and remembers it for about 10 minutes, then asks again.
+
+## 4. History
+
+Change the password:
+
+```bash
+EDITOR=nano pass edit dojo/db
+```
+
+In the editor, change `first-password` to `second-password`, then save and quit (**Ctrl+O**, **Enter**, **Ctrl+X**). `pass` decrypts to a temporary file in memory (`/dev/shm`), not on disk. Every change was a commit:
+
+```bash
+pass git log --oneline
+pass git log -p dojo/db.gpg
+```
+
+`pass git init` told git how to decrypt `.gpg` files for a diff, so on **your** machine the history shows the old password next to the new one. That's versions, like the vault's KV store keeps in lab 3.
+
+The store is encrypted, so could you push it to a git server as a backup? The values, yes. The **names** (`dojo/db`, `prod/payments/stripe`) and every commit time are plain text. Keep names boring.
+
+## 5. Sharing it with a teammate
+
+A teammate needs `dojo/db`. Pretend to be them for a moment and make their key (no passphrase, only because it's pretend):
+
+```bash
+gpg --batch --passphrase '' --quick-gen-key "teammate <teammate@dojo.test>" default default 1y
+```
+
+`pass` shares a folder by **encrypting every file in it again**, once for each person:
+
+```bash
+pass init -p dojo "$USER@dojo.test" teammate@dojo.test
+gpg --list-packets ~/.password-store/dojo/db.gpg 2>&1 | grep -A1 'encrypted with'
+```
+
+Two keys can open it now. Your teammate pulls the store and reads it on their own laptop.
+
+## 6. ...and taking it back
+
+The teammate moves to another team. Take them off:
+
+```bash
+pass init -p dojo "$USER@dojo.test"
+gpg --list-packets ~/.password-store/dojo/db.gpg 2>&1 | grep -A1 'encrypted with'
+```
+
+The new file is yours alone. Now look at the one before it:
+
+```bash
+pass git show HEAD~1:dojo/db.gpg | gpg --list-packets 2>&1 | grep -A1 'encrypted with'
+```
+
+Every copy they already pulled still opens with their key, forever. Removing someone doesn't un-share anything. The only real fix is the one from lab 1: **rotate** every secret they could read.
+
+## 7. Where `pass` stops
+
+`pass` is a good home for **your own** secrets. For a team or an app, it runs out:
+
+| You need... | With `pass` | With a vault (next labs) |
+| ----------- | ----------- | ------------------------ |
+| To give access | Re-encrypt the folder for each person | One policy line; nothing is copied |
+| To take access back | Re-encrypt, then rotate everything they saw | Revoke the token; it can't read again |
+| To know who read what, when | Nobody knows | The audit log (lab 12) |
+| A secret that expires by itself | No | Leases and TTLs (labs 5, 11) |
+| An app or a pipeline to read it | Give it a private key: another secret to hide | It logs in with its own identity (labs 9, 10) |
+
+The vault keeps the same shape (a path, pointing at key/value pairs), but it keeps **one** copy on a server, and every read passes a gate that checks who's asking.
+
+## At work: on your own machine
+
+Store your personal tokens and passwords like this rather than in a `.env` file, a note or a shell profile:
+
+- **Linux:** `sudo apt install pass` (or your distro's package), and GPG.
+- **macOS:** `brew install pass gnupg`.
+- **Windows:** **gopass**, a `pass`-compatible tool that runs natively: `winget install gopass.gopass` and `winget install GnuPG.Gpg4win`, then `gopass setup`. It reads and writes the same store format, so a mixed team can share one (it also runs on Linux and macOS).
+
+Your company may already give you a password manager with a CLI; the idea is the same: encrypted, one place, never plain text on disk.
 
 ## Check yourself
 
-1. Someone can `list` a folder but not `read` in it. What can they learn? *(The names of the secrets, not the values. Names can still leak something, so keep them boring.)*
-2. You deleted the newest version by mistake. Which command undoes it? *(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)*
+1. Someone copies your whole `~/.password-store` folder. What do they have? *(Encrypted files and their names. Without your private key and its passphrase, not the values.)*
+2. You remove a teammate with `pass init -p`. Are the secrets safe from them now? *(No. They keep every copy they pulled. Rotate.)*
 
-**Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy).
+**Rules used:** 8 (never in git in plain text, and never plain text on disk), 7 (plan for leaks: removing access means rotating), 4 (secret zero: your GPG key and its passphrase are the one secret that protects all the others).
 
 **Next:** [lab3.md](lab3.md)

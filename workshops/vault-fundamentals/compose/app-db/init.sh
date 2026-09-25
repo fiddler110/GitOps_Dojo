@@ -1,5 +1,5 @@
 #!/bin/sh
-# app-db first-start set-up (Lab 10), run once by the Postgres image's
+# app-db first-start set-up (Lab 11), run once by the Postgres image's
 # entrypoint on a new data volume, as the postgres user. For each student:
 #   - a database app_<s> with a `notes` table, and CONNECT for no one else;
 #   - a group role app_<s>_rw that may read and add notes;

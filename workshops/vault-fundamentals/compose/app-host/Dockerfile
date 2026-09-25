@@ -1,4 +1,4 @@
-# app-host (vault-fundamentals, labs 9-11): the platform students deploy to.
+# app-host (vault-fundamentals, labs 10-12): the platform students deploy to.
 # apphost.py (mounted read-only from this folder by the overlay) runs as root
 # and runs each slot's app as its own user.
 #
