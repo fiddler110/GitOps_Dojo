@@ -205,7 +205,8 @@ login form itself, server-side, over the internal network (`studentNN` +
 `FORGEJO_ADMIN_PASSWORD` for the facilitator — matching whatever
 `bootstrap.sh` actually seeded those accounts with), then relays Forgejo's
 own `Set-Cookie` response straight onto the browser and redirects into the
-repo. No Forgejo reverse-proxy-auth config, no header-trust surface across
+repo, or to `?next=<path>` when that is a path on this site (a module's
+OIDC sign-in uses it, so Forgejo already knows the user). No Forgejo reverse-proxy-auth config, no header-trust surface across
 the internal network (which would have been a real problem here — students
 have shell access on `web-terminal`, the same internal network Forgejo
 sits on, so trusting any header-based identity from that network would let

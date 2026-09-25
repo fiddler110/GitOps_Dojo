@@ -202,6 +202,16 @@ def control_request(method, path):
         return None
 
 
+def local_path(value):
+    """`value` if it is a path on this site (for /forgejo-login?next=), else
+    None: one leading '/', no backslash (browsers read "/\\host" as
+    "//host"), printable ASCII only."""
+    if (value.startswith("/") and not value.startswith("//") and "\\" not in value
+            and all("!" <= c <= "~" for c in value)):
+        return value
+    return None
+
+
 def forgejo_login_request(username, password):
     """POST straight to Forgejo's own login form over the internal network
     and return the raw Set-Cookie header values from its response, in
@@ -1178,8 +1188,11 @@ setInterval(refresh, 5000);
             else:
                 forgejo_user, forgejo_password = sid, STUDENT_PASSWORD
             cookies = forgejo_login_request(forgejo_user, forgejo_password)
+            # ?next=<path>: signed in to Forgejo, go on to another page on
+            # this site (a module's OIDC sign-in, say). Anything else: the repo.
+            nxt = urllib.parse.parse_qs(parsed.query).get("next", [""])[0]
             self.send_response(303)
-            self.send_header("Location", f"/git/{FORGEJO_ORG}/{FORGEJO_REPO}")
+            self.send_header("Location", local_path(nxt) or f"/git/{FORGEJO_ORG}/{FORGEJO_REPO}")
             for cookie in cookies:
                 self.send_header("Set-Cookie", cookie)
             self.send_header("Content-Length", "0")
