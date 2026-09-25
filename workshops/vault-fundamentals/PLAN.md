@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0, P1 and P2 done (2026-09-25). P3 next, after the user's go. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0-P2 done; P3 built, its live pass (T3.9) waits for the user (2026-09-25). Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-25 (T1.2 done) |
+| Last updated | 2026-09-25 (P3 built) |
 
 ---
 
@@ -39,6 +39,16 @@
 
 ### Where we stopped (2026-09-25): start here next
 
+- **P3 is built, not yet run live** (the user said go; another session had the machine, so no stack was started).
+  ee6e59b is the `runner-pool` module, 5be3d6e labs 7-8 and their wiring. Checked without a stack: the controller's
+  unit tests (24, `modules/runner-pool/tests/test_controller.py`), the pool image built under a scratch tag with
+  `JOB_TOOLS="bao sops"`, and the supervisor run on its own with fake runners (start, idle, busy + repo, stop refused
+  while busy, failed start reported, users and `/tmp` files removed, uid 20000+, PID namespace shows 3-4 processes,
+  prlimit applied, no zombies with `tini`, leftovers cleaned after a restart); `--dry-run` and the merged compose
+  config are clean; the lab workflows parse. **Next: T3.9 with the user** (the list is in the task): first real
+  start, `pool.sh`, `labs_7_8.sh`, the panel and labs 7-8 in a browser, slides. Things only the live run can
+  answer: whether Forgejo runs Actions in a **fork** without the student turning the unit on, the exact
+  job-log/`jq` output, the real memory of lab jobs, and whether `hashicorp/vault-action@v3`'s slide fits 16:9.
 - **P0 is done** (results in §10). **P1 is in progress** (the user said go and answered Q4/Q5 as S31/S32).
 - **Done in P1:** T1.1 (`modules/openbao/`, OpenBao 2.7.0), T1.2 (`openbao-setup`, 33e1d36) and T1.3 (SSO,
   ca89792 + 82ff676): the vault comes up initialised and unsealed, root revoked, SSO through Forgejo set up, and
@@ -719,7 +729,49 @@ class vault; nothing is pushed (Forgejo repos per student come with P3's pipelin
       labs 4-6 in a real browser; slides within 16:9 (screenshot).
       *Verify:* `tests/labs_4_6.sh` passes locally; `tenancy.sh` and `cli_login.sh` still pass.
 
-Later phases get their own task block (IDs `T3.x` … `T5.x`) when they start.
+### P3 — Pipelines (the `runner-pool` module, labs 7-8; the user said go 2026-09-25)
+
+Built without a stack (another session had the machine); the live pass (T3.9) runs with the user at the end.
+
+**Design, fixed here (§6):** two containers and a spool volume. `runner-pool` (unprivileged, `runner_net` only) runs
+a **supervisor** with no network listener: it starts one `forgejo-runner one-job` per config file the controller
+drops in `/spool/start/`, each as its own Linux user in its own user + PID namespace (T0.8), and writes what it sees
+(starting, idle, busy + repo, done, failed) to `/spool/state.json`. `runner-controller` (on `workshop_lab`, holds
+the Forgejo admin login, never on `runner_net`) registers ephemeral runners through the API, runs the scaling loop,
+removes dead registrations and serves the Runners panel from a cached snapshot. Jobs get the terminal's own `bao`
+and `sops`: the pool image copies the tools a workshop names (`JOB_TOOLS`) out of the terminal image `run.sh` has
+just built, so there is one pin per tool. Jobs run `runs-on: host`. Students fork `platform-team/vault-fundamentals`
+(as in tofu-basics) and push workflows to their fork; the CI role binds `repository=<you>/vault-fundamentals`.
+
+- [~] **T3.1** *(ee6e59b; built, live check in T3.9)* `modules/runner-pool/` skeleton: `compose.yml` (Actions on, `runner_net`, `runner-pool`,
+      `runner-controller`, the ID-token shim from `spike/shim`), `pool/Dockerfile`, `module.env` (`RUNNER_MIN_IDLE`,
+      `RUNNER_MAX`, caps), `extensions.json` (Runners tab, `/runners` route, facilitator gate), `README.md`. The
+      workshop lists `MODULES="openbao runner-pool"` and its overlay puts `openbao` on `runner_net` and sets
+      `JOB_TOOLS`. `spike/` goes (`pool/`, `shim/`, `t06`-`t08`).
+- [~] **T3.2** *(ee6e59b; built, live check in T3.9)* Pool supervisor (`pool/supervise.py`): spool protocol, a user + PID namespace per runner, `prlimit`
+      caps, clean-up after each job (kill, `userdel -r`, one at a time), the shim's CA trusted on an `https://` name.
+- [~] **T3.3** *(ee6e59b; built, live check in T3.9)* Controller (`controller/controller.py`): Forgejo API client, Auto (warm idle + one runner per waiting
+      job, up to max; idle above the minimum removed after 2 min; never a busy one) and Manual, dead-runner clean-up,
+      red lights (failed start, offline, stuck). Unit tests against a fake Forgejo and spool (no stack needed).
+- [~] **T3.4** *(ee6e59b; built, live check in T3.9)* The Runners panel: page, JS and CSS served by the controller (strict CSP, `textContent` only), a light
+      per runner, − / +, Auto / Manual, jobs waiting, min / max. `X-Gateway-Token` + facilitator only; POSTs need
+      `X-Requested-With: dojo-runners` (the allocator's CSRF pattern).
+- [~] **T3.5** *(5be3d6e; built, live check in T3.9)* Workshop wiring: setup hook `20-ci.sh` (S19: `auth/jwt-ci` in each namespace, pointed at Forgejo's
+      Actions keys and issuer; the student writes the role and policy).
+- [~] **T3.6** *(5be3d6e; built, live check in T3.9)* Lab 7, "Forgejo Actions secrets": fork and clone, a repository secret, masking and how `base64`
+      gets round it, anyone who can push a workflow can read the secret, fork PRs vs `pull_request_target`, the
+      single-use runner seen from inside a job.
+- [~] **T3.7** *(5be3d6e; built, live check in T3.9)* Lab 8, "CI logs in to OpenBao": AppRole first (the login secret sits in Forgejo: secret zero), then
+      the job's own OIDC token bound to `<you>/vault-fundamentals` on `main`; a branch is refused; remove the AppRole
+      secrets. `curl` + `bao`, no `uses:` (S20).
+- [~] **T3.8** *(5be3d6e; built, live check in T3.9)* Slides and lab pages: presentation Part 5 (pipelines), the "at work" action slide (S20), `labs.md`,
+      `lab-index.md`, cheat sheet, lab README table; module README, `workshops/README.md`, root README, `CLAUDE.md`.
+- [ ] **T3.9** *(scripts written in ee6e59b, 5be3d6e; not yet run)* Tests and the live pass (with the user): `modules/runner-pool/tests/pool.sh` (isolation of two
+      concurrent jobs, clean-up, scale-up under a burst, Manual, panel auth and CSRF), `tests/labs_7_8.sh`, memory of
+      real lab jobs (§6.3), `--dry-run` clean, `./run.sh stop` leaves nothing; labs 7-8 in a real browser; slides
+      within 16:9.
+
+Later phases get their own task block (IDs `T4.x` … `T5.x`) when they start.
 
 ## 12. Open questions for the user
 
@@ -846,6 +898,16 @@ Surprises, gotchas and problems found in other workshops while working on this o
   text; use `pkill -f "[b]ao agent"` in scripts (T2.6). Typed at a prompt it's fine.
 - **Only `STUDENT_COUNT` accounts exist** (3 locally): tests default to student03, and a walk-through as a fresh
   student needs one that hasn't done labs 3-6 yet.
+- **podman-compose appends `build.args` across files** (T3.1), as it does lists: a module's `JOB_TOOLS: ""` and the
+  overlay's `JOB_TOOLS: "bao sops"` both reached the build. The module leaves the arg to the Dockerfile's default.
+- **`RUN --mount=type=bind,from=<stage>` works in podman 5.7 / buildah 1.42** (T3.1): the pool copies `bao` and
+  `sops` from the terminal image without a second pin. Both are static, so they run on the Alpine runner image.
+- **The runner image's `/data` belongs to uid 1000, and `useradd` hands out 1000 first** (T3.2): the first runner
+  user owned a volume every runner shares. The supervisor gives `/data` to root and makes runner users from uid 20000.
+- **A Python PID 1 leaves zombies** when a killed runner's processes are re-parented to it (T3.2): the pool runs
+  under `tini`.
+- **Other sessions share this working tree**: a file staged with `git rm` was swept into another session's commit
+  (1657cf6 carries the spike deletions of T3.1). Stage right before committing.
 
 ## 15. SESSION LOG (append-only, newest at the bottom)
 
@@ -1098,6 +1160,22 @@ Surprises, gotchas and problems found in other workshops while working on this o
   1280×720); lab reader renders labs 4-6 (lab 6's reader 404s prefetching `lab7.md.txt` until P3 writes it).
 - While the stack started, `workshop_cloud_api`/`workshop_cloud_host` (tofu-basics' `dojo-cloud`) were running too,
   started a few minutes earlier than the vault stack, not by this session. Left alone; told the user.
+
+### 2026-09-25 — P3 built (not yet run live)
+
+- The user said go for P3, with the build done now and the live run at the end (another session had the lab stack).
+  Task block written (T3.1-T3.9), with the design fixed there: pool + controller + spool volume, `JOB_TOOLS` from the
+  terminal image, forks for per-student repos.
+- **ee6e59b, `modules/runner-pool/`:** `pool/supervise.py` (spool protocol, user + PID namespace, prlimit, clean-up,
+  the shim's CA on `https://`), `controller/controller.py` (Forgejo API, Auto/Manual, dead-registration clean-up,
+  lights, a start-failure pause, HTTP with token + facilitator + CSRF header), the panel, the ID-token shim,
+  `module.env`, `extensions.json`, README, `tests/test_controller.py` (24 pass), `tests/pool.sh` (unrun).
+- **5be3d6e, the workshop:** `MODULES="openbao runner-pool"`; `openbao` on `runner_net`; `JOB_TOOLS="bao sops"`;
+  hook `20-ci.sh` (`auth/jwt-ci` in each namespace, S19); labs 7-8; presentation Part 5 (5 slides, one more Azure
+  row), `labs.md`, `lab-index.md`, cheat sheet, lab README, seed repo README; module tables in the READMEs;
+  `tests/labs_7_8.sh` (unrun; it takes the workflows from `lab8.md` itself).
+- Checked without a stack: see §0. Found and fixed on the way: duplicate build args, uid 1000 and `/data`, zombies
+  (§14). The spike's `pool/`, `shim/`, `t06`-`t08` are gone (in 1657cf6, §14); `t09-sops.sh` stays.
 
 ## Appendix: considered, not chosen
 
