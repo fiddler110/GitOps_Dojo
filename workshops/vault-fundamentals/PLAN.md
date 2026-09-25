@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11 done; next T0.5 → T0.9 → T0.10. `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11 and T0.5 done; next T0.9 → T0.10. `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-24 (plan adapted to the module approach: S26-S30, §8.1, §11 P1 draft) |
 
@@ -49,9 +49,8 @@
   resuming means a fresh init (steps below).
 - **`feat/workshop-modules` is merged in** (S25): PR #2 landed on `main`, merged here in 8c71f83 (2026-09-24);
   `main` has nothing newer. The plan was adapted to it on 2026-09-24 (S26-S30, §8.1, the P1 draft in §11).
-- **Next:** **T0.5** (UI SSO: routes from a spike `extensions.json`, S26; issuer shim
-  from `spike/shim/Caddyfile` in OpenBao's network namespace, as `t06-ci-oidc.sh` does for the runner; the real
-  HTTPS path through `--env home`, S30), then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user
+- **T0.5 done** (laptop and `--env home` HTTPS): `spike/t05-sso.sh` sets it up, `spike/t05-sso-browser.py` checks it.
+- **Next:** **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user
   before starting P1**).
 - After a fresh init, re-apply the UI's framing header (T0.4, §5.4) before testing `/admin` framing.
 - **Restarting the spike stack.** The spike vault's unseal key and root token were kept in the session scratchpad,
@@ -267,6 +266,15 @@ The unseal key sits on a setup-only volume. Say openly that this is a lab shortc
   `sys/config/ui/headers/Content-Security-Policy` to the same policy with `frame-ancestors 'self'`. With that, the UI
   renders and signs in inside a same-origin iframe (real Chromium). The UI keeps its token in memory, not
   `localStorage`, so every tab or frame signs in separately: SSO (T0.5) makes that one click.
+- **Verified in T0.5 (2026-09-24), laptop and `--env home` HTTPS, real Chromium:** a student and the facilitator
+  (inside the `/admin` Vault tab) sign in with "OIDC Provider", approve in Forgejo's popup, and land on
+  `/ui/vault/secrets` in their own entity (alias = Forgejo login, `workshop-admin` for the facilitator) with that
+  entity's policy. Settings: `oidc_discovery_url=${PUBLIC_BASE_URL}/git` (Forgejo's issuer has **no** trailing
+  slash), `user_claim=preferred_username`, `oidc_scopes=openid,profile`, redirect
+  `${PUBLIC_BASE_URL}/ui/vault/auth/oidc/oidc/callback`; the Forgejo OAuth2 app is confidential and owned by
+  `FORGEJO_ADMIN_USER`. The shim is an overlay service (`network_mode: service:openbao`, root, its CA in a named
+  volume); OpenBao gets `extra_hosts: <public host>:127.0.0.1`, and on HTTPS `oidc_discovery_ca_pem` = the shim's
+  `/data/caddy/pki/authorities/local/root.crt`.
 
 ### 5.5 CI identity (lab 8)
 
@@ -598,7 +606,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       `gitopsdojo/web-terminal:vault-fundamentals` tag if `run.sh` would reuse it.
       *Verify:* `./run.sh vault-fundamentals --dry-run` is clean; after a start, `bao status` answers from a student
       terminal and the container is `healthy`.
-- [ ] **T0.5** (§10.3, §10.7) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
+- [x] **T0.5** *(2a2e21f, SHA_T05)* (§10.3, §10.7) Forgejo as the OIDC provider for the OpenBao UI login, including the redirect
       back to `/ui/...`, through the issuer shim (S23). Routes, card and `/admin` tab from a spike
       `workshops/vault-fundamentals/extensions.json` (S26, the draft in §8.1); no `engine/` edit. Test the laptop
       path for real, and the HTTPS path through `--env home` (S30) with the shim's CA.
@@ -685,6 +693,19 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **The UI's sign-in lands on `/ui/vault/secrets`**, not a dashboard, and doesn't share a session between tabs.
 - **No browser on this laptop**: the browser tests run in `mcr.microsoft.com/playwright/python:v1.55.0-noble`
   with `--network host`, serving the same-origin test page through a Playwright route (`spike/t04-*.py`).
+- **OIDC sign-in needs a Forgejo session first**: without one, the popup shows Forgejo's login page (the student
+  doesn't know that password). The test goes through `/forgejo-login` first. P1: point the Vault card and tab at
+  something that signs in to Forgejo first, or tell students to open Forgejo once (T1.3).
+- **The Vault UI fetches `auth_url` when the page loads**; a click before that does nothing (no popup). Tests wait.
+- **The `/admin` tab opens on the token method** (`/ui/` → `?with=token`). Use `src`/`href`
+  `/ui/vault/auth?with=oidc` in T1.1.
+- **Forgejo shows its "Authorize Application" page** on a user's first OIDC login; the test clicks it when shown.
+  Worth checking whether Forgejo 16 can skip it for our own app (T1.3).
+- **`engine/run.sh` with `MODULES` set re-reads `.env` but not `.env.<name>`** after the module defaults, so under
+  `--env home` `PUBLIC_BASE_URL` falls back to `.env`'s value for any workshop with modules. Not hit in T0.5 (no
+  modules yet); it will be in T1.1. Engine fix, raised with the user (2026-09-24).
+- **The shim can't use the gateway image's healthcheck** (Caddy's admin API, which the shim turns off); it checks
+  `${PUBLIC_BASE_URL}/git/api/healthz` through itself instead.
 - **The first write to a new KV v2 mount fails for a moment** ("Upgrading from non-versioned to versioned data").
   `openbao-setup` must retry or wait after `bao secrets enable kv-v2` before writing seed secrets.
 
@@ -814,6 +835,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
   restates the base HEALTHCHECK. `--dry-run` clean; `./run.sh vault-fundamentals` built the `:vault-fundamentals`
   link on `:base`, the terminal is `healthy`, and as `student01` `BAO_ADDR` is set and `bao`, `sops`, `gitleaks`
   answer. The stack is left running with OpenBao **not initialised** (T0.5 starts with `spike/init-bao.sh`).
+
+### 2026-09-24 — T0.5 (UI SSO through Forgejo)
+- Spike `extensions.json` (routes `/ui`, `/v1` on the `shared` gate, Vault card and `/admin` tab, status check)
+  and the SSO shim as an overlay service in OpenBao's network namespace. No engine edit.
+- `spike/t05-sso.sh`: framing header, Forgejo OAuth2 app, OIDC method + role, `student`/`facilitator` policies,
+  `students/<name>` namespaces, one entity per account. `spike/t05-sso-browser.py` (Playwright) passed on the
+  laptop (`http://localhost:8080`) and, after `./run.sh vault-fundamentals --env home` (no `stop`, then
+  `init-bao.sh` to unseal), on `https://dojo.macleodtech.ca` with the shim's CA. Entities checked by id:
+  student03/student01 → `student`, facilitator (`workshop-admin`) → `facilitator`. Findings in §5.4 and §14.
 
 ## Appendix: considered, not chosen
 
