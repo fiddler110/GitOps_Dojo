@@ -79,7 +79,9 @@ check "the connection is set up" "$out" "vault_$s"
 check "a note written with a dynamic login" "$out" "written with a login that expires"
 check "the author is the dynamic login" "$out" "| v-"
 check "another student's database is refused" "$out" 'permission denied for database'
-check "revoked: the login is gone" "$out" 'password authentication failed'
+# Postgres says either, depending on whether the revoke's DROP ROLE ran yet.
+case "$out" in *'password authentication failed'*|*'role "v-'*'" does not exist'*) echo "  ok:   revoked: the login is gone" ;;
+  *) echo "  FAIL: revoked: the login is gone"; failed=1 ;; esac
 log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 8)")"
 check "deployed with the database template" "$log" '"state": "running"'
 end=$(( $(date +%s) + 30 ))

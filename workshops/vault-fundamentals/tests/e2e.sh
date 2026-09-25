@@ -214,7 +214,12 @@ area cli_login  sh modules/openbao/tests/cli_login.sh
 area labs_4_6   sh "$T/labs_4_6.sh" "$student"
 area labs_7_8   sh "$T/labs_7_8.sh" "$student"
 area labs_9_11  sh "$T/labs_9_11.sh" "$student"
-area pool       sh modules/runner-pool/tests/pool.sh
+# pool.sh counts idle runners and scales by hand: with bots, their jobs take the runners and it fails.
+if [ "${bots:-0}" -gt 0 ] && wanted pool; then
+  echo "  SKIP  pool       (bots are using the runners; run it on a stack without --test)"
+else
+  area pool     sh modules/runner-pool/tests/pool.sh
+fi
 area audit      audit
 area bots       bots
 area browser    browser

@@ -22,6 +22,13 @@ vf_env() {
   unset BAO_NAMESPACE
   [ -f "$HOME/.netrc" ] || install -m 600 "$NETRC" "$HOME/.netrc"
   /usr/local/bin/openbao-login --quiet >/dev/null 2>&1 || return 1
+  # A bot starts at once, and can sign in before openbao-setup has bound its entity: that token has
+  # no `student` policy, and openbao-login keeps it while it is valid. Sign in again once setup is done.
+  if ! bao token lookup -format=json 2>/dev/null | grep -q '"student"'; then
+    rm -f "$HOME/.vault-token"
+    /usr/local/bin/openbao-login --quiet >/dev/null 2>&1 || return 1
+    bao token lookup -format=json 2>/dev/null | grep -q '"student"' || return 1
+  fi
   [ -s "$HOME/.vault-token" ]
 }
 
@@ -75,7 +82,10 @@ step_vf_reset() {
   git remote get-url upstream >/dev/null 2>&1 \
     || git remote add upstream "http://${GIT_SERVER}/${FORGEJO_ORG}/${FORGEJO_REPO}.git"
   run_cmd "git fetch -q upstream && git checkout -q -B main upstream/main && git clean -qfd"
-  run_cmd "git push -q -f origin main"
+  # -u so main tracks origin/main again: without it, a later step's bare "git push" (as the lab
+  # pages write it) still targets upstream/main from the checkout above and collides with every
+  # other bot pushing to the shared team repo, failing non-fast-forward (labs 7-9).
+  run_cmd "git push -q -f -u origin main"
   git push -q origin --delete try-a-branch >/dev/null 2>&1
   return 0
 }

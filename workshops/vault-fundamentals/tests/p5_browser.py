@@ -39,8 +39,9 @@ with sync_playwright() as p:
 
     print("== student: no way into the Audit tab")
     ctx = b.new_context(http_credentials={"username": gu, "password": gp}, base_url=U)
-    r = ctx.request.get("/vault-audit/api/entries")
-    check(r.status in (401, 403), f"a student gets {r.status} from /vault-audit/")
+    # The gateway sends someone without the facilitator's login back to the landing page (303).
+    r = ctx.request.get("/vault-audit/api/entries", max_redirects=0)
+    check(r.status in (303, 401, 403), f"a student gets {r.status} from /vault-audit/, not the entries")
     ctx.close()
 
     for width in (1400, 390):
@@ -79,7 +80,7 @@ with sync_playwright() as p:
                       f"clicking an accessor follows that token ({len(shown)} accessors shown)")
             check(fr.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"),
                   "no horizontal page scroll (the table scrolls inside its box)")
-            fr.locator("body").screenshot(path=f"/s/audit_{width}.png")
+            pg.screenshot(path=f"/s/audit_{width}.png")
         check(not errors, f"no console errors ({errors[:2]})")
         if width == 1400:
             pg.goto("/admin")
