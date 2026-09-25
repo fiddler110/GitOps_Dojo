@@ -47,4 +47,17 @@ while [ "${i}" -le "${STUDENT_COUNT}" ]; do
   i=$((i + 1))
 done
 
-echo "cert-autorenewal dns-seed: done (${STUDENT_COUNT} student records)"
+# The facilitator's own demo site (the /demo route sends them to
+# <facilitator>.<zone>, see ../../extensions.json).
+host="${FACILITATOR_USERNAME:-root}.${ZONE}"
+echo "cert-autorenewal dns-seed: A ${host} -> ${DEMO_APP_IP} (facilitator)"
+curl -sf -H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json" \
+  -X PATCH "${API_BASE}/zones/${ZONE}" \
+  -d "$(jq -n --arg name "${host}" --arg ip "${DEMO_APP_IP}" '{
+        rrsets: [{
+          name: $name, type: "A", ttl: 60, changetype: "REPLACE",
+          records: [{content: $ip, disabled: false}]
+        }]
+      }')" >/dev/null
+
+echo "cert-autorenewal dns-seed: done (${STUDENT_COUNT} student records + the facilitator's)"

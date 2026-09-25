@@ -8,11 +8,18 @@ by hand anywhere else.
 This is a trimmed-down teaching copy of a real pattern used in production —
 the only real gap is the DNS provider itself: a lab-only PowerDNS
 container here instead of a real one. Everything else is genuinely
-wired up, including CI: `.forgejo/workflows/dns-preview.yml` posts the
-`dnscontrol preview` diff as a PR comment automatically, and
-`dns-apply.yml` applies it on merge to `main` — you'll still run
-`dnscontrol preview`/`push` yourself too at points in the lab, to see the
-same mechanics CI is running on your behalf.
+wired up, including CI and the gates around it:
+
+- `.forgejo/workflows/dns-preview.yml` previews every pull request merged
+  into `main` and posts the `dnscontrol preview` diff as a PR comment and
+  a required **DNS Preview** check.
+- `main` is protected: no direct pushes, and a PR merges only with a
+  passing DNS Preview check and one approval from someone other than the
+  author.
+- `dns-apply.yml` applies `main` on every merge. It's the only thing
+  allowed to change `dojo.test`: a `dnscontrol push` from your own
+  terminal gets `403`. Run `dnscontrol preview` locally as often as you
+  like; it only reads.
 
 - [`docs/record-types.md`](docs/record-types.md) — syntax for each record
   type used below (A, CNAME, MX, TXT).

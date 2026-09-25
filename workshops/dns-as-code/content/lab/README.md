@@ -8,15 +8,24 @@ You are working in your own student account. Keep all lab work under this `~/lab
 
 ## What you'll do
 
-The session slides cover the *why*. This lab is the *how* — five short, self-contained labs. **Lab 1 is required** and covers the everyday DNS-as-code workflow end to end. Labs 2-5 are optional, go deeper on one topic each, and can be done in any order once Lab 1 is done.
+The session slides cover the *why*. This lab is the *how*, in two parts.
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | ---------- |
-| [lab1.md](lab1.md) | The core workflow: preview → branch → edit → PR → CI → merge → verify | ~20 min | **Yes — start here** |
-| [lab2.md](lab2.md) | Editing and removing records, and catching mistakes before you commit | ~12 min | Optional |
-| [lab3.md](lab3.md) | `dnsctl.py` — the same workflow, one command per step | ~15 min | Optional |
-| [lab4.md](lab4.md) | Investigating history and safely rolling back a merged change | ~10 min | Optional |
-| [lab5.md](lab5.md) | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
+**Part 1: your own zone.** Every student has a zone of their own, `<your-username>.dojo.test` (yours is `studentXX.dojo.test`), in `~/lab/my-zone`. Nobody else's config touches it, so you can add, break, fix and delete records freely, and apply them yourself with `dnscontrol push`. This is where you learn how DNS as code works.
+
+**Part 2: the shared zone, the company way.** `dojo.test` is the whole class's zone, standing in for a company's production DNS. Its config lives in the shared `dns-team/dns-as-code` repo, and **only CI can change it**: a `dnscontrol push` from your terminal is refused, and nobody can push to `main`. Every change goes through a branch, a pull request, an automatic preview, a review by someone else, and a merge, and then the pipeline applies it. This is where you learn the process around DNS as code.
+
+**Labs 1 and 3 are required.** The rest are optional deep dives; do them in any order once you've done the required lab in that part.
+
+| Part | Lab | Topic | Time | Required? |
+| ---- | --- | ----- | ---- | --------- |
+| 1: your zone | [lab1.md](lab1.md) | Preview, push, verify; add, edit and remove records; catch mistakes | ~20 min | **Yes, start here** |
+| 1: your zone | [lab2.md](lab2.md) | Drift: when someone changes DNS outside the code, and undoing your own changes | ~10 min | Optional |
+| 2: shared zone | [lab3.md](lab3.md) | The change process: branch, PR, CI preview, review, merge, CI apply | ~25 min | **Yes** |
+| 2: shared zone | [lab4.md](lab4.md) | `dnsctl.py`: the same process, one command per step | ~15 min | Optional |
+| 2: shared zone | [lab5.md](lab5.md) | Investigating history and rolling back a merged change | ~10 min | Optional |
+| 2: shared zone | [lab6.md](lab6.md) | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
+
+The **DNS Zones** page (a card on the workshop landing page) shows every zone and record PowerDNS is serving right now, and highlights what changed since you opened it. Keep it open in a tab and watch your changes land.
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab while you work — it's a condensed reference to every command used across all five labs, with a short explanation of how each one works.
 
@@ -57,28 +66,33 @@ glow <file.md>           # read Markdown in the terminal
 
 ## 2. What "DNS as Code" means here
 
-`dnsconfig.js` is the **source of truth** for the `dojo.test` zone. You never edit records by hand anywhere else — `dnscontrol` reads that file and reconciles the `dns-server` (PowerDNS) container to match it. That reconciliation is always a two-step move:
+A `dnsconfig.js` file is the **source of truth** for a zone. You never edit records by hand anywhere else: `dnscontrol` reads the file and makes the `dns-server` (PowerDNS) container match it. That is always a two-step move:
 
 | Step | Command | What it means |
 | ---- | ------- | -------------- |
-| Preview | `dnscontrol preview` | Dry-run diff between `dnsconfig.js` and live PowerDNS. Changes nothing — safe to run any time, as often as you like. |
+| Preview | `dnscontrol preview` | Dry-run diff between `dnsconfig.js` and live PowerDNS. Changes nothing, so it's safe to run any time, as often as you like. |
 | Push | `dnscontrol push` | Applies that diff for real. |
 
-Every change to `dnsconfig.js` goes through the same loop:
+Who runs `push` is the difference between the two parts:
+
+| | Part 1: your zone | Part 2: the shared zone |
+| --- | --- | --- |
+| Zone | `<your-username>.dojo.test` | `dojo.test` |
+| Config | `~/lab/my-zone/dnsconfig.js`, a local git repo | `dns-team/dns-as-code` on Forgejo, cloned to `~/lab/dns-as-code` |
+| Who runs `dnscontrol push` | You | Only CI, after a reviewed merge to `main` |
 
 ```text
-edit dnsconfig.js → preview (locally) → branch/commit/push → pull request
-   → CI posts the preview diff as a comment → merge → CI runs push for you → verify with dig
+Part 1:  edit → preview → push → dig
+Part 2:  edit → preview → branch/commit/push → pull request → CI preview comment
+            → review and approve → merge → CI runs push → dig
 ```
-
-Lab 1 walks through this loop once, end to end, by hand. Once it clicks, Labs 2-5 go deeper on specific pieces of it — editing/removing records safely, automating the loop with `dnsctl.py`, investigating and rolling back history, and resolving a conflict when two changes collide.
 
 ---
 
 ## Getting unstuck
 
 - `dnscontrol preview` is your best friend here, the same way `git status` was in Git Fundamentals — it always tells you exactly what would change before anything actually does.
-- Nothing in these labs can break the shared zone for good — every change goes through a pull request the facilitator (or CI) reviews before it's live, and any merged change can be rolled back (Lab 4).
+- You can't break anyone else's work. Part 1 only touches your own zone, and in Part 2 every change to the shared zone is previewed, reviewed and applied by CI, and any merged change can be rolled back (Lab 5).
 - If `dnscontrol preview` errors instead of showing a diff, read the message carefully — it's usually specific (e.g. a missing trailing dot on a `CNAME`/`MX` target).
 - Stuck for more than a minute or two? Ask the facilitator — that's what they're walking the room for.
 
@@ -86,7 +100,7 @@ Lab 1 walks through this loop once, end to end, by hand. Once it clicks, Labs 2-
 
 ```sh
 dnscontrol preview          # what would change? (safe, no side effects)
-dnscontrol push              # apply it
+dnscontrol push              # apply it (Part 1, your zone only)
 dig @dns-server <name> A +short   # confirm a record is actually live
 git status                   # what's changed locally?
 git add / commit / push      # same as Git Fundamentals

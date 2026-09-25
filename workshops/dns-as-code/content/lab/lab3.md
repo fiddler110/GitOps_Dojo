@@ -1,102 +1,181 @@
-# Lab 3 — `dnsctl.py`, the CLI Wrapper
+# Lab 3 — The Change Process on a Shared Zone
 
-**Optional.** Labs 1 and 2 did every step by hand: edit the file, run `dnscontrol preview` yourself, `git add`/`commit`/`push` yourself, open the PR in the browser yourself. `scripts/dnsctl.py` is the real production wrapper script that automates that whole loop into one command per step — same file, same guarantee, same PR review and CI in between. See `docs/dnsctl-cli.md` in the repo for the full command reference and why some of its output still says "Cloudflare."
+**Required. Part 2.** `dojo.test` is the whole class's zone, standing in for your company's production DNS. Here you can't just push. By the end of this lab you'll have taken one change through the full process: branch, pull request, CI preview, a review by someone else, merge, and CI applying it. On the way, you'll see the two gates that make that process the only way in.
 
-Start from `main` with a clean working tree:
+| Rule | Enforced by |
+| --- | --- |
+| Only CI changes `dojo.test` | The lab's PowerDNS API refuses changes to `dojo.test` from anywhere but the CI runner. |
+| `main` only changes through a reviewed pull request | Branch protection on `main`: no direct pushes; the **DNS Preview** check must pass and one person other than the author must approve. |
+
+---
+
+## 1. Clone the shared repo
+
+```sh
+cd ~/lab
+git clone http://git-server:3000/dns-team/dns-as-code.git
+cd dns-as-code
+batcat dnsconfig.js
+```
+
+Same layout as your own zone, but this `dnsconfig.js` declares `dojo.test` and lives on Forgejo, where the whole class works on it. The `.forgejo/workflows/` folder holds the two CI jobs: **DNS Preview** runs on every pull request, **DNS Apply** runs on every merge to `main`.
+
+---
+
+## 2. Preview
+
+```sh
+dnscontrol preview
+```
+
+**0 corrections.** Unlike your own zone in Lab 1, `dojo.test` is already live: the DNS Apply job applied `main` when the repo was created, and again after every merge since. Production is never empty.
+
+---
+
+## 3. Try to go around the process
+
+Change the `mail` address in `dnsconfig.js` from `203.0.113.20` to `203.0.113.99`, then:
+
+```sh
+dnscontrol preview   # ± MODIFY mail.dojo.test, as you'd expect
+dnscontrol push
+```
+
+The push fails with `403` and the message *dojo.test is the shared zone: only CI changes it*. Your terminal can read the shared zone but not change it, exactly like a company where only the pipeline holds the production credential.
+
+Now try the other shortcut, committing straight to `main`:
+
+```sh
+git commit -am "Quick fix to mail"
+git push
+```
+
+Git asks you to sign in to Forgejo (a prompt in the terminal, or a popup at the top of VS Code): use your student account name (`studentXX`) and your **Forgejo password**, both shown on your landing page. Git remembers it after that, so later pushes don't ask again.
+
+Forgejo rejects it: `main` is a protected branch. Put everything back the way it was:
+
+```sh
+git reset --hard origin/main
+dnscontrol preview   # 0 corrections
+```
+
+---
+
+## 4. Make a change the proper way
+
+Create a branch:
+
+```sh
+git checkout -b add-$USER-app
+```
+
+Add a record for an app of yours. Use your username in the name, so it can't clash with anyone else's: add this line near the other `A` records, with your username (`studentXX`) in it:
+
+```js
+	A("studentXX-app", "203.0.113.30"),
+```
+
+Or let Python add it with your real username:
+
+```sh
+python3 -c '
+import os
+p = "dnsconfig.js"
+s = open(p).read()
+s = s.replace("\tA(\"mail\"", "\tA(\"%s-app\", \"203.0.113.30\"),\n\tA(\"mail\"" % os.environ["USER"], 1)
+open(p, "w").write(s)
+'
+```
+
+Preview it. The diff must show your one new record and nothing else:
+
+```sh
+dnscontrol preview
+git diff
+```
+
+Commit and push the **branch**. Branches aren't protected, only `main`:
+
+```sh
+git add dnsconfig.js
+git commit -m "Add $USER-app.dojo.test"
+git push -u origin add-$USER-app
+```
+
+---
+
+## 5. Open a pull request
+
+On the workshop landing page, click **Open Forgejo** (it opens signed in as you). Forgejo offers to open a pull request for the branch you just pushed; open one into `main`. **Write down your PR number**; Lab 5 uses it.
+
+Within a few seconds CI runs the **DNS Preview** job:
+
+- It posts a comment with the `dnscontrol preview` output. CI previews your branch **merged into the current `main`**, so the comment shows exactly what merging would do, even if classmates merged after you branched.
+- It sets the **DNS Preview** check on the PR. The merge button stays blocked until it passes.
+
+---
+
+## 6. Review someone else's change
+
+The merge button is still blocked: `main` needs one approval, and you can't approve your own pull request. Pair up with a neighbour, or ask the facilitator, and review each other's:
+
+1. In Forgejo, open their pull request from the repo's **Pull requests** tab.
+2. Read **Files changed**: one new line, with their name on it?
+3. Read the **DNS Preview** comment: exactly one `+ CREATE`, for their record? A preview showing a `DELETE` or `MODIFY` of someone else's record is a reason to ask questions, not to approve.
+4. If it's right: **Review** (or **Finish review**) → **Approve**.
+
+That's the real point of code review for DNS: a second person reads the diff *and* the preview before anything reaches production.
+
+---
+
+## 7. Merge, and let CI apply it
+
+Once your PR has a green DNS Preview check and an approval, click **Merge** (Create merge commit).
+
+The merge to `main` starts the **DNS Apply** job, which runs `dnscontrol push` from the CI runner, the one place allowed to change `dojo.test`. Watch it in the repo's **Actions** tab, then check:
+
+```sh
+dig @dns-server $USER-app.dojo.test A +short
+```
+
+The DNS Zones tab highlights your record in `dojo.test`. Bring your clone up to date and confirm there's nothing left to apply:
 
 ```sh
 git checkout main
 git pull
-git status   # should be clean — finish or discard anything from Lab 2 first
+dnscontrol preview   # 0 corrections: CI already applied it
 ```
 
 ---
 
-## 1. Check your setup
+## If your pull request has conflicts
+
+With the whole class adding lines next to `A("mail", ...)`, a classmate's merge may land on the same lines as yours. Forgejo then says the branch has conflicts, and the DNS Preview comment says there's nothing to preview yet. Bring `main` into your branch and fix it:
 
 ```sh
-python3 scripts/dnsctl.py doctor
+git checkout add-$USER-app
+git pull origin main
 ```
 
-`doctor` checks that `dnscontrol` is on `PATH`, that `.env`/`creds.json` are set up, and that git hooks are enabled. This is the first thing to run in any DNS-as-code repo, including a real one.
-
-It'll flag a missing `.env` — fix it:
+Git stops with a conflict in `dnsconfig.js`. Open it, keep **both** records (theirs and yours), and delete the `<<<<<<<`, `=======` and `>>>>>>>` lines. Then:
 
 ```sh
-python3 scripts/dnsctl.py setup
-python3 scripts/dnsctl.py doctor   # should be clean now
+dnscontrol preview   # must still show only your record as a CREATE
+git add dnsconfig.js
+git commit --no-edit
+git push
 ```
 
-`setup` creates `.env` from `.env.example` and enables `.githooks` (the same `pre-commit`/`pre-push` hooks you can read about in `.githooks/` — a lint check before every commit, and a `dnscontrol preview` check before anything pushes to `main` locally).
+CI previews the PR again. Lab 6 covers conflicts in more depth.
 
 ---
 
-## 2. Add a record with the wizard
+## Checkpoint
 
-Use a different name than your Lab 1/2 record, e.g. `yourname2`:
+Before moving on, be ready to show or say:
 
-```sh
-python3 scripts/dnsctl.py record add yourname2.dojo.test
-```
+- Your PR, its DNS Preview comment and its approval.
+- The `dig` output proving your record is live in `dojo.test`.
+- What stopped `dnscontrol push` and `git push` to `main` from your terminal, and why a company wants both gates.
 
-It'll ask for a record type and value, then a `Proxy through Cloudflare (orange cloud)?` question for `A`/`CNAME` records — **answer `n`**. That prompt is real, unmodified production-script code; it's Cloudflare-specific and meaningless against this lab's PowerDNS backend. `docs/dnsctl-cli.md` explains why it's left in rather than patched out.
-
-After you confirm, it'll offer to preview and submit right there — say no for now, you'll do those as separate steps next so you can see each one.
-
----
-
-## 3. Preview and submit
-
-```sh
-python3 scripts/dnsctl.py preview
-```
-
-Same `dnscontrol preview` you've been running by hand — confirm the diff shows only your new record.
-
-```sh
-python3 scripts/dnsctl.py submit "Add A record for yourname2"
-```
-
-`submit` previews once more, commits, pushes a branch (creating one automatically since you started on `main`), and opens the PR for you — four manual steps from Lab 1 in one command. The first time it needs to talk to Forgejo, it'll prompt for your Forgejo username/password (same as your `git push` login) and cache it for the rest of this terminal session.
-
----
-
-## 4. Check status and review
-
-```sh
-python3 scripts/dnsctl.py status                 # your open PR + check status
-python3 scripts/dnsctl.py review <PR#>            # the diff, from the terminal
-```
-
-`status`/`review` should show a "DNS Preview" check — CI already ran `dnscontrol preview` on your PR and posted its own comment, exactly like Labs 1 and 2. If the check genuinely isn't showing up yet, it's a real background job, not instant — give it a few seconds and re-run `status`.
-
----
-
-## 5. Merge and validate
-
-Once the check is passing:
-
-```sh
-python3 scripts/dnsctl.py merge <PR#>
-python3 scripts/dnsctl.py validate <PR#>
-dig @dns-server yourname2.dojo.test A +short
-```
-
-`validate` waits for CI's "DNS Apply" run to finish and then confirms live state matches `dnsconfig.js` — you don't run `dnscontrol push` yourself at all on this track; CI does it on merge, same as a real production repo. (`merge --force` skips waiting on the check if you'd rather not wait for it.)
-
----
-
-## Recap
-
-You just did everything Labs 1-2 did by hand, in a handful of named commands instead of a dozen raw ones — same file, same PR review, same CI in between:
-
-| Manual step | `dnsctl.py` equivalent |
-| --- | --- |
-| Edit `dnsconfig.js` | `record add` / `record edit` / `record remove` |
-| `dnscontrol preview` | `preview` |
-| `git add`/`commit`/`push` + open PR | `submit "<message>"` |
-| Check the PR / CI comment | `status`, `review <PR#>` |
-| Merge in Forgejo | `merge <PR#>` |
-| Confirm it's live | `validate <PR#>` |
-
-**Next:** [lab4.md](lab4.md) — using `dnsctl.py history` and `rollback` to investigate and safely undo a merged change (your Lab 1 PR is a good target).
+**Next:** the rest of Part 2 is optional: [lab4.md](lab4.md) (`dnsctl.py`), [lab5.md](lab5.md) (history and rollback) and [lab6.md](lab6.md) (merge conflicts).

@@ -69,9 +69,10 @@ in the browser.
   student can reach checks a gateway token before trusting who the caller is.
   See [Security boundaries](#security-boundaries).
 - **Workshops are plug-ins.** A workshop is a folder under `workshops/`: a
-  `workshop.env`, its content and, only if it needs one, a Compose overlay that
-  adds services or a different terminal image. The engine is never edited to
-  add a workshop. See [`workshops/README.md`](workshops/README.md).
+  `workshop.env`, its content and, only if it needs them, reusable modules
+  (`MODULES="forgejo-runner"`), a Compose overlay, extra terminal tools and an
+  `extensions.json` that declares its landing cards, `/admin` tabs and routes.
+  The engine is never edited to add a workshop. See [`workshops/README.md`](workshops/README.md).
 - **Demo bots.** `--test [N]` adds up to 35 simulated students (expert,
   intermediate and novice personas) who work through the labs for real, pushing
   branches and opening pull requests. Use them to rehearse solo, demo the
@@ -125,14 +126,18 @@ automation instead of being made by hand.
 ├── run.sh                    # Forwards to engine/run.sh
 ├── engine/                   # The shared runtime: gateway, allocator, web-terminal, Forgejo, slides
 │   ├── README.md             # Setup, routing, auth, facilitator operations, troubleshooting
+│   ├── MODULES-PLAN.md       # Design and history of extensions and modules
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
+├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
+│   ├── forgejo-runner/       # Forgejo Actions runner (dns-as-code)
+│   └── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
-│   ├── dns-as-code/          # + PowerDNS, Forgejo Actions runner
+│   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   ├── tofu-basics/          # + Dojo Cloud (cloud-api, cloud-host); PLAN.md, FACILITATOR.md, tests/
+│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, tests/
 │   └── vault-fundamentals/   # In progress (OpenBao); PLAN.md only so far
 ├── handouts/                 # Take-home versions of the labs
 └── assets/branding/          # Shared branding
@@ -144,13 +149,14 @@ graph LR
     Facilitator(["Facilitator"]) -->|"./run.sh WORKSHOP"| Gateway
     Gateway -->|"mounts WORKSHOP_CONTENT_DIR"| Content["workshops/NAME/content/<br/>slides, lab, sample-repo"]
     Gateway -.->|"optional overlay"| Extra["workshops/NAME/compose/<br/>extra services, custom terminal image"]
+    Gateway -.->|"MODULES=..."| Mods["modules/NAME/<br/>shared services, tools, routes"]
     Facilitator -->|"edits, no engine changes"| Content
 
     classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
     classDef content fill:#ec48992e,stroke:#ec4899,stroke-width:2px
     classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
     classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
-    class Extra addon
+    class Extra,Mods addon
     class Content content
     class Gateway gw
     class Student,Facilitator person
@@ -267,12 +273,12 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 
 ### Summary: what each workshop adds
 
-| Workshop | Extra services | Extra networks | Terminal image adds | Data leaves the terminal to |
-| -------- | -------------- | -------------- | ------------------- | --------------------------- |
-| `git-fundamentals` | none | none | nothing (base image) | Forgejo only |
-| `dns-as-code` | `dns-server`, `runner-setup`, `forgejo-runner` | `runner_net` | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
-| `cert-autorenewal` | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
-| `tofu-basics` | `cloud-api`, `cloud-host` | `cloud_net` | `tofu` (also `terraform`), offline provider mirror, credential broker | `cloud-api` (Track B) |
+| Workshop | Modules | Extra services | Extra networks | Terminal image adds | Data leaves the terminal to |
+| -------- | ------- | -------------- | -------------- | ------------------- | --------------------------- |
+| `git-fundamentals` | — | none | none | nothing (base image) | Forgejo only |
+| `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
+| `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
+| `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -593,9 +599,9 @@ graph TB
 
 The gateway routes `/cloud` to `cloud-api`'s `:8080` listener: the Dojo
 Portal at `/cloud/` and each deployed site at `/cloud/site/<label>/`. The
-route and the landing-page card only exist when the workshop sets
-`CLOUD_ENABLED`, and the facilitator gets a matching **Dojo Cloud** tab in
-`/admin`. `cloud_data` mirrors control-plane state to disk so a
+route, the landing-page card and the facilitator's matching **Dojo Cloud**
+tab in `/admin` come from the `dojo-cloud` module's `extensions.json`, so
+they exist only in a workshop that lists the module. `cloud_data` mirrors control-plane state to disk so a
 `cloud-api` restart doesn't forget what was deployed; `./run.sh stop` still
 wipes it.
 

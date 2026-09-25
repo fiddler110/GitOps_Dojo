@@ -219,14 +219,14 @@ COPY workspace-control.py /usr/local/bin/workspace-control.py
 COPY healthcheck.sh /usr/local/bin/web-terminal-healthcheck
 RUN chmod +x /usr/local/bin/web-terminal-entrypoint /usr/local/bin/web-terminal-healthcheck
 
-# Authored shell config for the facilitator/student accounts. Kept as real,
-# editable files here (not inline heredocs in entrypoint.sh) so shell
+# Authored shell config shared by the facilitator/student accounts. Kept as
+# a real, editable file here (not inline heredocs in entrypoint.sh) so shell
 # customisation (aliases, tool init, etc.) is a one-file edit + rebuild.
-# entrypoint.sh symlinks each account's ~/.zshrc to these on every
+# entrypoint.sh symlinks each account's ~/.zshrc to it on every
 # container start, so edits always take effect on next restart, and
 # students can't overwrite this root-owned copy from their own shell.
-COPY zshrc.facilitator zshrc.student tmux-terminal.sh /opt/dojo-shell/
-RUN chmod 644 /opt/dojo-shell/zshrc.facilitator /opt/dojo-shell/zshrc.student \
+COPY zshrc tmux-terminal.sh /opt/dojo-shell/
+RUN chmod 644 /opt/dojo-shell/zshrc \
     && chmod 755 /opt/dojo-shell/tmux-terminal.sh
 
 # Demo/test bots (--test, see run.sh and engine/README.md's "Demo bots"

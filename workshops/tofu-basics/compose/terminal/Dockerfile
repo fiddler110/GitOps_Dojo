@@ -4,7 +4,9 @@
 # Everything else (account provisioning, code-server/ttyd, shell helpers) is
 # inherited unchanged from the base image's entrypoint. Base image is Debian
 # (see engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-FROM gitopsdojo/web-terminal:base
+# engine/run.sh sets BASE to the image below this one in the chain (MODULES-PLAN.md §4.2).
+ARG BASE=gitopsdojo/web-terminal:base
+FROM ${BASE}
 
 ARG TOFU_VERSION=1.12.6
 # TARGETARCH is set automatically by BuildKit to match the build platform
@@ -84,18 +86,8 @@ RUN set -eux; \
     chown -R root:root /opt/code-server-extensions; \
     chmod -R a+rX /opt/code-server-extensions
 
-# Dojo Cloud client side: a root-owned credential broker (SO_PEERCRED tells it
-# which student is asking, so each gets only their own ARM_* values), the
-# `dojo-env` client, and a wrapper entrypoint that trusts the cloud's private CA
-# and starts the broker before handing off to the base entrypoint. Without a
-# running cloud-api all of this quietly does nothing (Track A still works).
-COPY dojo-broker.py /usr/local/bin/dojo-broker
-COPY dojo-env /usr/local/bin/dojo-env
-COPY entrypoint-wrapper.sh /usr/local/bin/terminal-entrypoint-wrapper
-RUN set -eux; \
-    chmod 0755 /usr/local/bin/dojo-broker /usr/local/bin/dojo-env /usr/local/bin/terminal-entrypoint-wrapper; \
-    printf '\n# tofu-basics: Dojo Cloud credentials for this user (from the broker)\nif [ -z "${ARM_CLIENT_ID:-}" ] && [ -x /usr/local/bin/dojo-env ]; then eval "$(/usr/local/bin/dojo-env 2>/dev/null)"; fi\n' >> /etc/zsh/zshenv
-ENTRYPOINT ["/usr/local/bin/terminal-entrypoint-wrapper"]
+# Dojo Cloud's client side (credential broker, dojo-env, CA trust) comes from
+# the dojo-cloud module's own link in the chain, below this one.
 
 # ENTRYPOINT is inherited from the base image (web-terminal-entrypoint) —
 # same account provisioning and workspace-control.py launch as every other

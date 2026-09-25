@@ -15,7 +15,6 @@ names are gh's, not Forgejo's, on purpose.
 
 from __future__ import annotations
 
-import getpass
 import json
 import os
 import subprocess
@@ -26,7 +25,6 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CRED_CACHE = Path.home() / ".cache" / "dnsctl" / "forgejo-credentials.json"
 
 
 class ForgejoError(Exception):
@@ -60,47 +58,68 @@ def parse_remote(url: str) -> tuple[str, str, str]:
     return f"{scheme}://{netloc}/api/v1", owner, repo
 
 
-def _load_cached_creds() -> dict | None:
-    if not CRED_CACHE.is_file():
-        return None
-    try:
-        return json.loads(CRED_CACHE.read_text())
-    except (json.JSONDecodeError, OSError):
-        return None
+def _git_credential(action: str, fields: dict) -> dict:
+    """Run `git credential <fill|approve|reject>` for this remote. `fill`
+    asks git's configured helper (this lab caches your login in memory after
+    the first `git push`) and, if it has nothing, prompts in the terminal
+    exactly as `git push` would."""
+    text = "".join(f"{k}={v}\n" for k, v in fields.items()) + "\n"
+    result = subprocess.run(
+        ["git", "credential", action], cwd=REPO_ROOT, input=text,
+        capture_output=(action == "fill"), text=True,
+    )
+    if action != "fill":
+        return {}
+    if result.returncode != 0:
+        raise ForgejoError("no Forgejo login given - run it again and enter your username and password")
+    out = {}
+    for line in result.stdout.splitlines():
+        key, sep, value = line.partition("=")
+        if sep:
+            out[key] = value
+    return out
 
 
-def _save_cached_creds(creds: dict) -> None:
-    CRED_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    CRED_CACHE.write_text(json.dumps(creds))
-    CRED_CACHE.chmod(0o600)
+# The login git handed us for this run, so a 401 can tell git to forget it
+# and a success can tell git to keep it (same as git push does).
+_git_login: dict | None = None
 
 
 def _auth_header() -> str:
-    """FORGEJO_TOKEN (env or .env) wins if set - the same "don't store a
-    long-lived credential on disk" preference as CLOUDFLARE_API_TOKEN_WRITE
-    in the real template. Otherwise prompt once per session for the same
-    username/password used for `git push` against this Forgejo, and cache
-    it (0600) so every dnsctl.py command after the first doesn't re-prompt."""
+    """FORGEJO_TOKEN (the shell or .env) wins if set. Otherwise use the same
+    Forgejo login as `git push` for this remote, via git's credential helper -
+    nothing is written to disk by dnsctl."""
+    global _git_login
     token = os.environ.get("FORGEJO_TOKEN")
     if token:
         return f"token {token}"
 
-    cached = _load_cached_creds()
-    if cached and cached.get("user") and cached.get("password"):
-        import base64
-
-        raw = f"{cached['user']}:{cached['password']}".encode()
-        return f"Basic {base64.b64encode(raw).decode()}"
-
-    print("Forgejo credentials needed for this operation (same as your git push login).")
-    user = input("Forgejo username: ").strip()
-    password = getpass.getpass("Forgejo password: ")
-    _save_cached_creds({"user": user, "password": password})
+    if _git_login is None:
+        url = subprocess.run(
+            ["git", "remote", "get-url", "origin"], cwd=REPO_ROOT, capture_output=True, text=True
+        ).stdout.strip()
+        parsed = urllib.parse.urlsplit(url)
+        fields = {"protocol": parsed.scheme or "http", "host": parsed.netloc.split("@")[-1]}
+        if parsed.username:
+            fields["username"] = parsed.username
+        _git_login = _git_credential("fill", fields)
 
     import base64
 
-    raw = f"{user}:{password}".encode()
+    raw = f"{_git_login.get('username', '')}:{_git_login.get('password', '')}".encode()
     return f"Basic {base64.b64encode(raw).decode()}"
+
+
+def _login_result(ok: bool) -> None:
+    global _git_login
+    if not _git_login or _git_login.get("_approved") or os.environ.get("FORGEJO_TOKEN"):
+        return
+    fields = {k: v for k, v in _git_login.items() if not k.startswith("_")}
+    _git_credential("approve" if ok else "reject", fields)
+    if ok:
+        _git_login["_approved"] = "1"
+    else:
+        _git_login = None
 
 
 def _request(method: str, url: str, body: dict | None = None, raw: bool = False):
@@ -114,9 +133,16 @@ def _request(method: str, url: str, body: dict | None = None, raw: bool = False)
             payload = resp.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")
+        if exc.code == 401:
+            _login_result(False)
+            raise ForgejoError(
+                "Forgejo rejected your login (401) - run it again and re-enter your "
+                "Forgejo username and password"
+            ) from exc
         raise ForgejoError(f"Forgejo API {method} {url} -> {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise ForgejoError(f"could not reach Forgejo at {url}: {exc.reason}") from exc
+    _login_result(True)
     if raw:
         return payload.decode(errors="replace")
     if not payload:
@@ -223,7 +249,7 @@ def run(args: list[str], capture: bool = True) -> subprocess.CompletedProcess:
                           {"event": "APPROVED", "body": body})
             except ForgejoError as exc:
                 msg = str(exc)
-                if "own pull request" in msg.lower() or "403" in msg:
+                if "your own pull" in msg.lower() or "403" in msg:
                     return _err("cannot approve your own pull request")
                 raise
             return _ok(f"Approved pull request #{index}")

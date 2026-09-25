@@ -5,7 +5,7 @@
 #
 # Enabled the same way as .githooks/pre-push (same core.hooksPath):
 #   git config core.hooksPath .githooks
-# `dnsctl doctor` checks this setting and offers to set it for you.
+# `dnsctl.py setup` sets it for you; `dnsctl.py doctor` checks it.
 
 set -euo pipefail
 
@@ -32,12 +32,12 @@ done
 # Heuristic, not a full secret scanner: flags a *_TOKEN/*_KEY/*_SECRET-style
 # name assigned a long opaque value. Scoped to variable-assignment context
 # (not "any long string") so it doesn't fire on the base64 _acme-challenge
-# TXT values already in dnsconfig.js, and requires the value not start with
-# `$` so creds.json's legitimate "$CLOUDFLARE_API_TOKEN" env-var reference
-# doesn't trip it either.
-secret_pattern='(CLOUDFLARE[A-Z_]*TOKEN|API[_-]?KEY|API[_-]?TOKEN|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|PASSWORD)[^=]*=[[:space:]]*"?[A-Za-z0-9][A-Za-z0-9_/+-]{19,}'
+# TXT values a zone may hold, and requires the value not start with `$` so
+# an env-var reference such as "$FORGEJO_TOKEN" doesn't trip it either.
+# .env.example is skipped: its placeholders are meant to be committed.
+secret_pattern='([A-Z_]*_TOKEN|API[_-]?KEY|API[_-]?TOKEN|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|PASSWORD)[^=]*=[[:space:]]*"?[A-Za-z0-9][A-Za-z0-9_/+-]{19,}'
 
-diff_added=$(git diff --cached -U0 -- . ':(exclude)*.lock' ':(exclude)*.md' | grep '^+' || true)
+diff_added=$(git diff --cached -U0 -- . ':(exclude)*.lock' ':(exclude)*.md' ':(exclude).env.example' | grep '^+' || true)
 
 if echo "$diff_added" | grep -iE "$secret_pattern" >/dev/null 2>&1; then
   echo "pre-commit: staged diff contains what looks like a real secret (a TOKEN/KEY/SECRET assigned a long value)." >&2

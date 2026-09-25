@@ -1,140 +1,81 @@
-# Lab 2 — Editing, Removing & Catching Mistakes Before You Commit
+# Lab 2 — Drift, and Undoing Your Own Changes
 
-**Optional.** Lab 1 only ever *added* a record. Real changes also edit and remove them — and this lab covers the single most common mistake in `dnsconfig.js`, and how to catch it before it ever reaches a commit.
-
-Do this from your `dns-as-code` clone, starting on `main` with your Lab 1 record already merged:
+**Optional. Part 1.** DNS as code only works if the file stays the source of truth. In real life someone eventually "just fixes it in the dashboard". This lab shows what `dnscontrol` does about that, and how to undo a change you've already pushed. Still in your own zone:
 
 ```sh
-git checkout main
-git pull
+cd ~/lab/my-zone
+dnscontrol preview   # start from 0 corrections; if not, finish Lab 1 first
 ```
 
 ---
 
-## Part A — Edit your own record
+## Part A — Someone changes the zone behind your back
 
-Open `dnsconfig.js` and change the IP on the `A` record you added in Lab 1:
+Play the colleague with a dashboard. This `curl` calls the PowerDNS API directly, the way a web dashboard would, and adds a `hotfix` record that isn't in `dnsconfig.js`:
 
-```js
-A("yourname", "203.0.113.31"),   // was .30
+```sh
+curl -s -X PATCH \
+  -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
+  "http://dns-api:8081/api/v1/servers/localhost/zones/$USER.dojo.test." \
+  -d '{"rrsets":[{"name":"hotfix.'"$USER"'.dojo.test.","type":"A","ttl":300,"changetype":"REPLACE","records":[{"content":"203.0.113.99","disabled":false}]}]}'
+dig @dns-server hotfix.$USER.dojo.test A +short
 ```
 
-Run a preview *before* touching git:
+The record is live, and the DNS Zones tab highlights it. Now ask `dnscontrol`:
 
 ```sh
 dnscontrol preview
 ```
 
-Look closely at the output. You'll see **two corrections**, not one — a `DELETE` for the old `203.0.113.30` value and a `CREATE` for the new `203.0.113.31` value. dnscontrol diffs by exact match; it has no concept of "modify a record in place," only "remove the old line, add the new one." That's expected every time you edit an existing record's value — not a sign something's wrong, as long as both halves point at the record you actually meant to change.
+It wants to `- DELETE` the `hotfix` record. That is **drift**: the live zone no longer matches the code, and the code wins. You have two choices:
+
+1. **Keep it:** add `A("hotfix", "203.0.113.99"),` to `dnsconfig.js` and commit it, so the code describes reality again.
+2. **Undo it:** push, and the record disappears.
+
+Take choice 2:
+
+```sh
+dnscontrol push
+dig @dns-server hotfix.$USER.dojo.test A +short   # nothing
+```
+
+The lesson: a dashboard edit survives only until the next push. In Part 2, the facilitator can do the same thing to the shared zone from the DNS Admin dashboard, and the next merged change quietly removes it. In a real team that's why dashboard access gets taken away once a zone is managed as code.
 
 ---
 
-## Part B — Try an idea, then discard it (uncommitted)
+## Part B — Undo a change you've already pushed
 
-Add a scratch record you're not sure you want to keep — a `TXT` record on your name:
-
-```js
-TXT("yourname-scratch", "just testing"),
-```
-
-```sh
-dnscontrol preview
-```
-
-You'll now see three corrections: your Part A edit, plus a `CREATE` for this new `TXT` record. Decide you don't want it after all. Since nothing is staged or committed yet, you can throw it away the same way you would in Git Fundamentals:
-
-```sh
-git diff dnsconfig.js       # see exactly what's uncommitted right now
-git restore dnsconfig.js    # discard ALL uncommitted changes to this file — careful, this also undoes Part A
-```
-
-That undid *both* Part A and Part B, since both were uncommitted edits to the same file. Redo Part A's IP change now (`203.0.113.31`, same as above) — you'll need it for Part C.
-
-The lesson: `dnscontrol preview` is safe to run against half-finished edits as often as you like. Nothing is real until you `push`, and nothing is even committed until you `git commit` — use that freedom to try things and back out cleanly.
-
----
-
-## Part C — Add, then remove, and see a DELETE on its own
-
-Branch first, same as Lab 1 — everything from here happens off `main`, never on it:
-
-```sh
-git checkout -b edit-yourname-record
-```
-
-Add the `TXT` scratch record again, and this time commit it:
-
-```sh
-git add dnsconfig.js
-git commit -m "Add yourname A record IP change + scratch TXT record"
-```
-
-Now delete the `TXT` line from `dnsconfig.js` entirely (leave your IP-edited `A` record in place) and preview again:
-
-```sh
-dnscontrol preview
-```
-
-This time you'll see a lone `DELETE` for the `TXT` record — the mirror image of the `CREATE` you saw when you added it. Removing a record from `dnsconfig.js` is always a `DELETE`, whether you commit it as a separate step (like here) or never let it reach a commit at all (like Part B).
-
-Commit and push both changes:
-
-```sh
-git add dnsconfig.js
-git commit -m "Remove scratch TXT record"
-git push -u origin edit-yourname-record
-```
-
-Open a pull request the same way as Lab 1 (**Open Forgejo** from the landing page). Confirm the "DNS Preview" comment shows only the IP `DELETE`+`CREATE` pair — the scratch `TXT` record should be invisible, since it never survived past your local history: two commits landed, but they net out to one clean change. Merge it, then confirm:
-
-```sh
-git checkout main
-git pull
-dig @dns-server yourname.dojo.test A +short   # should show .31
-```
-
----
-
-## Part D — The trailing-dot mistake
-
-This is the single most common mistake in `dnsconfig.js`: a `CNAME` or `MX` target that's missing its trailing dot. Reproduce it on purpose, locally, without ever committing it.
-
-Add this line near the existing `CNAME("app", ...)` record:
+Make a change you'll regret: point `www` somewhere wrong.
 
 ```js
-CNAME("yourname-broken", "dojo.test"),   // missing the trailing dot — on purpose
+	A("www", "203.0.113.66"),
 ```
 
 ```sh
 dnscontrol preview
+dnscontrol push
+git commit -am "Move www to the new server"
 ```
 
-dnscontrol catches this as a **config error**, not a silent bad record — read the message; it's specific about the missing dot. This is exactly why Lab 1 and Part A both told you to preview *before* committing: catching this locally costs you nothing, while catching it after a merge means rolling back (Lab 4).
-
-Fix it and confirm it now previews cleanly as a real correction:
-
-```js
-CNAME("yourname-broken", "dojo.test."),   // fixed
-```
+It's live and committed. To undo it, don't hand-edit the old value back. Let git make the inverse change:
 
 ```sh
-dnscontrol preview
+git log --oneline
+git revert --no-edit HEAD
+git log --oneline      # a new commit that undoes the last one; nothing was erased
+dnscontrol preview     # ± MODIFY www back to 203.0.113.10
+dnscontrol push
+dig @dns-server www.$USER.dojo.test A +short
 ```
 
-Then throw the whole experiment away — you don't need this record for anything else:
-
-```sh
-git restore dnsconfig.js
-git status   # confirm clean
-```
+`git revert` adds a new commit, so the history still shows what happened and when. That matters more once the history is shared: Lab 5 does the same thing in the shared zone, through a pull request.
 
 ---
 
 ## Recap
 
-- Editing a record's value always previews as a paired `DELETE` + `CREATE` — dnscontrol has no in-place "modify."
-- Removing a record previews as a lone `DELETE`.
-- Nothing is real until `dnscontrol push`; nothing is even committed until `git commit` — use `dnscontrol preview` and `git restore` freely while you're still deciding.
-- A missing trailing dot on a `CNAME`/`MX` target is the most common mistake here — `preview` catches it as a config error before it ever touches PowerDNS or a commit.
+- **Drift** is any difference between the live zone and the code. `preview` shows it, and `push` removes it.
+- A change made outside the code survives only until the next push, unless someone adds it to the code.
+- Undo a pushed change with `git revert` and another push, not by hand.
 
-**Next:** [lab3.md](lab3.md) — the same workflow, automated with `dnsctl.py`.
+**Next:** [lab3.md](lab3.md), the required Part 2 lab: the shared zone.

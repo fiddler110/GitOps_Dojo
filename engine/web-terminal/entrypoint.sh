@@ -57,6 +57,9 @@ echo "$facilitator_username:$facilitator_password" | chpasswd
 mkdir -p /etc/sudoers.d
 printf '%s ALL=(ALL) ALL\n' "$facilitator_username" > /etc/sudoers.d/facilitator
 chmod 440 /etc/sudoers.d/facilitator
+# Lets the shared zshrc give this account the facilitator's ulimits.
+groupadd -f dojo-facilitator
+usermod -aG dojo-facilitator "$facilitator_username"
 
 facilitator_home="$(getent passwd "$facilitator_username" | cut -d: -f6)"
 mkdir -p "$facilitator_home/lab"
@@ -72,17 +75,21 @@ if [ -f "$lab_seed_dir/README.md" ]; then
   ln -s "$lab_seed_dir/README.md" "$facilitator_home/lab/README.md"
 fi
 
-# Authored under engine/web-terminal/zshrc.facilitator (see that file to
-# add aliases etc.). Always resynced to the current version on every
+# Authored under engine/web-terminal/zshrc, shared by every account (see
+# that file to add aliases etc.). Always resynced to the current version on every
 # container start, same as the README.md symlink above.
 rm -f "$facilitator_home/.zshrc"
-ln -s /opt/dojo-shell/zshrc.facilitator "$facilitator_home/.zshrc"
+ln -s /opt/dojo-shell/zshrc "$facilitator_home/.zshrc"
 
 # The schema/update settings below switch off background fetches that can
 # only fail here: this container has no network route out, so SchemaStore
 # (redhat.vscode-yaml), JSON schema downloads and extension update checks
 # would just retry for nothing in every account's extension host. Same
 # settings in the student settings.json further down.
+# restoreEditors is off because the browser, not this container, remembers
+# open tabs, keyed by URL and folder path; both are the same on every run,
+# so a new stack would reopen files from the last one that may not exist yet
+# (e.g. a repo the student hasn't cloned).
 code_server_settings_dir="$facilitator_home/.local/share/code-server/User"
 if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   mkdir -p "$code_server_settings_dir"
@@ -92,6 +99,7 @@ if [ ! -f "$code_server_settings_dir/settings.json" ]; then
   "editor.fontSize": 16,
   "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
+  "workbench.editor.restoreEditors": false,
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
@@ -236,6 +244,7 @@ EOF
   "editor.fontSize": 16,
   "terminal.integrated.fontSize": 16,
   "workbench.startupEditor": "none",
+  "workbench.editor.restoreEditors": false,
   "chat.disableAIFeatures": true,
   "workbench.panel.defaultLocation": "right",
   "task.allowAutomaticTasks": "on",
@@ -293,11 +302,11 @@ EOF
     chown -R "$username:$username" "/home/$username/lab/.vscode"
   fi
 
-  # Authored under engine/web-terminal/zshrc.student (see that file to add
+  # Authored under engine/web-terminal/zshrc (see that file to add
   # aliases etc.). Always resynced to the current version on every
   # container start, same as the README.md symlink above.
   rm -f "/home/$username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc.student "/home/$username/.zshrc"
+  ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
 
   counter=$((counter + 1))
 done
@@ -367,7 +376,7 @@ EOF
   chmod 600 "/home/$bot_username/.dojo-bot.env"
 
   rm -f "/home/$bot_username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc.student "/home/$bot_username/.zshrc"
+  ln -s /opt/dojo-shell/zshrc "/home/$bot_username/.zshrc"
 
   chown -R "$bot_username:$bot_username" "/home/$bot_username"
 
@@ -416,6 +425,21 @@ EOF
 echo "Provisioned $student_count student terminal accounts."
 echo "Facilitator shell username: $facilitator_username"
 echo "Student shell usernames: ${student_prefix}01 through $(printf '%s%02d' "$student_prefix" "$student_count")"
+
+# Start-up hooks (engine/MODULES-PLAN.md M11): modules and workshops drop
+# /etc/dojo/start.d/NN-<name>.sh into their terminal image instead of
+# replacing this ENTRYPOINT (wrappers can't stack). They run in name order,
+# as root, after every account exists and before the workspaces are served;
+# a hook that needs to keep running starts its own background job. A failing
+# hook stops the container, so a broken lab shows up at start, not mid-class.
+for hook in /etc/dojo/start.d/*.sh; do
+  [ -f "$hook" ] || continue
+  echo "start.d: running ${hook}"
+  if ! sh "$hook"; then
+    echo "start.d: ${hook} failed" >&2
+    exit 1
+  fi
+done
 
 # No per-account login prompt here anymore: the allocator service (see
 # engine/allocator/) assigns each browser session an account and tells

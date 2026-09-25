@@ -57,18 +57,15 @@ web console.
 > not a description of it, the actual, enforced state.
 
 - `dnscontrol push` makes live DNS match the file **exactly**: additions,
-  edits, and **removals** — anything live but not declared in the file
-  gets deleted
-- There's no reconciliation the other direction. Click a record into
-  existence in the provider's dashboard, and the next `push` deletes it —
-  nothing "remembers" a manual edit, because the file was never updated
-  to say it should exist
-- This isn't a DNS-specific idea — it's the same guarantee Terraform,
-  Kubernetes, or any GitOps tool gives you for its own kind of file
+  edits, and **removals** — anything live but undeclared gets deleted
+- No reconciliation the other way. Click a record into existence in the
+  dashboard, and the next `push` deletes it — nothing "remembers" a
+  manual edit the file never mentioned
+- Not DNS-specific — the same guarantee Terraform, Kubernetes, or any
+  GitOps tool gives you for its own kind of file
 
-This is the one thing worth landing before anything else: the dashboard
-isn't a second way to make changes anymore. It's not a way to make
-changes at all.
+<!-- The dashboard isn't a second way to make changes anymore. It's not a
+way to make changes at all. -->
 
 <!--
 This reframes the whole session: everything that follows (preview/push,
@@ -214,25 +211,22 @@ usually catches for you.</p>
 ## Track A: git + dnscontrol by hand
 
 <div class="flow">
-<span><b>1</b><br>branch</span>
+<span><b>1</b><br>edit<br><small>on a branch</small></span>
 <span>→</span>
-<span><b>2</b><br>edit<br><small>dnsconfig.js</small></span>
+<span><b>2</b><br>preview<br><small>local diff</small></span>
 <span>→</span>
-<span><b>3</b><br>preview<br><small>local diff</small></span>
+<span><b>3</b><br>PR<br><small>Forgejo</small></span>
 <span>→</span>
-<span><b>4</b><br>PR<br><small>Forgejo</small></span>
+<span><b>4</b><br>review<br><small>a teammate</small></span>
 <span>→</span>
 <span><b>5</b><br>merge</span>
 <span>→</span>
 <span><b>6</b><br>push<br><small>CI applies it</small></span>
 </div>
 
-Exactly the same shape as last session's git workflow — the only new step
-is `dnscontrol preview` before you ever push a branch. Step 6 happens
-without you: merging triggers CI, which runs `push` for you (see the next
-slide) — today's bootstrap step, applying the zone's starting records
-before any PR exists, is the one time you'll type `dnscontrol push`
-yourself.
+Last session's git workflow plus `dnscontrol preview`. Step 6 happens
+without you: the merge triggers CI, which runs `push`. You run `push`
+yourself only in your own zone.
 
 ---
 
@@ -258,10 +252,22 @@ Actions — same idea):
 - **`DNS Apply`** — runs on merge to `main`, runs `dnscontrol push` for
   real
 
-Step 1's local preview and CI's preview comment should always agree — if
-they don't, something changed between your last local preview and the
-PR's current head. CI is the same guarantee from Part 1 enforcing itself
-automatically, not a separate system to trust instead.
+CI previews your branch *merged into* the current `main`, so the comment
+shows exactly what merging would do, even after classmates merged first.
+
+---
+
+## Gates on the shared zone
+
+A process only counts if you can't skip it. On `dojo.test`:
+
+- **Only CI changes the zone.** The DNS API refuses a `dnscontrol push`
+  from your terminal (`403`); only the pipeline's runner may write.
+- **`main` is protected.** No direct pushes. A PR merges only with a
+  passing **DNS Preview** check and **one approval** from someone else.
+
+In a real company: only the pipeline holds the production credential, and
+branch protection makes review mandatory, not a habit.
 
 ---
 
@@ -276,9 +282,9 @@ automatically, not a separate system to trust instead.
 ## Same steps, one command each
 
 ```sh
-dnsctl.py record add yourname.dojo.test --type A --value 203.0.113.30
+dnsctl.py record add $USER-api.dojo.test --type A --value 203.0.113.30
 dnsctl.py preview
-dnsctl.py submit "Add A record for yourname"
+dnsctl.py submit "Add $USER-api"
 dnsctl.py status
 dnsctl.py review <PR#>
 dnsctl.py merge <PR#>
@@ -331,25 +337,15 @@ skipping the wrapper entirely, so both tracks are teachable here.
 
 ---
 
-## What's still rough — and why that's left in
+## What the wrapper does and doesn't check
 
-- The `record add`/`record edit` wizard still asks **"Proxy through
-  Cloudflare (orange cloud)?"** for `A`/`CNAME` records — meaningless for
-  PowerDNS. Answer `n`. This is the real script, unmodified on purpose:
-  it's what a wrapper written against one specific provider looks like
-  once you point it somewhere else.
-- `merge`/`validate` check for a passing "DNS Preview"/"DNS Apply" CI
-  status before they'll proceed — and now find a real one, same as
-  against a GitHub repo with CI configured. `merge` checks once, not on a
-  retry loop — if you merge before a "DNS Preview" check has posted yet,
-  it just warns ("no check found") and merges anyway; it only *refuses*
-  once a check exists and has actually failed, and `--force` skips that
-  refusal too. `validate`, unlike `merge`, does poll and wait for its
-  check to appear.
+- `doctor` checks `dnscontrol`, `creds.json`, the PowerDNS API and git
+  hooks. `setup` turns the hooks on: git never does that for a clone.
+- `merge` checks "DNS Preview" once and only warns if CI hasn't posted
+  yet. Forgejo still won't merge without a passing check and an approval.
+- `validate` waits for "DNS Apply", then confirms the live zone matches.
 
-> A wrapper doesn't remove the underlying tool's assumptions — it just
-> gives them a shorter name. Worth knowing which assumptions you inherited
-> before you trust a green checkmark.
+> A wrapper shortens the steps. The server still owns the gates.
 
 ---
 
@@ -363,19 +359,15 @@ skipping the wrapper entirely, so both tracks are teachable here.
 
 ## What you'll do
 
-**Lab 1 (required):** clone the `dns-as-code` repo, `dnscontrol preview` →
-`push` the starting zone and `dig` it to see it's actually live, then
-branch, add your own record by hand, `preview` it locally, open a PR,
-watch CI comment the diff, merge, let CI apply it.
+**Part 1, your own zone** (`<you>.dojo.test`): nobody else touches it.
+**Lab 1 (required):** preview, push, `dig`; add, change and remove
+records; catch a mistake. **Lab 2:** drift and undo.
 
-**Labs 2-5 (optional, any order after Lab 1):** editing/removing records
-and catching mistakes before you commit, redoing the workflow with
-`dnsctl.py` (the wrapper script — `record add` → `preview` → `submit` →
-`status`/`review` → `merge` → `validate`), investigating and
-rolling back merged history, and resolving a merge conflict safely.
+**Part 2, the shared zone** (`dojo.test`): only CI can change it.
+**Lab 3 (required):** branch → PR → CI preview → a classmate approves →
+merge → CI applies. **Labs 4-6:** `dnsctl.py`, rollback, merge conflicts.
 
-**Full steps are in `~/lab/README.md`** inside your terminal — it's the
-menu for all five labs plus a command cheat-sheet.
+**Full steps are in `~/lab/README.md`** inside your terminal.
 
 <!-- _footer: "[&larr; Hub](index.md)" -->
 

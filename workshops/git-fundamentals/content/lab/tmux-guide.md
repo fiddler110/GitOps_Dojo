@@ -1,106 +1,132 @@
 # tmux Guide
 
-Your terminal — whether you open it with the **Open Terminal** button or from the integrated terminal panel inside **Open VS Code** — runs inside `tmux`, a terminal multiplexer. You don't need to know anything about it to do the labs, but it's genuinely useful once you do: split your terminal into multiple panes, keep long-running commands going, and reconnect to exactly where you left off after a reload or a dropped connection.
-
-One thing worth knowing up front: your facilitator can open a read-only view of your terminal from their own dashboard, to help you troubleshoot without needing to see your screen over your shoulder. They can watch; they can't type into your session from there.
+Your terminal runs inside `tmux`, whether you open it with **Open Terminal** or from the terminal panel inside
+**Open VS Code**. tmux lets you split one terminal into several panes, keep commands running, and pick up exactly
+where you left off after a reload or a dropped connection. You don't need it for the labs, but it helps when you
+want two things going at once.
 
 ---
 
-## The prefix key
+## ⌨️ The one key to learn: `Ctrl+b`
 
-Every tmux command starts with a *prefix* key combo, then a second key. The default prefix is `Ctrl+b`. Below, `<prefix>` always means "press `Ctrl+b`, release it, then press the next key" — it's two separate keypresses, not held together.
+> **Every tmux shortcut starts with `Ctrl+b`.** It's two steps, not one chord:
+>
+> 1. **Hold `Ctrl` and press `b`.**
+> 2. **Let go of both keys.**
+> 3. **Then press the command key**, such as `%` (which is `Shift+5`).
+>
+> Nothing appears on screen after step 2. tmux is quietly waiting for the command key.
+
+This guide writes a shortcut like this: **`Ctrl+b` → `Shift+5`**. Read it as "press `Ctrl+b`, release, then press
+`Shift+5`".
+
+**Symbols need `Shift`.** Several commands are symbols on the top row of the keyboard, so the command key itself is
+a `Shift` combination. The keys below are for a **US keyboard**; on a UK keyboard `"` is `Shift+2`.
+
+| Command key | What you actually press |
+| --- | --- |
+| `%` | `Shift+5` |
+| `"` | `Shift+'` (the quote key, left of `Enter`) |
+| `[` | `[` (no Shift) |
+| `,` | `,` (no Shift) |
+
+**If nothing happens:** you probably pressed the command key while still holding `Ctrl`. Let go and try again. If
+you pressed `Ctrl+b` by mistake, press `Esc` and carry on.
 
 ---
 
 ## Splitting panes
 
-```text
-<prefix> %      # split vertically (side by side)
-<prefix> "      # split horizontally (stacked)
-```
+| To do this | Press `Ctrl+b`, release, then |
+| --- | --- |
+| Split **side by side** (a new pane on the right) | `Shift+5` (the `%` key) |
+| Split **top and bottom** (a new pane below) | `Shift+'` (the `"` key) |
+| Move to the pane **left / right / up / down** | an arrow key |
+| Move to the **next** pane | `o` |
+| **Zoom** the current pane to full size (press again to shrink back) | `z` |
+| **Resize** the current pane | hold `Ctrl` and press an arrow key |
 
-Move between panes:
+**Close a pane:** type `exit` (or press `Ctrl+d`) in it, the same as closing any shell.
 
-```text
-<prefix> <arrow key>     # move to the pane in that direction
-<prefix> o                # cycle to the next pane
-```
-
-Close a pane: type `exit` or press `Ctrl+d` in it — same as closing any shell.
-
-Resize the current pane:
-
-```text
-<prefix> Ctrl+<arrow key>
-```
-
-Temporarily zoom a pane to fill the whole window (press again to restore):
-
-```text
-<prefix> z
-```
+**The mouse works too.** Click a pane to switch to it, and drag the line between two panes to resize them.
 
 ---
 
 ## Windows
 
-A tmux *window* is a full-screen tab within a session — different from a pane (a split within one window).
+A *window* is a full-screen tab inside tmux. A *pane* is a split inside one window. The status bar at the bottom
+lists your windows; the one marked `*` is the current one.
 
-```text
-<prefix> c          # create a new window
-<prefix> n           # next window
-<prefix> p           # previous window
-<prefix> 0-9         # jump straight to window number 0-9
-<prefix> w           # list all windows and pick one
-<prefix> ,           # rename the current window
-```
+| To do this | Press `Ctrl+b`, release, then |
+| --- | --- |
+| **Create** a new window | `c` |
+| **Next** window | `n` |
+| **Previous** window | `p` |
+| Jump to window **0-9** | the number |
+| **List** all windows and pick one | `w`, then arrow keys and `Enter` |
+| **Rename** the current window | `,`, type a name, `Enter` |
+
+---
+
+## Scrolling back and copying
+
+Output that has scrolled off the top lives in tmux, not in the browser, so the browser's own scrollbar won't reach
+it.
+
+- **With the mouse:** scroll the wheel over the terminal.
+- **With the keyboard:** press `Ctrl+b`, release, then `[`. Now the arrow keys and `Page Up` / `Page Down` scroll,
+  and `?` searches upward (type a word, `Enter`, then `n` for the next match). Press `q` to go back to typing.
+
+**Copying text.** Dragging with the mouse copies into tmux's own clipboard, not your computer's. Paste it in the
+terminal with `Ctrl+b`, release, then `]`. To copy into your computer's clipboard instead (to paste into another
+app), **hold `Shift` while you drag**, then copy as usual.
+
+While you're scrolled back, your typing doesn't reach the shell: press `q` first.
 
 ---
 
 ## Detaching and reattaching
 
-```text
-<prefix> d      # detach -- leaves everything running in the background
-```
+| To do this | Press `Ctrl+b`, release, then |
+| --- | --- |
+| **Detach**: leave everything running and step out of tmux | `d` |
 
-You won't usually need this here: reloading the browser tab reattaches you to the same session automatically (that's the whole point of running through tmux). But it's worth knowing that closing the tab doesn't kill anything — whatever's running keeps running.
+You rarely need this here. Reloading the browser tab reattaches you to the same session automatically, and closing
+the tab doesn't stop anything that's running.
 
-To see what's still alive, or reattach manually from a fresh terminal:
+To see what's still running, or reattach by hand from a fresh terminal:
 
 ```sh
 tmux ls                    # list your sessions
-tmux attach -t <name>      # reattach to one by name
-```
-
----
-
-## Scrolling and copying
-
-tmux captures your terminal's scrollback itself, so your browser/terminal's normal scroll may not work as expected. Enter *copy mode* to scroll and select text:
-
-```text
-<prefix> [                 # enter copy mode
-<arrow keys / Page Up/Down>  # scroll
-q                           # exit copy mode
+tmux attach -t <name>      # reattach to one by its name
 ```
 
 ---
 
 ## Quick reference
 
-| Command | What it does |
-| --- | --- |
-| `<prefix> %` | Split pane vertically |
-| `<prefix> "` | Split pane horizontally |
-| `<prefix> <arrow>` | Move to another pane |
-| `<prefix> z` | Zoom/unzoom the current pane |
-| `<prefix> c` | New window |
-| `<prefix> n` / `p` | Next / previous window |
-| `<prefix> w` | List windows |
-| `<prefix> d` | Detach (leaves session running) |
-| `<prefix> [` then `q` | Scroll / exit scroll mode |
-| `tmux ls` | List sessions (from a fresh terminal) |
+Every row starts with **`Ctrl+b`, release**, then the key shown.
 
-None of this is required for the labs — plain typing and `Ctrl+c`/`Ctrl+d` work exactly as you'd expect without ever touching the prefix key. This is here for when you want more than one thing going at once.
+| Then press | What it does |
+| --- | --- |
+| `Shift+5` (`%`) | Split side by side |
+| `Shift+'` (`"`) | Split top and bottom |
+| arrow key | Move to another pane |
+| `o` | Next pane |
+| `z` | Zoom / unzoom the current pane |
+| `c` | New window |
+| `n` / `p` | Next / previous window |
+| `w` | List windows |
+| `d` | Detach (the session keeps running) |
+| `[` … `q` | Scroll back … back to typing |
+| `]` | Paste what you dragged to copy |
+
+Without the prefix: `exit` or `Ctrl+d` closes a pane, `Ctrl+c` stops a running command, and `tmux ls` lists
+sessions.
+
+---
+
+Your facilitator can open a read-only view of your terminal from their dashboard, to help you troubleshoot. They
+can watch, but they can't type into your session.
 
 **More:** [README.md](README.md) for the lab menu, or the official docs at <https://github.com/tmux/tmux/wiki>.

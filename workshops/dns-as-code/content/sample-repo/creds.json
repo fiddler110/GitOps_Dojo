@@ -1,7 +1,7 @@
 {
   "powerdns": {
     "TYPE": "POWERDNS",
-    "apiUrl": "http://dns-server:8081",
+    "apiUrl": "http://dns-api:8081",
     "apiKey": "workshop-not-a-secret",
     "serverName": "localhost"
   }

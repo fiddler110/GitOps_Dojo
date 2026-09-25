@@ -43,6 +43,9 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 # spoofed same-name host on an open network. No effect (and no downside)
 # on the plain-HTTP localhost path, since that's never HTTPS to begin with.
 COOKIE_SECURE = PUBLIC_BASE_URL.startswith("https://")
+# The gateway's own address when another proxy terminates TLS in front of it
+# (e.g. http://:8080); empty means the gateway serves PUBLIC_BASE_URL itself.
+GATEWAY_LISTEN = os.environ.get("GATEWAY_LISTEN", "")
 
 STUDENT_COUNT = int(os.environ.get("STUDENT_COUNT", "30"))
 STUDENT_PREFIX = os.environ.get("STUDENT_PREFIX", "student")
@@ -87,12 +90,27 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 # default -- same fail-fast pattern as CONTROL_TOKEN above. Must match
 # gateway's own GATEWAY_TOKEN (gateway/Caddyfile).
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
-DEMO_APP_ENABLED = os.environ.get("DEMO_APP_ENABLED", "0") == "1"
-DEMO_APP_ZONE = os.environ.get("DEMO_APP_ZONE", "certs.dojo.test")
-# Cloud console (/cloud*): a workshop that ships its own "cloud" service (see
-# workshops/tofu-basics) sets this in its compose overlay. Off by default, so
-# every other workshop is unchanged -- same shape as DEMO_APP_ENABLED above.
-CLOUD_ENABLED = os.environ.get("CLOUD_ENABLED", "0") == "1"
+
+# Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
+# route gates and status checks, already checked by render_extensions.py
+# (run.sh, before start) and mounted read-only. Missing means none.
+EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extensions.json")
+
+
+def load_extensions(path=EXTENSIONS_FILE):
+    empty = {"cards": [], "admin_tabs": [], "routes": [], "status_checks": []}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return empty
+    return {k: list(data.get(k, [])) for k in empty}
+
+
+EXTENSIONS = load_extensions()
+EXT_ROUTES = {r["id"]: r for r in EXTENSIONS["routes"]}
+# {user} in a route's host template stands for a whole DNS label.
+DNS_LABEL_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 
 WEB_TERMINAL_HOST = "web-terminal"
 CONTROL_PORT = 7682
@@ -327,11 +345,16 @@ def probe_slides():
     would: same scheme, port and Host as PUBLIC_BASE_URL. Not http://gateway:80:
     Caddy answers an empty 200 for Host "gateway" when the site is
     http://localhost, and a 308 redirect (or a TLS failure on 443) when the
-    site is an https hostname, so neither would say anything about slides."""
-    base = urllib.parse.urlsplit(PUBLIC_BASE_URL)
+    site is an https hostname, so neither would say anything about slides.
+    Behind another proxy, GATEWAY_LISTEN is the address to call; with no
+    host in it (http://:8080) Caddy takes any Host, so send the public one."""
+    public = urllib.parse.urlsplit(PUBLIC_BASE_URL)
+    base = urllib.parse.urlsplit(GATEWAY_LISTEN) if GATEWAY_LISTEN else public
     tls = base.scheme == "https"
+    host = base.hostname or public.hostname
     return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
-                      tls=tls, sni=base.hostname, host_header=base.netloc, require_body=True)
+                      tls=tls, sni=host, host_header=base.netloc if base.hostname else public.netloc,
+                      require_body=True)
 
 
 def _extra_probe(url):
@@ -352,6 +375,8 @@ def build_status_services():
         label, url = label.strip()[:40], url.strip()
         if sep and label and url:
             probes.append((label, _extra_probe(url)))
+    for check in EXTENSIONS["status_checks"]:
+        probes.append((check["label"], _extra_probe(check["url"])))
     return [{"name": n, "probe": p, "ok": None, "last_ok": None, "detail": None} for n, p in probes]
 
 
@@ -424,6 +449,13 @@ ICON_ROCKET = _SVG.format('<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-
                            '<path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>'
                            '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>')
 ICON_CLOUD = _SVG.format('<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>')
+ICON_KEY = _SVG.format('<circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6"></path>'
+                        '<path d="M15.5 7.5l3 3L22 7l-3-3"></path>')
+ICON_DNS = _SVG.format('<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line>'
+                        '<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>')
+# Names an extensions.json card may use (render_extensions.py ICONS).
+ICONS_BY_NAME = {"code": ICON_CODE, "terminal": ICON_TERMINAL, "git": ICON_GIT, "slides": ICON_SLIDES,
+                 "rocket": ICON_ROCKET, "cloud": ICON_CLOUD, "key": ICON_KEY, "dns": ICON_DNS}
 ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
              'stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line>' \
              '<polyline points="7 7 17 7 17 17"></polyline></svg>'
@@ -486,11 +518,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def send_json(self, data, status=200):
+    def send_json(self, data, status=200, headers=None):
         encoded = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
+        for k, v in (headers or {}):
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(encoded)
 
@@ -616,15 +650,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "desc": "Today's material, for reference as you go.",
             },
         ]
-        if DEMO_APP_ENABLED:
+        for card in EXTENSIONS["cards"]:
             tools.append({
-                "href": "/demo/", "label": "Demo Site", "icon": ICON_ROCKET,
-                "desc": "The live site your lab work is serving.",
-            })
-        if CLOUD_ENABLED:
-            tools.append({
-                "href": "/cloud/", "label": "Dojo Cloud", "icon": ICON_CLOUD,
-                "desc": "The portal for the resources you deploy.",
+                "href": card["href"], "label": card["label"], "desc": card["desc"],
+                "icon": ICONS_BY_NAME.get(card["icon"], ICON_ARROW),
             })
 
         cards = "\n".join(
@@ -767,7 +796,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
   <button class="tab" data-tab="term">Terminal</button>
   <button class="tab" data-tab="forgejo">Forgejo</button>
   <button class="tab" data-tab="slides">Slides</button>
-CLOUD_TAB_PLACEHOLDER</div>
+EXT_TABS_PLACEHOLDER</div>
 
 <div class="panel active" id="panel-roster">
   <p id="empty" class="sub">No students connected yet.</p>
@@ -778,7 +807,7 @@ CLOUD_TAB_PLACEHOLDER</div>
 <div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
 <div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
 <div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
-CLOUD_PANEL_PLACEHOLDER
+EXT_PANELS_PLACEHOLDER
 <script>
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -1020,14 +1049,18 @@ refresh();
 setInterval(refresh, 5000);
 </script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
-        # The facilitator gets every tool a student has (see the /cloud block
-        # in gateway/Caddyfile): the cloud portal, when the workshop has one.
+        # The facilitator gets every tool a student has: every tab a workshop
+        # or module declares next to its cards (extensions.json).
+        # Ids are [a-z0-9-] and src a checked same-origin path; escaped anyway.
         body = body.replace(
-            "CLOUD_TAB_PLACEHOLDER",
-            '  <button class="tab" data-tab="cloud">Dojo Cloud</button>\n' if CLOUD_ENABLED else "",
+            "EXT_TABS_PLACEHOLDER",
+            "".join(f'  <button class="tab" data-tab="{html.escape(t["id"])}">{html.escape(t["label"])}</button>\n'
+                    for t in EXTENSIONS["admin_tabs"]),
         ).replace(
-            "CLOUD_PANEL_PLACEHOLDER",
-            '<div class="panel" id="panel-cloud"><iframe data-src="/cloud/#/progress"></iframe></div>\n' if CLOUD_ENABLED else "",
+            "EXT_PANELS_PLACEHOLDER",
+            "".join(f'<div class="panel" id="panel-{html.escape(t["id"])}">'
+                    f'<iframe data-src="{html.escape(t["src"])}"></iframe></div>\n'
+                    for t in EXTENSIONS["admin_tabs"]),
         )
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1153,6 +1186,14 @@ setInterval(refresh, 5000);
             self.end_headers()
             return
 
+        if path == "/whoami":
+            # The browser's own student ID, for pages that personalise
+            # themselves (the lab reader swaps it in for "studentXX").
+            # null for the facilitator and for a browser holding no slot.
+            _, sid = self.resolve_identity()
+            self.send_json({"user": sid}, headers=NO_STORE_HEADERS)
+            return
+
         if path == "/auth-check":
             self.handle_auth_check(parsed)
             return
@@ -1181,8 +1222,11 @@ setInterval(refresh, 5000);
 
     def handle_auth_check(self, parsed):
         qs = urllib.parse.parse_qs(parsed.query)
+        if "route" in qs:
+            self.handle_route_check((qs.get("route") or [""])[0])
+            return
         tool = (qs.get("tool") or [""])[0]
-        if tool not in ("ide", "term", "demo", "cloud"):
+        if tool not in ("ide", "term"):
             self.send_response(400)
             self.end_headers()
             return
@@ -1191,33 +1235,6 @@ setInterval(refresh, 5000);
         if username is None:
             self.send_response(303)
             self.send_header("Location", "/")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-
-        if tool == "demo":
-            if not DEMO_APP_ENABLED:
-                self.send_response(404)
-                self.end_headers()
-                return
-            student_id = username if username != FACILITATOR_USERNAME else None
-            demo_host = f"{student_id or STUDENT_PREFIX + '01'}.{DEMO_APP_ZONE}"
-            self.send_response(200)
-            self.send_header("X-Demo-Host", demo_host)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-
-        if tool == "cloud":
-            if not CLOUD_ENABLED:
-                self.send_response(404)
-                self.end_headers()
-                return
-            # A student's identity only exists in their dojo_session cookie,
-            # which the cloud portal never sees, so it is handed back here and
-            # Caddy copies it onto the request (see gateway/Caddyfile's @cloud).
-            self.send_response(200)
-            self.send_header("X-Cloud-User", username)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -1245,6 +1262,48 @@ setInterval(refresh, 5000);
             self.send_response(202)
             self.send_header("Content-Length", "0")
             self.end_headers()
+
+    def handle_route_check(self, route_id):
+        """forward_auth for an extension route's identity/facilitator gate
+        (render_extensions.py's Caddy template). 200 hands Caddy the caller's
+        name as X-Dojo-User, and X-Dojo-Host when the route has a host
+        template; Caddy strips any client-sent copies first and passes them
+        upstream next to X-Gateway-Token. No session: 303 to "/" like the
+        other tools. Unknown or shared route: 404, so nothing reaches an
+        upstream this workshop didn't declare."""
+        route = EXT_ROUTES.get(route_id)
+        if route is None or route["gate"] not in ("identity", "facilitator"):
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        username, _sid = self.resolve_identity()
+        if username is None:
+            self.send_response(303)
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if route["gate"] == "facilitator" and username != FACILITATOR_USERNAME:
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        host = None
+        if "host" in route:
+            label = username.lower()
+            if not DNS_LABEL_RE.match(label):
+                self.send_response(403)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            host = route["host"].replace("{user}", label)
+        self.send_response(200)
+        self.send_header("X-Dojo-User", username)
+        if host is not None:
+            self.send_header("X-Dojo-Host", host)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def handle_auth_check_watch(self, parsed):
         """Gates /admin/watch/<studentId> (see gateway/Caddyfile). Reached

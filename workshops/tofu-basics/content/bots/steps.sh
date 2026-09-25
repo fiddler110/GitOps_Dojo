@@ -1,7 +1,7 @@
 # tofu-basics demo bot steps (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE) -- replaces the
 # git-fundamentals default with Labs 0-10: the offline sandbox (Track A) always, and, only when this
 # bot's own Dojo Cloud credentials come back from the broker (same dojo-env a real student's shell
-# reads at login -- see compose/terminal/dojo-broker.py's roster, which includes testuserN), the Dojo
+# reads at login -- see modules/dojo-cloud/terminal/dojo-broker.py's roster, which includes testuserN), the Dojo
 # Cloud lifecycle (Track B: deploy hello, a policy mistake, in-place vs replace, then destroy + commit
 # + PR). Every round destroys whatever Dojo Cloud resources it created before touching git, so a round
 # that gets killed partway through never leaves a cloud container burning host memory.
