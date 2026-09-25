@@ -24,7 +24,7 @@ Builds on Git Fundamentals: the same repos, now without the passwords in them
 **Talk + hands-on lab**
 
 <!--
-Parts 1-4 (labs 0-6) are written; later parts come with later build phases.
+Parts 1-5 (labs 0-8) are written; later parts come with later build phases.
 Assumes the room knows clone/commit/push.
 -->
 
@@ -40,6 +40,7 @@ Assumes the room knows clone/commit/push.
 6. **Lab 3:** you are the admin
 7. Secrets in code: **labs 4-5**
 8. Secrets in git: **lab 6**
+9. Secrets in pipelines: **labs 7-8**
 
 ---
 
@@ -316,6 +317,124 @@ About **15 minutes**.
 
 ---
 
+<!-- _class: section-title -->
+
+# Part 5
+
+## Secrets in pipelines
+
+---
+
+## CI secrets: masked is not hidden
+
+<div class="split">
+<div>
+
+```yaml
+steps:
+  - env:
+      API_KEY: ${{ secrets.DEMO_API_KEY }}
+    run: |
+      echo "$API_KEY"            # *** in the log
+      echo "$API_KEY" | base64   # readable
+```
+
+</div>
+<div>
+
+- A **repository secret** goes to every job in the repo
+- The log **masks exact matches** only
+- **Anyone who can push a workflow** can read it: a branch is enough
+- Fork pull requests get no secrets; `pull_request_target` does, so never run PR code in it
+- It never expires by itself
+
+</div>
+</div>
+
+---
+
+## Single-use runners
+
+<div class="split">
+<div>
+
+- A controller keeps a few **warm** runners ready, and starts more when jobs queue
+- Each runner takes **one job**, then it is deleted with everything the job left behind
+- Your job can't see another job's files or processes, and the next job can't see yours
+- The facilitator's **Runners** panel shows each one: ready, busy, or broken
+
+</div>
+<div>
+
+**At work:** GitHub's Actions Runner Controller on Kubernetes, Azure DevOps scale-set agents, GitLab's autoscaling runners.
+
+Long-lived shared runners are how one team's job reads another team's leftovers.
+
+</div>
+</div>
+
+---
+
+## The job's own identity
+
+<div class="split">
+<div>
+
+```json
+{ "iss": ".../git/api/actions",
+  "aud": "openbao",
+  "repository": "student07/vault-fundamentals",
+  "ref": "refs/heads/main",
+  "actor": "student07",
+  "exp": 1790000000 }
+```
+
+</div>
+<div>
+
+1. Forgejo **signs a token for this run**: which repo, branch, workflow, who
+2. The job hands it to the vault's **JWT auth**
+3. The vault checks the **signature, issuer, audience, expiry** and the role's **bound claims**
+4. It gets a **5-minute** vault token with one policy
+
+Nothing is stored in the CI system. A branch doesn't match `main`, so it's refused.
+
+</div>
+</div>
+
+---
+
+## At work: the same, ready-made
+
+```yaml
+# GitHub Actions
+permissions:
+  id-token: write
+steps:
+  - uses: hashicorp/vault-action@v3      # works with OpenBao too
+    with:
+      url: https://vault.example.com
+      method: jwt
+      role: ci-main
+      secrets: team/data/ci deploy_token | DEPLOY_TOKEN
+```
+
+**Azure:** `azure/login` or an Azure DevOps service connection with **workload identity federation**.
+**GitLab:** `id_tokens:` in the job. The lab uses `curl` + `bao` so you can see each step.
+
+---
+
+## Labs 7-8: secrets in pipelines
+
+- **Lab 7:** fork the repo, add a repository secret, watch it get masked, then print it anyway
+- **Lab 8:** CI reads the vault with **AppRole**: works, but the login secret sits in Forgejo (secret zero)
+- Then with the **job's own token**, bound to your repo on `main`; a branch is refused
+- Retire the AppRole path: role, stored secrets, workflow
+
+About **35 minutes**.
+
+---
+
 ## OpenBao and Azure, side by side
 
 | OpenBao | Azure |
@@ -327,6 +446,7 @@ About **15 minutes**.
 | OIDC auth method | Entra ID sign-in |
 | Terminal sign-in (JWT from the platform) | Managed identity |
 | AppRole | Service principal with a client secret |
+| JWT auth for CI jobs (lab 8) | Workload identity federation |
 | Transit engine (sops) | Key Vault keys (sops `azure_kv`) |
 | Audit device | Diagnostic settings to Log Analytics |
 

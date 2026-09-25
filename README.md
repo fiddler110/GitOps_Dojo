@@ -117,7 +117,7 @@ automation instead of being made by hand.
 | DNS as Code | Ready |
 | Certificate Autorenewal | Ready |
 | OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
-| **Vault Fundamentals** (OpenBao) | In progress: the core (OpenBao, single sign-on, passwordless CLI login, namespaces, labs 0-3) is built; CI, deployments and the capstone come next. Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
+| **Vault Fundamentals** (OpenBao) | In progress: the core (OpenBao, single sign-on, passwordless CLI login, namespaces), secrets in code and git, and CI on single-use autoscaled runners (labs 0-8) are built; deployments and the capstone come next. Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout
@@ -131,7 +131,8 @@ automation instead of being made by hand.
 ├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
 │   ├── forgejo-runner/       # Forgejo Actions runner (dns-as-code)
 │   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
-│   └── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
+│   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
+│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals)
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
@@ -139,7 +140,7 @@ automation instead of being made by hand.
 │   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
 │   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, tests/
-│   └── vault-fundamentals/   # In progress; uses the openbao module; PLAN.md, tests/
+│   └── vault-fundamentals/   # In progress; uses the openbao and runner-pool modules; PLAN.md, tests/
 ├── handouts/                 # Take-home versions of the labs
 └── assets/branding/          # Shared branding
 ```
@@ -280,7 +281,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
 | `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
-| `vault-fundamentals` | `openbao` | `openbao`, `openbao-setup`, `openbao-sso-shim` (module) | none | `bao`, identity broker (module); `sops`, `gitleaks` | OpenBao, Forgejo |
+| `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules) | `runner_net` (module; `openbao` joins it) | `bao`, identity broker (module); `sops`, `gitleaks`, `hvac` | OpenBao, Forgejo |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -904,6 +905,7 @@ blocked by network isolation or never routed.
 | Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
 | `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
 | `forgejo-runner` (dns-as-code) | ✓ | — | ✓ | — | — | — | — |
+| `runner-pool` (vault-fundamentals; also `openbao`) | ✓ | — | — | — | — | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |

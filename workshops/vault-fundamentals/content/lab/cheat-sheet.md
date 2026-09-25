@@ -96,6 +96,37 @@ creation_rules:
     hc_vault_transit_uri: http://openbao:8200/v1/students/<you>/transit/keys/sops
 ```
 
+## CI and the vault (labs 7-8)
+
+```yaml
+# .forgejo/workflows/ci.yml: a job that logs in with its own identity
+on: push
+jobs:
+  read:
+    runs-on: host
+    enable-openid-connect: true                  # Forgejo offers the job an ID token
+    env:
+      BAO_ADDR: http://openbao:8200
+      BAO_NAMESPACE: students/${{ github.repository_owner }}
+    steps:
+      - run: |
+          curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=openbao" | jq -j .value > "$HOME/id"
+          export BAO_TOKEN="$(bao write -field=token auth/jwt-ci/login role=ci-main jwt=@$HOME/id)"
+          bao kv get -field=deploy_token team/ci | sha256sum   # a fingerprint, never the value
+```
+
+```bash
+bao read auth/jwt-ci/config                        # whose keys and issuer the vault trusts
+bao write auth/jwt-ci/role/ci-main - <<EOF         # who may log in: this repo, on main
+{"role_type":"jwt","user_claim":"sub","bound_audiences":["openbao"],
+ "bound_claims":{"repository":"$USER/vault-fundamentals","ref":"refs/heads/main"},
+ "token_policies":["ci-read"],"token_ttl":"5m"}
+EOF
+```
+
+`${{ secrets.NAME }}` is masked as `***` in logs, but anyone who can push a workflow can print it (`| base64`).
+
 ## Secrets in git (lab 1)
 
 ```bash

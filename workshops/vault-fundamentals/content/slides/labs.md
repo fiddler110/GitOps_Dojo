@@ -57,3 +57,15 @@ Everything stays in the class vault and your own terminal. Nothing is pushed any
 | **6** | sops + transit: encrypted config in git, who can decrypt, key rotation | ~15 min |
 
 Labs 5 and 6 work in your namespace (`students/<you>`); lab 5 reuses lab 3's `team/app` and `app-read`.
+
+---
+
+## Part 5: Secrets in pipelines
+
+| Lab   | You will                                                                    | Time    |
+| ----- | --------------------------------------------------------------------------- | ------- |
+| **7** | fork the repo; a repository secret, masking, and who can really read it     | ~15 min |
+| **8** | CI reads the vault: AppRole first, then the job's own OIDC token, no secret | ~20 min |
+
+Your workflows run on **single-use runners**: each takes one job and is thrown away. Pushing asks for your
+**Forgejo password** (on your landing page); lab 7 sets git to remember it, in memory, for an hour.

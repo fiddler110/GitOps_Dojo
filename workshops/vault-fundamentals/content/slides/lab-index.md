@@ -39,5 +39,7 @@ footer: '[&larr; Hub](index.md)'
 <li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">The app reads a secret: .env vs the vault</span></li>
 <li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">OpenBao Agent: rotate with no restart</span></li>
 <li><a href="assets/lab-reader.html?file=lab6.md.txt">Lab 6</a><span class="topic">Encrypted config in git with sops</span></li>
+<li><a href="assets/lab-reader.html?file=lab7.md.txt">Lab 7</a><span class="topic">Forgejo Actions secrets, and who can read them</span></li>
+<li><a href="assets/lab-reader.html?file=lab8.md.txt">Lab 8</a><span class="topic">CI logs in with its own identity (OIDC)</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 </ul>

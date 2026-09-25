@@ -5,8 +5,20 @@
 # The workshop's own OpenBao set-up runs as hooks in the module's
 # openbao-setup (PLAN.md S29): it sources every /etc/openbao-setup.d/*.sh on
 # each start with the provisioner token, after the module's own set-up.
+#
+# CI jobs (runner-pool) run bao and sops, the terminal's own binaries, and
+# log in to OpenBao over runner_net (lab 8).
 
 services:
   openbao-setup:
     volumes:
       - ../workshops/vault-fundamentals/compose/openbao-setup.d:/etc/openbao-setup.d:ro
+
+  openbao:
+    networks:
+      - runner_net
+
+  runner-pool:
+    build:
+      args:
+        JOB_TOOLS: "bao sops"

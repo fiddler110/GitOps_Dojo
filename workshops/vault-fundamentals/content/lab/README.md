@@ -24,6 +24,8 @@ bao status
 | [lab4.md](lab4.md) | The app reads a secret: in the code, in a `.env` file, from the vault with `hvac`; logs and token TTLs | ~15 min | 3: Secrets in code |
 | [lab5.md](lab5.md) | OpenBao Agent: AppRole, a secret rendered to memory, rotation with no restart | ~15 min | 3: Secrets in code |
 | [lab6.md](lab6.md) | Encrypted config in git: sops with the transit engine, readable diffs, who can decrypt, key rotation | ~15 min | 4: Secrets in git |
+| [lab7.md](lab7.md) | Forgejo Actions secrets: your fork, a repository secret, masking and who can really read it | ~15 min | 5: Secrets in pipelines |
+| [lab8.md](lab8.md) | CI logs in to OpenBao: AppRole (secret zero in the pipeline), then the job's own OIDC identity, bound to repo and branch | ~20 min | 5: Secrets in pipelines |
 
 Do them in order. Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
 
