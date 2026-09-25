@@ -9,7 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
+<!-- _class: lead lab-index -->
 
 # Labs
 
@@ -25,6 +25,14 @@ footer: '[&larr; Hub](index.md)'
 <p>The complete lab guide, read right here in the browser.</p>
 </div>
 </div>
+
+<p class="setup-label">Every lab works in the sample repo. Clone it once, whichever lab you start from:</p>
+
+```sh
+cd ~/lab
+git clone http://git-server:3000/training/sample-training-repo.git
+cd sample-training-repo
+```
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Core workflow: clone → branch → edit → commit → push → PR</span></li>

@@ -9,7 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
+<!-- _class: lead lab-index -->
 
 # Labs
 
@@ -25,6 +25,13 @@ footer: '[&larr; Hub](index.md)'
 <p>The complete lab guide, read right here in the browser.</p>
 </div>
 </div>
+
+<p class="setup-label">Every lab needs the step CLI to trust the CA (Lab 1). Run this once, whichever lab you start from:</p>
+
+```sh
+step ca bootstrap --ca-url https://step-ca:9443 \
+  --fingerprint "$(step certificate fingerprint /opt/step-ca-root/root_ca.crt)"
+```
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Trusting the CA: bootstrap, inspect the root cert</span></li>
