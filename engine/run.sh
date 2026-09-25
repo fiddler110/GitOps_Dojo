@@ -10,6 +10,7 @@
 #   ./run.sh <workshop-name> --test       # also spin up demo/test bot students (3)
 #   ./run.sh <workshop-name> --test 14    # ...or N bots: 1-3 fixed personas, rest random
 #   ./run.sh <workshop-name> --dry-run    # preview: what would rebuild/start, builds nothing
+#   ./run.sh <workshop-name> --env home   # also load engine/.env.home on top of engine/.env
 #   ./run.sh list                         # show available workshops
 #   ./run.sh modules                      # show available modules and who uses them
 #   ./run.sh stop | teardown              # stop the stack, wipe all volumes
@@ -87,11 +88,13 @@ usage() {
 Usage: ./run.sh <command | workshop-name> [options]
 
 Commands:
-  <workshop-name> [--test [N]] [--dry-run]
+  <workshop-name> [--test [N]] [--env NAME] [--dry-run]
                                 build and start a workshop; --test also starts
                                 demo bot students (3 by default, or N, max 35:
                                 testuser1-3 are expert/intermediate/novice, any
                                 beyond that get a random one of those three);
+                                --env NAME loads engine/.env.NAME on top of
+                                engine/.env (e.g. another address or port);
                                 --dry-run only previews what would be rebuilt
                                 and started
   list                          show available workshops
@@ -188,12 +191,13 @@ shift
 case "$workshop" in
   *[!a-z0-9-]* | -*)
     echo "'${workshop}' is not a workshop name (lowercase letters, digits and '-')." >&2
-    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--dry-run]" >&2
+    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
     echo "Run './run.sh list' to see available workshops." >&2
     exit 1 ;;
 esac
 test_mode=0
 test_count=""
+env_name=""
 while [ "$#" -gt 0 ]; do
   arg="$1"
   shift
@@ -214,13 +218,24 @@ while [ "$#" -gt 0 ]; do
           echo "--test expects a number of bots, e.g. --test 14 (got '${test_count}')" >&2
           exit 1 ;;
       esac ;;
+    --env | --env=*)
+      # Optional second env file, engine/.env.<NAME>, sourced after .env so
+      # its values win. Keeps the everyday .env untouched while another
+      # address (e.g. a LAN hostname with HTTPS) stays one flag away.
+      if [ "$arg" = "--env" ]; then env_name="${1:-}"; [ "$#" -eq 0 ] || shift
+      else env_name="${arg#--env=}"; fi
+      case "$env_name" in
+        '' | *[!a-z0-9-]* | -*)
+          echo "--env expects a name (lowercase letters, digits and '-'), e.g. --env home" >&2
+          exit 1 ;;
+      esac ;;
     --dry-run) ;; # already picked up above
     -h | --help)
       usage
       exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
-      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--dry-run]" >&2
+      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
       exit 1 ;;
   esac
 done
@@ -250,9 +265,18 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+if [ -n "$env_name" ] && [ ! -f ".env.${env_name}" ]; then
+  echo "--env ${env_name}: engine/.env.${env_name} not found." >&2
+  exit 1
+fi
+
 set -a
 # shellcheck disable=SC1091
 . ./.env
+if [ -n "$env_name" ]; then
+  # shellcheck disable=SC1090
+  . "./.env.${env_name}"
+fi
 # shellcheck disable=SC1091
 . "$workshop_env"
 set +a
@@ -292,15 +316,18 @@ fi
 # tofu-basics `url` output), so it has to name the port the gateway is
 # published on. Warn rather than fail: a NAT or proxy in front can make a
 # mismatch legitimate.
-url_scheme="${PUBLIC_BASE_URL%%://*}"
-url_hostport="${PUBLIC_BASE_URL#*://}"; url_hostport="${url_hostport%%/*}"
+# Behind another proxy (GATEWAY_LISTEN set) the gateway's own address is the
+# one that has to match the published port.
+listen_url="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
+url_scheme="${listen_url%%://*}"
+url_hostport="${listen_url#*://}"; url_hostport="${url_hostport%%/*}"
 case "$url_scheme" in
   https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
   *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
 esac
 case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
 if [ "$url_port" != "$gateway_port" ]; then
-  echo "WARNING: PUBLIC_BASE_URL (${PUBLIC_BASE_URL}) points at port ${url_port}, but the gateway" >&2
+  echo "WARNING: ${listen_url} points at port ${url_port}, but the gateway" >&2
   echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
   echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
 fi

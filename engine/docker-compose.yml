@@ -218,6 +218,8 @@ services:
       # Secure (see allocator/server.py's COOKIE_SECURE) -- allocator never
       # constructs a URL from this itself, gateway already owns routing.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # The Slides status check calls the gateway at this address when set.
+      - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -280,6 +282,8 @@ services:
     container_name: workshop_gateway
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # Set only when another proxy terminates TLS in front of the lab.
+      - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
       - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}

@@ -74,6 +74,7 @@ _run_sh() {
       *)
         _values 'option' \
           '--test[also spin up demo/test bot students; optionally --test N for N bots (max 35)]' \
+          '--env[also load engine/.env.NAME on top of engine/.env]' \
           '--dry-run[preview what would be rebuilt and started, change nothing]' \
           '--help[show help]' ;;
     esac

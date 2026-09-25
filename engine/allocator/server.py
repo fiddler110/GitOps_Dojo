@@ -43,6 +43,9 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 # spoofed same-name host on an open network. No effect (and no downside)
 # on the plain-HTTP localhost path, since that's never HTTPS to begin with.
 COOKIE_SECURE = PUBLIC_BASE_URL.startswith("https://")
+# The gateway's own address when another proxy terminates TLS in front of it
+# (e.g. http://:8080); empty means the gateway serves PUBLIC_BASE_URL itself.
+GATEWAY_LISTEN = os.environ.get("GATEWAY_LISTEN", "")
 
 STUDENT_COUNT = int(os.environ.get("STUDENT_COUNT", "30"))
 STUDENT_PREFIX = os.environ.get("STUDENT_PREFIX", "student")
@@ -342,11 +345,16 @@ def probe_slides():
     would: same scheme, port and Host as PUBLIC_BASE_URL. Not http://gateway:80:
     Caddy answers an empty 200 for Host "gateway" when the site is
     http://localhost, and a 308 redirect (or a TLS failure on 443) when the
-    site is an https hostname, so neither would say anything about slides."""
-    base = urllib.parse.urlsplit(PUBLIC_BASE_URL)
+    site is an https hostname, so neither would say anything about slides.
+    Behind another proxy, GATEWAY_LISTEN is the address to call; with no
+    host in it (http://:8080) Caddy takes any Host, so send the public one."""
+    public = urllib.parse.urlsplit(PUBLIC_BASE_URL)
+    base = urllib.parse.urlsplit(GATEWAY_LISTEN) if GATEWAY_LISTEN else public
     tls = base.scheme == "https"
+    host = base.hostname or public.hostname
     return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
-                      tls=tls, sni=base.hostname, host_header=base.netloc, require_body=True)
+                      tls=tls, sni=host, host_header=base.netloc if base.hostname else public.netloc,
+                      require_body=True)
 
 
 def _extra_probe(url):

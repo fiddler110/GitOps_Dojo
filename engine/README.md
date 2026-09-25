@@ -363,6 +363,22 @@ should be the **NSG**, scoped to your corporate network/VPN range for the
 workshop's duration, not this setting. This repo doesn't manage the NSG;
 that's an Azure-side step you control per-deployment.
 
+**A second address, one flag away (`--env`):** `./run.sh <workshop> --env home`
+sources `engine/.env.home` after `engine/.env`, so it only needs the lines that
+differ and everyday runs are unchanged.
+
+**Behind another reverse proxy (e.g. a home-lab Caddy with a real certificate):**
+the proxy terminates TLS and forwards to the gateway on plain HTTP. `GATEWAY_LISTEN`
+is what the gateway serves; `PUBLIC_BASE_URL` stays what browsers use (links,
+Forgejo's clone URLs, the Secure cookie flag):
+```
+PUBLIC_BASE_URL=https://dojo.example.com
+GATEWAY_LISTEN=http://:8080
+LAB_HOST_IP=0.0.0.0
+```
+and on the proxy, `dojo.example.com { reverse_proxy <this-host>:8080 }`. Scope a
+firewall rule so only the proxy can reach port 8080.
+
 ## Start
 
 ```sh

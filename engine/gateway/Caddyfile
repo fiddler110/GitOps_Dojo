@@ -3,6 +3,9 @@
 # - PUBLIC_BASE_URL with a real hostname (e.g. https://lab.eastus.cloudapp.azure.com)
 #   -> Caddy automatically gets a trusted Let's Encrypt cert and binds 443 (+80 redirect).
 # - PUBLIC_BASE_URL like http://localhost -> plain HTTP on :80, no TLS. Used for local dev.
+# - Behind another TLS proxy: GATEWAY_LISTEN=http://:8080 is what this Caddy serves
+#   (plain HTTP, any Host) while PUBLIC_BASE_URL stays the https address browsers use.
+#   gateway/entrypoint.sh defaults GATEWAY_LISTEN to PUBLIC_BASE_URL.
 #
 # /slides/*  -> Marp, open, no auth (read-only presentation content)
 # /admin/* -> its OWN basic_auth checked BEFORE the shared gate below,
@@ -34,7 +37,7 @@
 # Signing into Forgejo is a separate, deliberate step with each student's
 # own credentials, same as before.
 
-{$PUBLIC_BASE_URL} {
+{$GATEWAY_LISTEN} {
 	@slides path /slides*
 	handle @slides {
 		uri strip_prefix /slides

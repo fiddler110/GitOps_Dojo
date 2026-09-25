@@ -57,7 +57,7 @@ _run_sh_complete() {
     *)
       # Don't offer an option that is already on the line.
       local o w remaining=""
-      for o in --test --dry-run --help; do
+      for o in --test --env --dry-run --help; do
         for w in "${COMP_WORDS[@]:2:COMP_CWORD-2}"; do
           [ "$w" = "$o" ] && continue 2
         done
