@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Local safety net for two things that should never reach a commit:
+#   1. a real secret pasted anywhere in the staged diff
+#   2. a malformed dnsconfig.js record that `dnsctl lint` would catch
+#
+# Enabled the same way as .githooks/pre-push (same core.hooksPath):
+#   git config core.hooksPath .githooks
+# `dnsctl doctor` checks this setting and offers to set it for you.
+
+set -euo pipefail
+
+fail=0
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+
+# --- 1. Refuse to commit anything that looks like a local secrets file --
+# .env.example (and any */something.env.example) is the intentionally-committed
+# template - never a real secrets file - so it's excluded before the general
+# .env/.env.* check.
+for f in $staged_files; do
+  case "$f" in
+    .env.example|*/.env.example)
+      ;;
+    .env|.env.*|*/.env|*/.env.*)
+      echo "pre-commit: refusing to commit '$f' - looks like a local secrets file." >&2
+      fail=1
+      ;;
+  esac
+done
+
+# --- 2. Scan the staged diff for secret-shaped assignments --------------
+# Heuristic, not a full secret scanner: flags a *_TOKEN/*_KEY/*_SECRET-style
+# name assigned a long opaque value. Scoped to variable-assignment context
+# (not "any long string") so it doesn't fire on the base64 _acme-challenge
+# TXT values already in dnsconfig.js, and requires the value not start with
+# `$` so creds.json's legitimate "$CLOUDFLARE_API_TOKEN" env-var reference
+# doesn't trip it either.
+secret_pattern='(CLOUDFLARE[A-Z_]*TOKEN|API[_-]?KEY|API[_-]?TOKEN|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|PASSWORD)[^=]*=[[:space:]]*"?[A-Za-z0-9][A-Za-z0-9_/+-]{19,}'
+
+diff_added=$(git diff --cached -U0 -- . ':(exclude)*.lock' ':(exclude)*.md' | grep '^+' || true)
+
+if echo "$diff_added" | grep -iE "$secret_pattern" >/dev/null 2>&1; then
+  echo "pre-commit: staged diff contains what looks like a real secret (a TOKEN/KEY/SECRET assigned a long value)." >&2
+  echo "            If this is a false positive, rewrite it so it doesn't match, or use 'git commit --no-verify' deliberately." >&2
+  fail=1
+fi
+
+# --- 3. Lint dnsconfig.js if it's staged --------------------------------
+if echo "$staged_files" | grep -qx "dnsconfig.js"; then
+  python_bin=""
+  if command -v python >/dev/null 2>&1; then
+    python_bin=python
+  elif command -v python3 >/dev/null 2>&1; then
+    python_bin=python3
+  fi
+
+  if [ -z "$python_bin" ]; then
+    echo "pre-commit: dnsconfig.js is staged but no python interpreter found to run 'dnsctl lint' - skipping." >&2
+  else
+    echo "pre-commit: dnsconfig.js changed - running 'dnsctl lint'..."
+    if ! "$python_bin" scripts/dnsctl.py lint; then
+      echo "pre-commit: dnsctl lint failed - fix the issues above before committing." >&2
+      fail=1
+    fi
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: one or more checks failed. Commit blocked." >&2
+  exit 1
+fi
+
+exit 0

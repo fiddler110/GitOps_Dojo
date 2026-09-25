@@ -1,0 +1,45 @@
+# Mirrors dns-preview.yml's setup - see the comment there. Runs on merge
+# to main and actually applies the change to this lab's PowerDNS zone.
+name: DNS Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - dnsconfig.js
+      - creds.json
+
+jobs:
+  apply:
+    runs-on: host
+    steps:
+      - name: Checkout main
+        run: |
+          set -eu
+          rm -rf repo
+          git clone --quiet --branch main "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout --quiet "$GITHUB_SHA"
+
+      - name: dnscontrol push
+        id: push
+        run: |
+          set +e
+          (cd repo && dnscontrol push) >apply-output.txt 2>&1
+          echo "status=$?" >>"$GITHUB_OUTPUT"
+          cat apply-output.txt
+
+      - name: Set DNS Apply commit status
+        if: always()
+        run: |
+          state=success
+          if [ "${{ steps.push.outputs.status }}" != "0" ]; then state=failure; fi
+          jq -n --arg state "$state" \
+            '{state: $state, context: "DNS Apply", description: "dnscontrol push"}' >status.json
+          curl -sf -X POST "http://git-server:3000/api/v1/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d @status.json
+
+      - name: Fail the job if push failed
+        run: exit ${{ steps.push.outputs.status }}

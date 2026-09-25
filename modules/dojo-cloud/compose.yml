@@ -1,0 +1,128 @@
+# dojo-cloud module, layered on top of engine/docker-compose.yml by
+# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+#
+# IMPORTANT: Compose resolves every relative path in this file relative to
+# the base file's directory — engine/, not this folder. That's why
+# `build.context` below is `../modules/dojo-cloud/...`, not `./...`.
+#
+# "Dojo Cloud", an Azure-inspired training cloud:
+#
+#   student terminal --HTTPS, ARM API--> cloud-api --docker.sock (shared volume)--> cloud-host
+#   (workshop_lab)                       (both nets)                                (cloud_net only)
+#
+# cloud-host is a privileged Docker-in-Docker daemon. That is acceptable ONLY
+# because of how it is boxed in: it is on an `internal: true` network with no
+# route to the internet or to any student, publishes no ports to the host, has
+# no listener except a unix socket shared with cloud-api, and the only thing that
+# ever talks to it is cloud-api's fixed-template executor. Students never speak
+# Docker. See workshops/tofu-basics/PLAN.md §7.
+#
+# Start-up is deliberately NOT chained on health: each service only waits for the
+# previous one to have started (service_started), so the lab and the terminals
+# come up even if Dojo Cloud is slow or broken. cloud-api listens at once and
+# answers GET /readyz with 503 until cloud-host's Docker is up, both app images are
+# imported and its start-up reconcile is done; the facilitator's status strip shows
+# that (extensions.json), and cloud-api refuses writes with a 503 until then.
+
+services:
+  cloud-host:
+    build:
+      context: ../modules/dojo-cloud/cloud-host
+    image: gitopsdojo/cloud-host:local
+    container_name: workshop_cloud_host
+    privileged: true
+    volumes:
+      - cloud_run:/run/cloud
+      # docker:dind keeps its images and containers in /var/lib/docker, which its image declares as an
+      # ANONYMOUS volume. `down --volumes` (./run.sh stop) leaves anonymous volumes behind, one per start,
+      # so name it: then stop removes it like every other volume.
+      - cloud_docker:/var/lib/docker
+    networks:
+      - cloud_net
+    healthcheck:
+      test: ["CMD-SHELL", "docker image inspect dojo/hello:2.0 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    mem_limit: ${CLOUD_HOST_MEM_LIMIT:-3g}
+    pids_limit: ${CLOUD_HOST_PIDS_LIMIT:-4096}
+    restart: unless-stopped
+
+  cloud-api:
+    build:
+      context: ../modules/dojo-cloud/cloud-api
+    image: gitopsdojo/cloud-api:local
+    container_name: workshop_cloud_api
+    # Started, not healthy: cloud-api listens at once and reports its own readiness
+    # (/readyz), so a slow cloud-host must not hold anything else back.
+    depends_on:
+      cloud-host:
+        condition: service_started
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # Dojo Portal API trusts X-Auth-User only together with this token (the
+      # gateway sets both; students on workshop_lab can reach :8080 directly).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+    volumes:
+      - cloud_run:/run/cloud
+      - cloud_pki:/pki
+      - cloud_secrets:/secrets
+      - cloud_data:/data
+    networks:
+      cloud_net:
+      workshop_lab:
+        # The names the azurerm provider is pointed at (ARM_METADATA_HOSTNAME
+        # etc.); all covered by the private CA cloud-api creates.
+        aliases:
+          - management.dojo.cloud
+          - login.dojo.cloud
+          - portal.dojo.cloud
+          - graph.dojo.cloud
+          - cloud-api
+    # Least privilege: it only needs to bind :443.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CLOUD_API_MEM_LIMIT:-256m}
+    restart: unless-stopped
+
+  # The "Dojo Cloud" card, /admin tab, /cloud route and status-strip entry
+  # (green once cloud-api's /readyz answers) are in extensions.json.
+
+  # The terminal's client side (credential broker, dojo-env, CA trust) is
+  # terminal/, a link in the terminal build chain (engine/run.sh).
+  web-terminal:
+    # Started, not healthy: the start.d hook never waits for Dojo Cloud, so the
+    # terminal is usable at once (a shell opened before the cloud is ready needs a new tab).
+    depends_on:
+      cloud-api:
+        condition: service_started
+    environment:
+      # Handed to students' shells by the credential broker (TF_VAR_portal_base_url).
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+    volumes:
+      # CA certificate only (public); the CA key never leaves cloud-api.
+      - cloud_pki:/run/cloud-pki:ro
+      # Root-only signing key: the broker (root) reads it, students cannot.
+      - cloud_secrets:/run/cloud-secrets:ro
+
+volumes:
+  cloud_run:
+  cloud_docker:
+  cloud_pki:
+  cloud_secrets:
+  cloud_data:
+
+networks:
+  # Nothing on this network can reach the internet or any student terminal.
+  cloud_net:
+    internal: true

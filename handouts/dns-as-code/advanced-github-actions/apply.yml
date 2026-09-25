@@ -1,0 +1,37 @@
+# ADVANCED / OPTIONAL — see dns-preview.yml's header comment. Same
+# self-hosted-runner requirement applies here.
+name: DNS Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - dnsconfig.js
+      - creds.json
+
+jobs:
+  apply:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: dnscontrol push
+        id: push
+        run: |
+          set +e
+          dnscontrol push >apply-output.txt 2>&1
+          echo "status=$?" >>"$GITHUB_OUTPUT"
+          cat apply-output.txt
+
+      - name: Set DNS Apply commit status
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          state=success
+          if [ "${{ steps.push.outputs.status }}" != "0" ]; then state=failure; fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${{ github.sha }}" \
+            -f state="$state" -f context="DNS Apply" -f description="dnscontrol push"
+
+      - name: Fail the job if push failed
+        run: exit ${{ steps.push.outputs.status }}
