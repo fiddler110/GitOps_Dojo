@@ -133,6 +133,17 @@ class TestAuto(Base):
         self.assertEqual(len(self.alive()), 2)
         self.assertEqual(self.pending(), [])
 
+    def test_taken_start_file_not_yet_in_state_counts(self):
+        # Found live: the supervisor removes the start file before state.json
+        # lists the runner; that gap must not start another.
+        self.ctl.tick()
+        for f in os.listdir(self.spool.start_dir):
+            os.unlink(os.path.join(self.spool.start_dir, f))
+        self.clock.t += 3
+        self.ctl.tick()
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(len(self.fj.regs), 2)
+
     def test_scales_up_per_waiting_job_to_max(self):
         self.ctl.tick(); self.supervise()
         self.fj.jobs = [{"id": i, "repo_id": i, "name": "ci", "status": "waiting"} for i in range(5)]

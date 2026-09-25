@@ -89,10 +89,11 @@ ok "approle role and repository secrets" 'export BAO_NAMESPACE=students/$USER
         http://git-server:3000/api/v1/repos/$USER/vault-fundamentals/actions/secrets/$1; rc=$?; rm -f ~/.b.json; return $rc; }
     put BAO_ROLE_ID "$(bao read -field=role_id auth/approle/role/ci/role-id)" &&
     put BAO_SECRET_ID "$(bao write -f -field=secret_id auth/approle/role/ci/secret-id)"'
-# The workflows, taken from the lab pages themselves.
+# The workflows, taken from the lab pages themselves. Lab 7's clean-up removed
+# the folder with its last file; the lab's own mkdir -p comes later.
 for wf in vault-approle vault-oidc; do
   sed -n "/cat > .forgejo\/workflows\/$wf.yml <<'EOF'/,/^EOF\$/p" workshops/vault-fundamentals/content/lab/lab8.md \
-    | sed '1d;$d' | as "cat > ~/lab/vault-fundamentals/.forgejo/workflows/$wf.yml.next"
+    | sed '1d;$d' | as "mkdir -p ~/lab/vault-fundamentals/.forgejo/workflows && cat > ~/lab/vault-fundamentals/.forgejo/workflows/$wf.yml.next"
 done
 as 'cd ~/lab/vault-fundamentals/.forgejo/workflows && test -s vault-approle.yml.next && test -s vault-oidc.yml.next' \
   || { echo "  FAIL: couldn't extract the workflows from lab8.md"; failed=1; }

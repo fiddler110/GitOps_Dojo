@@ -117,14 +117,19 @@ echo "== Manual: - / +"
 [ "$(panel POST /api/mode "$FACILITATOR_USERNAME" '{"mode":"manual"}' dojo-runners)" = 200 ] && ok "switched to Manual" || fail "switch to Manual"
 sleep 4
 a0="$(state | field 'd["alive"]')"
-[ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":1}' dojo-runners)" = 200 ] && ok "+" || fail "+ refused"
-sleep 8
-a1="$(state | field 'd["alive"]')"
-[ "$a1" -eq $((a0 + 1)) ] && ok "one more runner ($a0 -> $a1)" || fail "runners $a0 -> $a1 after +"
+max="$(state | field 'd["max"]')"
+# Take one away first: with few students the pool may already be at the max.
 [ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":-1}' dojo-runners)" = 200 ] && ok "-" || fail "- refused"
 sleep 5
+a1="$(state | field 'd["alive"]')"
+[ "$a1" -eq $((a0 - 1)) ] && ok "one fewer runner ($a0 -> $a1)" || fail "runners $a0 -> $a1 after -"
+[ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":1}' dojo-runners)" = 200 ] && ok "+" || fail "+ refused"
+sleep 8
 a2="$(state | field 'd["alive"]')"
-[ "$a2" -eq "$a0" ] && ok "back to $a0" || fail "runners $a1 -> $a2 after -"
+[ "$a2" -eq "$a0" ] && ok "back to $a0" || fail "runners $a1 -> $a2 after +"
+if [ "$a2" -ge "$max" ]; then
+  [ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":1}' dojo-runners)" = 409 ] && ok "+ at the max ($max) refused" || fail "+ at the max not refused"
+fi
 panel POST /api/mode "$FACILITATOR_USERNAME" '{"mode":"auto"}' dojo-runners >/dev/null
 
 echo "== runner users match live runners"

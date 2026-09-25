@@ -14,6 +14,9 @@ services:
   git-server:
     environment:
       - FORGEJO__actions__ENABLED=true
+      # Forgejo makes forks with Actions off (Forgejo 16's default is code and
+      # pull requests only); students run workflows in their forks.
+      - FORGEJO__repository__DEFAULT_FORK_REPO_UNITS=repo.code,repo.pulls,repo.actions
     # Added to the engine's own networks (lists append), so runners poll it
     # without reaching the control plane.
     networks:

@@ -358,10 +358,10 @@ steps:
 <div class="split">
 <div>
 
-- A controller keeps a few **warm** runners ready, and starts more when jobs queue
-- Each runner takes **one job**, then it is deleted with everything the job left behind
-- Your job can't see another job's files or processes, and the next job can't see yours
-- The facilitator's **Runners** panel shows each one: ready, busy, or broken
+- A controller keeps a few **warm** runners ready, more when jobs queue
+- Each runner takes **one job**, then it is deleted with all it left behind
+- No job sees another's files or processes
+- The **Runners** panel: ready, busy or broken
 
 </div>
 <div>
@@ -381,23 +381,25 @@ Long-lived shared runners are how one team's job reads another team's leftovers.
 <div>
 
 ```json
-{ "iss": ".../git/api/actions",
+{
+  "iss": ".../git/api/actions",
   "aud": "openbao",
   "repository": "student07/vault-fundamentals",
   "ref": "refs/heads/main",
   "actor": "student07",
-  "exp": 1790000000 }
+  "exp": 1790000000
+}
 ```
 
 </div>
 <div>
 
-1. Forgejo **signs a token for this run**: which repo, branch, workflow, who
+1. Forgejo **signs a token for this run**: repo, branch, who
 2. The job hands it to the vault's **JWT auth**
-3. The vault checks the **signature, issuer, audience, expiry** and the role's **bound claims**
-4. It gets a **5-minute** vault token with one policy
+3. The vault checks its **signature** and the role's **bound claims**
+4. It gets a **5-minute** token with one policy
 
-Nothing is stored in the CI system. A branch doesn't match `main`, so it's refused.
+Nothing stored in CI. A branch isn't `main`: refused.
 
 </div>
 </div>
@@ -440,8 +442,7 @@ About **35 minutes**.
 | OpenBao | Azure |
 | ------- | ----- |
 | Namespace | A Key Vault per team or environment |
-| KV v2 secret and versions | Key Vault secret and versions |
-| delete / undelete / destroy | soft delete / recover / purge |
+| KV v2: versions, delete / undelete / destroy | Key Vault: versions, soft delete / recover / purge |
 | ACL policy (paths + capabilities) | RBAC roles (Secrets User, Secrets Officer) |
 | OIDC auth method | Entra ID sign-in |
 | Terminal sign-in (JWT from the platform) | Managed identity |

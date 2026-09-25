@@ -12,7 +12,7 @@ footer: '[&larr; Hub](index.md)'
 <!-- _class: lead -->
 
 <style scoped>
-.lab-links { columns: 2; font-size: 20px; }
+.lab-links { columns: 3; font-size: 20px; margin-top: 24px; }
 .lab-links .topic { font-size: 15px; }
 </style>
 

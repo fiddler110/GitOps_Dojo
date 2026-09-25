@@ -32,7 +32,9 @@ import json
 import math
 import os
 import secrets
+import signal
 import socketserver
+import sys
 import threading
 import time
 import urllib.error
@@ -238,7 +240,10 @@ class Controller:
                 self._problem(name, s.get("detail") or "failed")
         while self.fail_times and now - self.fail_times[0] > FAIL_WINDOW:
             self.fail_times.popleft()
+        # The supervisor takes a start file a moment before its state.json lists
+        # the runner: one we registered counts as starting until it shows up.
         self.pending = {n for n in pending if n not in self.sup}
+        self.pending |= {n for n, t in self.created.items() if n not in self.sup and now - t <= GRACE}
         for name, reg in self.regs.items():
             if reg.get("status") == "offline" and self.sup.get(name, {}).get("state") in ALIVE:
                 self.offline_since.setdefault(name, now)
@@ -509,6 +514,8 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def main():
+    # As PID 1, Python ignores SIGTERM unless it has a handler.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     cfg = Config()
     ctl = Controller(cfg, Forgejo(cfg.forgejo_url, cfg.forgejo_user, cfg.forgejo_password), Spool(cfg.spool))
     threading.Thread(target=ctl.loop, daemon=True).start()
