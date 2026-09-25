@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 done. P1 in progress: T1.1 done (`modules/openbao/`, OpenBao 2.7.0); T1.2 (`openbao-setup`) written, not yet wired in or run. Stack stopped. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 done. P1 in progress: T1.1 (`modules/openbao/`, OpenBao 2.7.0) and T1.2 (`openbao-setup`) done; T1.3 (SSO) is next. Stack stopped. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-24, end of day (T1.1 done, T1.2 in progress) |
+| Last updated | 2026-09-25 (T1.2 done) |
 
 ---
 
@@ -37,35 +37,21 @@
 7. If you are blocked, mark the task `[!]`, say why in §15, and move to the
    next unblocked task.
 
-### Where we stopped (end of 2026-09-24): start here tomorrow
+### Where we stopped (2026-09-25): start here next
 
 - **P0 is done** (results in §10). **P1 is in progress** (the user said go and answered Q4/Q5 as S31/S32).
-- **Done in P1:** T1.1 (`modules/openbao/`, OpenBao 2.7.0), including a real `./run.sh stop` that removed all its
-  volumes.
-- **In progress: T1.2 `[~]`.** Written and committed but **not wired in and not run yet**:
-  `modules/openbao/setup/setup.sh`, `setup/policies/facilitator.hcl`, `setup/policies/provisioner.hcl`. Design
-  choices made while writing it are in the T1.2 entry in §11.
-- **The stack is stopped** (`./run.sh stop` ran at the end of the day), so tomorrow starts from a fresh vault. There
-  is nothing to unseal and no keys to keep.
-- **Tomorrow, in order:**
-  1. Wire `openbao-setup` into `modules/openbao/compose.yml`: the OpenBao image with entrypoint
-     `sh /etc/openbao-setup/setup.sh`, mounting `setup/` read-only at `/etc/openbao-setup` (for `setup.sh` and
-     `policies/`), the named volume `openbao_setup` at `/setup`, a tmpfs at `/run/openbao-setup`, `user: "0:0"`,
-     `cap_drop: [ALL]`, `workshop_lab`, `depends_on: openbao`, `restart: unless-stopped`, and a healthcheck of
-     `test -f /run/openbao-setup/ready`.
-  2. `./run.sh vault-fundamentals`, then check T1.2's *Verify* line: unsealed with no manual step, root revoked
-     (`bao token lookup` with the old root fails), a `podman restart workshop_openbao` re-unseals within about 5 s, the
-     audit log is written to the `openbao_logs` volume, and the `/admin` tab frames the UI (the CSP header).
-  3. Check that the provisioner policy is enough: every hook runs with that token, so T1.3/T1.5 may need more paths.
-     Note what was added.
-  4. Update `modules/openbao/README.md` (drop the "not built yet" line for setup), tick T1.2, and retire
-     `spike/init-bao.sh`. The spike scripts that need a root token (`t05-sso.sh`, `t09-sops.sh`) will need the
-     facilitator's or provisioner's token instead; the provisioner token is on the `openbao_setup` volume
-     (`podman exec workshop_openbao_setup cat /setup/provisioner-token`).
-  5. Then T1.3 (SSO in the module, and the approved `engine/` change `/forgejo-login?next=`, S32).
+- **Done in P1:** T1.1 (`modules/openbao/`, OpenBao 2.7.0) and T1.2 (`openbao-setup`, 33e1d36): the vault comes up
+  initialised and unsealed, root revoked, and re-unseals itself within about 10 s after `podman restart
+  workshop_openbao`. The provisioner token is at `podman exec workshop_openbao_setup cat /setup/provisioner-token`.
+- **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
+  on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
+- **Next: T1.3** (SSO in the module, and the approved `engine/` change `/forgejo-login?next=`, S32). Ask the user
+  before starting it. Until it's done, SSO after a fresh start comes from `spike/t05-sso.sh` with the provisioner
+  token (the command is in its header).
+- `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
+  student's after T1.5); root is revoked and the provisioner can't.
 - **Local tests run in WSL on the user's desktop** (not a laptop): `http://localhost:8080`. The home HTTPS path is
   `./run.sh vault-fundamentals --env home` (https://dojo.macleodtech.ca).
-- **After a fresh start, until T1.3 is done**, SSO still comes from `spike/t05-sso.sh`.
 - **Nothing is left in `engine/`** apart from the committed a24d0e7 `run.sh` fix.
 
 **Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) ·
@@ -656,21 +642,24 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
       `COMPOSE_OVERLAY` only if something is left (nothing was: removed). OpenBao 2.7.0 (S31).
       *Verify:* `./run.sh modules` lists it; `--dry-run` is clean; the stack starts, the Vault card and tab work,
       `./run.sh stop` leaves no volume behind.
-- [~] **T1.2** `openbao-setup` in the module (S29): init, unseal, re-unseal after a restart; the UI CSP header with
-      `frame-ancestors 'self'` (§5.4); facilitator policy; provisioner token; `setup.d` hooks; revoke root. Retry the
-      first write after enabling a KV v2 mount (§14). Replaces `spike/init-bao.sh`.
-      *Written (not run yet), `modules/openbao/setup/`:* `setup.sh` inits with one key share, unseals, writes the
-      provisioner policy, creates a **periodic** (168 h) orphan provisioner token, and revokes root, all on the first
-      start only. On every start it uses the provisioner token to set the UI header and the facilitator policy and to
-      source each `/etc/openbao-setup.d/*.sh` hook in a subshell (hooks get `BAO_TOKEN` and a `retry` helper). **It
-      then stays running** and unseals whenever `openbao` is sealed (checking every 5 s), renewing the token hourly. A
-      one-shot container couldn't re-unseal after a restart of `openbao`. If the vault is new but the volume
-      isn't, it moves the old key and token aside. The provisioner can manage namespaces, policies, auth methods,
-      identities and mounts, and write but not read seed secrets. Since it can write policies it can't be a real
-      boundary, which the policy file says openly (§14). Nothing reads it yet: `compose.yml` has no
-      `openbao-setup` service (tomorrow's step 1 in §0).
-      *Verify:* after `./run.sh vault-fundamentals` the vault is unsealed with no manual step, root is revoked, a
-      `podman restart workshop_openbao` re-unseals by itself.
+- [x] **T1.2** *(33e1d36)* `openbao-setup` in the module (S29): init, unseal, re-unseal after a restart; the UI CSP
+      header with `frame-ancestors 'self'` (§5.4); facilitator policy; provisioner token; `setup.d` hooks; revoke
+      root. Replaced `spike/init-bao.sh` (and the `t04-*.py` scripts that read its root token).
+      *Built, `modules/openbao/setup/`:* `setup.sh` inits with one key share, unseals, writes the provisioner policy,
+      creates a **periodic** (168 h) orphan provisioner token, and revokes root. The root token waits on
+      `openbao_setup` until it is revoked, so a first start that dies half-way is finished by the next start. Every
+      start then uses the provisioner token to set the UI header and the facilitator policy and to source each
+      `/etc/openbao-setup.d/*.sh` hook in a subshell (hooks get `BAO_TOKEN` and a `retry` helper). **It then stays
+      running** and unseals whenever `openbao` is sealed (checking every 5 s), renewing the token hourly. A one-shot
+      container couldn't re-unseal after a restart of `openbao`. If the vault is new but the volume isn't, it moves
+      the old key and tokens aside. The provisioner can manage namespaces (including `students/<name>`), policies,
+      auth methods, identities and mounts, renew itself, and write but not read seed secrets. Since it can write
+      policies it can't be a real boundary, which the policy file says openly (§14).
+      *Verify:* after `./run.sh vault-fundamentals` the `openbao_setup` container is healthy, the vault is unsealed with
+      no manual step, `/setup` holds no `root-token`, the provisioner token renews and can create
+      `students/student01`, and a `podman restart workshop_openbao` re-unseals by itself. *(Passed locally
+      2026-09-25: healthy in about 10 s, re-unseal in about 10 s, CSP `frame-ancestors 'self'`, audit log written,
+      restarting the setup container doesn't re-init.)*
 - [ ] **T1.3** SSO in the module, from `spike/t05-sso.sh`: Forgejo OAuth2 app, OIDC method and role (settings in
       §5.4), the shim's CA on HTTPS, one entity per student and the facilitator. The Forgejo session first: the
       `engine/` change `/forgejo-login?next=` (S32, approved) and the card and tab pointing through it; check whether Forgejo 16 can skip its "Authorize Application" page for our own app.
@@ -779,6 +768,11 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **The provisioner token is admin-equivalent** (T1.2): anything that can write policies and identities can grant
   itself more. Its protection is where it lives: only on the `openbao_setup` volume. Worth a line on the
   "secret zero" slide.
+- **OpenBao says "unsealed" a moment before it accepts writes** (T1.2): the first write straight after `bao operator
+  unseal` got `500 internal error` (the audit device's salt couldn't be stored yet), and a `set -e` script died there.
+  Retry every write that follows an unseal (`setup.sh` does, 30 × 1 s; one retry was enough locally).
+- **A token made with `-no-default-policy` can't renew or look itself up** (T1.2): grant `auth/token/renew-self` and
+  `auth/token/lookup-self` in its own policy.
 - **The terminal sets `BAO_ADDR` only** *(fixed in T1.1: the `openbao` module sets `VAULT_ADDR` too)*; lab 6 needs `VAULT_ADDR` too (export it alongside `BAO_ADDR`, and the
   identity broker should provide `VAULT_TOKEN` or `~/.vault-token`, which sops also reads).
 
@@ -973,3 +967,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **A shared, long-lived runner running every student's jobs** (the `dns-as-code` pattern). One job's leftovers are
   visible to the next job, which is exactly what this workshop teaches against.
 - **Reusing Dojo Cloud container groups as the deployment target.** It would tie this workshop to tofu-basics.
+
+### 2026-09-25 — T1.2 done (33e1d36)
+
+- Wired `openbao-setup` into `modules/openbao/compose.yml`. First run crash-looped: the provisioner policy write
+  right after unseal got a 500, setup died before creating the token or revoking root, and every restart then
+  failed on the missing token file (and root stayed live, unrecoverable). Fixed with retries after unseal and by
+  keeping the root token on `openbao_setup` until it is revoked (§14). The provisioner policy also gained
+  renew/lookup-self and `students/sys/namespaces/*`; a `trap` makes `stop` quick.
+- Re-test passed locally (T1.2 *Verify*); `./run.sh stop` left nothing behind. `init-bao.sh` and `t04-*.py`
+  deleted; `t05-sso.sh` uses the provisioner token; module README updated.
+- The user runs other workshop stacks here for manual validation: check `podman ps` first and hand the machine
+  back (§0).
