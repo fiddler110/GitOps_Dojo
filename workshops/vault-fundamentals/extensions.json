@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "apps", "label": "My App", "desc": "Your slot on app-host: what your pipeline deployed, and its log.",
+      "href": "/apps/", "icon": "rocket" }
+  ],
+  "admin_tabs": [
+    { "id": "apps", "label": "Apps", "src": "/apps/" }
+  ],
+  "routes": [
+    { "id": "apps", "path": "/apps", "upstream": "app-host:8080", "gate": "identity", "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "App host", "url": "http://app-host:8080/healthz" }
+  ]
+}

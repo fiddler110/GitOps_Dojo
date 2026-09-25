@@ -127,6 +127,42 @@ EOF
 
 `${{ secrets.NAME }}` is masked as `***` in logs, but anyone who can push a workflow can print it (`| base64`).
 
+## Deployments (labs 9-11)
+
+```bash
+curl -s http://app-host:8080/.well-known/jwks.json      # the platform's public keys
+bao write auth/jwt-platform/role/app role_type=jwt user_claim=sub bound_audiences=openbao \
+  bound_subject="slot:$USER" token_policies=app-read token_ttl=15m
+curl -s http://app-host:8080/$USER/                      # your app (also the My App card)
+```
+
+```hcl
+# app/agent.hcl: log in with the slot's platform identity
+auto_auth {
+  method "jwt" {
+    namespace  = "students/<you>"
+    mount_path = "auth/jwt-platform"
+    config = { path = "/run/platform/<you>/token", role = "app", remove_jwt_after_reading = false }
+  }
+}
+```
+
+```bash
+# Deploy step: the job's ID token for app-host, and the app folder
+id_token="$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=app-host" | jq -j .value)"
+tar -czf app.tgz -C src/app . && curl -sS --fail-with-body -H "Authorization: Bearer $id_token" \
+  --data-binary @app.tgz http://app-host:8080/deploy
+```
+
+```bash
+bao read database/creds/app                   # a Postgres login made now (lab 10)
+bao lease lookup|renew|revoke <lease_id>
+bao token lookup -format=json <token> | jq -r .data.accessor
+bao-audit --accessor <accessor>               # what that token did (lab 11)
+bao token revoke -accessor <accessor>         # it, and every token it made
+```
+
 ## Secrets in git (lab 1)
 
 ```bash

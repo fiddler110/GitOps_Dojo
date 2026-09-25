@@ -15,7 +15,7 @@ one workshop can use live in [`../modules/`](../modules/).
 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `forgejo-runner` | `./run.sh dns-as-code` |
 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | — | `./run.sh cert-autorenewal` |
 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
-| [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, KV secrets and policies, leaks in git, your own namespace, secrets in code and in git, CI that logs in with its own identity (labs 0-8 so far) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
+| [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, KV secrets and policies, leaks in git, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-11) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
 
 `./run.sh list` prints this same list from each workshop's `workshop.env`;
 `./run.sh modules` lists the modules and which workshops use them.

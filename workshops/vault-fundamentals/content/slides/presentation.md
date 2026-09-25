@@ -24,7 +24,7 @@ Builds on Git Fundamentals: the same repos, now without the passwords in them
 **Talk + hands-on lab**
 
 <!--
-Parts 1-5 (labs 0-8) are written; later parts come with later build phases.
+Parts 1-6 (labs 0-11) are written; the facilitator notes and demo come with P5.
 Assumes the room knows clone/commit/push.
 -->
 
@@ -437,7 +437,119 @@ About **35 minutes**.
 
 ---
 
+<!-- _class: section-title -->
+
+# Part 6
+
+## Secrets in deployments
+
+---
+
+## How should an app on a server get its secrets?
+
+1. **Platform identity.** The platform vouches for the app (managed identity, a Kubernetes service account); the app trades that for a short-lived vault token. **Nothing is handed over.**
+2. **Dynamic credentials** on top: a database login made for this app, with a lease.
+3. **AppRole + a trusted deliverer**, when there's no platform identity: a single-use, response-wrapped secret ID.
+4. **Anti-patterns:** secrets in the image, a committed `.env`, env vars pushed by the pipeline, one shared token.
+
+---
+
+## Platform identity: app-host
+
+<div class="split">
+<div>
+
+```json
+{
+  "iss": "http://app-host:8080",
+  "aud": "openbao",
+  "sub": "slot:student07",
+  "exp": 1790000600
+}
+```
+
+</div>
+<div>
+
+- One **slot** per student: its own Linux user
+- The platform writes each slot a **10-minute token**, only that slot can read it
+- The vault trusts the platform's **public keys**; a role binds `sub` to **one slot**
+- The **Agent** logs in with it and writes the secrets to a file
+
+</div>
+</div>
+
+---
+
+## Deploy, but don't read
+
+<style scoped>
+table { font-size: 24px; }
+</style>
+
+| | Identity | May | May not |
+| --- | --- | --- | --- |
+| **Pipeline** | Forgejo job token, `aud: app-host` | deploy to *its owner's* slot, from `main` | read `team/app` |
+| **Pipeline** | Forgejo job token, `aud: openbao` | read `team/ci` | read `team/app` |
+| **App** | platform token, `sub: slot:<you>` | read `team/app` | deploy anything |
+
+**Separation of duties:** whoever ships the code never holds production's secrets, and a branch can't ship.
+
+---
+
+## Dynamic credentials and leases
+
+<div class="split">
+<div>
+
+```bash
+bao read database/creds/app
+# username  v-...-app-...
+# password  (random)
+# lease     database/creds/app/...  5m
+bao lease renew  <lease>
+bao lease revoke <lease>   # DROP ROLE, now
+```
+
+</div>
+<div>
+
+- The vault logs in to Postgres as a user **only it** knows (`rotate-root`)
+- Every caller gets **its own login**, gone when the lease ends
+- A leaked login is worth **minutes**, and each one has its own name in the database's logs
+
+</div>
+</div>
+
+---
+
+## When a token leaks
+
+1. **Find** the token's **accessor**: it can revoke, it can't log in
+2. **Read the audit log** by accessor: what it read, what it was refused, what tokens it made
+3. **Contain:** revoke the token, and every token under it goes too
+4. **Rotate** what it read (not what it was refused)
+5. **Recover:** apps using the Agent pick up the new values with no deploy
+6. **Review:** why a long-lived token existed at all
+
+---
+
+## Labs 9-11: secrets in deployments
+
+- **Lab 9:** deploy to your slot on app-host; the app's Agent logs in with the **platform's identity**; the pipeline can deploy but not read; rotate with no deploy; a branch can't deploy
+- **Lab 10 (optional):** database logins made on demand: role, lease, renew, revoke; then the app gets its own
+- **Lab 11:** the incident drill: a leaked token, the audit trail, revoke, rotate, recover
+
+About **50 minutes** (35 without lab 10).
+
+---
+
 ## OpenBao and Azure, side by side
+
+<style scoped>
+table { font-size: 21px; }
+th, td { padding: 5px 14px; }
+</style>
 
 | OpenBao | Azure |
 | ------- | ----- |
@@ -445,10 +557,11 @@ About **35 minutes**.
 | KV v2: versions, delete / undelete / destroy | Key Vault: versions, soft delete / recover / purge |
 | ACL policy (paths + capabilities) | RBAC roles (Secrets User, Secrets Officer) |
 | OIDC auth method | Entra ID sign-in |
-| Terminal sign-in (JWT from the platform) | Managed identity |
+| JWT auth for the platform (terminal, app-host) | Managed identity |
 | AppRole | Service principal with a client secret |
 | JWT auth for CI jobs (lab 8) | Workload identity federation |
 | Transit engine (sops) | Key Vault keys (sops `azure_kv`) |
+| Database engine (lab 10) | Entra ID sign-in to Azure SQL / Postgres |
 | Audit device | Diagnostic settings to Log Analytics |
 
 ---

@@ -41,5 +41,8 @@ footer: '[&larr; Hub](index.md)'
 <li><a href="assets/lab-reader.html?file=lab6.md.txt">Lab 6</a><span class="topic">Encrypted config in git with sops</span></li>
 <li><a href="assets/lab-reader.html?file=lab7.md.txt">Lab 7</a><span class="topic">Forgejo Actions secrets, and who can read them</span></li>
 <li><a href="assets/lab-reader.html?file=lab8.md.txt">Lab 8</a><span class="topic">CI logs in with its own identity (OIDC)</span></li>
+<li><a href="assets/lab-reader.html?file=lab9.md.txt">Lab 9</a><span class="topic">Deploy with the platform's identity</span></li>
+<li><a href="assets/lab-reader.html?file=lab10.md.txt">Lab 10</a><span class="topic">Database logins on demand (optional)</span></li>
+<li><a href="assets/lab-reader.html?file=lab11.md.txt">Lab 11</a><span class="topic">Incident drill: a token leaked</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 </ul>

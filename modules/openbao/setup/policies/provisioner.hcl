@@ -32,6 +32,12 @@ path "auth/jwt/*"             { capabilities = ["create", "read", "update", "del
 path "students/+/auth/jwt/*"  { capabilities = ["create", "read", "update", "delete", "list"] }
 path "students/+/auth/jwt-*"  { capabilities = ["create", "read", "update", "delete", "list"] }
 
+# Secrets-engine connections a workshop sets up in each namespace (e.g. a
+# database engine's login, which it then rotates so no person knows it); not
+# the credentials those engines hand out.
+path "students/+/database/config/*"      { capabilities = ["create", "read", "update"] }
+path "students/+/database/rotate-root/*" { capabilities = ["update"] }
+
 path "identity/*" { capabilities = ["create", "read", "update", "delete", "list"] }
 
 path "sys/config/ui/headers/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }

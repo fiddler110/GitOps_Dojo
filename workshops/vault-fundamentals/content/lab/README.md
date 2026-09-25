@@ -26,6 +26,9 @@ bao status
 | [lab6.md](lab6.md) | Encrypted config in git: sops with the transit engine, readable diffs, who can decrypt, key rotation | ~15 min | 4: Secrets in git |
 | [lab7.md](lab7.md) | Forgejo Actions secrets: your fork, a repository secret, masking and who can really read it | ~15 min | 5: Secrets in pipelines |
 | [lab8.md](lab8.md) | CI logs in to OpenBao: AppRole (secret zero in the pipeline), then the job's own OIDC identity, bound to repo and branch | ~20 min | 5: Secrets in pipelines |
+| [lab9.md](lab9.md) | Deploy with workload identity: the app logs in with its platform identity, the pipeline deploys but can't read | ~20 min | 6: Secrets in deployments |
+| [lab10.md](lab10.md) | *(optional)* Dynamic database credentials: logins made on demand, leases, renew, revoke | ~15 min | 6: Secrets in deployments |
+| [lab11.md](lab11.md) | Incident drill: a leaked token, the audit trail, revoke the tree, rotate, recover | ~15 min | 6: Secrets in deployments |
 
 Do them in order. Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
 

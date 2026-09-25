@@ -38,9 +38,10 @@ RUN set -eux; \
     rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks
 
 # Python's Vault client, hvac, for lab 4 (the app reads its secret with the
-# SDK), and its whole dependency tree. Every wheel is pure Python
-# (py3-none-any), so hvac-wheels.sha256 has one hash per package for both
-# architectures. wget fetches them (it uses the system CA store, as the other
+# SDK), the pure-Python Postgres driver pg8000 for lab 10, and their whole
+# dependency trees. Every wheel is pure Python (py3-none-any or
+# py2.py3-none-any), so hvac-wheels.sha256 has one hash per package for both
+# architectures. app-host copies these packages from this image (labs 9-11). wget fetches them (it uses the system CA store, as the other
 # downloads do; pip would use its own) and sha256sum checks them; pip then
 # runs straight from its own wheel (the base image has none) and installs
 # offline. /usr/local is pip's, not apt's, hence --break-system-packages.
@@ -49,8 +50,8 @@ COPY hvac-wheels.sha256 /tmp/wheels/SHA256SUMS
 RUN set -eux; \
     cd /tmp/wheels; \
     while read -r _sum whl; do \
-      name="${whl%%-*}"; \
-      wget -q -O "$whl" "https://files.pythonhosted.org/packages/py3/${name%"${name#?}"}/${name}/${whl}"; \
+      name="${whl%%-*}"; tag="$(echo "$whl" | awk -F- '{print $(NF-2)}')"; \
+      wget -q -O "$whl" "https://files.pythonhosted.org/packages/${tag}/${name%"${name#?}"}/${name}/${whl}"; \
     done < SHA256SUMS; \
     sha256sum -c SHA256SUMS; \
     pip="$(ls pip-*.whl)"; \
@@ -58,7 +59,13 @@ RUN set -eux; \
       --break-system-packages \
       --no-index --no-deps $(ls *.whl | grep -v '^pip-'); \
     cd /; rm -rf /tmp/wheels; \
-    python3 -c 'import hvac, requests'
+    python3 -c 'import hvac, requests, pg8000'
+
+# psql for lab 10's dynamic database logins, and jq for the JSON that bao
+# and the APIs print (labs 9-11). From Debian's archive, which apt checks
+# against Debian's signing keys.
+RUN apt-get update && apt-get install -y --no-install-recommends jq postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # sops checks GitHub for a newer release on every run, which only prints a
 # warning in the offline terminal. zshenv for `su -` login shells (see the

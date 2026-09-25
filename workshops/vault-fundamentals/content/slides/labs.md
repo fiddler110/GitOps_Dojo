@@ -69,3 +69,15 @@ Labs 5 and 6 work in your namespace (`students/<you>`); lab 5 reuses lab 3's `te
 
 Your workflows run on **single-use runners**: each takes one job and is thrown away. Pushing asks for your
 **Forgejo password** (on your landing page); lab 7 sets git to remember it, in memory, for an hour.
+
+---
+
+## Part 6: Secrets in deployments
+
+| Lab    | You will                                                                        | Time    |
+| ------ | ------------------------------------------------------------------------------- | ------- |
+| **9**  | deploy to app-host; the app logs in with its platform identity, CI can't read   | ~20 min |
+| **10** | *(optional)* database logins made on demand: lease, renew, revoke; the app's own | ~15 min |
+| **11** | incident drill: a leaked token, the audit trail, revoke the tree, rotate        | ~15 min |
+
+Your app is at `http://app-host:8080/<you>/` and on the **My App** card, with its log.
