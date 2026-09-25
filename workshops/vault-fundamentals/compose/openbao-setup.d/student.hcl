@@ -9,6 +9,14 @@
 path "secret/data/students/{{identity.entity.name}}/*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list"]
 }
+# Browsing down to it (the UI lists as it goes): the folder names are the
+# class list, which isn't secret; what is in them is.
+path "secret/metadata/" {
+  capabilities = ["list"]
+}
+path "secret/metadata/students/" {
+  capabilities = ["list"]
+}
 path "secret/metadata/students/{{identity.entity.name}}" {
   capabilities = ["read", "list"]
 }
@@ -29,4 +37,9 @@ path "secret/destroy/students/{{identity.entity.name}}/*" {
 # nowhere else. A path in a root-namespace policy includes the namespace.
 path "students/{{identity.entity.name}}/*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+}
+
+# Lab 2 reads this policy: `bao policy read student`.
+path "sys/policies/acl/student" {
+  capabilities = ["read"]
 }
