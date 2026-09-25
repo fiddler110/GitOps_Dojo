@@ -165,11 +165,11 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | ---------------- | --------------- | -------------------------------------------------------------------- |
 | `/slides/*`      | `presentation`  | None — open, read-only content                                    |
 | `/`              | `allocator`     | Shared gate (`TTYD_USERNAME`/`TTYD_PASSWORD` **or** `FACILITATOR_USERNAME`/`PASSWORD`) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
-| `/demo`, `/demo/*` | `demo-app` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=demo`, which hands back `X-Demo-Host` for the student's own vhost. **404 unless the workshop sets `DEMO_APP_ENABLED=1`** (see below) |
-| `/cloud`, `/cloud/*` | `cloud-api` (only a workshop that ships one) | Shared gate, then `forward_auth` to `allocator`'s `/auth-check?tool=cloud`; Caddy then sets `X-Auth-User` and `X-Gateway-Token` itself. **404 unless the workshop sets `CLOUD_ENABLED=1`** (see below) |
+| `/<name>`, `/<name>/*` | whatever a workshop or module declares (e.g. `/cloud` → `cloud-api`, `/demo` → `demo-app`) | Shared gate, then one of three fixed gates. For `identity`/`facilitator`, `forward_auth` to `allocator`'s `/auth-check?route=<id>`, and Caddy itself sets `X-Auth-User` and `X-Gateway-Token` for the upstream. Only exists while that workshop runs (see [Workshop extensions](#workshop-extensions-extensionsjson)) |
 
 The shared gate is one Caddy `basic_auth` block covering everything except
 `/slides/*`, and it accepts **either** the shared student credential or the
@@ -231,18 +231,62 @@ top of it would collide. `gateway/Caddyfile` explicitly strips the
 `Authorization` header before proxying to Forgejo for exactly this reason —
 don't remove that when editing it.
 
-### Workshop hooks
+### Workshop extensions (`extensions.json`)
 
-A workshop's Compose overlay can set these on the `allocator` service. All are empty or off by default, so a workshop that doesn't set them is unaffected.
+A workshop or module adds landing cards, `/admin` tabs, routes and status
+checks with an `extensions.json`, not by editing the engine. The format, the
+gates and the rules are in [`workshops/README.md`](../workshops/README.md#front-door-extensionsjson);
+this is how the engine uses it.
 
-- **`DEMO_APP_ENABLED=1`** adds a **Demo Site** card to the student landing page and makes the `/demo` route above reach
-  `demo-app:80` (otherwise the allocator's `/auth-check?tool=demo` answers 404). `DEMO_APP_ZONE` (default `certs.dojo.test`)
-  sets the per-student hostname (`studentNN.<zone>`) sent back as `X-Demo-Host`. `cert-autorenewal` is the only user.
-- **`CLOUD_ENABLED=1`** adds a **Dojo Cloud** card to the student landing page, makes the `/cloud` route above reach
-  `cloud-api:8080` (otherwise the allocator's `/auth-check?tool=cloud` answers 404, so the gateway never reaches an upstream), and adds a **Dojo Cloud** tab to
-  the facilitator's `/admin` page (an iframe of `/cloud/#/progress`). `tofu-basics` is the only user.
-- **`STATUS_CHECKS`** adds extra entries to the facilitator's service-status strip (below): `Label=URL` items separated by
-  `;`, for example `Dojo Cloud=http://cloud-api:8080/readyz`. A service is *green* when its URL answers HTTP 200.
+- **Render before start.** `run.sh` copies each module's manifest (as
+  `50-NN-module-<name>.json`, in `MODULES` order) and the workshop's (as
+  `90-workshop-<name>.json`) into `.generated/in/`, then runs
+  `allocator/render_extensions.py` once in a throwaway allocator container,
+  mounted from source so a dry run checks with the current rules. It writes
+  `.generated/gateway/extensions.caddy` and `.generated/allocator/extensions.json`
+  (both git-ignored). Any error stops `./run.sh` before anything starts;
+  warnings (a card with no matching `/admin` tab) are printed and the start
+  goes on. `--dry-run` runs this step too.
+- **Gateway.** `gateway/Caddyfile` has one `import /etc/caddy/extensions/*.caddy`
+  inside the shared-gate block, before the allocator catch-all; the snippet is
+  bind-mounted read-only. Every route comes from one template per gate in the
+  renderer: it strips client copies of `X-Dojo-User`/`X-Dojo-Host` **before**
+  `forward_auth` (wrapped in `route {}`, since Caddy would otherwise sort
+  `request_header` after `forward_auth`), always strips `Authorization`, and for
+  `identity`/`facilitator` replaces `X-Auth-User` and `X-Gateway-Token` with
+  what the allocator vouched for. Caddy re-sorts path-matched `handle` blocks,
+  so correct routing relies on the renderer's no-overlap rule, not on order.
+- **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
+  go on the landing page after the built-in ones, tabs into `/admin` after the
+  built-in ones, status checks into the status strip. `/auth-check?route=<id>`
+  looks the route up: `303` to `/` without a session, `403` for a student on a
+  `facilitator` route, `404` for an unknown or `shared` route, and otherwise
+  `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
+  The facilitator's `{user}` is their own account name, so they get their own
+  demo site rather than a student's.
+- **Legacy.** `STATUS_CHECKS` (`Label=URL;...` on the allocator) still adds
+  status-strip entries; new work uses `status_checks` in the manifest.
+
+### Modules and the terminal image
+
+`MODULES="a b"` in `workshop.env` adds `../modules/a/`, `../modules/b/` (see
+`./run.sh modules` and [`workshops/README.md`](../workshops/README.md#writing-a-module)):
+
+- **Settings.** Each `module.env` is sourced first, then `.env` and
+  `workshop.env` again, so the workshop wins.
+- **Compose files.** `-f docker-compose.yml`, each module's `compose.yml`, then
+  the workshop's `COMPOSE_OVERLAY`. The list is written to `.last-overlay`
+  (one file per line) so `./run.sh stop` / `teardown.sh` bring down the same
+  set. Build-change detection hashes each module folder and the overlay folder.
+- **Terminal chain.** `gitopsdojo/web-terminal:base` → each module's
+  `terminal/` as `:<workshop>.<module>` → the workshop's `compose/terminal/` as
+  `:<workshop>`. Each link is `ARG BASE` / `FROM ${BASE}` and inherits the
+  entrypoint and HEALTHCHECK. The final tag reaches `docker-compose.yml` as
+  `WEB_TERMINAL_IMAGE`, so no overlay sets `image:` on `web-terminal`.
+- **Start-up hooks.** `web-terminal/entrypoint.sh` runs every
+  `/etc/dojo/start.d/*.sh` as root, in name order, once the accounts exist
+  (modules `50-`, workshops `90-`). A failing hook stops the container. No
+  hooks, no change.
 
 ## Setup
 
@@ -318,6 +362,22 @@ hostname to already resolve.
 should be the **NSG**, scoped to your corporate network/VPN range for the
 workshop's duration, not this setting. This repo doesn't manage the NSG;
 that's an Azure-side step you control per-deployment.
+
+**A second address, one flag away (`--env`):** `./run.sh <workshop> --env home`
+sources `engine/.env.home` after `engine/.env`, so it only needs the lines that
+differ and everyday runs are unchanged.
+
+**Behind another reverse proxy (e.g. a home-lab Caddy with a real certificate):**
+the proxy terminates TLS and forwards to the gateway on plain HTTP. `GATEWAY_LISTEN`
+is what the gateway serves; `PUBLIC_BASE_URL` stays what browsers use (links,
+Forgejo's clone URLs, the Secure cookie flag):
+```
+PUBLIC_BASE_URL=https://dojo.example.com
+GATEWAY_LISTEN=http://:8080
+LAB_HOST_IP=0.0.0.0
+```
+and on the proxy, `dojo.example.com { reverse_proxy <this-host>:8080 }`. Scope a
+firewall rule so only the proxy can reach port 8080.
 
 ## Start
 
@@ -475,11 +535,13 @@ sits only on the internal-only `workshop_lab` network (see
 stack is up.
 
 **Facilitator ops below use plain `docker compose ...` commands.** If the
-running workshop has a Compose overlay (check its `workshop.env`'s
-`COMPOSE_OVERLAY`), add the same `-f docker-compose.yml -f <overlay>` flags
-to those commands too — a bare `docker compose ...` with no `-f` flags only
-sees the base file, and e.g. `--force-recreate web-terminal` would rebuild
-it *without* that workshop's extra tooling. Simplest fix: re-run
+running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
+plus one `-f` per file listed in `.last-overlay` to those commands too, and
+set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:
+`gitopsdojo/web-terminal:<workshop>`, or `:<workshop>.<module>` when only a
+module adds tools). A bare `docker compose ...` only sees the
+base file, and e.g. `--force-recreate web-terminal` would recreate it
+*without* that workshop's extra tooling. Simplest fix: re-run
 `./run.sh <workshop-name>` instead, which always passes the right flags and
 is safe to run again on an already-running stack.
 
@@ -496,9 +558,9 @@ Dockerfile, or `web-terminal/entrypoint.sh` / `gateway/Caddyfile` changes.
 Re-running `./run.sh <workshop-name>` already detects that: it hashes the
 web-terminal/allocator/gateway build contexts individually (only rebuilding
 the ones that actually changed — see `build_if_changed` in `run.sh`), and
-hashes a running workshop's whole `compose/` overlay directory as one unit
-to catch changes to any workshop-only service beyond that (dns-as-code's
-`forgejo-runner`, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
+hashes every module folder plus the workshop's `compose/` overlay directory
+as one unit to catch changes to any module or workshop service beyond that
+(the `forgejo-runner` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
 see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
 way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
@@ -546,7 +608,7 @@ workspace never consumes a student slot.
 **Service status strip.** The top right of `/admin` shows one chip per service —
 a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
 for Forgejo, the terminals, the slides (probed through the gateway exactly as a
-browser would, using `PUBLIC_BASE_URL`), and any `STATUS_CHECKS` a workshop adds.
+browser would, using `PUBLIC_BASE_URL`), and any `status_checks` a workshop or module declares in its `extensions.json`.
 Hover a chip for the reason. The allocator decides the colour: green when the
 last probe was OK; yellow while a service has never been OK and is still inside
 its start-up grace (`STATUS_STARTUP_GRACE_SECONDS`, default 300), or was OK within

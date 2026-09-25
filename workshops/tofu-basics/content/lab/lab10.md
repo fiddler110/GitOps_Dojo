@@ -72,8 +72,8 @@ cat terraform.tfstate
 `terraform state list` prints nothing. Then:
 
 ```text
--rw-r--r-- 1 student01 student01  821 Sep 19 14:32 terraform.tfstate
--rw-r--r-- 1 student01 student01 5634 Sep 19 14:32 terraform.tfstate.backup
+-rw-r--r-- 1 studentXX studentXX  821 Sep 19 14:32 terraform.tfstate
+-rw-r--r-- 1 studentXX studentXX 5634 Sep 19 14:32 terraform.tfstate.backup
 ```
 
 ```text
@@ -123,7 +123,7 @@ git commit -m "Track B: cost_center tag, Hello Canada, 2.0 image, for_each sites
 git push -u origin my-dojo-cloud-change
 ```
 
-(Add only the files that `git status` shows as modified.) Pushing asks for your git login: your student account name (for example `student01`) and your **Forgejo password**, both shown on your landing page, as before. The server's reply prints a link for opening a pull request:
+(Add only the files that `git status` shows as modified.) Pushing asks for your git login: your student account name (`studentXX`) and your **Forgejo password**, both shown on your landing page, as before. The server's reply prints a link for opening a pull request:
 
 ```text
 remote: Create a new pull request for 'my-dojo-cloud-change':

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "cloud", "label": "Dojo Cloud", "desc": "The portal for the resources you deploy.",
+      "href": "/cloud/", "icon": "cloud" }
+  ],
+  "admin_tabs": [
+    { "id": "cloud", "label": "Dojo Cloud", "src": "/cloud/#/progress" }
+  ],
+  "routes": [
+    { "id": "cloud", "path": "/cloud", "upstream": "cloud-api:8080", "gate": "identity" }
+  ],
+  "status_checks": [
+    { "label": "Dojo Cloud", "url": "http://cloud-api:8080/readyz" }
+  ]
+}

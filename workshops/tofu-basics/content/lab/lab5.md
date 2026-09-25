@@ -45,7 +45,7 @@ Expected (abridged: the header text and a few lines are trimmed):
 ```terraform
   # azurerm_container_group.hello will be created
   + resource "azurerm_container_group" "hello" {
-      + dns_name_label              = "hello-dev-student01"
+      + dns_name_label              = "hello-dev-studentXX"
       + dns_name_label_reuse_policy = "Unsecure"
       + exposed_port                = [
           + {
@@ -67,7 +67,7 @@ Expected (abridged: the header text and a few lines are trimmed):
       + tags                        = {
           + "env"        = "dev"
           + "managed_by" = "opentofu"
-          + "owner"      = "student01"
+          + "owner"      = "studentXX"
         }
 
       + container {
@@ -75,7 +75,7 @@ Expected (abridged: the header text and a few lines are trimmed):
           + cpu                   = 0.25
           + environment_variables = {
               + "MESSAGE" = "Hello from Dojo Cloud!"
-              + "OWNER"   = "student01"
+              + "OWNER"   = "studentXX"
             }
           + image                 = "dojo/hello:1.0"
           + memory                = 0.125
@@ -96,7 +96,7 @@ Expected (abridged: the header text and a few lines are trimmed):
       + tags     = {
           + "env"        = "dev"
           + "managed_by" = "opentofu"
-          + "owner"      = "student01"
+          + "owner"      = "studentXX"
         }
     }
 
@@ -105,10 +105,10 @@ Plan: 2 to add, 0 to change, 0 to destroy.
 Changes to Outputs:
   + fqdn        = (known after apply)
   + resource_id = (known after apply)
-  + url         = "https://<class-address>/cloud/site/hello-dev-student01/"
+  + url         = "https://<class-address>/cloud/site/hello-dev-studentXX/"
 ```
 
-Your `student01` will be your own username, and `<class-address>` is whatever address your facilitator's server has. Nothing has been sent to the cloud: `plan` is a rehearsal.
+`studentXX` is your username, and `<class-address>` is whatever address your facilitator's server has. Nothing has been sent to the cloud: `plan` is a rehearsal.
 
 ## 3. `apply`
 
@@ -133,9 +133,9 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 
 Outputs:
 
-fqdn = "hello-dev-student01.canadacentral.dojo-cloud.test"
+fqdn = "hello-dev-studentXX.canadacentral.dojo-cloud.test"
 resource_id = "/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac/providers/Microsoft.ContainerInstance/containerGroups/ci-hello-dev"
-url = "https://<class-address>/cloud/site/hello-dev-student01/"
+url = "https://<class-address>/cloud/site/hello-dev-studentXX/"
 ```
 
 The whole apply takes about **35 seconds**: about 20 for the resource group and 13 for the container group. (Your subscription ID and username will differ.)
@@ -177,11 +177,11 @@ Two ways to open it:
 - Open the link the `url` output shows, **or**
 - in the portal, go to **Container instances**, find `ci-hello-dev` and click **Browse**.
 
-You should see a dark blue page saying **Hello from Dojo Cloud!**, with pills `owner: student01` and `image: dojo/hello:1.0`. That is a real container, started by your `apply`.
+You should see a dark blue page saying **Hello from Dojo Cloud!**, with pills `owner: studentXX` and `image: dojo/hello:1.0`. That is a real container, started by your `apply`.
 
 If the link from the terminal doesn't open on your setup, use **Browse** in the portal: it always points at the right place.
 
-The `fqdn` output (`hello-dev-student01.canadacentral.dojo-cloud.test`) is the address a real cloud would give the container. It isn't a real internet name in this lab, so you can't type it in a browser; the portal's **Browse** is the clickable route.
+The `fqdn` output (`hello-dev-studentXX.canadacentral.dojo-cloud.test`) is the address a real cloud would give the container. It isn't a real internet name in this lab, so you can't type it in a browser; the portal's **Browse** is the clickable route.
 
 ## 5. Explore in the portal
 
@@ -190,7 +190,7 @@ Click `ci-hello-dev` in **Container instances**:
 - **Overview** shows resource group, location, FQDN, IP, size (0.25 vCPU / 0.125 GB), image, DNS label and the full **Resource ID**. It's the same ID printed in your terminal.
 - **Tags** shows `owner`, `env` and `managed_by` from `locals.tf`.
 - **JSON view** is the raw API representation, the thing the provider actually receives.
-- **Logs** shows what the container printed: `dojo/hello:1.0 starting for owner 'student01' - listening on :80`.
+- **Logs** shows what the container printed: `dojo/hello:1.0 starting for owner 'studentXX' - listening on :80`.
 
 Then open **Activity log**. Two rows, both by you:
 

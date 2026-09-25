@@ -10,7 +10,9 @@
 #   ./run.sh <workshop-name> --test       # also spin up demo/test bot students (3)
 #   ./run.sh <workshop-name> --test 14    # ...or N bots: 1-3 fixed personas, rest random
 #   ./run.sh <workshop-name> --dry-run    # preview: what would rebuild/start, builds nothing
+#   ./run.sh <workshop-name> --env home   # also load engine/.env.home on top of engine/.env
 #   ./run.sh list                         # show available workshops
+#   ./run.sh modules                      # show available modules and who uses them
 #   ./run.sh stop | teardown              # stop the stack, wipe all volumes
 #   ./run.sh stop --dry-run               # preview what stop would remove, removes nothing
 #   ./run.sh help | -h | --help           # this overview + available workshops
@@ -86,14 +88,18 @@ usage() {
 Usage: ./run.sh <command | workshop-name> [options]
 
 Commands:
-  <workshop-name> [--test [N]] [--dry-run]
+  <workshop-name> [--test [N]] [--env NAME] [--dry-run]
                                 build and start a workshop; --test also starts
                                 demo bot students (3 by default, or N, max 35:
                                 testuser1-3 are expert/intermediate/novice, any
                                 beyond that get a random one of those three);
+                                --env NAME loads engine/.env.NAME on top of
+                                engine/.env (e.g. another address or port);
                                 --dry-run only previews what would be rebuilt
                                 and started
   list                          show available workshops
+  modules                       show available modules (../modules/) and which
+                                workshops use them (MODULES= in workshop.env)
   setup [--default] [--force]   create engine/.env
   capacity --students N [...]   size the terminal resource limits for this machine
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
@@ -112,20 +118,65 @@ list_workshops() {
     [ -f "${d}workshop.env" ] || continue
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
     case "$name" in
-      setup | capacity | stop | teardown | help | list)
+      setup | capacity | stop | teardown | help | list | modules)
         title="(unreachable: '${name}' is also a command, rename the folder)" ;;
     esac
     printf '  %-20s %s\n' "$name" "${title:-}"
   done
 }
 
+# A module's summary is the first plain line of its README.md, after the
+# heading (keep it to one short line); "used by" reads each MODULES= line.
+list_modules() {
+  echo "Available modules (add to a workshop with MODULES=\"name ...\" in its workshop.env):"
+  for d in ../modules/*/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    summary=""
+    if [ -f "${d}README.md" ]; then
+      summary="$(grep -v -e '^#' -e '^[[:space:]]*$' "${d}README.md" | head -1 | tr -d '*' | cut -c1-80)"
+    fi
+    users=""
+    for w in ../workshops/*/workshop.env; do
+      [ -f "$w" ] || continue
+      mods="$(sed -n 's/^MODULES=//p' "$w" | tail -1 | tr -d '"'"'")"
+      case " ${mods} " in
+        *" ${name} "*) users="${users:+${users}, }$(basename "$(dirname "$w")")" ;;
+      esac
+    done
+    printf '  %-20s %s\n' "$name" "${summary}"
+    printf '  %-20s used by: %s\n' "" "${users:-(none)}"
+  done
+}
+
+# list and modules take no options; --help shows the overview, anything else
+# is an error rather than silently ignored.
 case "${1:-}" in
+  list | modules)
+    case "${2:-}" in
+      '') ;;
+      -h | --help)
+        usage
+        exit 0 ;;
+      *)
+        echo "Unrecognized argument: ${2} ('${1}' takes no options)" >&2
+        exit 1 ;;
+    esac ;;
+esac
+
+case "${1:-}" in
+  modules)
+    list_modules
+    exit 0 ;;
+  list)
+    list_workshops
+    exit 0 ;;
   help | -h | --help)
     usage
     echo
     list_workshops
     exit 0 ;;
-  "" | list)
+  "")
     list_workshops
     echo
     usage
@@ -134,8 +185,19 @@ esac
 
 workshop="$1"
 shift
+# Same rule as module names: the name becomes an image tag
+# (gitopsdojo/web-terminal:<workshop>) and a state-file name, so a trailing
+# '/' from path completion or a stray flag must fail here, before any build.
+case "$workshop" in
+  *[!a-z0-9-]* | -*)
+    echo "'${workshop}' is not a workshop name (lowercase letters, digits and '-')." >&2
+    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
+    echo "Run './run.sh list' to see available workshops." >&2
+    exit 1 ;;
+esac
 test_mode=0
 test_count=""
+env_name=""
 while [ "$#" -gt 0 ]; do
   arg="$1"
   shift
@@ -156,13 +218,24 @@ while [ "$#" -gt 0 ]; do
           echo "--test expects a number of bots, e.g. --test 14 (got '${test_count}')" >&2
           exit 1 ;;
       esac ;;
+    --env | --env=*)
+      # Optional second env file, engine/.env.<NAME>, sourced after .env so
+      # its values win. Keeps the everyday .env untouched while another
+      # address (e.g. a LAN hostname with HTTPS) stays one flag away.
+      if [ "$arg" = "--env" ]; then env_name="${1:-}"; [ "$#" -eq 0 ] || shift
+      else env_name="${arg#--env=}"; fi
+      case "$env_name" in
+        '' | *[!a-z0-9-]* | -*)
+          echo "--env expects a name (lowercase letters, digits and '-'), e.g. --env home" >&2
+          exit 1 ;;
+      esac ;;
     --dry-run) ;; # already picked up above
     -h | --help)
       usage
       exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
-      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--dry-run]" >&2
+      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
       exit 1 ;;
   esac
 done
@@ -192,28 +265,80 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+if [ -n "$env_name" ] && [ ! -f ".env.${env_name}" ]; then
+  echo "--env ${env_name}: engine/.env.${env_name} not found." >&2
+  exit 1
+fi
+
 set -a
 # shellcheck disable=SC1091
 . ./.env
+if [ -n "$env_name" ]; then
+  # shellcheck disable=SC1090
+  . "./.env.${env_name}"
+fi
 # shellcheck disable=SC1091
 . "$workshop_env"
 set +a
+
+# Modules (engine/MODULES-PLAN.md §4): MODULES="a b" in workshop.env pulls in
+# ../modules/<name>/, found by convention. Each part is optional: module.env
+# (defaults, sourced before workshop.env is re-read so the workshop wins),
+# compose.yml, terminal/Dockerfile, extensions.json.
+modules="${MODULES:-}"
+for m in $modules; do
+  case "$m" in
+    *[!a-z0-9-]* | -*)
+      echo "MODULES: '${m}' is not a module name (lowercase letters, digits and '-')." >&2
+      exit 1 ;;
+  esac
+  if [ ! -d "../modules/${m}" ]; then
+    echo "MODULES: no such module '${m}' (expected ../modules/${m}/)." >&2
+    exit 1
+  fi
+done
+if [ -n "$modules" ]; then
+  set -a
+  for m in $modules; do
+    if [ -f "../modules/${m}/module.env" ]; then
+      # shellcheck disable=SC1090
+      . "../modules/${m}/module.env"
+    fi
+  done
+  # shellcheck disable=SC1091
+  . ./.env
+  # shellcheck disable=SC1090
+  . "$workshop_env"
+  set +a
+fi
 
 # PUBLIC_BASE_URL is baked into links the lab prints (Forgejo clone URLs, the
 # tofu-basics `url` output), so it has to name the port the gateway is
 # published on. Warn rather than fail: a NAT or proxy in front can make a
 # mismatch legitimate.
-url_scheme="${PUBLIC_BASE_URL%%://*}"
-url_hostport="${PUBLIC_BASE_URL#*://}"; url_hostport="${url_hostport%%/*}"
+# Behind another proxy (GATEWAY_LISTEN set) the gateway's own address is the
+# one that has to match the published port.
+listen_url="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
+url_scheme="${listen_url%%://*}"
+url_hostport="${listen_url#*://}"; url_hostport="${url_hostport%%/*}"
 case "$url_scheme" in
   https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
   *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
 esac
 case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
 if [ "$url_port" != "$gateway_port" ]; then
-  echo "WARNING: PUBLIC_BASE_URL (${PUBLIC_BASE_URL}) points at port ${url_port}, but the gateway" >&2
+  echo "WARNING: ${listen_url} points at port ${url_port}, but the gateway" >&2
   echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
   echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
+fi
+
+if [ "$dry_run" = "1" ]; then
+  echo "DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/)."
+  echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"
+  echo "Content:   ${WORKSHOP_CONTENT_DIR:-<unset>}"
+  echo "Modules:   ${modules:-none}"
+  echo "Overlay:   ${COMPOSE_OVERLAY:-none}"
+  echo
 fi
 
 # --test [N]: spin up demo/test bot student accounts (see
@@ -240,13 +365,6 @@ if [ "$test_mode" = "1" ]; then
   fi
 fi
 
-if [ "$dry_run" = "1" ]; then
-  echo "DRY RUN -- nothing will be built, started, or written."
-  echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"
-  echo "Content:   ${WORKSHOP_CONTENT_DIR:-<unset>}"
-  echo "Overlay:   ${COMPOSE_OVERLAY:-none}"
-  echo
-fi
 
 # Prefer docker if it's actually present and working; fall back to podman
 # otherwise (same detection teardown.sh uses, so both scripts agree on which
@@ -257,6 +375,9 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   inspect() { docker inspect "$@"; }
   images() { docker images "$@"; }
   rmi() { docker rmi "$@"; }
+  # One-shot helper containers write into engine/ (render_extensions);
+  # rootful docker would leave those files owned by root without --user.
+  run_once() { docker run --rm --user "$(id -u):$(id -g)" "$@"; }
   build_salt=""
 else
   build() { podman build "$@"; }
@@ -264,6 +385,9 @@ else
   inspect() { podman inspect "$@"; }
   images() { podman images "$@"; }
   rmi() { podman rmi "$@"; }
+  # Rootless podman maps the container's root to the calling user already;
+  # --user <uid> here would map to a subordinate uid that can't write engine/.
+  run_once() { podman run --rm "$@"; }
   # Podman builds OCI-format images by default, and OCI has no HEALTHCHECK
   # instruction -- podman warns and silently drops it, so the allocator and
   # web-terminal images would never report healthy/unhealthy. Docker format
@@ -475,20 +599,23 @@ build_if_changed() {
 # even though nothing changed (confirmed: this actually happened while
 # developing this function). Any service without a build: block at all
 # (e.g. dns-server, git-server) is silently skipped by `compose build`.
+#
+# $1 is a space-separated list of directories (each module's, then the
+# overlay's); a change in any of them rebuilds.
 compose_overlay_build_if_changed() {
-  overlay_dir="$1"; state_file="$2"; shift 2
-  new_hash="$(hash_dir "$overlay_dir")"
+  overlay_dirs="$1"; state_file="$2"; shift 2
+  new_hash="$(for d in $overlay_dirs; do hash_dir "$d"; done | sha256_cmd | awk '{print $1}')"
   old_hash=""
   [ -f "$state_file" ] && old_hash="$(cat "$state_file")"
   if [ "$old_hash" = "$new_hash" ]; then
-    echo "  ${overlay_dir}: source unchanged, reusing existing overlay images."
+    echo "  ${overlay_dirs# }: source unchanged, reusing existing overlay images."
     return 0
   fi
   if [ "$dry_run" = "1" ]; then
-    echo "  ${overlay_dir}: WOULD BUILD overlay images (source changed, or first run for this workshop)."
+    echo "  ${overlay_dirs# }: WOULD BUILD overlay images (source changed, or first run for this workshop)."
     return 0
   fi
-  echo "  ${overlay_dir}: building (source changed, or first run for this workshop)..."
+  echo "  ${overlay_dirs# }: building (source changed, or first run for this workshop)..."
   other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway -e presentation || true)"
   if [ -n "$other_services" ]; then
     # shellcheck disable=SC2086
@@ -529,56 +656,133 @@ would_build=""
 # shellcheck disable=SC2086
 build_if_changed gitopsdojo/web-terminal:base ./web-terminal $build_secret_args
 
-# A workshop's own compose/terminal/Dockerfile (if any) FROMs the base
-# image above and is tagged separately per-workshop
-# (gitopsdojo/web-terminal:<name>), never reusing ":base" -- see the
-# comment on the web-terminal block in that workshop's
-# docker-compose.override.yml for why reusing ":base" here would silently
-# clobber the shared base image for every other workshop.
-workshop_terminal_dir="${workshop_dir}/compose/terminal"
-if [ -d "$workshop_terminal_dir" ]; then
-  # It's FROM the base image, so a rebuilt base has to rebuild this too --
-  # otherwise it stays on the old base, which then can't be cleaned up.
-  # Folding base's image ID into the hash does that; the directory's own
-  # contents alone wouldn't change when only the base did.
+# Terminal tools stack as a chain of builds (engine/MODULES-PLAN.md §4.2):
+# :base -> each module's terminal/ (gitopsdojo/web-terminal:<workshop>.<module>)
+# -> the workshop's compose/terminal/ (gitopsdojo/web-terminal:<workshop>).
+# Every link's Dockerfile starts `ARG BASE` / `FROM ${BASE}` and is built with
+# BASE set to the link before it. Never tagged ":base", which would clobber the
+# shared base image for every other workshop. The last link is what the stack
+# runs, passed to docker-compose.yml as WEB_TERMINAL_IMAGE.
+terminal_links=""
+for m in $modules; do
+  if [ -d "../modules/${m}/terminal" ]; then
+    terminal_links="${terminal_links} gitopsdojo/web-terminal:${workshop}.${m}=../modules/${m}/terminal"
+  fi
+done
+if [ -d "${workshop_dir}/compose/terminal" ]; then
+  terminal_links="${terminal_links} gitopsdojo/web-terminal:${workshop}=${workshop_dir}/compose/terminal"
+fi
+parent="gitopsdojo/web-terminal:base"
+for link in $terminal_links; do
+  image="${link%%=*}"
+  # Each link is FROM its parent, so a rebuilt parent has to rebuild it too --
+  # otherwise it stays on the old parent, which then can't be cleaned up.
+  # Folding the parent's image ID into the hash does that; the directory's own
+  # contents alone wouldn't change when only the parent did.
   saved_salt="$build_salt"
-  build_salt="${build_salt}$(inspect -f '{{.Id}}' gitopsdojo/web-terminal:base 2>/dev/null || true)"
+  build_salt="${build_salt}$(inspect -f '{{.Id}}' "$parent" 2>/dev/null || true)"
   case "$would_build" in
-    *" gitopsdojo/web-terminal:base "*)
-      echo "  gitopsdojo/web-terminal:${workshop}: WOULD BUILD (the base image it is built on would be rebuilt)." ;;
+    *" ${parent} "*)
+      echo "  ${image}: WOULD BUILD (the image it is built on would be rebuilt)."
+      would_build="${would_build} ${image} " ;;
     *)
       # shellcheck disable=SC2086
-      build_if_changed "gitopsdojo/web-terminal:${workshop}" "$workshop_terminal_dir" $build_secret_args ;;
+      build_if_changed "$image" "${link#*=}" $build_secret_args --build-arg "BASE=${parent}" ;;
   esac
   build_salt="$saved_salt"
-fi
+  parent="$image"
+done
+export WEB_TERMINAL_IMAGE="$parent"
 
 build_if_changed gitopsdojo/allocator:local ./allocator
 build_if_changed gitopsdojo/gateway:local ./gateway
 build_if_changed gitopsdojo/presentation:local ./presentation
 
+# Compose files: the engine's, each module's compose.yml in MODULES order,
+# then the workshop's overlay (later files win on the same key).
+extra_files=""
+overlay_dirs=""
+for m in $modules; do
+  if [ -f "../modules/${m}/compose.yml" ]; then
+    extra_files="${extra_files} ../modules/${m}/compose.yml"
+    overlay_dirs="${overlay_dirs} ../modules/${m}"
+  fi
+done
+if [ -n "${COMPOSE_OVERLAY:-}" ]; then
+  extra_files="${extra_files} ${COMPOSE_OVERLAY}"
+  overlay_dirs="${overlay_dirs} $(dirname "${COMPOSE_OVERLAY}")"
+fi
 compose_args="-f docker-compose.yml"
-if [ -n "${COMPOSE_OVERLAY:-}" ]; then
-  compose_args="$compose_args -f ${COMPOSE_OVERLAY}"
-fi
+for f in $extra_files; do
+  compose_args="$compose_args -f $f"
+done
 
-# Any other build: blocks this workshop's overlay adds beyond web-terminal
-# (already handled above) -- e.g. dns-as-code's forgejo-runner,
-# cert-autorenewal's dns-seed/step-ca/demo-app -- only rebuild when that
-# overlay's compose/ directory has actually changed since this workshop
-# last ran.
-if [ -n "${COMPOSE_OVERLAY:-}" ]; then
-  overlay_dir="$(dirname "${COMPOSE_OVERLAY}")"
+# Any other build: blocks the modules and the overlay add beyond web-terminal
+# (already handled above) -- e.g. forgejo-runner, cert-autorenewal's
+# dns-seed/step-ca/demo-app -- only rebuild when one of those directories
+# has actually changed since this workshop last ran.
+if [ -n "$overlay_dirs" ]; then
   # shellcheck disable=SC2086
-  compose_overlay_build_if_changed "$overlay_dir" ".build-state/${workshop}.overlay-hash" $compose_args
+  compose_overlay_build_if_changed "$overlay_dirs" ".build-state/${workshop}.overlay-hash" $compose_args
 fi
 
-# Record which overlay (if any) this run used, so teardown.sh tears down
-# with the exact same -f set instead of only ever seeing docker-compose.yml.
-# Without this, `down` has no idea an overlay's extra services/volumes
-# (e.g. dns-as-code's dns-server/runner-setup/forgejo-runner and
-# dns_runner_config volume) ever existed, and can't respect their
-# depends_on ordering or clean up their volumes.
+# Workshop extensions (engine/MODULES-PLAN.md §3): the workshop's
+# extensions.json declares its routes, landing cards, /admin tabs and status
+# checks. allocator/render_extensions.py checks it against this run's services and writes what the gateway imports
+# and the allocator reads. A bad manifest stops here, before anything starts.
+# A dry run renders into its own folder so a running stack's files stay put.
+if [ "$dry_run" = "1" ]; then gen_dir=".generated/dry-run"; else gen_dir=".generated"; fi
+rm -rf "${gen_dir:?}/in"
+mkdir -p "${gen_dir}/in" "${gen_dir}/gateway" "${gen_dir}/allocator"
+ext_env_args=""
+# Modules first (50-...), in MODULES order, then the workshop (90-...).
+n=10
+for m in $modules; do
+  if [ -f "../modules/${m}/extensions.json" ]; then
+    cp "../modules/${m}/extensions.json" "${gen_dir}/in/50-${n}-module-${m}.json"
+  fi
+  n=$((n + 1))
+done
+if [ -f "${workshop_dir}/extensions.json" ]; then
+  cp "${workshop_dir}/extensions.json" "${gen_dir}/in/90-workshop-${workshop}.json"
+fi
+# ${NAME} in a manifest may name any variable workshop.env or a module.env
+# sets; pass just those (never .env, which holds secrets) through by name.
+env_files="$workshop_env"
+for m in $modules; do
+  [ ! -f "../modules/${m}/module.env" ] || env_files="$env_files ../modules/${m}/module.env"
+done
+# shellcheck disable=SC2086
+for key in $(cat $env_files | grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' | tr -d '=' | sort -u); do
+  ext_env_args="$ext_env_args -e $key"
+done
+# shellcheck disable=SC2086
+ext_services="$(compose $compose_args config --services 2>/dev/null | tr '\n' ' ')"
+if [ -z "$ext_services" ]; then
+  echo "Could not list this run's Compose services ('compose ${compose_args} config --services' failed)." >&2
+  exit 1
+fi
+# The script is mounted from the source tree, not baked in, so a dry run
+# (which builds nothing) still checks with the current rules; the image is
+# only its Python.
+if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
+  echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
+else
+  # shellcheck disable=SC2086
+  if ! run_once --network none $ext_env_args -v "$PWD/${gen_dir}:/gen" \
+      -v "$PWD/allocator/render_extensions.py:/render_extensions.py:ro" gitopsdojo/allocator:local \
+      python3 -B /render_extensions.py --in /gen/in --out /gen --services "$ext_services"; then
+    echo "The workshop's extensions.json was rejected (see above); nothing was started." >&2
+    exit 1
+  fi
+fi
+
+# Record which module and overlay files this run used (in .last-overlay,
+# below), so teardown.sh tears down with the exact same -f set instead of
+# only ever seeing docker-compose.yml. Without this, `down` has no idea the
+# extra services/volumes (e.g. forgejo-runner's runner-setup and
+# runner_config volume) ever existed, and can't respect their depends_on
+# ordering or clean up their volumes.
 if [ "$dry_run" = "1" ]; then
   echo
   echo "Validating the Compose config..."
@@ -590,11 +794,12 @@ if [ "$dry_run" = "1" ]; then
   fi
   echo
   echo "Would run: compose ${compose_args} up -d"
-  echo "Dry run complete: nothing was built, started, or written."
+  echo "Dry run complete: nothing was built or started."
   exit 0
 fi
 
-echo "${COMPOSE_OVERLAY:-}" > .last-overlay
+# One extra -f file per line (modules, then the overlay); empty = engine only.
+printf '%s\n' $extra_files > .last-overlay
 
 sync_lab_docs "$WORKSHOP_CONTENT_DIR"
 

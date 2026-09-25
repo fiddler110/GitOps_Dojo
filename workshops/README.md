@@ -4,58 +4,64 @@ Each subfolder here is a self-contained **workshop pack**: content plus
 (optionally) whatever's different about how it runs. The shared runtime
 lives in [`../engine/`](../engine/) and stays untouched no matter how many
 workshops exist — see [`engine/README.md`](../engine/README.md) for what it
-runs and how requests are routed.
+runs and how requests are routed. Reusable services and tools that more than
+one workshop can use live in [`../modules/`](../modules/).
 
 ## Available workshops
 
-| Workshop | What it teaches | Run it |
-| -------- | ---------------- | ------ |
-| [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | `cd ../engine && ./run.sh git-fundamentals` |
-| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `cd ../engine && ./run.sh dns-as-code` |
-| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `cd ../engine && ./run.sh cert-autorenewal` |
-| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `cd ../engine && ./run.sh tofu-basics` |
+| Workshop | What it teaches | Modules | Run it |
+| -------- | ---------------- | ------- | ------ |
+| [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
+| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `forgejo-runner` | `./run.sh dns-as-code` |
+| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | — | `./run.sh cert-autorenewal` |
+| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
 
-`./run.sh list` (from `engine/`) prints this same list from each
-workshop's `workshop.env`.
+`./run.sh list` prints this same list from each workshop's `workshop.env`;
+`./run.sh modules` lists the modules and which workshops use them.
 
 ## How workshop selection works
 
 ```sh
-cd engine
-cp .env.example .env       # first time only — account/secret settings, shared by every workshop
+./run.sh setup             # first time only: writes engine/.env (accounts, secrets), shared by every workshop
 ./run.sh <workshop-name>
 ```
 
-`run.sh`:
+`run.sh` (the root one forwards to `engine/run.sh`):
 
 1. Loads `engine/.env` (`TTYD_*`, `STUDENT_*`, `FACILITATOR_*`,
    `FORGEJO_ADMIN_*`, `PUBLIC_BASE_URL`, ports — the same regardless of
    which workshop runs).
-2. Loads `workshops/<name>/workshop.env` (workshop identity: content dir,
-   Forgejo org/repo, and an optional Compose overlay) — these override
-   `.env` where they overlap, so `workshop.env` is always the source of
-   truth for its own workshop.
-3. Builds the base `web-terminal` image and tags it
-   `gitopsdojo/web-terminal:base` (plus the workshop's own terminal image and
-   the allocator/gateway/presentation images), so a workshop's own terminal Dockerfile
-   (if it has one) can extend the base instead of duplicating its package
-   list — but only rebuilds whichever of those actually changed since the
-   last build, reusing the existing local image otherwise.
-4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d`.
+2. Reads `MODULES` from `workshops/<name>/workshop.env`, sources each
+   module's `module.env` (its defaults), then `.env` and `workshop.env` again,
+   so the workshop always has the last word on any setting.
+3. Checks and renders every `extensions.json` (each module's, then the
+   workshop's) into `engine/.generated/`. A bad manifest stops the start
+   here, before anything runs.
+4. Builds the images that changed since the last run. The terminal is a chain:
+   `gitopsdojo/web-terminal:base` → one link per module with a `terminal/`
+   folder (`:<workshop>.<module>`) → the workshop's own `compose/terminal/`
+   (`:<workshop>`). The last link is the image the stack runs.
+5. Runs `compose -f docker-compose.yml [-f modules/<m>/compose.yml ...] [-f <overlay>] up -d`
+   and records that file list in `engine/.last-overlay`, so `./run.sh stop`
+   tears down exactly what was started.
 
-## Two kinds of workshop
+## Three kinds of workshop
 
-**Content-only** (like `git-fundamentals`): a `workshop.env` with an empty
-`COMPOSE_OVERLAY` and a `content/` folder (slides, lab instructions, seed
-repo). Uses the engine exactly as-is — no new services, no different
-terminal image. This is the common case; reach for it first.
+**Content-only** (like `git-fundamentals`): a `workshop.env` and a
+`content/` folder (slides, lab instructions, seed repo). Uses the engine
+exactly as-is. This is the common case; reach for it first.
 
-**Content + infrastructure** (like `dns-as-code`): everything above, plus
-a `compose/` folder holding a Compose override file that layers extra
-services or a different terminal image on top of the base engine. Reach
-for this only when the lab genuinely needs different tooling in the
-terminal or a different backend to interact with (a database, a DNS
-server, etc.) — not for anything content/slides alone can express.
+**Content + modules** (like `tofu-basics`): the same, plus
+`MODULES="..."` in `workshop.env`. The module brings its services, terminal
+tools, landing card, `/admin` tab and routes. Reach for this when a module
+already does what the lab needs.
+
+**Content + own infrastructure** (like `cert-autorenewal`, and `dns-as-code`
+on top of a module): a `compose/` folder with a Compose overlay for extra
+services, a `compose/terminal/` Dockerfile for extra tools, and an
+`extensions.json` for any front door they need. Reach for this only when the
+lab genuinely needs something no module provides. If a second workshop would
+want the same thing, make it a module instead.
 
 ## Adding a new workshop
 
@@ -71,7 +77,8 @@ server, etc.) — not for anything content/slides alone can express.
    WORKSHOP_CONTENT_DIR=../workshops/<name>/content
    FORGEJO_ORG=<org name>
    FORGEJO_REPO=<repo name>
-   COMPOSE_OVERLAY=
+   MODULES=""            # e.g. "forgejo-runner dojo-cloud"; see ./run.sh modules
+   COMPOSE_OVERLAY=      # only if step 4 adds one
    ```
    Paths are relative to `engine/`, not to the workshop folder — Compose
    resolves every relative path in a multi-file `-f ... -f ...` merge
@@ -79,36 +86,134 @@ server, etc.) — not for anything content/slides alone can express.
    regardless of which file declares the path. This trips people up — see
    the comment at the top of `dns-as-code/compose/docker-compose.override.yml`
    for a worked example.
-4. If (and only if) the lab needs different tooling or an extra service:
-   add `compose/docker-compose.override.yml` (and a `compose/terminal/`
-   Dockerfile if the terminal itself needs different packages — `FROM
-   gitopsdojo/web-terminal:base` to inherit the shared account-provisioning
-   entrypoint instead of duplicating it), and point `COMPOSE_OVERLAY` at
-   it. If you add a `compose/terminal/` override, also give the
-   `web-terminal:` block in your override file its own
-   `image: gitopsdojo/web-terminal:<name>` line — without it, Compose
-   inherits the base file's `image: gitopsdojo/web-terminal:base` and tags
-   your workshop-specific build as `:base` too, clobbering the shared base
-   image every time this workshop runs (see `engine/run.sh`, which skips
-   rebuilding an image whose source hasn't changed and depends on `:base`
-   only ever meaning the plain, un-augmented image). `dns-as-code` and
-   `cert-autorenewal` are worked examples. A workshop image that sets its own
-   `HEALTHCHECK` *replaces* the inherited one, so either omit it or use exactly
-   `HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD web-terminal-healthcheck`
-   (the base image's script, which sends the `X-Control-Token` header). Do not copy a `wget` line:
-   a bare `wget` gets a 403 and the container shows `unhealthy` for its whole life.
+4. If (and only if) the lab needs something no module provides:
+   - **Extra services:** `compose/docker-compose.override.yml`, pointed at by
+     `COMPOSE_OVERLAY`. Don't set `image:` on `web-terminal` there: `run.sh`
+     picks the terminal image (`WEB_TERMINAL_IMAGE`).
+   - **Extra terminal tools:** `compose/terminal/Dockerfile`, found by
+     convention (no setting). Start it with
+     ```dockerfile
+     ARG BASE=gitopsdojo/web-terminal:base
+     FROM ${BASE}
+     ```
+     so it stacks on top of any module's tools. Pin every tool's version and
+     check its sha256 per architecture (students have no internet). Don't set
+     `ENTRYPOINT`. A `HEALTHCHECK` is inherited; if you restate it, use exactly
+     `HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD web-terminal-healthcheck`
+     (the base image's script, which sends the `X-Control-Token` header). Do not
+     copy a `wget` line: a bare `wget` gets a 403 and the container shows
+     `unhealthy` for its whole life.
+   - **Start-up work in the terminal** (background jobs, files that need the
+     student accounts to exist): copy a script to
+     `/etc/dojo/start.d/90-<name>.sh`. The base entrypoint runs every hook as
+     root, in name order (modules use `50-`), after the accounts exist; a
+     failing hook stops the container. See
+     `cert-autorenewal/compose/terminal/start.d/`.
+   - **A student-facing web tool:** `extensions.json` in the workshop folder
+     (see [Front door](#front-door-extensionsjson) below).
+
    Keep any service a student terminal must reach **off TCP ports 9000-9099 and
    9500-9899**: the terminal's per-account firewall (`DOJO_ISOLATION` in
    `engine/web-terminal/entrypoint.sh`) drops those for every non-root account,
    on any host, and the symptom is a silent timeout. `cert-autorenewal`'s
-   step-ca uses 9443 for this reason.
+   step-ca uses 9443 for this reason. When adding a service, run
+   `podman image inspect <img> --format '{{json .Config.Volumes}}'` and give
+   every declared path a named volume, or each start leaves an anonymous
+   volume behind that `./run.sh stop` can't find.
 5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
    work through *your* labs instead of the default git-fundamentals ones (see
    `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
 6. Add a row to the table above.
-7. Run it locally end to end (`./run.sh <name>` from `engine/`) before
-   trusting it for a live session.
+7. `./run.sh <name> --dry-run` shows what would build and start and checks the
+   manifests. Then run it locally end to end, including the facilitator's
+   `/admin` view, before trusting it for a live session.
 
 Nothing about adding a workshop this way ever requires editing
-`engine/docker-compose.yml`, the base `web-terminal` image, or the
-gateway — those stay identical across every workshop by construction.
+`engine/docker-compose.yml`, the base `web-terminal` image, the allocator
+or the gateway.
+
+## Front door: `extensions.json`
+
+A workshop or module declares its landing cards, facilitator `/admin` tabs,
+gateway routes and status checks in an `extensions.json`. The engine checks
+it and renders it through fixed templates; a manifest never supplies raw
+Caddy config or HTML. `cert-autorenewal/extensions.json`:
+
+```json
+{
+  "version": 1,
+  "cards": [
+    { "id": "demo", "label": "Demo Site", "desc": "The live site your lab work is serving.",
+      "href": "/demo/", "icon": "rocket" }
+  ],
+  "admin_tabs": [
+    { "id": "demo", "label": "Demo Site", "src": "/demo/" }
+  ],
+  "routes": [
+    { "id": "demo", "path": "/demo", "upstream": "demo-app:80", "gate": "identity",
+      "strip_prefix": true, "host": "{user}.${DEMO_APP_ZONE}" }
+  ]
+}
+```
+
+| Key | Fields |
+|---|---|
+| `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns` |
+| `admin_tabs` | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page |
+| `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
+| `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
+
+**Gates** pick who gets through a route:
+
+| Gate | Who | The upstream receives |
+|---|---|---|
+| `shared` | anyone past the shared login | no identity (`Authorization`, `X-Auth-User`, `X-Gateway-Token` stripped) |
+| `identity` | a browser holding a student slot, or the facilitator | `X-Auth-User: <account>` and `X-Gateway-Token`, both set by Caddy |
+| `facilitator` | the facilitator only (403 for students) | same as `identity` |
+
+The service behind an `identity` or `facilitator` route must still check
+`X-Gateway-Token` against `GATEWAY_TOKEN`: students can reach it directly on
+`workshop_lab`, and only the token proves the request came through the gateway.
+
+Rules that stop a start: a missing `"version": 1`; an unknown key or field;
+an `id` that is not `^[a-z][a-z0-9-]{0,30}$`, repeats one of the same kind in
+another manifest, or (for a tab) reuses a built-in tab (`roster ide term forgejo slides`);
+a `host` on a `shared` route;
+a `path` that overlaps another route or an engine path (`/`, `/admin`, `/git`,
+`/ide`, `/term`, `/slides`, `/assign`, `/auth-check*`, `/forgejo-login`); an
+upstream service that is not in this run; an off-site or scheme-relative link.
+`${NAME}` expands from `workshop.env` / `module.env`; an unset name is an error.
+A card with no `/admin` tab of the same `id` prints a **warning**: whatever a
+student can reach, the facilitator must be able to reach too.
+
+## Writing a module
+
+A module is a folder under `modules/` that more than one workshop can list in
+`MODULES`. Every part is optional and found by name:
+
+```
+modules/<name>/
+  README.md           # first line after the heading: a one-line summary (./run.sh modules shows it)
+  module.env          # settings with defaults; workshop.env overrides them
+  compose.yml         # services, volumes, networks; may extend engine services
+  extensions.json     # cards, /admin tabs, routes, status checks (format above)
+  terminal/Dockerfile # ARG BASE / FROM ${BASE}; hooks as /etc/dojo/start.d/50-<name>.sh
+```
+
+Rules for `compose.yml`:
+
+- Relative paths resolve against `engine/`, as in an overlay.
+- Extending an engine service (say `git-server` or `web-terminal`) merges:
+  `environment` per key, later file wins; `volumes`, `networks` and
+  `depends_on` **append**, so list only what you add.
+- Use the **list form** of `networks:` on any engine service
+  (`networks: [runner_net]`). The engine uses list form, and mixing list and
+  map for one service fails at `up` under podman-compose (not at `config`).
+  Pinned addresses belong on the module's own services only.
+- Name every volume, including paths an image declares as `VOLUME`, so
+  `./run.sh stop` removes them.
+- A workshop can swap a module service's image from its overlay by overriding
+  `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
+
+Existing modules: [`forgejo-runner`](../modules/forgejo-runner/) and
+[`dojo-cloud`](../modules/dojo-cloud/).

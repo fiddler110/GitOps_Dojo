@@ -48,7 +48,7 @@ people finish its clean-up section before Lab 10.
    ./run.sh capacity --students 30 --other-services-mb 6400     # 3072 engine + 3072 cloud-host + 256 cloud-api
    ```
 
-   Those are the ceilings the overlay sets (`CLOUD_HOST_MEM_LIMIT` 3g, `CLOUD_API_MEM_LIMIT` 256m), not
+   Those are the ceilings the dojo-cloud module sets (`CLOUD_HOST_MEM_LIMIT` 3g, `CLOUD_API_MEM_LIMIT` 256m), not
    measured use. Measured so far: `cloud-host` about 58 MB and `cloud-api` about 13 MB idle. Memory with 60
    running containers has **not** been measured; expected well under 1 GB, since the hello image is tiny.
    If you change the two limits in `.env`, change `6400` to match.

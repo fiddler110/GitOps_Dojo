@@ -1,19 +1,24 @@
 # DNS as Code demo bot steps -- sourced by engine/web-terminal/bot-runner.sh
 # after its own helpers/defaults are defined (see BOT_STEPS_FILE there). Runs
-# the dns-as-code labs instead of git-fundamentals: preview/apply the zone,
-# add/edit an A record on a branch + PR (Lab 1), catch mistakes before a
-# commit (Lab 2), the dnsctl.py wrapper (Lab 3, local-only -- see note on
-# step_dns_lab3_dnsctl), history + a local rollback demo (Lab 4), and a
-# dnsconfig.js merge conflict (Lab 5). step_ensure_clone/step_sync_main from
-# bot-runner.sh are reused as-is; everything else here is dns-as-code-specific.
+# the dns-as-code labs instead of git-fundamentals. Part 1, in the bot's own
+# zone (~/lab/my-zone, <bot>.dojo.test): preview/push/verify, add records and
+# catch mistakes (Lab 1). Part 2, in the shared repo: a refused local push,
+# then an A record on a branch + PR (Lab 3), the dnsctl.py wrapper (Lab 4,
+# local-only -- see note on step_dns_lab4_dnsctl), history + a local rollback
+# demo (Lab 5), and a dnsconfig.js merge conflict (Lab 6).
+# step_ensure_clone/step_sync_main from bot-runner.sh are reused as-is;
+# everything else here is dns-as-code-specific.
+
+# Part 1 sandbox, made by compose/terminal/start.d/90-my-zone.sh.
+MY_ZONE_DIR="$HOME/lab/my-zone"
 
 # -- helper: insert-or-update this bot's own A record -----------------------
-# Mirrors lab1.md's python3 fallback for editing dnsconfig.js (the lab's own
+# Mirrors lab3.md's python3 option for editing dnsconfig.js (the lab's own
 # suggested non-interactive method). Uses argv, not string interpolation
 # into the script body, so $BOT_USER never has to be quoted into Python
-# source. Inserts before the "mail" A record if $BOT_USER has no record yet,
-# otherwise updates its existing value in place (this is what makes round 2+
-# look like lab2.md Part A -- editing an existing record).
+# source. Inserts before the "mail" A record (or before the closing ");" in
+# a zone without one) if the name has no record yet, otherwise updates its
+# existing value in place (round 2+ then shows a MODIFY, like lab1.md step 5).
 dns_set_own_record() { # $1 = record name, $2 = ip
   python3 - "$1" "$2" <<'PYEOF'
 import re
@@ -25,12 +30,15 @@ s = open(p, encoding="utf-8").read()
 pattern = re.compile(r'A\("%s", "[0-9.]+"\)' % re.escape(name))
 if pattern.search(s):
     s = pattern.sub('A("%s", "%s")' % (name, ip), s, count=1)
-else:
+elif 'A("mail"' in s:
     s = s.replace(
         'A("mail"',
         'A("%s", "%s"),\n\tA("mail"' % (name, ip),
         1,
     )
+else:
+    head, sep, tail = s.rpartition(");")
+    s = head + '\tA("%s", "%s"),\n' % (name, ip) + sep + tail
 open(p, "w", encoding="utf-8").write(s)
 PYEOF
 }
@@ -44,29 +52,39 @@ dns_octet() { # $1 = round offset (0 for the bot's own record, 1 for a scratch o
   echo $(( (bot_num * 10 + ROUND * 3 + ${1:-0}) % 190 + 30 ))
 }
 
-# -- Lab 1, steps 2-3 -- preview then apply the starting zone ---------------
-# Idempotent (preview/push both are), so safe to repeat every round: after
-# the first apply it's just a quick "still clean" sanity check, same as a
-# student would do out of habit.
+# -- Lab 1 (Part 1) -- the bot's own zone: preview, push, verify, add a record
+# Idempotent (preview/push both are), so safe to repeat every round: the
+# first round creates <bot>.dojo.test, later ones MODIFY its app record.
 step_dns_baseline() {
-  cd "$REPO_DIR" || return 1
-  narrate "Lab 1, steps 2-3 -- preview, then apply, the starting zone"
+  cd "$MY_ZONE_DIR" || return 1
+  narrate "Lab 1 -- my own zone: preview, push, verify"
   run_cmd "dnscontrol preview"
   run_cmd "dnscontrol push"
-  run_cmd "dig @dns-server dojo.test A +short"
-  run_cmd "dig @dns-server www.dojo.test A +short"
-  run_cmd "dig @dns-server dojo.test MX +short"
+  run_cmd "dig @dns-server www.$BOT_USER.dojo.test A +short"
+  dns_set_own_record "app" "203.0.113.$(dns_octet 0)"
+  narrate "Lab 1, steps 4-5 -- add or change my app record"
+  run_cmd "dnscontrol preview"
+  run_cmd "dnscontrol push"
+  run_cmd "dig @dns-server app.$BOT_USER.dojo.test A +short"
+  run_cmd "git commit -qam 'Set app (round $ROUND)'"
   run_cmd "dnscontrol preview"
 }
 
-# -- Lab 1, steps 4-7 -- branch, add/edit my own A record, review, commit ---
+# -- Lab 3 (Part 2) -- a refused local push, then branch, add, commit -------
 step_dns_lab1_branch_and_edit() {
   cd "$REPO_DIR" || return 1
   local branch; branch="$(branch_name "add-${BOT_USER}")"
-  narrate "Lab 1, steps 4-7 -- branch, add my own A record, review, commit"
+  narrate "Lab 3, step 3 -- trying to push the shared zone from my terminal"
+  run_cmd "git checkout -q main"
+  sed -i 's/203.0.113.20/203.0.113.99/' dnsconfig.js
+  run_cmd "dnscontrol push"
+  narrate "refused with 403, as expected: only CI changes dojo.test"
+  run_cmd "git restore dnsconfig.js"
+
+  narrate "Lab 3, step 4 -- branch, add my own A record, review, commit"
   run_cmd "git checkout -B '$branch' main"
 
-  dns_set_own_record "$BOT_USER" "203.0.113.$(dns_octet 0)"
+  dns_set_own_record "${BOT_USER}-app" "203.0.113.$(dns_octet 0)"
   run_cmd "dnscontrol preview"
   orient
   run_cmd "git status"
@@ -74,7 +92,7 @@ step_dns_lab1_branch_and_edit() {
 
   if [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
     narrate "(demo) committing before staging, on purpose, to show what that looks like"
-    run_cmd "git commit -m 'Add A record for $BOT_USER'"
+    run_cmd "git commit -m 'Add A record for $BOT_USER-app'"
     narrate "right -- nothing was staged. Fixing that."
   fi
 
@@ -84,22 +102,22 @@ step_dns_lab1_branch_and_edit() {
   run_cmd "git log -1"
 }
 
-# -- Lab 1, steps 7-8 -- push and open a pull request ------------------------
+# -- Lab 3, steps 4-5 -- push and open a pull request ------------------------
 # Same shape as bot-runner.sh's own step_lab1_push_and_pr, but DNS-flavored
 # title/body and PR against dns-team/dns-as-code.
 step_dns_lab1_push_and_pr() {
   cd "$REPO_DIR" || return 1
   local branch; branch="$(branch_name "add-${BOT_USER}")"
-  narrate "Lab 1, step 7 -- push (bare form first, like the lab shows)"
+  narrate "Lab 3, step 4 -- push (bare form first)"
   run_cmd "git push"
   narrate "no upstream yet, as expected -- setting one"
   run_cmd "git push -u origin '$branch'"
 
-  narrate "Lab 1, step 8 -- open a pull request"
+  narrate "Lab 3, step 5 -- open a pull request"
   local pr_json pr_number
   pr_json="$(api_curl -X POST "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls" \
     -H 'Content-Type: application/json' \
-    -d "{\"head\":\"$branch\",\"base\":\"main\",\"title\":\"[$BOT_USER] Add/update A record (round $ROUND)\",\"body\":\"Demo bot DNS change -- see the DNS Preview CI comment for the dnscontrol diff. Safe to review and merge live, or close.\"}")"
+    -d "{\"head\":\"$branch\",\"base\":\"main\",\"title\":\"[$BOT_USER] Add/update A record (round $ROUND)\",\"body\":\"Demo bot DNS change -- see the DNS Preview CI comment for the dnscontrol diff. Safe to approve and merge live, or close.\"}")"
   pr_number="$(printf '%s' "$pr_json" | grep -o '"number":[0-9]*' | head -1 | cut -d: -f2)"
   if [ -n "$pr_number" ]; then
     narrate "opened PR #$pr_number for $branch -- watch for the 'DNS Preview' CI comment"
@@ -110,47 +128,50 @@ step_dns_lab1_push_and_pr() {
   fi
 }
 
-# -- Lab 2 -- editing, a discarded scratch record, and the trailing-dot mistake
-# Entirely uncommitted (git restore at every discard point), so it never
-# competes with the Lab 1 branch/PR above and leaves nothing behind.
+# -- Lab 1, step 7 (Part 1) -- a discarded scratch record and the trailing-dot
+# mistake, in the bot's own zone. Entirely uncommitted (git restore at every
+# discard point), so it leaves nothing behind.
 step_dns_lab2_mistakes() {
-  cd "$REPO_DIR" || return 1
-  local branch; branch="$(branch_name "add-${BOT_USER}")"
-  narrate "Lab 2 -- editing, catching a scratch idea before it's committed, and the trailing-dot mistake"
-  run_cmd "git checkout '$branch' 2>/dev/null || git checkout -B '$branch' main"
+  cd "$MY_ZONE_DIR" || return 1
+  narrate "Lab 1, step 7 -- a scratch idea, then the trailing-dot mistake, both discarded"
 
-  # Part B: a scratch record, previewed, then thrown away uncommitted.
-  dns_set_own_record "${BOT_USER}-scratch" "203.0.113.$(dns_octet 1)"
+  dns_set_own_record "scratch" "203.0.113.$(dns_octet 1)"
   run_cmd "dnscontrol preview"
   run_cmd "git diff dnsconfig.js"
   run_cmd "git restore dnsconfig.js"
   run_cmd "git status"
 
-  # Part D: the classic missing-trailing-dot mistake, then the fix, then discard.
-  printf '\tCNAME("%s-broken", "dojo.test"),\n' "$BOT_USER" >> dnsconfig.js
+  python3 - "$BOT_USER" <<'PYEOF'
+import sys
+p = "dnsconfig.js"
+s = open(p, encoding="utf-8").read()
+head, sep, tail = s.rpartition(");")
+s = head + '\tCNAME("broken", "www.%s.dojo.test"),\n' % sys.argv[1] + sep + tail
+open(p, "w", encoding="utf-8").write(s)
+PYEOF
 
   if [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
     narrate "(demo) missing trailing dot on a CNAME target -- previewing to see dnscontrol catch it"
     run_cmd "dnscontrol preview"
     narrate "right -- config error, no trailing dot. Fixing it."
   fi
-  sed -i "s/CNAME(\"${BOT_USER}-broken\", \"dojo.test\")/CNAME(\"${BOT_USER}-broken\", \"dojo.test.\")/" dnsconfig.js
+  sed -i "s/CNAME(\"broken\", \"www.${BOT_USER}.dojo.test\")/CNAME(\"broken\", \"www.${BOT_USER}.dojo.test.\")/" dnsconfig.js
   run_cmd "dnscontrol preview"
   run_cmd "git restore dnsconfig.js"
   run_cmd "git status"
 }
 
-# -- Lab 3 -- the dnsctl.py CLI wrapper --------------------------------------
+# -- Lab 4 -- the dnsctl.py CLI wrapper --------------------------------------
 # Local-only commands (doctor/setup/record list/lint/show) plus a
 # record-add-then-discard, all non-interactive (--yes/--type/--value/
 # --no-proxy). Deliberately never calls submit/status/merge/rollback --
 # those need a cached Forgejo login (dnsctl_lib/forgejo.py prompts for one
 # with no non-interactive override besides FORGEJO_TOKEN, which this bot
 # has no use for) and would open a second, untracked PR alongside the one
-# Lab 1's step already tracks via PENDING_PR_BRANCH/NUMBER.
-step_dns_lab3_dnsctl() {
+# Lab 3's step already tracks via PENDING_PR_BRANCH/NUMBER.
+step_dns_lab4_dnsctl() {
   cd "$REPO_DIR" || return 1
-  narrate "Lab 3 -- dnsctl.py, the CLI wrapper (local commands)"
+  narrate "Lab 4 -- dnsctl.py, the CLI wrapper (local commands)"
   run_cmd "git checkout main"
   run_cmd "python3 scripts/dnsctl.py doctor"
   run_cmd "python3 scripts/dnsctl.py setup"
@@ -165,15 +186,15 @@ step_dns_lab3_dnsctl() {
   run_cmd "git status"
 }
 
-# -- Lab 4 -- investigating history, and a local (unpushed) rollback demo ---
-# Uses the raw-git equivalent lab4.md itself offers as an alternative to
-# `dnsctl.py history`/`rollback` (which, like Lab 3's submit/merge, need
+# -- Lab 5 -- investigating history, and a local (unpushed) rollback demo ---
+# Uses the raw-git equivalent lab5.md itself offers as an alternative to
+# `dnsctl.py history`/`rollback` (which, like Lab 4's submit/merge, need
 # forge auth this bot doesn't set up) -- git log/show to investigate, then
 # a revert on a disposable local branch to demonstrate the mechanism, never
 # pushed, always cleaned up.
-step_dns_lab4_history() {
+step_dns_lab5_history() {
   cd "$REPO_DIR" || return 1
-  narrate "Lab 4 -- investigating history and a local rollback demo"
+  narrate "Lab 5 -- investigating history and a local rollback demo"
   run_cmd "git checkout main"
   run_cmd "git pull"
   run_cmd "git log --oneline -5 -- dnsconfig.js"
@@ -181,7 +202,7 @@ step_dns_lab4_history() {
   local last_hash; last_hash="$(git log -1 --format=%H -- dnsconfig.js 2>/dev/null)"
   if [ -n "$last_hash" ]; then
     run_cmd "git show --stat $last_hash"
-    local branch; branch="$(branch_name "lab4-rollback-demo")"
+    local branch; branch="$(branch_name "lab5-rollback-demo")"
     orient
     run_cmd "git checkout -B '$branch'"
     narrate "reverting that commit locally to see the inverse diff -- never pushed"
@@ -194,12 +215,12 @@ step_dns_lab4_history() {
   fi
 }
 
-# -- Lab 5 -- a merge conflict in dnsconfig.js -------------------------------
+# -- Lab 6 -- a merge conflict in dnsconfig.js -------------------------------
 # All local, all throwaway branches, never pushed -- safe regardless of
 # what any other step/round is mid-way through.
-step_dns_lab5_conflict() {
+step_dns_lab6_conflict() {
   cd "$REPO_DIR" || return 1
-  narrate "Lab 5 -- causing and resolving a DNS merge conflict"
+  narrate "Lab 6 -- causing and resolving a DNS merge conflict"
   orient
   local a b
   a="$(branch_name "conflict-a")"
@@ -222,7 +243,7 @@ step_dns_lab5_conflict() {
   run_cmd "sed -i '/^<<<<<<</,/^=======/d; /^>>>>>>>/d' dnsconfig.js"
   run_cmd "grep 'A(\"www\"' dnsconfig.js"
 
-  narrate "Lab 5 Part B -- always preview after resolving, before committing the merge"
+  narrate "Lab 6 Part B -- always preview after resolving, before committing the merge"
   run_cmd "dnscontrol preview"
   run_cmd "git add dnsconfig.js"
   run_cmd "git commit --no-edit"
@@ -271,12 +292,12 @@ case "$PERSONA" in
       step_ensure_clone
       step_sync_main
       step_dns_baseline
+      step_dns_lab2_mistakes
       step_dns_lab1_branch_and_edit
       step_dns_lab1_push_and_pr
-      step_dns_lab2_mistakes
-      step_dns_lab3_dnsctl
-      step_dns_lab4_history
-      step_dns_lab5_conflict
+      step_dns_lab4_dnsctl
+      step_dns_lab5_history
+      step_dns_lab6_conflict
       step_wrap_round
     )
     ;;
@@ -285,10 +306,10 @@ case "$PERSONA" in
       step_ensure_clone
       step_sync_main
       step_dns_baseline
+      step_dns_lab2_mistakes
       step_dns_lab1_branch_and_edit
       step_dns_lab1_push_and_pr
-      step_dns_lab2_mistakes
-      step_dns_lab3_dnsctl
+      step_dns_lab4_dnsctl
       step_wrap_round
     )
     ;;

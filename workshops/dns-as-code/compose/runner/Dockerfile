@@ -1,7 +1,7 @@
 # The Forgejo Actions runner for this workshop's dns-as-code CI (DNS
 # Preview / DNS Apply workflows). Runs workflow steps directly inside this
 # container (a `host` label, not the `docker://` executor - see
-# ../docker-compose.override.yml) so no docker.sock needs to be mounted
+# modules/forgejo-runner/, whose service ../docker-compose.override.yml points here) so no docker.sock needs to be mounted
 # into it: this container's own filesystem/tools ARE the job environment,
 # same trust tier as the terminal/dns-server containers already in this
 # stack. That's why dnscontrol has to be preinstalled here, same as

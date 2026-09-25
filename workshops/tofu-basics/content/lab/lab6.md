@@ -63,7 +63,7 @@ Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
       ~ tags                        = {
             "env"        = "dev"
             "managed_by" = "opentofu"
-          - "owner"      = "student01" -> null
+          - "owner"      = "studentXX" -> null
         }
         # (13 unchanged attributes hidden)
 
@@ -77,7 +77,7 @@ Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
       ~ tags     = {
             "env"        = "dev"
             "managed_by" = "opentofu"
-          - "owner"      = "student01" -> null
+          - "owner"      = "studentXX" -> null
         }
         # (1 unchanged attribute hidden)
     }
@@ -199,7 +199,7 @@ Expected (abridged):
 ```terraform
   # azurerm_container_group.hello must be replaced
 -/+ resource "azurerm_container_group" "hello" {
-      ~ fqdn                        = "hello-dev-student01.canadacentral.dojo-cloud.test" -> (known after apply)
+      ~ fqdn                        = "hello-dev-studentXX.canadacentral.dojo-cloud.test" -> (known after apply)
       ~ id                          = "/subscriptions/260eb175-.../containerGroups/ci-hello-dev" -> (known after apply)
       ~ ip_address                  = "10.20.78.32" -> (known after apply)
         name                        = "ci-hello-dev"

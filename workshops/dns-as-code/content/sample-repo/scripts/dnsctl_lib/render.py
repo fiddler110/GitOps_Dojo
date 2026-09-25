@@ -3,7 +3,7 @@ used by `dnsctl.py show`."""
 
 from __future__ import annotations
 
-SHOW_HEADERS = ["Zone", "Type", "Name", "FQDN", "Value", "Priority", "TTL", "Proxied"]
+SHOW_HEADERS = ["Zone", "Type", "Name", "FQDN", "Value", "Priority", "TTL"]
 
 
 def render_table(headers: list[str], rows: list[list[str]]) -> str:

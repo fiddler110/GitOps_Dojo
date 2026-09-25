@@ -101,6 +101,10 @@ services:
       context: ./presentation
     image: gitopsdojo/presentation:local
     container_name: workshop_presentation
+    # PID 1 here is python/node with no SIGTERM handler, and the kernel ignores
+    # SIGTERM for PID 1, so `stop` waited 10 s then SIGKILLed. init: true runs a
+    # tiny init as PID 1 that forwards the signal.
+    init: true
     volumes:
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
       # Shared slide CSS (workshops/assets/themes/*.css), mounted as a
@@ -124,12 +128,13 @@ services:
   web-terminal:
     build:
       context: ./web-terminal
-    # Stable local tag so a workshop overlay's terminal image (see
-    # workshops/<name>/compose/) can `FROM gitopsdojo/web-terminal:base`
-    # instead of duplicating this Dockerfile's package list. run.sh builds
-    # this image first for exactly that reason.
-    image: gitopsdojo/web-terminal:base
+    # run.sh builds :base from ./web-terminal, then any module and workshop
+    # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
+    # see engine/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
+    # last link. Overlays no longer set image: here themselves.
+    image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_terminal
+    init: true  # PID 1 is python; see presentation's note
     environment:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
@@ -207,11 +212,14 @@ services:
     # auto-generated.
     image: gitopsdojo/allocator:local
     container_name: workshop_allocator
+    init: true  # PID 1 is python; see presentation's note
     environment:
       # Read only to decide whether the session cookie should be marked
       # Secure (see allocator/server.py's COOKIE_SECURE) -- allocator never
       # constructs a URL from this itself, gateway already owns routing.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # The Slides status check calls the gateway at this address when set.
+      - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -229,10 +237,6 @@ services:
       # FORGEJO_REPO defaults below.
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
-      - DEMO_APP_ENABLED=${DEMO_APP_ENABLED:-0}
-      - DEMO_APP_ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
-      # Cloud console button + /cloud route; a workshop's compose overlay turns it on.
-      - CLOUD_ENABLED=${CLOUD_ENABLED:-0}
       # SSO into Forgejo (see /forgejo-login in allocator/server.py): the
       # allocator logs the browser straight into the Forgejo account
       # matching whatever identity it already resolved (studentNN or the
@@ -254,6 +258,10 @@ services:
       # gateway's own GATEWAY_TOKEN below (gateway/Caddyfile's header_up
       # X-Gateway-Token on every block that proxies to allocator:8080).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+    volumes:
+      # The workshop's checked extensions (cards, /admin tabs, route gates,
+      # status checks), written by run.sh before every start.
+      - ./.generated/allocator:/etc/dojo/extensions:ro
     networks:
       - workshop_lab
     restart: unless-stopped
@@ -274,6 +282,8 @@ services:
     container_name: workshop_gateway
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      # Set only when another proxy terminates TLS in front of the lab.
+      - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
       - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
@@ -288,6 +298,10 @@ services:
     ports:
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:${GATEWAY_HTTP_PORT:-80}"
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:${GATEWAY_HTTPS_PORT:-443}"
+    volumes:
+      # The workshop's extension routes, rendered from its extensions.json
+      # by run.sh before every start; gateway/Caddyfile imports them.
+      - ./.generated/gateway:/etc/caddy/extensions:ro
     networks:
       - public
       - workshop_lab

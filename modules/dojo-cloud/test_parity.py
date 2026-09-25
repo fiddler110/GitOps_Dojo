@@ -12,7 +12,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "cloud-api"))
-ENGINE = os.path.join(HERE, "..", "..", "..", "engine")
+ENGINE = os.path.join(HERE, "..", "..", "engine")
 
 
 def load(name, path):

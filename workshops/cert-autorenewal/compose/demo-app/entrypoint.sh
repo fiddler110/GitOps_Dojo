@@ -16,7 +16,7 @@ set -eu
 # by another user — it does nothing to stop a different student from
 # creating a not-yet-existing studentNN/ subdirectory first and becoming
 # its owner. Actual per-student write isolation for a directory that
-# doesn't exist yet comes from compose/terminal/entrypoint-wrapper.sh
+# doesn't exist yet comes from compose/terminal/start.d/90-cert-autorenewal.sh
 # pre-creating and chown'ing every student's subdirectory before any
 # student can log in.
 mkdir -p /srv/webroot

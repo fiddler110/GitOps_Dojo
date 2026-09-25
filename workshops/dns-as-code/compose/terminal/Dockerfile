@@ -6,7 +6,9 @@
 # provisioning, code-server/ttyd, shell helpers) is inherited unchanged
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-FROM gitopsdojo/web-terminal:base
+# engine/run.sh sets BASE to the image below this one in the chain (MODULES-PLAN.md §4.2).
+ARG BASE=gitopsdojo/web-terminal:base
+FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends dnsutils \
     && rm -rf /var/lib/apt/lists/*
@@ -28,6 +30,11 @@ RUN set -eux; \
     install -m 0755 /tmp/dnscontrol /usr/local/bin/dnscontrol; \
     rm -f /tmp/dnscontrol.tar.gz /tmp/dnscontrol
 
+# Remember each account's Forgejo login after its first push instead of asking on
+# every push. credential-cache keeps it in memory only (a per-user daemon behind
+# a 0700 socket in that user's home), never on disk, and forgets it after 8 h.
+RUN git config --system credential.helper 'cache --timeout=28800'
+
 # ENTRYPOINT is inherited from the base image (web-terminal-entrypoint) —
 # same account provisioning and workspace-control.py launch as every other
 # workshop. No USER override either: the base image needs root for the
@@ -41,3 +48,7 @@ RUN set -eux; \
 # X-Control-Token header and lives in engine/web-terminal/healthcheck.sh only.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
     CMD web-terminal-healthcheck
+
+# Part 1 sandbox: ~/lab/my-zone for every account, declaring only <user>.dojo.test.
+# Runs as a start.d hook from the base entrypoint, after every account exists.
+COPY start.d/90-my-zone.sh /etc/dojo/start.d/90-my-zone.sh

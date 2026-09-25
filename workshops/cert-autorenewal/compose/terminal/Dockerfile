@@ -7,7 +7,9 @@
 # provisioning, code-server/ttyd, shell helpers) is inherited unchanged
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-FROM gitopsdojo/web-terminal:base
+# engine/run.sh sets BASE to the image below this one in the chain (MODULES-PLAN.md §4.2).
+ARG BASE=gitopsdojo/web-terminal:base
+FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     certbot \
@@ -50,18 +52,12 @@ RUN set -eux; \
     install -m 0755 "/tmp/step_${STEP_CLI_VERSION}/bin/step" /usr/local/bin/step; \
     rm -rf /tmp/step.tar.gz "/tmp/step_${STEP_CLI_VERSION}"
 
-# The base image's entrypoint (web-terminal-entrypoint) is still what does
-# account provisioning and launches workspace-control.py — this workshop
-# just needs one extra thing before that: the system cron daemon running,
-# for Lab 4's per-student renewal crontabs. Nothing else in this stack
-# needs cron, so it isn't started anywhere in the base image; this wrapper
-# starts it, then hands off to the original entrypoint unchanged. No USER
-# override: the base image needs root for the whole container lifetime
-# (dynamic useradd + spawning per-student code-server/ttyd processes), not
-# just setup — see the comment in engine/web-terminal/Dockerfile.
-COPY entrypoint-wrapper.sh /usr/local/bin/terminal-entrypoint-wrapper
-RUN chmod +x /usr/local/bin/terminal-entrypoint-wrapper
-ENTRYPOINT ["/usr/local/bin/terminal-entrypoint-wrapper"]
+# Start-up work (cron for Lab 4's renewal crontabs, per-account webroot
+# folders) runs as a start.d hook from the base entrypoint, after every
+# account exists; see start.d/90-cert-autorenewal.sh. No USER override: the
+# base image needs root for the whole container lifetime (dynamic useradd +
+# spawning per-student code-server/ttyd processes).
+COPY start.d/90-cert-autorenewal.sh /etc/dojo/start.d/90-cert-autorenewal.sh
 
 # Base image's HEALTHCHECK is inherited too; restated here so a static scan
 # of this file alone (which doesn't resolve FROM) doesn't flag it missing.

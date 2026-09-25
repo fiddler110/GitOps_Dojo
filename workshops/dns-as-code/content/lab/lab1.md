@@ -1,170 +1,165 @@
-# Lab 1 — The Core Workflow
+# Lab 1 — Your Own Zone
 
-**Required.** By the end of this lab you'll have previewed and applied the starting zone, added your own DNS record on a branch, opened a pull request, watched CI comment on it, merged it, and confirmed the record is genuinely live — the full loop you'll use for every change in this system. See the table in [README.md](README.md) if you want the one-line summary first.
+**Required. Part 1.** By the end of this lab you'll have created your own DNS zone from a config file, checked it's really live with `dig`, and added, changed and removed records, catching a mistake before it reached the server. Everything here happens in **your own zone**, `<your-username>.dojo.test`: nobody else's config touches it, so experiment freely.
 
 ---
 
-## 1. Clone the sample repo
+## 1. Look around
+
+Your zone's repo is already set up for you:
 
 ```sh
-git clone http://git-server:3000/dns-team/dns-as-code.git
-cd dns-as-code
+cd ~/lab/my-zone
+ls
+batcat dnsconfig.js
+git log --oneline
 ```
 
-Same as any git repo — `clone` downloads the whole thing, history included.
+- `dnsconfig.js` is the whole zone, as code. The `D("studentXX.dojo.test", ...)` block (with your username) lists every record in it. `A("www", "203.0.113.10")` means "`www.studentXX.dojo.test` has the address `203.0.113.10`": names inside the block are relative to the zone, and `@` means the zone itself.
+- The `SOA` and `NAMESERVER` lines are bookkeeping every zone needs. Leave them alone.
+- `creds.json` tells `dnscontrol` where the PowerDNS API is and which key to use.
+- It's a git repo with one commit and no remote: your history stays on your machine.
+
+`203.0.113.0/24` is IETF-reserved "documentation" address space (RFC 5737), so none of these addresses can ever be real.
 
 ---
 
-## 2. Preview the current state
+## 2. Preview
 
 ```sh
 dnscontrol preview
 ```
 
-The `dns-server` container (PowerDNS) starts with no zones at all, so this first run shows *every* record in `dnsconfig.js` as a **CREATE** — that's expected, not an error. This is the "diff before it happens" dnscontrol gives you: nothing has touched PowerDNS yet, you're just looking at what *would* happen.
+`preview` compares `dnsconfig.js` with what PowerDNS is serving right now and prints the difference. It changes nothing. Your zone doesn't exist on the server yet, so all it can say is that the zone **will be created** when you push.
 
 ---
 
-## 3. Apply it
+## 3. Push, then check it's live
 
 ```sh
 dnscontrol push
 ```
 
-Then confirm the records are actually live — don't just trust the tool's exit code:
+This time `dnscontrol` creates the zone and every record in it. Don't trust the exit code alone. Ask the DNS server:
 
 ```sh
-dig @dns-server dojo.test A +short
-dig @dns-server www.dojo.test A +short
-dig @dns-server dojo.test MX +short
+dig @dns-server www.$USER.dojo.test A +short
+dig @dns-server $USER.dojo.test TXT +short
 ```
 
-Run `dnscontrol preview` again — it should now report **zero corrections**. That's the loop you'll repeat for every future change: edit → preview → (PR) → push → verify → preview again to confirm you're clean.
+`$USER` is your username, so these ask for `www.studentXX.dojo.test` and so on. `@dns-server` asks the lab's PowerDNS directly.
 
----
-
-## 4. Create a branch
-
-Replace `yourname` with your name (keep it lowercase, no spaces — it's about to become both a git branch and a DNS label):
-
-```sh
-git checkout -b add-yourname-record
-```
-
-Same reasoning as Git Fundamentals: work on a branch so nothing you do here can affect anyone else's zone view until you're ready to share it.
-
----
-
-## 5. Add your own record
-
-Open `dnsconfig.js` and add a new `A` record for yourself inside the `D("dojo.test", ...)` block, near the other `A` records:
-
-```js
-A("yourname", "203.0.113.30"),
-```
-
-`203.0.113.0/24` is IETF-reserved "documentation" address space (RFC 5737) — safe to use here since it can never be a real, routable address. See `docs/record-types.md` in the repo (`cat docs/record-types.md` or `glow docs/record-types.md`) for the full syntax reference covering A/CNAME/MX/TXT — you'll use the others in Lab 2.
-
-### Recommended: Nano
-
-```sh
-nano dnsconfig.js
-```
-
-To save and exit: `Ctrl+O`, `Enter`, `Ctrl+X`.
-
-### Fallback: python3 one-liner
-
-Replace `yourname` and the IP, then paste the whole command:
-
-```sh
-python3 -c '
-p = "dnsconfig.js"
-s = open(p).read()
-s = s.replace("A(\"mail\"", "A(\"yourname\", \"203.0.113.30\"),\n\tA(\"mail\"", 1)
-open(p, "w").write(s)
-'
-```
-
-### Optional: Vim
-
-```sh
-vim dnsconfig.js
-```
-
-Jump to the right spot, `o` to open a new line, type your record, `Esc`, `:wq`, `Enter`.
-
-After editing, check the file:
-
-```sh
-batcat dnsconfig.js
-```
-
----
-
-## 6. Preview your change locally
-
-**Always do this before opening a PR** — it's the whole point of DNS-as-Code: see the diff before it happens, not after.
+Now preview again:
 
 ```sh
 dnscontrol preview
 ```
 
-Confirm the diff shows only your one new record. If it shows anything else, you edited the wrong place — fix it before continuing.
+It reports **0 corrections**: the server matches the file exactly. That's the loop for every change: **edit → preview → push → verify → preview again**.
+
+Open the **DNS Zones** card from the workshop landing page. Your zone is listed with its records, next to your classmates' zones and the shared `dojo.test`.
 
 ---
 
-## 7. Review, commit, and push
+## 4. Add records
 
-```sh
-git status
-git diff
+Open `dnsconfig.js` and add these lines inside the `D(...)` block, after the `TXT` line (`studentXX` is your username; the lab reader fills it in for you):
+
+```js
+	A("app", "203.0.113.30"),
+	CNAME("docs", "www.studentXX.dojo.test."),
+	MX("@", 10, "mail.studentXX.dojo.test."),
+	A("mail", "203.0.113.20"),
 ```
 
-`git status` shows *which* files changed — right now that should be just `dnsconfig.js`, nothing else. `git diff` shows *exactly what* changed, line by line, before you commit it — a second look at the same thing `dnscontrol preview` just showed you from the DNS side, this time from git's side. Get in the habit of reading both before every commit.
+- `A` maps a name to an IPv4 address.
+- `CNAME` makes a name an alias of another name. Targets are full names ending in a dot.
+- `MX` says which server receives mail for the zone, with a priority (lower wins).
+
+See `docs/record-types.md` in `my-zone`, or the [cheat sheet](cheat-sheet.md), for more record types.
+
+Pick whichever editor suits you:
+
+- **VS Code:** open `my-zone/dnsconfig.js` from the file explorer, edit, and save with `Ctrl+S` (`Cmd+S` on a Mac).
+- **nano:** `nano dnsconfig.js`, edit, then `Ctrl+O`, `Enter`, `Ctrl+X` to save and exit.
+
+Then:
 
 ```sh
+dnscontrol preview
+```
+
+You should see four `+ CREATE` lines, one per new record, under a `± BATCHED CHANGE/CREATEs` heading (dnscontrol sends them in one API call). If you see a `MODIFY` or `DELETE` too, you edited more than you meant to. Push it and check:
+
+```sh
+dnscontrol push
+dig @dns-server app.$USER.dojo.test A +short
+dig @dns-server docs.$USER.dojo.test A +short   # follows the CNAME to www
+dig @dns-server $USER.dojo.test MX +short
+```
+
+Glance at the DNS Zones tab: the new records are highlighted.
+
+---
+
+## 5. Change a record
+
+Change the `app` address from `.30` to `.31`:
+
+```js
+	A("app", "203.0.113.31"),
+```
+
+```sh
+dnscontrol preview
+```
+
+An edit shows as one `± MODIFY` line with the old and new values. Push it and `dig` it again.
+
+---
+
+## 6. Remove a record
+
+Delete the `CNAME("docs", ...)` line entirely, then:
+
+```sh
+dnscontrol preview
+```
+
+A lone `- DELETE`. Removing a line from the file removes the record from the server: `dnscontrol` makes the zone match the file exactly, including what's *not* in it. Push it, and `dig @dns-server docs.$USER.dojo.test A +short` now returns nothing.
+
+Save this state in git, so you can always get back to it:
+
+```sh
+git diff                 # what changed since the first commit
 git add dnsconfig.js
-git commit -m "Add A record for yourname"
+git commit -m "Add app, mail and MX records"
 ```
-
-`git add` moves your change into the **staging area** — a holding pen for exactly what you want in the next commit. `git commit` then saves a permanent snapshot of everything staged, along with a message describing *what* changed and *why*.
-
-```sh
-git push -u origin add-yourname-record
-```
-
-`push` uploads your branch and its commit to the shared Forgejo server — `-u origin add-yourname-record` also remembers this branch's remote, so future pushes from it just need `git push`. Nothing you've done is visible to anyone else until this push — up to that point, everything (branch, commits) existed only on your machine.
 
 ---
 
-## 8. Open a pull request
+## 7. The trailing-dot mistake
 
-Go back to the workshop landing page (the tab or window where you clicked **Open VS Code** or **Open Terminal**) and click **Open Forgejo** — it opens a new tab, already signed in as you.
+The most common mistake in `dnsconfig.js` is a `CNAME` or `MX` target without its trailing dot. Make it on purpose:
 
-Find your `add-yourname-record` branch (Forgejo usually prompts you with a banner offering to open a pull request for a recently-pushed branch) and open a pull request into `main`.
-
-Within a few seconds, a **"DNS Preview"** comment appears on the PR with the exact `dnscontrol preview` diff — CI running the same command you already ran locally, so you (and the facilitator) can compare without re-running it by hand. **Write down your PR number** — Lab 4 uses it.
-
----
-
-## 9. Merge and confirm it went live
-
-The facilitator will review and merge it (or, if you're facilitating yourself, merge it once the "DNS Preview" check is green).
-
-Merging triggers CI to run `dnscontrol push` automatically — you don't run it yourself this time. Give it a few seconds, then confirm:
-
-```sh
-dig @dns-server yourname.dojo.test A +short
+```js
+	CNAME("broken", "www.studentXX.dojo.test"),   // no trailing dot, on purpose
 ```
 
-If you want to see the mechanics directly instead of taking CI's word for it:
+```sh
+dnscontrol preview
+```
+
+`dnscontrol` refuses the file with an error that names the record and says the target `must end with a (.)`. Nothing reached PowerDNS. Catching it at preview costs nothing; catching it after it's live costs an outage.
+
+Throw the experiment away with git:
 
 ```sh
-git checkout main
-git pull
-dnscontrol preview   # should report 0 corrections — CI already applied it
+git restore dnsconfig.js   # back to your last commit
+dnscontrol preview         # 0 corrections again
 ```
+
+`git restore` discards uncommitted edits, so `preview` and `restore` together let you try anything safely: nothing is real until you `push`.
 
 ---
 
@@ -172,8 +167,8 @@ dnscontrol preview   # should report 0 corrections — CI already applied it
 
 Before moving on, be ready to show or say:
 
-- Your PR number and its "DNS Preview" comment.
-- The `dig` output proving your record is genuinely live.
-- In your own words: what's the difference between `dnscontrol preview` and `dnscontrol push`, and why do both exist?
+- `dig` output for a record you added, straight from `dns-server`.
+- What `± MODIFY`, `+ CREATE` and `- DELETE` in a preview each mean.
+- Why removing a line from `dnsconfig.js` removes the record from the server.
 
-**Next:** Labs 2-5 in [README.md](README.md) are optional deep dives — pick whichever sounds most useful, or work through them in order. Lab 4 (rolling back history) uses the PR number from this lab, so keep it handy.
+**Next:** [lab2.md](lab2.md) (optional) covers what happens when someone changes your zone outside the code. Or go straight to [lab3.md](lab3.md), the required Part 2 lab: the shared zone, where you can't push at all.

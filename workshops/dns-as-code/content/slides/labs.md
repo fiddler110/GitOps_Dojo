@@ -17,8 +17,8 @@ footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; DNS as Code | Lab Overview'
 
 ## What each lab covers, before you dive in
 
-Five short, self-contained labs. **Lab 1 is required** — it's the whole
-workflow end to end. Labs 2-5 go deeper on one topic each, any order.
+Two parts: **your own zone**, then **the shared zone, the company way**.
+**Labs 1 and 3 are required**; the rest go deeper on one topic each.
 
 <p class="nav">Keep <code>cheat-sheet.md</code> open in another tab while you work.</p>
 
@@ -40,15 +40,16 @@ Preinstalled in your terminal: `dnscontrol`, `dig` (from `dnsutils`),
 
 ---
 
-## The five labs
+## The six labs
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | --------- |
-| **1** | Core workflow: preview → branch → edit → PR → CI → merge → verify | ~20 min | <span class="required">Yes — start here</span> |
-| 2 | Editing/removing records, catching mistakes before you commit | ~12 min | Optional |
-| 3 | `dnsctl.py` — the same workflow, one command per step | ~15 min | Optional |
-| 4 | Investigating history and rolling back a merged change | ~10 min | Optional |
-| 5 | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
+| Part | Lab | Topic | Time | Required? |
+| --- | --- | ----- | ---- | --------- |
+| 1: your zone | **1** | Preview, push, verify; add, edit, remove; catch mistakes | ~20 min | <span class="required">Yes — start here</span> |
+| 1: your zone | 2 | Drift, and undoing your own changes | ~10 min | Optional |
+| 2: shared zone | **3** | Branch → PR → CI preview → review → merge → CI applies | ~25 min | <span class="required">Yes</span> |
+| 2: shared zone | 4 | `dnsctl.py` — the same process, one command per step | ~15 min | Optional |
+| 2: shared zone | 5 | History and rolling back a merged change | ~10 min | Optional |
+| 2: shared zone | 6 | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
 
 ---
 
@@ -56,44 +57,63 @@ Preinstalled in your terminal: `dnscontrol`, `dig` (from `dnsutils`),
 
 # Lab 1 — Required
 
-## The core workflow, end to end
+## Your own zone: you run every step
+
+<div class="flow">
+<span><b>1</b><br>edit</span>
+<span>→</span>
+<span><b>2</b><br>preview</span>
+<span>→</span>
+<span><b>3</b><br>push<br><small>you</small></span>
+<span>→</span>
+<span><b>4</b><br>dig</span>
+</div>
+
+Create `<you>.dojo.test` from `~/lab/my-zone`, check it with `dig`, then
+add, change and remove records, and catch a mistake before it's live.
+
+---
+
+<!-- _class: section-title -->
+
+# Lab 3 — Required
+
+## The shared zone: the process does the pushing
 
 <div class="flow">
 <span><b>1</b><br>branch</span>
 <span>→</span>
-<span><b>2</b><br>edit<br><small>dnsconfig.js</small></span>
+<span><b>2</b><br>PR<br><small>CI previews</small></span>
 <span>→</span>
-<span><b>3</b><br>preview<br><small>local diff</small></span>
+<span><b>3</b><br>review<br><small>someone else</small></span>
 <span>→</span>
-<span><b>4</b><br>PR<br><small>Forgejo</small></span>
+<span><b>4</b><br>merge</span>
 <span>→</span>
-<span><b>5</b><br>merge</span>
-<span>→</span>
-<span><b>6</b><br>push<br><small>CI applies it</small></span>
+<span><b>5</b><br>push<br><small>CI only</small></span>
 </div>
 
-Add your own record by hand, preview it locally, open a PR, watch CI
-comment the diff, merge, let CI apply it, then confirm with `dig`.
+Change `dojo.test` through a PR: CI previews it, a classmate approves, and
+only CI applies it. A push from your terminal is refused.
 
 ---
 
-## Labs 2-5 — optional, any order
+## Optional labs
 
 <div class="cards">
 <div>
-<h3>Lab 2 — Edit &amp; Remove</h3>
-<p>Change and delete records, and catch the mistakes <code>preview</code> is built to catch.</p>
+<h3>Lab 2 — Drift &amp; Undo</h3>
+<p>A dashboard edit meets the next push; undo a pushed change with <code>git revert</code>.</p>
 </div>
 <div>
-<h3>Lab 3 — dnsctl.py</h3>
-<p>Same loop as Lab 1, wrapped into one command per step.</p>
+<h3>Lab 4 — dnsctl.py</h3>
+<p>Lab 3's process, wrapped into one command per step.</p>
 </div>
 <div>
-<h3>Lab 4 — History &amp; Rollback</h3>
-<p>Investigate what changed, when, and safely undo a merged change.</p>
+<h3>Lab 5 — History &amp; Rollback</h3>
+<p>Investigate what changed, when, and undo a merged change through a PR.</p>
 </div>
 <div>
-<h3>Lab 5 — Merge Conflicts</h3>
+<h3>Lab 6 — Merge Conflicts</h3>
 <p>Two changes collide in <code>dnsconfig.js</code> — resolve it by hand.</p>
 </div>
 </div>
@@ -104,8 +124,8 @@ comment the diff, merge, let CI apply it, then confirm with `dig`.
 
 - `dnscontrol preview` is your best friend here — same role `git status`
   played last session. Safe to run any time, changes nothing.
-- Nothing here can break the shared zone for good — every change goes
-  through a PR, and Lab 4 covers rollback.
+- You can't break anyone else's work: Part 1 is your own zone, and every
+  change to the shared zone goes through a reviewed PR (Lab 5: rollback).
 - Stuck more than a minute or two? Ask the facilitator.
 
 ---
