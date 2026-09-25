@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 done. P1 in progress: T1.1 (`modules/openbao/`, OpenBao 2.7.0), T1.2 (`openbao-setup`) and T1.3 (SSO) done; T1.4 (CLI login) is next. Stack stopped. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 and P1 done (2026-09-25). P2 next, after the user's go. Stack stopped. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-25 (T1.2 done) |
 
@@ -47,12 +47,10 @@
   `modules/openbao/tests/sso_browser.py` (the command is in its header).
 - **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
   on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
-- **T1.4 and T1.5 are built but not run** (the user is using the machine; they asked to build several items and
-  validate together when it is free). T1.6 (labs 0-3) and T1.7 (docs) are written too. **Next: one live pass**
-  when the user says the machine is free: `./run.sh vault-fundamentals`, `modules/openbao/tests/cli_login.sh`,
-  `workshops/vault-fundamentals/tests/tenancy.sh`, `sso_browser.py` again, then labs 0-3 step by step as a student
-  (gitleaks flags, `bao token create` with `sudo` in the namespace, the UI namespace picker) and slide screenshots.
-  Then P1 is done: ask before P2.
+- **P1 is done** (T1.1-T1.7). The live pass ran locally on 2026-09-25: `cli_login.sh`, `tenancy.sh` and
+  `sso_browser.py` pass, labs 0-3 were run as a student (terminal and UI), slides fit 16:9. The stack is stopped.
+  **Next: P2. Ask the user before starting it.** Not run on `--env home` this time (T1.3 was; nothing in T1.4-T1.6
+  depends on the public name).
 - `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
   student's after T1.5); root is revoked and the provisioner can't.
 - **Local tests run in WSL on the user's desktop** (not a laptop): `http://localhost:8080`. The home HTTPS path is
@@ -674,16 +672,16 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
       the card → entity `student01`/`02` with `student`, facilitator via the `/admin` tab → `facilitator`, both
       land on `/ui/vault/secrets`; `?next=//example.com` falls back to the repo. Forgejo 16 **can't** skip the
       Authorize page (§14): each account approves once.)*
-- [~] **T1.4** *(built 55de8e1; live verify pending: `modules/openbao/tests/cli_login.sh`)* CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
+- [x] **T1.4** *(55de8e1, c7815c9; `modules/openbao/tests/cli_login.sh` passed locally 2026-09-25)* CLI login: the identity broker in the module's terminal link (the `dojo-cloud` broker's
       `SO_PEERCRED` pattern), JWT auth in the root namespace, linked to the same entity as the UI login. It gives
       `bao` and sops a token (`VAULT_TOKEN` or `~/.vault-token`).
       *Verify:* as `student01`, `bao token lookup` shows the student entity with no manual login; student02 can't
       get student01's JWT.
-- [~] **T1.5** *(built 2109b9d; live verify pending: `workshops/vault-fundamentals/tests/tenancy.sh`)* The workshop's hooks: per-student namespaces with an admin policy inside each, the shared `secret/`
+- [x] **T1.5** *(2109b9d, f7b8bf8; `workshops/vault-fundamentals/tests/tenancy.sh` passed locally 2026-09-25)* The workshop's hooks: per-student namespaces with an admin policy inside each, the shared `secret/`
       mount and templated policy (§5.3), seed secrets.
       *Verify:* student01 reads `secret/students/student01/*`, gets 403 on student02's path, and is admin only in
       `students/student01`.
-- [~] **T1.6** *(built a1da88a; live walk-through and slide screenshots pending)* Labs 0-3 and their slides (the lab reader copies, §4).
+- [x] **T1.6** *(a1da88a, 1dbe33b; labs 0-3 run as a student and slides screenshotted locally 2026-09-25)* Labs 0-3 and their slides (the lab reader copies, §4).
       *Verify:* a full walk-through of labs 0-3 as a student in a real browser; slides within 16:9 (screenshot).
 - [x] **T1.7** *(module README with T1.4; READMEs 898199b)* Docs: module `README.md`, the workshops table in `workshops/README.md`, root `README.md`,
       `CLAUDE.md` module list.
@@ -793,6 +791,17 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **Busybox `sh` runs a trap only after a foreground `sleep` ends**: `setup.sh` sleeps with `sleep 5 & wait $!`.
 - **The terminal sets `BAO_ADDR` only** *(fixed in T1.1: the `openbao` module sets `VAULT_ADDR` too)*; lab 6 needs `VAULT_ADDR` too (export it alongside `BAO_ADDR`, and the
   identity broker should provide `VAULT_TOKEN` or `~/.vault-token`, which sops also reads).
+- **`retry` in `setup.sh` shared `i` with the hook's loop** (sh has no locals): setup looped on student02 forever.
+  Fixed in c7815c9 (`_retry_n`, `_retry_i`). Hooks: don't name variables `_retry_*`.
+- **A child token carries its parent's entity** (`identity_policies` too). In a namespace, one made by a
+  root-namespace entity's token was refused everything, even `lookup-self`. `bao token create -orphan` gives a token
+  with no entity and only the policies asked for: lab 3 uses it.
+- **Templated paths work across namespaces**: `students/{{identity.entity.name}}/*` in a root policy makes the
+  student admin in `students/<name>` only, including `sudo` for `token create -orphan` (T1.5).
+- **The OpenBao 2.7 UI's KV routes** are `/ui/vault/secrets/secret/list/<path>/` and `.../show/<path>`; the
+  namespace picker is at the bottom of the side menu (`root` → `students` →), and `?namespace=students/<name>` works.
+- **gitleaks 8.30.1:** `gitleaks git -v` and `gitleaks git --pre-commit --staged --redact -v` work; `ghp_` + 36
+  characters trips `github-pat`.
 
 ## 15. SESSION LOG (append-only, newest at the bottom)
 
@@ -1021,6 +1030,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
   strings trip gitleaks; `bao token create -policy=app-read` in the namespace with only `sudo` from the root policy;
   where the UI's namespace picker is; a git identity (the terminal sets none, lab 1 sets it).
 - **T1.7:** `workshops/README.md` table, root `README.md` (status, layout, services table, the broker bullet).
+
+### 2026-09-25 — Live pass: P1 done
+
+- Local stack (`./run.sh vault-fundamentals`). First start: setup never became ready (the `retry` counter bug,
+  §14), fixed in c7815c9 and re-run. Then `cli_login.sh` PASS (15 checks), `tenancy.sh` PASS (9), `sso_browser.py`
+  PASS. Labs 0-3 run as a student in the terminal: all as written except lab 3's app token (now `-orphan`,
+  1dbe33b). UI: click-through to the welcome secret, the namespace picker, and creating a policy in the
+  namespace all work. Slides: no overflow; slide 9's emoji arrows replaced. A setup restart keeps the welcome
+  secret at version 1. `./run.sh stop`: nothing left.
 
 ## Appendix: considered, not chosen
 
