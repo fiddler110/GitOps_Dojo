@@ -635,7 +635,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       processes or files.
 - [x] **T0.9** *(79a005d)* (§10.6) `sops` with OpenBao transit. *Verify:* encrypt a file, commit it, decrypt it
       with a token that has transit decrypt only; a token without it fails.
-- [x] **T0.10** *(this commit; see §15)* Write up: findings into §10, plan changes into the relevant sections, new questions
+- [x] **T0.10** *(7f9de64)* Write up: findings into §10, plan changes into the relevant sections, new questions
       into §12, a P0 entry in §15. **Ask the user before starting P1.**
 
 ### P1 — Core (firmed up in T0.10, 2026-09-24; waiting for the user's go)
