@@ -38,7 +38,7 @@ bao kv list team/
 
 The app should read `team/app` and nothing else. In the Vault tab:
 
-1. Switch to your namespace: use the **namespace picker** in the side menu and choose `students/<you>` (or add `?namespace=students/<you>` to the end of the address).
+1. Switch to your namespace: click the **namespace picker** at the bottom of the side menu (it says `root`), open **students**, and choose your name. (Or add `?namespace=students/<you>` to the end of the address.) The picker now shows your name.
 2. Open **Policies → ACL policies → Create ACL policy**.
 3. Name it `app-read`, and give it this body:
 
@@ -79,11 +79,15 @@ Same name, same rules: the write changed nothing, which is what you want when a 
 Make a short-lived token that carries only `app-read`:
 
 ```bash
-APP_TOKEN=$(bao token create -policy=app-read -ttl=15m -field=token)
+APP_TOKEN=$(bao token create -orphan -policy=app-read -ttl=15m -field=token)
 BAO_TOKEN=$APP_TOKEN bao token lookup
 ```
 
-`policies` is `[app-read default]`, `ttl` about 15 minutes, and there is no `entity_id`: it's a token for a program, not a person. Now test it. `BAO_TOKEN=...` in front of a command uses that token for that one command:
+`policies` is `[app-read default]`, `ttl` about 15 minutes, and `entity_id` is empty: it's a token for a program, not a person.
+
+Why `-orphan`? A token you make normally is your token's **child**, and it carries your identity along with it, which is the opposite of what an app should get. An orphan stands on its own: no parent, no identity, only the policy you gave it.
+
+Now test it. `BAO_TOKEN=...` in front of a command uses that token for that one command:
 
 ```bash
 BAO_TOKEN=$APP_TOKEN bao kv get team/app                 # works
@@ -103,7 +107,7 @@ bao token revoke "$APP_TOKEN"
 BAO_TOKEN=$APP_TOKEN bao kv get team/app     # permission denied: the token is gone
 ```
 
-Tokens form a tree: this one is a child of yours, so revoking yours would have revoked it too. That's how you cut off everything a leaked credential handed out, in one go.
+Normal tokens form a tree: revoking a token revokes every child it made, which is how you cut off everything a leaked credential handed out, in one go. An orphan is outside that tree, so you revoke it by itself, as here.
 
 Leave your namespace for the next labs:
 

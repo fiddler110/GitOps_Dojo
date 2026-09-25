@@ -133,9 +133,9 @@ Tools built for Vault (sops, Python's `hvac`) work unchanged.
 ## Signing in: an identity, then a token
 
 ```text
-  you ── prove who you are ──▶ auth method ──▶ entity (you) ──▶ token (TTL, policies)
-         browser: Forgejo SSO    oidc              student01       8 hours
-         terminal: the platform  jwt               student01       8 hours
+  you --prove who you are--> auth method --> entity (you) --> token (TTL, policies)
+      browser: Forgejo SSO   oidc            student01        8 hours
+      terminal: the platform jwt             student01        8 hours
 ```
 
 - **Auth method:** how you prove who you are. No vault password today.

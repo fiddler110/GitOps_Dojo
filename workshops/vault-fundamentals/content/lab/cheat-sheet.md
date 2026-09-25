@@ -35,7 +35,7 @@ bao secrets enable -path=team kv-v2
 bao policy list
 bao policy read  app-read
 bao policy write app-read app-read.hcl
-bao token create -policy=app-read -ttl=15m -field=token
+bao token create -orphan -policy=app-read -ttl=15m -field=token  # no parent, no identity
 BAO_TOKEN=<token> bao kv get team/app  # run one command as another token
 bao token revoke <token>
 ```
