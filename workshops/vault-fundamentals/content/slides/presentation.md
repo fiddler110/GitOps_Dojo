@@ -572,3 +572,46 @@ th, td { padding: 5px 14px; }
 # Let's go
 
 ## Next: [labs.md](labs.md), then your terminal
+
+---
+
+<!-- _class: section-title -->
+
+# Wrap-up
+
+## After the labs
+
+---
+
+## The rules, and where you used them
+
+| # | Rule | Where you did it |
+| - | ---- | ---------------- |
+| 1 | Least privilege | The templated policy (2), `app-read` (3), `ci-read` (8) |
+| 2 | Identity over secrets | The job's OIDC token (8), the platform's identity (9) |
+| 3 | Short-lived, revocable | Token TTLs (3), leases (10), revoking a tree (11) |
+| 4 | Secret zero | AppRole's secret in the pipeline (8), gone with OIDC |
+| 5 | Separation of duties | The pipeline deploys but can't read `team/app` (9) |
+| 6 | Audit everything | `bao-audit`: who read what, by accessor (3, 11) |
+| 7 | Plan for leaks | Rotate the key (6), rotate with no deploy (5, 9), the drill (11) |
+| 8 | Never in git, logs or images | gitleaks (1), masking (7), sops (6), no DEBUG dumps (4) |
+
+---
+
+## At work on Monday
+
+- **Scan** your repos' history with gitleaks, and add the pre-commit hook
+- **Find your secret zero**: every stored credential in a pipeline is a candidate for OIDC
+- **Ask for the identity** your platform already has: workload identity federation, managed identity
+- **Shorten TTLs** and prefer dynamic credentials where the engine exists
+- **Know who can read the audit log**, and rehearse a leak before you have one
+- **Keep policies in git** and change them by pull request
+
+---
+
+<!-- _class: lead -->
+<!-- _paginate: false -->
+
+# Thank you
+
+## Questions?
