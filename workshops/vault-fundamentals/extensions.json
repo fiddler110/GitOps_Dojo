@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "vault", "label": "Vault", "desc": "The OpenBao web UI: sign in with your Forgejo account.",
+      "href": "/ui/", "icon": "key" }
+  ],
+  "admin_tabs": [
+    { "id": "vault", "label": "Vault", "src": "/ui/" }
+  ],
+  "routes": [
+    { "id": "vault-ui", "path": "/ui", "upstream": "openbao:8200", "gate": "shared" },
+    { "id": "vault-api", "path": "/v1", "upstream": "openbao:8200", "gate": "shared" }
+  ],
+  "status_checks": [
+    { "label": "Vault", "url": "http://openbao:8200/v1/sys/health" }
+  ]
+}

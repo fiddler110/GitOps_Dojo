@@ -18,7 +18,41 @@ services:
       - openbao_data:/openbao/file
     networks:
       - workshop_lab
+    # The public name means this container's own localhost, where the SSO
+    # shim below answers for it (PLAN.md S23, S28).
+    extra_hosts:
+      - "${OPENBAO_PUBLIC_HOST:-localhost}:127.0.0.1"
     mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
+    restart: unless-stopped
+
+  # Issuer shim for the UI's OIDC login (PLAN.md S23): Caddy in OpenBao's
+  # network namespace, answering for PUBLIC_BASE_URL and forwarding /git/* to
+  # git-server, so OpenBao reaches Forgejo's issuer by its public URL. Its
+  # own CA (in openbao_shim_data) signs the HTTPS name; OpenBao trusts it
+  # through oidc_discovery_ca_pem.
+  openbao-sso-shim:
+    image: gitopsdojo/gateway:local
+    container_name: workshop_openbao_sso_shim
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    network_mode: "service:openbao"
+    # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
+    user: "0:0"
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+    volumes:
+      - ../workshops/vault-fundamentals/spike/shim/Caddyfile:/etc/caddy/Caddyfile:ro
+      - openbao_shim_data:/data
+      - openbao_shim_config:/config
+    depends_on:
+      - openbao
+    # The image's check asks Caddy's admin API, which the shim turns off.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --no-check-certificate \"$$PUBLIC_BASE_URL/git/api/healthz\" || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 64m
     restart: unless-stopped
 
   # Image: compose/terminal/, built and selected by engine/run.sh.
@@ -29,3 +63,5 @@ services:
 
 volumes:
   openbao_data:
+  openbao_shim_data:
+  openbao_shim_config:

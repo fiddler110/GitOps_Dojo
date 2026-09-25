@@ -592,7 +592,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
       `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
       gateway URL and inside an `/admin` iframe.
-- [x] **T0.11** *(SHA in the §15 entry)* (before T0.5) Put the spike on the module-era image chain: drop `image:` from `web-terminal` in
+- [x] **T0.11** *(e610c57)* (before T0.5) Put the spike on the module-era image chain: drop `image:` from `web-terminal` in
       `compose/docker-compose.override.yml`, start `compose/terminal/Dockerfile` with
       `ARG BASE=gitopsdojo/web-terminal:base` / `FROM ${BASE}`, and remove a stale
       `gitopsdojo/web-terminal:vault-fundamentals` tag if `run.sh` would reuse it.
