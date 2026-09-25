@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0-P3 done (2026-09-25). P4 next, after the user's go. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0-P4 done (P4 committed 2026-09-25: 91031d6, 21daddf). Next: P5, after the user's go. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-25 (P3 done) |
 
@@ -39,6 +39,16 @@
 
 ### Where we stopped (2026-09-25): start here next
 
+- **P4 is done** (T4.1-T4.8; 91031d6 `openbao-audit`, 21daddf app-host, app-db, labs 9-11). Passed locally:
+  `tests/labs_9_11.sh` (student03, student01, and twice on student02, so a redeploy on a used slot is covered),
+  `tests/p4_browser.py` (Apps page as student at 390 px and the facilitator's tab, labs 9-11 in the reader, Part 6
+  slides + labs.md + lab-index within 16:9, screenshots looked at), unit tests (app-host 16, runner-pool 25), live
+  security checks (forged / no-token deploys 403/401, sandbox CSP, each app PID 1 in its own namespace, other slots'
+  files and tokens refused), and the earlier tests again: `cli_login.sh`, `tenancy.sh`, `labs_4_6.sh`,
+  `labs_7_8.sh`, `pool.sh`. `./run.sh stop` leaves no `engine_` volume. The user approved the two `openbao` module
+  changes (the `openbao-audit` service, unhashed accessors). **The user's own browser pass of P4 is still open**
+  (My App card, `/admin` Apps tab, labs 9-11 in the reader, slides 28-35). The machine is free (stack stopped).
+- **Next: P5**, ask the user before starting it.
 - **P3 is done** (T3.1-T3.9; ee6e59b, 5be3d6e, fixes from the live run in d80e078). Verified locally on a fresh
   stack: `modules/runner-pool/tests/pool.sh` PASS (22 checks: warm pool, panel 403s and CSRF, two concurrent jobs
   that see nothing of each other, `bao`/`sops` in jobs, no files left in `/tmp`, a burst of 8 up to the max, Manual
@@ -772,7 +782,63 @@ just built, so there is one pin per tool. Jobs run `runs-on: host`. Students for
       real lab jobs (§6.3), `--dry-run` clean, `./run.sh stop` leaves nothing; labs 7-8 in a real browser; slides
       within 16:9.
 
-Later phases get their own task block (IDs `T4.x` … `T5.x`) when they start.
+### P4 — Deployments (`app-host`, `app-db`, labs 9-11; the user said go 2026-09-25)
+
+**Design, fixed here (§5.6):** all in the workshop (overlay + `compose/app-host/`), no module and no `engine/` edit.
+
+- **`app-host`** (on `workshop_lab` and `runner_net`): Debian slim like the terminal, with `bao` and the terminal's
+  Python packages copied from the terminal image (`TOOLS_IMAGE`, one pin per tool, as the pool does). One Python
+  program, `apphost.py`, runs as root and is the whole platform:
+  - **Slots:** one Linux user per student (`student01` …, uid 30000+), made at start. A deploy unpacks the bundle
+    *as the slot user* into `/srv/apps/<slot>/app` and runs its `start.sh` as that user, in its own user + PID
+    namespace with `prlimit` caps (the pool's pattern, T0.8); crash restarts with a limit; `kill -9 -1` as the user
+    stops it. The app listens on `$PORT` (9000 + n).
+  - **Platform identity:** its own RS256 key (volume `app_host_keys`); every 5 min it writes each slot a 10-min
+    JWT (`iss http://app-host:8080`, `aud openbao`, `sub slot:<slot>`, `slot`) to `/run/platform/<slot>/token`
+    (dir 0700, file 0400, the slot user's). Public keys at `/.well-known/jwks.json`. Like a Kubernetes projected
+    service-account token.
+  - **Deploy API:** `POST /deploy` with a tar.gz and `Authorization: Bearer <the job's Forgejo ID token,
+    audience app-host>`. The platform checks the signature against Forgejo's keys (openssl, JWK → PEM by hand),
+    issuer, audience, expiry, `ref == refs/heads/main` and `repository == <owner>/vault-fundamentals`, and deploys to
+    the owner's slot. The deploy credential is the job's identity, not a stored secret; the job's *vault* identity
+    (lab 8's `ci-read`) still can't read `team/app`: separation of duties.
+  - **HTTP:** direct on `app-host:8080`: `/healthz`, JWKS, `/deploy`, and `/<slot>/…` proxied to the slot's app
+    (apps are public in the class, like any web app; they show fingerprints, never values). Through the gateway,
+    `/apps` (`identity` gate, stripped): a page with your slot's state, deploy and log tail, and for the facilitator
+    every slot (the `/admin` **Apps** tab, the "My app" card). Proxied app responses get `CSP: sandbox` and lose
+    `Set-Cookie`; requests to apps lose `Cookie`, `Authorization` and the gateway headers, so student HTML can't
+    run script on the class origin or see the gateway token.
+- **`app-db`** (Postgres 17, `workshop_lab`): per student a database `app_<s>` with a `notes` table, a group role
+  `app_<s>_rw`, and `vault_<s>` (`CREATEROLE`, admin of `app_<s>_rw`) whose first password setup hands to the vault
+  and then rotates (`rotate-root`): no person ever knows it. `CONNECT` only to your own database.
+- **Setup hook `30-platform.sh`** (S19, half-configured): in each namespace `auth/jwt-platform` pointed at the
+  platform's JWKS and issuer, and a `database/` mount with the `app-db` connection; students write the roles.
+  The module's provisioner policy gains `students/+/database/config/*` and `rotate-root/*`.
+- **Audit for students (lab 11):** `openbao-audit` in the `openbao` module reads the audit file and answers a
+  caller who sends their vault token: students get the entries in their own namespace, the facilitator all
+  (§7). The audit device stops HMAC-ing accessors (`hmac_accessor = false`) so a leaked token can be traced by
+  accessor; tokens stay hashed. Terminal command `bao-audit`.
+- Terminal: `psql` (Debian's `postgresql-client`) and `pg8000` (wheels in `hvac-wheels.sha256`, which app-host
+  inherits) for lab 10.
+
+- [x] **T4.1** *(21daddf; verified live 2026-09-25)* `app-host`: Dockerfile, `apphost.py` (slots, identity, deploy, proxy, panel), overlay service and
+      volumes, `extensions.json` (card, tab, route, status check). Unit tests without a stack (JWT verify, deploy
+      claims, proxy header scrubbing).
+- [x] **T4.2** *(21daddf; verified live 2026-09-25)* `app-db` and the terminal's `psql`/`pg8000`; hook `30-platform.sh`; provisioner lines.
+- [x] **T4.3** *(91031d6; verified live 2026-09-25)* `openbao-audit` in the `openbao` module; `hmac_accessor = false`; `bao-audit` in the terminal.
+- [x] **T4.4** *(21daddf; verified live 2026-09-25)* Lab 9, "Deploy with workload identity": the platform's keys, the role bound to your slot, the app
+      with an Agent (`remove_jwt_after_reading = false`), a deploy workflow, rotation seen by the app, the pipeline
+      refused `team/app`, a branch deploy refused.
+- [x] **T4.5** *(21daddf; verified live 2026-09-25)* Lab 10 (optional), "Dynamic database credentials": role, `creds`, `psql`, lease lookup / renew /
+      revoke, then the app gets its own through the Agent.
+- [x] **T4.6** *(21daddf; verified live 2026-09-25)* Lab 11, "Incident drill": a token leaks and is used; find it in the audit log by accessor, revoke the
+      tree, rotate what it read, the app recovers by itself.
+- [x] **T4.7** *(21daddf; verified live 2026-09-25)* Slides (Part 6), `labs.md`, `lab-index.md`, cheat sheet, lab README, READMEs, `CLAUDE.md`.
+- [x] **T4.8** *(91031d6, 21daddf; verified live 2026-09-25)* Tests and the live pass: `tests/labs_9_11.sh`, the platform's isolation (a slot can't read another's
+      token or files, a forged or wrong-branch deploy is refused), earlier tests still pass, the Apps page in a
+      real browser, slides within 16:9, `./run.sh stop` leaves nothing.
+
+Later phases get their own task block (IDs `T5.x`) when they start.
 
 ## 12. Open questions for the user
 
@@ -1211,6 +1277,34 @@ Surprises, gotchas and problems found in other workshops while working on this o
   screenshots checked.
 - Pool memory peak 181 MiB. `./run.sh stop` left nothing of the stack. All fixes in d80e078. Machine free.
 - **Next: P4, after the user's go.**
+
+### 2026-09-25 — P4 built (T4.1-T4.7), live pass
+
+- The user said go. Design and task block in §11 P4. Built: `compose/app-host/` (`apphost.py`, renamed from
+  platform.py so it doesn't shadow Python's `platform`; panel; Dockerfile FROM debian slim with `bao` and Python
+  packages copied from the terminal image), `app-db` (Postgres 17.11 pinned, `compose/app-db/init.sh`), hook
+  `30-platform.sh`, provisioner lines for `database/`, `openbao-audit` + `bao-audit` in the openbao module
+  (`hmac_accessor = false`), terminal `jq`, `psql`, `pg8000` wheels, labs 9-11, Part 6 slides, lab pages, READMEs,
+  `extensions.json` (My App card, Apps tab, `/apps` identity route), tests `labs_9_11.sh`, `p4_browser.py`.
+- Found on the stack: (1) **a volume mounted by two containers belongs to the user of the one podman sets up
+  first**: `openbao-audit` (root) took `openbao_logs` and OpenBao couldn't write its audit file, so init failed.
+  `openbao-audit` now runs as OpenBao's uid 100:1000. (2) A fresh fork has no `.forgejo/workflows/`: lab 9 does
+  `mkdir -p`. (3) `bao token lookup -accessor` on a revoked token says `invalid accessor`. (4) Forgejo's Actions
+  ID tokens are RS256 with a `kid`: the platform's openssl check works. (5) The CLI's `sys/internal/ui/mounts/...`
+  look-ups clutter the audit: `bao-audit` hides them unless `--all`. (6) Slide 35 overflowed at 10 rows: smaller
+  table font (scoped style); the overflow check now includes table rows.
+
+### 2026-09-25 — P4 done (T4.8), committed
+
+- Regression run all PASS locally: `cli_login.sh`, `tenancy.sh`, `labs_4_6.sh`, `labs_7_8.sh`, `pool.sh`; then
+  `labs_9_11.sh` on student01 and student02. It found three things, all fixed and re-run:
+  (1) `openbao-audit` read the file once a second, so lab 11's query right after the spare token was made missed
+  it (`$CHILD` empty). Each `/entries` query now reads the file up to date first. (2) Lab 10's "another student's
+  database" step used `app_student02`, which is student02's own: it now picks a neighbour. (3) A redeploy kept the
+  last version's `secrets/db.env`, so a fresh lab 9 app showed lab 10's database login. A deploy now empties the
+  slot's home first.
+- `./run.sh stop`: no containers, no `engine_` volume. Commits 91031d6 (`openbao-audit`), 21daddf (the rest).
+  The user approved the two `openbao` module changes. Their browser pass of P4 is still open.
 
 ## Appendix: considered, not chosen
 
