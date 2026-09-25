@@ -11,7 +11,7 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; next T0.5 → T0.9 → T0.10. `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, proposed, 2026-09-24). Open questions: §12. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0 spike in progress: T0.1-T0.4 and T0.6-T0.8 done; T0.11 done; next T0.5 → T0.9 → T0.10. `main` (with `feat/workshop-modules`) is merged in; the plan is adapted to modules (S26-S30, 2026-09-24). No open questions. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
 | Last updated | 2026-09-24 (plan adapted to the module approach: S26-S30, §8.1, §11 P1 draft) |
 
@@ -43,15 +43,13 @@
   stack is still up and the spike vault unsealed; if the scratchpad `init.json` is gone, `./run.sh stop` and start
   clean (steps below).
 - **Done:** T0.1-T0.4, T0.6, T0.7, T0.8 (SHAs in §11). All spike scripts are in `spike/` and re-runnable.
-- **The T0.4 edit to `engine/gateway/Caddyfile` is in `git stash`** (S21) and is **no longer needed** (S26): the
-  `/ui` and `/v1` routes now come from an `extensions.json`, so T0.5 runs with no `engine/` edit at all. Don't pop
-  it; drop it (`git stash drop`) once the user agrees.
+- **The T0.4 Caddyfile stash was dropped** (user, 2026-09-24): the `/ui` and `/v1` routes now come from an
+  `extensions.json` (S26), so T0.5 runs with no `engine/` edit at all.
 - **The spike stack was stopped** from this branch on 2026-09-24 (for the modules work), so its volumes are gone:
   resuming means a fresh init (steps below).
 - **`feat/workshop-modules` is merged in** (S25): PR #2 landed on `main`, merged here in 8c71f83 (2026-09-24);
   `main` has nothing newer. The plan was adapted to it on 2026-09-24 (S26-S30, §8.1, the P1 draft in §11).
-- **Next:** **T0.11** (drop the fixed terminal image, `ARG BASE` in the terminal Dockerfile; small, and it puts the
-  spike on the image chain P1 uses), then **T0.5** (UI SSO: routes from a spike `extensions.json`, S26; issuer shim
+- **Next:** **T0.5** (UI SSO: routes from a spike `extensions.json`, S26; issuer shim
   from `spike/shim/Caddyfile` in OpenBao's network namespace, as `t06-ci-oidc.sh` does for the runner; the real
   HTTPS path through `--env home`, S30), then **T0.9** (`sops` + transit), then **T0.10** (write-up; **ask the user
   before starting P1**).
@@ -114,11 +112,11 @@ phase, before editing engine/, and about anything in section 12.
 | S23 |  **UI single sign-on reaches Forgejo's issuer through an overlay-only "issuer shim"** (2026-09-23, answers Q1): a small Caddy container sharing OpenBao's network namespace answers for `PUBLIC_BASE_URL` and forwards `/git/*` straight to `git-server:3000`. On the VM, `extra_hosts` points the public name at it and it serves HTTPS with its own CA, which OpenBao trusts (`oidc_discovery_ca_pem`). No engine edit, no gate exemption. Fallback if it fails T0.5: token login in the UI, SSO on a slide. The VM's HTTPS path is only approximated until the P5 Azure VM run. |
 | S24 | **Fix Forgejo's broken Actions token URL inside the lab, don't file upstream** (2026-09-23): the S23 issuer shim also runs in the runners' network namespace and maps `/git//gitapi/actions/...` to `/api/actions/...`, so jobs use `$ACTIONS_ID_TOKEN_REQUEST_URL` exactly as Forgejo gives it. No `dojo-ci-token` helper needed. Proven in T0.6. |
 | S25 | **P0.5 and P6 are replaced by `feat/workshop-modules`** (user, 2026-09-24; its plan is `engine/MODULES-PLAN.md`). That branch built extensions (`extensions.json`: cards, `/admin` tabs, gated routes, status checks) and modules (`modules/<name>/`, listed in `MODULES=`), moved every workshop onto them and deleted `CLOUD_ENABLED`/`DEMO_APP_ENABLED`. **OpenBao becomes a module** (`modules/openbao/`, §8.1), so a later workshop (policy as code, cert-autorenewal's PKI) can reuse it. |
-| S26 | *(Proposed 2026-09-24.)* **No `engine/` edit for the UI routes, even in the spike.** From T0.5 on, `/ui` and `/v1` come from an `extensions.json` (`shared` gate, which strips `Authorization` as the T0.4 edit did). T0.5 uses a spike manifest in the workshop folder; T1.1 moves it to `modules/openbao/`. The S21 stash is dropped. This also makes the `/admin` **Vault** tab testable in T0.5 (T0.4 couldn't). |
-| S27 | *(Proposed 2026-09-24.)* **Don't use the `forgejo-runner` module.** Its runner is long-lived and scoped to one repo: the "considered, not chosen" pattern in the Appendix. The single-use pool, controller and Runners panel become **their own module, `runner-pool`** (P3), because nothing in them is vault-specific and `dns-as-code` could switch to it later. It repeats the two lines it needs from `forgejo-runner` (Actions on, `runner_net`); the two modules are never listed together. |
-| S28 | *(Proposed 2026-09-24.)* **Split the issuer shim by job.** `modules/openbao/` gets a shim that only forwards `/git/*` to `git-server` (UI SSO, S23). `runner-pool` gets its own shim with the Actions ID-token rewrite (S24). Two small Caddyfiles instead of one module reaching into the other's folder. |
-| S29 | *(Proposed 2026-09-24.)* **Module setup, then workshop setup, in one container.** `openbao-setup` (module) initialises, unseals, sets the UI headers, OIDC-to-Forgejo, one entity per student and the facilitator policy, then runs every `/etc/openbao-setup.d/*.sh` in name order and revokes root **after** them, with the provisioner token (§5.1) still in hand. The workshop mounts its hooks (namespaces, templated policy, seed secrets, the half-configured JWT mounts of labs 8-9) there from its overlay; `volumes` append. Same shape as the terminal's `start.d`, and no token has to cross between containers. |
-| S30 | *(Proposed 2026-09-24.)* **Test the real HTTPS path at home, not only "approximately".** `./run.sh vault-fundamentals --env home` serves `https://dojo.macleodtech.ca` behind the home-lab Caddy: a real non-`localhost` HTTPS name, which is what T0.5's VM path needs. The P5 Azure VM run still happens. |
+| S26 | *(User, 2026-09-24.)* **No `engine/` edit for the UI routes, even in the spike.** From T0.5 on, `/ui` and `/v1` come from an `extensions.json` (`shared` gate, which strips `Authorization` as the T0.4 edit did). T0.5 uses a spike manifest in the workshop folder; T1.1 moves it to `modules/openbao/`. The S21 stash is dropped. This also makes the `/admin` **Vault** tab testable in T0.5 (T0.4 couldn't). |
+| S27 | *(User, 2026-09-24.)* **Don't use the `forgejo-runner` module.** Its runner is long-lived and scoped to one repo: the "considered, not chosen" pattern in the Appendix. The single-use pool, controller and Runners panel become **their own module, `runner-pool`** (P3), because nothing in them is vault-specific and `dns-as-code` could switch to it later. It repeats the two lines it needs from `forgejo-runner` (Actions on, `runner_net`); the two modules are never listed together. |
+| S28 | *(User, 2026-09-24.)* **Split the issuer shim by job.** `modules/openbao/` gets a shim that only forwards `/git/*` to `git-server` (UI SSO, S23). `runner-pool` gets its own shim with the Actions ID-token rewrite (S24). Two small Caddyfiles instead of one module reaching into the other's folder. |
+| S29 | *(User, 2026-09-24.)* **Module setup, then workshop setup, in one container.** `openbao-setup` (module) initialises, unseals, sets the UI headers, OIDC-to-Forgejo, one entity per student and the facilitator policy, then runs every `/etc/openbao-setup.d/*.sh` in name order and revokes root **after** them, with the provisioner token (§5.1) still in hand. The workshop mounts its hooks (namespaces, templated policy, seed secrets, the half-configured JWT mounts of labs 8-9) there from its overlay; `volumes` append. Same shape as the terminal's `start.d`, and no token has to cross between containers. |
+| S30 | *(User, 2026-09-24.)* **Test the real HTTPS path at home, not only "approximately".** `./run.sh vault-fundamentals --env home` serves `https://dojo.macleodtech.ca` behind the home-lab Caddy: a real non-`localhost` HTTPS name, which is what T0.5's VM path needs. The P5 Azure VM run still happens. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -594,7 +592,7 @@ deleted or folded into P1). No `engine/` edits without asking the user first.
       framed in `/admin`. **Uncommitted local edit to `engine/gateway/Caddyfile` (S21)**, with
       `header_up -Authorization`; revert it when P0 ends. *Verify:* UI loads and works through the
       gateway URL and inside an `/admin` iframe.
-- [ ] **T0.11** (before T0.5) Put the spike on the module-era image chain: drop `image:` from `web-terminal` in
+- [x] **T0.11** *(SHA in the §15 entry)* (before T0.5) Put the spike on the module-era image chain: drop `image:` from `web-terminal` in
       `compose/docker-compose.override.yml`, start `compose/terminal/Dockerfile` with
       `ARG BASE=gitopsdojo/web-terminal:base` / `FROM ${BASE}`, and remove a stale
       `gitopsdojo/web-terminal:vault-fundamentals` tag if `run.sh` would reuse it.
@@ -644,11 +642,8 @@ Later phases get their own task block (IDs `T2.x` … `T5.x`) when they start.
 
 Q1 (how OpenBao reaches Forgejo's OIDC issuer) was answered on 2026-09-23 with option A, the issuer shim (S23).
 
-- **Q2 (2026-09-24): confirm S26-S30**, the module adaptation. Each is proposed, not decided. The ones with a real
-  alternative: S27 (a `runner-pool` **module** now, or build it in the workshop and promote it only when a second
-  workshop asks) and S29 (setup hooks inside `openbao-setup`, or a separate workshop setup container that is
-  handed a provisioner token through a shared volume).
-- **Q3 (2026-09-24): drop the S21 stash?** It holds only the T0.4 Caddyfile edit, which S26 makes unnecessary.
+Q2 (S26-S30) and Q3 (drop the S21 stash) were answered on 2026-09-24: all confirmed; `runner-pool` is a module
+from the start (S27), workshop setup runs as hooks in `openbao-setup` (S29), and the stash is dropped. None open.
 
 ## 13. Later / follow-ups
 
@@ -812,6 +807,13 @@ Surprises, gotchas and problems found in other workshops while working on this o
   hooks inside `openbao-setup`; the real HTTPS path through `--env home`.
 - Rewrote §8.1 (three-column split, setup order, runner image), §8, §5.1's shim and runner rows, §0; added T0.11
   and a draft P1 block in §11. Nothing built or run.
+- The user confirmed S26-S30 (Q2): `runner-pool` a module now, setup hooks in `openbao-setup`. Stash dropped (Q3).
+
+### 2026-09-24 — T0.11 (terminal on the image chain)
+- Overlay no longer sets `build:`/`image:` on `web-terminal`; the Dockerfile starts `ARG BASE` / `FROM ${BASE}` and
+  restates the base HEALTHCHECK. `--dry-run` clean; `./run.sh vault-fundamentals` built the `:vault-fundamentals`
+  link on `:base`, the terminal is `healthy`, and as `student01` `BAO_ADDR` is set and `bao`, `sops`, `gitleaks`
+  answer. The stack is left running with OpenBao **not initialised** (T0.5 starts with `spike/init-bao.sh`).
 
 ## Appendix: considered, not chosen
 

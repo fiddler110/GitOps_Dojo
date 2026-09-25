@@ -1,9 +1,10 @@
-# Extends the shared web-terminal base image (built and tagged
-# gitopsdojo/web-terminal:base by engine/run.sh) with the vault tools:
-# bao (OpenBao CLI), sops and gitleaks. Student terminals have no internet,
-# so every tool is baked in here, version-pinned and sha256-verified per
-# architecture. The entrypoint and HEALTHCHECK are inherited unchanged.
-FROM gitopsdojo/web-terminal:base
+# vault-fundamentals' link in the terminal build chain (engine/run.sh sets
+# BASE to the image below this one; see workshops/README.md). Adds the vault
+# tools: bao (OpenBao CLI), sops and gitleaks. Student terminals have no
+# internet, so every tool is baked in here, version-pinned and
+# sha256-verified per architecture. The entrypoint is inherited unchanged.
+ARG BASE=gitopsdojo/web-terminal:base
+FROM ${BASE}
 
 ARG TARGETARCH=amd64
 
@@ -61,3 +62,9 @@ RUN set -eux; \
     printf '\n# vault-fundamentals: the class OpenBao server\nexport BAO_ADDR=http://openbao:8200\n' >> /etc/zsh/zshenv; \
     printf 'export BAO_ADDR=http://openbao:8200\n' > /etc/profile.d/openbao.sh
 ENV BAO_ADDR=http://openbao:8200
+
+# ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
+# HEALTHCHECK is restated so a static scan of this file alone (which doesn't
+# resolve FROM) doesn't flag it missing.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+    CMD web-terminal-healthcheck

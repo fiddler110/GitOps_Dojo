@@ -21,12 +21,8 @@ services:
     mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
     restart: unless-stopped
 
+  # Image: compose/terminal/, built and selected by engine/run.sh.
   web-terminal:
-    build:
-      context: ../workshops/vault-fundamentals/compose/terminal
-    # Own tag, or Compose tags this build as :base and clobbers the shared
-    # base image (see workshops/README.md).
-    image: gitopsdojo/web-terminal:vault-fundamentals
     depends_on:
       openbao:
         condition: service_started
