@@ -48,7 +48,10 @@
   `labs_7_8.sh`, `pool.sh`. `./run.sh stop` leaves no `engine_` volume. The user approved the two `openbao` module
   changes (the `openbao-audit` service, unhashed accessors). **The user's own browser pass of P4 is still open**
   (My App card, `/admin` Apps tab, labs 9-11 in the reader, slides 28-35). The machine is free (stack stopped).
-- **Next: P5**, ask the user before starting it.
+- **P5: content built** (2026-09-25, S33-S36; T5.1-T5.5: aa56e97 Audit tab, 8b113d6 bots get tenancy, ff7e1ad bot
+  steps, d83c4cb wrap-up slides, 57aa4be `e2e.sh` + `p5_browser.py` + README). Only unit tests, `--dry-run` and
+  offline checks so far. **Next: T5.6**, the one long live pass (`./run.sh vault-fundamentals --test 20`, then
+  `bash workshops/vault-fundamentals/tests/e2e.sh --load 30`), then fill README "Sizing" with the numbers.
 - **P3 is done** (T3.1-T3.9; ee6e59b, 5be3d6e, fixes from the live run in d80e078). Verified locally on a fresh
   stack: `modules/runner-pool/tests/pool.sh` PASS (22 checks: warm pool, panel 403s and CSRF, two concurrent jobs
   that see nothing of each other, `bao`/`sops` in jobs, no files left in `/tmp`, a burst of 8 up to the max, Manual
@@ -137,6 +140,10 @@ phase, before editing engine/, and about anything in section 12.
 | S30 | *(User, 2026-09-24.)* **Test the real HTTPS path at home, not only "approximately".** `./run.sh vault-fundamentals --env home` serves `https://dojo.macleodtech.ca` behind the home-lab Caddy: a real non-`localhost` HTTPS name, which is what T0.5's VM path needs. The P5 Azure VM run still happens. |
 | S31 | *(User, 2026-09-24, answers Q4.)* **Use the latest OpenBao release**: 2.7.0 from T1.1 on (pins in §15). P0's scripts were re-run on it. |
 | S32 | *(User, 2026-09-24, answers Q5.)* **`/forgejo-login?next=<local path>`**: a small, workshop-agnostic **engine** change (approved) so the Vault card and tab sign in to Forgejo first and SSO is one click. Only same-origin paths are accepted. Built in T1.3. |
+| S33 | *(User, 2026-09-25, P5.)* **Demo bots walk labs 0-9.** The setup hooks, CI roles and `app-host` also provision the `BOT_COUNT` `testuserN` accounts (namespaces, slots), from workshop files only; `content/bots/steps.sh` holds the steps. |
+| S34 | *(User, 2026-09-25, P5.)* **A facilitator Audit tab in `/admin`, in the `openbao` module**: `openbao-audit` serves the page (gateway token, facilitator only, `textContent`, strict CSP), filterable by student, path and accessor. |
+| S35 | *(User, 2026-09-25, P5.)* **No Azure VM task.** The VM run is a plain `git clone` + `./run.sh` there; nothing in the repo is needed for it. |
+| S36 | *(User, 2026-09-25, P5.)* **Size for 20 students** (load test with 20 bots); the sizing notes extrapolate to 35. Build all content first, then one long live pass at the end. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -604,8 +611,8 @@ pool and the pool on `runner_net` (P3); memory of real lab jobs (P3); unprivileg
 - **P3 pipelines**: the `runner-pool` module (S27): pool, `runner-controller`, the Runners panel (manual − / + first, then autoscale) +
   labs 7-8.
 - **P4 deployments**: `app-host`, Postgres, labs 9-11.
-- **P5 facilitator, talk, tests**: the remaining `/admin` pieces, slides (with §9), `e2e.sh`, demo bots, sizing docs,
-  a run on an Azure VM.
+- **P5 facilitator, talk, tests**: the remaining `/admin` pieces, slides (with §9), `e2e.sh`, demo bots, sizing docs
+  (the Azure VM run dropped, S35).
 - ~~**P6 migrate every workshop to extensions**~~: done on `feat/workshop-modules` (S25).
 
 ### P0 — Spike (§10 on the real stack; findings go into §10 and §14)
@@ -837,6 +844,22 @@ just built, so there is one pin per tool. Jobs run `runs-on: host`. Students for
 - [x] **T4.8** *(91031d6, 21daddf; verified live 2026-09-25)* Tests and the live pass: `tests/labs_9_11.sh`, the platform's isolation (a slot can't read another's
       token or files, a forged or wrong-branch deploy is refused), earlier tests still pass, the Apps page in a
       real browser, slides within 16:9, `./run.sh stop` leaves nothing.
+
+### P5 — Facilitator, talk, tests (the user said go 2026-09-25; S33-S36)
+
+Build T5.1-T5.5 without long stack runs (unit tests and `--dry-run` only); T5.6 is the one long live pass.
+
+- [x] **T5.1** *(aa56e97; unit tests, live check in T5.6)* Audit tab (S34): `openbao-audit` serves a facilitator page (filters: student, path, accessor,
+      operation; newest first, capped), `admin_tabs` entry `audit` in `modules/openbao/extensions.json`, unit tests.
+- [x] **T5.2** *(8b113d6; unit tests, live check in T5.6)* Bots get tenancy (S33): `10-tenancy.sh`, `20-ci.sh`, `30-platform.sh`, `app-db` and `app-host`
+      also cover `testuser1..BOT_COUNT`; students' tests unchanged.
+- [x] **T5.3** *(ff7e1ad; offline checks, live check in T5.6)* Bot steps (S33): `content/bots/steps.sh` walks labs 0-9 at a human pace (KV, policy, token, Agent,
+      sops, CI with AppRole then OIDC, deploy), resumable like the other packs.
+- [x] **T5.4** *(d83c4cb; 16:9 check in T5.6)* Talk: a closing recap slide (the 8 principles, an "at work" checklist); slides stay within 16:9.
+- [x] **T5.5** *(57aa4be; runs and numbers in T5.6)* `tests/e2e.sh` (chains `tenancy`, `cli_login`, labs 4-11, `pool.sh`, the browser checks; `--load`
+      runs with 20 bots and records memory/CPU), sizing notes in the workshop README (20, extrapolated to 35).
+- [ ] **T5.6** The live pass: fresh stack with `--test 20`, `e2e.sh --load`, the Audit tab in a browser, the
+      facilitator view of bots, `./run.sh stop` leaves nothing.
 
 Later phases get their own task block (IDs `T5.x`) when they start.
 
@@ -1317,3 +1340,12 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **A shared, long-lived runner running every student's jobs** (the `dns-as-code` pattern). One job's leftovers are
   visible to the next job, which is exactly what this workshop teaches against.
 - **Reusing Dojo Cloud container groups as the deployment target.** It would tie this workshop to tofu-basics.
+
+### 2026-09-25 — P5 content built (T5.1-T5.5)
+
+The user said go and decided S33-S36 (bots walk labs 0-9, an Audit tab in the `openbao` module, no Azure VM task,
+size for 20). Built without a stack: the Audit tab (`openbao-audit` serves it, facilitator only, 6 unit tests);
+`class_users` in `openbao-setup` so every hook, the broker, `app-db` and `app-host` also cover `testuserN`
+(`FORGEJO_ORG` bots fork, `FORGEJO_FORK_WORKFLOW=1`); `content/bots/steps.sh` (novice 0-3, intermediate to 8,
+expert to 9; labs 8-9 taken from the lab pages; each round undoes the last); three wrap-up slides; `tests/e2e.sh`
+(every area, `--load MIN`), `tests/p5_browser.py`, the workshop README. Not yet run on a stack: all of it is T5.6.
