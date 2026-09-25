@@ -42,9 +42,12 @@ ENV BAO_ADDR=http://openbao:8200 VAULT_ADDR=http://openbao:8200
 COPY openbao-broker.py /usr/local/bin/openbao-broker
 COPY openbao-login.py /usr/local/bin/openbao-login
 COPY start.d/50-openbao.sh /etc/dojo/start.d/50-openbao.sh
+# bao-audit: your namespace's audit trail, from the openbao-audit service.
+COPY bao-audit.py /usr/local/bin/bao-audit
 RUN set -eux; \
     command -v openssl; \
-    chmod 0755 /usr/local/bin/openbao-broker /usr/local/bin/openbao-login /etc/dojo/start.d/50-openbao.sh; \
+    chmod 0755 /usr/local/bin/openbao-broker /usr/local/bin/openbao-login /usr/local/bin/bao-audit \
+      /etc/dojo/start.d/50-openbao.sh; \
     printf '\n# openbao module: sign in to OpenBao through the broker (no-op while the token is good)\nif [ -x /usr/local/bin/openbao-login ]; then /usr/local/bin/openbao-login --quiet; fi\n' >> /etc/zsh/zshenv
 
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the

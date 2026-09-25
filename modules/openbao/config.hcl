@@ -19,8 +19,14 @@ cluster_addr = "http://openbao:8201"
 
 # Audit (PLAN.md §3 principle 6, labs 3 and 11). OpenBao (2.6 and later) refuses to
 # enable audit devices through the API; they are declared here instead.
+#
+# openbao-audit reads the file as OpenBao's own uid (compose.yml).
+# hmac_accessor: accessors are written in the clear, so a leaked token can be
+# traced by its accessor (lab 11). An accessor can look a token up or revoke
+# it, not use it; tokens and secret values stay HMACed.
 audit "file" "file" {
   options {
-    file_path = "/openbao/logs/audit.log"
+    file_path     = "/openbao/logs/audit.log"
+    hmac_accessor = "false"
   }
 }

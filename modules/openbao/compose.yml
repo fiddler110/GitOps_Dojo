@@ -99,6 +99,36 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
+  # The audit trail for students (audit/audit.py): each namespace's admin
+  # reads their own namespace's entries, proving it with their vault token.
+  # The terminal's `bao-audit` calls it.
+  openbao-audit:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_openbao_audit
+    entrypoint: ["python3", "-B", "/opt/openbao-audit/audit.py"]
+    environment:
+      - BAO_ADDR=http://openbao:8200
+    volumes:
+      - ../modules/openbao/audit:/opt/openbao-audit:ro
+      - openbao_logs:/logs:ro
+    # OpenBao's own uid and gid in its image: podman gives a new volume to the
+    # user of whichever container mounts it first, and OpenBao must write it.
+    user: "100:1000"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    depends_on:
+      - openbao
+    # The image's own check sends the gateway token to /; /healthz needs none.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 128m
+    restart: unless-stopped
+
   # The terminal image gets bao and the identity broker from terminal/ (built
   # and chained by run.sh). The broker's key stays here; its public half is
   # shared with openbao-setup.
