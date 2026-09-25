@@ -2,6 +2,8 @@
 
 **Goal:** change your deployment by clicking in the portal, then see how OpenTofu notices (`plan`) and puts things right (`apply`).
 
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 7` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics
 ```

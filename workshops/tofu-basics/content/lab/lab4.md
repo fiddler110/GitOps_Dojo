@@ -2,6 +2,8 @@
 
 **Goal:** open the cloud's web portal, see your (empty) subscription, find out how your terminal is connected to it, and run `init` for a real cloud provider. Nothing is created yet.
 
+> **Starting here?** This lab needs your clone of the repo (Lab 0). Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
+
 Track A ran entirely inside your terminal. Track B talks to **Dojo Cloud**, a practice cloud that works like Azure: subscriptions, resource groups, container instances, tags, policy, quotas. It is an Azure-*inspired* training environment (not affiliated with Microsoft), but the provider you will use is the real `azurerm` provider and the HCL you write is genuine Azure HCL. Everything you learn transfers.
 
 All commands run in the repo you cloned in Lab 0 (the top level of it, **not** `sandbox/`):

@@ -2,6 +2,8 @@
 
 **Goal:** edit an input, predict what OpenTofu will do, then confirm with `plan`. Also: outputs, state, and idempotency.
 
+> **Starting here?** This lab needs your clone, with the sandbox applied (Lab 1). Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics/sandbox
 ```

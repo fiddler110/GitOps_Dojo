@@ -9,12 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
-
-<style scoped>
-.lab-links { columns: 3; font-size: 18px; }
-.lab-links .topic { font-size: 14px; }
-</style>
+<!-- _class: lead lab-index -->
 
 # Labs
 
@@ -30,6 +25,14 @@ footer: '[&larr; Hub](index.md)'
 <p>The complete lab guide, read right here in the browser.</p>
 </div>
 </div>
+
+<p class="setup-label">Every lab works in your fork of the starter repo (Lab 0). Make it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
+
+```sh
+curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  http://git-server:3000/api/v1/repos/iac-team/tofu-basics/forks   # asks for your Forgejo password
+cd ~/lab && git clone http://git-server:3000/$USER/tofu-basics.git
+```
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab0.md.txt">Lab 0</a><span class="topic">Tour the repo, terraform = tofu</span></li>

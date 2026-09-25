@@ -2,6 +2,8 @@
 
 **Goal:** create a resource group and a running container with `apply`, open the site it serves, and watch it appear in the portal.
 
+> **Starting here?** This lab needs your clone, with `terraform init` done for Dojo Cloud (Lab 4). Run `lab-prep 5` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics
 ```
