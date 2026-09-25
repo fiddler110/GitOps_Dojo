@@ -956,18 +956,6 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - T1.2 started: `modules/openbao/setup/` written (see T1.2 in §11), not wired into `compose.yml` and not run.
 - End of day: the stack is stopped. Tomorrow's steps are in §0.
 
-## Appendix: considered, not chosen
-
-- **Emulating Azure Key Vault in Dojo Cloud's `cloud-api`** (the first version of this plan). Would have kept the
-  `azurerm` resources but needed ARM and data-plane endpoints, a hostname per vault (wildcard DNS inside
-  `workshop_lab`), a Key Vault token audience and a fake managed identity. That was a lot of emulation for a workshop
-  about *using* a vault well. Replaced by S2/S3.
-- **A separate port or subdomain for the OpenBao UI.** Not needed, because `/ui/` and `/v1/` are free on the gateway
-  (§5.4); a separate port would also trip corporate firewalls.
-- **A shared, long-lived runner running every student's jobs** (the `dns-as-code` pattern). One job's leftovers are
-  visible to the next job, which is exactly what this workshop teaches against.
-- **Reusing Dojo Cloud container groups as the deployment target.** It would tie this workshop to tofu-basics.
-
 ### 2026-09-25 — T1.2 done (33e1d36)
 
 - Wired `openbao-setup` into `modules/openbao/compose.yml`. First run crash-looped: the provisioner policy write
@@ -979,3 +967,15 @@ Surprises, gotchas and problems found in other workshops while working on this o
   deleted; `t05-sso.sh` uses the provisioner token; module README updated.
 - The user runs other workshop stacks here for manual validation: check `podman ps` first and hand the machine
   back (§0).
+
+## Appendix: considered, not chosen
+
+- **Emulating Azure Key Vault in Dojo Cloud's `cloud-api`** (the first version of this plan). Would have kept the
+  `azurerm` resources but needed ARM and data-plane endpoints, a hostname per vault (wildcard DNS inside
+  `workshop_lab`), a Key Vault token audience and a fake managed identity. That was a lot of emulation for a workshop
+  about *using* a vault well. Replaced by S2/S3.
+- **A separate port or subdomain for the OpenBao UI.** Not needed, because `/ui/` and `/v1/` are free on the gateway
+  (§5.4); a separate port would also trip corporate firewalls.
+- **A shared, long-lived runner running every student's jobs** (the `dns-as-code` pattern). One job's leftovers are
+  visible to the next job, which is exactly what this workshop teaches against.
+- **Reusing Dojo Cloud container groups as the deployment target.** It would tie this workshop to tofu-basics.
