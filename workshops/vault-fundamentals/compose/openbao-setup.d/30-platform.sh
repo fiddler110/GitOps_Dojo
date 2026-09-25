@@ -11,9 +11,7 @@
 
 platform=http://app-host:8080
 
-i=1
-while [ "$i" -le "$STUDENT_COUNT" ]; do
-  s="$(printf '%s%02d' "$STUDENT_PREFIX" "$i")"
+for s in $(class_users); do
   export BAO_NAMESPACE="students/$s"
 
   bao auth list -format=json 2>/dev/null | grep -q '"jwt-platform/"' \
@@ -37,6 +35,5 @@ while [ "$i" -le "$STUDENT_COUNT" ]; do
     retry 10 bao write -f database/rotate-root/app-db >/dev/null
   fi
   unset BAO_NAMESPACE
-  i=$((i + 1))
 done
-log "platform: auth/jwt-platform and database/ in $STUDENT_COUNT namespaces"
+log "platform: auth/jwt-platform and database/ in $(class_users | wc -l) namespaces"

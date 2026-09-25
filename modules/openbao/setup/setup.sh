@@ -42,6 +42,20 @@ retry() {
   done
 }
 
+# class_users: every account that gets an entity, one per line: the students
+# (studentNN), then the demo bots (testuserN, only with `./run.sh --test`), so
+# bots can walk the labs too. Loops read it as `for s in $(class_users)`.
+class_users() {
+  _cu_i=1
+  while [ "$_cu_i" -le "$STUDENT_COUNT" ]; do
+    printf '%s%02d\n' "$STUDENT_PREFIX" "$_cu_i"; _cu_i=$((_cu_i + 1))
+  done
+  _cu_i=1
+  while [ "$_cu_i" -le "${BOT_COUNT:-0}" ]; do
+    printf '%s%d\n' "${BOT_PREFIX:-testuser}" "$_cu_i"; _cu_i=$((_cu_i + 1))
+  done
+}
+
 # status_field NAME: a boolean from `bao status` ("true"/"false"), empty if
 # the server doesn't answer.
 status_field() {

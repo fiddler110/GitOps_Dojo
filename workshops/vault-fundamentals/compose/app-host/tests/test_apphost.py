@@ -27,6 +27,13 @@ def claims(**over):
     return c
 
 
+class Slots(unittest.TestCase):
+    def test_students_then_bots(self):
+        self.assertEqual(cfg().slots, ["student01", "student02", "student03"])
+        self.assertEqual(cfg(BOT_COUNT="2").slots, ["student01", "student02", "student03", "testuser1", "testuser2"])
+        self.assertEqual(cfg(BOT_COUNT="x").slots, ["student01", "student02", "student03"])
+
+
 class JWT(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

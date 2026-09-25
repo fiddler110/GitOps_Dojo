@@ -25,8 +25,9 @@ sets `sys/config/ui/headers/Content-Security-Policy` to the same policy with `fr
 **Single sign-on** (`setup/sso.sh`, every start): Forgejo is the OIDC provider. `openbao-setup` creates a confidential
 OAuth2 app owned by `FORGEJO_ADMIN_USER` (its id and secret kept on `openbao_setup`, reused while Forgejo still has
 it), the `oidc` auth method on `${PUBLIC_BASE_URL}/git` (trusting the shim's CA on `https://`) and its role `forgejo`,
-and one identity entity per account, aliased to the Forgejo login: `studentNN` with the policy `student`, which the
-workshop's hooks write, and `facilitator` with `facilitator`. Forgejo 16 can't skip its "Authorize Application" page
+and one identity entity per account, aliased to the Forgejo login: `studentNN` (and each demo bot `testuserN` with
+`./run.sh --test`) with the policy `student`, which the workshop's hooks write, and `facilitator` with `facilitator`.
+Hooks loop over the same accounts with `for s in $(class_users)`. Forgejo 16 can't skip its "Authorize Application" page
 for a trusted app, so each account approves once, on its first sign-in.
 
 **CLI login** (`terminal/`, `setup/cli.sh`): the browser can't reach a terminal's `localhost`, so `bao login

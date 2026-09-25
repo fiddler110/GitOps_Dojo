@@ -1,5 +1,5 @@
 # CLI login from the terminal, sourced by setup.sh after sso.sh (which made
-# the entities and set $STUDENT_COUNT, $STUDENT_PREFIX).
+# the entities and set $STUDENT_COUNT, $STUDENT_PREFIX, class_users).
 #
 # The terminal's identity broker signs a short-lived RS256 JWT for the Linux
 # account that asks (iss dojo-terminal, aud openbao, sub the login name); its
@@ -24,11 +24,8 @@ cli_alias() {
   bao write identity/entity-alias name="$2" mount_accessor="$jwt_accessor" \
     canonical_id="$(bao read -field=id identity/entity/name/"$1")" >/dev/null
 }
-i=1
-while [ "$i" -le "$STUDENT_COUNT" ]; do
-  s="$(printf '%s%02d' "$STUDENT_PREFIX" "$i")"
+for s in $(class_users); do
   cli_alias "$s" "$s"
-  i=$((i + 1))
 done
 cli_alias facilitator "$FACILITATOR_USERNAME"
-log "cli: jwt login for $STUDENT_COUNT students and the facilitator ($FACILITATOR_USERNAME)"
+log "cli: jwt login for $STUDENT_COUNT students, ${BOT_COUNT:-0} bots and the facilitator ($FACILITATOR_USERNAME)"

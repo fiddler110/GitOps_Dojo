@@ -76,11 +76,8 @@ entity() {
   bao write identity/entity-alias name="$2" mount_accessor="$accessor" \
     canonical_id="$(bao read -field=id identity/entity/name/"$1")" >/dev/null
 }
-i=1
-while [ "$i" -le "$STUDENT_COUNT" ]; do
-  s="$(printf '%s%02d' "$STUDENT_PREFIX" "$i")"
+for s in $(class_users); do
   entity "$s" "$s" student
-  i=$((i + 1))
 done
 entity facilitator "$FORGEJO_ADMIN_USER" facilitator
-log "sso: OIDC on $base/git, $STUDENT_COUNT students and the facilitator"
+log "sso: OIDC on $base/git, $STUDENT_COUNT students, ${BOT_COUNT:-0} bots and the facilitator"

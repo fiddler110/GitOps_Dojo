@@ -29,13 +29,17 @@ LIFETIME = 120  # seconds
 
 
 def roster(env):
-    # The accounts openbao-setup gives an entity: every student and the facilitator.
-    prefix = env.get("STUDENT_PREFIX", "student")
-    try:
-        count = int(env.get("STUDENT_COUNT", "0") or 0)
-    except ValueError:
-        count = 0
-    return {f"{prefix}{n:02d}" for n in range(1, count + 1)} | {env.get("FACILITATOR_USERNAME", "root")}
+    # The accounts openbao-setup gives an entity: every student, the demo bots
+    # (./run.sh --test) and the facilitator.
+    def count(name):
+        try:
+            return int(env.get(name, "0") or 0)
+        except ValueError:
+            return 0
+    prefix, bots = env.get("STUDENT_PREFIX", "student"), env.get("BOT_PREFIX", "testuser")
+    return ({f"{prefix}{n:02d}" for n in range(1, count("STUDENT_COUNT") + 1)}
+            | {f"{bots}{n}" for n in range(1, count("BOT_COUNT") + 1)}
+            | {env.get("FACILITATOR_USERNAME", "root")})
 
 
 def b64url(data):

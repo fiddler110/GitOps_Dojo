@@ -11,9 +11,14 @@
 set -eu
 umask 022
 
-i=1
-while [ "$i" -le "${STUDENT_COUNT:-0}" ]; do
-  s="$(printf '%s%02d' "${STUDENT_PREFIX:-student}" "$i")"
+# Students (studentNN), then the demo bots (testuserN, ./run.sh --test).
+users() {
+  i=1
+  while [ "$i" -le "${STUDENT_COUNT:-0}" ]; do printf '%s%02d\n' "${STUDENT_PREFIX:-student}" "$i"; i=$((i + 1)); done
+  i=1
+  while [ "$i" -le "${BOT_COUNT:-0}" ]; do printf '%s%d\n' "${BOT_PREFIX:-testuser}" "$i"; i=$((i + 1)); done
+}
+for s in $(users); do
   pw="$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
   psql -v ON_ERROR_STOP=1 -q --username "$POSTGRES_USER" --dbname postgres <<SQL
 CREATE ROLE app_${s}_rw NOLOGIN;
@@ -38,6 +43,5 @@ INSERT INTO notes (body, author) VALUES ('Welcome, ${s}: this database is yours.
 SQL
   printf '%s' "$pw" > "/bootstrap/${s}.tmp"
   mv "/bootstrap/${s}.tmp" "/bootstrap/${s}"
-  i=$((i + 1))
 done
-echo "app-db: databases for ${STUDENT_COUNT:-0} students"
+echo "app-db: databases for ${STUDENT_COUNT:-0} students and ${BOT_COUNT:-0} bots"

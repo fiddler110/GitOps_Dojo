@@ -1,6 +1,6 @@
 # vault-fundamentals setup hook, sourced by the openbao module's setup.sh on
 # every start with the provisioner token (BAO_TOKEN, `log`, `retry`,
-# STUDENT_COUNT and STUDENT_PREFIX are set). Safe to re-run. It makes:
+# STUDENT_COUNT, STUDENT_PREFIX and `class_users` (students, then demo bots) are set). Safe to re-run. It makes:
 #   - the shared KV v2 mount `secret/` (lab 2) and a welcome secret in each
 #     student's folder, written once (a re-run doesn't add versions);
 #   - the `student` policy (student.hcl), which the module attaches to every
@@ -25,12 +25,9 @@ seed() {
   return 1
 }
 
-i=1
-while [ "$i" -le "$STUDENT_COUNT" ]; do
-  s="$(printf '%s%02d' "$STUDENT_PREFIX" "$i")"
+for s in $(class_users); do
   BAO_NAMESPACE=students bao namespace lookup "$s" >/dev/null 2>&1 \
     || BAO_NAMESPACE=students retry 10 bao namespace create "$s" >/dev/null
   retry 30 seed "$s" || { log "tenancy: could not seed $s's welcome secret"; exit 1; }
-  i=$((i + 1))
 done
-log "tenancy: secret/, the student policy and $STUDENT_COUNT namespaces under students/"
+log "tenancy: secret/, the student policy and $(class_users | wc -l) namespaces under students/"

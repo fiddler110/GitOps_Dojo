@@ -74,6 +74,8 @@ services:
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       # For CLI login (setup/cli.sh): the facilitator's terminal account.
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:

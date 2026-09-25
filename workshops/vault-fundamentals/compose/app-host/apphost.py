@@ -86,12 +86,15 @@ def log(msg):
 
 class Config:
     def __init__(self, env):
-        prefix = env.get("STUDENT_PREFIX") or "student"
-        try:
-            count = int(env.get("STUDENT_COUNT") or 0)
-        except ValueError:
-            count = 0
-        self.slots = [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+        def count(name):
+            try:
+                return int(env.get(name) or 0)
+            except ValueError:
+                return 0
+        # A slot per student, then per demo bot (./run.sh --test).
+        prefix, bots = env.get("STUDENT_PREFIX") or "student", env.get("BOT_PREFIX") or "testuser"
+        self.slots = ([f"{prefix}{n:02d}" for n in range(1, count("STUDENT_COUNT") + 1)]
+                      + [f"{bots}{n}" for n in range(1, count("BOT_COUNT") + 1)])
         self.gateway_token = env.get("GATEWAY_TOKEN", "")
         self.facilitator = env.get("FACILITATOR_USERNAME") or "root"
         self.repo = env.get("DEPLOY_REPO") or "vault-fundamentals"

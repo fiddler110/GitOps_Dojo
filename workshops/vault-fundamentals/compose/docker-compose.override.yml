@@ -45,6 +45,8 @@ services:
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - GATEWAY_TOKEN=${GATEWAY_TOKEN}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
@@ -85,6 +87,8 @@ services:
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
     volumes:
       - ../workshops/vault-fundamentals/compose/app-db/init.sh:/docker-entrypoint-initdb.d/10-students.sh:ro
       - app_db_data:/var/lib/postgresql/data
