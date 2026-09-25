@@ -6,7 +6,9 @@
 #
 # First start (vault not initialised):
 #   init (one key share: a lab shortcut, production uses auto-unseal), unseal,
-#   the provisioner policy and token (with root), revoke root.
+#   the provisioner policy and token (with root), revoke root. The root token
+#   waits on /setup until it is revoked, so a start that dies half-way is
+#   finished by the next one instead of leaving a live root token behind.
 # Every start, with the provisioner token:
 #   the UI's framing header, the facilitator policy, then every
 #   /etc/openbao-setup.d/*.sh hook in name order (a workshop mounts its own
@@ -21,12 +23,15 @@ state=/setup
 ready=/run/openbao-setup/ready
 policies=/etc/openbao-setup/policies
 umask 077
+# PID 1 ignores SIGTERM without a handler, so `stop` would wait 10 s and kill.
+trap 'exit 0' TERM INT
 
 log() { echo "openbao-setup: $*"; }
 
 # retry N CMD...: run CMD until it succeeds, up to N times a second apart.
-# For writes that fail for a moment, such as the first write to a new KV v2
-# mount ("Upgrading from non-versioned to versioned data").
+# For writes that fail for a moment: just after an unseal (a 500 while the
+# audit device and storage come up), or the first write to a new KV v2 mount
+# ("Upgrading from non-versioned to versioned data").
 retry() {
   n="$1"; shift
   i=1
@@ -57,40 +62,54 @@ if [ "$(status_field initialized)" = "false" ]; then
     # The vault's storage is new but this volume is not: the old key and
     # token are for a vault that no longer exists.
     log "stale state from an earlier vault, moving it aside"
-    mkdir -p "$state/stale.$$" && mv "$state"/unseal-key "$state"/provisioner-token "$state/stale.$$/" 2>/dev/null || true
+    mkdir -p "$state/stale.$$" && mv "$state"/unseal-key "$state"/provisioner-token "$state"/root-token "$state/stale.$$/" 2>/dev/null || true
   fi
   log "initialising"
   out="$(bao operator init -key-shares=1 -key-threshold=1)"
   printf '%s\n' "$out" | sed -n 's/^Unseal Key 1: *//p' > "$state/unseal-key"
-  root="$(printf '%s\n' "$out" | sed -n 's/^Initial Root Token: *//p')"
-  [ -s "$state/unseal-key" ] && [ -n "$root" ] || { log "could not read the init output"; exit 1; }
-  unseal_if_sealed
-
-  # The provisioner can manage namespaces, policies, auth methods, identities
-  # and mounts, and write (not read) seed secrets: policies/provisioner.hcl.
-  # Periodic, so it lives as long as this container keeps renewing it.
-  BAO_TOKEN="$root" bao policy write provisioner "$policies/provisioner.hcl" >/dev/null
-  BAO_TOKEN="$root" bao token create -orphan -policy=provisioner -no-default-policy \
-    -period=168h -display-name=openbao-setup -field=token > "$state/provisioner-token"
-  BAO_TOKEN="$root" bao token revoke -self >/dev/null
-  root=""
-  log "initialised; root token revoked"
+  printf '%s\n' "$out" | sed -n 's/^Initial Root Token: *//p' > "$state/root-token"
+  [ -s "$state/unseal-key" ] && [ -s "$state/root-token" ] || { log "could not read the init output"; exit 1; }
 fi
 
 unseal_if_sealed
+
+# The root token is still on /setup until the first start has finished: do
+# (or finish) it now.
+if [ -e "$state/root-token" ]; then
+  BAO_TOKEN="$(cat "$state/root-token")"; export BAO_TOKEN
+  # The provisioner can manage namespaces, policies, auth methods, identities
+  # and mounts, and write (not read) seed secrets: policies/provisioner.hcl.
+  # Periodic, so it lives as long as this container keeps renewing it.
+  retry 30 bao policy write provisioner "$policies/provisioner.hcl" >/dev/null
+  if [ ! -s "$state/provisioner-token" ]; then
+    retry 30 bao token create -orphan -policy=provisioner -no-default-policy \
+      -period=168h -display-name=openbao-setup -field=token > "$state/provisioner-token.new"
+    mv "$state/provisioner-token.new" "$state/provisioner-token"
+  fi
+  # Treat "permission denied" on the root token as done: an earlier start
+  # revoked it and died before removing the file.
+  revoke_root() {
+    bao token revoke -self >/dev/null 2>&1 \
+      || bao token lookup 2>&1 | grep -q 'permission denied'
+  }
+  retry 30 revoke_root || { log "could not revoke the root token"; exit 1; }
+  rm -f "$state/root-token"
+  log "initialised; root token revoked"
+fi
+
 BAO_TOKEN="$(cat "$state/provisioner-token")"
 export BAO_TOKEN
-bao token renew >/dev/null
+retry 30 bao token renew >/dev/null
 
 # The UI ships frame-ancestors 'none'; the /admin Vault tab frames it from the
 # same origin. Keep the rest of OpenBao's own policy as it is.
 csp="$(wget -S -q -O /dev/null "$BAO_ADDR/ui/" 2>&1 \
   | sed -n 's/^ *[Cc]ontent-[Ss]ecurity-[Pp]olicy: *//p' | head -1 | tr -d '\r')"
 [ -n "$csp" ] || { log "no Content-Security-Policy on /ui/"; exit 1; }
-bao write sys/config/ui/headers/Content-Security-Policy \
+retry 30 bao write sys/config/ui/headers/Content-Security-Policy \
   values="$(printf '%s' "$csp" | sed "s/frame-ancestors 'none'/frame-ancestors 'self'/")" >/dev/null
 
-bao policy write facilitator "$policies/facilitator.hcl" >/dev/null
+retry 30 bao policy write facilitator "$policies/facilitator.hcl" >/dev/null
 
 for hook in /etc/openbao-setup.d/*.sh; do
   [ -e "$hook" ] || continue

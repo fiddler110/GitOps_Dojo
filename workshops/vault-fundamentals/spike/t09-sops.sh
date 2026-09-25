@@ -4,6 +4,8 @@
 # with transit decrypt can read it back. Throwaway; P2 turns it into lab 6.
 # Run from the repo root with the stack up and OpenBao unsealed:
 #   BAO_TOKEN=<root token> sh workshops/vault-fundamentals/spike/t09-sops.sh
+# Root is revoked since T1.2, and the provisioner can't use transit keys: this
+# needs a facilitator token (after T1.3/T1.4) or a student's (T1.5).
 # Re-runnable.
 set -eu
 : "${BAO_TOKEN:?Set BAO_TOKEN}"

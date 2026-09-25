@@ -9,6 +9,8 @@
 
 path "sys/namespaces"   { capabilities = ["list"] }
 path "sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+path "students/sys/namespaces"   { capabilities = ["list"] }
+path "students/sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
 
 path "sys/policies/acl"            { capabilities = ["list"] }
 path "sys/policies/acl/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
@@ -38,3 +40,8 @@ path "sys/config/ui/headers/*" { capabilities = ["create", "read", "update", "de
 path "secret/data/*"               { capabilities = ["create", "update"] }
 path "students/+/secret/data/*"    { capabilities = ["create", "update"] }
 path "students/+/transit/keys/*"   { capabilities = ["create", "update"] }
+
+# Its own token: created with -no-default-policy, so renewing and looking
+# itself up must be granted here.
+path "auth/token/renew-self"  { capabilities = ["update"] }
+path "auth/token/lookup-self" { capabilities = ["read"] }

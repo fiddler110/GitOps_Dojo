@@ -2,8 +2,9 @@
 # P0 spike T0.5 (PLAN.md §10.3, §10.7): the OpenBao UI signs in with Forgejo
 # as the OIDC provider, through the SSO shim in OpenBao's network namespace
 # (S23). Throwaway; T1.2/T1.3 turn it into openbao-setup. Run from the repo
-# root with the stack up and OpenBao unsealed (spike/init-bao.sh):
-#   BAO_TOKEN=<root token> [DOJO_ENV=home] sh workshops/vault-fundamentals/spike/t05-sso.sh
+# root with the stack up (openbao-setup unseals it), using the provisioner token:
+#   BAO_TOKEN=$(podman exec workshop_openbao_setup cat /setup/provisioner-token) \
+#     [DOJO_ENV=home] sh workshops/vault-fundamentals/spike/t05-sso.sh
 # Re-runnable: it replaces the Forgejo app and rewrites the OpenBao config.
 set -eu
 : "${BAO_TOKEN:?Set BAO_TOKEN}"

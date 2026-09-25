@@ -55,6 +55,34 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
+  # Init, unseal and first-start set-up (setup/setup.sh). It stays running to
+  # re-unseal whenever openbao restarts sealed. Its key and provisioner token
+  # live on openbao_setup, mounted nowhere else.
+  openbao-setup:
+    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    container_name: workshop_openbao_setup
+    entrypoint: ["sh", "/etc/openbao-setup/setup.sh"]
+    # Root: writes the key and token to the volume. No capabilities needed.
+    user: "0:0"
+    cap_drop:
+      - ALL
+    volumes:
+      - ../modules/openbao/setup:/etc/openbao-setup:ro
+      - openbao_setup:/setup
+    tmpfs:
+      - /run/openbao-setup
+    networks:
+      - workshop_lab
+    depends_on:
+      - openbao
+    healthcheck:
+      test: ["CMD", "test", "-f", "/run/openbao-setup/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+    mem_limit: 64m
+    restart: unless-stopped
+
   # The terminal image gets bao from terminal/ (built and chained by run.sh).
   web-terminal:
     depends_on:
@@ -66,3 +94,4 @@ volumes:
   openbao_logs:
   openbao_shim_data:
   openbao_shim_config:
+  openbao_setup:
