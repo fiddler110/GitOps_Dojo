@@ -48,8 +48,8 @@
   first. Never stage it; revert it (`git checkout engine/gateway/Caddyfile`) when P0 ends.
 - **The spike stack was stopped** from this branch on 2026-09-24 (for the modules work), so its volumes are gone:
   resuming means a fresh init (steps below).
-- **Before P1, bring in `feat/workshop-modules`** (S25): merge `main` once that branch's PR lands, or merge the
-  branch itself. It provides what P0.5 would have built. After merging, drop `image: gitopsdojo/web-terminal:...`
+- **`feat/workshop-modules` is merged in** (S25): PR #2 landed on `main`, merged here in 8c71f83 (2026-09-24).
+  It provides what P0.5 would have built. Still to do, before P1: drop `image: gitopsdojo/web-terminal:...`
   from `compose/docker-compose.override.yml` (run.sh now picks the terminal image) and start the terminal
   Dockerfile with `ARG BASE=gitopsdojo/web-terminal:base` / `FROM ${BASE}`; see `workshops/README.md` there.
 - **Next, in the S22 order:** **T0.5** (UI SSO through the issuer shim,
@@ -770,3 +770,7 @@ Surprises, gotchas and problems found in other workshops while working on this o
 - **A shared, long-lived runner running every student's jobs** (the `dns-as-code` pattern). One job's leftovers are
   visible to the next job, which is exactly what this workshop teaches against.
 - **Reusing Dojo Cloud container groups as the deployment target.** It would tie this workshop to tofu-basics.
+- 2026-09-24: `feat/workshop-modules` merged to `main` (PR #2, fd971d2) and `main` merged into this branch (8c71f83).
+  Conflicts: root README tree (kept both lines); `keyvault-workshop-plan.md` kept deleted (main had only converted it
+  to CRLF). Also new on `main`: `./run.sh <workshop> --env NAME` and `GATEWAY_LISTEN` (home LAN hosting). The T0.4
+  stash was not popped yet.
