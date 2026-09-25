@@ -10,7 +10,7 @@
 #   waits on /setup until it is revoked, so a start that dies half-way is
 #   finished by the next one instead of leaving a live root token behind.
 # Every start, with the provisioner token:
-#   the UI's framing header, the facilitator policy, then every
+#   the UI's framing header, the facilitator policy, SSO (sso.sh), then every
 #   /etc/openbao-setup.d/*.sh hook in name order (a workshop mounts its own
 #   there; each must be safe to re-run). Hooks are sourced in a subshell, so
 #   they get BAO_TOKEN and the helpers below; a failing hook stops setup.
@@ -111,6 +111,9 @@ retry 30 bao write sys/config/ui/headers/Content-Security-Policy \
 
 retry 30 bao policy write facilitator "$policies/facilitator.hcl" >/dev/null
 
+# Single sign-on through Forgejo (sso.sh).
+. /etc/openbao-setup/sso.sh
+
 for hook in /etc/openbao-setup.d/*.sh; do
   [ -e "$hook" ] || continue
   log "hook $(basename "$hook")"
@@ -123,7 +126,7 @@ log "ready"
 # Keep the vault unsealed and the provisioner token alive.
 n=0
 while :; do
-  sleep 5
+  sleep 5 & wait $! # in the background, so the TERM trap runs at once
   unseal_if_sealed || log "unseal failed, retrying"
   n=$((n + 1))
   if [ "$n" -ge 720 ]; then # about an hour

@@ -66,15 +66,27 @@ services:
     user: "0:0"
     cap_drop:
       - ALL
+    # For SSO (setup/sso.sh): the Forgejo admin owns OpenBao's OAuth2 app,
+    # and every account gets an identity entity.
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
     volumes:
       - ../modules/openbao/setup:/etc/openbao-setup:ro
       - openbao_setup:/setup
+      # The SSO shim's CA, which OpenBao must trust on an https:// name.
+      - openbao_shim_data:/shim:ro
     tmpfs:
       - /run/openbao-setup
     networks:
       - workshop_lab
     depends_on:
       - openbao
+      - openbao-sso-shim
+      - git-server
     healthcheck:
       test: ["CMD", "test", "-f", "/run/openbao-setup/ready"]
       interval: 5s
