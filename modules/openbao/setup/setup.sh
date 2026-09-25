@@ -32,12 +32,13 @@ log() { echo "openbao-setup: $*"; }
 # For writes that fail for a moment: just after an unseal (a 500 while the
 # audit device and storage come up), or the first write to a new KV v2 mount
 # ("Upgrading from non-versioned to versioned data").
+# sh has no local variables: these names must not clash with a caller's loop.
 retry() {
-  n="$1"; shift
-  i=1
+  _retry_n="$1"; shift
+  _retry_i=1
   until "$@"; do
-    [ "$i" -lt "$n" ] || return 1
-    i=$((i + 1)); sleep 1
+    [ "$_retry_i" -lt "$_retry_n" ] || return 1
+    _retry_i=$((_retry_i + 1)); sleep 1
   done
 }
 
