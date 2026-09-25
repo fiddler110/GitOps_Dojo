@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# fake git for tests/selftest: `git clone` copies content/sample-repo; everything else is the real git.
-if [ "${1:-}" = clone ]; then
-  dest=tofu-basics
-  cp -R "${MOCK_SAMPLE_REPO:?}" "$dest" && ( cd "$dest" && /usr/bin/git init -q -b main && /usr/bin/git add -A && /usr/bin/git -c user.name=mock -c user.email=m@x commit -qm seed )
-  exit $?
-fi
-exec /usr/bin/git "$@"

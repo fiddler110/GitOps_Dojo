@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# fake curl for tests/selftest: any /cloud/site/ URL answers with the hello page.
-case "$*" in *"/cloud/site/"*) echo "<h1>Hello from Dojo Cloud!</h1>"; echo "HTTP 200" ;; *) echo "200" ;; esac
