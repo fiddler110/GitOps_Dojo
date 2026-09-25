@@ -48,8 +48,11 @@
 - **The stack is stopped** and every volume is gone. The user also validates other workshops (e.g. `dns-as-code`)
   on this machine: **check `podman ps` before starting a stack, and tell the user when the machine is free again.**
 - **T1.4 and T1.5 are built but not run** (the user is using the machine; they asked to build several items and
-  validate together when it is free). Next: T1.6 (labs 0-3), then one live pass: `./run.sh vault-fundamentals`,
-  `modules/openbao/tests/cli_login.sh`, `workshops/vault-fundamentals/tests/tenancy.sh`, `sso_browser.py` again.
+  validate together when it is free). T1.6 (labs 0-3) and T1.7 (docs) are written too. **Next: one live pass**
+  when the user says the machine is free: `./run.sh vault-fundamentals`, `modules/openbao/tests/cli_login.sh`,
+  `workshops/vault-fundamentals/tests/tenancy.sh`, `sso_browser.py` again, then labs 0-3 step by step as a student
+  (gitleaks flags, `bao token create` with `sudo` in the namespace, the UI namespace picker) and slide screenshots.
+  Then P1 is done: ask before P2.
 - `spike/t09-sops.sh` can't run now: it needs a token that can use transit keys (facilitator after T1.3/T1.4, or a
   student's after T1.5); root is revoked and the provisioner can't.
 - **Local tests run in WSL on the user's desktop** (not a laptop): `http://localhost:8080`. The home HTTPS path is
@@ -680,9 +683,9 @@ checked locally (WSL on the desktop); T1.3 and T1.6 also through `--env home` (S
       mount and templated policy (§5.3), seed secrets.
       *Verify:* student01 reads `secret/students/student01/*`, gets 403 on student02's path, and is admin only in
       `students/student01`.
-- [ ] **T1.6** Labs 0-3 and their slides (the lab reader copies, §4).
+- [~] **T1.6** *(built a1da88a; live walk-through and slide screenshots pending)* Labs 0-3 and their slides (the lab reader copies, §4).
       *Verify:* a full walk-through of labs 0-3 as a student in a real browser; slides within 16:9 (screenshot).
-- [ ] **T1.7** Docs: module `README.md`, the workshops table in `workshops/README.md`, root `README.md`,
+- [x] **T1.7** *(module README with T1.4; READMEs 898199b)* Docs: module `README.md`, the workshops table in `workshops/README.md`, root `README.md`,
       `CLAUDE.md` module list.
 
 Later phases get their own task block (IDs `T2.x` … `T5.x`) when they start.
@@ -1006,6 +1009,18 @@ Surprises, gotchas and problems found in other workshops while working on this o
   `student` policy. **Deviation from §5.3:** namespace admin comes from `students/{{identity.entity.name}}/*` in the
   root policy, not an admin policy plus group inside each namespace: same effect, nothing per namespace to keep in
   step. Check in the live pass that templating works in that path.
+
+### 2026-09-25 — T1.6 and T1.7 written (not yet run)
+
+- **T1.6 (a1da88a, f7b8bf8):** `content/lab/` README, lab0-3, cheat-sheet; slides `index.md`, `lab-index.md`,
+  `labs.md`, `presentation.md` (parts 1-2 and the Azure comparison, cut to what labs 0-3 use). Lab 1 is a local repo
+  (`~/lab/leaky-app`, nothing pushed) with made-up `ghp_` tokens. `student.hcl` now also lists `secret/metadata/` and
+  `secret/metadata/students/` (for UI browsing) and reads `sys/policies/acl/student` (lab 2).
+  **Dropped from lab 3:** "read your own audit trail" (students can't read the audit file); it moves to lab 11.
+  **Unverified guesses to check live:** `gitleaks git --pre-commit --staged` flags on 8.30.1; that the `ghp_`
+  strings trip gitleaks; `bao token create -policy=app-read` in the namespace with only `sudo` from the root policy;
+  where the UI's namespace picker is; a git identity (the terminal sets none, lab 1 sets it).
+- **T1.7:** `workshops/README.md` table, root `README.md` (status, layout, services table, the broker bullet).
 
 ## Appendix: considered, not chosen
 
