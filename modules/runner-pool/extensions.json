@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "admin_tabs": [
+    { "id": "runners", "label": "Runners", "src": "/runners/" }
+  ],
+  "routes": [
+    { "id": "runners", "path": "/runners", "upstream": "runner-controller:8080", "gate": "facilitator",
+      "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "Runners", "url": "http://runner-controller:8080/healthz" }
+  ]
+}
