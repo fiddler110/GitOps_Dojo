@@ -1,8 +1,8 @@
 # vault-fundamentals' link in the terminal build chain (engine/run.sh sets
 # BASE to the image below this one, here the openbao module's link with bao;
-# see workshops/README.md). Adds sops and gitleaks. Student terminals have no
-# internet, so every tool is baked in here, version-pinned and
-# sha256-verified per architecture. The entrypoint is inherited unchanged.
+# see workshops/README.md). Adds sops, gitleaks and Python's hvac. Student
+# terminals have no internet, so every tool is baked in here, version-pinned
+# and sha256-verified per architecture. The entrypoint is inherited unchanged.
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
@@ -36,6 +36,29 @@ RUN set -eux; \
     tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks; \
     install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks; \
     rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks
+
+# Python's Vault client, hvac, for lab 4 (the app reads its secret with the
+# SDK), and its whole dependency tree. Every wheel is pure Python
+# (py3-none-any), so hvac-wheels.sha256 has one hash per package for both
+# architectures. wget fetches them (it uses the system CA store, as the other
+# downloads do; pip would use its own) and sha256sum checks them; pip then
+# runs straight from its own wheel (the base image has none) and installs
+# offline. /usr/local is pip's, not apt's, hence --break-system-packages.
+# https://pypi.org/project/hvac/2.4.0/
+COPY hvac-wheels.sha256 /tmp/wheels/SHA256SUMS
+RUN set -eux; \
+    cd /tmp/wheels; \
+    while read -r _sum whl; do \
+      name="${whl%%-*}"; \
+      wget -q -O "$whl" "https://files.pythonhosted.org/packages/py3/${name%"${name#?}"}/${name}/${whl}"; \
+    done < SHA256SUMS; \
+    sha256sum -c SHA256SUMS; \
+    pip="$(ls pip-*.whl)"; \
+    python3 "$pip/pip" install --no-cache-dir --disable-pip-version-check --root-user-action=ignore \
+      --break-system-packages \
+      --no-index --no-deps $(ls *.whl | grep -v '^pip-'); \
+    cd /; rm -rf /tmp/wheels; \
+    python3 -c 'import hvac, requests'
 
 # sops checks GitHub for a newer release on every run, which only prints a
 # warning in the offline terminal. zshenv for `su -` login shells (see the
