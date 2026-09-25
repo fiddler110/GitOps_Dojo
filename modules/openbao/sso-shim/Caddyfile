@@ -1,0 +1,22 @@
+# SSO shim for the openbao module. Runs inside OpenBao's network namespace and
+# answers for PUBLIC_BASE_URL there, so OpenBao's OIDC calls to Forgejo's
+# public issuer URL (discovery, token exchange, keys) reach git-server
+# directly instead of looping back to OpenBao itself (http://localhost) or
+# failing to leave workshop_lab (a public name). Browsers never see it.
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$PUBLIC_BASE_URL} {
+	# A real HTTPS name: serve it with Caddy's own CA, which OpenBao is told
+	# to trust (oidc_discovery_ca_pem). No effect for http://.
+	tls internal
+
+	handle_path /git/* {
+		reverse_proxy git-server:3000
+	}
+	handle {
+		respond "not served by the SSO shim" 404
+	}
+}

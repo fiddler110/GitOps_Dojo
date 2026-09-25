@@ -2,10 +2,10 @@
   "version": 1,
   "cards": [
     { "id": "vault", "label": "Vault", "desc": "The OpenBao web UI: sign in with your Forgejo account.",
-      "href": "/ui/", "icon": "key" }
+      "href": "/ui/vault/auth?with=oidc", "icon": "key" }
   ],
   "admin_tabs": [
-    { "id": "vault", "label": "Vault", "src": "/ui/" }
+    { "id": "vault", "label": "Vault", "src": "/ui/vault/auth?with=oidc" }
   ],
   "routes": [
     { "id": "vault-ui", "path": "/ui", "upstream": "openbao:8200", "gate": "shared" },

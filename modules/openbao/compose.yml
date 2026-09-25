@@ -1,35 +1,35 @@
-# Overlay for the vault-fundamentals workshop, layered on top of
-# engine/docker-compose.yml (see engine/run.sh). Relative paths resolve
-# against engine/, not this folder (see workshops/README.md).
-#
-# P0 spike state (PLAN.md §11): one OpenBao server on workshop_lab and a
-# terminal image with the pinned CLI tools. Initialisation, unsealing and the
-# tenancy layout (openbao-setup) come later.
+# openbao module: one OpenBao server for the class, with its web UI behind
+# the gateway (/ui, /v1, from extensions.json) and single sign-on through
+# Forgejo. Layered on top of engine/docker-compose.yml by engine/run.sh when a
+# workshop.env lists it in MODULES (see README.md). Relative paths resolve
+# against engine/, not this folder.
 
 services:
   openbao:
-    # 2.6.3, pinned by its multi-arch index digest (amd64 + arm64 manifests are
-    # recorded in PLAN.md §15).
-    image: ghcr.io/openbao/openbao:2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889
+    # 2.7.0, pinned by its multi-arch index digest (amd64
+    # sha256:6d575d906d70d40b9d789149c8dc09897291c5a1707d4d0ba8a459eaaa94c8c4,
+    # arm64 sha256:4ca9310dd2a50c746d4227f44058088ee0470a8470031ee3f09cc8b1a69dd7f6).
+    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
     container_name: workshop_openbao
     command: ["server", "-config=/openbao/config/config.hcl"]
     volumes:
-      - ../workshops/vault-fundamentals/compose/openbao/config.hcl:/openbao/config/config.hcl:ro
+      - ../modules/openbao/config.hcl:/openbao/config/config.hcl:ro
       - openbao_data:/openbao/file
+      - openbao_logs:/openbao/logs
     networks:
       - workshop_lab
     # The public name means this container's own localhost, where the SSO
-    # shim below answers for it (PLAN.md S23, S28).
+    # shim below answers for it. OPENBAO_PUBLIC_HOST comes from module.env.
     extra_hosts:
       - "${OPENBAO_PUBLIC_HOST:-localhost}:127.0.0.1"
     mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
     restart: unless-stopped
 
-  # Issuer shim for the UI's OIDC login (PLAN.md S23): Caddy in OpenBao's
-  # network namespace, answering for PUBLIC_BASE_URL and forwarding /git/* to
-  # git-server, so OpenBao reaches Forgejo's issuer by its public URL. Its
-  # own CA (in openbao_shim_data) signs the HTTPS name; OpenBao trusts it
-  # through oidc_discovery_ca_pem.
+  # SSO shim: Caddy in OpenBao's network namespace, answering for
+  # PUBLIC_BASE_URL and forwarding /git/* to git-server, so OpenBao reaches
+  # Forgejo's OIDC issuer by its public URL (the browser still goes through
+  # the gateway). On an https:// name it serves with its own CA (kept in
+  # openbao_shim_data), which OpenBao is told to trust.
   openbao-sso-shim:
     image: gitopsdojo/gateway:local
     container_name: workshop_openbao_sso_shim
@@ -41,7 +41,7 @@ services:
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
     volumes:
-      - ../workshops/vault-fundamentals/spike/shim/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../modules/openbao/sso-shim/Caddyfile:/etc/caddy/Caddyfile:ro
       - openbao_shim_data:/data
       - openbao_shim_config:/config
     depends_on:
@@ -55,7 +55,7 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
-  # Image: compose/terminal/, built and selected by engine/run.sh.
+  # The terminal image gets bao from terminal/ (built and chained by run.sh).
   web-terminal:
     depends_on:
       openbao:
@@ -63,5 +63,6 @@ services:
 
 volumes:
   openbao_data:
+  openbao_logs:
   openbao_shim_data:
   openbao_shim_config:

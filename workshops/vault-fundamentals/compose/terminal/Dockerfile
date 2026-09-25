@@ -1,28 +1,12 @@
 # vault-fundamentals' link in the terminal build chain (engine/run.sh sets
-# BASE to the image below this one; see workshops/README.md). Adds the vault
-# tools: bao (OpenBao CLI), sops and gitleaks. Student terminals have no
+# BASE to the image below this one, here the openbao module's link with bao;
+# see workshops/README.md). Adds sops and gitleaks. Student terminals have no
 # internet, so every tool is baked in here, version-pinned and
 # sha256-verified per architecture. The entrypoint is inherited unchanged.
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
 ARG TARGETARCH=amd64
-
-# Checksums from each release's own checksums file:
-# https://github.com/openbao/openbao/releases/tag/v2.6.3
-ARG BAO_VERSION=2.6.3
-RUN set -eux; \
-    case "${TARGETARCH}" in \
-    amd64) sha256="c6463ddd4fdc4214b62a7ffdeaa0fc6df170f7e6b75c6dea2c5e525bdc932ed3" ;; \
-    arm64) sha256="47858610a9853b15e2541c69c0a884861b881e2f4a172fccc429ce5cd3f047bd" ;; \
-    *) echo "Unsupported architecture for bao: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    wget -O /tmp/bao.tar.gz \
-      "https://github.com/openbao/openbao/releases/download/v${BAO_VERSION}/openbao_${BAO_VERSION}_linux_${TARGETARCH}.tar.gz"; \
-    echo "${sha256}  /tmp/bao.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/bao.tar.gz -C /tmp bao; \
-    install -m 0755 /tmp/bao /usr/local/bin/bao; \
-    rm -f /tmp/bao.tar.gz /tmp/bao
 
 # https://github.com/getsops/sops/releases/tag/v3.13.3
 ARG SOPS_VERSION=3.13.3
@@ -53,15 +37,13 @@ RUN set -eux; \
     install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks; \
     rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks
 
-# The CLI talks to OpenBao directly on workshop_lab, not through the gateway
-# (PLAN.md §5.4). Students run `su - <name>` (a login zsh that drops the
-# container's ENV), so export it from /etc/zsh/zshenv, which zsh reads for
-# every shell (ttyd, tmux panes, the code-server terminal), plus profile.d
-# for sh/bash. Root-owned, so students cannot repoint it.
+# sops checks GitHub for a newer release on every run, which only prints a
+# warning in the offline terminal. zshenv for `su -` login shells (see the
+# openbao module's Dockerfile), profile.d for sh/bash.
 RUN set -eux; \
-    printf '\n# vault-fundamentals: the class OpenBao server\nexport BAO_ADDR=http://openbao:8200\n' >> /etc/zsh/zshenv; \
-    printf 'export BAO_ADDR=http://openbao:8200\n' > /etc/profile.d/openbao.sh
-ENV BAO_ADDR=http://openbao:8200
+    printf '\n# vault-fundamentals: no sops update check (no internet)\nexport SOPS_DISABLE_VERSION_CHECK=1\n' >> /etc/zsh/zshenv; \
+    printf 'export SOPS_DISABLE_VERSION_CHECK=1\n' > /etc/profile.d/sops.sh
+ENV SOPS_DISABLE_VERSION_CHECK=1
 
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't

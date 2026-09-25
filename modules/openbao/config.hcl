@@ -1,4 +1,4 @@
-# OpenBao server for the whole class (PLAN.md §5.1). Plain HTTP on
+# OpenBao server for the whole class (workshops/vault-fundamentals/PLAN.md §5.1). Plain HTTP on
 # workshop_lab only: nothing outside the stack reaches this port, and the
 # gateway fronts /ui/ and /v1/ for browsers (PLAN.md §5.4).
 ui            = true
@@ -17,7 +17,7 @@ listener "tcp" {
 api_addr     = "http://openbao:8200"
 cluster_addr = "http://openbao:8201"
 
-# Audit (PLAN.md §3 principle 6, labs 3 and 11). OpenBao 2.6 refuses to
+# Audit (PLAN.md §3 principle 6, labs 3 and 11). OpenBao (2.6 and later) refuses to
 # enable audit devices through the API; they are declared here instead.
 audit "file" "file" {
   options {
