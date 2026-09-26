@@ -4,11 +4,31 @@
 
 This is the talk's **option 2** for secret zero. Option 3, one secret ID kept in the CI settings forever, is what this replaces.
 
+**In this lab you will:**
+
+1. Catch up on what earlier labs made, if you skipped any.
+2. Make the app's AppRole strict: single-use secret IDs that die in five minutes.
+3. Write the deliverer's policy: it may make wrapped secret IDs, and nothing else.
+4. Be the deliverer yourself once, by hand, to see each piece work.
+5. Give the pipeline a CI identity for that job (as in Lab 9).
+6. Write the app, its Agent config and its start script.
+7. Push, and let the pipeline deliver and deploy.
+8. Look at the running app, and at the audit trail.
+9. See a branch refused, and what a restart without a deploy costs.
+
+```text
+ pipeline (deliver-main)          vault                        app-host, your slot
+ "a secret ID for app, wrapped" → makes one, puts it in a box
+ ships the box with the app ────────────────────────────────→  Agent opens the box (once)
+                                  logs the app in  ←──────────  logs in, deletes the file
+                                  team/app  ──────────────────→ Agent renders the secrets
+```
+
 ---
 
 ## 1. Catch up
 
-This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), AppRole (Lab 6), and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway):
+This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), AppRole (Lab 6), and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway). It also switches your clone to `main` and pulls the latest:
 
 ```bash
 export BAO_NAMESPACE=students/$USER
@@ -43,24 +63,34 @@ bao write auth/approle/role/app \
 
 ## 3. The deliverer's policy
 
-The deliverer may **make** secret IDs for `app`, and nothing else. It can't read `team/app`, and it can't even see a secret ID: the policy refuses any request that isn't **response-wrapped**. Keep it as code, in the repo:
+The deliverer may **make** secret IDs for `app`, and nothing else. It can't read `team/app`, and it can't even see a secret ID: the policy refuses any request that isn't **response-wrapped**. **Response wrapping** means the vault doesn't return the answer itself: it locks it in a one-time box and returns a **wrapping token**, the key to that box.
+
+Keep the policy as code, in the repo. Make a folder for it:
 
 ```bash
 mkdir -p policies
-cat > policies/app-deliver.hcl <<'EOF'
+```
+
+In VS Code, create **vault-fundamentals → policies → `app-deliver.hcl`**:
+
+```hcl
 # The deploy pipeline: mint secret IDs for the app role, wrapped, nothing else.
 path "auth/approle/role/app/secret-id" {
   capabilities     = ["update"]
   min_wrapping_ttl = "10s"   # an unwrapped request is refused
   max_wrapping_ttl = "120s"  # and a wrapper can't live longer than 2 minutes
 }
-EOF
+```
+
+`update` on `.../secret-id` is "make a new secret ID". The two `wrapping_ttl` lines are what forces wrapping: a request must ask for a wrapper that lives between 10 and 120 seconds, and a request without one is refused. Save it, and upload it:
+
+```bash
 bao policy write app-deliver policies/app-deliver.hcl
 ```
 
 ## 4. Be the deliverer once, by hand
 
-Before a pipeline does it, do it yourself with a token that has only `app-deliver` (the way Lab 4 tested `app-read`):
+Before a pipeline does it, do it yourself with a token that has only `app-deliver` (the way Lab 4 tested `app-read`). Run these one at a time, and read each answer:
 
 ```bash
 DELIVER=$(bao token create -orphan -policy=app-deliver -ttl=10m -field=token)
@@ -70,7 +100,7 @@ WRAPPED=$(BAO_TOKEN=$DELIVER bao write -f -wrap-ttl=60s -field=wrapping_token au
 bao write sys/wrapping/lookup token="$WRAPPED"
 ```
 
-The first two are refused: `kv get` stops at its preflight check (`preflight capability check returned 403`: this token can't even see the `team/` mount), and the unwrapped request gets `permission denied`. The last request worked. What came back isn't the secret ID: it's a **wrapping token**, a single-use key to a box that holds it. The lookup shows the box's label, not what's inside: `creation_path` (where it was made, so the app can check it came from the right place) and `creation_ttl` (60 seconds, then it's gone).
+The first two are refused: `kv get` stops at its preflight check (`preflight capability check returned 403`: this token can't even see the `team/` mount), and the unwrapped request gets `permission denied`. The third asks for the same thing wrapped (`-wrap-ttl=60s`), and works. What came back isn't the secret ID: it's the **wrapping token**. The lookup shows the box's label, not what's inside: `creation_path` (where it was made, so the app can check it came from the right place) and `creation_ttl` (60 seconds, then it's gone).
 
 Open it, as the app would. Then try to open it again, as someone who intercepted it would:
 
@@ -81,7 +111,7 @@ bao unwrap "$WRAPPED"
 
 The second one fails: `wrapping token is not valid or does not exist`. A wrapper opens **once**. If the app ever gets that error, someone opened its wrapper first: an interception you *know* about, instead of one you don't.
 
-Now use the secret ID, twice:
+Now log in with the secret ID, twice. The first login prints only the parts of the answer worth seeing (`jq` picks them out); then the deliverer's token is revoked and the variables cleared:
 
 ```bash
 ROLE_ID=$(bao read -field=role_id auth/approle/role/app/role-id)
@@ -98,7 +128,7 @@ That's the whole hand-off. Next, a pipeline does it at every deploy.
 
 ## 5. A CI identity for the deliverer
 
-The pipeline logs in with its **job's own identity**, as in Lab 9, so it has no stored secret of its own. A new role on the same `jwt-ci` login: only your fork, only `main`, and only `app-deliver`:
+The pipeline logs in with its **job's own identity**, as in Lab 9, so it has no stored secret of its own. A new role on the same `jwt-ci` login, in the same JSON form as Lab 9's `ci-main`: only your fork, only `main`, and only `app-deliver`:
 
 ```bash
 bao write auth/jwt-ci/role/deliver-main - <<EOF
@@ -118,19 +148,18 @@ EOF
 
 ## 6. The app, and the Agent next to it
 
-The app goes in `app/` in your repo. It runs on `app-host`, which runs one **slot** per student: a Linux user with your name, whose home is `/srv/apps/<you>`. `app-host` starts `app/start.sh` there at each deploy.
+The app goes in `app/` in your repo. It runs on `app-host`, which runs one **slot** per student: a Linux user with your name, whose home is `/srv/apps/<you>`. At each deploy, `app-host` unpacks the `app/` folder there and runs its `start.sh`.
 
-The **role ID** goes in the repo. It's the app's user name, not a secret: on its own it logs nobody in.
+Four files go in `app/`, and none of them is a secret. The first is the **role ID**: it's the app's user name, not a secret, since on its own it logs nobody in. Write it from the vault:
 
 ```bash
 mkdir -p app
 bao read -field=role_id auth/approle/role/app/role-id > app/role-id
 ```
 
-The Agent's config is Lab 6's, plus one line: `secret_id_response_wrapping_path`. With it, the Agent expects a **wrapper** in `secret-id`, not a secret ID. It checks the wrapper was made at exactly that path before it opens it, so a wrapper from anywhere else is refused, and it deletes the file after reading.
+**The Agent's config.** In VS Code, create **app → `agent.hcl`**. It has your user name in two places (the lab page fills it in; if you see student**XX**, replace it with yours):
 
-```bash
-cat > app/agent.hcl <<EOF
+```hcl
 vault {
   address = "http://openbao:8200"
 }
@@ -138,7 +167,7 @@ vault {
 # Log in once with the delivered secret ID, then keep the token alive.
 auto_auth {
   method "approle" {
-    namespace = "students/$USER"
+    namespace = "students/studentXX"
     config = {
       role_id_file_path                   = "role-id"
       secret_id_file_path                 = "secret-id"
@@ -153,32 +182,36 @@ template_config {
 }
 
 template {
-  destination = "/srv/apps/$USER/secrets/app.env"
+  destination = "/srv/apps/studentXX/secrets/app.env"
   perms       = "0600"
   contents    = <<-EOT
   {{ with secret "team/data/app" }}DB_PASSWORD={{ .Data.data.db_password }}
   API_KEY={{ .Data.data.api_key }}{{ end }}
   EOT
 }
-EOF
 ```
 
-How `app-host` starts it. Each start renders the secrets afresh: nothing an earlier run wrote is kept.
+It's Lab 6's config, with three differences:
 
-```bash
-cat > app/start.sh <<'EOF'
+- The secrets file goes in your slot's home on `app-host`, `/srv/apps/<you>/secrets/`.
+- **`secret_id_response_wrapping_path`**: with it, the Agent expects a **wrapper** in `secret-id`, not a secret ID. It checks the wrapper was made at exactly that path before it opens it, so a wrapper from anywhere else is refused. It deletes the file after reading, as before.
+- It checks for changes every 10 seconds.
+
+**How `app-host` starts it.** Create **app → `start.sh`**:
+
+```sh
 #!/bin/sh
 # Run by app-host as this slot's user, in $HOME/app, with $PORT and $SLOT set.
 rm -rf "$HOME/secrets" && mkdir -p "$HOME/secrets"
 bao agent -config=agent.hcl &
 exec python3 app.py
-EOF
 ```
 
-The app knows nothing about vaults, as in Lab 6. It shows fingerprints of what the Agent rendered, whether the delivered file is still there, and it can be told to stop (you'll need that at the end):
+It clears out any secrets an earlier run wrote, starts the Agent in the background (`&`), then runs the app. Each start renders the secrets afresh.
 
-```bash
-cat > app/app.py <<'EOF'
+**The app.** It knows nothing about vaults, as in Lab 6. It's a small web page that shows whether the delivered file is still there, and fingerprints of what the Agent rendered. A `POST` to `/restart` makes it stop, as a crash would (you'll need that in step 11). Create **app → `app.py`**:
+
+```python
 """The team app on app-host, logging in with a delivered secret ID (Lab 10)."""
 import hashlib
 import os
@@ -233,10 +266,9 @@ class Handler(BaseHTTPRequestHandler):
 
 print(f"app: listening on port {os.environ['PORT']}", flush=True)
 ThreadingHTTPServer(("127.0.0.1", int(os.environ["PORT"])), Handler).serve_forever()
-EOF
 ```
 
-None of these files holds a secret. Nor does the repo: `secret-id` isn't in it. The pipeline adds it to the bundle at deploy time.
+Save all three. None of these files holds a secret. Nor does the repo: `secret-id` isn't in it. The pipeline adds it to the bundle at deploy time.
 
 ## 7. The pipeline delivers, then deploys
 
@@ -245,9 +277,15 @@ The deploy workflow uses **two identities, one per job to do**, as the platform 
 - To the **vault**, it's `deliver-main`: it checks that it can't read `team/app`, then asks for a wrapped secret ID and writes the wrapper into the bundle, **without printing it**.
 - To **`app-host`**, it sends a Forgejo ID token with the audience `app-host`. The platform checks Forgejo's signature and deploys only from **your repo, on `main`**, to **your slot**.
 
+Make sure the workflows folder is there:
+
 ```bash
 mkdir -p .forgejo/workflows
-cat > .forgejo/workflows/deploy.yml <<'EOF'
+```
+
+In VS Code, create **.forgejo → workflows → `deploy.yml`**:
+
+```yaml
 name: deploy
 on: push
 jobs:
@@ -288,7 +326,17 @@ jobs:
           curl -sS --fail-with-body -H "Authorization: Bearer $id_token" \
             --data-binary @app.tgz http://app-host:8080/deploy | jq .
           rm -f app.tgz
-EOF
+```
+
+Step by step:
+
+- **Get the code**: clone the repo at the commit that was pushed.
+- **Deliver**: get an ID token for the vault (as in Lab 9) and log in as `deliver-main`. Prove it can't read `team/app`, and stop the job if it can. Ask for a wrapped secret ID and write the wrapper to `src/app/secret-id`, readable by the job only (`umask 077`). Print what the wrapper says about itself, never the wrapper. Revoke the job's vault token.
+- **Deploy**: get a second ID token, this time for `app-host`. Pack `app/` (with the wrapper) into `app.tgz`, delete the wrapper from the job's disk, and send the bundle to `app-host`, which answers with your slot's state.
+
+Save it. Commit everything and push:
+
+```bash
 git add policies app .forgejo/workflows/deploy.yml
 git commit -m "Deploy the app; the pipeline delivers its secret ID"
 git push
@@ -300,6 +348,8 @@ In Forgejo → **Actions**, open the **deploy** run:
 - The deploy step prints `"state": "running"` and your slot.
 
 ## 8. Look at the app
+
+Ask the app for its page, and work out the fingerprint to expect for `API_KEY`:
 
 ```bash
 curl -s http://app-host:8080/$USER/
@@ -315,7 +365,7 @@ The **My App** page also shows your slot's log: the Agent's `authentication succ
 
 ## 9. Check what's left
 
-The secret ID is spent, so the vault no longer lists it. The audit log shows who did what: `deliver-main` made it, and the app's login used it.
+The secret ID is spent, so the vault no longer lists it. The audit log shows who did what: `deliver-main` made it, and the app's login used it. `bao-audit` shows your namespace's audit entries; here the last 4 under `auth/approle`:
 
 ```bash
 bao list auth/approle/role/app/secret-id
@@ -331,7 +381,7 @@ Push again, and it all happens again with a **brand-new** secret ID. That is the
 
 ## 10. A branch gets nothing
 
-The deliverer's role trusts `main` only:
+The deliverer's role trusts `main` only. Push an empty commit from a branch, as in Lab 9:
 
 ```bash
 git switch -c try-a-branch
@@ -348,7 +398,7 @@ git push origin --delete try-a-branch
 
 ## 11. The cost: a restart without a deploy
 
-The app crashes, or the server reboots. `app-host` starts it again, as any platform would. Try it:
+The app crashes, or the server reboots. `app-host` starts it again, as any platform would. Try it: tell the app to stop, give the platform 15 seconds to start it again, and look:
 
 ```bash
 curl -s -X POST http://app-host:8080/$USER/restart
@@ -357,6 +407,8 @@ curl -s http://app-host:8080/$USER/
 ```
 
 The app is back, but it has **no secrets**. On the **My App** page, the log shows the platform restarting it, then the Agent trying again and again: `error="no known secret ID"`. Its secret ID was spent at the last deploy, and the file is gone. That's exactly what you asked for (used once, then worthless), and it has a price: **only a new deploy brings the app back**, because only the deliverer can make a new secret ID.
+
+Deploy again with an empty commit, wait for the run, and look:
 
 ```bash
 git commit --allow-empty -m "Redeploy: a new secret ID"

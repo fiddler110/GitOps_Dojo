@@ -13,6 +13,26 @@ bao version
 bao status
 ```
 
+## How to read a lab
+
+Each lab has three kinds of block, and the sentence just before a block tells you which one it is:
+
+- **Commands** ("run", "try", "check"): paste them into the terminal, a few lines at a time, and read what comes back before going on. Text after a `#` is a comment; the shell ignores it.
+- **A file** ("create `~/lab/.../app.py`", "add this to..."): make or open that file in VS Code, paste the block in, and save. You type the contents yourself so you can read them first; the lab then explains what each part does.
+- **Output** ("you should see"): roughly what comes back. Yours has different IDs, names and times.
+
+### Making and changing files in VS Code
+
+The **Explorer** on the left of VS Code shows your `~/lab` folder, so `~/lab/leaky-app/app.py` appears there as **leaky-app → app.py**.
+
+- **New file:** right-click the folder → **New File...**, type the name, press **Enter**. Paste the block, then save with **Ctrl+S** (**Cmd+S** on a Mac). A dot on the file's tab means it isn't saved yet.
+- **Change a file:** click it in the Explorer, edit, and save. When a lab says *replace the whole file*, press **Ctrl+A** first, then paste.
+- **A new folder** the terminal just made may take a second to appear; click the **refresh** arrow at the top of the Explorer if it doesn't.
+- **Files that need your name:** config files can't read the shell's `$USER`, so they need your user name written in. The lab page in your browser fills it in for you. If you read a lab somewhere else (with `glow`, say), the files show the placeholder student**XX** instead: replace it with your user name (`echo $USER` shows it; **Ctrl+H** in VS Code replaces every one at once).
+- **The terminal:** **Ctrl+`** opens it at the bottom of VS Code. The **split** icon at its top right gives you a second one, side by side.
+
+Only have the plain **Terminal** tab? Use `nano <file>` instead: paste with **Ctrl+Shift+V**, then **Ctrl+O**, **Enter** to save and **Ctrl+X** to leave.
+
 ## What you'll do
 
 | Lab | Topic | Time | Part |

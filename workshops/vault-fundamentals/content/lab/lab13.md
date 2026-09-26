@@ -2,11 +2,24 @@
 
 **Goal:** practise the leak you'll one day get a message about. A vault token was pasted where it shouldn't be, and someone used it. Find out **what it did** from the audit log, **cut it off** (and anything it made), **rotate** what it saw, and check that the app recovers **by itself**.
 
+**In this lab you will:**
+
+1. Set the scene: a job with a long-lived token that can make more tokens.
+2. Play the attacker: use the leaked token, and leave a spare behind.
+3. Switch sides: look the token up by its accessor, without using it.
+4. Read the audit log to find everything it did, including the spare.
+5. Revoke the whole tree, rotate what it read, and check the app recovers.
+6. Write the four-line incident review.
+
+You play both parts in one terminal, so the commands share shell variables (`$LEAKED`, `$ACC`...). Keep the same terminal for the whole lab.
+
 ---
 
 ## 1. Before the incident
 
 A "nightly report" job got a token of its own, the way many teams still do it: a person made it, it lives a day, and it can make tokens for the job's workers.
+
+First make sure the three secrets are there (a catch-up, as in earlier labs):
 
 ```bash
 export BAO_NAMESPACE=students/$USER
@@ -14,19 +27,27 @@ bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
 bao kv get team/ci >/dev/null 2>&1 || bao kv put team/ci deploy_token="deploy-$USER-$RANDOM"
 bao kv get team/admin >/dev/null 2>&1 || bao kv put team/admin root_password=do-not-share
-cat > ~/lab/nightly-report.hcl <<'EOF'
+```
+
+The job's policy. In VS Code, create **`nightly-report.hcl`** at the top of your lab folder (right-click an empty part of the Explorer → **New File...**):
+
+```hcl
 path "team/data/app" { capabilities = ["read"] }
 path "team/data/ci"  { capabilities = ["read"] }
 # "The report starts workers, and each one needs a token."
 path "auth/token/create" { capabilities = ["update"] }
-EOF
+```
+
+Read it as the attacker will: two secrets it can read, and the right to **make new tokens**. That last line is the mistake this drill turns on. Save it, upload it, and make the job's token: an orphan (Lab 4), for a whole day:
+
+```bash
 bao policy write nightly-report ~/lab/nightly-report.hcl
 LEAKED="$(bao token create -orphan -policy=nightly-report -ttl=24h -display-name=nightly-report -field=token)"
 ```
 
 ## 2. The leak (you play the attacker)
 
-Someone pasted `$LEAKED` into a team chat to "help debug the job". Someone else copied it. With it, they:
+Someone pasted `$LEAKED` into a team chat to "help debug the job". Someone else copied it. With it, they read the two secrets, try a third, and make themselves a spare token, since the policy allows it. Each line prints what the attacker got:
 
 ```bash
 BAO_TOKEN=$LEAKED bao kv get -field=api_key team/app >/dev/null && echo "attacker: read team/app"
@@ -40,7 +61,7 @@ A spare key: if you only revoke the token you know about, they keep a way in. In
 
 ## 3. The report: "this token was in the chat"
 
-You're the namespace's admin. You have the token itself (from the chat), so start there, without using it:
+Now you're the namespace's admin again. You have the token itself (from the chat), so start there, without using it: look it up (as your own token), and keep its **accessor**:
 
 ```bash
 bao token lookup "$LEAKED"
@@ -65,7 +86,7 @@ Read it top to bottom:
 - It was **denied** `team/data/admin`: least privilege (Rule 1) limited the damage.
 - It **made a token** (`made token ...`): the spare.
 
-Follow the spare:
+Follow the spare. The audit entry where the token made it records the new token's accessor (`created_accessor`); pick it out with `jq`, then show what the spare did:
 
 ```bash
 CHILD="$(bao-audit --accessor "$ACC" --json | jq -r --arg a "$ACC" '.[] | select(.accessor == $a) | .created_accessor // empty')"
@@ -75,7 +96,7 @@ bao-audit --accessor "$CHILD"
 
 ## 5. Contain: revoke the whole tree
 
-Revoking a token revokes every token it made:
+Revoking a token revokes every token it made. Revoke the leaked one by its accessor, then check the spare, and both tokens:
 
 ```bash
 bao token revoke -accessor "$ACC"
@@ -86,7 +107,7 @@ BAO_TOKEN=$LEAKED bao kv get team/app                # permission denied
 
 ## 6. Rotate what it read
 
-Revoking stops *new* reads. It doesn't un-read `team/app` and `team/ci`: those values are out, so they change now. (At work you'd also change them at their source, e.g. issue a new API key at the provider; the vault holds the copy the apps use.)
+Revoking stops *new* reads. It doesn't un-read `team/app` and `team/ci`: those values are out, so they change now, to new random values. (At work you'd also change them at their source, e.g. issue a new API key at the provider; the vault holds the copy the apps use.)
 
 ```bash
 bao kv patch team/app api_key="rotated-$(date +%s)" db_password="rotated-$RANDOM$RANDOM"
@@ -97,7 +118,7 @@ bao kv patch team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"
 
 ## 7. The app recovers by itself
 
-If you did Lab 11, your app on `app-host` picks up the new values with no deploy and no restart:
+If you did Lab 11, your app on `app-host` picks up the new values with no deploy and no restart. Give the Agent a few seconds, then compare the app's fingerprint with the vault's:
 
 ```bash
 sleep 12

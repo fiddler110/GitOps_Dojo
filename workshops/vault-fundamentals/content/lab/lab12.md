@@ -4,6 +4,16 @@
 
 This lab is optional. Lab 13 doesn't need it.
 
+**In this lab you will:**
+
+1. Look at the database connection your facilitator set up, whose password nobody knows.
+2. Write a role: the SQL the vault runs to make a login, and how long it lives.
+3. Get a login, use it, and see what it can't reach.
+4. Look up, renew and revoke its lease.
+5. Let your app on `app-host` get logins of its own.
+
+A **lease** is the vault's record of something it handed out that expires: here, a database login. Every lease has an ID and a TTL, and when it ends (by itself or by `revoke`), the vault cleans up after it.
+
 ---
 
 ## 1. What's already set up
@@ -19,7 +29,7 @@ It logs in as `vault_<you>`, a Postgres user that may create logins. Its passwor
 
 ## 2. A role: what a login may do
 
-A **role** is the SQL the vault runs to make a login, and how long it lives. Each login joins `app_<you>_rw` (may read and add notes, nothing else), gets a random name and password, and expires in five minutes unless renewed:
+A **role** is the SQL the vault runs to make a login, and how long it lives. Each login joins `app_<you>_rw` (may read and add notes, nothing else), gets a random name and password, and expires in five minutes unless renewed. The role goes in as JSON, read from the lines up to `EOF` (as in Lab 9):
 
 ```bash
 bao write database/roles/app - <<EOF
@@ -35,6 +45,8 @@ EOF
 
 ## 3. Get a login
 
+Reading `database/creds/app` makes a new login. Keep the whole answer in `creds`, then pick out the user name, the password (into `PGPASSWORD`, where `psql` looks for one) and the lease ID with `jq`:
+
 ```bash
 creds="$(bao read -format=json database/creds/app)"
 DB_USER="$(jq -r .data.username <<<"$creds")"
@@ -43,7 +55,7 @@ LEASE="$(jq -r .lease_id <<<"$creds")"
 echo "user $DB_USER, lease $LEASE, $(jq .lease_duration <<<"$creds") s"
 ```
 
-The user name says where it came from (`v-...-app-...`). Use it:
+The user name says where it came from (`v-...-app-...`). Use it with `psql`, Postgres's command-line client: add a note, then list them all:
 
 ```bash
 psql -h app-db -U "$DB_USER" -d app_$USER -c "INSERT INTO notes (body) VALUES ('written with a login that expires')"
@@ -52,7 +64,7 @@ psql -h app-db -U "$DB_USER" -d app_$USER -c "SELECT id, author, body FROM notes
 
 `author` is the login that wrote each row: every writer is its own identity now, so the database's own logs can tell them apart.
 
-It gets `app_<you>`, and no one else's database:
+It gets `app_<you>`, and no one else's database. Try a neighbour's (the first line picks one that isn't you):
 
 ```bash
 OTHER=student01; [ "$USER" = student01 ] && OTHER=student02
@@ -60,6 +72,8 @@ psql -h app-db -U "$DB_USER" -d app_$OTHER -c "SELECT 1"   # permission denied f
 ```
 
 ## 4. Leases: look, renew, revoke
+
+Run these one at a time, and watch the TTL:
 
 ```bash
 bao lease lookup "$LEASE"      # ttl counting down from 5 minutes
@@ -72,7 +86,7 @@ If nobody renews it, the same happens by itself when the lease runs out. A login
 
 ## 5. The app gets its own
 
-Your app on `app-host` (Lab 11) can ask for a login the same way. Let its platform identity read `database/creds/app` too:
+Your app on `app-host` (Lab 11) can ask for a login the same way. Make a policy that may read `database/creds/app`, and rewrite the app's role from Lab 11 with it added (`token_policies=app-read,db-app`):
 
 ```bash
 printf 'path "database/creds/app" {\n  capabilities = ["read"]\n}\n' | bao policy write db-app -
@@ -82,22 +96,24 @@ bao write auth/jwt-platform/role/app \
   token_policies=app-read,db-app token_ttl=15m token_max_ttl=1h
 ```
 
-Add a second template to the Agent's config, then deploy:
+Now tell the Agent to fetch a login and write it to a second file, `db.env`. In VS Code, open **vault-fundamentals → app → `agent.hcl`** and add this at the very end, after the last `}` (the lab page fills in your user name; if you see student**XX**, replace it with yours):
 
-```bash
-cd ~/lab/vault-fundamentals
-cat >> app/agent.hcl <<EOF
-
+```hcl
 # Lab 12: a database login made for this app; the Agent renews its lease.
 template {
-  destination = "/srv/apps/$USER/secrets/db.env"
+  destination = "/srv/apps/studentXX/secrets/db.env"
   perms       = "0600"
   contents    = <<-EOT
   {{ with secret "database/creds/app" }}DB_USER={{ .Data.username }}
   DB_PASSWORD={{ .Data.password }}{{ end }}
   EOT
 }
-EOF
+```
+
+Save it. The app from Lab 11 already looks for `db.env` and connects when it's there. Commit and push to deploy:
+
+```bash
+cd ~/lab/vault-fundamentals
 git add app/agent.hcl
 git commit -m "The app gets its own database login from the vault"
 git push
@@ -111,7 +127,7 @@ curl -s http://app-host:8080/$USER/ | grep database
 
 `database: connected as v-...` and a count of notes. The app connected with a login made for it; nobody typed, stored or deployed a database password. The Agent renews the lease while the app runs, and asks for a new login when `max_ttl` is reached.
 
-See both logins, yours (revoked) and the app's (live), from the vault's side:
+See the logins the vault has live leases for, from its side: the app's is there; yours, revoked in step 4, is gone:
 
 ```bash
 bao list sys/leases/lookup/database/creds/app

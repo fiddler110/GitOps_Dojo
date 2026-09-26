@@ -2,6 +2,22 @@
 
 **Goal:** deploy your app to a server the way it's done well at work. The **pipeline deploys** the app but **can't read its secrets**. The **app gets its own secrets** by proving *where it runs*, with an identity the platform gives it, like an Azure managed identity or a Kubernetes service account. Nobody hands the app a password, not even you, and not even the pipeline: Lab 10's delivered secret ID goes away.
 
+**In this lab you will:**
+
+1. Catch up on what earlier labs made, if you skipped any.
+2. Meet the platform's identity for your app, and the vault's trust in it.
+3. Write a role that lets only your slot log in.
+4. Change the app's files: the Agent logs in with the platform's token.
+5. Change the deploy workflow: deploy, then prove the pipeline can't read.
+6. Look at the app, rotate a secret with no deploy, and see a branch refused.
+
+```text
+ app-host (the platform)                vault
+ writes your slot a signed token ───→  Agent logs in with it (role app: sub = slot:<you>)
+ every few minutes                     team/app ──→ Agent renders the secrets for the app
+ pipeline: deploys (aud app-host)      pipeline: ci-read only, team/app refused
+```
+
 ---
 
 ## 1. Catch up
@@ -31,7 +47,7 @@ git config credential.helper 'cache --timeout=3600'
 
 `app-host` runs one **slot** per student. Your slot is a Linux user with your name, and your app runs there as that user. Nobody else's code runs as you, and yours can't see theirs.
 
-Every few minutes the platform writes your slot a fresh **identity token**: a JWT, signed with the platform's own key, valid for ten minutes, readable only by your slot. It says `sub: slot:<you>`. Its public keys are published, the way Kubernetes and Azure publish theirs:
+Every few minutes the platform writes your slot a fresh **identity token**: a JWT, signed with the platform's own key, valid for ten minutes, readable only by your slot. It says `sub: slot:<you>`. To let others check that signature, the platform publishes its **public** keys, the way Kubernetes and Azure publish theirs. Look at them:
 
 ```bash
 curl -s http://app-host:8080/.well-known/jwks.json | jq '.keys[] | {kid, kty, alg}'
@@ -58,14 +74,16 @@ bao write auth/jwt-platform/role/app \
 
 ## 4. The app, and the Agent next to it
 
-The app goes in `app/` in your repo. Three files, and **none of them holds a secret**. If you did Lab 10, they replace its files, and its role ID goes: nothing will log in with AppRole any more.
-
-The Agent's config (as in Lab 10, but it logs in with the platform's token instead of a delivered secret ID):
+The app stays in `app/` in your repo. Three files, and **none of them holds a secret**. If you did Lab 10, you're replacing its files, and its role ID goes: nothing will log in with AppRole any more. Make sure the folder is there, and remove the role ID (`--ignore-unmatch`: no error if it isn't there):
 
 ```bash
 mkdir -p app
 git rm -q --ignore-unmatch app/role-id
-cat > app/agent.hcl <<EOF
+```
+
+**The Agent's config.** In VS Code, create or open **app → `agent.hcl`**, and replace the whole file with this. It has your user name in three places (the lab page fills it in; if you see student**XX**, replace it with yours):
+
+```hcl
 vault {
   address = "http://openbao:8200"
 }
@@ -73,10 +91,10 @@ vault {
 # Log in with the identity the platform gives this slot.
 auto_auth {
   method "jwt" {
-    namespace  = "students/$USER"
+    namespace  = "students/studentXX"
     mount_path = "auth/jwt-platform"
     config = {
-      path = "/run/platform/$USER/token"
+      path = "/run/platform/studentXX/token"
       role = "app"
       # The platform owns this file and replaces it every few minutes.
       remove_jwt_after_reading = false
@@ -89,32 +107,32 @@ template_config {
 }
 
 template {
-  destination = "/srv/apps/$USER/secrets/app.env"
+  destination = "/srv/apps/studentXX/secrets/app.env"
   perms       = "0600"
   contents    = <<-EOT
   {{ with secret "team/data/app" }}DB_PASSWORD={{ .Data.data.db_password }}
   API_KEY={{ .Data.data.api_key }}{{ end }}
   EOT
 }
-EOF
 ```
 
-How the platform starts it (`$HOME` is your slot's home, `/srv/apps/<you>`):
+The only change from Lab 10 is `auto_auth`: the `jwt` method, on the `jwt-platform` login, reads the platform's token from your slot's file and logs in as the role `app`. It must not delete that file (`remove_jwt_after_reading = false`): the platform replaces it every few minutes, and the Agent logs in again with the new one when it needs to.
 
-```bash
-cat > app/start.sh <<'EOF'
+**How the platform starts it.** Replace **app → `start.sh`** with this (`$HOME` is your slot's home, `/srv/apps/<you>`):
+
+```sh
 #!/bin/sh
 # Run by app-host as this slot's user, with $PORT and $SLOT set.
 mkdir -p "$HOME/secrets"
 bao agent -config=agent.hcl &
 exec python3 app.py
-EOF
 ```
 
-The app itself knows nothing about vaults. It reads the Agent's file on every request and shows fingerprints, never values. It also shows what the platform says about it, and tries to read another slot's identity:
+No delivered file to clean up any more; a restart just logs in again.
 
-```bash
-cat > app/app.py <<'EOF'
+**The app.** It still knows nothing about vaults: it reads the Agent's file on every request and shows fingerprints, never values. It also shows what the platform says about it, tries to read another slot's identity (to prove it can't), and has a database part for Lab 12. Replace **app → `app.py`** with this:
+
+```python
 """The team app on app-host (Labs 11-13)."""
 import base64
 import hashlib
@@ -189,16 +207,26 @@ class Handler(BaseHTTPRequestHandler):
 
 print(f"app: listening on port {os.environ['PORT']}", flush=True)
 ThreadingHTTPServer(("127.0.0.1", int(os.environ["PORT"])), Handler).serve_forever()
-EOF
 ```
+
+Save all three.
 
 ## 5. The pipeline deploys, and can't read
 
-The deploy workflow replaces Lab 10's: there's no deliver step any more. It still uses **two identities, one per job to do**. It asks Forgejo for an ID token with the audience `app-host` and sends it with the app: the platform checks Forgejo's signature and deploys only from **your repo, on `main`**, to **your slot**. Then it logs in to the vault as CI (Lab 9's `ci-main` role) and shows it **can't** read `team/app`:
+The deploy workflow replaces Lab 10's: there's no deliver step any more. It still uses **two identities, one per job to do**:
+
+- To **`app-host`**, an ID token with the audience `app-host`: the platform checks Forgejo's signature and deploys only from **your repo, on `main`**, to **your slot**.
+- To the **vault**, Lab 9's `ci-main` role, to show that the pipeline **can't** read `team/app`.
+
+Make sure the workflows folder is there:
 
 ```bash
 mkdir -p .forgejo/workflows
-cat > .forgejo/workflows/deploy.yml <<'EOF'
+```
+
+In VS Code, create or open **.forgejo → workflows → `deploy.yml`**, and replace the whole file with this:
+
+```yaml
 name: deploy
 on: push
 jobs:
@@ -231,7 +259,11 @@ jobs:
             echo "The pipeline CAN read team/app: that's one leak away from production."; exit 1
           fi
           echo "team/app: permission denied for the pipeline, as it should be."
-EOF
+```
+
+Save it. Commit everything and push:
+
+```bash
 git add app .forgejo/workflows/deploy.yml
 git commit -m "Deploy the app to app-host"
 git push
@@ -261,6 +293,8 @@ The **My App** page also shows your slot's log: the Agent's `authentication succ
 
 ## 7. Rotate, with no deploy
 
+Change the API key in the vault, give the Agent 12 seconds (it checks every 10), then compare the app's fingerprint with the vault's:
+
 ```bash
 bao kv patch team/app api_key=rotated-$(date +%s)
 sleep 12
@@ -271,6 +305,8 @@ printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12
 The new fingerprint is live. No commit, no pipeline run, no restart: the Agent noticed and rewrote the file.
 
 ## 8. A branch can't deploy
+
+Push an empty commit from a branch, as in Labs 9 and 10:
 
 ```bash
 git switch -c try-a-branch
@@ -299,3 +335,5 @@ unset BAO_NAMESPACE
 3. Where is the app's password stored on the server? *(In a file only the slot's user can read, written by the Agent from the vault. It isn't in the repo, the image, the pipeline or an environment variable, and a rotation reaches it without a deploy.)*
 
 **Rules used:** 2 (the app proves where it runs; no password handed over), 5 (deploy without read), 3 (ten-minute platform tokens, fifteen-minute vault tokens), 1 (one slot, one path), 4 (no secret zero: the platform is the root of trust).
+
+**Next:** [lab12.md](lab12.md)

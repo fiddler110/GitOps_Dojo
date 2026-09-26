@@ -79,6 +79,10 @@ RUN set -eux; \
     printf 'export SOPS_DISABLE_VERSION_CHECK=1\n' > /etc/profile.d/sops.sh
 ENV SOPS_DISABLE_VERSION_CHECK=1
 
+# Shows .git in every account's VS Code Explorer, so lab 1 can write its
+# pre-commit hook in .git/hooks/ (see the hook's header).
+COPY start.d/90-show-git-folder.sh /etc/dojo/start.d/90-show-git-folder.sh
+
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't
 # resolve FROM) doesn't flag it missing.

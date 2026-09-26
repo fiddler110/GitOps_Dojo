@@ -4,11 +4,21 @@
 
 Your jobs run on the class's **single-use runners**: each runner takes one job and is then thrown away.
 
+**In this lab you will:**
+
+1. Make your own copy (a fork) of the team's repo, and clone it.
+2. Store a secret in the repo's CI settings.
+3. Write a workflow that uses it, push, and read the job's log.
+4. Print the secret in a form the log's mask doesn't catch.
+5. Work out who can really read a repository secret, then clean up.
+
+A **workflow** is a YAML file in `.forgejo/workflows/` that tells Forgejo Actions what to run, and when. Each push starts a **run**; each run has **jobs**, and each job has **steps**, shown one by one in the log.
+
 ---
 
 ## 1. Your own copy of the repo
 
-The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone:
+The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone. This asks Forgejo's API to make the fork (`-u "$USER"` signs in as you; `-d '{}'` sends an empty request body):
 
 ```bash
 curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
@@ -17,7 +27,7 @@ curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
 
 `curl` asks for your **Forgejo password**, which is on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON means it worked; `repository is already forked` means you made it earlier.
 
-Clone it, and let git remember your password in memory for an hour so you don't type it on every push:
+Clone it (download it into `~/lab/vault-fundamentals`), and let git remember your password in memory for an hour so you don't type it on every push:
 
 ```bash
 cd ~/lab
@@ -26,7 +36,7 @@ cd vault-fundamentals
 git config credential.helper 'cache --timeout=3600'
 ```
 
-The `cache` helper keeps the password in memory only. The `store` helper would write it to a plaintext file in your home, which is exactly what this workshop is against (rule 8).
+The folder appears in VS Code's Explorer as **vault-fundamentals**. The `cache` helper keeps the password in memory only. The `store` helper would write it to a plaintext file in your home, which is exactly what this workshop is against (rule 8).
 
 ## 2. Add a repository secret
 
@@ -41,9 +51,15 @@ Once saved, the value can't be shown again, not even to you. It's stored encrypt
 
 ## 3. A workflow that uses it
 
+Make the folder Forgejo looks in for workflows:
+
 ```bash
 mkdir -p .forgejo/workflows
-cat > .forgejo/workflows/secrets-demo.yml <<'EOF'
+```
+
+In VS Code, create **vault-fundamentals → .forgejo → workflows → `secrets-demo.yml`**. Indentation matters in YAML: keep the spaces exactly as they are.
+
+```yaml
 name: secrets-demo
 on: push
 jobs:
@@ -60,7 +76,18 @@ jobs:
         run: |
           echo "The key is $API_KEY"
           echo "It is ${#API_KEY} characters long"
-EOF
+```
+
+Read it top to bottom:
+
+- `on: push`: run on every push, to any branch.
+- `jobs: demo:`: one job, called `demo`. `runs-on: host` picks the class runners.
+- **Where does this job run?**: prints the runner's Linux user and how many processes it can see. You'll use that in a moment.
+- **Use the secret**: `env:` hands the step the secret as the environment variable `API_KEY`. `${{ secrets.DEMO_API_KEY }}` is filled in by Forgejo when the job starts; the file itself never holds the value. The step then prints it, and its length (`${#API_KEY}`).
+
+Save it. Commit and push it; the push starts the workflow:
+
+```bash
 git add .forgejo/workflows/secrets-demo.yml
 git commit -m "Add a workflow that uses a repository secret"
 git push
@@ -76,7 +103,7 @@ Open your fork in Forgejo → **Actions** → the newest run → the **demo** jo
 
 ## 4. Masking is not protection
 
-Masking only matches the exact value. Add one more step at the end of the workflow file, at the same indent as the other `- name:` lines:
+Masking only matches the exact value. In VS Code, add one more step at the end of `secrets-demo.yml`, at the same indent as the other `- name:` lines, and save:
 
 ```yaml
       - name: Print it in a form the mask doesn't know
@@ -87,12 +114,14 @@ Masking only matches the exact value. Add one more step at the end of the workfl
           echo "$API_KEY" | sed 's/./& /g'
 ```
 
+It prints the key twice more: **base64-encoded** (a common way to turn any bytes into letters, not encryption), and with a space after every character (`sed 's/./& /g'`). Commit and push:
+
 ```bash
 git commit -am "Show that masking is only cosmetic"
 git push
 ```
 
-The new step prints the key base64-encoded and with spaces between the letters. Decode it in your terminal (paste the base64 line from the log):
+In the new run, the last step shows both, unmasked. Decode it in your terminal (paste the base64 line from the log):
 
 ```bash
 echo 'PASTE-THE-BASE64-LINE-HERE' | base64 -d
@@ -115,7 +144,7 @@ And the secret itself never changes by itself: it is valid until someone rotates
 
 The key is now in your job logs in two readable forms. In real life you'd **rotate it** at its source first (rule 7), then update the repository secret. Here, delete it: Forgejo → your fork → **Settings** → **Actions** → **Secrets** → **Remove** next to `DEMO_API_KEY`.
 
-Then remove the demo workflow, so later pushes don't run it:
+Then remove the demo workflow, so later pushes don't run it. `git rm` deletes the file and stages the deletion:
 
 ```bash
 git rm .forgejo/workflows/secrets-demo.yml

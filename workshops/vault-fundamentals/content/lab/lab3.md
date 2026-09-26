@@ -6,11 +6,20 @@
 
 It's the same shape as your `pass` store from lab 2: a path pointing at key/value pairs. The difference is where it lives: one copy on a server, and every request passes the vault's checks first.
 
+**In this lab you will:**
+
+1. Write a secret and read it back, whole and one value at a time.
+2. Change it, look at old versions, and roll back.
+3. Try the three ways to remove a secret, and see which ones can be undone.
+4. Try a neighbour's folder, and read the one policy that refuses you.
+
+All the commands are `bao kv ...`: `kv` is the part of `bao` that talks to key-value engines like `secret/`.
+
 ---
 
 ## 1. Put and get
 
-A secret is a small set of key-value pairs at a path:
+A secret is a small set of key-value pairs at a path. `put` writes one (here two keys, `username` and `password`), `get` reads it back, and `-field` picks one value:
 
 ```bash
 bao kv put secret/students/$USER/db username=app password=first-password
@@ -24,7 +33,7 @@ Open the same secret in the UI (**secret → students → your name → db**) an
 
 ## 2. Versions
 
-Change the password twice:
+Change the password twice, once with each way of writing:
 
 ```bash
 bao kv put secret/students/$USER/db username=app password=second-password
@@ -32,7 +41,7 @@ bao kv patch secret/students/$USER/db password=third-password
 bao kv get secret/students/$USER/db
 ```
 
-`put` replaces the whole secret; `patch` changes only the keys you give. The `version` in the output went up each time. The old ones are still there:
+`put` replaces the whole secret, so you give every key again; `patch` changes only the keys you give. The `version` in the output went up each time, and the old ones are still there. Read version 1, then the secret's **metadata**: the list of versions, with when each was made:
 
 ```bash
 bao kv get -version=1 secret/students/$USER/db
@@ -50,7 +59,7 @@ In the UI, refresh and open **Version history**.
 
 ## 3. Delete, undelete, destroy
 
-These three are different, and the difference matters when something leaks.
+These three are different, and the difference matters when something leaks. Run the first four lines, then the last two, reading the output after each:
 
 ```bash
 bao kv delete secret/students/$USER/db          # the newest version: hidden, recoverable
@@ -72,13 +81,15 @@ If a secret leaked, destroying old copies doesn't un-leak it. **Rotate first** (
 
 ## 4. Knock on a neighbour's door
 
+Try the folders around yours. `list` shows what's in a folder; then read and write a neighbour's secret:
+
 ```bash
 bao kv list secret/students/
 bao kv get secret/students/student02/db
 bao kv put secret/students/student02/db password=mine-now
 ```
 
-You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class:
+You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class. A **policy** is a list of paths, each with what may be done there (`read`, `create`, `delete`...). Read it:
 
 ```bash
 bao policy read student

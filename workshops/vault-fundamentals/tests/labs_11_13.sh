@@ -1,6 +1,7 @@
 #!/bin/sh
 # vault-fundamentals labs 11-13 (T4.8), with the stack up: runs every `bash`
-# block of lab11.md, lab12.md and lab13.md as one student, as written, and
+# block of lab11.md, lab12.md and lab13.md as one student, as written (and
+# writes the files they have them make), and
 # checks what the terminal, the deploy jobs and the app show. Blocks that share
 # shell variables run in one shell; a block that pushes is followed by a wait
 # for its job logs. git's password prompt is replaced by a ~/.netrc (removed at
@@ -19,14 +20,21 @@ api() { podman exec workshop_terminal curl -s -u "${FORGEJO_ADMIN_USER}:${FORGEJ
     -H 'Content-Type: application/json' -X "$1" "http://git-server:3000/api/v1$2" ${3:+-d "$3"}; }
 logs() { podman exec workshop_forge sh -c "find /data/gitea/actions_log/$s/vault-fundamentals -name '*.log.zst' 2>/dev/null" | sort; }
 # block FILE N...: the Nth ```bash blocks of a lab page, joined.
-block() {
+block() {  # block LAB N...: the lab's Nth `bash` blocks; LANG:N:PATH (+PATH appends) writes its Nth LANG file there
   f="$1"; shift
-  python3 -B - "$labs/$f" "$@" <<'EOF'
+  python3 -B - "$labs/$f" "$s" "$@" <<'EOF'
 import re, sys
-text = open(sys.argv[1]).read()
-blocks = re.findall(r"^```bash\n(.*?)^```$", text, re.S | re.M)
-for n in sys.argv[2:]:
-    sys.stdout.write(blocks[int(n) - 1])
+text, user = open(sys.argv[1]).read(), sys.argv[2]
+fences = re.findall(r"^```(\w+)\n(.*?)^```$", text, re.S | re.M)
+for tok in sys.argv[3:]:
+    if ":" not in tok:
+        sys.stdout.write([c for lang, c in fences if lang == "bash"][int(tok) - 1])
+        continue
+    lang, n, path = tok.split(":", 2)
+    body = [c for l, c in fences if l == lang][int(n) - 1].replace("studentXX", user)
+    op = ">>" if path.startswith("+") else ">"
+    path = path.lstrip("+")
+    sys.stdout.write(f"mkdir -p {path.rsplit('/', 1)[0] if '/' in path else '.'} && cat {op} {path} <<'LABFILE'\n{body}LABFILE\n")
 EOF
 }
 # run_and_read N SCRIPT: run SCRIPT as the student (it pushes), wait for N new
@@ -57,7 +65,7 @@ echo "== lab 11: deploy with workload identity"
 out="$(as "$(block lab11.md 1 2 3)" 2>&1)"
 check "catch-up, the platform's keys" "$out" '"alg": "RS256"'
 check "jwt-platform is set up" "$out" 'http://app-host:8080'
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 4 5 6 7 8)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 4 5 hcl:1:app/agent.hcl sh:1:app/start.sh python:1:app/app.py 6 yaml:1:.forgejo/workflows/deploy.yml 7)")"
 check "the deploy job deployed" "$log" '"state": "running"'
 check "the pipeline can't read team/app" "$log" 'permission denied for the pipeline, as it should be'
 page="$(as 'curl -s http://app-host:8080/$USER/')"
@@ -65,13 +73,13 @@ check "the app's platform identity" "$page" "sub=slot:$s"
 check "another slot's identity is out of reach" "$page" "identity: Permission denied"
 check "the app has the vault's api_key" "$page" "API_KEY fingerprint: $(fp api_key app)"
 check "no database yet" "$page" "database: not set up"
-out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 11)" 2>&1)"
+out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 10)" 2>&1)"
 new="$(fp api_key app)"
 [ "$(echo "$out" | grep -c "$new")" -ge 2 ] && echo "  ok:   rotated with no deploy ($new)" \
   || { echo "  FAIL: rotation not seen: $out"; failed=1; }
-log="$(run_and_read 1 "$(block lab11.md 12)")"
+log="$(run_and_read 1 "$(block lab11.md 11)")"
 check "a branch can't deploy" "$log" "only main deploys; this run is on 'refs/heads/try-a-branch'"
-ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab11.md 13)"
+ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab11.md 12)"
 
 echo "== lab 12: dynamic database credentials"
 out="$(as "$(block lab12.md 1 2 3 4 5 6 7)" 2>&1)"
@@ -82,7 +90,7 @@ check "another student's database is refused" "$out" 'permission denied for data
 # Postgres says either, depending on whether the revoke's DROP ROLE ran yet.
 case "$out" in *'password authentication failed'*|*'role "v-'*'" does not exist'*) echo "  ok:   revoked: the login is gone" ;;
   *) echo "  FAIL: revoked: the login is gone"; failed=1 ;; esac
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab12.md 8)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab12.md hcl:1:+app/agent.hcl 8)")"
 check "deployed with the database template" "$log" '"state": "running"'
 end=$(( $(date +%s) + 30 ))
 until page="$(as 'curl -s http://app-host:8080/$USER/')"; echo "$page" | grep -q 'database: connected' || [ "$(date +%s)" -gt "$end" ]; do sleep 3; done
@@ -91,7 +99,7 @@ out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab12.md 10)" 2>&1)"
 [ "$(echo "$out" | grep -c .)" -ge 2 ] && echo "  ok:   the leases are listed" || { echo "  FAIL: leases: $out"; failed=1; }
 
 echo "== lab 13: incident drill"
-out="$(as "$(block lab13.md 1 2 3 4 5 6 7 8 9)" 2>&1)"
+out="$(as "$(block lab13.md 1 hcl:1:~/lab/nightly-report.hcl 2 3 4 5 6 7 8 9 10)" 2>&1)"
 echo "$out" | grep -E '^(attacker|TIME|20[0-9][0-9]-)' | sed 's/^/    /'
 check "the attacker read team/app" "$out" 'attacker: read team/app'
 check "and made a spare" "$out" 'attacker: made a spare token, and it works'

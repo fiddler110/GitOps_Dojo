@@ -91,9 +91,12 @@ ok "approle role and repository secrets" 'export BAO_NAMESPACE=students/$USER
     put BAO_SECRET_ID "$(bao write -f -field=secret_id auth/approle/role/ci/secret-id)"'
 # The workflows, taken from the lab pages themselves. Lab 8's clean-up removed
 # the folder with its last file; the lab's own mkdir -p comes later.
-for wf in vault-approle vault-oidc; do
-  sed -n "/cat > .forgejo\/workflows\/$wf.yml <<'EOF'/,/^EOF\$/p" workshops/vault-fundamentals/content/lab/lab9.md \
-    | sed '1d;$d' | as "mkdir -p ~/lab/vault-fundamentals/.forgejo/workflows && cat > ~/lab/vault-fundamentals/.forgejo/workflows/$wf.yml.next"
+n=0
+for wf in vault-approle vault-oidc; do  # the lab's first and second `yaml` file blocks
+  n=$((n + 1))
+  python3 -B -c 'import re, sys; print([c for l, c in re.findall(r"^```(\w+)\n(.*?)^```$", open(sys.argv[1]).read(), re.S | re.M) if l == "yaml"][int(sys.argv[2]) - 1], end="")' \
+    workshops/vault-fundamentals/content/lab/lab9.md "$n" \
+    | as "mkdir -p ~/lab/vault-fundamentals/.forgejo/workflows && cat > ~/lab/vault-fundamentals/.forgejo/workflows/$wf.yml.next"
 done
 as 'cd ~/lab/vault-fundamentals/.forgejo/workflows && test -s vault-approle.yml.next && test -s vault-oidc.yml.next' \
   || { echo "  FAIL: couldn't extract the workflows from lab9.md"; failed=1; }

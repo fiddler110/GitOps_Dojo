@@ -1,7 +1,7 @@
 # vault-fundamentals — Vault Fundamentals Lab
 
 How to use a vault well: get secrets out of code, git, pipelines and servers, and replace long-lived secrets with
-identity and short-lived credentials. Thirteen labs (0-12, about 2-3 hours) on a real OpenBao, after a talk
+identity and short-lived credentials. Fourteen labs (0-13, about 3½ hours) on a real OpenBao, after a talk
 (`content/slides/presentation.md`). Prerequisite: `git-fundamentals`. The design, decisions and history are in
 [`PLAN.md`](PLAN.md).
 
@@ -24,7 +24,7 @@ pool, Auto / Manual, − / +) and **Apps** (every app-host slot and its log).
 | `workshop.env` | Names, `MODULES="openbao runner-pool"`, the overlay, `FORGEJO_FORK_WORKFLOW=1` (bots fork, as lab 8 does). |
 | `extensions.json` | The **My App** card, the `/admin` **Apps** tab, the `/apps` route and its status check. |
 | `compose/` | The overlay: `app-host` (the deploy platform, `apphost.py`), `app-db` (Postgres), the `openbao-setup.d/` hooks (namespaces, CI and platform auth, per student and bot), the terminal's extra tools (sops, gitleaks, pass, psql, hvac). |
-| `content/` | Slides, labs 0-12 and the cheat sheet, the seed repo, and `bots/steps.sh` (demo bots). |
+| `content/` | Slides, labs 0-13 and the cheat sheet, the seed repo, and `bots/steps.sh` (demo bots). |
 | `tests/` | Below. |
 
 The vault itself (`openbao`, SSO, CLI login, `openbao-audit` and the Audit tab) is `modules/openbao/`; the runners

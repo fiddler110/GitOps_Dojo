@@ -6,17 +6,28 @@ Lab 1 showed that a secret in a file ends up in git. A git-ignored `.env` is bet
 
 Everything here stays on your own terminal.
 
+**In this lab you will:**
+
+1. Make a GPG key pair: the one key that protects all your other secrets.
+2. Start a `pass` store and put two secrets in it.
+3. Look at what's really on disk, and read a secret back.
+4. Change a secret and see its history.
+5. Share a folder with a teammate, then take it back, and see what that can't undo.
+6. Compare `pass` with a vault, for a team.
+
 ---
 
 ## 1. A key of your own
 
-`pass` encrypts with GPG. Make yourself a key pair (the public half locks, the private half unlocks):
+`pass` encrypts with **GPG**. GPG uses a **key pair**: the **public** key locks (anyone may have it), the **private** key unlocks (only you). Make yours, named after you, with GPG's default algorithm, valid for a year (`1y`):
 
 ```bash
 gpg --quick-gen-key "$USER <$USER@dojo.test>" default default 1y
 ```
 
 A box asks for a **passphrase**, twice. Pick one with a number or symbol in it (three words and a number is fine), or GPG warns and asks again. The passphrase protects the private key file: whoever copies `~/.gnupg` still needs it.
+
+List the private keys you now have:
 
 ```bash
 gpg --list-secret-keys
@@ -26,7 +37,7 @@ gpg --list-secret-keys
 
 ## 2. A store, and a secret in it
 
-Point a new store at your key, and keep its history in git:
+`pass init` makes the store (a folder, `~/.password-store`) and says which key encrypts it. `pass git init` makes that folder a git repo, so every change becomes a commit:
 
 ```bash
 pass init "$USER@dojo.test"
@@ -47,7 +58,7 @@ host: db.internal
 
 By convention the first line is the password and the rest are `key: value` lines. Typing it at the prompt, instead of `echo ... | pass insert`, keeps it out of your shell history.
 
-Let `pass` make the next one for you, 32 random characters nobody has to type:
+Let `pass` make the next one for you: `generate` invents 32 random characters, stores them, and shows them once. Nobody has to think one up or type it:
 
 ```bash
 pass generate dojo/api-token 32
@@ -55,19 +66,21 @@ pass generate dojo/api-token 32
 
 ## 3. What's on disk
 
+`pass` on its own lists your secrets. `tree` shows the same store as the folders and files it really is (`-a` includes hidden ones, such as `.git`):
+
 ```bash
 pass
 tree -a ~/.password-store
 ```
 
-The path `dojo/db` **is** a folder and a file: `~/.password-store/dojo/db.gpg`. Look inside it:
+The path `dojo/db` **is** a folder and a file: `~/.password-store/dojo/db.gpg`. Look inside it. The first line prints its first 120 bytes (`cat -v` makes unprintable bytes visible); the second asks GPG who the file is encrypted for:
 
 ```bash
 head -c 120 ~/.password-store/dojo/db.gpg | cat -v; echo
 gpg --list-packets ~/.password-store/dojo/db.gpg 2>&1 | head -3
 ```
 
-Noise, and a note saying who it's encrypted for: your key. Now read it the way you'd use it:
+Noise, and a note saying who it's encrypted for: your key. Now read it the way you'd use it: the whole secret, then only the first line (the password, for a script), then only the `username:` line:
 
 ```bash
 pass show dojo/db
@@ -79,13 +92,13 @@ GPG asked for your passphrase once and remembers it for about 10 minutes, then a
 
 ## 4. History
 
-Change the password:
+Change the password. `pass edit` decrypts the secret into an editor; `EDITOR=nano` in front picks nano for this one command:
 
 ```bash
 EDITOR=nano pass edit dojo/db
 ```
 
-In the editor, change `first-password` to `second-password`, then save and quit (**Ctrl+O**, **Enter**, **Ctrl+X**). `pass` decrypts to a temporary file in memory (`/dev/shm`), not on disk. Every change was a commit:
+In the editor, change `first-password` to `second-password`, then save and quit (**Ctrl+O**, **Enter**, **Ctrl+X**). `pass` decrypts to a temporary file in memory (`/dev/shm`), not on disk. Every change was a commit. List them, then show the changes to `dojo/db`:
 
 ```bash
 pass git log --oneline
@@ -104,7 +117,7 @@ A teammate needs `dojo/db`. Pretend to be them for a moment and make their key (
 gpg --batch --passphrase '' --quick-gen-key "teammate <teammate@dojo.test>" default default 1y
 ```
 
-`pass` shares a folder by **encrypting every file in it again**, once for each person:
+`pass` shares a folder by **encrypting every file in it again**, once for each person. `init -p dojo` sets who may read the `dojo` folder (you and the teammate); the second line shows who `db.gpg` is encrypted for now:
 
 ```bash
 pass init -p dojo "$USER@dojo.test" teammate@dojo.test
@@ -115,14 +128,14 @@ Two keys can open it now. Your teammate pulls the store and reads it on their ow
 
 ## 6. ...and taking it back
 
-The teammate moves to another team. Take them off:
+The teammate moves to another team. Take them off, by setting the folder's readers back to you alone:
 
 ```bash
 pass init -p dojo "$USER@dojo.test"
 gpg --list-packets ~/.password-store/dojo/db.gpg 2>&1 | grep -A1 'encrypted with'
 ```
 
-The new file is yours alone. Now look at the one before it:
+The new file is yours alone. Now look at the version before it, from the store's git history (`HEAD~1` means "one commit back"):
 
 ```bash
 pass git show HEAD~1:dojo/db.gpg | gpg --list-packets 2>&1 | grep -A1 'encrypted with'

@@ -111,6 +111,19 @@ e.g. './run.sh capacity --help'.
 EOF
 }
 
+# Status colours for the change checks: green = unchanged, yellow = changed
+# (build output itself stays in the default colours). Off when stdout isn't
+# a terminal or NO_COLOR is set.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  c_green="$(printf '\033[32m')"; c_yellow="$(printf '\033[33m')"
+  c_red="$(printf '\033[31m')"; c_off="$(printf '\033[0m')"
+else
+  c_green=""; c_yellow=""; c_red=""; c_off=""
+fi
+say_ok() { printf '  %s%s%s\n' "$c_green" "$*" "$c_off"; }
+say_changed() { printf '  %s%s%s\n' "$c_yellow" "$*" "$c_off"; }
+say_bad() { printf '  %s%s%s\n' "$c_red" "$*" "$c_off"; }
+
 list_workshops() {
   echo "Available workshops:"
   for d in ../workshops/*/; do
@@ -571,15 +584,15 @@ build_if_changed() {
   new_hash="$(hash_dir "$context")"
   old_hash="$(image_label "$image" dojo.src-hash)"
   if [ -n "$old_hash" ] && [ "$old_hash" = "$new_hash" ]; then
-    echo "  ${image}: source unchanged, reusing existing image."
+    say_ok "${image}: unchanged"
     return 0
   fi
   if [ "$dry_run" = "1" ]; then
-    echo "  ${image}: WOULD BUILD (source changed, or no cached image yet)."
+    say_changed "${image}: changed, would build"
     would_build="${would_build} ${image} "
     return 0
   fi
-  echo "  ${image}: building (source changed, or no cached image yet)..."
+  say_changed "${image}: changed, building..."
   track_superseded build "$@" --label "dojo.src-hash=${new_hash}" -t "$image" "$context"
 }
 
@@ -612,14 +625,14 @@ compose_overlay_build_if_changed() {
   old_hash=""
   [ -f "$state_file" ] && old_hash="$(cat "$state_file")"
   if [ "$old_hash" = "$new_hash" ]; then
-    echo "  ${overlay_dirs# }: source unchanged, reusing existing overlay images."
+    say_ok "overlay images: unchanged"
     return 0
   fi
   if [ "$dry_run" = "1" ]; then
-    echo "  ${overlay_dirs# }: WOULD BUILD overlay images (source changed, or first run for this workshop)."
+    say_changed "overlay images: changed, would build"
     return 0
   fi
-  echo "  ${overlay_dirs# }: building (source changed, or first run for this workshop)..."
+  say_changed "overlay images: changed, building..."
   other_services="$(compose "$@" config --services | grep -v -x -e web-terminal -e allocator -e gateway -e presentation || true)"
   if [ -n "$other_services" ]; then
     # shellcheck disable=SC2086
@@ -649,9 +662,9 @@ if [ -n "$corp_ca_bundle" ] && [ -f "$corp_ca_bundle" ]; then
 fi
 
 if [ "$dry_run" = "1" ]; then
-  echo "Checking images (dry run: reporting only, building nothing)..."
+  echo "Checking images (dry run)..."
 else
-  echo "Checking images (only rebuilding what actually changed)..."
+  echo "Checking images..."
 fi
 # A dry run builds nothing, so it can't see that a rebuilt base makes the
 # workshop terminal (FROM base) stale too; build_if_changed records what it
@@ -687,7 +700,7 @@ for link in $terminal_links; do
   build_salt="${build_salt}$(inspect -f '{{.Id}}' "$parent" 2>/dev/null || true)"
   case "$would_build" in
     *" ${parent} "*)
-      echo "  ${image}: WOULD BUILD (the image it is built on would be rebuilt)."
+      say_changed "${image}: parent changed, would build"
       would_build="${would_build} ${image} " ;;
     *)
       # shellcheck disable=SC2086
@@ -789,12 +802,12 @@ fi
 # ordering or clean up their volumes.
 if [ "$dry_run" = "1" ]; then
   echo
-  echo "Validating the Compose config..."
+  echo "Checking the Compose config..."
   # shellcheck disable=SC2086
   if compose $compose_args config >/dev/null 2>&1; then
-    echo "  valid."
+    say_ok "valid"
   else
-    echo "  'compose ${compose_args} config' failed (or compose isn't available) -- run it directly to see why."
+    say_bad "invalid: run 'compose ${compose_args} config' to see why"
   fi
   echo
   echo "Would run: compose ${compose_args} up -d"

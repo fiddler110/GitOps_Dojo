@@ -4,18 +4,26 @@
 
 A **namespace** is a vault inside the vault: its own engines, policies, tokens and sign-in methods, invisible from the others. You are the admin of `students/<you>` and of nothing else. At work this is "the team's own vault"; on Azure it would be a Key Vault per team or per environment.
 
+**In this lab you will:**
+
+1. Switch your terminal to your own namespace.
+2. Turn on a KV engine there and store two secrets: one for an app, one for admins only.
+3. Write a policy that lets the app read its secret and nothing else, first in the UI, then as a file.
+4. Make a token with only that policy, and prove what it can and can't do.
+5. Revoke the token.
+
 ---
 
 ## 1. Step into your namespace
 
-Every `bao` command in this shell now goes to your namespace:
+`export` sets a shell variable for this terminal and every command it runs. `bao` reads `BAO_NAMESPACE` and sends each request to that namespace, so from now on your commands go to `students/<you>`. `bao secrets list` shows the engines there:
 
 ```bash
 export BAO_NAMESPACE=students/$USER
 bao secrets list
 ```
 
-Only the built-in engines: `secret/` from Lab 3 is in the root namespace, not in yours. Try your neighbour's:
+Only the built-in engines: `secret/` from Lab 3 is in the root namespace, not in yours. `-namespace=` points one command somewhere else. Try your neighbour's:
 
 ```bash
 bao secrets list -namespace=students/student02
@@ -24,6 +32,8 @@ bao secrets list -namespace=students/student02
 `permission denied`. Admin of your own vault, nobody else's.
 
 ## 2. Enable an engine and store the team's secrets
+
+A namespace starts empty. **Enable** a KV version 2 engine at the path `team/` (the same kind as `secret/`), put two secrets in it, and list them:
 
 ```bash
 bao secrets enable -path=team kv-v2
@@ -34,9 +44,11 @@ bao kv list team/
 
 (If the first `put` says the mount is upgrading, wait two seconds and run it again.)
 
+`team/app` is what an app needs; `team/admin` is something it must never see. The next step makes sure of that.
+
 ## 3. A least-privilege policy, in the UI
 
-The app should read `team/app` and nothing else. In the Vault tab:
+The app should read `team/app` and nothing else. Anything a policy doesn't allow is refused, so the policy needs one rule. In the Vault tab:
 
 1. Switch to your namespace: click the **namespace picker** at the bottom of the side menu (it says `root`), open **students**, and choose your name. (Or add `?namespace=students/<you>` to the end of the address.) The picker now shows your name.
 2. Open **Policies → ACL policies → Create ACL policy**.
@@ -50,7 +62,7 @@ The app should read `team/app` and nothing else. In the Vault tab:
 
 4. Click **Create policy**.
 
-Check it arrived, from the terminal:
+The rule reads: on the path `team/data/app` (KV v2 keeps values under `data/`, Lab 3), allow `read`, and nothing else. Check it arrived, from the terminal:
 
 ```bash
 bao policy list
@@ -59,24 +71,35 @@ bao policy read app-read
 
 ## 4. The same policy, as code
 
-Clicking is fine for trying things out, but a policy that decides who reads production secrets deserves review and history, like any other change. Write it as a file (the file is what you'd commit and review) and apply it:
+Clicking is fine for trying things out, but a policy that decides who reads production secrets deserves review and history, like any other change. So keep it as a file: the file is what you'd commit and review.
+
+Make a folder for it, and go there:
 
 ```bash
 mkdir -p ~/lab/my-vault && cd ~/lab/my-vault
-cat > app-read.hcl <<'EOF'
+```
+
+In VS Code, create **my-vault → `app-read.hcl`** with the same rule, and a comment that says why (`#` starts a comment in HCL, the language vault policies are written in):
+
+```hcl
 # The app reads its own secret, nothing else.
 path "team/data/app" {
   capabilities = ["read"]
 }
-EOF
-bao policy write app-read app-read.hcl
 ```
 
-Same name, same rules: the write changed nothing, which is what you want when a file and the live system agree.
+Save it, then upload it to the vault under the same name, `app-read`, and read it back:
+
+```bash
+bao policy write app-read app-read.hcl
+bao policy read app-read
+```
+
+Same name, same rule, now with its comment: nothing the vault enforces changed, which is what you want when a file and the live system agree. From now on, a change to this policy is a change to the file: reviewed, then `bao policy write`.
 
 ## 5. A token for the app, and proof
 
-Make a short-lived token that carries only `app-read`:
+A **token** is what a program shows the vault on every request. Make one that carries only `app-read` and lives 15 minutes. `$(...)` runs the command inside it and puts its output in `APP_TOKEN`; `-field=token` makes that output just the token. Then look the new token up:
 
 ```bash
 APP_TOKEN=$(bao token create -orphan -policy=app-read -ttl=15m -field=token)

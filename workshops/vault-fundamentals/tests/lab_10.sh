@@ -1,6 +1,6 @@
 #!/bin/sh
 # vault-fundamentals lab 10 (T5.16), with the stack up: runs every `bash` block
-# of lab10.md as one student, as written, and checks what the terminal, the
+# of lab10.md as one student, as written (and writes the files it has them make), and checks what the terminal, the
 # deploy jobs and the app show. Same helpers as labs_11_13.sh. It first removes
 # what an earlier run left (the fork, the clone, the roles and the policy this
 # lab writes), so it can run again. Needs python3 >= 3.14 on the host (job logs
@@ -17,14 +17,21 @@ lacks() { case "$2" in *"$3"*) echo "  FAIL: $1 ('$3' is there)"; failed=1 ;; *)
 api() { podman exec workshop_terminal curl -s -u "${FORGEJO_ADMIN_USER}:${FORGEJO_ADMIN_PASSWORD}" \
     -H 'Content-Type: application/json' -X "$1" "http://git-server:3000/api/v1$2" ${3:+-d "$3"}; }
 logs() { podman exec workshop_forge sh -c "find /data/gitea/actions_log/$s/vault-fundamentals -name '*.log.zst' 2>/dev/null" | sort; }
-block() {
+block() {  # block LAB N...: the lab's Nth `bash` blocks; LANG:N:PATH (+PATH appends) writes its Nth LANG file there
   f="$1"; shift
-  python3 -B - "$labs/$f" "$@" <<'EOF'
+  python3 -B - "$labs/$f" "$s" "$@" <<'EOF'
 import re, sys
-text = open(sys.argv[1]).read()
-blocks = re.findall(r"^```bash\n(.*?)^```$", text, re.S | re.M)
-for n in sys.argv[2:]:
-    sys.stdout.write(blocks[int(n) - 1])
+text, user = open(sys.argv[1]).read(), sys.argv[2]
+fences = re.findall(r"^```(\w+)\n(.*?)^```$", text, re.S | re.M)
+for tok in sys.argv[3:]:
+    if ":" not in tok:
+        sys.stdout.write([c for lang, c in fences if lang == "bash"][int(tok) - 1])
+        continue
+    lang, n, path = tok.split(":", 2)
+    body = [c for l, c in fences if l == lang][int(n) - 1].replace("studentXX", user)
+    op = ">>" if path.startswith("+") else ">"
+    path = path.lstrip("+")
+    sys.stdout.write(f"mkdir -p {path.rsplit('/', 1)[0] if '/' in path else '.'} && cat {op} {path} <<'LABFILE'\n{body}LABFILE\n")
 EOF
 }
 run_and_read() {
@@ -54,7 +61,7 @@ ok "fork and clone (Lab 8)" 'curl -sf --netrc -H "Content-Type: application/json
     git clone -q http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals'
 
 echo "== lab 10: deploy with a delivered secret ID"
-out="$(as "$(block lab10.md 1 2 3 4 5 6 7 8 9 10 11)" 2>&1)"
+out="$(as "$(block lab10.md 1 2 3 hcl:1:policies/app-deliver.hcl 4 5 6 7 8 9 hcl:2:app/agent.hcl sh:1:app/start.sh python:1:app/app.py)" 2>&1)"
 check "the strict role" "$out" 'Data written to: auth/approle/role/app'
 check "the deliverer's policy" "$out" 'Uploaded policy: app-deliver'
 check "the deliverer can't read team/app" "$out" 'preflight capability check returned 403'
@@ -67,7 +74,7 @@ check "the second login is refused" "$out" 'invalid role or secret ID'
 check "the CI role" "$out" 'Data written to: auth/jwt-ci/role/deliver-main'
 ok "the role ID is in the repo" 'test -s ~/lab/vault-fundamentals/app/role-id'
 
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 12)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 10 yaml:1:.forgejo/workflows/deploy.yml 11)")"
 check "the deliverer can't read team/app" "$log" 'permission denied for the deliverer, as it should be'
 check "the wrapper's lookup is in the log" "$log" '"creation_path": "auth/approle/role/app/secret-id"'
 check "the deploy job deployed" "$log" '"state": "running"'
@@ -75,19 +82,19 @@ lacks "no wrapping token in the job log" "$log" '"wrapping_token"'
 p="$(wait_page 'API_KEY fingerprint' 30)"
 check "the delivered file is gone" "$p" 'delivered secret-id file: gone'
 check "the app has the vault's api_key" "$p" "API_KEY fingerprint: $(fp api_key app)"
-out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 14)" 2>&1)"
+out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 13)" 2>&1)"
 check "no secret ID left" "$out" 'No value found'
 check "the audit shows the mint, by app-deliver" "$out" '"app-deliver"'
 check "the audit shows the login" "$out" 'auth/approle/login'
 
-log="$(run_and_read 1 "$(block lab10.md 15)")"
+log="$(run_and_read 1 "$(block lab10.md 14)")"
 check "a branch gets no secret ID" "$log" 'does not match any associated bound claim values'
-ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab10.md 16)"
+ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab10.md 15)"
 
-out="$(as "$(block lab10.md 17)" 2>&1)"
+out="$(as "$(block lab10.md 16)" 2>&1)"
 check "the app restarted" "$out" 'app-host will start me again'
 check "and has no secrets after it" "$out" 'secrets: none'
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 18)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 17)")"
 check "the redeploy ran" "$log" '"state": "running"'
 p="$(wait_page 'API_KEY fingerprint' 30)"
 check "a new deploy brings the secrets back" "$p" "API_KEY fingerprint: $(fp api_key app)"

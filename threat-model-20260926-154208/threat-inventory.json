@@ -1,0 +1,3849 @@
+{
+  "schema_version": "1.0",
+  "report_folder": "threat-model-20260926-154208",
+  "commit": "6ca99bd",
+  "commit_date": "2026-09-26 01:19:58 UTC",
+  "branch": "feat/vault-fundamentals",
+  "repository": "https://github.com/fiddler110/GitOps_Dojo.git",
+  "analysis_timestamp": "2026-09-26 15:42:08 UTC",
+  "model": "claude-opus-5.5",
+  "components": [
+    {
+      "id": "Allocator",
+      "display": "Allocator",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/allocator/server.py",
+        "engine/allocator/render_extensions.py"
+      ],
+      "source_directories": [
+        "engine/allocator"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "engine/allocator/server.py",
+          "engine/allocator/render_extensions.py"
+        ],
+        "source_directories": [
+          "engine/allocator"
+        ],
+        "class_names": [
+          "Handler",
+          "ManifestError",
+          "_SniHTTPSConnection"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway"
+        ],
+        "outbound_to": [
+          "Forgejo",
+          "WorkspaceControl"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "AppHost",
+      "display": "AppHost",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "workshops/vault-fundamentals/compose/app-host/apphost.py",
+        "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+      ],
+      "source_directories": [
+        "workshops/vault-fundamentals/compose",
+        "workshops/vault-fundamentals/compose/app-host"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "workshops/vault-fundamentals/compose/app-host/apphost.py",
+          "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+        ],
+        "source_directories": [
+          "workshops/vault-fundamentals/compose",
+          "workshops/vault-fundamentals/compose/app-host"
+        ],
+        "class_names": [
+          "Config",
+          "ForgejoKeys",
+          "Platform",
+          "Slot"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway",
+          "RunnerPool"
+        ],
+        "outbound_to": [
+          "OpenBao",
+          "PostgreSQL"
+        ],
+        "protocols": [
+          "HTTP",
+          "PostgreSQL"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "CloudAPI",
+      "display": "CloudAPI",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/dojo-cloud/compose.yml",
+        "modules/dojo-cloud/cloud-api/pki.py"
+      ],
+      "source_directories": [
+        "modules/dojo-cloud",
+        "modules/dojo-cloud/cloud-api"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/dojo-cloud/compose.yml",
+          "modules/dojo-cloud/cloud-api/pki.py"
+        ],
+        "source_directories": [
+          "modules/dojo-cloud",
+          "modules/dojo-cloud/cloud-api"
+        ],
+        "class_names": [
+          "CloudAPI"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway",
+          "WebTerminal"
+        ],
+        "outbound_to": [
+          "CloudHost"
+        ],
+        "protocols": [
+          "HTTP",
+          "HTTPS",
+          "Unix socket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "CloudHost",
+      "display": "CloudHost",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.VM",
+      "boundary": "CloudNet",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/dojo-cloud/cloud-host/entrypoint.sh",
+        "modules/dojo-cloud/cloud-host/Dockerfile"
+      ],
+      "source_directories": [
+        "modules/dojo-cloud/cloud-host"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/dojo-cloud/cloud-host/entrypoint.sh",
+          "modules/dojo-cloud/cloud-host/Dockerfile"
+        ],
+        "source_directories": [
+          "modules/dojo-cloud/cloud-host"
+        ],
+        "class_names": [
+          "CloudHost"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "CloudAPI"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "Unix socket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "DNSAPI",
+      "display": "DNSAPI",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "workshops/dns-as-code/compose/dns-api/gate.py"
+      ],
+      "source_directories": [
+        "workshops/dns-as-code/compose/dns-api"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "workshops/dns-as-code/compose/dns-api/gate.py"
+        ],
+        "source_directories": [
+          "workshops/dns-as-code/compose/dns-api"
+        ],
+        "class_names": [
+          "CiAddresses",
+          "Handler"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "ForgejoRunner",
+          "WebTerminal"
+        ],
+        "outbound_to": [
+          "PowerDNS"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "DojoBroker",
+      "display": "DojoBroker",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "WebTerminalContainer",
+      "boundary_kind": "SandboxBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/dojo-cloud/terminal/dojo-broker.py"
+      ],
+      "source_directories": [
+        "modules/dojo-cloud/terminal"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "SandboxBoundary",
+        "source_files": [
+          "modules/dojo-cloud/terminal/dojo-broker.py"
+        ],
+        "source_directories": [
+          "modules/dojo-cloud/terminal"
+        ],
+        "class_names": [
+          "DojoBroker"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "WebTerminal"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "Unix socket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "EndUser",
+      "display": "EndUser",
+      "type": "external_interactor",
+      "tmt_type": "SE.EI.TMCore.Browser",
+      "boundary": "External",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [],
+      "source_directories": [],
+      "fingerprint": {
+        "component_type": "external_interactor",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [],
+        "source_directories": [],
+        "class_names": [
+          "EndUser"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [],
+        "outbound_to": [
+          "Gateway"
+        ],
+        "protocols": [
+          "HTTP",
+          "HTTPS"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "EnvFile",
+      "display": "EnvFile",
+      "type": "data_store",
+      "tmt_type": "SE.DS.TMCore.ConfigFile",
+      "boundary": "LabHost",
+      "boundary_kind": "MachineBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/scripts/env-setup.sh"
+      ],
+      "source_directories": [
+        "engine/scripts"
+      ],
+      "fingerprint": {
+        "component_type": "data_store",
+        "boundary_kind": "MachineBoundary",
+        "source_files": [
+          "engine/scripts/env-setup.sh"
+        ],
+        "source_directories": [
+          "engine/scripts"
+        ],
+        "class_names": [
+          "EnvFile"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "RunScript"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "File I",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "Forgejo",
+      "display": "Forgejo",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebApp",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/docker-compose.yml"
+      ],
+      "source_directories": [
+        "engine"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "engine/docker-compose.yml"
+        ],
+        "source_directories": [
+          "engine"
+        ],
+        "class_names": [
+          "Forgejo"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Allocator",
+          "ForgejoRunner",
+          "Gateway",
+          "OpenBao",
+          "RunnerController",
+          "RunnerPool",
+          "WebTerminal"
+        ],
+        "outbound_to": [
+          "ForgejoData"
+        ],
+        "protocols": [
+          "File I",
+          "HTTP",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "ForgejoData",
+      "display": "ForgejoData",
+      "type": "data_store",
+      "tmt_type": "SE.DS.TMCore.SQL",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/docker-compose.yml"
+      ],
+      "source_directories": [
+        "engine"
+      ],
+      "fingerprint": {
+        "component_type": "data_store",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "engine/docker-compose.yml"
+        ],
+        "source_directories": [
+          "engine"
+        ],
+        "class_names": [
+          "ForgejoData"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Forgejo"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "File I",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "ForgejoRunner",
+      "display": "ForgejoRunner",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "RunnerNet",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/forgejo-runner/runner/register.sh",
+        "modules/forgejo-runner/runner/Dockerfile"
+      ],
+      "source_directories": [
+        "modules/forgejo-runner/runner"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/forgejo-runner/runner/register.sh",
+          "modules/forgejo-runner/runner/Dockerfile"
+        ],
+        "source_directories": [
+          "modules/forgejo-runner/runner"
+        ],
+        "class_names": [
+          "ForgejoRunner"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [],
+        "outbound_to": [
+          "DNSAPI",
+          "Forgejo"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "Gateway",
+      "display": "Gateway",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebServer",
+      "boundary": "PublicEdge",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/gateway/Caddyfile",
+        "engine/gateway/Dockerfile"
+      ],
+      "source_directories": [
+        "engine/gateway"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "engine/gateway/Caddyfile",
+          "engine/gateway/Dockerfile"
+        ],
+        "source_directories": [
+          "engine/gateway"
+        ],
+        "class_names": [
+          "Gateway"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "EndUser",
+          "Operator",
+          "RunScript"
+        ],
+        "outbound_to": [
+          "Allocator",
+          "AppHost",
+          "CloudAPI",
+          "Forgejo",
+          "OpenBao",
+          "PowerDNSAdmin",
+          "Presentation",
+          "RunnerController",
+          "WebTerminal"
+        ],
+        "protocols": [
+          "Container runtime",
+          "HTTP",
+          "HTTPS",
+          "WebSocket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "OpenBao",
+      "display": "OpenBao",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/openbao/config.hcl",
+        "modules/openbao/compose.yml"
+      ],
+      "source_directories": [
+        "modules/openbao"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/openbao/config.hcl",
+          "modules/openbao/compose.yml"
+        ],
+        "source_directories": [
+          "modules/openbao"
+        ],
+        "class_names": [
+          "OpenBao"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "AppHost",
+          "Gateway",
+          "OpenBaoSetup",
+          "RunnerPool",
+          "WebTerminal"
+        ],
+        "outbound_to": [
+          "Forgejo",
+          "PostgreSQL"
+        ],
+        "protocols": [
+          "HTTP",
+          "PostgreSQL"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "OpenBaoBroker",
+      "display": "OpenBaoBroker",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "WebTerminalContainer",
+      "boundary_kind": "SandboxBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/openbao/terminal/openbao-broker.py"
+      ],
+      "source_directories": [
+        "modules/openbao/terminal"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "SandboxBoundary",
+        "source_files": [
+          "modules/openbao/terminal/openbao-broker.py"
+        ],
+        "source_directories": [
+          "modules/openbao/terminal"
+        ],
+        "class_names": [
+          "OpenBaoBroker"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "WebTerminal"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "Unix socket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "OpenBaoSetup",
+      "display": "OpenBaoSetup",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/openbao/setup/setup.sh",
+        "modules/openbao/setup/policies/provisioner.hcl"
+      ],
+      "source_directories": [
+        "modules/openbao/setup",
+        "modules/openbao/setup/policies"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/openbao/setup/setup.sh",
+          "modules/openbao/setup/policies/provisioner.hcl"
+        ],
+        "source_directories": [
+          "modules/openbao/setup",
+          "modules/openbao/setup/policies"
+        ],
+        "class_names": [
+          "OpenBaoSetup"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [],
+        "outbound_to": [
+          "OpenBao",
+          "OpenBaoSetupVolume"
+        ],
+        "protocols": [
+          "File I",
+          "HTTP",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "OpenBaoSetupVolume",
+      "display": "OpenBaoSetupVolume",
+      "type": "data_store",
+      "tmt_type": "SE.DS.TMCore.FS",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/openbao/compose.yml"
+      ],
+      "source_directories": [
+        "modules/openbao"
+      ],
+      "fingerprint": {
+        "component_type": "data_store",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/openbao/compose.yml"
+        ],
+        "source_directories": [
+          "modules/openbao"
+        ],
+        "class_names": [
+          "OpenBaoSetupVolume"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "OpenBaoSetup"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "File I",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "Operator",
+      "display": "Operator",
+      "type": "external_interactor",
+      "tmt_type": "SE.EI.TMCore.User",
+      "boundary": "External",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [],
+      "source_directories": [],
+      "fingerprint": {
+        "component_type": "external_interactor",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [],
+        "source_directories": [],
+        "class_names": [
+          "Operator"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [],
+        "outbound_to": [
+          "Gateway",
+          "RunScript"
+        ],
+        "protocols": [
+          "HTTP",
+          "HTTPS",
+          "Shell"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "PostgreSQL",
+      "display": "PostgreSQL",
+      "type": "data_store",
+      "tmt_type": "SE.DS.TMCore.SQL",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+      ],
+      "source_directories": [
+        "workshops/vault-fundamentals/compose"
+      ],
+      "fingerprint": {
+        "component_type": "data_store",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+        ],
+        "source_directories": [
+          "workshops/vault-fundamentals/compose"
+        ],
+        "class_names": [
+          "PostgreSQL"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "AppHost",
+          "OpenBao"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "PostgreSQL"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "PowerDNS",
+      "display": "PowerDNS",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.NonMS",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "workshops/dns-as-code/compose/docker-compose.override.yml"
+      ],
+      "source_directories": [
+        "workshops/dns-as-code/compose"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "workshops/dns-as-code/compose/docker-compose.override.yml"
+        ],
+        "source_directories": [
+          "workshops/dns-as-code/compose"
+        ],
+        "class_names": [
+          "PowerDNS"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "DNSAPI",
+          "PowerDNSAdmin",
+          "StepCA"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "DNS",
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "PowerDNSAdmin",
+      "display": "PowerDNSAdmin",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebApp",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/dns-ui/compose.yml",
+        "modules/dns-ui/dns-admin/Dockerfile"
+      ],
+      "source_directories": [
+        "modules/dns-ui",
+        "modules/dns-ui/dns-admin"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/dns-ui/compose.yml",
+          "modules/dns-ui/dns-admin/Dockerfile"
+        ],
+        "source_directories": [
+          "modules/dns-ui",
+          "modules/dns-ui/dns-admin"
+        ],
+        "class_names": [
+          "PowerDNSAdmin"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway"
+        ],
+        "outbound_to": [
+          "PowerDNS"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "Presentation",
+      "display": "Presentation",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebServer",
+      "boundary": "PublicEdge",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/presentation/Dockerfile",
+        "engine/presentation/engine.js"
+      ],
+      "source_directories": [
+        "engine/presentation"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "engine/presentation/Dockerfile",
+          "engine/presentation/engine.js"
+        ],
+        "source_directories": [
+          "engine/presentation"
+        ],
+        "class_names": [
+          "Presentation"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "RunScript",
+      "display": "RunScript",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.NonMS",
+      "boundary": "LabHost",
+      "boundary_kind": "MachineBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/run.sh",
+        "engine/scripts/env-setup.sh",
+        "engine/allocator/render_extensions.py"
+      ],
+      "source_directories": [
+        "engine",
+        "engine/allocator",
+        "engine/scripts"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "MachineBoundary",
+        "source_files": [
+          "engine/run.sh",
+          "engine/scripts/env-setup.sh",
+          "engine/allocator/render_extensions.py"
+        ],
+        "source_directories": [
+          "engine",
+          "engine/allocator",
+          "engine/scripts"
+        ],
+        "class_names": [
+          "ManifestError"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Operator"
+        ],
+        "outbound_to": [
+          "EnvFile",
+          "Gateway"
+        ],
+        "protocols": [
+          "Container runtime",
+          "File I",
+          "O",
+          "Shell"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "RunnerController",
+      "display": "RunnerController",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/runner-pool/compose.yml"
+      ],
+      "source_directories": [
+        "modules/runner-pool"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/runner-pool/compose.yml"
+        ],
+        "source_directories": [
+          "modules/runner-pool"
+        ],
+        "class_names": [
+          "RunnerController"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway"
+        ],
+        "outbound_to": [
+          "Forgejo"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "RunnerPool",
+      "display": "RunnerPool",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "RunnerNet",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "modules/runner-pool/compose.yml",
+        "modules/runner-pool/pool/Dockerfile"
+      ],
+      "source_directories": [
+        "modules/runner-pool",
+        "modules/runner-pool/pool"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "modules/runner-pool/compose.yml",
+          "modules/runner-pool/pool/Dockerfile"
+        ],
+        "source_directories": [
+          "modules/runner-pool",
+          "modules/runner-pool/pool"
+        ],
+        "class_names": [
+          "RunnerPool"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [],
+        "outbound_to": [
+          "AppHost",
+          "Forgejo",
+          "OpenBao"
+        ],
+        "protocols": [
+          "HTTP"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "StepCA",
+      "display": "StepCA",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.WebSvc",
+      "boundary": "WorkshopLab",
+      "boundary_kind": "NetworkBoundary",
+      "aliases": [],
+      "source_files": [
+        "workshops/cert-autorenewal/compose/step-ca/entrypoint.sh",
+        "workshops/cert-autorenewal/compose/step-ca/Dockerfile"
+      ],
+      "source_directories": [
+        "workshops/cert-autorenewal/compose/step-ca"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "NetworkBoundary",
+        "source_files": [
+          "workshops/cert-autorenewal/compose/step-ca/entrypoint.sh",
+          "workshops/cert-autorenewal/compose/step-ca/Dockerfile"
+        ],
+        "source_directories": [
+          "workshops/cert-autorenewal/compose/step-ca"
+        ],
+        "class_names": [
+          "StepCA"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "WebTerminal"
+        ],
+        "outbound_to": [
+          "PowerDNS"
+        ],
+        "protocols": [
+          "DNS",
+          "HTTPS"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "TerminalHome",
+      "display": "TerminalHome",
+      "type": "data_store",
+      "tmt_type": "SE.DS.TMCore.FS",
+      "boundary": "WebTerminalContainer",
+      "boundary_kind": "SandboxBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/docker-compose.yml"
+      ],
+      "source_directories": [
+        "engine"
+      ],
+      "fingerprint": {
+        "component_type": "data_store",
+        "boundary_kind": "SandboxBoundary",
+        "source_files": [
+          "engine/docker-compose.yml"
+        ],
+        "source_directories": [
+          "engine"
+        ],
+        "class_names": [
+          "TerminalHome"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "WebTerminal"
+        ],
+        "outbound_to": [],
+        "protocols": [
+          "File I",
+          "O"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "WebTerminal",
+      "display": "WebTerminal",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "WebTerminalContainer",
+      "boundary_kind": "SandboxBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/web-terminal/entrypoint.sh",
+        "engine/web-terminal/Dockerfile"
+      ],
+      "source_directories": [
+        "engine/web-terminal"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "SandboxBoundary",
+        "source_files": [
+          "engine/web-terminal/entrypoint.sh",
+          "engine/web-terminal/Dockerfile"
+        ],
+        "source_directories": [
+          "engine/web-terminal"
+        ],
+        "class_names": [
+          "WebTerminal"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Gateway",
+          "WorkspaceControl"
+        ],
+        "outbound_to": [
+          "CloudAPI",
+          "DNSAPI",
+          "DojoBroker",
+          "Forgejo",
+          "OpenBao",
+          "OpenBaoBroker",
+          "StepCA",
+          "TerminalHome"
+        ],
+        "protocols": [
+          "File I",
+          "HTTP",
+          "HTTPS",
+          "O",
+          "Process spawn",
+          "Unix socket",
+          "WebSocket"
+        ]
+      },
+      "sidecars": []
+    },
+    {
+      "id": "WorkspaceControl",
+      "display": "WorkspaceControl",
+      "type": "process",
+      "tmt_type": "SE.P.TMCore.OSProcess",
+      "boundary": "WebTerminalContainer",
+      "boundary_kind": "SandboxBoundary",
+      "aliases": [],
+      "source_files": [
+        "engine/web-terminal/workspace-control.py"
+      ],
+      "source_directories": [
+        "engine/web-terminal"
+      ],
+      "fingerprint": {
+        "component_type": "process",
+        "boundary_kind": "SandboxBoundary",
+        "source_files": [
+          "engine/web-terminal/workspace-control.py"
+        ],
+        "source_directories": [
+          "engine/web-terminal"
+        ],
+        "class_names": [
+          "Handler"
+        ],
+        "namespace": "",
+        "config_keys": [],
+        "api_routes": [],
+        "dependencies": [],
+        "inbound_from": [
+          "Allocator"
+        ],
+        "outbound_to": [
+          "WebTerminal"
+        ],
+        "protocols": [
+          "HTTP",
+          "Process spawn"
+        ]
+      },
+      "sidecars": []
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "CloudNet",
+      "display": "CloudNet",
+      "kind": "NetworkBoundary",
+      "aliases": [],
+      "contains": [
+        "CloudHost"
+      ],
+      "contains_fingerprint": "CloudHost"
+    },
+    {
+      "id": "LabHost",
+      "display": "LabHost",
+      "kind": "MachineBoundary",
+      "aliases": [],
+      "contains": [
+        "EnvFile",
+        "RunScript"
+      ],
+      "contains_fingerprint": "EnvFile|RunScript"
+    },
+    {
+      "id": "PublicEdge",
+      "display": "PublicEdge",
+      "kind": "NetworkBoundary",
+      "aliases": [],
+      "contains": [
+        "Gateway",
+        "Presentation"
+      ],
+      "contains_fingerprint": "Gateway|Presentation"
+    },
+    {
+      "id": "RunnerNet",
+      "display": "RunnerNet",
+      "kind": "NetworkBoundary",
+      "aliases": [],
+      "contains": [
+        "ForgejoRunner",
+        "RunnerPool"
+      ],
+      "contains_fingerprint": "ForgejoRunner|RunnerPool"
+    },
+    {
+      "id": "WebTerminalContainer",
+      "display": "WebTerminalContainer",
+      "kind": "SandboxBoundary",
+      "aliases": [],
+      "contains": [
+        "DojoBroker",
+        "OpenBaoBroker",
+        "TerminalHome",
+        "WebTerminal",
+        "WorkspaceControl"
+      ],
+      "contains_fingerprint": "DojoBroker|OpenBaoBroker|TerminalHome|WebTerminal|WorkspaceControl"
+    },
+    {
+      "id": "WorkshopLab",
+      "display": "WorkshopLab",
+      "kind": "NetworkBoundary",
+      "aliases": [],
+      "contains": [
+        "Allocator",
+        "AppHost",
+        "CloudAPI",
+        "DNSAPI",
+        "Forgejo",
+        "ForgejoData",
+        "OpenBao",
+        "OpenBaoSetup",
+        "OpenBaoSetupVolume",
+        "PostgreSQL",
+        "PowerDNS",
+        "PowerDNSAdmin",
+        "RunnerController",
+        "StepCA"
+      ],
+      "contains_fingerprint": "Allocator|AppHost|CloudAPI|DNSAPI|Forgejo|ForgejoData|OpenBao|OpenBaoSetup|OpenBaoSetupVolume|PostgreSQL|PowerDNS|PowerDNSAdmin|RunnerController|StepCA"
+    }
+  ],
+  "flows": [
+    {
+      "id": "DF_Allocator_to_Forgejo",
+      "from": "Allocator",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "Server-side login POST using STUDENT_PASSWORD or admin password; cookies relayed (DF08)"
+    },
+    {
+      "id": "DF_Allocator_to_WorkspaceControl",
+      "from": "Allocator",
+      "to": "WorkspaceControl",
+      "protocol": "HTTP",
+      "description": "Start/stop/status calls with X-Control-Token (DF07)"
+    },
+    {
+      "id": "DF_AppHost_to_OpenBao",
+      "from": "AppHost",
+      "to": "OpenBao",
+      "protocol": "HTTP",
+      "description": "Slot app login with platform JWT (DF32)"
+    },
+    {
+      "id": "DF_AppHost_to_PostgreSQL",
+      "from": "AppHost",
+      "to": "PostgreSQL",
+      "protocol": "PostgreSQL",
+      "description": "Slot app queries (DF33)"
+    },
+    {
+      "id": "DF_CloudAPI_to_CloudHost",
+      "from": "CloudAPI",
+      "to": "CloudHost",
+      "protocol": "Unix socket",
+      "description": "Docker Engine API over shared volume socket (DF23)"
+    },
+    {
+      "id": "DF_DNSAPI_to_PowerDNS",
+      "from": "DNSAPI",
+      "to": "PowerDNS",
+      "protocol": "HTTP",
+      "description": "Forwarded API calls with real key (DF36)"
+    },
+    {
+      "id": "DF_EndUser_to_Gateway",
+      "from": "EndUser",
+      "to": "Gateway",
+      "protocol": "HTTPS/HTTP",
+      "description": "All student traffic with shared Basic Auth credential and slot cookie (DF01)"
+    },
+    {
+      "id": "DF_ForgejoRunner_to_DNSAPI",
+      "from": "ForgejoRunner",
+      "to": "DNSAPI",
+      "protocol": "HTTP",
+      "description": "CI dnscontrol push to protected zone (DF35)"
+    },
+    {
+      "id": "DF_ForgejoRunner_to_Forgejo",
+      "from": "ForgejoRunner",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "Runner fetches tasks (DF34)"
+    },
+    {
+      "id": "DF_Forgejo_to_ForgejoData",
+      "from": "Forgejo",
+      "to": "ForgejoData",
+      "protocol": "File I/O",
+      "description": "SQLite and repositories (DF38)"
+    },
+    {
+      "id": "DF_Gateway_to_Allocator",
+      "from": "Gateway",
+      "to": "Allocator",
+      "protocol": "HTTP",
+      "description": "Pages, /assign, /auth-check, route checks with X-Auth-User and X-Gateway-Token (DF03)"
+    },
+    {
+      "id": "DF_Gateway_to_AppHost",
+      "from": "Gateway",
+      "to": "AppHost",
+      "protocol": "HTTP",
+      "description": "App panel and deployed app pages (DF21)"
+    },
+    {
+      "id": "DF_Gateway_to_CloudAPI",
+      "from": "Gateway",
+      "to": "CloudAPI",
+      "protocol": "HTTP",
+      "description": "Portal with X-Auth-User and X-Gateway-Token (DF18)"
+    },
+    {
+      "id": "DF_Gateway_to_Forgejo",
+      "from": "Gateway",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "/git proxy with Authorization header stripped (DF05)"
+    },
+    {
+      "id": "DF_Gateway_to_OpenBao",
+      "from": "Gateway",
+      "to": "OpenBao",
+      "protocol": "HTTP",
+      "description": "OpenBao UI through SSO shim (DF19)"
+    },
+    {
+      "id": "DF_Gateway_to_PowerDNSAdmin",
+      "from": "Gateway",
+      "to": "PowerDNSAdmin",
+      "protocol": "HTTP",
+      "description": "Remote-user identity for facilitator (DF22)"
+    },
+    {
+      "id": "DF_Gateway_to_Presentation",
+      "from": "Gateway",
+      "to": "Presentation",
+      "protocol": "HTTP",
+      "description": "/slides proxy, no authentication (DF06)"
+    },
+    {
+      "id": "DF_Gateway_to_RunnerController",
+      "from": "Gateway",
+      "to": "RunnerController",
+      "protocol": "HTTP",
+      "description": "Facilitator Runners panel (DF20)"
+    },
+    {
+      "id": "DF_Gateway_to_WebTerminal",
+      "from": "Gateway",
+      "to": "WebTerminal",
+      "protocol": "HTTP/WebSocket",
+      "description": "Proxy to the student's code-server/ttyd port chosen by /auth-check (DF04)"
+    },
+    {
+      "id": "DF_OpenBaoSetup_to_OpenBao",
+      "from": "OpenBaoSetup",
+      "to": "OpenBao",
+      "protocol": "HTTP",
+      "description": "Init, unseal, provisioner token, tenancy (DF24)"
+    },
+    {
+      "id": "DF_OpenBaoSetup_to_OpenBaoSetupVolume",
+      "from": "OpenBaoSetup",
+      "to": "OpenBaoSetupVolume",
+      "protocol": "File I/O",
+      "description": "Unseal key and tokens (DF25)"
+    },
+    {
+      "id": "DF_OpenBao_to_Forgejo",
+      "from": "OpenBao",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "OIDC discovery and token exchange (DF26)"
+    },
+    {
+      "id": "DF_OpenBao_to_PostgreSQL",
+      "from": "OpenBao",
+      "to": "PostgreSQL",
+      "protocol": "PostgreSQL",
+      "description": "Database secrets engine creating dynamic logins (DF27)"
+    },
+    {
+      "id": "DF_Operator_to_Gateway",
+      "from": "Operator",
+      "to": "Gateway",
+      "protocol": "HTTPS/HTTP",
+      "description": "Facilitator traffic, /admin workspace (DF02)"
+    },
+    {
+      "id": "DF_Operator_to_RunScript",
+      "from": "Operator",
+      "to": "RunScript",
+      "protocol": "Shell",
+      "description": "Facilitator runs ./run.sh (DF42)"
+    },
+    {
+      "id": "DF_PowerDNSAdmin_to_PowerDNS",
+      "from": "PowerDNSAdmin",
+      "to": "PowerDNS",
+      "protocol": "HTTP",
+      "description": "UI API calls with real key (DF37)"
+    },
+    {
+      "id": "DF_RunScript_to_EnvFile",
+      "from": "RunScript",
+      "to": "EnvFile",
+      "protocol": "File I/O",
+      "description": "Reads/writes secrets (DF39)"
+    },
+    {
+      "id": "DF_RunScript_to_Gateway",
+      "from": "RunScript",
+      "to": "Gateway",
+      "protocol": "Container runtime",
+      "description": "Builds images, renders Caddy/allocator extensions, starts stack (DF40)"
+    },
+    {
+      "id": "DF_RunnerController_to_Forgejo",
+      "from": "RunnerController",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "Runner registration and job queries with admin API (DF29)"
+    },
+    {
+      "id": "DF_RunnerPool_to_AppHost",
+      "from": "RunnerPool",
+      "to": "AppHost",
+      "protocol": "HTTP",
+      "description": "Deploy bundle with Actions ID token (DF31)"
+    },
+    {
+      "id": "DF_RunnerPool_to_Forgejo",
+      "from": "RunnerPool",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "Runner fetches tasks and reports logs (DF28)"
+    },
+    {
+      "id": "DF_RunnerPool_to_OpenBao",
+      "from": "RunnerPool",
+      "to": "OpenBao",
+      "protocol": "HTTP",
+      "description": "CI job JWT login (DF30)"
+    },
+    {
+      "id": "DF_StepCA_to_PowerDNS",
+      "from": "StepCA",
+      "to": "PowerDNS",
+      "protocol": "DNS",
+      "description": "ACME challenge validation lookups (DF41)"
+    },
+    {
+      "id": "DF_WebTerminal_to_CloudAPI",
+      "from": "WebTerminal",
+      "to": "CloudAPI",
+      "protocol": "HTTPS",
+      "description": "OAuth token and ARM calls from OpenTofu (DF14)"
+    },
+    {
+      "id": "DF_WebTerminal_to_DNSAPI",
+      "from": "WebTerminal",
+      "to": "DNSAPI",
+      "protocol": "HTTP",
+      "description": "dnscontrol with public key (DF16)"
+    },
+    {
+      "id": "DF_WebTerminal_to_DojoBroker",
+      "from": "WebTerminal",
+      "to": "DojoBroker",
+      "protocol": "Unix socket",
+      "description": "Credential request authenticated by peer uid (DF12)"
+    },
+    {
+      "id": "DF_WebTerminal_to_Forgejo",
+      "from": "WebTerminal",
+      "to": "Forgejo",
+      "protocol": "HTTP",
+      "description": "git clone/push with student credentials (DF11)"
+    },
+    {
+      "id": "DF_WebTerminal_to_OpenBao",
+      "from": "WebTerminal",
+      "to": "OpenBao",
+      "protocol": "HTTP",
+      "description": "bao CLI and SDK calls (DF15)"
+    },
+    {
+      "id": "DF_WebTerminal_to_OpenBaoBroker",
+      "from": "WebTerminal",
+      "to": "OpenBaoBroker",
+      "protocol": "Unix socket",
+      "description": "JWT request authenticated by peer uid (DF13)"
+    },
+    {
+      "id": "DF_WebTerminal_to_StepCA",
+      "from": "WebTerminal",
+      "to": "StepCA",
+      "protocol": "HTTPS",
+      "description": "ACME certificate orders (DF17)"
+    },
+    {
+      "id": "DF_WebTerminal_to_TerminalHome",
+      "from": "WebTerminal",
+      "to": "TerminalHome",
+      "protocol": "File I/O",
+      "description": "Student files, tokens, git config (DF10)"
+    },
+    {
+      "id": "DF_WorkspaceControl_to_WebTerminal",
+      "from": "WorkspaceControl",
+      "to": "WebTerminal",
+      "protocol": "Process spawn",
+      "description": "su - <user> code-server --auth none / ttyd (DF09)"
+    }
+  ],
+  "threats": [
+    {
+      "id": "T01.A",
+      "title": "The single shared class credential is forwarded to non-attendees, who can claim slots and",
+      "description": "The single shared class credential is forwarded to non-attendees, who can claim slots and get a shell on the lab network",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-session join codes, slot cap, facilitator approval",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "A",
+        "attack_surface": "DF01 (Abuse)"
+      }
+    },
+    {
+      "id": "T01.D",
+      "title": "Unauthenticated request floods and 401 floods against the single public listener, with no",
+      "description": "Unauthenticated request floods and 401 floods against the single public listener, with no rate or connection limits",
+      "stride_category": "D",
+      "tier": 1,
+      "prerequisites": "None",
+      "status": "Open",
+      "mitigation": "Caddy rate-limit module or upstream proxy limits; host firewall",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "D",
+        "attack_surface": "DF01 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T01.I",
+      "title": "Basic Auth credentials (base64) and the session cookie sent in cleartext in HTTP delivery",
+      "description": "Basic Auth credentials (base64) and the session cookie sent in cleartext in HTTP delivery mode; Secure cookie flag is off",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Internal Network",
+      "status": "Open",
+      "mitigation": "HTTPS everywhere; Secure cookies",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "I",
+        "attack_surface": "DF01, DF02 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T01.R",
+      "title": "Every student authenticates with the same Basic Auth user and Caddy has no access log",
+      "description": "Every student authenticates with the same Basic Auth user and Caddy has no access log configured, so requests cannot be attributed",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Enable Caddy access logs with the slot identity; log allocator decisions",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "R",
+        "attack_surface": "DF01 (Repudiation)"
+      }
+    },
+    {
+      "id": "T01.S1",
+      "title": "Guessing or brute-forcing the shared class or facilitator Basic Auth credential;",
+      "description": "Guessing or brute-forcing the shared class or facilitator Basic Auth credential; env-setup.sh --default sets admin/admin, student, student123, and Caddy has no attempt limit",
+      "stride_category": "S",
+      "tier": 1,
+      "prerequisites": "None",
+      "status": "Open",
+      "mitigation": "Interactive setup with random passwords; add rate limiting / fail2ban; refuse to start with default passwords when PUBLIC_BASE_URL is not localhost",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "S",
+        "attack_surface": "DF01, DF02 (Spoofing)"
+      }
+    },
+    {
+      "id": "T01.S2",
+      "title": "Client-supplied X-Auth-User / X-Gateway-Token headers forging an identity to upstreams",
+      "description": "Client-supplied X-Auth-User / X-Gateway-Token headers forging an identity to upstreams",
+      "stride_category": "S",
+      "tier": 1,
+      "prerequisites": "None",
+      "status": "Mitigated",
+      "mitigation": "header_up replaces client values on every proxied block (Caddyfile)",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "S",
+        "attack_surface": "DF03, DF18 (Spoofing)"
+      }
+    },
+    {
+      "id": "T01.T",
+      "title": "Man-in-the-middle modifies pages or injects script when the gateway serves plain HTTP",
+      "description": "Man-in-the-middle modifies pages or injects script when the gateway serves plain HTTP (PUBLIC_BASE_URL=http://...) on a LAN",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Internal Network",
+      "status": "Open",
+      "mitigation": "Serve HTTPS (real hostname or internal CA); add HSTS",
+      "identity_key": {
+        "component_id": "Gateway",
+        "data_flow_id": "DF_EndUser_to_Gateway",
+        "stride_category": "T",
+        "attack_surface": "DF01, DF02 (Tampering)"
+      }
+    },
+    {
+      "id": "T02.A",
+      "title": "Student-chosen display names (up to 60 characters) shown on the facilitator roster used",
+      "description": "Student-chosen display names (up to 60 characters) shown on the facilitator roster used for impersonation or markup injection",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "escapeHtml() on roster fields; add a CSP header as defence in depth",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "A",
+        "attack_surface": "DF03 (Abuse)"
+      }
+    },
+    {
+      "id": "T02.D1",
+      "title": "One client repeatedly POSTs /assign without a cookie and claims every free slot, locking",
+      "description": "One client repeatedly POSTs /assign without a cookie and claims every free slot, locking the class out",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Limit slots per client, facilitator approval or join codes",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "D",
+        "attack_surface": "DF03 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T02.D2",
+      "title": "Single-threaded HTTPServer with a 10 s socket timeout: slow or stalled requests block",
+      "description": "Single-threaded HTTPServer with a 10 s socket timeout: slow or stalled requests block /auth-check for everyone",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "ThreadingHTTPServer with a lock, or lower timeouts and gateway limits",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "D",
+        "attack_surface": "DF03 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T02.E",
+      "title": "Open redirect through /forgejo-login?next= used to phish after SSO",
+      "description": "Open redirect through /forgejo-login?next= used to phish after SSO",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "local_path() accepts only single-slash printable site paths",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "E",
+        "attack_surface": "DF03, DF08 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T02.I",
+      "title": "The landing page shows every student the same STUDENT_PASSWORD, which is also every other",
+      "description": "The landing page shows every student the same STUDENT_PASSWORD, which is also every other student's Linux and Forgejo password",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student random passwords",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "I",
+        "attack_surface": "DF03 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T02.R",
+      "title": "log_message is a no-op; slot claims, releases, SSO logins and watch sessions leave no",
+      "description": "log_message is a no-op; slot claims, releases, SSO logins and watch sessions leave no record",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Structured audit log of identity decisions",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "R",
+        "attack_surface": "DF03 (Repudiation)"
+      }
+    },
+    {
+      "id": "T02.S1",
+      "title": "Another container on workshop_lab sends forged X-Auth-User: <facilitator> directly to",
+      "description": "Another container on workshop_lab sends forged X-Auth-User: <facilitator> directly to allocator:8080",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "gateway_authorized() requires X-Gateway-Token via hmac.compare_digest before any routing",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "S",
+        "attack_surface": "DF03 (Spoofing)"
+      }
+    },
+    {
+      "id": "T02.S2",
+      "title": "Session cookie captured on the wire in HTTP mode and replayed to take over a student's",
+      "description": "Session cookie captured on the wire in HTTP mode and replayed to take over a student's slot",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Internal Network",
+      "status": "Open",
+      "mitigation": "Secure flag when HTTPS; serve HTTPS",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "S",
+        "attack_surface": "DF03 (Spoofing)"
+      }
+    },
+    {
+      "id": "T02.T",
+      "title": "Cross-site request forgery against /assign or /admin/release/<sid>",
+      "description": "Cross-site request forgery against /assign or /admin/release/<sid>",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "SameSite=Lax cookie; release requires X-Requested-With: dojo-admin",
+      "identity_key": {
+        "component_id": "Allocator",
+        "data_flow_id": "DF_Gateway_to_Allocator",
+        "stride_category": "T",
+        "attack_surface": "DF03 (Tampering)"
+      }
+    },
+    {
+      "id": "T03.E",
+      "title": "Anyone holding CONTROL_TOKEN can run a code-server as any account, including the",
+      "description": "Anyone holding CONTROL_TOKEN can run a code-server as any account, including the facilitator",
+      "stride_category": "E",
+      "tier": 3,
+      "prerequisites": "Allocator Compromise",
+      "status": "Open",
+      "mitigation": "Keep the token only in allocator/web-terminal; rotate per run",
+      "identity_key": {
+        "component_id": "WorkspaceControl",
+        "data_flow_id": "DF_Allocator_to_WorkspaceControl",
+        "stride_category": "E",
+        "attack_surface": "DF07, DF09 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T03.R",
+      "title": "Start/stop/watch calls are not logged (log_message suppressed)",
+      "description": "Start/stop/watch calls are not logged (log_message suppressed)",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Log control-plane calls with caller and target",
+      "identity_key": {
+        "component_id": "WorkspaceControl",
+        "data_flow_id": "DF_Allocator_to_WorkspaceControl",
+        "stride_category": "R",
+        "attack_surface": "DF07 (Repudiation)"
+      }
+    },
+    {
+      "id": "T03.S",
+      "title": "A container on workshop_lab calls /start or /stop to spawn or kill another account's",
+      "description": "A container on workshop_lab calls /start or /stop to spawn or kill another account's workspace",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "X-Control-Token compared with hmac.compare_digest",
+      "identity_key": {
+        "component_id": "WorkspaceControl",
+        "data_flow_id": "DF_Allocator_to_WorkspaceControl",
+        "stride_category": "S",
+        "attack_surface": "DF07 (Spoofing)"
+      }
+    },
+    {
+      "id": "T03.T",
+      "title": "Username injected into the su - <user> -c command line",
+      "description": "Username injected into the su - <user> -c command line",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "valid_username() allowlist of provisioned accounts before any spawn",
+      "identity_key": {
+        "component_id": "WorkspaceControl",
+        "data_flow_id": "DF_WorkspaceControl_to_WebTerminal",
+        "stride_category": "T",
+        "attack_surface": "DF09 (Tampering)"
+      }
+    },
+    {
+      "id": "T04.A",
+      "title": "The terminal is a pivot onto workshop_lab: students scan and attack every internal",
+      "description": "The terminal is a pivot onto workshop_lab: students scan and attack every internal service directly",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Network policy per service; authenticate every service (as most modules do)",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_WebTerminal_to_CloudAPI",
+        "stride_category": "A",
+        "attack_surface": "DF14, DF15, DF16, DF17 (Abuse)"
+      }
+    },
+    {
+      "id": "T04.D",
+      "title": "One student exhausts the container-wide mem_limit (4g) or pids_limit shared by 30",
+      "description": "One student exhausts the container-wide mem_limit (4g) or pids_limit shared by 30 students",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-account ulimits and code-server heap caps exist; add cgroup per user or per-student containers",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_Gateway_to_WebTerminal",
+        "stride_category": "D",
+        "attack_surface": "DF04 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T04.I",
+      "title": "/proc is not mounted with hidepid, so ps aux shows other students' command lines,",
+      "description": "/proc is not mounted with hidepid, so ps aux shows other students' command lines, including secrets passed as arguments in the labs (bao kv put ... db_password=...)",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "podman --security-opt proc-opts=hidepid=2 or per-user PID namespaces; teach stdin/@file input",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_WorkspaceControl_to_WebTerminal",
+        "stride_category": "I",
+        "attack_surface": "DF09 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T04.R",
+      "title": "All students share one network namespace and source IP, so actions on lab services cannot",
+      "description": "All students share one network namespace and source IP, so actions on lab services cannot be tied to a student",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student identity in every service log (tokens already carry it); keep terminal session logs",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_WebTerminal_to_Forgejo",
+        "stride_category": "R",
+        "attack_surface": "DF11, DF14, DF15, DF16 (Repudiation)"
+      }
+    },
+    {
+      "id": "T04.S1",
+      "title": "A student runs su - studentNN with the shared STUDENT_PASSWORD shown on their own landing",
+      "description": "A student runs su - studentNN with the shared STUDENT_PASSWORD shown on their own landing page and becomes any other student",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student random passwords or locked passwords (passwd -l) for student accounts",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_WorkspaceControl_to_WebTerminal",
+        "stride_category": "S",
+        "attack_surface": "DF09, DF10 (Spoofing)"
+      }
+    },
+    {
+      "id": "T04.S2",
+      "title": "code-server/ttyd listen on 0.0.0.0:9000-9899 with no auth; the DOJO_ISOLATION chain",
+      "description": "code-server/ttyd listen on 0.0.0.0:9000-9899 with no auth; the DOJO_ISOLATION chain filters only OUTPUT inside this container, so code on another workshop_lab container (a student's app on AppHost) opens any student's IDE or shell",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "INPUT rule allowing 9000-9899 only from the gateway, or per-user Unix sockets / code-server password injected by the gateway",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_Gateway_to_WebTerminal",
+        "stride_category": "S",
+        "attack_surface": "DF04 (Spoofing)"
+      }
+    },
+    {
+      "id": "T04.T",
+      "title": "After su, a student edits or deletes another student's lab work, git config, or tokens",
+      "description": "After su, a student edits or deletes another student's lab work, git config, or tokens",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student credentials; restrictive home permissions",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "data_flow_id": "DF_WebTerminal_to_TerminalHome",
+        "stride_category": "T",
+        "attack_surface": "DF10 (Tampering)"
+      }
+    },
+    {
+      "id": "T05.A",
+      "title": "Forgejo identity is the root of trust for OpenBao OIDC, Actions ID tokens and AppHost",
+      "description": "Forgejo identity is the root of trust for OpenBao OIDC, Actions ID tokens and AppHost deploys, so a hijacked student account yields that student's secrets and deploy slot",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student passwords; short token TTLs (present)",
+      "identity_key": {
+        "component_id": "Forgejo",
+        "data_flow_id": "DF_OpenBao_to_Forgejo",
+        "stride_category": "A",
+        "attack_surface": "DF26, DF31 (Abuse)"
+      }
+    },
+    {
+      "id": "T05.D",
+      "title": "Large pushes or repeated clones exhaust Forgejo (2g mem_limit) for the class",
+      "description": "Large pushes or repeated clones exhaust Forgejo (2g mem_limit) for the class",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Repository size limits, request limits",
+      "identity_key": {
+        "component_id": "Forgejo",
+        "data_flow_id": "DF_WebTerminal_to_Forgejo",
+        "stride_category": "D",
+        "attack_surface": "DF11 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T05.E",
+      "title": "Forgejo admin password is admin in --default mode and the admin login form is reachable",
+      "description": "Forgejo admin password is admin in --default mode and the admin login form is reachable from every student",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Random admin password; interactive setup",
+      "identity_key": {
+        "component_id": "Forgejo",
+        "data_flow_id": "DF_Gateway_to_Forgejo",
+        "stride_category": "E",
+        "attack_surface": "DF05 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T05.S",
+      "title": "Logging in to Forgejo as another student with the shared STUDENT_PASSWORD",
+      "description": "Logging in to Forgejo as another student with the shared STUDENT_PASSWORD",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student passwords",
+      "identity_key": {
+        "component_id": "Forgejo",
+        "data_flow_id": "DF_Gateway_to_Forgejo",
+        "stride_category": "S",
+        "attack_surface": "DF05, DF11 (Spoofing)"
+      }
+    },
+    {
+      "id": "T05.T",
+      "title": "Students push branches to the shared org repo and change .forgejo/workflows/* so their",
+      "description": "Students push branches to the shared org repo and change .forgejo/workflows/* so their code runs in CI with CI privileges",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Forks-only workflow, protected workflow files, approval before running PR workflows",
+      "identity_key": {
+        "component_id": "Forgejo",
+        "data_flow_id": "DF_WebTerminal_to_Forgejo",
+        "stride_category": "T",
+        "attack_surface": "DF11, DF34 (Tampering)"
+      }
+    },
+    {
+      "id": "T06.D",
+      "title": "Unauthenticated floods on /slides consume gateway and presentation capacity",
+      "description": "Unauthenticated floods on /slides consume gateway and presentation capacity",
+      "stride_category": "D",
+      "tier": 1,
+      "prerequisites": "None",
+      "status": "Open",
+      "mitigation": "Gateway rate limiting",
+      "identity_key": {
+        "component_id": "Presentation",
+        "data_flow_id": "DF_Gateway_to_Presentation",
+        "stride_category": "D",
+        "attack_surface": "DF06 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T06.I",
+      "title": "Slides, cheat sheets and lab copies (content/slides/lab/*.md.txt) are readable by anyone",
+      "description": "Slides, cheat sheets and lab copies (content/slides/lab/*.md.txt) are readable by anyone who can reach the gateway, before the Basic Auth gate",
+      "stride_category": "I",
+      "tier": 1,
+      "prerequisites": "None",
+      "status": "Open",
+      "mitigation": "Move /slides behind the shared gate or serve only public decks",
+      "identity_key": {
+        "component_id": "Presentation",
+        "data_flow_id": "DF_Gateway_to_Presentation",
+        "stride_category": "I",
+        "attack_surface": "DF06 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T07.E",
+      "title": "Builds pull mutable tags (caddy:2-alpine, python:3.12-alpine, docker:dind,",
+      "description": "Builds pull mutable tags (caddy:2-alpine, python:3.12-alpine, docker:dind, step-ca:latest, pdns-auth-49:latest) so a compromised upstream image runs with the stack's privileges",
+      "stride_category": "E",
+      "tier": 3,
+      "prerequisites": "RunScript Compromise",
+      "status": "Open",
+      "mitigation": "Pin images by digest, as dns-admin already does",
+      "identity_key": {
+        "component_id": "RunScript",
+        "data_flow_id": "DF_RunScript_to_Gateway",
+        "stride_category": "E",
+        "attack_surface": "DF40 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T07.I",
+      "title": "env-setup.sh --default writes fixed, published passwords for every human account",
+      "description": "env-setup.sh --default writes fixed, published passwords for every human account",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Warn or refuse --default when PUBLIC_BASE_URL is not localhost",
+      "identity_key": {
+        "component_id": "RunScript",
+        "data_flow_id": "DF_RunScript_to_EnvFile",
+        "stride_category": "I",
+        "attack_surface": "DF39 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T07.T",
+      "title": "A malicious or broken extensions.json injects raw Caddy config or routes to arbitrary",
+      "description": "A malicious or broken extensions.json injects raw Caddy config or routes to arbitrary upstreams",
+      "stride_category": "T",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Mitigated",
+      "mitigation": "Fixed gate templates; renderer rejects engine-path collisions and unknown upstreams; bad manifests stop the start",
+      "identity_key": {
+        "component_id": "RunScript",
+        "data_flow_id": "DF_RunScript_to_Gateway",
+        "stride_category": "T",
+        "attack_surface": "DF40 (Tampering)"
+      }
+    },
+    {
+      "id": "T08.A",
+      "title": "Students run container groups for non-lab purposes within quota",
+      "description": "Students run container groups for non-lab purposes within quota",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Image allowlist limits workloads to dojo/hello",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_WebTerminal_to_CloudAPI",
+        "stride_category": "A",
+        "attack_surface": "DF14 (Abuse)"
+      }
+    },
+    {
+      "id": "T08.D",
+      "title": "No request rate limiting; students can flood deployment and polling APIs",
+      "description": "No request rate limiting; students can flood deployment and polling APIs",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Quotas exist (2 groups, CPU/memory caps); add per-client rate limits",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_WebTerminal_to_CloudAPI",
+        "stride_category": "D",
+        "attack_surface": "DF14, DF18 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T08.E",
+      "title": "CloudAPI holds the Docker socket of a privileged nested daemon; a bug in the executor",
+      "description": "CloudAPI holds the Docker socket of a privileged nested daemon; a bug in the executor becomes root on CloudHost",
+      "stride_category": "E",
+      "tier": 3,
+      "prerequisites": "CloudAPI Compromise",
+      "status": "Open",
+      "mitigation": "Fixed create template, image allowlist, CapDrop: ALL; run DinD rootless",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_CloudAPI_to_CloudHost",
+        "stride_category": "E",
+        "attack_surface": "DF23 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T08.R",
+      "title": "Activity log keeps only a recent window in JSON state; operational logs go to stdout only",
+      "description": "Activity log keeps only a recent window in JSON state; operational logs go to stdout only",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Persist an append-only activity log",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_WebTerminal_to_CloudAPI",
+        "stride_category": "R",
+        "attack_surface": "DF14 (Repudiation)"
+      }
+    },
+    {
+      "id": "T08.S",
+      "title": "Portal trusts X-Auth-User when X-Gateway-Token matches; the same token is shared by every",
+      "description": "Portal trusts X-Auth-User when X-Gateway-Token matches; the same token is shared by every module service, so any one compromised service can impersonate any user here",
+      "stride_category": "S",
+      "tier": 3,
+      "prerequisites": "AppHost Compromise",
+      "status": "Open",
+      "mitigation": "Per-service gateway secrets or signed identity assertions",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_Gateway_to_CloudAPI",
+        "stride_category": "S",
+        "attack_surface": "DF18 (Spoofing)"
+      }
+    },
+    {
+      "id": "T08.T",
+      "title": "Modifying another student's resource groups",
+      "description": "Modifying another student's resource groups",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Subscription ownership check on every path; only reachable by impersonating the owner (FIND-03)",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "data_flow_id": "DF_WebTerminal_to_CloudAPI",
+        "stride_category": "T",
+        "attack_surface": "DF14 (Tampering)"
+      }
+    },
+    {
+      "id": "T09.D",
+      "title": "Nested containers exhaust the 3 GiB / 4096 PID budget",
+      "description": "Nested containers exhaust the 3 GiB / 4096 PID budget",
+      "stride_category": "D",
+      "tier": 3,
+      "prerequisites": "CloudAPI Compromise",
+      "status": "Mitigated",
+      "mitigation": "Per-container limits (PIDs 64, CPU, memory)",
+      "identity_key": {
+        "component_id": "CloudHost",
+        "data_flow_id": "DF_CloudAPI_to_CloudHost",
+        "stride_category": "D",
+        "attack_surface": "DF23 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T09.E",
+      "title": "Docker socket created mode 0666 on a shared volume and daemon runs privileged: true: any",
+      "description": "Docker socket created mode 0666 on a shared volume and daemon runs privileged: true: any process that can reach the socket controls a root-equivalent daemon",
+      "stride_category": "E",
+      "tier": 3,
+      "prerequisites": "CloudAPI Compromise",
+      "status": "Open",
+      "mitigation": "Socket mode 0660 with a dedicated group; rootless daemon",
+      "identity_key": {
+        "component_id": "CloudHost",
+        "data_flow_id": "DF_CloudAPI_to_CloudHost",
+        "stride_category": "E",
+        "attack_surface": "DF23 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T09.I",
+      "title": "Student containers reach each other or the outside",
+      "description": "Student containers reach each other or the outside",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "CloudAPI Compromise",
+      "status": "Mitigated",
+      "mitigation": "--icc=false and a DOCKER-USER drop rule",
+      "identity_key": {
+        "component_id": "CloudHost",
+        "data_flow_id": "DF_CloudAPI_to_CloudHost",
+        "stride_category": "I",
+        "attack_surface": "DF23 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T09.T",
+      "title": "A student container escapes the nested runtime into the privileged outer container and",
+      "description": "A student container escapes the nested runtime into the privileged outer container and the host kernel",
+      "stride_category": "T",
+      "tier": 3,
+      "prerequisites": "CloudAPI Compromise",
+      "status": "Open",
+      "mitigation": "Rootless DinD or sysbox; no privileged: true",
+      "identity_key": {
+        "component_id": "CloudHost",
+        "data_flow_id": "DF_CloudAPI_to_CloudHost",
+        "stride_category": "T",
+        "attack_surface": "DF23 (Tampering)"
+      }
+    },
+    {
+      "id": "T10.I",
+      "title": "Students read the signing key used to derive every student's client secret",
+      "description": "Students read the signing key used to derive every student's client secret",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Key file mode 0400 root on a read-only volume",
+      "identity_key": {
+        "component_id": "DojoBroker",
+        "data_flow_id": "DF_WebTerminal_to_DojoBroker",
+        "stride_category": "I",
+        "attack_surface": "DF12 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T10.S",
+      "title": "After su - studentNN (shared password), the broker issues studentNN's Dojo Cloud",
+      "description": "After su - studentNN (shared password), the broker issues studentNN's Dojo Cloud credentials to the attacker",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "SO_PEERCRED binding is correct; fix the shared password",
+      "identity_key": {
+        "component_id": "DojoBroker",
+        "data_flow_id": "DF_WebTerminal_to_DojoBroker",
+        "stride_category": "S",
+        "attack_surface": "DF12 (Spoofing)"
+      }
+    },
+    {
+      "id": "T11.I",
+      "title": "Students read the JWT signing key",
+      "description": "Students read the JWT signing key",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Private key readable by root only; public key mounted into OpenBaoSetup",
+      "identity_key": {
+        "component_id": "OpenBaoBroker",
+        "data_flow_id": "DF_WebTerminal_to_OpenBaoBroker",
+        "stride_category": "I",
+        "attack_surface": "DF13 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T11.S",
+      "title": "After su - studentNN, the broker signs a JWT for studentNN and the attacker gets that",
+      "description": "After su - studentNN, the broker signs a JWT for studentNN and the attacker gets that student's vault token",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "SO_PEERCRED binding is correct; fix the shared password",
+      "identity_key": {
+        "component_id": "OpenBaoBroker",
+        "data_flow_id": "DF_WebTerminal_to_OpenBaoBroker",
+        "stride_category": "S",
+        "attack_surface": "DF13 (Spoofing)"
+      }
+    },
+    {
+      "id": "T12.D",
+      "title": "Students flood login or KV endpoints; no rate-limit quota configured",
+      "description": "Students flood login or KV endpoints; no rate-limit quota configured",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "OpenBao rate-limit quotas per namespace",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_WebTerminal_to_OpenBao",
+        "stride_category": "D",
+        "attack_surface": "DF15 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T12.E",
+      "title": "Policy or namespace mistake lets a student read another student's namespace or team/*",
+      "description": "Policy or namespace mistake lets a student read another student's namespace or team/* data",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Per-student namespaces, templated policy, tenancy tests (tests/tenancy.sh)",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_WebTerminal_to_OpenBao",
+        "stride_category": "E",
+        "attack_surface": "DF15 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T12.I1",
+      "title": "Listener has tls_disable = true; tokens and secrets cross workshop_lab and runner_net in",
+      "description": "Listener has tls_disable = true; tokens and secrets cross workshop_lab and runner_net in plaintext",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "WebTerminal Compromise",
+      "status": "Open",
+      "mitigation": "TLS listener with the internal CA",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_WebTerminal_to_OpenBao",
+        "stride_category": "I",
+        "attack_surface": "DF15, DF30, DF32 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T12.I2",
+      "title": "Audit device sets hmac_accessor = false, so token accessors are stored in clear in the",
+      "description": "Audit device sets hmac_accessor = false, so token accessors are stored in clear in the audit log",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "OpenBaoSetup Compromise",
+      "status": "Open",
+      "mitigation": "Keep accessors HMAC'd unless the panel needs them",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_OpenBaoSetup_to_OpenBao",
+        "stride_category": "I",
+        "attack_surface": "DF24 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T12.R",
+      "title": "Vault actions not attributable",
+      "description": "Vault actions not attributable",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "File audit device enabled and surfaced in the audit panel",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_WebTerminal_to_OpenBao",
+        "stride_category": "R",
+        "attack_surface": "DF15 (Repudiation)"
+      }
+    },
+    {
+      "id": "T12.S",
+      "title": "Logging in as another student through the broker or Forgejo OIDC after impersonating them",
+      "description": "Logging in as another student through the broker or Forgejo OIDC after impersonating them",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student passwords",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "data_flow_id": "DF_WebTerminal_to_OpenBao",
+        "stride_category": "S",
+        "attack_surface": "DF15, DF26 (Spoofing)"
+      }
+    },
+    {
+      "id": "T13.E",
+      "title": "Provisioner policy can manage policies, auth methods and namespaces, so it is",
+      "description": "Provisioner policy can manage policies, auth methods and namespaces, so it is root-equivalent",
+      "stride_category": "E",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Scope the provisioner policy; revoke after setup",
+      "identity_key": {
+        "component_id": "OpenBaoSetup",
+        "data_flow_id": "DF_OpenBaoSetup_to_OpenBao",
+        "stride_category": "E",
+        "attack_surface": "DF24 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T13.I",
+      "title": "Unseal key (single share) and long-lived provisioner token persisted on the setup volume",
+      "description": "Unseal key (single share) and long-lived provisioner token persisted on the setup volume",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Revoke root token (done); short-TTL provisioner; transit/KMS auto-unseal",
+      "identity_key": {
+        "component_id": "OpenBaoSetup",
+        "data_flow_id": "DF_OpenBaoSetup_to_OpenBaoSetupVolume",
+        "stride_category": "I",
+        "attack_surface": "DF25 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T14.A",
+      "title": "Students run arbitrary workloads (scanning, mining) in CI",
+      "description": "Students run arbitrary workloads (scanning, mining) in CI",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Internal network only, resource limits",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "data_flow_id": "DF_RunnerPool_to_Forgejo",
+        "stride_category": "A",
+        "attack_surface": "DF28 (Abuse)"
+      }
+    },
+    {
+      "id": "T14.D",
+      "title": "Jobs exhaust the pool's 2 GiB memory or PID budget",
+      "description": "Jobs exhaust the pool's 2 GiB memory or PID budget",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "prlimit per job, mem_limit, pids_limit",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "data_flow_id": "DF_RunnerPool_to_Forgejo",
+        "stride_category": "D",
+        "attack_surface": "DF28 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T14.E",
+      "title": "Container runs as root (user: 0:0) with default capabilities; isolation rests only on",
+      "description": "Container runs as root (user: 0:0) with default capabilities; isolation rests only on unprivileged user namespaces, so a userns/kernel escape gives root over every job and the runner secrets",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "cap_drop: ALL except what unshare needs, no-new-privileges, non-root supervisor",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "data_flow_id": "DF_RunnerPool_to_Forgejo",
+        "stride_category": "E",
+        "attack_surface": "DF28 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T14.I",
+      "title": "A job reads other jobs' secrets or tokens",
+      "description": "A job reads other jobs' secrets or tokens",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Per-job user and PID namespace; cleanup after each job",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "data_flow_id": "DF_RunnerPool_to_Forgejo",
+        "stride_category": "I",
+        "attack_surface": "DF28 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T14.T",
+      "title": "A job leaves files or processes that tamper with the next job",
+      "description": "A job leaves files or processes that tamper with the next job",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Per-job user, private HOME/TMPDIR, cleanup, single-use registration",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "data_flow_id": "DF_RunnerPool_to_Forgejo",
+        "stride_category": "T",
+        "attack_surface": "DF28 (Tampering)"
+      }
+    },
+    {
+      "id": "T15.D",
+      "title": "Students queue many jobs to starve the pool",
+      "description": "Students queue many jobs to starve the pool",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Runner cap and failure back-off",
+      "identity_key": {
+        "component_id": "RunnerController",
+        "data_flow_id": "DF_RunnerController_to_Forgejo",
+        "stride_category": "D",
+        "attack_surface": "DF29 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T15.I",
+      "title": "Holds FORGEJO_ADMIN_PASSWORD and GATEWAY_TOKEN in its environment; compromise yields",
+      "description": "Holds FORGEJO_ADMIN_PASSWORD and GATEWAY_TOKEN in its environment; compromise yields Forgejo admin and facilitator impersonation",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "RunnerController Compromise",
+      "status": "Open",
+      "mitigation": "Scoped Forgejo token instead of admin password; per-service secrets",
+      "identity_key": {
+        "component_id": "RunnerController",
+        "data_flow_id": "DF_RunnerController_to_Forgejo",
+        "stride_category": "I",
+        "attack_surface": "DF29 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T15.S",
+      "title": "A student calls the panel API directly",
+      "description": "A student calls the panel API directly",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Gateway token plus exact facilitator identity; POSTs need X-Requested-With",
+      "identity_key": {
+        "component_id": "RunnerController",
+        "data_flow_id": "DF_Gateway_to_RunnerController",
+        "stride_category": "S",
+        "attack_surface": "DF20 (Spoofing)"
+      }
+    },
+    {
+      "id": "T16.A",
+      "title": "Apps serve arbitrary content to the class under the lab origin",
+      "description": "Apps serve arbitrary content to the class under the lab origin",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "sandbox; default-src 'none' CSP on app pages; request cookies/headers dropped",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_Gateway_to_AppHost",
+        "stride_category": "A",
+        "attack_surface": "DF21 (Abuse)"
+      }
+    },
+    {
+      "id": "T16.D",
+      "title": "A slot app exhausts the 1 GiB / 1024 PID container budget",
+      "description": "A slot app exhausts the 1 GiB / 1024 PID container budget",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "prlimit per slot, restart throttling",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_Gateway_to_AppHost",
+        "stride_category": "D",
+        "attack_surface": "DF21 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T16.E",
+      "title": "Student app code has unrestricted network access on workshop_lab, including other",
+      "description": "Student app code has unrestricted network access on workshop_lab, including other students' unauthenticated code-server/ttyd ports",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-slot network namespace or egress allowlist (OpenBao, app-db only)",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_Gateway_to_AppHost",
+        "stride_category": "E",
+        "attack_surface": "DF21 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T16.I",
+      "title": "Slot apps read other slots' platform tokens or the signing key",
+      "description": "Slot apps read other slots' platform tokens or the signing key",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Token files 0400 per slot user; key 0600 root",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_AppHost_to_OpenBao",
+        "stride_category": "I",
+        "attack_surface": "DF32 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T16.S",
+      "title": "Deploying into another student's slot",
+      "description": "Deploying into another student's slot",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Actions ID token audience check; slot = repo owner of <owner>/<repo> on main (impersonation covered by FIND-03)",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_RunnerPool_to_AppHost",
+        "stride_category": "S",
+        "attack_surface": "DF31 (Spoofing)"
+      }
+    },
+    {
+      "id": "T16.T",
+      "title": "Bundle path traversal during extraction",
+      "description": "Bundle path traversal during extraction",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Extraction as the slot user in its own home with --no-same-owner --no-same-permissions",
+      "identity_key": {
+        "component_id": "AppHost",
+        "data_flow_id": "DF_RunnerPool_to_AppHost",
+        "stride_category": "T",
+        "attack_surface": "DF31 (Tampering)"
+      }
+    },
+    {
+      "id": "T17.D",
+      "title": "A job hogs the single runner and blocks everyone's required DNS Preview check",
+      "description": "A job hogs the single runner and blocks everyone's required DNS Preview check",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Job timeouts; more runners",
+      "identity_key": {
+        "component_id": "ForgejoRunner",
+        "data_flow_id": "DF_ForgejoRunner_to_Forgejo",
+        "stride_category": "D",
+        "attack_surface": "DF34 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T17.E",
+      "title": "A PR that edits dns-preview.yml runs arbitrary commands with CI identity and pushes to",
+      "description": "A PR that edits dns-preview.yml runs arbitrary commands with CI identity and pushes to protected dojo.test without review",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Run PR workflows from the base branch; require approval to run; per-job credentials instead of source-IP trust",
+      "identity_key": {
+        "component_id": "ForgejoRunner",
+        "data_flow_id": "DF_ForgejoRunner_to_DNSAPI",
+        "stride_category": "E",
+        "attack_surface": "DF35 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T17.I",
+      "title": "Jobs can read the runner registration secret in runner_config",
+      "description": "Jobs can read the runner registration secret in runner_config",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Separate job user from runner daemon; ephemeral registrations",
+      "identity_key": {
+        "component_id": "ForgejoRunner",
+        "data_flow_id": "DF_ForgejoRunner_to_Forgejo",
+        "stride_category": "I",
+        "attack_surface": "DF34 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T17.T",
+      "title": "Jobs share one filesystem; a job can plant files or binaries that alter later students'",
+      "description": "Jobs share one filesystem; a job can plant files or binaries that alter later students' jobs",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Ephemeral per-job runners (as runner-pool does)",
+      "identity_key": {
+        "component_id": "ForgejoRunner",
+        "data_flow_id": "DF_ForgejoRunner_to_Forgejo",
+        "stride_category": "T",
+        "attack_surface": "DF34 (Tampering)"
+      }
+    },
+    {
+      "id": "T18.A",
+      "title": "Zone squatting: a student creates otherstudent.dojo.test first",
+      "description": "Zone squatting: a student creates otherstudent.dojo.test first",
+      "stride_category": "A",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Pre-create zones per student; ownership check",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_WebTerminal_to_DNSAPI",
+        "stride_category": "A",
+        "attack_surface": "DF16 (Abuse)"
+      }
+    },
+    {
+      "id": "T18.D",
+      "title": "No rate limit on writes",
+      "description": "No rate limit on writes",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-client limits",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_WebTerminal_to_DNSAPI",
+        "stride_category": "D",
+        "attack_surface": "DF16 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T18.E",
+      "title": "Writes outside zone endpoints (server config, TSIG keys)",
+      "description": "Writes outside zone endpoints (server config, TSIG keys)",
+      "stride_category": "E",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Gate refuses every non-zone write, CI included",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_DNSAPI_to_PowerDNS",
+        "stride_category": "E",
+        "attack_surface": "DF36 (Elevation of Privilege)"
+      }
+    },
+    {
+      "id": "T18.R",
+      "title": "Gate suppresses request logs; zone changes cannot be attributed",
+      "description": "Gate suppresses request logs; zone changes cannot be attributed",
+      "stride_category": "R",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Log method, zone and caller",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_WebTerminal_to_DNSAPI",
+        "stride_category": "R",
+        "attack_surface": "DF16 (Repudiation)"
+      }
+    },
+    {
+      "id": "T18.S",
+      "title": "CI is recognised only by source IP of forgejo-runner; any code running there is treated",
+      "description": "CI is recognised only by source IP of forgejo-runner; any code running there is treated as the pipeline",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-run signed tokens (Actions ID token) instead of IP trust",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_ForgejoRunner_to_DNSAPI",
+        "stride_category": "S",
+        "attack_surface": "DF35 (Spoofing)"
+      }
+    },
+    {
+      "id": "T18.T",
+      "title": "One student edits or deletes another student's <name>.dojo.test zone with the shared",
+      "description": "One student edits or deletes another student's <name>.dojo.test zone with the shared public key",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student keys issued by a broker, zone ownership check",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "data_flow_id": "DF_WebTerminal_to_DNSAPI",
+        "stride_category": "T",
+        "attack_surface": "DF16 (Tampering)"
+      }
+    },
+    {
+      "id": "T19.D",
+      "title": "DNS query floods from student terminals",
+      "description": "DNS query floods from student terminals",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Container limits",
+      "identity_key": {
+        "component_id": "PowerDNS",
+        "data_flow_id": "DF_StepCA_to_PowerDNS",
+        "stride_category": "D",
+        "attack_surface": "DF41 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T19.S",
+      "title": "Students call the PowerDNS API directly, bypassing the gate",
+      "description": "Students call the PowerDNS API directly, bypassing the gate",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Mitigated",
+      "mitigation": "Real API key derived from GATEWAY_TOKEN, never given to students",
+      "identity_key": {
+        "component_id": "PowerDNS",
+        "data_flow_id": "DF_DNSAPI_to_PowerDNS",
+        "stride_category": "S",
+        "attack_surface": "DF36 (Spoofing)"
+      }
+    },
+    {
+      "id": "T19.T",
+      "title": "Mutable latest image tag pulls unreviewed upstream changes",
+      "description": "Mutable latest image tag pulls unreviewed upstream changes",
+      "stride_category": "T",
+      "tier": 3,
+      "prerequisites": "RunScript Compromise",
+      "status": "Open",
+      "mitigation": "Pin by digest",
+      "identity_key": {
+        "component_id": "PowerDNS",
+        "data_flow_id": "DF_DNSAPI_to_PowerDNS",
+        "stride_category": "T",
+        "attack_surface": "DF36 (Tampering)"
+      }
+    },
+    {
+      "id": "T20.S",
+      "title": "Forged remote-user header from a student container",
+      "description": "Forged remote-user header from a student container",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Privileged User",
+      "status": "Mitigated",
+      "mitigation": "Only gateway and dns-server share dns_admin_net; gateway token required",
+      "identity_key": {
+        "component_id": "PowerDNSAdmin",
+        "data_flow_id": "DF_Gateway_to_PowerDNSAdmin",
+        "stride_category": "S",
+        "attack_surface": "DF22 (Spoofing)"
+      }
+    },
+    {
+      "id": "T21.D",
+      "title": "ACME order floods",
+      "description": "ACME order floods",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Rate limits",
+      "identity_key": {
+        "component_id": "StepCA",
+        "data_flow_id": "DF_WebTerminal_to_StepCA",
+        "stride_category": "D",
+        "attack_surface": "DF17 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T21.I",
+      "title": "CA key password defaults to the published workshop-not-a-secret",
+      "description": "CA key password defaults to the published workshop-not-a-secret",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Random password from env-setup",
+      "identity_key": {
+        "component_id": "StepCA",
+        "data_flow_id": "DF_WebTerminal_to_StepCA",
+        "stride_category": "I",
+        "attack_surface": "DF17 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T21.S",
+      "title": "Any student obtains certificates for any name they can validate, including other",
+      "description": "Any student obtains certificates for any name they can validate, including other students' hostnames via cross-writable zones",
+      "stride_category": "S",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student provisioners or name constraints",
+      "identity_key": {
+        "component_id": "StepCA",
+        "data_flow_id": "DF_WebTerminal_to_StepCA",
+        "stride_category": "S",
+        "attack_surface": "DF17 (Spoofing)"
+      }
+    },
+    {
+      "id": "T21.T",
+      "title": "Mutable step-ca:latest base image",
+      "description": "Mutable step-ca:latest base image",
+      "stride_category": "T",
+      "tier": 3,
+      "prerequisites": "RunScript Compromise",
+      "status": "Open",
+      "mitigation": "Pin by digest",
+      "identity_key": {
+        "component_id": "StepCA",
+        "data_flow_id": "DF_WebTerminal_to_StepCA",
+        "stride_category": "T",
+        "attack_surface": "DF17 (Tampering)"
+      }
+    },
+    {
+      "id": "T22.I",
+      "title": "Plaintext secrets on disk, then copied into container environments visible via inspect",
+      "description": "Plaintext secrets on disk, then copied into container environments visible via inspect",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "File mode 0600; secrets files instead of env; git-ignored (present)",
+      "identity_key": {
+        "component_id": "EnvFile",
+        "data_flow_id": "DF_RunScript_to_EnvFile",
+        "stride_category": "I",
+        "attack_surface": "DF39 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T22.T",
+      "title": "Editing .env changes every credential and token",
+      "description": "Editing .env changes every credential and token",
+      "stride_category": "T",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Host access control",
+      "identity_key": {
+        "component_id": "EnvFile",
+        "data_flow_id": "DF_RunScript_to_EnvFile",
+        "stride_category": "T",
+        "attack_surface": "DF39 (Tampering)"
+      }
+    },
+    {
+      "id": "T23.D",
+      "title": "One student fills the shared volume",
+      "description": "One student fills the shared volume",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "fsize ulimit; add quotas",
+      "identity_key": {
+        "component_id": "TerminalHome",
+        "data_flow_id": "DF_WebTerminal_to_TerminalHome",
+        "stride_category": "D",
+        "attack_surface": "DF10 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T23.I",
+      "title": "Another student reads ~/.vault-token, cached git credentials or lab secrets after su",
+      "description": "Another student reads ~/.vault-token, cached git credentials or lab secrets after su",
+      "stride_category": "I",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student passwords; chmod 700 homes",
+      "identity_key": {
+        "component_id": "TerminalHome",
+        "data_flow_id": "DF_WebTerminal_to_TerminalHome",
+        "stride_category": "I",
+        "attack_surface": "DF10 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T23.T",
+      "title": "Another student modifies files after su",
+      "description": "Another student modifies files after su",
+      "stride_category": "T",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-student passwords",
+      "identity_key": {
+        "component_id": "TerminalHome",
+        "data_flow_id": "DF_WebTerminal_to_TerminalHome",
+        "stride_category": "T",
+        "attack_surface": "DF10 (Tampering)"
+      }
+    },
+    {
+      "id": "T24.I",
+      "title": "Password hashes, runner secrets and tokens unencrypted in the volume",
+      "description": "Password hashes, runner secrets and tokens unencrypted in the volume",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Host access control; ephemeral volumes wiped by stop",
+      "identity_key": {
+        "component_id": "ForgejoData",
+        "data_flow_id": "DF_Forgejo_to_ForgejoData",
+        "stride_category": "I",
+        "attack_surface": "DF38 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T25.I",
+      "title": "Anyone with host or volume access can unseal the vault and act as provisioner",
+      "description": "Anyone with host or volume access can unseal the vault and act as provisioner",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Open",
+      "mitigation": "Auto-unseal via KMS/transit; revoke provisioner after setup",
+      "identity_key": {
+        "component_id": "OpenBaoSetupVolume",
+        "data_flow_id": "DF_OpenBaoSetup_to_OpenBaoSetupVolume",
+        "stride_category": "I",
+        "attack_surface": "DF25 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T26.D",
+      "title": "Students exhaust connections",
+      "description": "Students exhaust connections",
+      "stride_category": "D",
+      "tier": 2,
+      "prerequisites": "Authenticated User",
+      "status": "Open",
+      "mitigation": "Per-role connection limits",
+      "identity_key": {
+        "component_id": "PostgreSQL",
+        "data_flow_id": "DF_AppHost_to_PostgreSQL",
+        "stride_category": "D",
+        "attack_surface": "DF33 (Denial of Service)"
+      }
+    },
+    {
+      "id": "T26.I",
+      "title": "Connections from OpenBao and apps are not TLS-protected",
+      "description": "Connections from OpenBao and apps are not TLS-protected",
+      "stride_category": "I",
+      "tier": 3,
+      "prerequisites": "WebTerminal Compromise",
+      "status": "Open",
+      "mitigation": "Enable TLS on app-db",
+      "identity_key": {
+        "component_id": "PostgreSQL",
+        "data_flow_id": "DF_OpenBao_to_PostgreSQL",
+        "stride_category": "I",
+        "attack_surface": "DF27, DF33 (Information Disclosure)"
+      }
+    },
+    {
+      "id": "T26.S",
+      "title": "Initial per-student passwords left in app_db_bootstrap",
+      "description": "Initial per-student passwords left in app_db_bootstrap",
+      "stride_category": "S",
+      "tier": 3,
+      "prerequisites": "Host/OS Access",
+      "status": "Mitigated",
+      "mitigation": "OpenBao rotate-root right after setup; superuser password random and discarded",
+      "identity_key": {
+        "component_id": "PostgreSQL",
+        "data_flow_id": "DF_OpenBao_to_PostgreSQL",
+        "stride_category": "S",
+        "attack_surface": "DF27 (Spoofing)"
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "FIND-01",
+      "title": "Default credentials and no brute-force limit on the public Basic Auth gate",
+      "severity": "Important",
+      "cvss_score": 9.5,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:H/VI:H/VA:L/SC:H/SI:H/SA:L",
+      "cwe": "CWE-1392",
+      "owasp": "A07:2025",
+      "tier": 1,
+      "effort": "Low",
+      "related_threats": [
+        "T01.S1",
+        "T01.S2",
+        "T01.D",
+        "T05.E",
+        "T06.D",
+        "T07.I"
+      ],
+      "evidence_files": [
+        "engine/allocator/server.py",
+        "engine/gateway/Caddyfile",
+        "engine/scripts/env-setup.sh"
+      ],
+      "component": "Gateway",
+      "identity_key": {
+        "component_id": "Gateway",
+        "vulnerability": "CWE-1392",
+        "attack_surface": "engine/allocator/server.py"
+      }
+    },
+    {
+      "id": "FIND-02",
+      "title": "Slides and lab copies served without authentication",
+      "severity": "Low",
+      "cvss_score": 6.9,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-200",
+      "owasp": "A01:2025",
+      "tier": 1,
+      "effort": "Low",
+      "related_threats": [
+        "T06.I"
+      ],
+      "evidence_files": [
+        "engine/gateway/Caddyfile",
+        "engine/run.sh"
+      ],
+      "component": "Presentation",
+      "identity_key": {
+        "component_id": "Presentation",
+        "vulnerability": "CWE-200",
+        "attack_surface": "engine/gateway/Caddyfile"
+      }
+    },
+    {
+      "id": "FIND-03",
+      "title": "One shared password for every student's Linux and Forgejo account enables cross-student impersonation",
+      "severity": "Critical",
+      "cvss_score": 9.3,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:L/SC:H/SI:H/SA:N",
+      "cwe": "CWE-287",
+      "owasp": "A07:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T02.I",
+        "T04.S1",
+        "T04.T",
+        "T05.S",
+        "T05.A",
+        "T08.T",
+        "T10.S",
+        "T10.I",
+        "T11.S",
+        "T11.I",
+        "T12.S",
+        "T16.S",
+        "T23.I",
+        "T23.T"
+      ],
+      "evidence_files": [
+        "engine/allocator/server.py",
+        "engine/web-terminal/entrypoint.sh",
+        "modules/dojo-cloud/terminal/dojo-broker.py",
+        "modules/openbao/terminal/openbao-broker.py"
+      ],
+      "component": "WebTerminal",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "vulnerability": "CWE-287",
+        "attack_surface": "engine/allocator/server.py"
+      }
+    },
+    {
+      "id": "FIND-04",
+      "title": "Unauthenticated code-server and ttyd reachable from other containers on the lab network",
+      "severity": "Important",
+      "cvss_score": 8.8,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:N/VC:H/VI:H/VA:L/SC:H/SI:H/SA:N",
+      "cwe": "CWE-306",
+      "owasp": "A01:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T03.T",
+        "T04.S2",
+        "T04.A",
+        "T16.E"
+      ],
+      "evidence_files": [
+        "engine/web-terminal/entrypoint.sh",
+        "engine/web-terminal/workspace-control.py",
+        "workshops/vault-fundamentals/compose/app-host/apphost.py"
+      ],
+      "component": "WebTerminal",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "vulnerability": "CWE-306",
+        "attack_surface": "engine/web-terminal/entrypoint.sh"
+      }
+    },
+    {
+      "id": "FIND-05",
+      "title": "Pull-request workflows run student-modified code on a shared host runner trusted by dns-api",
+      "severity": "Important",
+      "cvss_score": 8.4,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:L/VI:H/VA:L/SC:N/SI:H/SA:N",
+      "cwe": "CWE-284",
+      "owasp": "A01:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T05.T",
+        "T17.T",
+        "T17.I",
+        "T17.E",
+        "T18.S"
+      ],
+      "evidence_files": [
+        "modules/forgejo-runner/runner/register.sh",
+        "workshops/dns-as-code/compose/dns-api/gate.py",
+        "workshops/dns-as-code/content/sample-repo/.forgejo/workflows/dns-preview.yml"
+      ],
+      "component": "ForgejoRunner",
+      "identity_key": {
+        "component_id": "ForgejoRunner",
+        "vulnerability": "CWE-284",
+        "attack_surface": "modules/forgejo-runner/runner/register.sh"
+      }
+    },
+    {
+      "id": "FIND-06",
+      "title": "Runner pool and app-host run as root with default capabilities",
+      "severity": "Moderate",
+      "cvss_score": 7.3,
+      "cvss_vector": "CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:H/VI:H/VA:L/SC:N/SI:N/SA:N",
+      "cwe": "CWE-250",
+      "owasp": "A02:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T14.T",
+        "T14.I",
+        "T14.E",
+        "T16.T",
+        "T16.I"
+      ],
+      "evidence_files": [
+        "modules/runner-pool/compose.yml",
+        "workshops/vault-fundamentals/compose/app-host/apphost.py",
+        "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+      ],
+      "component": "RunnerPool",
+      "identity_key": {
+        "component_id": "RunnerPool",
+        "vulnerability": "CWE-250",
+        "attack_surface": "modules/runner-pool/compose.yml"
+      }
+    },
+    {
+      "id": "FIND-07",
+      "title": "Slot exhaustion and head-of-line blocking in the single-threaded allocator",
+      "severity": "Moderate",
+      "cvss_score": 7.1,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+      "cwe": "CWE-770",
+      "owasp": "A06:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T01.A",
+        "T02.D1",
+        "T02.D2"
+      ],
+      "evidence_files": [
+        "engine/allocator/server.py"
+      ],
+      "component": "Allocator",
+      "identity_key": {
+        "component_id": "Allocator",
+        "vulnerability": "CWE-770",
+        "attack_surface": "engine/allocator/server.py"
+      }
+    },
+    {
+      "id": "FIND-08",
+      "title": "Credentials and session cookies in cleartext when served over HTTP",
+      "severity": "Moderate",
+      "cvss_score": 6.0,
+      "cvss_vector": "CVSS:4.0/AV:A/AC:L/AT:P/PR:N/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-319",
+      "owasp": "A04:2025",
+      "tier": 2,
+      "effort": "Low",
+      "related_threats": [
+        "T01.T",
+        "T01.I",
+        "T02.S2"
+      ],
+      "evidence_files": [
+        "engine/.env",
+        "engine/allocator/server.py"
+      ],
+      "component": "Gateway",
+      "identity_key": {
+        "component_id": "Gateway",
+        "vulnerability": "CWE-319",
+        "attack_surface": "engine/.env"
+      }
+    },
+    {
+      "id": "FIND-09",
+      "title": "Shared ACME CA with a published default password issues certificates for other students' names",
+      "severity": "Moderate",
+      "cvss_score": 6.0,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:N/VC:L/VI:H/VA:N/SC:L/SI:L/SA:N",
+      "cwe": "CWE-1392",
+      "owasp": "A07:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T21.S",
+        "T21.I"
+      ],
+      "evidence_files": [
+        "workshops/cert-autorenewal/compose/docker-compose.override.yml",
+        "workshops/cert-autorenewal/compose/step-ca/entrypoint.sh"
+      ],
+      "component": "StepCA",
+      "identity_key": {
+        "component_id": "StepCA",
+        "vulnerability": "CWE-1392",
+        "attack_surface": "workshops/cert-autorenewal/compose/docker-compose.override.yml"
+      }
+    },
+    {
+      "id": "FIND-10",
+      "title": "Other students' command lines, including lab secrets, visible through /proc",
+      "severity": "Moderate",
+      "cvss_score": 5.7,
+      "cvss_vector": "CVSS:4.0/AV:L/AC:L/AT:P/PR:L/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-214",
+      "owasp": "A02:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T04.I"
+      ],
+      "evidence_files": [
+        "engine/web-terminal/entrypoint.sh"
+      ],
+      "component": "WebTerminal",
+      "identity_key": {
+        "component_id": "WebTerminal",
+        "vulnerability": "CWE-214",
+        "attack_surface": "engine/web-terminal/entrypoint.sh"
+      }
+    },
+    {
+      "id": "FIND-11",
+      "title": "Shared DNS API key lets any student change or squat another student's zone",
+      "severity": "Moderate",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:L/VA:L/SC:N/SI:N/SA:N",
+      "cwe": "CWE-639",
+      "owasp": "A01:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T18.T",
+        "T18.E",
+        "T18.A"
+      ],
+      "evidence_files": [
+        "workshops/cert-autorenewal/compose/docker-compose.override.yml",
+        "workshops/dns-as-code/compose/dns-api/gate.py",
+        "workshops/dns-as-code/compose/terminal/start.d/90-my-zone.sh"
+      ],
+      "component": "DNSAPI",
+      "identity_key": {
+        "component_id": "DNSAPI",
+        "vulnerability": "CWE-639",
+        "attack_surface": "workshops/cert-autorenewal/compose/docker-compose.override.yml"
+      }
+    },
+    {
+      "id": "FIND-12",
+      "title": "No request rate limiting and shared resource pools on internal lab services",
+      "severity": "Low",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:L",
+      "cwe": "CWE-770",
+      "owasp": "A06:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T04.D",
+        "T05.D",
+        "T08.D",
+        "T08.A",
+        "T09.D",
+        "T12.D",
+        "T14.D",
+        "T14.A",
+        "T15.D",
+        "T16.D",
+        "T17.D",
+        "T18.D",
+        "T19.D",
+        "T21.D",
+        "T23.D",
+        "T26.D"
+      ],
+      "evidence_files": [
+        "engine/docker-compose.yml",
+        "modules/openbao/config.hcl"
+      ],
+      "component": "CloudAPI",
+      "identity_key": {
+        "component_id": "CloudAPI",
+        "vulnerability": "CWE-770",
+        "attack_surface": "engine/docker-compose.yml"
+      }
+    },
+    {
+      "id": "FIND-13",
+      "title": "Identity and control-plane actions are not logged",
+      "severity": "Low",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-778",
+      "owasp": "A09:2025",
+      "tier": 2,
+      "effort": "Low",
+      "related_threats": [
+        "T01.R",
+        "T02.R",
+        "T03.R",
+        "T04.R",
+        "T08.R",
+        "T12.R",
+        "T18.R"
+      ],
+      "evidence_files": [
+        "engine/allocator/server.py",
+        "engine/gateway/Caddyfile",
+        "engine/web-terminal/workspace-control.py",
+        "modules/openbao/config.hcl",
+        "workshops/dns-as-code/compose/dns-api/gate.py"
+      ],
+      "component": "Allocator",
+      "identity_key": {
+        "component_id": "Allocator",
+        "vulnerability": "CWE-778",
+        "attack_surface": "engine/allocator/server.py"
+      }
+    },
+    {
+      "id": "FIND-14",
+      "title": "Allocator pages lack CSP and frame-ancestors and use inline script",
+      "severity": "Low",
+      "cvss_score": 2.0,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:H/AT:P/PR:L/UI:A/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-1021",
+      "owasp": "A02:2025",
+      "tier": 2,
+      "effort": "Medium",
+      "related_threats": [
+        "T02.T",
+        "T02.E",
+        "T02.A",
+        "T16.A"
+      ],
+      "evidence_files": [
+        "engine/allocator/server.py"
+      ],
+      "component": "Allocator",
+      "identity_key": {
+        "component_id": "Allocator",
+        "vulnerability": "CWE-1021",
+        "attack_surface": "engine/allocator/server.py"
+      }
+    },
+    {
+      "id": "FIND-15",
+      "title": "Privileged Docker-in-Docker with a world-writable socket behind Dojo Cloud",
+      "severity": "Important",
+      "cvss_score": 8.7,
+      "cvss_vector": "CVSS:4.0/AV:L/AC:L/AT:P/PR:H/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H",
+      "cwe": "CWE-250",
+      "owasp": "A02:2025",
+      "tier": 3,
+      "effort": "High",
+      "related_threats": [
+        "T08.E",
+        "T09.T",
+        "T09.I",
+        "T09.E"
+      ],
+      "evidence_files": [
+        "modules/dojo-cloud/cloud-host/Dockerfile",
+        "modules/dojo-cloud/cloud-host/entrypoint.sh",
+        "modules/dojo-cloud/compose.yml"
+      ],
+      "component": "CloudHost",
+      "identity_key": {
+        "component_id": "CloudHost",
+        "vulnerability": "CWE-250",
+        "attack_surface": "modules/dojo-cloud/cloud-host/Dockerfile"
+      }
+    },
+    {
+      "id": "FIND-16",
+      "title": "Master secrets shared across many containers as plaintext environment variables",
+      "severity": "Moderate",
+      "cvss_score": 8.5,
+      "cvss_vector": "CVSS:4.0/AV:L/AC:L/AT:P/PR:H/UI:N/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N",
+      "cwe": "CWE-522",
+      "owasp": "A04:2025",
+      "tier": 3,
+      "effort": "High",
+      "related_threats": [
+        "T02.S1",
+        "T03.S",
+        "T03.E",
+        "T08.S",
+        "T15.S",
+        "T15.I",
+        "T19.S",
+        "T20.S",
+        "T22.I",
+        "T22.T",
+        "T24.I",
+        "T26.S"
+      ],
+      "evidence_files": [
+        "engine/docker-compose.yml",
+        "modules/dojo-cloud/compose.yml",
+        "modules/runner-pool/compose.yml",
+        "workshops/dns-as-code/workshop.env",
+        "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+      ],
+      "component": "EnvFile",
+      "identity_key": {
+        "component_id": "EnvFile",
+        "vulnerability": "CWE-522",
+        "attack_surface": "engine/docker-compose.yml"
+      }
+    },
+    {
+      "id": "FIND-17",
+      "title": "Single unseal share and long-lived root-equivalent provisioner token on the setup volume",
+      "severity": "Moderate",
+      "cvss_score": 8.4,
+      "cvss_vector": "CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+      "cwe": "CWE-522",
+      "owasp": "A04:2025",
+      "tier": 3,
+      "effort": "Medium",
+      "related_threats": [
+        "T12.E",
+        "T13.I",
+        "T13.E",
+        "T25.I"
+      ],
+      "evidence_files": [
+        "modules/openbao/setup/policies/provisioner.hcl",
+        "modules/openbao/setup/setup.sh"
+      ],
+      "component": "OpenBaoSetup",
+      "identity_key": {
+        "component_id": "OpenBaoSetup",
+        "vulnerability": "CWE-522",
+        "attack_surface": "modules/openbao/setup/policies/provisioner.hcl"
+      }
+    },
+    {
+      "id": "FIND-18",
+      "title": "Base images pulled by mutable tags",
+      "severity": "Low",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:4.0/AV:N/AC:H/AT:P/PR:H/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+      "cwe": "CWE-829",
+      "owasp": "A03:2025",
+      "tier": 3,
+      "effort": "Low",
+      "related_threats": [
+        "T07.T",
+        "T07.E",
+        "T19.T",
+        "T21.T"
+      ],
+      "evidence_files": [
+        "engine/allocator/Dockerfile",
+        "engine/gateway/Dockerfile",
+        "modules/dns-ui/dns-admin/Dockerfile",
+        "modules/dojo-cloud/cloud-host/Dockerfile",
+        "modules/openbao/compose.yml",
+        "workshops/cert-autorenewal/compose/step-ca/Dockerfile",
+        "workshops/dns-as-code/compose/docker-compose.override.yml"
+      ],
+      "component": "RunScript",
+      "identity_key": {
+        "component_id": "RunScript",
+        "vulnerability": "CWE-829",
+        "attack_surface": "engine/allocator/Dockerfile"
+      }
+    },
+    {
+      "id": "FIND-19",
+      "title": "Plaintext internal transport to OpenBao and PostgreSQL",
+      "severity": "Low",
+      "cvss_score": 2.0,
+      "cvss_vector": "CVSS:4.0/AV:A/AC:H/AT:P/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+      "cwe": "CWE-319",
+      "owasp": "A04:2025",
+      "tier": 3,
+      "effort": "Medium",
+      "related_threats": [
+        "T12.I1",
+        "T12.I2",
+        "T26.I"
+      ],
+      "evidence_files": [
+        "modules/openbao/config.hcl",
+        "workshops/vault-fundamentals/compose/docker-compose.override.yml"
+      ],
+      "component": "OpenBao",
+      "identity_key": {
+        "component_id": "OpenBao",
+        "vulnerability": "CWE-319",
+        "attack_surface": "modules/openbao/config.hcl"
+      }
+    }
+  ],
+  "metrics": {
+    "total_components": 28,
+    "total_boundaries": 6,
+    "total_flows": 42,
+    "total_threats": 101,
+    "total_findings": 19,
+    "threats_by_tier": {
+      "T1": 5,
+      "T2": 73,
+      "T3": 23
+    },
+    "findings_by_tier": {
+      "T1": 2,
+      "T2": 12,
+      "T3": 5
+    },
+    "threats_by_stride": {
+      "S": 19,
+      "T": 16,
+      "R": 7,
+      "I": 21,
+      "D": 18,
+      "E": 12,
+      "A": 8
+    },
+    "findings_by_severity": {
+      "Critical": 1,
+      "Important": 4,
+      "Moderate": 8,
+      "Low": 6
+    }
+  }
+}

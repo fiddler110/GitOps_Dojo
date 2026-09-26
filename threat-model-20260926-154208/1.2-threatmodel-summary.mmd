@@ -1,0 +1,80 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'lineColor': '#666666' }}}%%
+flowchart LR
+    classDef process fill:#6baed6,stroke:#2171b5,stroke-width:2px,color:#000000
+    classDef external fill:#fdae61,stroke:#d94701,stroke-width:2px,color:#000000
+    classDef datastore fill:#74c476,stroke:#238b45,stroke-width:2px,color:#000000
+
+    EndUser["EndUser (Student Browser)"]:::external
+    Operator["Operator (Facilitator)"]:::external
+
+    subgraph LabHost["Lab Host"]
+        HostTooling(("Host Tooling<br/>(RunScript, EnvFile)")):::process
+    end
+
+    subgraph PublicEdge["Public Edge"]
+        Gateway(("Gateway")):::process
+        Presentation(("Presentation")):::process
+    end
+
+    subgraph WorkshopLab["workshop_lab Network"]
+        Allocator(("Allocator")):::process
+        Forgejo(("Forgejo")):::process
+        CloudAPI(("CloudAPI")):::process
+        OpenBao(("OpenBao")):::process
+        VaultSetup(("Vault Setup<br/>(OpenBaoSetup, OpenBaoSetupVolume)")):::process
+        AppServices(("App Services<br/>(AppHost, RunnerController)")):::process
+        DnsServices(("DNS and PKI<br/>(DNSAPI, PowerDNS, PowerDNSAdmin, StepCA)")):::process
+        LabData[("Lab Data<br/>(ForgejoData, PostgreSQL)")]:::datastore
+    end
+
+    subgraph WebTerminalContainer["Shared Terminal Container"]
+        WebTerminal(("WebTerminal")):::process
+        TerminalAgents(("Terminal Agents<br/>(WorkspaceControl, DojoBroker, OpenBaoBroker)")):::process
+        TerminalHome[("TerminalHome")]:::datastore
+    end
+
+    subgraph RunnerNet["runner_net Network"]
+        Runners(("Runners<br/>(RunnerPool, ForgejoRunner)")):::process
+    end
+
+    subgraph CloudNet["cloud_net Network"]
+        CloudHost(("CloudHost")):::process
+    end
+
+    EndUser <-->|"SDF01: HTTPS + shared Basic Auth"| Gateway
+    Operator <-->|"SDF02: HTTPS + facilitator Basic Auth"| Gateway
+    Operator <-->|"SDF03: Shell ./run.sh"| HostTooling
+    HostTooling <-->|"SDF04: compose up"| Gateway
+    Gateway <-->|"SDF05: HTTP /slides"| Presentation
+    Gateway <-->|"SDF06: HTTP + gateway headers"| Allocator
+    Gateway <-->|"SDF07: HTTP/WebSocket"| WebTerminal
+    Gateway <-->|"SDF08: HTTP module routes"| CloudAPI
+    Gateway <-->|"SDF09: HTTP module routes"| OpenBao
+    Gateway <-->|"SDF10: HTTP module routes"| AppServices
+    Gateway <-->|"SDF11: HTTP remote-user"| DnsServices
+    Gateway <-->|"SDF12: HTTP /git"| Forgejo
+    Allocator <-->|"SDF13: control token, spawn"| TerminalAgents
+    Allocator <-->|"SDF14: SSO login"| Forgejo
+    TerminalAgents <-->|"SDF15: spawn, Unix sockets"| WebTerminal
+    WebTerminal <-->|"SDF16: File I/O"| TerminalHome
+    WebTerminal <-->|"SDF17: git HTTP + password"| Forgejo
+    WebTerminal <-->|"SDF18: HTTP bao API"| OpenBao
+    WebTerminal <-->|"SDF19: HTTPS ARM API"| CloudAPI
+    WebTerminal <-->|"SDF20: dnscontrol, ACME"| DnsServices
+    CloudAPI <-->|"SDF21: Docker API"| CloudHost
+    VaultSetup <-->|"SDF22: init, unseal, provision"| OpenBao
+    OpenBao <-->|"SDF23: OIDC, DB engine"| LabData
+    Forgejo <-->|"SDF24: SQLite"| LabData
+    Runners <-->|"SDF25: runner protocol, admin API"| Forgejo
+    Runners <-->|"SDF26: deploy, JWT login"| AppServices
+    Runners <-->|"SDF27: dnscontrol push"| DnsServices
+    AppServices <-->|"SDF28: platform login, SQL"| OpenBao
+
+    style LabHost fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style PublicEdge fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style WorkshopLab fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style WebTerminalContainer fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style RunnerNet fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style CloudNet fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+
+    linkStyle default stroke:#666666,stroke-width:2px
