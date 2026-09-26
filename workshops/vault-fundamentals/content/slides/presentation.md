@@ -1,22 +1,22 @@
----
+e ---
 marp: true
 theme: default
 paginate: true
 size: 16:9
 html: true
 style: |
-  @import url('assets/themes/presentation.css');
-  .split { align-items: center; display: flex; gap: 48px; }
-  .split > div { flex: 1; min-width: 0; }
-  .split-40 > div:first-child { flex: 0 0 40%; }
-  .split-60 > div:first-child { flex: 0 0 58%; }
-  .mermaid { text-align: center; margin: 8px 0; }
-  .mermaid:not([data-processed]) { visibility: hidden; }
-  .mermaid svg { max-height: 420px; }
-  .mermaid foreignObject p, .mermaid foreignObject div { margin: 0 !important; line-height: 1.35 !important; }
-  .small { font-size: 0.85em; }
-  .lede { color: var(--muted); font-size: 0.9em; }
-footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; Vault Fundamentals | Engineering & IT Operations'
+@import url('assets/themes/presentation.css');
+.split { align-items: center; display: flex; gap: 48px; }
+.split > div { flex: 1; min-width: 0; }
+.split-40 > div:first-child { flex: 0 0 40%; }
+.split-60 > div:first-child { flex: 0 0 58%; }
+.mermaid { text-align: center; margin: 8px 0; }
+.mermaid:not([data-processed]) { visibility: hidden; }
+.mermaid svg { max-height: 420px; }
+.mermaid foreignObject p, .mermaid foreignObject div { margin: 0 !important; line-height: 1.35 !important; }
+.small { font-size: 0.85em; }
+.lede { color: var(--muted); font-size: 0.9em; }
+footer: "[&larr; Hub](index.md) &nbsp;|&nbsp; Vault Fundamentals | Engineering & IT Operations"
 ---
 
 <!-- _class: lead -->
@@ -50,7 +50,7 @@ ol { font-size: 0.88em; }
 **The talk**
 
 1. **Foundations:** why secrets leak, and what a vault does about it
-2. **Your own vault:** namespaces, policies as code
+2. **From a shared vault to your own:** namespaces, policies as code
 3. **Secrets in code:** how an app gets its secret
 4. **Secrets in git:** encrypted config
 5. **Secrets in pipelines:** CI without stored secrets
@@ -59,7 +59,7 @@ ol { font-size: 0.88em; }
 </div>
 <div>
 
-**Then the labs (0-12)**
+**Then the labs (0-13)**
 
 Each part of the talk has labs that let you do it yourself, on a real vault.
 
@@ -133,7 +133,6 @@ Each copy is **one more place to leak from**, and one more place to change when 
 </div>
 </div>
 
-
 <!--
 Walk the arrows: nobody did anything unusual, and still the password is in
 eight places, most of which nobody will remember to clean up.
@@ -145,16 +144,16 @@ Click "Once it's pushed, it's leaked." for the wall of real incidents
 
 ## The rules we'll use all day
 
-| # | Rule | In one line |
-| - | ---- | ----------- |
-| 1 | Least privilege | Read only what you need; deny by default |
-| 2 | Identity over secrets | Prove who you are instead of holding a password |
-| 3 | Short-lived, revocable | A leaked credential should expire by itself |
-| 4 | Secret zero | The first credential comes from somewhere: know where |
-| 5 | Separation of duties | Who deploys the app needn't read its secrets |
-| 6 | Audit everything | "Who read this, and when?" has an answer |
-| 7 | Plan for leaks | Rotation and revocation are routine |
-| 8 | Never in git, logs or images | Including history and build output |
+| #   | Rule                         | In one line                                           |
+| --- | ---------------------------- | ----------------------------------------------------- |
+| 1   | Least privilege              | Read only what you need; deny by default              |
+| 2   | Identity over secrets        | Prove who you are instead of holding a password       |
+| 3   | Short-lived, revocable       | A leaked credential should expire by itself           |
+| 4   | Secret zero                  | The first credential comes from somewhere: know where |
+| 5   | Separation of duties         | Who deploys the app needn't read its secrets          |
+| 6   | Audit everything             | "Who read this, and when?" has an answer              |
+| 7   | Plan for leaks               | Rotation and revocation are routine                   |
+| 8   | Never in git, logs or images | Including history and build output                    |
 
 <!--
 Every idea in the rest of the talk is one of these rules put into practice.
@@ -222,7 +221,8 @@ flowchart TB
   f["db.gpg: for you, A and B"] --> y["You: a copy"]
   f --> a["A: a copy"]
   f --> b["B: a copy"]
-  b -.->|"B leaves"| r["Re-encrypt for you and A: B's copy still opens"]
+  b -.->|"B leaves"| r["New db.gpg:<br/>for you and A"]
+  b -.-> o["B's old copy<br/>still opens"]
 </div>
 
 </div>
@@ -256,7 +256,7 @@ flowchart LR
   p["People"] --> gate
   a["Apps"] --> gate
   c["CI jobs"] --> gate
-  gate["The gate: who are you, what may you do? Written down."] --> store[("Encrypted storage: the only copy")]
+  gate["The gate<br/>Who are you?<br/>What may you do?<br/>Written down."] --> store[("Encrypted<br/>storage:<br/>the only copy")]
 </div>
 
 </div>
@@ -314,7 +314,7 @@ flowchart LR
 </div>
 
 - **Auth method:** how you prove who you are. Something else vouches for you, so there's no vault password.
-- **Entity:** *you*, however you came in. Two doors, one person.
+- **Entity:** _you_, however you came in. Two doors, one person.
 - **Token:** what you get back, and what every request carries. Machines sign in the same way (AppRole, JWT).
 
 <!--
@@ -350,7 +350,7 @@ path "secret/data/students/{{identity.entity.name}}/*" {
 }
 ```
 
-- A **path** says *where*; **capabilities** say *what*: `create`, `read`, `update`, `patch`, `delete`, `list`, `sudo`, `deny`
+- A **path** says _where_; **capabilities** say _what_: `create`, `read`, `update`, `patch`, `delete`, `list`, `sudo`, `deny`
 - **Nothing matches? Denied.** Least privilege is the default, not something you add.
 - `{{identity.entity.name}}` is filled in on each request with the caller's name: **one policy** for 30 students or 3,000, no per-person rule to maintain
 
@@ -365,29 +365,42 @@ student02's folder matches no rule, so it's denied.
 ## Secrets engines: several tools behind one gate
 
 <style scoped>
-table { font-size: 22px; }
+table { font-size: 19px; }
+th, td { padding: 6px 12px; }
+section > p { font-size: 0.9em; }
 </style>
 
 OpenBao isn't only a store. It runs several **secrets engines**, each at its own path, all behind the same token and policy checks.
 
-| A path you'll use | Engine | What it does |
-| ----------------- | ------ | ------------ |
-| `secret/students/student07/db` | **KV** | Keeps a secret you give it, and hands it back |
-| `transit/encrypt/sops` | **Transit** | Encrypts for you; the key never leaves (Part 4) |
-| `database/creds/app` | **Database** | Makes a brand-new login each time you ask (Part 6) |
+| A path you'll use              | Engine       | What it does                                             | Where it comes back                                 |
+| ------------------------------ | ------------ | -------------------------------------------------------- | --------------------------------------------------- |
+| `secret/students/student07/db` | **KV**       | Keeps a secret you give it, and hands it back            | Next few slides                                     |
+| `transit/encrypt/sops`         | **Transit**  | Encrypts what you send; its key never leaves the vault   | Later: secrets in git, config files safe to commit |
+| `database/creds/app`           | **Database** | Makes a new DB login per request, deleted when time's up | Later: deployments, no shared DB password          |
 
-The **first part** of the path (`secret/`, `transit/`, `database/`) picks the engine; the rest means something to that engine. Sign-in methods are switched on the same way, under `auth/`.
+Only **KV** keeps what you gave it. The others **do a job** with keys that stay inside the vault. The **first part** of the path (`secret/`, `transit/`, `database/`) picks the engine; the rest means something to that engine. Sign-in methods work the same way, under `auth/`.
 
 <!--
 Read the first path aloud: "the KV engine at secret/, the secret named
 students/student07/db". Then the others: "the transit engine, encrypt, with
 the key called sops"; "the database engine, credentials for the role app".
 Same gate for all three: a token, a policy that allows that path.
+KV is where you'll spend the next few slides. Transit comes back later
+(sops, lab 7): it locks config files so they're safe to commit, and the
+key that opens them never leaves the vault. Database comes back later
+(lab 12): instead of one shared DB password, every caller gets its own
+login that expires in minutes. The point to land now: a vault is more than
+a password safe; some engines hand out things that never existed before
+you asked.
 -->
 
 ---
 
-## KV v2: the vault's key-value store
+## KV v2: the vault's key-value store (Git~ish)
+
+<style scoped>
+.split > div:last-child { font-size: 0.88em; }
+</style>
 
 <div class="split">
 <div>
@@ -406,15 +419,11 @@ Like `pass`'s store: the path works like a folder, the value is key/value pairs.
 </div>
 <div>
 
-**KV** = key-value. **v2** = the version that **keeps history**.
+**KV v2:** version 2 of the key/value engine. v1 just overwrites; v2 adds:
 
-Writing to a path doesn't overwrite it: it adds a **new version**. The old ones stay (10 by default).
-
-Why that matters:
-
-- A bad change is undone in seconds (**rollback**)
-- You can see **when** it changed
-- A mistaken delete can be **undone**
+- **Versioning:** each write is a **new version**; old ones stay (10 by default), so a bad change is a **rollback** away
+- **History:** each version records **when** it was written, deleted or destroyed
+- **Soft delete:** delete **hides** a version, `undelete` brings it back; only **destroy** is final
 
 </div>
 </div>
@@ -448,6 +457,10 @@ you want from anything that holds credentials.
 
 ## KV v2: delete is not destroy
 
+<style scoped>
+.split > div:last-child { font-size: 0.9em; }
+</style>
+
 <div class="split">
 <div>
 
@@ -461,10 +474,10 @@ stateDiagram-v2
   Deleted --> Destroyed: destroy
 </div>
 
-| KV v2 | Azure Key Vault |
-| ----- | --------------- |
+| KV v2             | Azure Key Vault       |
+| ----------------- | --------------------- |
 | delete / undelete | soft delete / recover |
-| destroy | purge |
+| destroy           | purge                 |
 
 </div>
 <div>
@@ -473,8 +486,26 @@ stateDiagram-v2
 - **destroy** wipes that version's data. Nothing brings it back
 - **metadata delete** removes every version and the history
 
-**A secret leaked?** Deleting does nothing for you, and destroying doesn't reach copies already taken. **Rotate first** (a new value where it's used), then destroy the old versions.
+<label for="destroy-wall" class="pop-trigger">A secret leaked?</label> Deleting does nothing, and destroying doesn't reach copies already taken. **Rotate and revoke first**, then destroy the old versions so nobody can roll back to them.
 
+</div>
+</div>
+
+<div class="pop">
+<input type="checkbox" id="destroy-wall" class="pop-toggle">
+<div class="pop-overlay">
+<label for="destroy-wall" class="pop-close">close &#10005;</label>
+<h3>A secret leaked: rotate, revoke, then destroy</h3>
+<p class="pop-sub">Rotating is the fix. Destroying is the clean-up, and it still matters.</p>
+<div class="leak-grid cols-3">
+<div class="leak"><i>1 &middot; the fix</i><b>Rotate</b>Write a new value to the vault; apps using the Agent pick it up in seconds.<em>This is what protects you</em></div>
+<div class="leak"><i>2 &middot; the fix</i><b>Revoke at the source</b>Change the DB password, revoke the API key. A new version in KV doesn't turn the old value off.<em>Until then, the old value still works</em></div>
+<div class="leak"><i>3 &middot; clean-up</i><b>Destroy the old versions</b><code>bao kv destroy -versions=3,4</code> wipes their data. KV drops versions past 10 on its own; this does it now.<em>Nothing brings them back</em></div>
+<div class="leak"><i>why destroy</i><b>Rollback or undelete</b>One command puts the leaked value back in use, and the Agent ships it to the app.<em>A known-leaked value, live again</em></div>
+<div class="leak"><i>why destroy</i><b>Every reader can fetch it</b><code>read</code> on the path is enough for <code>-version=N</code>: often many people and apps.<em>Same permission as the current value</em></div>
+<div class="leak"><i>why destroy</i><b>Some can't be rotated away</b>Signing keys, keys that open old backups, recovery codes. And patterns: <code>Summer2025!</code> hints at <code>Autumn2025!</code><em>The old value stays dangerous</em></div>
+</div>
+<p class="pop-src">Protect it: grant <code>undelete/</code> and <code>destroy/</code> to the few who run incidents, not to every reader, and keep <code>max_versions</code> low for secrets that rotate often.</p>
 </div>
 </div>
 
@@ -484,46 +515,9 @@ with one command. Also: KV v2 splits the permissions (data/ for the value,
 metadata/, delete/, destroy/ for the history), so a policy can let an app read
 a secret without letting it wipe the history. That's why the policy on the
 earlier slide says secret/data/...
--->
-
----
-
-## KV v2 in this workshop: where every workflow reads
-
-<div class="split split-60">
-<div>
-
-<div class="mermaid">
-flowchart LR
-  you["You: terminal and UI"] --> s["secret/students/you"]
-  agent["The Agent, for your app"] --> app["team/app"]
-  job["A CI job"] --> ci["team/ci"]
-  att["A leaked token"] -.->|"refused"| adm["team/admin"]
-  subgraph shared["Shared vault: secret/"]
-    s
-  end
-  subgraph ns["Your namespace: team/"]
-    app
-    ci
-    adm
-  end
-</div>
-
-</div>
-<div>
-
-- KV v2 is an **engine mounted at a path**: the class shares `secret/`; you mount your own `team/`
-- Every **rotate** today is a **new version** of one of these secrets
-- The rest of the talk is about **who may read which path**
-
-</div>
-</div>
-
-<!--
-The KV slides so far are the store; the rest of the talk is about the
-readers. team/app is read by the Agent (labs 6, 10) and the attacker in the
-drill (12); team/ci by the CI job (9); team/admin is the one nobody should
-get, and labs 4 and 12 show it refused.
+For a deeper dive, click "A secret leaked?": the order (rotate, revoke,
+destroy), why destroying still matters once you've rotated, and how to guard
+undelete/ and destroy/. "close" at the top right hides it.
 -->
 
 ---
@@ -532,7 +526,49 @@ get, and labs 4 and 12 show it refused.
 
 # Part 2
 
-## Your own vault
+## From a shared vault to your own
+
+---
+
+## Where most companies start: one shared vault
+
+<style scoped>
+.split > div:last-child { font-size: 0.85em; }
+</style>
+
+<div class="split split-40">
+<div>
+
+<div class="mermaid">
+flowchart TB
+  pt["The platform team: owns everything"] --> kv["secret/ : one engine for all"]
+  kv --> a["students/student01/"]
+  kv --> b["students/student02/"]
+  kv --> c["students/student07/"]
+  pol["One templated policy"] -.->|"your folder only"| kv
+</div>
+
+</div>
+<div>
+
+**One vault, a folder per team**, one policy keeping each team in its folder. Lab 3 works here, and it's a good start: one copy, least privilege by path.
+
+**Where it strains as teams grow:**
+
+- Only the **platform team** can add an engine, a policy or a sign-in: every change is a ticket
+- **One policy mistake** reaches every team
+- `list` shows every team's **secret names**
+- Everyone shares **one set** of engines and settings
+
+</div>
+</div>
+
+<!--
+Lab 3 is this model: secret/students/<you>/, and the one templated policy
+from Part 1. Nothing wrong with it; plenty of companies stay here. The
+strains are about ownership: the team that owns the secrets can't run their
+own access. That's what namespaces fix, next.
+-->
 
 ---
 
@@ -565,9 +601,9 @@ Each namespace has its **own** engines, policies, tokens and auth methods.
 </div>
 
 <!--
-Multi-tenancy without running a vault per team. The shared secret/ folder is
-how many companies start; namespaces are where they end up once teams want to
-run their own policies.
+Multi-tenancy without running a vault per team: each strain on the last
+slide goes away, because the team runs its own engines, policies and
+sign-ins, and a mistake stays inside one namespace.
 -->
 
 ---
@@ -604,13 +640,13 @@ request. Lab 4 has you do both so you feel the difference.
 
 ## Three places an app's secret can live
 
-| Where | Good | The catch |
-| ----- | ---- | --------- |
-| In the code | nothing to set up | in git forever |
-| A git-ignored `.env` | out of git | plaintext on every laptop, shared by hand, never expires, passed to every child process |
-| **The vault** | one copy, access by policy, audited, rotated in one place | the app needs **an identity**, and a token that stays fresh |
+| Where                | Good                                                      | The catch                                                                               |
+| -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| In the code          | nothing to set up                                         | in git forever                                                                          |
+| A git-ignored `.env` | out of git                                                | plaintext on every laptop, shared by hand, never expires, passed to every child process |
+| **The vault**        | one copy, access by policy, audited, rotated in one place | the app needs **an identity**, and a token that stays fresh                             |
 
-**Never log a secret:** log *that* you loaded the config, not *what* it holds.
+**Never log a secret:** log _that_ you loaded the config, not _what_ it holds.
 
 <!--
 The vault's catch is the rest of this part: how does an app prove who it is,
@@ -619,20 +655,106 @@ and who keeps its token alive?
 
 ---
 
-## An app needs an identity too: AppRole
+## An app needs an identity of its own
+
+<style scoped>
+.split > div:last-child { font-size: 0.9em; }
+</style>
+
+<div class="split split-40">
+<div>
 
 <div class="mermaid">
-flowchart LR
-  rid["Role ID: like a username, not secret"] --> login["Log in to auth/approle"]
-  sid["Secret ID: like a password, short-lived"] --> login
-  login --> tok["A token with the role's policies"]
+flowchart TB
+  you["You"] -->|"sign in: Forgejo,<br/>a browser, a click"| t1["Your token:<br/>your policies"]
+  app["The app"] -->|"no browser,<br/>nobody to click"| q["???"]
 </div>
 
-- A **role** is an account for a program, with its own policies
-- The app proves it's that role with **both** halves
-- Secret IDs can expire, be **single-use**, or only work from given addresses
+</div>
+<div>
 
-It works anywhere, but someone still has to **give the app its secret ID**. Keep that thought.
+Every request needs a **token**, and a token comes from **signing in**. You sign in through Forgejo. An app runs **unattended**: it has to sign in **by itself**.
+
+**Why not just give it your token?**
+
+- It could read **everything you can**
+- It **stops working** when yours expires, or you leave
+- The audit log says **you** did what the app did
+
+**So the app gets its own account**, with its own policy and short-lived tokens: an **AppRole** role.
+
+</div>
+</div>
+
+<!--
+Rules 1 and 2. The question to ask the room: "how does a program that nobody
+is watching prove who it is?" A person has a browser and a Forgejo login; a
+program has neither. Borrowing a person's token is the usual shortcut, and it
+breaks least privilege, breaks when the person leaves, and makes the audit
+log lie. The answer is a machine account, the same idea as a service account
+or an Azure service principal.
+-->
+
+---
+
+## AppRole: a username and a password, for a program
+
+<style scoped>
+.mermaid { margin: 0; }
+.mermaid svg { max-height: 300px; }
+table { font-size: 18px; display: table; overflow: visible; }
+th, td { padding: 3px 12px; }
+</style>
+
+<div class="mermaid">
+sequenceDiagram
+  participant Ad as You (admin)
+  participant B as OpenBao
+  participant App as The app
+  Ad->>B: once: create role "app" with policy app-read
+  B-->>Ad: its role ID, and a new secret ID
+  Ad->>App: hand over both
+  App->>B: at each start: log in with both
+  B-->>App: a token with app-read, 2 minutes
+  App->>B: read team/app, with the token
+</div>
+
+| Piece                                                            | Like a     | Secret? | Kept where, and for how long                            |
+| ---------------------------------------------------------------- | ---------- | ------- | ------------------------------------------------------- |
+| **Role ID**                                                      | username   | no      | the app's config, for good; fine in git                 |
+| <label for="secretid-wall" class="pop-trigger">Secret ID</label> | password   | **yes** | a memory-only file, for **seconds**: used once, deleted |
+| **Token**                                                        | a day pass | yes     | the Agent's memory; minutes, renewed while the app runs |
+
+<div class="pop">
+<input type="checkbox" id="secretid-wall" class="pop-toggle">
+<div class="pop-overlay">
+<label for="secretid-wall" class="pop-close">close &#10005;</label>
+<h3>The secret ID is a secret outside the vault: keep it small</h3>
+<p class="pop-sub">AppRole doesn't make secret zero go away. It makes the secret short-lived, single-use, and tied to one place.</p>
+<div class="leak-grid cols-3">
+<div class="leak"><i>time</i><b>It expires</b><code>secret_id_ttl</code>: an hour in lab 6, minutes in production.<em>A stolen copy goes stale</em></div>
+<div class="leak"><i>use</i><b>It works once</b><code>secret_id_num_uses=1</code>: spent at login; then the app holds only a token.<em>A thief who uses it first makes the app's login fail: your alarm</em></div>
+<div class="leak"><i>place</i><b>It only works from given addresses</b><code>secret_id_bound_cidrs</code>, and <code>token_bound_cidrs</code> for the token.<em>A copy used anywhere else is refused</em></div>
+<div class="leak"><i>transit</i><b>It's wrapped on the way</b>Response wrapping: the deliverer carries a single-use wrapper, and only the app opens it.<em>Already opened? Intercepted, and you know</em></div>
+<div class="leak"><i>disk</i><b>It's deleted after reading</b>The Agent's <code>remove_secret_id_file_after_reading</code>, as in lab 6.<em>Nothing useful left on disk</em></div>
+<div class="leak"><i>who</i><b>The halves travel apart</b>Role ID in config; secret ID at deploy, from a deliverer that may <strong>make</strong> secret IDs, not <strong>read</strong> secrets.<em>One half alone logs nobody in</em></div>
+</div>
+<p class="pop-src"><b>Weak:</b> a long-lived secret ID in a CI variable (lab 9). <b>Good:</b> wrapped, single-use, minutes long, delivered at deploy. <b>Best:</b> no secret ID at all: the platform vouches for the app (labs 9 and 11).</p>
+</div>
+</div>
+
+<!--
+Walk the diagram top to bottom. The top half happens once, and it's done by
+someone who already has a token (you, in lab 6). The bottom half happens on
+every start: the app trades its two halves for a short-lived token, and uses
+that token, not the halves, for every read. Neither half alone logs in, so
+they can travel by different routes: the role ID in the app's config, the
+secret ID delivered at deploy. The weak spot is the arrow "hand over both":
+someone has to give the app its secret ID. Keep that thought; it's secret
+zero, two slides on. Click "Secret ID" in the table for how it's kept small
+(expiry, single use, address binding, wrapping, deleted after reading,
+split delivery); "close" at the top right hides it.
+-->
 
 ---
 
@@ -676,7 +798,7 @@ flowchart TB
 
 Every credential is protected by another one. **Something has to be first.** Ranked, best first:
 
-1. **Nothing handed over:** the platform vouches for the workload (Parts 5 and 6)
+1. **Nothing handed over:** the platform vouches for the workload (coming up: CI jobs, then deployed apps)
 2. **A trusted deliverer** hands over a single-use, short-lived secret ID
 3. **Stored forever** in a CI setting or a file: the usual, and the weakest
 
@@ -686,6 +808,61 @@ Every credential is protected by another one. **Something has to be first.** Ran
 <!--
 Rule 4. Asking "what's our secret zero?" about any system shows where the real
 risk sits. The rest of the talk is about making option 1 possible.
+-->
+
+---
+
+## Option 2 in practice: who hands over the secret ID?
+
+<style scoped>
+.mermaid { margin: 0; }
+.mermaid svg { max-height: 310px; }
+ul { font-size: 0.8em; margin-top: 4px; }
+</style>
+
+<div class="mermaid">
+sequenceDiagram
+  participant D as Deploy pipeline (the deliverer)
+  participant B as OpenBao
+  participant A as Agent, beside the app
+  D->>B: 1. log in with the job's own identity (nothing stored)
+  D->>B: 2. request a new secret ID for "app", **wrapped**
+  B-->>D: a single-use wrapper, good for 60 seconds
+  D->>A: 3. put wrapper in memory-only file, start the app
+  A->>B: 4. unwrap it (one use only); log in: role ID + secret ID
+  B-->>A: a token; secret ID is now spent and worthless
+  A->>B: 5. renew token, re-read secrets (secret ID no longer needed)
+</div>
+
+- **Every deploy, a fresh secret ID** (not stored, made on demand)
+  - Contrast: **Option 3 is storing the secret ID in the CI library permanently** and handing it out the same way every deploy—no rotation, so it's worth stealing
+- **The deliverer (pipeline) can mint secret IDs, not read them.** The wrapper means it never even sees the real secret ID
+- **Single-use and wrapped.** If someone else intercepted it and tried to unwrap it first, they'd get "token already unwrapped" (alarm). Once the app unwraps it, it's worthless
+- The running app renews its token, so the secret ID only matters at that one login
+
+<!--
+This answers "so where does the secret ID live, and who rotates it?"
+Pipeline flow: it logs in with its job identity (from lab 9, nothing stored),
+asks for a wrapped secret ID for the "app" role, and puts the wrapper into
+the app bundle. The app's Agent unwraps it once and logs in; the secret ID
+is spent after that first use. The app then keeps renewing its token for
+the rest of its life. No second login, no second secret ID.
+
+Option 3 ("just store it"): a company stores the secret ID in their CI
+library, hard-coded or in a vault. Every deploy uses the same one. It's
+never rotated, so it's worth stealing and exploiting offline.
+
+Option 2 (this slide): every deploy mints a new secret ID. It's single-use,
+so even if someone intercepted the wrapper, they can't exploit it the same
+way twice. The interception also fails loudly ("already unwrapped"), so
+you catch it.
+
+For a long-running app, give the role a periodic token (token_period):
+it lives as long as the Agent keeps renewing it, so no second login,
+no second secret ID. If the app stops, the token lapses by itself.
+
+Lab 10 does this with a real pipeline. Lab 6 did steps 2-4 by hand: you
+were the deliverer, with a one-hour, reusable secret ID.
 -->
 
 ---
@@ -705,11 +882,11 @@ risk sits. The rest of the talk is about making option 1 possible.
 
 ```yaml
 database:
-  host: db.internal
-  password: ENC[AES256_GCM,data:...]
+    host: db.internal
+    password: ENC[AES256_GCM,data:...]
 sops:
-  hc_vault:
-    - enc: vault:v1:...
+    hc_vault:
+        - enc: vault:v1:...
 ```
 
 </div>
@@ -779,11 +956,11 @@ Compare: a password committed in plaintext can't be un-leaked. An encrypted one 
 
 ```yaml
 steps:
-  - env:
-      API_KEY: ${{ secrets.DEMO_API_KEY }}
-    run: |
-      echo "$API_KEY"            # *** in the log
-      echo "$API_KEY" | base64   # readable
+    - env:
+          API_KEY: ${{ secrets.DEMO_API_KEY }}
+      run: |
+          echo "$API_KEY"            # *** in the log
+          echo "$API_KEY" | base64   # readable
 ```
 
 </div>
@@ -863,12 +1040,12 @@ sequenceDiagram
 
 ```json
 {
-  "iss": ".../git/api/actions",
-  "aud": "openbao",
-  "repository": "student07/vault-fundamentals",
-  "ref": "refs/heads/main",
-  "actor": "student07",
-  "exp": 1790000000
+    "iss": ".../git/api/actions",
+    "aud": "openbao",
+    "repository": "student07/vault-fundamentals",
+    "ref": "refs/heads/main",
+    "actor": "student07",
+    "exp": 1790000000
 }
 ```
 
@@ -897,14 +1074,14 @@ branch". The vault doesn't need a shared secret, only Forgejo's public keys.
 ```yaml
 # GitHub Actions
 permissions:
-  id-token: write
+    id-token: write
 steps:
-  - uses: hashicorp/vault-action@v3      # works with OpenBao too
-    with:
-      url: https://vault.example.com
-      method: jwt
-      role: ci-main
-      secrets: team/data/ci deploy_token | DEPLOY_TOKEN
+    - uses: hashicorp/vault-action@v3 # works with OpenBao too
+      with:
+          url: https://vault.example.com
+          method: jwt
+          role: ci-main
+          secrets: team/data/ci deploy_token | DEPLOY_TOKEN
 ```
 
 **Azure:** `azure/login` or an Azure DevOps service connection with **workload identity federation**.
@@ -959,11 +1136,11 @@ Same idea as the CI job, for a running app. **On Azure:** managed identity. **On
 table { font-size: 24px; }
 </style>
 
-| | Identity | May | May not |
-| --- | --- | --- | --- |
-| **Pipeline** | Forgejo job token, `aud: app-host` | deploy to *its owner's* slot, from `main` | read `team/app` |
-| **Pipeline** | Forgejo job token, `aud: openbao` | read `team/ci` | read `team/app` |
-| **App** | platform token, `sub: slot:<you>` | read `team/app` | deploy anything |
+|              | Identity                           | May                                       | May not         |
+| ------------ | ---------------------------------- | ----------------------------------------- | --------------- |
+| **Pipeline** | Forgejo job token, `aud: app-host` | deploy to _its owner's_ slot, from `main` | read `team/app` |
+| **Pipeline** | Forgejo job token, `aud: openbao`  | read `team/ci`                            | read `team/app` |
+| **App**      | platform token, `sub: slot:<you>`  | read `team/app`                           | deploy anything |
 
 **Separation of duties:** whoever ships the code never holds production's secrets, and a branch can't ship.
 
@@ -1069,18 +1246,63 @@ table { font-size: 21px; }
 th, td { padding: 5px 14px; }
 </style>
 
-| OpenBao | Azure |
-| ------- | ----- |
-| Namespace | A Key Vault per team or environment |
-| KV v2: versions, delete / undelete / destroy | Key Vault: versions, soft delete / recover / purge |
-| ACL policy (paths + capabilities) | RBAC roles (Secrets User, Secrets Officer) |
-| OIDC auth method | Entra ID sign-in |
-| JWT auth for the platform (terminal, app-host) | Managed identity |
-| AppRole | Service principal with a client secret |
-| JWT auth for CI jobs | Workload identity federation |
-| Transit engine (sops) | Key Vault keys (sops `azure_kv`) |
-| Database engine | Entra ID sign-in to Azure SQL / Postgres |
-| Audit device | Diagnostic settings to Log Analytics |
+| OpenBao                                        | Azure                                              |
+| ---------------------------------------------- | -------------------------------------------------- |
+| Namespace                                      | A Key Vault per team or environment                |
+| KV v2: versions, delete / undelete / destroy   | Key Vault: versions, soft delete / recover / purge |
+| ACL policy (paths + capabilities)              | RBAC roles (Secrets User, Secrets Officer)         |
+| OIDC auth method                               | Entra ID sign-in                                   |
+| JWT auth for the platform (terminal, app-host) | Managed identity                                   |
+| AppRole                                        | Service principal with a client secret             |
+| JWT auth for CI jobs                           | Workload identity federation                       |
+| Transit engine (sops)                          | Key Vault keys (sops `azure_kv`)                   |
+| Database engine                                | Entra ID sign-in to Azure SQL / Postgres           |
+| Audit device                                   | Diagnostic settings to Log Analytics               |
+
+---
+
+## One map: who reads what today
+
+<style scoped>
+.split > div:last-child { font-size: 0.85em; }
+</style>
+
+<div class="split split-60">
+<div>
+
+<div class="mermaid">
+flowchart LR
+  you["You: terminal and UI"] --> s["secret/students/you"]
+  agent["The Agent, for your app"] --> app["team/app"]
+  job["A CI job"] --> ci["team/ci"]
+  att["A leaked token"] -.->|"refused"| adm["team/admin"]
+  subgraph shared["Shared vault: secret/"]
+    s
+  end
+  subgraph ns["Your namespace: team/"]
+    app
+    ci
+    adm
+  end
+</div>
+
+</div>
+<div>
+
+- The class shares `secret/`; in your namespace you mount your own `team/`
+- Each reader has **its own identity** and a policy for **one path**
+- The leaked token is **refused** at `team/admin`: least privilege did its job
+- Every **rotate** today is a **new version** of one of these
+
+</div>
+</div>
+
+<!--
+The whole talk on one slide, just before the labs. team/app is read by the
+Agent (labs 6, 11) and the attacker in the drill (13); team/ci by the CI job
+(9); team/admin is the one nobody should get, and labs 4 and 13 show it
+refused. secret/students/you is where labs 0-3 happen.
+-->
 
 ---
 
@@ -1090,14 +1312,14 @@ th, td { padding: 5px 14px; }
 table { font-size: 22px; }
 </style>
 
-| Part | Labs | You'll see |
-| ---- | ---- | ---------- |
-| 1. Foundations | **0-3** | signing in, a leak in git, `pass`, versions, delete vs destroy, the templated policy |
-| 2. Your own vault | **4** | a namespace you run: engine, policy as code, a token you revoke |
-| 3. Secrets in code | **5-6** | the three places, AppRole, the Agent, rotation with no restart |
-| 4. Secrets in git | **7** | sops + transit, encrypt-only, retiring a key version |
-| 5. Pipelines | **8-9** | masking, AppRole in CI, then the job's own identity |
-| 6. Deployments | **10-12** | platform identity, dynamic logins (optional), the incident drill |
+| Part               | Labs      | You'll see                                                                           |
+| ------------------ | --------- | ------------------------------------------------------------------------------------ |
+| 1. Foundations     | **0-3**   | signing in, a leak in git, `pass`, versions, delete vs destroy, the templated policy |
+| 2. Your own vault  | **4**     | a namespace you run: engine, policy as code, a token you revoke                      |
+| 3. Secrets in code | **5-6**   | the three places, AppRole, the Agent, rotation with no restart                       |
+| 4. Secrets in git  | **7**     | sops + transit, encrypt-only, retiring a key version                                 |
+| 5. Pipelines       | **8-9**   | masking, AppRole in CI, then the job's own identity                                  |
+| 6. Deployments     | **11-13** | platform identity, dynamic logins (optional), the incident drill                     |
 
 About **2-3 hours** in all. Details and timings: [labs.md](labs.md).
 
@@ -1128,16 +1350,16 @@ Open the **Vault** card; the first time, click **Authorize** in Forgejo.
 table { font-size: 21px; }
 </style>
 
-| # | Rule | Where you did it |
-| - | ---- | ---------------- |
-| 1 | Least privilege | The templated policy (3), `app-read` (4), `ci-read` (9) |
-| 2 | Identity over secrets | The job's OIDC token (9), the platform's identity (10) |
-| 3 | Short-lived, revocable | Token TTLs (4), leases (11), revoking a tree (12) |
-| 4 | Secret zero | Your GPG key (2), AppRole's secret in CI (9), gone with OIDC |
-| 5 | Separation of duties | The pipeline deploys but can't read `team/app` (10) |
-| 6 | Audit everything | `bao-audit`: who read what, by accessor (4, 12) |
-| 7 | Plan for leaks | Removing a teammate (2), key rotation (7), no redeploy (6, 10), the drill (12) |
-| 8 | Never in git, logs or images | gitleaks (1), `pass` (2), masking (8), sops (7), no DEBUG dumps (5) |
+| #   | Rule                         | Where you did it                                                               |
+| --- | ---------------------------- | ------------------------------------------------------------------------------ |
+| 1   | Least privilege              | The templated policy (3), `app-read` (4), `ci-read` (9)                        |
+| 2   | Identity over secrets        | The job's OIDC token (9), the platform's identity (11)                         |
+| 3   | Short-lived, revocable       | Token TTLs (4), leases (12), revoking a tree (13)                              |
+| 4   | Secret zero                  | Your GPG key (2), AppRole's secret in CI (9), gone with OIDC                   |
+| 5   | Separation of duties         | The pipeline deploys but can't read `team/app` (11)                            |
+| 6   | Audit everything             | `bao-audit`: who read what, by accessor (4, 13)                                |
+| 7   | Plan for leaks               | Removing a teammate (2), key rotation (7), no redeploy (6, 11), the drill (13) |
+| 8   | Never in git, logs or images | gitleaks (1), `pass` (2), masking (8), sops (7), no DEBUG dumps (5)            |
 
 ---
 
@@ -1189,8 +1411,22 @@ table { font-size: 21px; }
       noteBorderColor: "#3dd6c3",
     },
   })
-  // Draw only once the slide font has loaded: Mermaid sizes each box from
-  // the text it measures, and a font that swaps in later is wider, so labels
-  // got cut off ("makes database logins on de").
-  document.fonts.load('18px Manrope').catch(() => {}).then(() => document.fonts.ready).then(() => mermaid.run())
+  // Mermaid sizes each box from the text it measures, so it must measure
+  // unscaled, in the real font. mermaid.run() measures inside the slide,
+  // which Marp scales to the window: a window smaller than 1280x720 got boxes
+  // too small and labels cut off. mermaid.render() draws in a scratch element
+  // on <body> instead; the finished SVG then goes into the slide.
+  async function draw() {
+    const decode = document.createElement("textarea")
+    let n = 0
+    for (const el of document.querySelectorAll(".mermaid:not([data-processed])")) {
+      decode.innerHTML = el.innerHTML
+      const src = decode.value.replace(/<br\s*\/?>/gi, "<br/>").trim()
+      const { svg, bindFunctions } = await mermaid.render(`mermaid-${n++}`, src)
+      el.innerHTML = svg
+      bindFunctions?.(el)
+      el.setAttribute("data-processed", "true")
+    }
+  }
+  document.fonts.load('18px Manrope').catch(() => {}).then(() => document.fonts.ready).then(draw)
 </script>
