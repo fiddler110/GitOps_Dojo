@@ -1,21 +1,21 @@
-e ---
+---
 marp: true
 theme: default
 paginate: true
 size: 16:9
 html: true
 style: |
-@import url('assets/themes/presentation.css');
-.split { align-items: center; display: flex; gap: 48px; }
-.split > div { flex: 1; min-width: 0; }
-.split-40 > div:first-child { flex: 0 0 40%; }
-.split-60 > div:first-child { flex: 0 0 58%; }
-.mermaid { text-align: center; margin: 8px 0; }
-.mermaid:not([data-processed]) { visibility: hidden; }
-.mermaid svg { max-height: 420px; }
-.mermaid foreignObject p, .mermaid foreignObject div { margin: 0 !important; line-height: 1.35 !important; }
-.small { font-size: 0.85em; }
-.lede { color: var(--muted); font-size: 0.9em; }
+  @import url('assets/themes/presentation.css');
+  .split { align-items: center; display: flex; gap: 48px; }
+  .split > div { flex: 1; min-width: 0; }
+  .split-40 > div:first-child { flex: 0 0 40%; }
+  .split-60 > div:first-child { flex: 0 0 58%; }
+  .mermaid { text-align: center; margin: 8px 0; }
+  .mermaid:not([data-processed]) { visibility: hidden; }
+  .mermaid svg { max-height: 420px; }
+  .mermaid foreignObject p, .mermaid foreignObject div { margin: 0 !important; line-height: 1.35 !important; }
+  .small { font-size: 0.85em; }
+  .lede { color: var(--muted); font-size: 0.9em; }
 footer: "[&larr; Hub](index.md) &nbsp;|&nbsp; Vault Fundamentals | Engineering & IT Operations"
 ---
 
@@ -372,9 +372,9 @@ section > p { font-size: 0.9em; }
 
 OpenBao isn't only a store. It runs several **secrets engines**, each at its own path, all behind the same token and policy checks.
 
-| A path you'll use              | Engine       | What it does                                             | Where it comes back                                 |
-| ------------------------------ | ------------ | -------------------------------------------------------- | --------------------------------------------------- |
-| `secret/students/student07/db` | **KV**       | Keeps a secret you give it, and hands it back            | Next few slides                                     |
+| A path you'll use              | Engine       | What it does                                             | Where it comes back                                |
+| ------------------------------ | ------------ | -------------------------------------------------------- | -------------------------------------------------- |
+| `secret/students/student07/db` | **KV**       | Keeps a secret you give it, and hands it back            | Next few slides                                    |
 | `transit/encrypt/sops`         | **Transit**  | Encrypts what you send; its key never leaves the vault   | Later: secrets in git, config files safe to commit |
 | `database/creds/app`           | **Database** | Makes a new DB login per request, deleted when time's up | Later: deployments, no shared DB password          |
 
@@ -826,19 +826,18 @@ sequenceDiagram
   participant B as OpenBao
   participant A as Agent, beside the app
   D->>B: 1. log in with the job's own identity (nothing stored)
-  D->>B: 2. request a new secret ID for "app", **wrapped**
+  D->>B: 2. a new secret ID for "app", wrapped
   B-->>D: a single-use wrapper, good for 60 seconds
-  D->>A: 3. put wrapper in memory-only file, start the app
-  A->>B: 4. unwrap it (one use only); log in: role ID + secret ID
-  B-->>A: a token; secret ID is now spent and worthless
-  A->>B: 5. renew token, re-read secrets (secret ID no longer needed)
+  D->>A: 3. put it in a memory-only file, start the app
+  A->>B: 4. unwrap it, log in: role ID + secret ID
+  B-->>A: a token, and the secret ID is now spent
+  A->>B: 5. renew the token, re-read the secrets
 </div>
 
-- **Every deploy, a fresh secret ID** (not stored, made on demand)
-  - Contrast: **Option 3 is storing the secret ID in the CI library permanently** and handing it out the same way every deploy—no rotation, so it's worth stealing
-- **The deliverer (pipeline) can mint secret IDs, not read them.** The wrapper means it never even sees the real secret ID
-- **Single-use and wrapped.** If someone else intercepted it and tried to unwrap it first, they'd get "token already unwrapped" (alarm). Once the app unwraps it, it's worthless
-- The running app renews its token, so the secret ID only matters at that one login
+- **The vault never pushes.** Rotating = the deliverer asks for a **new secret ID at every deploy**
+- **Option 3, the shortcut:** one secret ID kept in CI settings forever. It never rotates: worth stealing
+- The deliverer may **make** secret IDs for `app`, not **read** its secrets
+- The running app keeps its **token** alive: the secret ID matters only at login
 
 <!--
 This answers "so where does the secret ID live, and who rotates it?"
@@ -854,7 +853,7 @@ never rotated, so it's worth stealing and exploiting offline.
 
 Option 2 (this slide): every deploy mints a new secret ID. It's single-use,
 so even if someone intercepted the wrapper, they can't exploit it the same
-way twice. The interception also fails loudly ("already unwrapped"), so
+way twice. The interception also fails loudly ("wrapping token is not valid or does not exist"), so
 you catch it.
 
 For a long-running app, give the role a periodic token (token_period):
