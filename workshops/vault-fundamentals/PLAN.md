@@ -39,6 +39,10 @@
 
 ### Where we stopped (2026-09-25): start here next
 
+- **2026-09-25: the deliverer lab (S39), T5.12-T5.16 done.** New `lab10.md`; labs 10-12 are now 11-13. Tested
+  locally: `tests/lab_10.sh` PASS (26 checks, student03), `tests/labs_11_13.sh` after it (see T5.16). Not yet run:
+  the new bot step `step_vf_lab10` (needs `--test`; it runs in T5.6). Lab 11 doesn't yet *show* a restart logging
+  in again (lab 10 ends on that promise). Next is still T5.6.
 - **2026-09-25: the `pass` lab (S37, S38), tasks T5.7-T5.11.** New lab 2, labs renumbered 2-11 → 3-12. Older
   bullets below and older log entries use the **old** numbers. T5.6 (the long live pass) runs after these, on the
   new numbering.
@@ -886,14 +890,14 @@ Build T5.1-T5.5 without long stack runs (unit tests and `--dry-run` only); T5.6 
       back-reference on the KV slides, the labs map and wrap-up tables on the new numbers; 16:9 check.
       Verify: the lab-2 steps in a fresh terminal image; `labs_*` tests on a stack (in T5.6 at the latest).
 
-- [~] **T5.12** Plan: S39, §4 outline, these tasks.
-- [ ] **T5.13** Renumber labs 10-12 → 11-13 (lab files, cross-references, README, `labs.md`, `lab-index.md`, cheat
+- [x] **T5.12** Plan: S39, §4 outline, these tasks.
+- [x] **T5.13** *(c4198c0, c15d66e)* Renumber labs 10-12 → 11-13 (lab files, cross-references, README, `labs.md`, `lab-index.md`, cheat
       sheet, slides, bots, tests renamed `labs_11_13.sh`, `e2e.sh`, `p4_browser.py`, setup hooks' and `app-host` comments).
-- [ ] **T5.14** Lab 10 (the deliverer): policy `app-deliver`, CI role `deliver-main`, the `app` role tightened,
+- [x] **T5.14** Lab 10 (the deliverer): policy `app-deliver`, CI role `deliver-main`, the `app` role tightened,
       unwrap twice by hand, `deliver.yml` + the Agent config, checks (spent, file gone, branch refused, audit), the
       restart trade-off; a cheat-sheet section; lab README and `labs.md` rows.
-- [ ] **T5.15** Talk: Part 6 slide for the deliverer lab, the labs map and wrap-up tables; 16:9 check.
-- [ ] **T5.16** `tests/lab_10.sh` (every step, as a student, on a stack), added to `e2e.sh`; run it and
+- [x] **T5.15** Talk: Part 6 slide ("A delivered secret ID, or the platform's identity?"; a Deliverer row in "Deploy, but don't read") for the deliverer lab, the labs map and wrap-up tables; 16:9 check.
+- [x] **T5.16** `tests/lab_10.sh` (every step, as a student, on a stack), added to `e2e.sh`; run it and
       `labs_11_13.sh` on a fresh local stack.
 
 Later phases get their own task block (IDs `T5.x`) when they start.
@@ -1410,3 +1414,13 @@ then for a lab where a pipeline does the trusted-deliverer part. Talk first: sli
 identity of its own" and "AppRole: a username and a password, for a program" (a table of where each piece is kept,
 and a click-to-open wall on how the secret ID is kept small), and slide 28 "Option 2 in practice: who hands over
 the secret ID?". Then S39: a new lab 10, labs 10-12 → 11-13. Tasks T5.12-T5.16 added before T5.6.
+
+Lab 10 built and run (T5.13-T5.16). Found while building it: a token made with `bao token create` *without*
+`-orphan` from the root-namespace sign-in token is denied everything in the namespace (lab 4 already uses
+`-orphan`, so lab 10 does too); a token that can't see a mount gets `preflight capability check returned 403` from
+`bao kv get`, not `permission denied`; after a restart the Agent logs `error="no known secret ID"`. In the
+workflow, `export BAO_TOKEN="$(...)"` hides a failed login (export returns 0), so the deliver step assigns first.
+The app's `start.sh` clears `$HOME/secrets` at each start, else a restart would show the last run's secrets.
+Also: a formatter pass had unindented the talk's front-matter `style:` block (every slide lost its theme);
+restored in ea46cbc with slide 28's mermaid fix.
+

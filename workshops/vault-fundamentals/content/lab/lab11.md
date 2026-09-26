@@ -1,6 +1,6 @@
 # Lab 11 — Deploy with workload identity
 
-**Goal:** deploy your app to a server the way it's done well at work. The **pipeline deploys** the app but **can't read its secrets**. The **app gets its own secrets** by proving *where it runs*, with an identity the platform gives it, like an Azure managed identity or a Kubernetes service account. Nobody hands the app a password, not even you.
+**Goal:** deploy your app to a server the way it's done well at work. The **pipeline deploys** the app but **can't read its secrets**. The **app gets its own secrets** by proving *where it runs*, with an identity the platform gives it, like an Azure managed identity or a Kubernetes service account. Nobody hands the app a password, not even you, and not even the pipeline: Lab 10's delivered secret ID goes away.
 
 ---
 
@@ -58,12 +58,13 @@ bao write auth/jwt-platform/role/app \
 
 ## 4. The app, and the Agent next to it
 
-The app goes in `app/` in your repo. Three files, and **none of them holds a secret**.
+The app goes in `app/` in your repo. Three files, and **none of them holds a secret**. If you did Lab 10, they replace its files, and its role ID goes: nothing will log in with AppRole any more.
 
-The Agent's config (as in Lab 6, but it logs in with the platform's token instead of an AppRole secret ID):
+The Agent's config (as in Lab 10, but it logs in with the platform's token instead of a delivered secret ID):
 
 ```bash
 mkdir -p app
+git rm -q --ignore-unmatch app/role-id
 cat > app/agent.hcl <<EOF
 vault {
   address = "http://openbao:8200"
@@ -193,7 +194,7 @@ EOF
 
 ## 5. The pipeline deploys, and can't read
 
-The deploy workflow uses **two identities, one per job to do**. It asks Forgejo for an ID token with the audience `app-host` and sends it with the app: the platform checks Forgejo's signature and deploys only from **your repo, on `main`**, to **your slot**. Then it logs in to the vault as CI (Lab 9's `ci-main` role) and shows it **can't** read `team/app`:
+The deploy workflow replaces Lab 10's: there's no deliver step any more. It still uses **two identities, one per job to do**. It asks Forgejo for an ID token with the audience `app-host` and sends it with the app: the platform checks Forgejo's signature and deploys only from **your repo, on `main`**, to **your slot**. Then it logs in to the vault as CI (Lab 9's `ci-main` role) and shows it **can't** read `team/app`:
 
 ```bash
 mkdir -p .forgejo/workflows
@@ -289,7 +290,7 @@ unset BAO_NAMESPACE
 
 - **Azure**: the app gets a **managed identity** (App Service, Container Apps, a VM, AKS workload identity). Key Vault trusts Entra ID, and the app reads with that identity: no connection string, no client secret. The pipeline deploys with its own **workload identity federation** credential, which has no Key Vault read role.
 - **Kubernetes**: the pod's **service account token** (projected, short-lived) logs in to Vault's `kubernetes` or `jwt` auth method; the Vault Agent injector or the CSI driver writes the secrets to a file.
-- **Anywhere**: if the platform can't vouch for the app, the next best is AppRole with a **response-wrapped**, single-use secret ID delivered by the deploy (Lab 6's secret zero, made small).
+- **Anywhere**: if the platform can't vouch for the app, the next best is Lab 10: AppRole with a **response-wrapped**, single-use secret ID delivered by the deploy.
 
 ## Check yourself
 

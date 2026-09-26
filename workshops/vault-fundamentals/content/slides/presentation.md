@@ -739,7 +739,7 @@ sequenceDiagram
 <div class="leak"><i>disk</i><b>It's deleted after reading</b>The Agent's <code>remove_secret_id_file_after_reading</code>, as in lab 6.<em>Nothing useful left on disk</em></div>
 <div class="leak"><i>who</i><b>The halves travel apart</b>Role ID in config; secret ID at deploy, from a deliverer that may <strong>make</strong> secret IDs, not <strong>read</strong> secrets.<em>One half alone logs nobody in</em></div>
 </div>
-<p class="pop-src"><b>Weak:</b> a long-lived secret ID in a CI variable (lab 9). <b>Good:</b> wrapped, single-use, minutes long, delivered at deploy. <b>Best:</b> no secret ID at all: the platform vouches for the app (labs 9 and 11).</p>
+<p class="pop-src"><b>Weak:</b> a long-lived secret ID in a CI variable (lab 9). <b>Good:</b> wrapped, single-use, minutes long, delivered at deploy (lab 10). <b>Best:</b> no secret ID at all: the platform vouches for the app (labs 9 and 11).</p>
 </div>
 </div>
 
@@ -1110,6 +1110,35 @@ list.
 
 ---
 
+## A delivered secret ID, or the platform's identity?
+
+<style scoped>
+table { font-size: 22px; }
+th, td { padding: 6px 12px; }
+</style>
+
+|                                 | **Delivered secret ID** (lab 10)       | **Platform identity** (lab 11)       |
+| ------------------------------- | -------------------------------------- | ------------------------------------ |
+| Who starts the app's login      | the deploy pipeline, at every deploy   | the platform, every few minutes      |
+| The pipeline may, in the vault  | make wrapped secret IDs for `app`      | nothing for the app                  |
+| A restart with no deploy        | **can't log in**: the secret ID is spent | logs in again by itself              |
+| The login secret rotates        | at every deploy                        | every 10 minutes (a new platform JWT) |
+| Needs from the platform         | nothing                                | signed identities it publishes keys for |
+
+**The deliverer** when the platform can't vouch for the app (a plain VM, an old host). **Platform identity** wherever it can.
+
+<!--
+Lab 10 is the "Option 2 in practice" slide from Part 3, done by a real
+pipeline: it logs in as deliver-main, mints a wrapped single-use secret ID,
+ships it in the bundle; the Agent opens it once. The lab ends by restarting
+the app without a deploy: the Agent says "no known secret ID" and the app has
+no secrets until the next deploy. That's the price of single use, and it's why
+lab 11 exists: the platform keeps handing the app a fresh identity, so a
+restart just logs in again.
+-->
+
+---
+
 ## Platform identity: the host vouches for the app
 
 <div class="mermaid">
@@ -1132,13 +1161,16 @@ Same idea as the CI job, for a running app. **On Azure:** managed identity. **On
 ## Deploy, but don't read
 
 <style scoped>
-table { font-size: 24px; }
+table { font-size: 21px; }
+th, td { padding: 6px 12px; }
+td code { white-space: nowrap; }
 </style>
 
 |              | Identity                           | May                                       | May not         |
 | ------------ | ---------------------------------- | ----------------------------------------- | --------------- |
 | **Pipeline** | Forgejo job token, `aud: app-host` | deploy to _its owner's_ slot, from `main` | read `team/app` |
 | **Pipeline** | Forgejo job token, `aud: openbao`  | read `team/ci`                            | read `team/app` |
+| **Deliverer** | `aud: openbao`, role `deliver-main` | make wrapped secret IDs for `app` (lab 10) | read `team/app` |
 | **App**      | platform token, `sub: slot:<you>`  | read `team/app`                           | deploy anything |
 
 **Separation of duties:** whoever ships the code never holds production's secrets, and a branch can't ship.
@@ -1298,7 +1330,7 @@ flowchart LR
 
 <!--
 The whole talk on one slide, just before the labs. team/app is read by the
-Agent (labs 6, 11) and the attacker in the drill (13); team/ci by the CI job
+Agent (labs 6, 10, 11) and the attacker in the drill (13); team/ci by the CI job
 (9); team/admin is the one nobody should get, and labs 4 and 13 show it
 refused. secret/students/you is where labs 0-3 happen.
 -->
@@ -1318,7 +1350,7 @@ table { font-size: 22px; }
 | 3. Secrets in code | **5-6**   | the three places, AppRole, the Agent, rotation with no restart                       |
 | 4. Secrets in git  | **7**     | sops + transit, encrypt-only, retiring a key version                                 |
 | 5. Pipelines       | **8-9**   | masking, AppRole in CI, then the job's own identity                                  |
-| 6. Deployments     | **11-13** | platform identity, dynamic logins (optional), the incident drill                     |
+| 6. Deployments     | **10-13** | a delivered secret ID, platform identity, dynamic logins (optional), the drill      |
 
 About **2-3 hours** in all. Details and timings: [labs.md](labs.md).
 

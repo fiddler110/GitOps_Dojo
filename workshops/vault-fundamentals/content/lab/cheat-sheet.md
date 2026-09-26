@@ -144,7 +144,29 @@ EOF
 
 `${{ secrets.NAME }}` is masked as `***` in logs, but anyone who can push a workflow can print it (`| base64`).
 
-## Deployments (labs 11-13)
+## Deployments (labs 10-13)
+
+```bash
+# Lab 10: the pipeline delivers the app's secret ID, wrapped, once per deploy
+bao write auth/approle/role/app token_policies=app-read token_period=10m \
+  secret_id_num_uses=1 secret_id_ttl=5m                  # single-use, 5 minutes; a renewable token
+bao write -f -wrap-ttl=60s -field=wrapping_token auth/approle/role/app/secret-id   # the wrapper
+bao write sys/wrapping/lookup token=<wrapper>              # where it was made, how long it lives
+bao unwrap -field=secret_id <wrapper>                      # once; again: "not valid or does not exist"
+```
+
+```hcl
+# policies/app-deliver.hcl: mint secret IDs for the app, wrapped only
+path "auth/approle/role/app/secret-id" {
+  capabilities     = ["update"]
+  min_wrapping_ttl = "10s"
+  max_wrapping_ttl = "120s"
+}
+# app/agent.hcl, in the approle config: open only a wrapper made at that path
+#   secret_id_response_wrapping_path = "auth/approle/role/app/secret-id"
+```
+
+Lab 11 onwards: the platform's identity instead, so nothing is delivered.
 
 ```bash
 curl -s http://app-host:8080/.well-known/jwks.json      # the platform's public keys

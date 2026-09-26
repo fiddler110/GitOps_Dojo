@@ -286,6 +286,26 @@ EOF"
   unset BAO_NAMESPACE
 }
 
+# Lab 10: the pipeline delivers the app's AppRole secret ID, wrapped, and deploys it to this bot's
+# app-host slot. Runs lab10.md's blocks 1-12 as written (not the restart, which leaves the app down).
+step_vf_lab10() {
+  vf_env || return 1
+  cd "$REPO_DIR" || return 1
+  narrate "Lab 10 -- deploy with a delivered secret ID: the pipeline mints it, wrapped, and can't read"
+  paste_cmd "$(vf_block lab10.md 1 2 3)" || return 1
+  paste_cmd "$(vf_block lab10.md 4 5 6)" || return 1
+  paste_cmd "$(vf_block lab10.md 7 8 9 10 11)" || return 1
+  paste_cmd "$(vf_block lab10.md 12)" || return 1
+  narrate "waiting for the deploy job"
+  if vf_wait_app 'API_KEY fingerprint' 240; then
+    run_cmd "curl -s http://app-host:8080/\$USER/ | head -8"
+    paste_cmd "$(vf_block lab10.md 14)"
+  else
+    narrate "no app yet after 4 minutes -- the runners may be busy; moving on"
+  fi
+  unset BAO_NAMESPACE
+}
+
 # Lab 11: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
 # through its platform identity. Runs lab11.md's blocks 1-8 as written, then a rotation (block 11).
 step_vf_lab11() {
@@ -308,7 +328,7 @@ step_vf_lab11() {
 case "$PERSONA" in
   expert)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3 step_vf_lab4
-           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab11 step_wrap_round)
+           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab10 step_vf_lab11 step_wrap_round)
     ;;
   intermediate)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab2 step_vf_lab3 step_vf_lab4

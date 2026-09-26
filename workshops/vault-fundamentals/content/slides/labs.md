@@ -77,6 +77,7 @@ Your workflows run on **single-use runners**: each takes one job and is thrown a
 
 | Lab    | You will                                                                        | Time    |
 | ------ | ------------------------------------------------------------------------------- | ------- |
+| **10** | deploy to app-host; CI delivers a wrapped, single-use secret ID, can't read | ~25 min |
 | **11** | deploy to app-host; the app logs in with its platform identity, CI can't read   | ~20 min |
 | **12** | *(optional)* database logins made on demand: lease, renew, revoke; the app's own | ~15 min |
 | **13** | incident drill: a leaked token, the audit trail, revoke the tree, rotate        | ~15 min |
