@@ -1,6 +1,6 @@
 # vault-fundamentals P4 in a real browser (T4.8): the My App card's page for a
 # student, the /admin Apps tab for the facilitator (every slot), an app page
-# through the gateway (sandboxed), labs 10-12 in the lab reader, and the Part 6
+# through the gateway (sandboxed), labs 11-13 in the lab reader, and the Part 6
 # slides, labs.md and the lab index within 16:9. Exits 1 on any failure.
 #
 # Run it in Playwright's image, with the stack up (from the repo root;
@@ -74,8 +74,8 @@ with sync_playwright() as p:
     check(not [e for e in errors if "apps" in e.lower()], f"no console errors from the tab ({errors[:2]})")
     pg.screenshot(path="/s/apps_facilitator.png")
 
-    print("== labs 10-12 in the lab reader")
-    for n in (10, 11, 12):
+    print("== labs 11-13 in the lab reader")
+    for n in (11, 12, 13):
         pg.goto(f"/slides/assets/lab-reader.html?file=lab{n}.md.txt"); pg.wait_for_timeout(1500)
         text = pg.locator("body").inner_text()
         check(f"Lab {n}" in text and "Check yourself" in text, f"lab {n} renders in full")

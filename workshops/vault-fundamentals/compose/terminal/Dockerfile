@@ -38,10 +38,10 @@ RUN set -eux; \
     rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks
 
 # Python's Vault client, hvac, for lab 5 (the app reads its secret with the
-# SDK), the pure-Python Postgres driver pg8000 for lab 11, and their whole
+# SDK), the pure-Python Postgres driver pg8000 for lab 12, and their whole
 # dependency trees. Every wheel is pure Python (py3-none-any or
 # py2.py3-none-any), so hvac-wheels.sha256 has one hash per package for both
-# architectures. app-host copies these packages from this image (labs 10-12). wget fetches them (it uses the system CA store, as the other
+# architectures. app-host copies these packages from this image (labs 11-13). wget fetches them (it uses the system CA store, as the other
 # downloads do; pip would use its own) and sha256sum checks them; pip then
 # runs straight from its own wheel (the base image has none) and installs
 # offline. /usr/local is pip's, not apt's, hence --break-system-packages.
@@ -61,8 +61,8 @@ RUN set -eux; \
     cd /; rm -rf /tmp/wheels; \
     python3 -c 'import hvac, requests, pg8000'
 
-# psql for lab 11's dynamic database logins, jq for the JSON that bao and
-# the APIs print (labs 10-12), and pass for lab 2 (it brings gnupg, its
+# psql for lab 12's dynamic database logins, jq for the JSON that bao and
+# the APIs print (labs 11-13), and pass for lab 2 (it brings gnupg, its
 # pinentry-curses and tree). From Debian's archive, which apt checks against
 # Debian's signing keys.
 RUN apt-get update && apt-get install -y --no-install-recommends jq pass postgresql-client \

@@ -149,6 +149,7 @@ phase, before editing engine/, and about anything in section 12.
 | S36 | *(User, 2026-09-25, P5.)* **Size for 20 students** (load test with 20 bots); the sizing notes extrapolate to 35. Build all content first, then one long live pass at the end. |
 | S37 | *(User, 2026-09-25.)* **A new lab 2: `pass`, the local precursor.** Between the leak (lab 1) and the shared vault, students keep a secret in `pass` (passwordstore.org): a path is a folder, a secret is a GPG-encrypted file of key/value lines. Then they hit its limit (sharing means encrypting for each person; no audit, no expiry, can't take it back), which motivates the hosted vault. Order: local (you're owner and admin) → shared vault (you're a tenant) → your namespace (you're the admin). **Labs 2-11 become 3-12** everywhere (lab files, reader, index, cheat sheet, talk, bots, tests; the test scripts are renamed to the new numbers). The talk gets two slides in Part 1 before "A vault: one copy, behind one gate". Decisions S1-S36, §10, §14 and the §15 entries dated before this one keep the **old** numbers. `pass` and `gnupg` come from Debian's archive (as `jq` and `psql` do). |
 | S38 | *(User, 2026-09-25.)* **Name `gopass` for Windows** (and as a `pass`-compatible option everywhere): lab 2 and the cheat sheet say how to do the same at work on Windows (`winget install gopass.gopass` + Gpg4win), macOS and Linux, so the idea isn't Linux/mac-only. Not installed in the lab. |
+| S39 | *(User, 2026-09-25.)* **A new lab 10: the trusted deliverer, automated.** The talk's option 2 for secret zero, done by a pipeline: a CI role `deliver-main` (lab 9's `jwt-ci`, this repo on `main`) whose policy may only `update` `auth/approle/role/app/secret-id`, with `min_wrapping_ttl` so an unwrapped request is refused. Each deploy mints a **wrapped, single-use, short-lived** secret ID, puts the wrapper in the app bundle and deploys to `app-host`; the Agent unwraps it (`secret_id_response_wrapping_path`), logs in once and deletes the file. The pipeline still can't read `team/app`. The lab ends on the trade-off (a restart without a deploy can't log in again), which leads into platform identity. **Labs 10-12 become 11-13** everywhere, as in S37. No engine or `app-host` change. The talk gets slides 24-25 (why an app needs an identity; AppRole), the secret-ID wall, slide 28 (who hands over the secret ID) and a Part 6 back-reference. |
 | S22 | **P0 order: the biggest unknowns first** (2026-09-23): T0.6 (Actions OIDC) and T0.7 (one-job runners) run straight after T0.2/T0.3, because labs 8-9 rest on them. |
 
 ## 2. Teaching goal
@@ -171,7 +172,7 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 7. **Plan for leaks**: rotation, revocation and the incident drill are normal operations, not emergencies.
 8. **Never in git, never in logs, never in images**: including history, CI output and container layers.
 
-## 4. Lab outline (13 labs over 2-3 hours; renumbered by S37)
+## 4. Lab outline (14 labs over 2-3 hours; renumbered by S37 and S39)
 
 **Part 1: Foundations (the vault user)**
 
@@ -222,15 +223,19 @@ The talk introduces them, each lab ends with a "which principle did this apply?"
 
 **Part 6: Secrets in deployments**
 
-10. **Deploy with workload identity** (§5.6). The pipeline deploys the app to `app-host` but **cannot read the app's
+10. **Deploy with a delivered secret ID** (S39). The pipeline logs in with its own identity, mints a wrapped,
+    single-use AppRole secret ID for the app, and ships the wrapper with the deploy; the Agent unwraps it, logs in
+    once, deletes it. Every deploy rotates it. Unwrap-twice shows interception; a restart without a deploy shows
+    the cost, which lab 11 removes.
+11. **Deploy with workload identity** (§5.6). The pipeline deploys the app to `app-host` but **cannot read the app's
    secrets**. The app proves its identity to OpenBao through the platform and gets its own secrets. Half-configured,
    as in lab 9 (S19).
-11. **Dynamic database credentials** (optional, S18). The app gets a Postgres login made for it, with a lease. Watch it expire, renew
+12. **Dynamic database credentials** (optional, S18). The app gets a Postgres login made for it, with a lease. Watch it expire, renew
     it, revoke it. There is no shared database password left to leak.
-12. **Incident drill (capstone).** "A token leaked." Use the audit log to find what it read, revoke it (and
+13. **Incident drill (capstone).** "A token leaked." Use the audit log to find what it read, revoke it (and
     everything under it), rotate what it touched, and check that the app recovers by itself.
 
-**Stretch:** response wrapping for handing over an AppRole login secret safely; the PKI engine for short-lived
+**Stretch:** the PKI engine for short-lived
 certificates (ties in with `cert-autorenewal`).
 
 ## 5. Architecture
@@ -881,6 +886,16 @@ Build T5.1-T5.5 without long stack runs (unit tests and `--dry-run` only); T5.6 
       back-reference on the KV slides, the labs map and wrap-up tables on the new numbers; 16:9 check.
       Verify: the lab-2 steps in a fresh terminal image; `labs_*` tests on a stack (in T5.6 at the latest).
 
+- [~] **T5.12** Plan: S39, §4 outline, these tasks.
+- [ ] **T5.13** Renumber labs 10-12 → 11-13 (lab files, cross-references, README, `labs.md`, `lab-index.md`, cheat
+      sheet, slides, bots, tests renamed `labs_11_13.sh`, `e2e.sh`, `p4_browser.py`, setup hooks' and `app-host` comments).
+- [ ] **T5.14** Lab 10 (the deliverer): policy `app-deliver`, CI role `deliver-main`, the `app` role tightened,
+      unwrap twice by hand, `deliver.yml` + the Agent config, checks (spent, file gone, branch refused, audit), the
+      restart trade-off; a cheat-sheet section; lab README and `labs.md` rows.
+- [ ] **T5.15** Talk: Part 6 slide for the deliverer lab, the labs map and wrap-up tables; 16:9 check.
+- [ ] **T5.16** `tests/lab_10.sh` (every step, as a student, on a stack), added to `e2e.sh`; run it and
+      `labs_11_13.sh` on a fresh local stack.
+
 Later phases get their own task block (IDs `T5.x`) when they start.
 
 ## 12. Open questions for the user
@@ -1366,7 +1381,7 @@ Surprises, gotchas and problems found in other workshops while working on this o
 The user said go and decided S33-S36 (bots walk labs 0-9, an Audit tab in the `openbao` module, no Azure VM task,
 size for 20). Built without a stack: the Audit tab (`openbao-audit` serves it, facilitator only, 6 unit tests);
 `class_users` in `openbao-setup` so every hook, the broker, `app-db` and `app-host` also cover `testuserN`
-(`FORGEJO_ORG` bots fork, `FORGEJO_FORK_WORKFLOW=1`); `content/bots/steps.sh` (novice 0-3, intermediate to 8,
+(bots fork, `FORGEJO_FORK_WORKFLOW=1`); `content/bots/steps.sh` (novice 0-3, intermediate to 8,
 expert to 9; labs 8-9 taken from the lab pages; each round undoes the last); three wrap-up slides; `tests/e2e.sh`
 (every area, `--load MIN`), `tests/p5_browser.py`, the workshop README. Not yet run on a stack: all of it is T5.6.
 
@@ -1387,3 +1402,11 @@ in the terminal, `GPG_TTY` in zshrc; `lab_2.sh`, `tenancy.sh`, `cli_login.sh`, `
 `labs_10_12.sh` all PASS as student03; the lab reader serves lab2, lab3 and lab12 under their new titles. Stack left
 running for the user's browser pass. Not run: the bots (`--test`), the browser tests, a person typing a passphrase
 into pinentry in the browser terminal.
+
+### 2026-09-25 — The deliverer lab (S39)
+
+The user asked how an AppRole secret ID is protected and rotated ("does the vault write a new one to the app?"),
+then for a lab where a pipeline does the trusted-deliverer part. Talk first: slide 24 split into "An app needs an
+identity of its own" and "AppRole: a username and a password, for a program" (a table of where each piece is kept,
+and a click-to-open wall on how the secret ID is kept small), and slide 28 "Option 2 in practice: who hands over
+the secret ID?". Then S39: a new lab 10, labs 10-12 → 11-13. Tasks T5.12-T5.16 added before T5.6.

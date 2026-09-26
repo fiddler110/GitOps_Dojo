@@ -1,4 +1,4 @@
-# Lab 10 — Deploy with workload identity
+# Lab 11 — Deploy with workload identity
 
 **Goal:** deploy your app to a server the way it's done well at work. The **pipeline deploys** the app but **can't read its secrets**. The **app gets its own secrets** by proving *where it runs*, with an identity the platform gives it, like an Azure managed identity or a Kubernetes service account. Nobody hands the app a password, not even you.
 
@@ -114,7 +114,7 @@ The app itself knows nothing about vaults. It reads the Agent's file on every re
 
 ```bash
 cat > app/app.py <<'EOF'
-"""The team app on app-host (Labs 10-12)."""
+"""The team app on app-host (Labs 11-13)."""
 import base64
 import hashlib
 import json
@@ -159,7 +159,7 @@ def page():
     try:
         db, age = read_env("db.env")
     except OSError:
-        out.append("database: not set up (Lab 11)")
+        out.append("database: not set up (Lab 12)")
     else:
         import pg8000.native
         try:

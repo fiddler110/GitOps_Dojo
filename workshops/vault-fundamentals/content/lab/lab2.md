@@ -138,9 +138,9 @@ Every copy they already pulled still opens with their key, forever. Removing som
 | ----------- | ----------- | ------------------------ |
 | To give access | Re-encrypt the folder for each person | One policy line; nothing is copied |
 | To take access back | Re-encrypt, then rotate everything they saw | Revoke the token; it can't read again |
-| To know who read what, when | Nobody knows | The audit log (lab 12) |
-| A secret that expires by itself | No | Leases and TTLs (labs 5, 11) |
-| An app or a pipeline to read it | Give it a private key: another secret to hide | It logs in with its own identity (labs 9, 10) |
+| To know who read what, when | Nobody knows | The audit log (lab 13) |
+| A secret that expires by itself | No | Leases and TTLs (labs 5, 12) |
+| An app or a pipeline to read it | Give it a private key: another secret to hide | It logs in with its own identity (labs 9, 11) |
 
 The vault keeps the same shape (a path, pointing at key/value pairs), but it keeps **one** copy on a server, and every read passes a gate that checks who's asking.
 

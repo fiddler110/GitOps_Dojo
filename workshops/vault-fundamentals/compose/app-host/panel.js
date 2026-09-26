@@ -18,7 +18,7 @@ function render(doc) {
   if (doc.facilitator) {
     document.getElementById("title").textContent = "Apps";
     document.getElementById("sub").textContent =
-      "Every student's slot on app-host, the platform their pipelines deploy to (Labs 10-12).";
+      "Every student's slot on app-host, the platform their pipelines deploy to (Labs 11-13).";
   }
   document.getElementById("empty").hidden = doc.slots.length > 0;
   const box = document.getElementById("slots");

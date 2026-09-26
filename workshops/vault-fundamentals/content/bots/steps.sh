@@ -1,11 +1,11 @@
 # vault-fundamentals demo bot steps (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE): replaces
-# the git-fundamentals default with Labs 0-10, run the way a student would, with the same commands as the
-# lab pages. Labs 9 and 10 take their workflows and app straight from /opt/workshop-content/lab/*.md, so
+# the git-fundamentals default with Labs 0-11, run the way a student would, with the same commands as the
+# lab pages. Labs 9 and 11 take their workflows and app straight from /opt/workshop-content/lab/*.md, so
 # the bots stay in step with the labs. openbao-setup gives each bot (testuserN) an entity, a namespace
 # students/testuserN, a database and an app-host slot, like a student (S33).
 #
 # How far a persona gets per round: novice Labs 0-4 (the vault user and admin); intermediate adds Labs
-# 5-7 (code and git) and 8-9 (pipelines); expert adds Lab 10 (a deploy to app-host). Every round starts by
+# 5-7 (code and git) and 8-9 (pipelines); expert adds Lab 11 (a deploy to app-host). Every round starts by
 # undoing the last one (step_vf_reset), so each step can run again from scratch after a restart.
 # The Forgejo UI steps (a repository secret) are the same API calls, and git and curl read ~/.netrc,
 # made from the bot's own password file.
@@ -32,7 +32,7 @@ vf_env() {
   [ -s "$HOME/.vault-token" ]
 }
 
-# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined (as tests/labs_10_12.sh does).
+# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined (as tests/labs_11_13.sh does).
 vf_block() {
   local f="$1"; shift
   python3 -B - "$VF_LABS/$f" "$@" <<'EOF'
@@ -86,7 +86,7 @@ step_vf_reset() {
   run_cmd "git fetch -q upstream && git checkout -q -B main upstream/main && git clean -qfd"
   # -u so main tracks origin/main again: without it, a later step's bare "git push" (as the lab
   # pages write it) still targets upstream/main from the checkout above and collides with every
-  # other bot pushing to the shared team repo, failing non-fast-forward (labs 8-10).
+  # other bot pushing to the shared team repo, failing non-fast-forward (labs 8-11).
   run_cmd "git push -q -f -u origin main"
   git push -q origin --delete try-a-branch >/dev/null 2>&1
   return 0
@@ -286,19 +286,19 @@ EOF"
   unset BAO_NAMESPACE
 }
 
-# Lab 10: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
-# through its platform identity. Runs lab10.md's blocks 1-8 as written, then a rotation (block 11).
-step_vf_lab10() {
+# Lab 11: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
+# through its platform identity. Runs lab11.md's blocks 1-8 as written, then a rotation (block 11).
+step_vf_lab11() {
   vf_env || return 1
   cd "$REPO_DIR" || return 1
-  narrate "Lab 10 -- deploy with workload identity: the pipeline deploys, the app reads its own secrets"
-  paste_cmd "$(vf_block lab10.md 1 2 3 4)" || return 1
-  paste_cmd "$(vf_block lab10.md 5 6 7)" || return 1
-  paste_cmd "$(vf_block lab10.md 8)" || return 1
+  narrate "Lab 11 -- deploy with workload identity: the pipeline deploys, the app reads its own secrets"
+  paste_cmd "$(vf_block lab11.md 1 2 3 4)" || return 1
+  paste_cmd "$(vf_block lab11.md 5 6 7)" || return 1
+  paste_cmd "$(vf_block lab11.md 8)" || return 1
   narrate "waiting for the deploy job"
   if vf_wait_app 'API_KEY fingerprint' 240; then
     run_cmd "curl -s http://app-host:8080/\$USER/ | head -12"
-    paste_cmd "$(vf_block lab10.md 11)"
+    paste_cmd "$(vf_block lab11.md 11)"
   else
     narrate "no app yet after 4 minutes -- the runners may be busy; moving on"
   fi
@@ -308,7 +308,7 @@ step_vf_lab10() {
 case "$PERSONA" in
   expert)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3 step_vf_lab4
-           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab10 step_wrap_round)
+           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab11 step_wrap_round)
     ;;
   intermediate)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab2 step_vf_lab3 step_vf_lab4

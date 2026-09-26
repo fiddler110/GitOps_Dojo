@@ -144,7 +144,7 @@ EOF
 
 `${{ secrets.NAME }}` is masked as `***` in logs, but anyone who can push a workflow can print it (`| base64`).
 
-## Deployments (labs 10-12)
+## Deployments (labs 11-13)
 
 ```bash
 curl -s http://app-host:8080/.well-known/jwks.json      # the platform's public keys
@@ -173,10 +173,10 @@ tar -czf app.tgz -C src/app . && curl -sS --fail-with-body -H "Authorization: Be
 ```
 
 ```bash
-bao read database/creds/app                   # a Postgres login made now (lab 11)
+bao read database/creds/app                   # a Postgres login made now (lab 12)
 bao lease lookup|renew|revoke <lease_id>
 bao token lookup -format=json <token> | jq -r .data.accessor
-bao-audit --accessor <accessor>               # what that token did (lab 12)
+bao-audit --accessor <accessor>               # what that token did (lab 13)
 bao token revoke -accessor <accessor>         # it, and every token it made
 ```
 

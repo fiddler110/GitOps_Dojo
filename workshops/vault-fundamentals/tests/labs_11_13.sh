@@ -1,13 +1,13 @@
 #!/bin/sh
-# vault-fundamentals labs 10-12 (T4.8), with the stack up: runs every `bash`
-# block of lab10.md, lab11.md and lab12.md as one student, as written, and
+# vault-fundamentals labs 11-13 (T4.8), with the stack up: runs every `bash`
+# block of lab11.md, lab12.md and lab13.md as one student, as written, and
 # checks what the terminal, the deploy jobs and the app show. Blocks that share
 # shell variables run in one shell; a block that pushes is followed by a wait
 # for its job logs. git's password prompt is replaced by a ~/.netrc (removed at
 # the end). It first removes what an earlier run left (the fork, the clone, the
 # roles and policies these labs write), so it can run again. Needs python3 >=
 # 3.14 on the host (job logs are zstd). Exits 1 on any failure.
-#   sh workshops/vault-fundamentals/tests/labs_10_12.sh [student03]
+#   sh workshops/vault-fundamentals/tests/labs_11_13.sh [student03]
 s="${1:-student03}"
 set -a; . engine/.env; set +a
 labs=workshops/vault-fundamentals/content/lab
@@ -53,11 +53,11 @@ as 'git config --global user.name "$USER"; git config --global user.email "$USER
 ok "fork and clone (Lab 8)" 'curl -sf --netrc -H "Content-Type: application/json" -d "{}" http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks >/dev/null &&
     git clone -q http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals'
 
-echo "== lab 10: deploy with workload identity"
-out="$(as "$(block lab10.md 1 2 3)" 2>&1)"
+echo "== lab 11: deploy with workload identity"
+out="$(as "$(block lab11.md 1 2 3)" 2>&1)"
 check "catch-up, the platform's keys" "$out" '"alg": "RS256"'
 check "jwt-platform is set up" "$out" 'http://app-host:8080'
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 4 5 6 7 8)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 4 5 6 7 8)")"
 check "the deploy job deployed" "$log" '"state": "running"'
 check "the pipeline can't read team/app" "$log" 'permission denied for the pipeline, as it should be'
 page="$(as 'curl -s http://app-host:8080/$USER/')"
@@ -65,16 +65,16 @@ check "the app's platform identity" "$page" "sub=slot:$s"
 check "another slot's identity is out of reach" "$page" "identity: Permission denied"
 check "the app has the vault's api_key" "$page" "API_KEY fingerprint: $(fp api_key app)"
 check "no database yet" "$page" "database: not set up"
-out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab10.md 11)" 2>&1)"
+out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 11)" 2>&1)"
 new="$(fp api_key app)"
 [ "$(echo "$out" | grep -c "$new")" -ge 2 ] && echo "  ok:   rotated with no deploy ($new)" \
   || { echo "  FAIL: rotation not seen: $out"; failed=1; }
-log="$(run_and_read 1 "$(block lab10.md 12)")"
+log="$(run_and_read 1 "$(block lab11.md 12)")"
 check "a branch can't deploy" "$log" "only main deploys; this run is on 'refs/heads/try-a-branch'"
-ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab10.md 13)"
+ok "back to main" "cd ~/lab/vault-fundamentals && $(block lab11.md 13)"
 
-echo "== lab 11: dynamic database credentials"
-out="$(as "$(block lab11.md 1 2 3 4 5 6 7)" 2>&1)"
+echo "== lab 12: dynamic database credentials"
+out="$(as "$(block lab12.md 1 2 3 4 5 6 7)" 2>&1)"
 check "the connection is set up" "$out" "vault_$s"
 check "a note written with a dynamic login" "$out" "written with a login that expires"
 check "the author is the dynamic login" "$out" "| v-"
@@ -82,16 +82,16 @@ check "another student's database is refused" "$out" 'permission denied for data
 # Postgres says either, depending on whether the revoke's DROP ROLE ran yet.
 case "$out" in *'password authentication failed'*|*'role "v-'*'" does not exist'*) echo "  ok:   revoked: the login is gone" ;;
   *) echo "  FAIL: revoked: the login is gone"; failed=1 ;; esac
-log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 8)")"
+log="$(run_and_read 1 "export BAO_NAMESPACE=students/\$USER; $(block lab12.md 8)")"
 check "deployed with the database template" "$log" '"state": "running"'
 end=$(( $(date +%s) + 30 ))
 until page="$(as 'curl -s http://app-host:8080/$USER/')"; echo "$page" | grep -q 'database: connected' || [ "$(date +%s)" -gt "$end" ]; do sleep 3; done
 check "the app connects with its own login" "$page" "database: connected as v-"
-out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab11.md 10)" 2>&1)"
+out="$(as "export BAO_NAMESPACE=students/\$USER; $(block lab12.md 10)" 2>&1)"
 [ "$(echo "$out" | grep -c .)" -ge 2 ] && echo "  ok:   the leases are listed" || { echo "  FAIL: leases: $out"; failed=1; }
 
-echo "== lab 12: incident drill"
-out="$(as "$(block lab12.md 1 2 3 4 5 6 7 8 9)" 2>&1)"
+echo "== lab 13: incident drill"
+out="$(as "$(block lab13.md 1 2 3 4 5 6 7 8 9)" 2>&1)"
 echo "$out" | grep -E '^(attacker|TIME|20[0-9][0-9]-)' | sed 's/^/    /'
 check "the attacker read team/app" "$out" 'attacker: read team/app'
 check "and made a spare" "$out" 'attacker: made a spare token, and it works'
@@ -106,5 +106,5 @@ new="$(fp api_key app)"
 check "remote_address shown" "$out" 'remote_address'
 
 as 'rm -f ~/.netrc'
-[ "$failed" -eq 0 ] && echo "PASS: labs 10-12" || echo "FAIL: labs 10-12"
+[ "$failed" -eq 0 ] && echo "PASS: labs 11-13" || echo "FAIL: labs 11-13"
 exit "$failed"

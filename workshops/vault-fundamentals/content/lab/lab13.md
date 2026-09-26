@@ -1,4 +1,4 @@
-# Lab 12 — Incident drill: a token leaked
+# Lab 13 — Incident drill: a token leaked
 
 **Goal:** practise the leak you'll one day get a message about. A vault token was pasted where it shouldn't be, and someone used it. Find out **what it did** from the audit log, **cut it off** (and anything it made), **rotate** what it saw, and check that the app recovers **by itself**.
 
@@ -97,7 +97,7 @@ bao kv patch team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"
 
 ## 7. The app recovers by itself
 
-If you did Lab 10, your app on `app-host` picks up the new values with no deploy and no restart:
+If you did Lab 11, your app on `app-host` picks up the new values with no deploy and no restart:
 
 ```bash
 sleep 12
@@ -114,7 +114,7 @@ A short post-incident review answers four questions. Yours:
 1. **What happened?** A 24-hour token was pasted in a chat and used to read `team/app` and `team/ci` and to make a spare token.
 2. **How did we find out what it did?** The audit log, by the token's accessor, including the spare.
 3. **What did we do?** Revoked the token tree, rotated both secrets; the app and CI picked them up with no deploy.
-4. **What stops it next time?** Give the job an **identity** instead of a token (Labs 9-10); if a token is unavoidable, a short TTL, no `auth/token/create`, and `token_bound_cidrs` so it only works from where the job runs.
+4. **What stops it next time?** Give the job an **identity** instead of a token (Labs 9-11); if a token is unavoidable, a short TTL, no `auth/token/create`, and `token_bound_cidrs` so it only works from where the job runs.
 
 Here every terminal shares one address, so the audit's `remote_address` can't tell you who the attacker was; at work it's often the first clue.
 

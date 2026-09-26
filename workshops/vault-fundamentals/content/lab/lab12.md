@@ -1,8 +1,8 @@
-# Lab 11 (optional) — Dynamic database credentials
+# Lab 12 (optional) — Dynamic database credentials
 
 **Goal:** stop sharing a database password. The vault **makes a new Postgres login** for whoever asks (you, then your app), with a **lease**: it expires by itself, you can renew it, and you can revoke it early. There is no long-lived database password left to leak.
 
-This lab is optional. Lab 12 doesn't need it.
+This lab is optional. Lab 13 doesn't need it.
 
 ---
 
@@ -72,7 +72,7 @@ If nobody renews it, the same happens by itself when the lease runs out. A login
 
 ## 5. The app gets its own
 
-Your app on `app-host` (Lab 10) can ask for a login the same way. Let its platform identity read `database/creds/app` too:
+Your app on `app-host` (Lab 11) can ask for a login the same way. Let its platform identity read `database/creds/app` too:
 
 ```bash
 printf 'path "database/creds/app" {\n  capabilities = ["read"]\n}\n' | bao policy write db-app -
@@ -88,7 +88,7 @@ Add a second template to the Agent's config, then deploy:
 cd ~/lab/vault-fundamentals
 cat >> app/agent.hcl <<EOF
 
-# Lab 11: a database login made for this app; the Agent renews its lease.
+# Lab 12: a database login made for this app; the Agent renews its lease.
 template {
   destination = "/srv/apps/$USER/secrets/db.env"
   perms       = "0600"

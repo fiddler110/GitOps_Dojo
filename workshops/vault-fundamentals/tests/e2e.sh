@@ -20,7 +20,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT" || exit 2
 T=workshops/vault-fundamentals/tests
 
-AREAS=(unit tenancy cli_login lab_2 labs_5_7 labs_8_9 labs_10_12 pool audit bots browser load)
+AREAS=(unit tenancy cli_login lab_2 labs_5_7 labs_8_9 labs_11_13 pool audit bots browser load)
 declare -A DESC=(
   [unit]="unit tests without the stack: openbao-audit, app-host, runner-controller"
   [tenancy]="labs 0-4: the shared secret/ and each namespace are private (tenancy.sh)"
@@ -28,7 +28,7 @@ declare -A DESC=(
   [lab_2]="lab 2: pass, a GPG key, sharing and taking back (lab_2.sh)"
   [labs_5_7]="labs 5-7: the SDK, the Agent, sops + transit, as one student"
   [labs_8_9]="labs 8-9: Actions secrets and masking, AppRole, the job's OIDC identity, a branch refused"
-  [labs_10_12]="labs 10-12: deploy by workload identity, dynamic DB logins, the incident drill"
+  [labs_11_13]="labs 11-13: deploy by workload identity, dynamic DB logins, the incident drill"
   [pool]="runner-pool: warm pool, isolated one-job runners, the Runners panel (modules/runner-pool/tests/pool.sh)"
   [audit]="the Audit tab's API: facilitator only, filters, and a student's own bao-audit still works"
   [bots]="with --test: each bot has a vault login, a namespace and an app slot, and no bot is stuck on a step"
@@ -215,7 +215,7 @@ area cli_login  sh modules/openbao/tests/cli_login.sh
 area lab_2      sh "$T/lab_2.sh" "$student"
 area labs_5_7   sh "$T/labs_5_7.sh" "$student"
 area labs_8_9   sh "$T/labs_8_9.sh" "$student"
-area labs_10_12  sh "$T/labs_10_12.sh" "$student"
+area labs_11_13  sh "$T/labs_11_13.sh" "$student"
 # pool.sh counts idle runners and scales by hand: with bots, their jobs take the runners and it fails.
 if [ "${bots:-0}" -gt 0 ] && wanted pool; then
   echo "  SKIP  pool       (bots are using the runners; run it on a stack without --test)"

@@ -39,7 +39,7 @@ bao write -f -field=secret_id auth/approle/role/app/secret-id > secret-id
 chmod 600 role-id secret-id
 ```
 
-Look at what just happened: to let the app log in without a secret in its code, you gave it... a secret. That's the **secret zero** problem. Here it's small (a secret ID that expires in an hour and that the Agent deletes as soon as it has read it), but something still had to deliver it. Labs 9 and 10 remove it by using an identity the platform already proves.
+Look at what just happened: to let the app log in without a secret in its code, you gave it... a secret. That's the **secret zero** problem. Here it's small (a secret ID that expires in an hour and that the Agent deletes as soon as it has read it), but something still had to deliver it. Labs 9 and 11 remove it by using an identity the platform already proves.
 
 ## 3. Configure the Agent
 
