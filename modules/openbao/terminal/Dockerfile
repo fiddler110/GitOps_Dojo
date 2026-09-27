@@ -50,6 +50,32 @@ RUN set -eux; \
       /etc/dojo/start.d/50-openbao.sh; \
     printf '\n# openbao module: sign in to OpenBao through the broker (no-op while the token is good)\nif [ -x /usr/local/bin/openbao-login ]; then /usr/local/bin/openbao-login --quiet; fi\n' >> /etc/zsh/zshenv
 
+# HCL syntax highlighting for .hcl files (policies, server config) in
+# code-server: HashiCorp's HCL extension from its verified namespace on Open
+# VSX, one universal package, pinned and sha256-verified. Its only code is a
+# telemetry reporter that activates whenever the workspace holds a .hcl file
+# (and can't reach the internet here), so the build drops it and keeps the
+# grammar, language id and bracket config: a declarative extension that
+# starts no process. The Python step fails the build if a future version
+# moves those fields, instead of shipping with the reporter still on.
+# https://open-vsx.org/extension/hashicorp/hcl
+ARG HCL_VSCODE_VERSION=0.5.0
+ARG HCL_VSCODE_SHA256=09fc9348908c4c8283572bc4ec9f452907d72abc1008e328051f76d0232804e3
+RUN set -eux; \
+    wget -O /tmp/hcl.vsix \
+      "https://open-vsx.org/api/hashicorp/hcl/${HCL_VSCODE_VERSION}/file/hashicorp.hcl-${HCL_VSCODE_VERSION}.vsix"; \
+    echo "${HCL_VSCODE_SHA256}  /tmp/hcl.vsix" | sha256sum -c -; \
+    code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/hcl.vsix --force; \
+    rm -f /tmp/hcl.vsix; \
+    ext="/opt/code-server-extensions/hashicorp.hcl-${HCL_VSCODE_VERSION}"; \
+    python3 -B -c 'import json, sys; p = sys.argv[1] + "/package.json"; d = json.load(open(p)); \
+[d.pop(k) for k in ("main", "browser", "activationEvents")]; \
+assert any(".hcl" in l.get("extensions", []) for l in d["contributes"]["languages"]); \
+json.dump(d, open(p, "w"), indent=2)' "$ext"; \
+    rm -rf "$ext/out"; \
+    chown -R root:root /opt/code-server-extensions; \
+    chmod -R a+rX /opt/code-server-extensions
+
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't
 # resolve FROM) doesn't flag it missing.

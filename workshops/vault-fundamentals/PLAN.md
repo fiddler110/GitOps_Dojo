@@ -1424,3 +1424,11 @@ The app's `start.sh` clears `$HOME/secrets` at each start, else a restart would 
 Also: a formatter pass had unindented the talk's front-matter `style:` block (every slide lost its theme);
 restored in ea46cbc with slide 28's mermaid fix.
 
+
+### 2026-09-27 — HCL highlighting in VS Code
+
+The openbao module's terminal link installs `hashicorp.hcl` 0.5.0 from Open VSX (universal, sha256-pinned) so
+`.hcl` policies and config get the HCL language mode. Its only code is a telemetry reporter, so the build strips
+`main`/`browser`/`activationEvents` and `out/`, leaving a declarative grammar. Verified locally in a standalone
+code-server from a test build of the module image (language mode "HCL", tokens coloured); the running stack still
+has the old image until the next `./run.sh stop` and `./run.sh vault-fundamentals`.
