@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0 done, T1.1 done (2026-09-28). Next: T1.2.** |
+| Overall status | **P0 done, T1.1-T1.2 done (2026-09-28). Next: T1.3.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -216,7 +216,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       from the gateway log on the first `--env home` run).
       *Verify:* `--default` + `--env home` refuses to start; `--default` on localhost starts; 50 bad attempts in a
       loop get 429; `--test 20` bots and a browser student are never limited; `/admin` still loads.
-- [ ] **T1.2** (FIND-02, T1, Low) **[ENGINE, approved]** (D2) All of `/slides` behind the shared class gate: move
+- [x] **T1.2** (FIND-02, T1, Low) **[ENGINE, approved]** (D2) All of `/slides` behind the shared class gate: move
       `@slides` inside the shared `handle` (after `basic_auth`), keep the `/admin` Slides tab working (the
       facilitator credential passes the shared gate). Update the Caddyfile header comment, `engine/README.md`, and
       `CLAUDE.md`'s Playwright note (slide checks now need `http_credentials`).
@@ -224,6 +224,10 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       class credential → 200; in Playwright the decks, lab reader and labs index load for a student and from the
       `/admin` Slides tab with no second prompt; existing slide tests (`p4_browser.py`, `p5_browser.py`) pass after
       adding credentials.
+      *Done 2026-09-28 (cad3132):* also the allocator's Slides status check signs in with the class login (else 401,
+      and its polling would count towards T1.1's rate limit). Verified locally on vault-fundamentals: 401 without /
+      200 with credentials, status green, `p4_browser.py`/`p5_browser.py` pass (they already sent credentials),
+      `/admin` Slides tab loads with no second prompt.
 - [ ] **T1.3** (FIND-08, T2, Moderate) **[ENGINE, approved]** Cleartext over HTTP.
       a. `run.sh` warns when `PUBLIC_BASE_URL` is `http://` and the host isn't localhost.
       b. `Strict-Transport-Security` when `PUBLIC_BASE_URL` is `https://` (env-driven matcher in the Caddyfile, or
@@ -405,7 +409,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 |------|---------|-----|-------|--------|
 | T0.1-T0.5 | Live verification | — | — | Done 2026-09-28 (734ed33 + T0.5 write-up) |
 | T1.1 | FIND-01 | Important | ENGINE | Done 2026-09-28 (bf3b98c, d934055) |
-| T1.2 | FIND-02 | Low | ENGINE | Not started |
+| T1.2 | FIND-02 | Low | ENGINE | Done 2026-09-28 (cad3132) |
 | T1.3 | FIND-08 | Moderate | ENGINE | Not started |
 | T1.4 | FIND-13 | Low | ENGINE+MODULE+WS | Not started |
 | T1.5 | FIND-18 | Low | all | Not started |
