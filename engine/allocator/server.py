@@ -21,6 +21,7 @@ only ever read that snapshot. All upstream I/O for status happens in that
 thread; no request handler waits on a probe, so a hung service can slow the
 probe thread down but never /assign, /auth-check or the roster.
 """
+import base64
 import datetime
 import hmac
 import html
@@ -61,6 +62,9 @@ WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "Workshop Lab")
 # and docker-compose.yml both default this to "root", not "facilitator", so
 # it has to come from the same env var, never be hardcoded here.
 FACILITATOR_USERNAME = os.environ.get("FACILITATOR_USERNAME", "root")
+# The class login, only for the Slides status check (probe_slides).
+CLASS_BASIC_AUTH = "Basic " + base64.b64encode(
+    f'{os.environ.get("TTYD_USERNAME", "")}:{os.environ.get("TTYD_PASSWORD", "")}'.encode()).decode()
 # Deep-links the landing page's Forgejo button straight at the seeded
 # workshop repo -- must match bootstrap.sh's FORGEJO_ORG/FORGEJO_REPO
 # defaults (see docker-compose.yml's bootstrap service), not hardcoded here.
@@ -357,14 +361,16 @@ def probe_slides():
     http://localhost, and a 308 redirect (or a TLS failure on 443) when the
     site is an https hostname, so neither would say anything about slides.
     Behind another proxy, GATEWAY_LISTEN is the address to call; with no
-    host in it (http://:8080) Caddy takes any Host, so send the public one."""
+    host in it (http://:8080) Caddy takes any Host, so send the public one.
+    /slides is behind the class login, so sign in with it: without it the
+    probe would get 401 and count towards the gateway's login rate limit."""
     public = urllib.parse.urlsplit(PUBLIC_BASE_URL)
     base = urllib.parse.urlsplit(GATEWAY_LISTEN) if GATEWAY_LISTEN else public
     tls = base.scheme == "https"
     host = base.hostname or public.hostname
     return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
                       tls=tls, sni=host, host_header=base.netloc if base.hostname else public.netloc,
-                      require_body=True)
+                      headers={"Authorization": CLASS_BASIC_AUTH}, require_body=True)
 
 
 def _extra_probe(url):

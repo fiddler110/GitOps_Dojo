@@ -59,7 +59,7 @@ graph TB
     GW -->|"/admin/watch/studentNN  (own auth +<br/>forward_auth → allocator, keyed by student)"| WT
     GW -->|"/ide/*, /term/*  (shared auth +<br/>forward_auth → allocator)"| WT
     GW -->|"/git/*  (shared auth,<br/>Authorization header stripped)"| GS
-    GW -->|"/slides/*  (open)"| PR
+    GW -->|"/slides/*  (shared auth)"| PR
     AL -.->|"POST /start, /stop<br/>GET /status (internal only)"| WT
     WT -->|"git clone / push<br/>git-server:3000, direct"| GS
     BS -->|"provisions admin,<br/>org, repo, students"| GS
@@ -163,7 +163,7 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 
 | Path            | Goes to        | Auth                                                              |
 | ---------------- | --------------- | -------------------------------------------------------------------- |
-| `/slides/*`      | `presentation`  | None — open, read-only content                                    |
+| `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
 | `/`              | `allocator`     | Shared gate (`TTYD_USERNAME`/`TTYD_PASSWORD` **or** `FACILITATOR_USERNAME`/`PASSWORD`) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
 | `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |

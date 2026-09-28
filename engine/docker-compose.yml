@@ -220,6 +220,10 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # The Slides status check calls the gateway at this address when set.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
+      # The Slides status check signs in with the class login (/slides is
+      # behind it).
+      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
+      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
