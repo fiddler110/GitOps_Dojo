@@ -218,6 +218,9 @@ COPY entrypoint.sh /usr/local/bin/web-terminal-entrypoint
 COPY workspace-control.py /usr/local/bin/workspace-control.py
 COPY healthcheck.sh /usr/local/bin/web-terminal-healthcheck
 RUN chmod +x /usr/local/bin/web-terminal-entrypoint /usr/local/bin/web-terminal-healthcheck
+# One account's setup, run by the entrypoint and by a student reset.
+COPY provision-account.sh /usr/local/lib/dojo/provision-account.sh
+RUN chmod 755 /usr/local/lib/dojo/provision-account.sh
 
 # Authored shell config shared by the facilitator/student accounts. Kept as
 # a real, editable file here (not inline heredocs in entrypoint.sh) so shell

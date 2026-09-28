@@ -2,7 +2,6 @@
 set -eu
 
 student_count="${STUDENT_COUNT:-30}"
-student_password="${STUDENT_PASSWORD:-student123}"
 student_prefix="${STUDENT_PREFIX:-student}"
 workshop_name="${WORKSHOP_NAME:-Workshop Lab}"
 facilitator_username="${FACILITATOR_USERNAME:-root}"
@@ -16,10 +15,6 @@ student_shell="${STUDENT_SHELL:-/bin/zsh}"
 # setting BOT_COUNT in .env directly.
 bot_count="${BOT_COUNT:-0}"
 bot_prefix="${BOT_PREFIX:-testuser}"
-bot_password="${BOT_PASSWORD:-testuser123}"
-forgejo_org="${FORGEJO_ORG:-training}"
-forgejo_repo="${FORGEJO_REPO:-sample-training-repo}"
-forgejo_fork_workflow="${FORGEJO_FORK_WORKFLOW:-0}"
 
 case "$student_count" in
   ''|*[!0-9]*)
@@ -188,6 +183,8 @@ add_isolation_rule() {
 # a non-root facilitator username.
 add_isolation_rule "$facilitator_username" "$facilitator_ide_port" "$facilitator_term_port"
 
+# Each account's home, lab seed and settings: provision-account.sh (also
+# run by a student reset). The port rules stay here, in order.
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
@@ -197,127 +194,19 @@ while [ "$counter" -le "$student_count" ]; do
     exit 1
   fi
 
-  if ! id "$username" >/dev/null 2>&1; then
-    useradd --create-home --home-dir "/home/$username" --shell "$student_shell" "$username"
-  else
-    usermod --shell "$student_shell" "$username"
-  fi
-
-  echo "$username:$student_password" | chpasswd
-  mkdir -p "/home/$username/lab"
-
-  # Copy any lab file the student doesn't already have (new files land on
-  # every restart), but never overwrite a file the student has touched.
-  if [ -d "$lab_seed_dir" ]; then
-    cp -Rn "$lab_seed_dir"/. "/home/$username/lab/"
-  fi
-
-  chown -R "$username:$username" "/home/$username"
+  /usr/local/lib/dojo/provision-account.sh "$username"
 
   # 9000+counter/9500+counter must match IDE_PORT_BASE/TERM_PORT_BASE in
   # workspace-control.py.
   add_isolation_rule "$username" "$((9000 + counter))" "$((9500 + counter))"
-
-  # Keep the authored instructions current while preserving student work.
-  if [ -f "$lab_seed_dir/README.md" ]; then
-    rm -f "/home/$username/lab/README.md"
-    ln -s "$lab_seed_dir/README.md" "/home/$username/lab/README.md"
-  fi
-
-  if [ ! -f "/home/$username/.gitconfig" ]; then
-    cat > "/home/$username/.gitconfig" <<EOF
-[user]
-	name = $username
-	email = $username@example.com
-[init]
-	defaultBranch = main
-EOF
-    chown "$username:$username" "/home/$username/.gitconfig"
-  fi
-
-  student_code_server_settings_dir="/home/$username/.local/share/code-server/User"
-  if [ ! -f "$student_code_server_settings_dir/settings.json" ]; then
-    mkdir -p "$student_code_server_settings_dir"
-    cat > "$student_code_server_settings_dir/settings.json" <<'EOF'
-{
-  "workbench.colorTheme": "GitHub Dark",
-  "editor.fontSize": 16,
-  "terminal.integrated.fontSize": 16,
-  "workbench.startupEditor": "none",
-  "workbench.editor.restoreEditors": false,
-  "chat.disableAIFeatures": true,
-  "workbench.panel.defaultLocation": "right",
-  "task.allowAutomaticTasks": "on",
-  "extensions.ignoreRecommendations": true,
-  "extensions.autoCheckUpdates": false,
-  "extensions.autoUpdate": false,
-  "yaml.schemaStore.enable": false,
-  "json.schemaDownload.enable": false,
-  "terminal.integrated.profiles.linux": {
-    "dojo-shell": {
-      "path": "/opt/dojo-shell/tmux-terminal.sh"
-    }
-  },
-  "terminal.integrated.defaultProfile.linux": "dojo-shell"
-}
-EOF
-    chown -R "$username:$username" "/home/$username/.local"
-  fi
-
-  # Auto-reveals a live terminal on the right-hand panel as soon as the
-  # workspace opens -- see the matching facilitator block above for why.
-  # Runs through /opt/dojo-shell/tmux-terminal.sh (also set as the default
-  # terminal profile above), same as any terminal the student opens
-  # manually -- each gets its own uniquely-named tmux session, so splits
-  # and extra tabs stay independent instead of mirroring each other. A
-  # facilitator's /admin/watch/<sid> mirror then follows whichever of the
-  # student's sessions (this one, another VS Code terminal, or the
-  # standalone Terminal tool's `main`) was most recently active -- see
-  # workspace-control.py's most_active_session(). Not done for the
-  # facilitator's own task below, since nobody needs to watch the
-  # facilitator.
-  if [ ! -f "/home/$username/lab/.vscode/tasks.json" ]; then
-    mkdir -p "/home/$username/lab/.vscode"
-    cat > "/home/$username/lab/.vscode/tasks.json" <<'EOF'
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Terminal",
-      "type": "shell",
-      "command": "/opt/dojo-shell/tmux-terminal.sh",
-      "isBackground": true,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      },
-      "runOptions": {
-        "runOn": "folderOpen"
-      },
-      "problemMatcher": []
-    }
-  ]
-}
-EOF
-    chown -R "$username:$username" "/home/$username/lab/.vscode"
-  fi
-
-  # Authored under engine/web-terminal/zshrc (see that file to add
-  # aliases etc.). Always resynced to the current version on every
-  # container start, same as the README.md symlink above.
-  rm -f "/home/$username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
 
   counter=$((counter + 1))
 done
 
 # Demo/test bot accounts -- separate from the studentNN pool above (own
 # prefix, own numbering starting at 1) so they never compete with real
-# students for a slot. Each gets a home dir/lab copy/git identity just like
-# a student, plus a small credentials file bot-runner.sh reads at startup
-# (see that script) -- there's no browser login for these, so there's no
-# other way to hand them BOT_PASSWORD/FORGEJO_ORG/FORGEJO_REPO that
-# survives this process being killed and restarted by bot-supervisor.sh.
+# students for a slot. provision-account.sh sets each one up (home, lab
+# copy, the credentials file bot-runner.sh reads).
 bot_counter=1
 while [ "$bot_counter" -le "$bot_count" ]; do
   bot_username="$(printf '%s%d' "$bot_prefix" "$bot_counter")"
@@ -327,58 +216,7 @@ while [ "$bot_counter" -le "$bot_count" ]; do
     exit 1
   fi
 
-  if ! id "$bot_username" >/dev/null 2>&1; then
-    useradd --create-home --home-dir "/home/$bot_username" --shell "$student_shell" "$bot_username"
-  else
-    usermod --shell "$student_shell" "$bot_username"
-  fi
-
-  echo "$bot_username:$bot_password" | chpasswd
-  mkdir -p "/home/$bot_username/lab"
-
-  if [ -d "$lab_seed_dir" ]; then
-    cp -Rn "$lab_seed_dir"/. "/home/$bot_username/lab/"
-  fi
-
-  # Persona: bots 1-3 are always expert/intermediate/novice; any bot past
-  # that gets a random one of the three, so a big --test N gives a mixed
-  # cohort. Sticky across container restarts (reuse what's already in the
-  # env file) so a bot's saved step index never lands on a different
-  # persona's step list.
-  bot_persona=""
-  if [ -f "/home/$bot_username/.dojo-bot.env" ]; then
-    bot_persona="$(sed -n 's/^BOT_PERSONA=//p' "/home/$bot_username/.dojo-bot.env" | head -1)"
-  fi
-  case "$bot_persona" in
-    expert|intermediate|novice) ;;
-    *)
-      if [ "$bot_counter" -le 3 ]; then
-        idx=$(( bot_counter - 1 ))
-      else
-        idx=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 3 ))
-      fi
-      case "$idx" in
-        0) bot_persona=expert ;;
-        1) bot_persona=intermediate ;;
-        *) bot_persona=novice ;;
-      esac
-      ;;
-  esac
-
-  cat > "/home/$bot_username/.dojo-bot.env" <<EOF
-BOT_USER=$bot_username
-BOT_PASSWORD=$bot_password
-BOT_PERSONA=$bot_persona
-FORGEJO_ORG=$forgejo_org
-FORGEJO_REPO=$forgejo_repo
-FORGEJO_FORK_WORKFLOW=$forgejo_fork_workflow
-EOF
-  chmod 600 "/home/$bot_username/.dojo-bot.env"
-
-  rm -f "/home/$bot_username/.zshrc"
-  ln -s /opt/dojo-shell/zshrc "/home/$bot_username/.zshrc"
-
-  chown -R "$bot_username:$bot_username" "/home/$bot_username"
+  /usr/local/lib/dojo/provision-account.sh "$bot_username"
 
   # 9700+bot_counter/9750+bot_counter must match BOT_IDE_PORT_BASE/
   # BOT_TERM_PORT_BASE in workspace-control.py -- a separate range from the
