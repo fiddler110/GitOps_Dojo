@@ -6,33 +6,32 @@ SHA) and update or remove its line here.
 
 Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (`main` is behind it with nothing of its own)
 
-| Plan | What it covers | Status |
-|------|----------------|--------|
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | Agreed (D1-D14), nothing built |
-| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md) | The vault-fundamentals workshop | P0-P4 done, P5 content built, T5.6 open |
-| [`engine/student-reset.md`](engine/student-reset.md) | Facilitator reset of one student's whole environment | Planned, decisions "proposed" |
-| [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md) | Workshop modules and extensions (merged, PR #2) | Only the user's browser pass open |
-| [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md) | tofu-basics (merged, PR #1) | Only manual checks open |
+| Plan                                                                                                   | What it covers                                                     | Status                                  |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0 T0.1-T0.4 run, T0.5 open             |
+| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done (T5.6 in 7684f07)            |
+| [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
+| [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
+| [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md)                                       | tofu-basics (merged, PR #1)                                        | Only manual checks open                 |
 
 ## Now
 
-1. **vault-fundamentals T5.6: the long live pass.** `./run.sh vault-fundamentals --test 20`, then
-   `bash workshops/vault-fundamentals/tests/e2e.sh --load 30`, the Audit tab in a browser, the facilitator's view
-   of bots, `./run.sh stop` leaves nothing; fill in README "Sizing". It covers the weekend's lab and slide changes
-   (labs 0-13, the new bot step `step_vf_lab10`), which so far have had no run on a stack.
-2. **Remediation P0: live verification** (T0.1-T0.5). Four static findings to confirm or downgrade on a real stack
-   before changing code: `su` between students (FIND-03), app/runner → `web-terminal:9001` (FIND-04), same-repo PR
-   runs a modified workflow (FIND-05), cross-student `\c` on app-db. Can share the T5.6 stack for the vault checks.
-3. **Commit the weekend's uncommitted work** (yours): the `/admin` sidebar layout (`engine/allocator/server.py`),
-   Mermaid in the lab reader (+ Prism `python`), zsh aliases, vault labs 3-6 and slide edits, threat-model table
-   formatting.
+1. **Remediation T0.5: close P0.** Results of T0.1-T0.4 are in the plan (734ed33): FIND-03 open (`su` works, homes
+   `0755`), FIND-04 can be downgraded (app refused, runner can't resolve `web-terminal`), FIND-05 confirmed (a
+   same-repo PR runs its own workflow; ID-token URL broken under `/git/`), app-db leak refused (no T3.5). Still open:
+   does Forgejo 16 run `pull_request_target`? (the test run sat "waiting"; needs a dns-as-code stack). It settles
+   Q-A for T3.1. Then write-up and a §8 entry; **ask the user before P1.** Reset R0 can run on that stack.
+2. **Merge `feat/vault-fundamentals` → `main`**, now that T5.6 is done (brings a24d0e7, the `run.sh --env` fix for
+   workshops with modules, and ca89792 `/forgejo-login?next=`).
+3. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load, with a 404 and a VS Code
+   "unknown error" in the console (not traced). Sizing for 20-35 students is extrapolated from 10 bots.
 
 ## Order agreed with the student-reset plan (2026-09-28)
 
 1. Remediation P0 (+ reset R0 on the same stack) → 2. remediation P1 → 3. **reset R1.1**: `provision-account.sh`
-extracted from `entrypoint.sh`, no behaviour change (engine, ask) → 4. **remediation T2.1** built inside that
-script → 5. the rest of the remediation, where **T5.3** also mints a narrow **reset token** for a resident
-`openbao-reset` service → 6. reset R1.2 onwards.
+   extracted from `entrypoint.sh`, no behaviour change (engine, ask) → 4. **remediation T2.1** built inside that
+   script → 5. the rest of the remediation, where **T5.3** also mints a narrow **reset token** for a resident
+   `openbao-reset` service → 6. reset R1.2 onwards.
 
 Decisions: remediation D15/D16, reset R9/R10. D11 stays: no long-lived provisioner token, and the unseal key never
 leaves `openbao-setup`.
@@ -41,22 +40,22 @@ leaves `openbao-setup`.
 
 Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Important Tier 2 finding left open.
 
-| Task | Finding | What | Scope |
-|------|---------|------|-------|
-| T1.1 | FIND-01 Important | Refuse default passwords off localhost; generated secrets; gateway rate limit (`caddy-ratelimit`) | engine, approved |
-| T1.2 | FIND-02 Low | All of `/slides` behind the class gate (Playwright checks then need credentials) | engine, approved |
-| T1.3 | FIND-08 Moderate | Warn on plain HTTP off localhost, HSTS, LAN-over-HTTPS recipe | engine, approved |
-| T1.4 | FIND-13 Low | One structured log line per identity / control-plane decision | engine, approved |
-| T1.5 | FIND-18 Low | Pin every image by digest, `check-pins.sh` in `--dry-run` | all, approved |
-| R1.1 | (reset plan) | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1 | engine, **ask** |
-| T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved |
-| T2.2 | FIND-04 Important | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist | engine, approved + workshop |
-| T2.3 | FIND-10 Moderate | Secrets off the command line in labs; PID-namespace spike | workshop; engine part ask |
-| T3.1 | FIND-05 Important | dns-api trusts Actions OIDC tokens, not IP; PR model (Q-A); dns-as-code on `runner-pool` | workshop + module |
-| T3.2 | FIND-11 Moderate | Per-student DNS API keys | workshop |
-| T3.3 | FIND-09 Moderate | step-ca secrets and a name policy | workshop |
-| T3.4 | FIND-07 Moderate | `/assign` rate limit, allocator timeouts | engine, **ask** |
-| T3.5 | app-db | `REVOKE CONNECT ... FROM PUBLIC` (only if P0 shows the leak) | workshop |
+| Task | Finding              | What                                                                                                                                   | Scope                       |
+| ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| T1.1 | FIND-01 Important    | Refuse default passwords off localhost; generated secrets; gateway rate limit (`caddy-ratelimit`)                                      | engine, approved            |
+| T1.2 | FIND-02 Low          | All of `/slides` behind the class gate (Playwright checks then need credentials)                                                       | engine, approved            |
+| T1.3 | FIND-08 Moderate     | Warn on plain HTTP off localhost, HSTS, LAN-over-HTTPS recipe                                                                          | engine, approved            |
+| T1.4 | FIND-13 Low          | One structured log line per identity / control-plane decision                                                                          | engine, approved            |
+| T1.5 | FIND-18 Low          | Pin every image by digest, `check-pins.sh` in `--dry-run`                                                                              | all, approved               |
+| R1.1 | (reset plan)         | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1                                                     | engine, **ask**             |
+| T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved            |
+| T2.2 | FIND-04 Important    | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist                                                    | engine, approved + workshop |
+| T2.3 | FIND-10 Moderate     | Secrets off the command line in labs; PID-namespace spike                                                                              | workshop; engine part ask   |
+| T3.1 | FIND-05 Important    | dns-api trusts Actions OIDC tokens, not IP; PR model (Q-A); dns-as-code on `runner-pool`                                               | workshop + module           |
+| T3.2 | FIND-11 Moderate     | Per-student DNS API keys                                                                                                               | workshop                    |
+| T3.3 | FIND-09 Moderate     | step-ca secrets and a name policy                                                                                                      | workshop                    |
+| T3.4 | FIND-07 Moderate     | `/assign` rate limit, allocator timeouts                                                                                               | engine, **ask**             |
+| T3.5 | app-db               | `REVOKE CONNECT ... FROM PUBLIC` (only if P0 shows the leak)                                                                           | workshop                    |
 
 ## Later
 
@@ -67,8 +66,6 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
 - **Student reset** (R0-R4): R0 (live risk checks) can run on the P0 stack. R1.1 comes before remediation T2.1
   (below); R1.2 onwards after it; R3.2 (OpenBao) after remediation T5.3. Its §8 questions Q1 and Q3-Q7 are still
   open.
-- **Merge `feat/vault-fundamentals` → `main`** after T5.6 (brings a24d0e7, the `run.sh --env` fix for workshops with
-  modules, and ca89792 `/forgejo-login?next=`). Cherry-pick a24d0e7 to `main` sooner if `--env home` is needed there.
 - **vault-fundamentals follow-ups** (PLAN §13): policy as code (OpenTofu `vault` provider or `bao policy write` in
   CI), OpenBao PKI for `cert-autorenewal`, mirroring a pinned set of actions into Forgejo. Lab 11 doesn't yet show
   a restart logging in again (lab 10 ends on that promise).
@@ -94,5 +91,3 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
   themes, not `lab-reader.*` or `vendor/`).
 - `AGENTS.md` is a committed copy of the git-ignored `CLAUDE.md` and will drift from it. Pick one: keep only
   `AGENTS.md`, or make one a symlink to the other.
-- `workshops/vault-fundamentals/PLAN.md`: the header's status and "Last updated" still say P3/P4; T5.7-T5.11 say
-  "(uncommitted)" but are in 95c9c71 and c15d66e.
