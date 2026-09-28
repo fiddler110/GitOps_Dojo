@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Branch | not started (plan written on `feat/vault-fundamentals`, 2026-09-27) |
+| Branch | not started (plan written on `feat/vault-fundamentals`, 2026-09-27); sequenced with the threat-model remediation in `/ROADMAP.md` |
 | Overall status | **Planned.** Nothing built. Decisions in §1 marked "proposed" need the user's OK. |
 | Related | `engine/MODULES-PLAN.md` (manifests, modules, start.d hooks), `engine/README.md` "Facilitator operations" |
 
@@ -37,6 +37,8 @@ before editing engine/ files, and about anything in section 8.
 | R5 | Reset is **idempotent and re-runnable**. Each step can be run again after a partial failure; a second reset of a clean student is a no-op apart from the log line. | proposed |
 | R6 | Shared state (the shared org repo's `main`, shared DNS zone, audit logs, Dojo Cloud activity log) is **not rolled back**. A reset may *remove what the student owns* inside shared state (their branches, PRs, forks, records they own), never anything else. | proposed |
 | R7 | Reset is facilitator-only, per student, with a typed confirmation. No "reset everyone" button (that is `./run.sh stop` + start). | proposed |
+| R9 | **OpenBao reset uses a narrow reset token held by a new resident `openbao-reset` service** (answers Q2). Each start, inside the temporary-root window of remediation T5.3, `openbao-setup` also mints a periodic token whose policy is the narrowed provisioner policy limited to `sys/namespaces/student*` and the per-student hook paths. `openbao-reset` keeps it in memory only (never on the setup volume), renews it, checks `X-Gateway-Token`, and is called by the allocator. Not the unseal key, not the provisioner token (both would undo remediation D11). Residual: it can wipe any student namespace; facilitator-only through the gateway. | user, 2026-09-28 |
+| R10 | **Order with the threat-model remediation:** R1.1 (extract `provision-account.sh`, no behaviour change) goes first, then remediation T2.1 hardens accounts *inside* that script (locked Linux password, D13 derived Forgejo password, `~/.git-credentials` token, homes `0700`), then R1.2 onwards. A reset re-runs `provision-account.sh <user>`: the derived password comes out the same and T2.1c's token step is already idempotent (reuse or re-create by name). | user, 2026-09-28 |
 | R8 | The allocator stays single-threaded for request handling. The reset runs in **one worker thread**; request handlers only start it and read its published progress (same pattern as the status probe thread). | proposed |
 
 ## 2. Problem
@@ -199,9 +201,9 @@ the services sit on `workshop_lab`, which students can reach.
 
 ### R1: engine core (engine edits; ask before each)
 
-- [ ] R1.1 `provision-account.sh` extracted from `entrypoint.sh`; start-up unchanged. **Verify:** diff of
+- [ ] R1.1 *(before remediation T2.1, R10)* `provision-account.sh` extracted from `entrypoint.sh`; start-up unchanged. **Verify:** diff of
   `/home/*` listing and contents on a fresh start before and after the change.
-- [ ] R1.2 `account.d` / `reset.d` hook runner + `POST /reset/<user>` in `workspace-control.py`.
+- [ ] R1.2 *(after remediation T2.1, R10)* `account.d` / `reset.d` hook runner + `POST /reset/<user>` in `workspace-control.py`.
 - [ ] R1.3 Forgejo steps (teardown + re-provision) in the allocator or `bootstrap.sh` (per §8 Q6).
 - [ ] R1.4 Allocator: `POST /admin/reset/<sid>`, worker thread, fence, `reset` in sessions API.
 - [ ] R1.5 Roster UI: Reset item, confirm dialog, progress, Retry.
@@ -216,7 +218,8 @@ the services sit on `workshop_lab`, which students can reach.
 ### R3: modules and workshops adopt
 
 - [ ] R3.1 `dojo-cloud` (reset endpoint on cloud-api, reuse `_purge`) — tofu-basics live check.
-- [ ] R3.2 `openbao` + vault tenancy/CI/platform (resident reset endpoint, §8 Q2).
+- [ ] R3.2 `openbao` + vault tenancy/CI/platform: the `openbao-reset` service and its token (R9; minted in remediation
+  T5.3, so do that first).
 - [ ] R3.3 `runner-pool`, `forgejo-runner`.
 - [ ] R3.4 vault `app-host`, `app-db`.
 - [ ] R3.5 dns-ui / dns-as-code / cert-autorenewal per §8 Q3; move any per-account `start.d` work to `account.d`.
@@ -231,7 +234,7 @@ the services sit on `workshop_lab`, which students can reach.
 
 - **Q1** Reset keeps the seat (R4). Also want "reset and release" (wipe, then free the seat for someone else), e.g.
   so Release always leaves a clean seat?
-- **Q2** OpenBao reset needs the provisioner token in a resident service (`openbao-setup` is one-shot). Put the
+- ~~**Q2**~~ *Answered 2026-09-28: R9.* OpenBao reset needs the provisioner token in a resident service (`openbao-setup` is one-shot). Put the
   endpoint in `sso-shim`, a new small `openbao-reset` service, or keep `openbao-setup` running?
 - **Q3** Shared DNS zone: record who created which record (e.g. a naming convention like `<user>-*.dojo.test`, or
   the CI commit author) so reset can remove them, or state that DNS is out of scope?
@@ -253,3 +256,9 @@ the services sit on `workshop_lab`, which students can reach.
 
 Wrote this plan from a read of the engine (allocator, workspace-control, entrypoint, bootstrap) and every module and
 workshop's per-student state (§3). Nothing built.
+
+### 2026-09-28: two decisions with the threat-model remediation
+
+The user took R9 (a narrow reset token in a resident `openbao-reset` service, answering Q2) and R10 (R1.1 before
+remediation T2.1, which then builds on `provision-account.sh`). Both resolve clashes with
+`threat-model-20260926-154208/REMEDIATION-PLAN.md` (D11/T5.3 and T2.1); see that plan's D15 and D16.

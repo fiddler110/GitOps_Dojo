@@ -83,6 +83,8 @@ edit not approved in D1, and about anything in section 6.
 | D11 | **Revoke the OpenBao provisioner token after setup, re-mint it every start** (the report's suggestion): each start generates a temporary root from the unseal key, mints the provisioner, runs the hooks, then revokes both. Accepted: it doesn't help against someone who has the setup volume (the unseal key is there, D9). |
 | D12 | **Work on `feat/vault-fundamentals`**, not `main` (`main` is far behind, with nothing of its own; openbao, runner-pool, app-host and a24d0e7 exist only there). First decided as a separate branch from it; on 2026-09-28 the user folded that branch back in. Keep each remediation fix in its own commit (`security:` or the finding ID in the subject) so it can be cherry-picked or reviewed apart from workshop work. |
 | D13 | *(From the draft, confirmed by D3.)* **Per-student secrets are derived, not stored:** `STUDENT_PASSWORD_SEED` (random, written by `env-setup.sh`), `pw(user) = base32(HMAC-SHA256(seed, "forgejo:" + user))[:16]`. The same helper in shell and Python with a known-answer test so they can't drift. Reused for DNS keys (FIND-11) with a different label. |
+| D15 | *(2026-09-28, with the student-reset plan's R9.)* **D11 stays; T5.3 also mints a narrow reset token.** In the same temporary-root window, mint a periodic token with the narrowed provisioner policy limited to `sys/namespaces/student*` and the per-student hook paths, handed to a resident `openbao-reset` service (memory only, never the setup volume). One narrowed policy serves both the start-up hooks and the reset. No long-lived provisioner token and no unseal key outside `openbao-setup`. |
+| D16 | *(2026-09-28, with the student-reset plan's R10.)* **T2.1 builds on `provision-account.sh`.** The reset plan's R1.1 (a behaviour-free extraction of the per-account work out of `entrypoint.sh`, **engine, ask**) goes before T2.1, and T2.1's a/b/c/e changes land in that script, so a reset re-runs the hardened provisioning. T2.1c's token step must stay idempotent (a reset calls it again). |
 | D14 | **This plan lives next to the report** (`threat-model-20260926-154208/REMEDIATION-PLAN.md`). |
 
 ## 2. Validation of the draft (2026-09-26)
@@ -214,8 +216,9 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 ### P2 — Student identity and isolation
 
-- [ ] **T2.1** (FIND-03, T2, **Critical**) **[ENGINE, approved]** One shared student password.
-      Files: `engine/scripts/env-setup.sh`, `engine/web-terminal/entrypoint.sh`, `engine/git-server/bootstrap.sh`,
+- [ ] **T2.1** (FIND-03, T2, **Critical**) **[ENGINE, approved]** One shared student password. *Needs the reset
+      plan's R1.1 first (D16); the account steps below go in `provision-account.sh`.*
+      Files: `engine/scripts/env-setup.sh`, `engine/web-terminal/provision-account.sh` (after R1.1), `engine/web-terminal/entrypoint.sh`, `engine/git-server/bootstrap.sh`,
       `engine/allocator/server.py`, `engine/docker-compose.yml`, lab text.
       a. **Lock student Linux passwords:** replace the students' `chpasswd` with `usermod -p '!'`. Root's `su -`
          (code-server, ttyd) still works; `su - student07` from another student fails. Bots keep their own path.
@@ -340,9 +343,12 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 - [ ] **T5.3** (FIND-17, T3, Moderate) [MODULE] openbao (D11): `setup.sh` on every start generates a temporary root
       from the unseal share (`bao operator generate-root`), mints the provisioner, runs the hooks, revokes both;
       the setup container keeps only the unseal key for re-unsealing. Narrow `provisioner.hcl` to the hooks' paths.
+      (D15) In the same window, mint the periodic reset token (narrowed policy limited to `student*`) for the
+      `openbao-reset` service of the student-reset plan (R9); it never touches `/setup`.
       Update `modules/openbao/tests/cli_login.sh` (it reads `/setup/provisioner-token`) and the module README. The
       single unseal share stays (D9), stated on the slides and README.
-      *Verify:* after start, `/setup` holds no live token (`bao token lookup` with any stored token fails);
+      *Verify:* after start, `/setup` holds no live token (`bao token lookup` with any stored token fails); the
+      reset token can delete and re-create `student01`'s namespace but is refused on the root namespace's `sys/`;
       a `podman restart workshop_openbao` still re-unseals; a second `./run.sh vault-fundamentals` start re-runs the
       hooks; `tenancy.sh`, `cli_login.sh`, `sso_browser.py` pass.
 - [ ] **T5.4** (FIND-19, T3, Low) **Accepted (D9).** Document in the openbao module README and vault workshop
@@ -418,3 +424,9 @@ rest tracked as defence in depth or accepted risk (D9).
 - The user asked to drop the separate branch. This file and the report's diagram updates (dark-theme colours in
   `0.1-architecture.md`, the `init` line after the diagram type in the `.mmd` files) came over with `git checkout`;
   `fix/threat-model-remediation` was deleted. D12 updated. Open phases are also summarised in `/ROADMAP.md`.
+
+### 2026-09-28 — Two decisions with the student-reset plan
+
+- D15: D11 stays, and T5.3 also mints a narrow reset token for `openbao-reset` (the reset plan's R9, its Q2).
+- D16: the reset plan's R1.1 (`provision-account.sh`, engine, ask) goes before T2.1, which then builds on it
+  (R10). The order is in `/ROADMAP.md`.

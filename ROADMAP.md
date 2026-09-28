@@ -27,6 +27,16 @@ Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (`main` is
    Mermaid in the lab reader (+ Prism `python`), zsh aliases, vault labs 3-6 and slide edits, threat-model table
    formatting.
 
+## Order agreed with the student-reset plan (2026-09-28)
+
+1. Remediation P0 (+ reset R0 on the same stack) → 2. remediation P1 → 3. **reset R1.1**: `provision-account.sh`
+extracted from `entrypoint.sh`, no behaviour change (engine, ask) → 4. **remediation T2.1** built inside that
+script → 5. the rest of the remediation, where **T5.3** also mints a narrow **reset token** for a resident
+`openbao-reset` service → 6. reset R1.2 onwards.
+
+Decisions: remediation D15/D16, reset R9/R10. D11 stays: no long-lived provisioner token, and the unseal key never
+leaves `openbao-setup`.
+
 ## Next: security remediation (P1-P3)
 
 Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Important Tier 2 finding left open.
@@ -38,6 +48,7 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
 | T1.3 | FIND-08 Moderate | Warn on plain HTTP off localhost, HSTS, LAN-over-HTTPS recipe | engine, approved |
 | T1.4 | FIND-13 Low | One structured log line per identity / control-plane decision | engine, approved |
 | T1.5 | FIND-18 Low | Pin every image by digest, `check-pins.sh` in `--dry-run` | all, approved |
+| R1.1 | (reset plan) | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1 | engine, **ask** |
 | T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved |
 | T2.2 | FIND-04 Important | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist | engine, approved + workshop |
 | T2.3 | FIND-10 Moderate | Secrets off the command line in labs; PID-namespace spike | workshop; engine part ask |
@@ -53,15 +64,9 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
   static scripts + CSP + `textContent` (T4.2, engine ask), rate limits and shared pools (T4.3), Tier 3 defence in
   depth (T5.1-T5.4: DinD socket, `.env` `0600` and per-upstream gateway tokens, OpenBao provisioner token revoked
   after setup, accepted plaintext to OpenBao/Postgres), then an incremental `/threat-model-analyst` run (T6.1).
-- **Student reset** (R0-R4): check the risks on a live stack (R0), then the account hooks, `/admin` Reset, service
-  resets per module. Its §8 questions (Q1-Q7) need answers first. **Clashes with remediation to settle before
-  building:**
-  - Q2 wants a resident service holding the OpenBao provisioner token; remediation D11/T5.3 revokes that token after
-    every start. Pick one: a reset endpoint that re-derives a short-lived token from the unseal key the way T5.3
-    does, or narrow D11.
-  - T2.1 (per-student password seed, `~/.git-credentials` token, homes `0700`) changes account provisioning, which
-    R1.1 extracts from `entrypoint.sh`. Do T2.1 first, or build R1.1 with the D13 seed in mind; a reset must
-    re-issue the student's Forgejo token.
+- **Student reset** (R0-R4): R0 (live risk checks) can run on the P0 stack. R1.1 comes before remediation T2.1
+  (below); R1.2 onwards after it; R3.2 (OpenBao) after remediation T5.3. Its §8 questions Q1 and Q3-Q7 are still
+  open.
 - **Merge `feat/vault-fundamentals` → `main`** after T5.6 (brings a24d0e7, the `run.sh --env` fix for workshops with
   modules, and ca89792 `/forgejo-login?next=`). Cherry-pick a24d0e7 to `main` sooner if `--env home` is needed there.
 - **vault-fundamentals follow-ups** (PLAN §13): policy as code (OpenTofu `vault` provider or `bao policy write` in
