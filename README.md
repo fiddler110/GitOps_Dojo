@@ -146,8 +146,10 @@ automation instead of being made by hand.
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
 │   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, tests/
+│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, TEST-PLAN.md, tests/
 │   └── vault-fundamentals/   # In progress; openbao + runner-pool modules, app-host and app-db; PLAN.md, tests/
+├── ROADMAP.md                # All open work (remediation, workshops, reset), linking each detailed plan
+├── threat-model-20260926-154208/  # Threat model report and its REMEDIATION-PLAN.md
 ├── handouts/                 # Take-home versions of the labs, and each talk as .pptx
 ├── .githooks/                # pre-commit: re-export changed decks to handouts/
 └── assets/branding/          # Shared branding
