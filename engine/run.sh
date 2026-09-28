@@ -388,6 +388,19 @@ if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
   fi
 fi
 
+# Plain HTTP off this machine (FIND-08): the class login, cookies and every
+# keystroke in the terminal cross the network in the clear. A warning, not a
+# refusal: a trusted LAN may be an accepted choice. Behind a TLS proxy
+# (GATEWAY_LISTEN) PUBLIC_BASE_URL is https and this stays quiet.
+case "${PUBLIC_BASE_URL%%://*}:$public_host" in
+  http:localhost | http:127.0.0.1 | http:::1 | https:*) ;;
+  *)
+    echo "WARNING: PUBLIC_BASE_URL=${PUBLIC_BASE_URL} is plain HTTP beyond this machine: passwords," >&2
+    echo "         cookies and terminal input travel unencrypted. For a class, use HTTPS: a real" >&2
+    echo "         name, or a TLS proxy in front (engine/README.md, \"LAN class over HTTPS\")." >&2
+    ;;
+esac
+
 if [ "$dry_run" = "1" ]; then
   echo "DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/)."
   echo "Workshop:  ${workshop} (${WORKSHOP_NAME:-$workshop})"

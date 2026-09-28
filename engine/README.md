@@ -400,6 +400,26 @@ Also set `GATEWAY_TRUSTED_PROXIES` to the proxy's address as the gateway sees it
 separately instead of the proxy as one client. Name only the proxy, never a
 whole private range: anyone the gateway trusts can set `X-Forwarded-For`.
 
+**LAN class over HTTPS.** Over plain `http://` the class login, session cookies and
+every keystroke in the terminal cross the room's network in the clear, and
+`run.sh` warns when `PUBLIC_BASE_URL` is `http://` with a host other than
+localhost. Two ways to avoid it:
+
+- **A real name** (best): a DNS name that resolves to this machine on the LAN,
+  with a certificate from a proxy you already run (the recipe above; this is
+  what `--env home` does) or from Let's Encrypt on a public address.
+- **Caddy's own CA**, no name needed: `PUBLIC_BASE_URL=https://<lan-ip>:8443`
+  (keep `GATEWAY_HTTPS_PORT=8443`, `LAB_HOST_IP=0.0.0.0`). Caddy issues the
+  certificate from its local CA automatically for an IP address. Browsers
+  warn until they trust that CA's root; hand it out with
+  `podman cp workshop_gateway:/data/caddy/pki/authorities/local/root.crt .`.
+  The gateway's data doesn't survive `./run.sh stop`, so each run has a new
+  root to hand out.
+
+When `PUBLIC_BASE_URL` is `https://`, the gateway sends
+`Strict-Transport-Security: max-age=86400`, behind a proxy too, so a browser
+that has visited once won't fall back to plain HTTP for a day.
+
 ## Start
 
 ```sh

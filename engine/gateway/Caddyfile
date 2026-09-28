@@ -39,6 +39,8 @@
 {
 	# caddy-ratelimit (see the Dockerfile) has no default place in the order.
 	order rate_limit before basic_auth
+	# See entrypoint.sh: the public host, for clients that send no SNI.
+	default_sni {$GATEWAY_DEFAULT_SNI}
 	# Behind another proxy (engine/.env.home) every request arrives from the
 	# proxy's address. GATEWAY_TRUSTED_PROXIES names that proxy (CIDR list) so
 	# {client_ip} below is the real browser's address from X-Forwarded-For,
@@ -69,6 +71,13 @@
 			header Authorization "{$FACILITATOR_BASIC_AUTH}"
 		}
 	}
+	# HSTS whenever browsers use https (remediation T1.3, FIND-08), including
+	# behind a TLS proxy (GATEWAY_LISTEN plain HTTP): the proxy passes the
+	# header on. One day covers a workshop without pinning a reused host to
+	# https for months. {$PUBLIC_BASE_URL} is substituted when the config loads.
+	@public_https expression `"{$PUBLIC_BASE_URL}".startsWith("https://")`
+	header @public_https Strict-Transport-Security "max-age=86400"
+
 	rate_limit @auth_guess {
 		zone auth_guess {
 			key {client_ip}
