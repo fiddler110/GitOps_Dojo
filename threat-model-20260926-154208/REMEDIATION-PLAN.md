@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0 and P1 done (2026-09-28). Next: P2 (R1.1, then T2.1), waiting for the user's go.** |
+| Overall status | **P0, P1 done; P2 T2.1, T2.2, T2.3a done (2026-09-28). Open in P2: T2.3b spike (needs the engine go), T2.4.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -271,7 +271,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 ### P2 — Student identity and isolation
 
-- [ ] **T2.1** (FIND-03, T2, **Critical**) **[ENGINE, approved]** One shared student password. *Needs the reset
+- [x] **T2.1** *(17fcb1a, on R1.1 7172d9b)* (FIND-03, T2, **Critical**) **[ENGINE, approved]** One shared student password. *Needs the reset
       plan's R1.1 first (D16); the account steps below go in `provision-account.sh`.*
       Files: `engine/scripts/env-setup.sh`, `engine/web-terminal/provision-account.sh` (after R1.1), `engine/web-terminal/entrypoint.sh`, `engine/git-server/bootstrap.sh`,
       `engine/allocator/server.py`, `engine/docker-compose.yml`, lab text.
@@ -296,7 +296,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       *Verify:* `su - student02` from student01 fails; Forgejo login as student02 with student01's password fails;
       lab1's clone and push work with no prompt; Forgejo SSO works for a student and the facilitator; Roster "show
       password" works; vault `sso_browser.py` passes; git-fundamentals smoke run and `--test` bots pass.
-- [ ] **T2.2** (FIND-04, T2, Important) **[ENGINE, approved]** + [WORKSHOP] Unauthenticated IDE/terminal ports.
+- [x] **T2.2** *(47e477e)* (FIND-04, T2, Important) **[ENGINE, approved]** + [WORKSHOP] Unauthenticated IDE/terminal ports.
       a. **Engine (D4):** network `terminal_ingress` (gateway + web-terminal only). `entrypoint.sh` adds `INPUT`
          rules for 9000-9899: accept on `lo` (workspace-control's `port_open` probe) and on the `terminal_ingress`
          interface (found by its subnet at start), drop the rest. The renderer rejects module fragments that join
@@ -306,7 +306,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       *Verify:* T0.2 repeated: curl from an AppHost slot and from a dns-as-code runner job to `web-terminal:9001`
       times out; student IDE and terminal, `/admin` VS Code/Terminal tabs and watch tiles work (Playwright);
       `tests/labs_11_13.sh` and `tests/lab_10.sh` pass.
-- [ ] **T2.3** (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
+- [ ] **T2.3** *(a: 9074e7f; b open)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
       a. **Labs now:** labs that put secrets on the command line use stdin or `@file` (`bao kv put ... key=-`,
          `curl -H @hdr`), taught as a lesson ("why argv leaks"), vault-fundamentals first.
       b. **Spike (D5, ½ day, needs the engine go):** each student's shell and IDE in its own PID namespace
@@ -426,9 +426,9 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T1.3 | FIND-08 | Moderate | ENGINE | Done 2026-09-28 (94ca136) |
 | T1.4 | FIND-13 | Low | ENGINE+MODULE+WS | Done 2026-09-28 (244ff59) |
 | T1.5 | FIND-18 | Low | all | Done 2026-09-28 (6b047ca) |
-| T2.1 | FIND-03 | **Critical** | ENGINE | Not started |
-| T2.2 | FIND-04 | Important | ENGINE+WS | Not started |
-| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Not started |
+| T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
+| T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
+| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | a done 9074e7f; b (spike) needs go |
 | T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A has a recommendation (§6), user to confirm |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
@@ -514,3 +514,24 @@ rest tracked as defence in depth or accepted risk (D9).
   run); auth-check volume under real browsers.
 - Also: `core.fileMode` was false in this clone; now true, and the scripts run directly are 755 (5fae93c, e914b5d).
 - Q-A confirmed (A). The user chose to close P1 only: P2 and R1.1 wait for their go.
+
+### 2026-09-28 — P2: R1.1, T2.1, T2.2, T2.3a
+
+- Built in a worktree (`wt/p2`) while another session added `dojo-introduction`, then fast-forwarded. Verified
+  locally as one batch: vault-fundamentals (33 shell checks, a new browser check of landing page, IDE, terminal,
+  watch view and Roster **Password**, labs 8-13 tests, OpenBao SSO, p4 browser) and git-fundamentals `--test 3`
+  (28 checks, lab 1 push with no prompt, bots into round 2 with no failed steps).
+- R1.1: `/home` identical before and after, started twice; the script also refills a home from `/etc/skel`
+  after a reset.
+- Changes from the plan: T2.1b's shell helper builds HMAC from `sha256sum`/`xxd` (the Forgejo image has no
+  openssl or python); T2.1c also writes `~/.netrc` (labs call the API with `curl --netrc`) and the token has
+  `write:issue` (dnsctl reads PR comments); bootstrap re-sets existing accounts' passwords. T2.2a: the gateway
+  dials the alias `web-terminal-ingress` (podman DNS returns every shared network's address, in no fixed order),
+  so web-terminal uses map-form `networks:`; the fragment check is in `run.sh`, not the renderer. T2.2b matches
+  by port (8200, 5432, 53), not address. T2.3a: CI steps unchanged (single-use runners, own PID namespace).
+- Trap: the main tree and a worktree share image tags (`gitopsdojo/allocator:local`...). The first vault run
+  served an older allocator (no Password API, SSO with the old shared password); a restart from the worktree
+  fixed it, and every check passed. Don't run stacks from two trees at once.
+- Open: T2.3b spike (engine go), T2.4. `engine/.env` and `.env.home` need a `STUDENT_PASSWORD_SEED`
+  (`run.sh` warns until then).
+

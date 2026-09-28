@@ -201,7 +201,7 @@ the services sit on `workshop_lab`, which students can reach.
 
 ### R1: engine core (engine edits; ask before each)
 
-- [ ] R1.1 *(before remediation T2.1, R10)* `provision-account.sh` extracted from `entrypoint.sh`; start-up unchanged. **Verify:** diff of
+- [x] R1.1 *(7172d9b)* *(before remediation T2.1, R10)* `provision-account.sh` extracted from `entrypoint.sh`; start-up unchanged. **Verify:** diff of
   `/home/*` listing and contents on a fresh start before and after the change.
 - [ ] R1.2 *(after remediation T2.1, R10)* `account.d` / `reset.d` hook runner + `POST /reset/<user>` in `workspace-control.py`.
 - [ ] R1.3 Forgejo steps (teardown + re-provision) in the allocator or `bootstrap.sh` (per §8 Q6).

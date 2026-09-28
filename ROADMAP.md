@@ -8,7 +8,7 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0, P1 done; P2 waits for go            |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0, P1 done; P2 mostly done             |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
@@ -16,8 +16,9 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 ## Now
 
-1. **Remediation P2** waits for the user's go (P1 closed 2026-09-28: login rate limit, `/slides` behind the class
-   login, HTTP warning + HSTS, decision logs, images pinned by digest). First R1.1 (engine, ask), then T2.1.
+1. **Remediation P2**: R1.1, T2.1 (per-student passwords and git tokens), T2.2 (terminal ingress, app egress)
+   and T2.3a (secrets off the command line) done 2026-09-28. Open: T2.3b PID-namespace spike (engine, ask),
+   T2.4 docs. Then P3 after the user's go.
    Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
    "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
