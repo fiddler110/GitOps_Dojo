@@ -12,6 +12,8 @@ A **namespace** is a vault inside the vault: its own engines, policies, tokens a
 4. Make a token with only that policy, and prove what it can and can't do.
 5. Revoke the token.
 
+**Starting here?** Nothing from earlier labs is needed: this lab makes everything it uses. Your terminal is already signed in to the vault (Lab 0). For step 3, open the **Vault** card and sign in with **OIDC** first (Lab 0, step 2). Two words you'll meet: a **policy** is a list of paths, each with what may be done there (Lab 3, step 4); a **token** is what every request shows the vault to say who's asking (Lab 0, step 3).
+
 ---
 
 ## 1. Step into your namespace
@@ -23,7 +25,11 @@ export BAO_NAMESPACE=students/$USER
 bao secrets list
 ```
 
-Only the built-in engines: `secret/` from Lab 3 is in the root namespace, not in yours. `-namespace=` points one command somewhere else. Try your neighbour's:
+The built-in engines, plus `database/`, which setup made for Lab 12. No `secret/`: the class's shared vault (Lab 3) is in the root namespace, not in yours.
+
+`export` lasts only as long as this terminal. If you open a new one during the lab, run the `export` line again there, or `bao` talks to the root namespace and can't find `team/`.
+
+`-namespace=` points one command somewhere else. Try your neighbour's:
 
 ```bash
 bao secrets list -namespace=students/student02
@@ -54,11 +60,11 @@ The app should read `team/app` and nothing else. Anything a policy doesn't allow
 2. Open **Policies → ACL policies → Create ACL policy**.
 3. Name it `app-read`, and give it this body:
 
-   ```hcl
-   path "team/data/app" {
-     capabilities = ["read"]
-   }
-   ```
+    ```hcl
+    path "team/data/app" {
+      capabilities = ["read"]
+    }
+    ```
 
 4. Click **Create policy**.
 
@@ -99,6 +105,8 @@ Same name, same rule, now with its comment: nothing the vault enforces changed, 
 
 ## 5. A token for the app, and proof
 
+There's no app to build here: you play the app. Its whole job is to read `team/app`, so you make the token an app would be given, then use that token yourself and see what it's allowed. (Lab 5 writes an app, and Lab 6 gives it this same `app-read` policy through an identity of its own.)
+
 A **token** is what a program shows the vault on every request. Make one that carries only `app-read` and lives 15 minutes. `$(...)` runs the command inside it and puts its output in `APP_TOKEN`; `-field=token` makes that output just the token. Then look the new token up:
 
 ```bash
@@ -106,9 +114,9 @@ APP_TOKEN=$(bao token create -orphan -policy=app-read -ttl=15m -field=token)
 BAO_TOKEN=$APP_TOKEN bao token lookup
 ```
 
-`policies` is `[app-read default]`, `ttl` about 15 minutes, and `entity_id` is empty: it's a token for a program, not a person.
+`policies` is `[app-read default]`, `ttl` about 15 minutes, and `entity_id` is `n/a`: it's a token for a program, not a person.
 
-Why `-orphan`? A token you make normally is your token's **child**, and it carries your identity along with it, which is the opposite of what an app should get. An orphan stands on its own: no parent, no identity, only the policy you gave it.
+Why `-orphan`? A token you make normally is your token's **child**, and it carries your identity along with it (your entity, and with it your `student` policy), which is the opposite of what an app should get. An orphan stands on its own: no parent, no identity, only the policy you gave it.
 
 Now test it. `BAO_TOKEN=...` in front of a command uses that token for that one command:
 
@@ -140,9 +148,9 @@ unset BAO_NAMESPACE
 
 ## Check yourself
 
-1. Why does the policy say `team/data/app` and not `team/app`? *(KV v2 keeps values under `data/`. Lab 3, step 4.)*
-2. The app's token leaks. List two things that limit the damage. *(Least-privilege policy: one secret, read only. Short TTL, and it can be revoked at once.)*
-3. Why keep policies in files? *(Review, history and rollback, like any code. The UI is for exploring.)*
+1. Why does the policy say `team/data/app` and not `team/app`? _(KV v2 keeps values under `data/`. Lab 3, step 4.)_
+2. The app's token leaks. List two things that limit the damage. _(Least-privilege policy: one secret, read only. Short TTL, and it can be revoked at once.)_
+3. Why keep policies in files? _(Review, history and rollback, like any code. The UI is for exploring.)_
 
 **Rules used:** 1 (least privilege), 3 (short-lived and revocable), 7 (plan for leaks: revocation is routine).
 

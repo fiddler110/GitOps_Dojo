@@ -55,7 +55,7 @@ bao kv rollback -version=2 secret/students/$USER/db
 bao kv get -field=password secret/students/$USER/db
 ```
 
-In the UI, refresh and open **Version history**.
+In the UI, refresh and open **Version history**. You can see the old versions still there, even after rolling back to version 2, and see how each is an update so we are now on version 4 with version 2's value. One thing in version history is that you don't see actual values; only the keys and their metadata.
 
 ## 3. Delete, undelete, destroy
 
@@ -71,11 +71,11 @@ bao kv destroy -versions=1 secret/students/$USER/db   # version 1: gone for good
 bao kv get -version=1 secret/students/$USER/db        # "destroyed"
 ```
 
-| Command | What happens | Azure Key Vault calls it |
-| ------- | ------------ | ------------------------ |
-| `delete` | Hidden; `undelete` brings it back | soft delete / recover |
-| `destroy` | That version's data is wiped | purge |
-| `metadata delete` | Every version and the history, gone | purge the whole secret |
+| Command           | What happens                        | Azure Key Vault calls it |
+| ----------------- | ----------------------------------- | ------------------------ |
+| `delete`          | Hidden; `undelete` brings it back   | soft delete / recover    |
+| `destroy`         | That version's data is wiped        | purge                    |
+| `metadata delete` | Every version and the history, gone | purge the whole secret   |
 
 If a secret leaked, destroying old copies doesn't un-leak it. **Rotate first** (a new password where it's used), then destroy.
 
@@ -93,6 +93,9 @@ You can list the folders, but reading or writing anyone else's gives `permission
 
 ```bash
 bao policy read student
+
+# Or with pretty colours
+bao policy read student | bat --language=json
 ```
 
 Find this block:
@@ -109,8 +112,8 @@ Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the v
 
 ## Check yourself
 
-1. Someone can `list` a folder but not `read` in it. What can they learn? *(The names of the secrets, not the values. Names can still leak something, so keep them boring.)*
-2. You deleted the newest version by mistake. Which command undoes it? *(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)*
+1. Someone can `list` a folder but not `read` in it. What can they learn? _(The names of the secrets, not the values. Names can still leak something, so keep them boring.)_
+2. You deleted the newest version by mistake. Which command undoes it? _(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)_
 
 **Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy).
 

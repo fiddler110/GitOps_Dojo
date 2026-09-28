@@ -25,14 +25,21 @@ mkdir -p ~/lab/app && cd ~/lab/app
 git init -b main
 ```
 
-In VS Code, create three files in **app**. First **`.env`**, the secrets, one `NAME=value` per line:
+In your terminal or VS Code, create three files in **app**: `.env`, `.gitignore` and `app_env.py`:
+
+```sh
+# Create our core files quickly with touch
+touch .env .gitignore app_env.py
+```
+
+First **`.env`**, the secrets, one `NAME=value` per line:
 
 ```sh
 DB_PASSWORD=dev-db-pass-123
 API_KEY=dev-api-key-456
 ```
 
-Then **`.gitignore`**, the list of files git must never add. One line:
+**`.gitignore`** contains the list of files git must never add. So add the following and save it:
 
 ```gitignore
 .env
@@ -93,23 +100,35 @@ Now the app asks the vault for them itself. `hvac` is Python's Vault client, and
 import logging
 import os
 
-import hvac
+import hvac  # Python's Vault client; OpenBao speaks the same API
 
+# Set up logging. The level comes from LOG_LEVEL (INFO if it isn't set):
+# at INFO, log.debug(...) lines are skipped; at DEBUG, they are printed too.
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(levelname)s %(message)s")
 log = logging.getLogger("app")
 
 # hvac finds the vault by itself: VAULT_ADDR from the environment, and the
 # token from VAULT_TOKEN or ~/.vault-token (your terminal signed you in).
+# Whatever that token's policies allow is all this app is allowed to do.
 client = hvac.Client()
+
+# Read the latest version of one secret from the KV v2 engine.
+# This is the same request as: bao kv get secret/students/<you>/app
 resp = client.secrets.kv.v2.read_secret_version(
-    mount_point="secret",
-    path=f"students/{os.environ['USER']}/app",
-    raise_on_deleted_version=True,
+    mount_point="secret",                       # the engine, mounted at secret/
+    path=f"students/{os.environ['USER']}/app",  # the path inside it: your folder
+    raise_on_deleted_version=True,              # fail loudly if the latest version was deleted
 )
+
+# The reply wraps the secret in two layers of "data":
+#   resp["data"]["data"]     -> your key-value pairs (db_password, api_key)
+#   resp["data"]["metadata"] -> facts about them (version, created_time, ...)
 secret = resp["data"]["data"]
 log.debug("loaded config: %s", secret)
 
 log.info("read version %s of the app's secret", resp["data"]["metadata"]["version"])
+# A real app would connect to the database here. We only print the length,
+# so the password itself never reaches the screen.
 log.info("connecting to the database with a %d-character password", len(secret["db_password"]))
 ```
 
@@ -153,11 +172,13 @@ LOG_LEVEL=DEBUG python3 app_vault.py
 
 `loaded config: {'api_key': ..., 'db_password': ...}`: both secrets, in plain text, now on their way to the log system, where many more people can read them than can read the vault, and where they're kept for months. The line looked harmless when it was written.
 
-Log *that* you loaded the config, never *what* it holds. In VS Code, change the `log.debug` line in `app_vault.py` to log only the key names, and save:
+Log _that_ you loaded the config, never _what_ it holds. In VS Code, change the `log.debug` line in `app_vault.py` to log only the key names, and save:
 
 ```python
 log.debug("loaded config keys: %s", sorted(secret))
 ```
+
+The fix works because `secret` is a dictionary, iterating it only yields keys, so `sorted(secret)` logs `['db_password', 'db_user']` without values, whereas doing this on a plain string would leak every character. Instead use `sorted(secret.keys())`, since it behaves identically but makes the intent explicit that you want to log the keys, not the values.
 
 Run it with debug logging again:
 
@@ -190,9 +211,9 @@ The TTL went back up. Renewing resets the clock, but only up to the token's maxi
 
 ## Check yourself
 
-1. `.env` is in `.gitignore`. What can still go wrong? *(It's plaintext on every laptop, shared by hand, never expires, and leaks through the environment to every child process and crash report.)*
-2. You rotate the password in the vault. Which apps need a commit or a new build? *(None. They read the new version on their next read.)*
-3. Where else, apart from logs, do secrets escape a running app? *(Exception reports, debug pages, `env` in CI output, core dumps.)*
+1. `.env` is in `.gitignore`. What can still go wrong? _(It's plaintext on every laptop, shared by hand, never expires, and leaks through the environment to every child process and crash report.)_
+2. You rotate the password in the vault. Which apps need a commit or a new build? _(None. They read the new version on their next read.)_
+3. Where else, apart from logs, do secrets escape a running app? _(Exception reports, debug pages, `env` in CI output, core dumps.)_
 
 **Rules used:** 8 (never in git or logs), 6 (audit everything: every vault read is logged), 3 (short-lived: tokens expire and must be renewed).
 

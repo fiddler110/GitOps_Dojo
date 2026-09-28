@@ -49,12 +49,12 @@ ol { font-size: 0.88em; }
 
 **The talk**
 
-1. **Foundations:** why secrets leak, and what a vault does about it
-2. **From a shared vault to your own:** namespaces, policies as code
-3. **Secrets in code:** how an app gets its secret
-4. **Secrets in git:** encrypted config
-5. **Secrets in pipelines:** CI without stored secrets
-6. **Secrets in deployments:** identity, dynamic logins, incidents
+1. [**Foundations:**](#3) why secrets leak, and what a vault does about it
+2. [**From a shared vault to your own:**](#19) namespaces, policies as code
+3. [**Secrets in code:**](#25) how an app gets its secret
+4. [**Secrets in git:**](#33) encrypted config
+5. [**Secrets in pipelines:**](#38) CI without stored secrets
+6. [**Secrets in deployments:**](#46) identity, dynamic logins, incidents
 
 </div>
 <div>
@@ -63,7 +63,7 @@ ol { font-size: 0.88em; }
 
 Each part of the talk has labs that let you do it yourself, on a real vault.
 
-**Then a wrap-up**
+[**Then a wrap-up**](#61)
 
 The rules again, and where you used each one.
 
@@ -74,6 +74,8 @@ The rules again, and where you used each one.
 Each part ends with a "what to remember" slide whose footer names the labs
 for that part. The default is the whole talk first, then all the labs; the
 footer marks where you can stop for a lab or two instead, and come back.
+The list links jump to each part's title slide (#n = slide number); adding or
+removing slides before a part shifts these numbers, so update them.
 -->
 
 ---
@@ -364,11 +366,11 @@ section > p { font-size: 0.9em; }
 
 OpenBao isn't only a store. It runs several **secrets engines**, each at its own path, all behind the same token and policy checks.
 
-| A path you'll use              | Engine       | What it does                                             | Where it comes back                                |
-| ------------------------------ | ------------ | -------------------------------------------------------- | -------------------------------------------------- |
-| `secret/students/student07/db` | **KV**       | Keeps a secret you give it, and hands it back            | The next few slides                                |
-| `transit/encrypt/sops`         | **Transit**  | Encrypts what you send; its key never leaves the vault   | Part 4: config files that are safe to commit       |
-| `database/creds/app`           | **Database** | Makes a new DB login per request, deleted when time's up | Part 6: no shared database password                |
+| A path you'll use              | Engine       | What it does                                             | Where it comes back                          |
+| ------------------------------ | ------------ | -------------------------------------------------------- | -------------------------------------------- |
+| `secret/students/student07/db` | **KV**       | Keeps a secret you give it, and hands it back            | The next few slides                          |
+| `transit/encrypt/sops`         | **Transit**  | Encrypts what you send; its key never leaves the vault   | Part 4: config files that are safe to commit |
+| `database/creds/app`           | **Database** | Makes a new DB login per request, deleted when time's up | Part 6: no shared database password          |
 
 Only **KV** keeps what you gave it. The others **do a job** with keys that stay inside the vault. The **first part** of the path (`secret/`, `transit/`, `database/`) picks the engine; the rest means something to that engine. Sign-in methods work the same way, under `auth/`.
 
@@ -591,7 +593,7 @@ flowchart TB
 </div>
 <div>
 
-**One vault, a folder per team**, one policy keeping each team in its folder. Lab 3 focuses here, and it's a good start: one copy, least privilege by path.
+**One vault, a folder per team**, one policy keeping each team in its folder. Lab 3 focused here, and it's a good start: one copy, least privilege by path.
 
 **Where it strains as teams grow:**
 
@@ -703,29 +705,49 @@ students/student07/team/data/app seen from the root.
 
 ## A namespace's reach runs down, never up
 
+<style scoped>
+.split { gap: 32px; }
+.split-40 > div:first-child { flex: 0 0 50%; }
+.mermaid svg { max-height: 300px; }
+ul { font-size: 0.85em; }
+table { font-size: 0.66em; margin: 10px auto 0; }
+</style>
+
 <div class="split split-40">
 <div>
 
 <div class="mermaid">
 flowchart TB
-  root["root: secret/, the class policy"] --> n7["students/student07"]
-  root --> n2["students/student02"]
-  n7 --> team["team/ (yours)"]
-  n7 -. "your policies: refused" .-> root
-  n7 -. "refused" .-> n2
+  subgraph root["root namespace: the platform team"]
+    direction TB
+    rp["secret/, student policy"]
+    subgraph n7["students/student07: you"]
+      p7["team/ and app-read"]
+    end
+    subgraph n2["students/student02: not yours"]
+      p2["team/ and app-read"]
+    end
+    rp ==>|"reaches down"| p7
+    rp ==> p2
+    p7 -.-x|"up: refused"| rp
+    p7 -.-x|"sideways: refused"| p2
+  end
 </div>
 
 </div>
 <div>
 
 - **Down, never up:** a root policy can reach into your namespace; yours can't touch root, `secret/` or student02
-- **Names are local:** your `app-read` and your neighbour's are different policies
-- **Tokens you make here** carry only this namespace's policies
-
-**At work:** the platform team keeps the root; each team writes its own policies, in git, and reviews them by pull request.
+- **Names are local:** your `app-read` and student02's are two different policies
+- **Tokens made here** can carry only this namespace's policies
 
 </div>
 </div>
+
+|                   | Platform team, at the top           | Each team, below                             |
+| ----------------- | ----------------------------------- | -------------------------------------------- |
+| **Vault/OpenBao** | root namespace and its policies     | its own namespace; policies as code, by PR   |
+| **Azure**         | root management group, Azure Policy | its subscription; Azure RBAC, as code, by PR |
 
 <!--
 The boundary runs one way: a root policy can reach down into namespaces, a
@@ -733,6 +755,9 @@ namespace's policy can never reach up or sideways.
 Names are local too: student02 can have an app-read of their own, and
 neither affects the other. Lab 4 has you write app-read in the UI, then as
 a file, and hand it to a token.
+The Azure row is the same shape: policy and RBAC assigned at a management
+group are inherited by every subscription below it, and a subscription
+owner can add access but can't remove what was assigned above.
 -->
 
 ---
@@ -1348,6 +1373,7 @@ just the same question for a different workload. Most real systems are a
 mix; the goal is to move each app up a rung. The next slide is rung 2, then
 rung 1, then the two side by side.
 -->
+
 ---
 
 ## Rung 2: a deliverer hands over the secret ID
@@ -1437,13 +1463,13 @@ table { font-size: 22px; }
 th, td { padding: 6px 12px; }
 </style>
 
-|                                | **Delivered secret ID** (lab 10)         | **Platform identity** (lab 11)          |
-| ------------------------------ | ---------------------------------------- | --------------------------------------- |
-| Where the login proof comes from | the deploy pipeline, at every deploy   | the platform, every 5 minutes           |
-| The pipeline may, in the vault | make wrapped secret IDs for `app`        | nothing for the app                     |
-| A restart with no deploy       | **can't log in**: the secret ID is spent | logs in again by itself                 |
-| The login secret rotates       | at every deploy                          | every 5 minutes (a JWT valid for 10)    |
-| Needs from the platform        | nothing                                  | signed identities it publishes keys for |
+|                                  | **Delivered secret ID** (lab 10)         | **Platform identity** (lab 11)          |
+| -------------------------------- | ---------------------------------------- | --------------------------------------- |
+| Where the login proof comes from | the deploy pipeline, at every deploy     | the platform, every 5 minutes           |
+| The pipeline may, in the vault   | make wrapped secret IDs for `app`        | nothing for the app                     |
+| A restart with no deploy         | **can't log in**: the secret ID is spent | logs in again by itself                 |
+| The login secret rotates         | at every deploy                          | every 5 minutes (a JWT valid for 10)    |
+| Needs from the platform          | nothing                                  | signed identities it publishes keys for |
 
 **The deliverer** when the platform can't vouch for the app (a plain VM, an old host). **Platform identity** wherever it can.
 

@@ -14,12 +14,21 @@ The app itself stops talking to the vault at all. It reads a file.
 6. Rotate the secret, and watch the app pick it up live.
 7. See the Agent renew its token, then clean up.
 
-```text
- you (step 2)         the Agent                    the vault
- role-id, secret-id → logs in with them  ─────────→ checks them, gives a token
-                      renders team/app   ←───────── (read with that token)
-                        ↓
-                      /dev/shm/<you>/app.env  ←──── the app reads this file
+```mermaid
+sequenceDiagram
+  participant You
+  participant Agent as OpenBao Agent
+  participant Vault as OpenBao
+  participant File as /dev/shm/studentXX/app.env
+  participant App
+  You->>Agent: role ID + secret ID (step 2)
+  Agent->>Vault: log in with them
+  Vault-->>Agent: a token with the app-read policy
+  Agent->>Vault: read team/app with that token
+  Vault-->>Agent: db_password, api_key
+  Agent->>File: write the secret (memory, mode 600)
+  App->>File: read the file
+  Note over Agent,Vault: keeps the token renewed,<br/>rewrites the file when the secret changes
 ```
 
 ---
@@ -50,10 +59,12 @@ bao write auth/approle/role/app \
     token_policies=app-read token_ttl=2m token_max_ttl=10m secret_id_ttl=1h
 ```
 
-(A `\` at the end of a line means "the command carries on on the next line".) What the role says:
+(A `\` at the end of a line means "the command carries on on the next line".)
+
+What the role says:
 
 - `token_policies=app-read`: a login gets Lab 4's policy, so it can read `team/app` and nothing else.
-- `token_ttl=2m`, `token_max_ttl=10m`: each token lives two minutes unless renewed, and ten minutes at most. That short, so you'll see the Agent renew one during this lab.
+- `token_ttl=2m`, `token_max_ttl=10m`: each token lives two minutes unless renewed, and ten minutes at most. It's short, so you'll see the Agent renew one during this lab.
 - `secret_id_ttl=1h`: a secret ID stops working after an hour.
 
 Now play the part of whoever deploys the app, and hand it its two IDs as files. The first command reads the role's ID; the second makes a new secret ID (`-f` because the request has no data). `>` writes each command's output to a file:
@@ -205,9 +216,9 @@ unset BAO_NAMESPACE
 
 ## Check yourself
 
-1. What did the app need to know about the vault? *(Nothing. It reads a file; the Agent logs in, renews and renders.)*
-2. What is this app's secret zero, and what limits the damage if it leaks? *(The secret ID. It expires in an hour, the Agent deletes it after reading, and the token it gets can read one secret.)*
-3. Why `/dev/shm` and `0600`? *(Memory, not disk: nothing left behind after a stop or in a backup. Only the app's user can read it.)*
+1. What did the app need to know about the vault? _(Nothing. It reads a file; the Agent logs in, renews and renders.)_
+2. What is this app's secret zero, and what limits the damage if it leaks? _(The secret ID. It expires in an hour, the Agent deletes it after reading, and the token it gets can read one secret.)_
+3. Why `/dev/shm` and `0600`? _(Memory, not disk: nothing left behind after a stop or in a backup. Only the app's user can read it.)_
 
 **Rules used:** 4 (know your secret zero), 3 (short-lived tokens, renewed for you), 7 (rotation is routine), 8 (never on disk).
 
