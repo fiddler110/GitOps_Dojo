@@ -80,6 +80,13 @@ every other interface (`DOJO_INGRESS`), so a CI job or module service on
 `workshop_lab` can't skip Caddy's auth-check by dialling
 `web-terminal:9001` (remediation T2.2a, FIND-04); `run.sh` refuses a
 fragment that joins `terminal_ingress`.
+Inside `web-terminal`, each student's IDE and terminal run in a PID namespace
+of their own (a user namespace mapping only their uid, kept alive by one
+holder process per student and joined with `nsenter`; see
+`workspace-control.py`), so `ps` shows a student only their own processes
+and never a classmate's command-line arguments (remediation T2.3b, FIND-10).
+The facilitator and demo bots stay outside; `su`, `sudo` and `ping` don't
+work inside.
 `allocator` holds no persistent state (in-memory only, same ephemeral
 design as everything else) and never touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.

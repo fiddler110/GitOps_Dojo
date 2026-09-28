@@ -31,7 +31,7 @@ bao kv get -field=password secret/students/$USER/db
 
 ### Keep the value off the command line
 
-That `put` line has a problem. While a program runs, its whole command line is visible to every account on the machine, and this terminal server is shared by the whole class. Try it with a stand-in for a slow command:
+That `put` line has a problem. While a program runs, its whole command line is visible to every account on a shared machine: build servers, jump hosts, CI runners. Try it with a stand-in for a slow command:
 
 ```bash
 python3 -c 'import time; time.sleep(30)' password=first-password &
@@ -39,7 +39,7 @@ ps -eo user,args | grep '[p]assword='
 kill %1
 ```
 
-`ps` lists everyone's processes with their arguments. Yours shows up, and so would a neighbour's `bao kv put ... password=...` while it runs.
+`ps` lists processes with their arguments. Yours shows up; on an ordinary shared machine, so would a neighbour's `bao kv put ... password=...` while it runs. (Not here: this platform runs each of you in a process namespace of your own, so your `ps` shows only your processes. Most machines don't, so don't count on it.)
 
 Hand the value to `bao` on its **standard input** instead. `password=-` means "read this value from stdin", and `printf` is part of the shell, not a separate program, so the value never shows in `ps`:
 
@@ -134,7 +134,7 @@ Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the v
 
 1. Someone can `list` a folder but not `read` in it. What can they learn? _(The names of the secrets, not the values. Names can still leak something, so keep them boring.)_
 2. You deleted the newest version by mistake. Which command undoes it? _(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)_
-3. Why `printf ... | bao kv put ... password=-` and not `password=...`? _(A command line is visible to every account on the machine, in `ps`, while the command runs. Standard input isn't.)_
+3. Why `printf ... | bao kv put ... password=-` and not `password=...`? _(On a shared machine, a command line is visible to every account in `ps` while the command runs. Standard input isn't.)_
 
 **Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy), 8 (never in logs: nor on a command line).
 

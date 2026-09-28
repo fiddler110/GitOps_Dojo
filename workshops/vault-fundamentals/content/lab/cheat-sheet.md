@@ -33,7 +33,7 @@ On your own machine at work: Linux `apt install pass`; macOS `brew install pass 
 printf '%s' 'pw' | bao kv put secret/students/$USER/db user=app password=-   # new version, replaces all keys
 printf '%s' 'pw2' | bao kv patch secret/students/$USER/db password=-         # new version, changes only these keys
 echo '{"a": "1", "b": "2"}' | bao kv put secret/students/$USER/x -          # several keys, as JSON
-# key=- reads the value from stdin: a command line is visible to everyone in `ps`
+# key=- reads the value from stdin: on a shared machine, a command line is visible to everyone in `ps`
 bao kv get    secret/students/$USER/db                        # newest version
 bao kv get    -field=password secret/students/$USER/db        # one value, for scripts
 bao kv get    -version=1 secret/students/$USER/db             # an old version

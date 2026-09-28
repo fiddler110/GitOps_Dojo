@@ -108,7 +108,7 @@ SECRET_ID=$(BAO_TOKEN="$WRAPPED" bao unwrap -field=secret_id) && echo "unwrapped
 BAO_TOKEN="$WRAPPED" bao unwrap
 ```
 
-`bao unwrap` with no argument opens the wrapper it's signed in with, so `BAO_TOKEN=...` in front hands it the wrapper without putting it on the command line (Lab 3: every account can see a command line in `ps`). The lookup above did the same with `token=-` and standard input.
+`bao unwrap` with no argument opens the wrapper it's signed in with, so `BAO_TOKEN=...` in front hands it the wrapper without putting it on the command line (Lab 3: on a shared machine every account can see a command line in `ps`). The lookup above did the same with `token=-` and standard input.
 
 The second one fails: `wrapping token is not valid or does not exist`. A wrapper opens **once**. If the app ever gets that error, someone opened its wrapper first: an interception you *know* about, instead of one you don't.
 
