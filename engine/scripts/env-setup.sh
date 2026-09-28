@@ -344,8 +344,14 @@ cat <<'EOF'
   for other computers, or a proxy on another host, to reach the lab).
   Off loopback, './run.sh <workshop>' refuses the public default passwords.
 EOF
-ask GATEWAY_HTTP_PORT "Gateway HTTP port"
-ask GATEWAY_HTTPS_PORT "Gateway HTTPS port"
+# 80/443 were .env.example's defaults before 8080/8443; offer the new ones
+# (type 80/443 to keep them, e.g. on a VM with Docker or rootful podman).
+http_default="$(current_value GATEWAY_HTTP_PORT)"
+case "$http_default" in '' | 80) http_default=8080 ;; esac
+https_default="$(current_value GATEWAY_HTTPS_PORT)"
+case "$https_default" in '' | 443) https_default=8443 ;; esac
+ask GATEWAY_HTTP_PORT "Gateway HTTP port (80 needs root)" "$http_default"
+ask GATEWAY_HTTPS_PORT "Gateway HTTPS port (443 needs root)" "$https_default"
 url_default="$(current_value PUBLIC_BASE_URL)"
 case "$url_default" in
   http://localhost | http://localhost:80 | http://localhost:[0-9]*)
