@@ -306,7 +306,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       *Verify:* T0.2 repeated: curl from an AppHost slot and from a dns-as-code runner job to `web-terminal:9001`
       times out; student IDE and terminal, `/admin` VS Code/Terminal tabs and watch tiles work (Playwright);
       `tests/labs_11_13.sh` and `tests/lab_10.sh` pass.
-- [ ] **T2.3** *(a: 9074e7f; b open)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
+- [ ] **T2.3** *(a: 9074e7f; b: spike done 2026-09-28, works; implementation waits for the go)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
       a. **Labs now:** labs that put secrets on the command line use stdin or `@file` (`bao kv put ... key=-`,
          `curl -H @hdr`), taught as a lesson ("why argv leaks"), vault-fundamentals first.
       b. **Spike (D5, ½ day, needs the engine go):** each student's shell and IDE in its own PID namespace
@@ -428,7 +428,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T1.5 | FIND-18 | Low | all | Done 2026-09-28 (6b047ca) |
 | T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
-| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | a done 9074e7f; b (spike) needs go |
+| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | a done 9074e7f; b spike works, build needs go |
 | T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A has a recommendation (§6), user to confirm |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
@@ -534,4 +534,21 @@ rest tracked as defence in depth or accepted risk (D9).
   fixed it, and every check passed. Don't run stacks from two trees at once.
 - Open: T2.3b spike (engine go), T2.4. `engine/.env` and `.env.home` need a `STUDENT_PASSWORD_SEED`
   (`run.sh` warns until then).
+
+### 2026-09-28 — T2.3b spike: a PID namespace per student works
+
+Tested in the terminal image with the stack's capabilities (rootless podman, `NET_ADMIN` only):
+- Root can't `unshare -p` (no `CAP_SYS_ADMIN`). As the student it works, as in AppHost and the runner pool:
+  `unshare -U --map-current-user -p -f --mount-proc`. Inside, student02's `ps` shows none of student01's
+  processes (0 matches; 4 today). Files keep the right owner; `node` (code-server) runs inside.
+- A PID namespace dies with its first process, so a namespace per tool would kill tmux (and the student's
+  session) when the connection that started it closes. Design: one holder per student
+  (`unshare ... --kill-child sleep infinity`, started by workspace-control.py on first use, as the student);
+  code-server and ttyd's shell enter it with `nsenter -t <holder> -U -p -m --preserve-credentials`. Checked:
+  tmux outlives its starter, the facilitator's watch (`tmux attach -r` from outside) still attaches, the
+  openbao and dojo-cloud brokers get the student's real uid through `SO_PEERCRED`.
+- Limits: setuid tools (`su`, `sudo`, `ping`) don't work inside; no lab uses them. The facilitator and bots stay
+  outside. DOJO_ISOLATION still matches (the kernel uid is unchanged).
+- Build (after the go): holder lifecycle in workspace-control.py (start, check, restart; `stop_user` kills it),
+  the two spawn commands, then a live pass (IDE, terminal, watch, reconnect, vault labs with the broker, bots).
 
