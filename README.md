@@ -889,13 +889,26 @@ graph LR
 
 - **One Linux user per student.** `entrypoint.sh` creates `student01`..`studentNN`,
   each with its own uid and home directory. No student runs as root (the
-  facilitator's shell does, by default, so they can help anyone).
+  facilitator's shell does, by default, so they can help anyone). Homes are
+  `0700`, and student Linux passwords are locked, so `su - student02` from
+  student01's shell fails.
+- **Each student has their own Forgejo login.** Every student's Forgejo password
+  is derived from `STUDENT_PASSWORD_SEED` and their name, so one student's
+  password doesn't open another's account. At start each terminal gets a scoped
+  Forgejo token in `~/.git-credentials` and `~/.netrc` (both `0600`), so `git`
+  and `curl` never ask for a password. The facilitator's Roster shows a
+  student's password on demand (**Password** on their tile).
 - **Workspace ports belong to their owner.** Each student's code-server and ttyd
   listen on a port of their own (9000+N and 9500+N). An `iptables` chain with an
   `owner` match lets a uid connect only to its own ports and drops everything
   else in those ranges, so student01 can't open student02's terminal from inside
-  the container. The gateway, connecting from outside, can reach them all, and
-  it only ever sends a request to the port `/auth-check` chose.
+  the container. From outside, only the gateway reaches them: it shares the
+  `terminal_ingress` network with the terminal, and those ports are dropped on
+  every other network. It only ever sends a request to the port `/auth-check`
+  chose.
+- **Each student sees only their own processes.** A student's IDE and terminal
+  run in a PID namespace of their own, so `ps` shows nothing of a neighbour's
+  command lines. The facilitator and the demo bots stay outside it.
 - **Cloud credentials come from the kernel, not from the student**
   (tofu-basics). A shell asks the root-owned broker for its `ARM_*` values over
   a unix socket. The broker asks the kernel who is on the other end

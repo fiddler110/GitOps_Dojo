@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0, P1 done; P2 T2.1-T2.3 done (2026-09-28). Open in P2: T2.4 (docs). Then P3 after the user's go.** |
+| Overall status | **P0, P1, P2 done (2026-09-28). Next: P3, after the user's go.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -315,7 +315,8 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          user's go.
       *Verify:* no inline secrets in lab text (grep review); with the spike, `ps aux` as student02 doesn't show
       student01's long-running `bao` arguments.
-- [ ] **T2.4** P2 docs, §8 entry. **Ask the user before starting P3.**
+- [x] **T2.4** P2 docs, §8 entry. **Ask the user before starting P3.** (2026-09-28: root `README.md` isolation
+      section, `engine/student-reset.md` token note; the rest went in with each task.)
 
 ### P3 — CI and shared-service trust
 
@@ -429,7 +430,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Done 9074e7f, 1caf9d3 |
-| T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A has a recommendation (§6), user to confirm |
+| T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A: (A), confirmed by the user |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
 | T3.4 | FIND-07 | Moderate | ENGINE, ask | Not started |
@@ -562,3 +563,13 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   offline test in the terminal image covered stop and restart (new namespace) and bots staying outside.
 - Lab 3's lesson now says this platform isolates `ps`, most machines don't. Not re-tested: dojo-cloud's broker
   (same `SO_PEERCRED` uid check as openbao's, which passed), git-fundamentals bots (outside, unchanged).
+
+### 2026-09-28 — T2.4: P2 closed
+
+- Docs already written with each task: `engine/README.md` (student credentials, `terminal_ingress`, PID
+  namespaces, `STUDENT_PASSWORD_SEED`), `workshops/README.md` (fragments must not join `terminal_ingress`),
+  `.env.example`, tofu-basics `FACILITATOR.md` (token troubleshooting), the labs.
+- Added now: the root `README.md` isolation section (homes `0700`, locked Linux passwords, per-student Forgejo
+  password and token, ingress only from the gateway, a PID namespace per student); `engine/student-reset.md`:
+  a reset keeps the derived password but must re-create the token.
+- P2 is closed. P3 (CI and shared-service trust) waits for the user's go.

@@ -163,8 +163,10 @@ the services sit on `workshop_lab`, which students can reach.
 - **Forgejo purge semantics.** What `DELETE /admin/users/{u}?purge=true` removes in *other* users' repos (PRs,
   comments, branches in the shared org repo), and whether recreating the same name right after hits caches or
   "name reserved" rules.
-- **Recreated Forgejo account and existing clones.** A student's old credentials still work (same password), but
-  Actions IDs, runner registrations tied to the fork and OIDC `repository_id` claims change. Check app-host's claim
+- **Recreated Forgejo account and existing clones.** A student's password stays the same (it is derived from the
+  seed and the name), but the old Forgejo token dies with the account, so the reset must re-run the token step
+  (`provision-account.sh` without `DOJO_DEFER_TOKEN`). Actions IDs, runner registrations tied to the fork and OIDC
+  `repository_id` claims change too. Check app-host's claim
   check and OpenBao's CI JWT role still accept the new fork.
 - **Killing processes vs. open browser tabs.** code-server tabs reconnect; check that they land on the fenced page,
   not a half-deleted home.
