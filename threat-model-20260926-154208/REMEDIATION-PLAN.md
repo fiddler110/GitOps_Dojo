@@ -151,16 +151,33 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       landing-page password; `ls -ld /home/student*`.
       *Verify:* result recorded. If `su` fails, FIND-03's Linux path is already closed (T2.1a stays as defence in
       depth); if homes are `0700`, drop T2.1c.
+      *Result (2026-09-28, locally, vault-fundamentals; the account setup is engine-level):* `su - student02` from
+      student01's terminal with the class password **succeeds** (`uid=1002(student02)`); homes are `drwxr-xr-x` (0755).
+      FIND-03 is open on both counts: T2.1a and T2.1c stay.
 - [ ] **T0.2** (FIND-04, V3) From a deployed app on `vault-fundamentals` (AppHost slot) and from a `dns-as-code`
       host-runner job: `curl -m 3 http://web-terminal:9001/`.
       *Verify:* result recorded. If it times out, FIND-04 downgrades; T2.2 stays as defence in depth.
+      *Result (2026-09-28, locally, vault-fundamentals, AppHost part):* as a slot user in `app-host` (same `su` +
+      `unshare` wrapper as an app), `web-terminal:9001` is **connection refused**: this terminal image listens only on
+      7682. `web-terminal:7682/` is reachable over TCP but answers **403** without the gateway token. *Result (2026-09-28, locally, dns-as-code, host-runner job):* `web-terminal` **does not resolve** (curl rc=6 on
+      9001, 7682, 7681); `dns-api:8080` is refused (rc=7). The runner can't reach the terminal.
 - [ ] **T0.3** (FIND-05, V4) On `dns-as-code`: push a branch that edits `dns-preview.yml`, open a same-repo PR. Does
       it run the PR's version? Are repo secrets visible? Does Forgejo 16 support `pull_request_target`? Does the
       Actions ID-token URL come out broken under `/git/` as in vault §14 (S24)?
       *Verify:* answers recorded; they settle Q-A (§6) for T3.1.
+      *Result (2026-09-28, locally, dns-as-code, Forgejo 16.0.4):* (1) **Yes**, a same-repo PR from student01 that edits
+      `dns-preview.yml` runs the PR's version (the run printed the probe line), and it reports the required "DNS Preview"
+      check itself. (2) No repo or org secrets exist; the job gets `GITHUB_TOKEN`/`FORGEJO_TOKEN`/`GITEA_TOKEN` (40 chars)
+      and runs as the runner's uid 1000. (3) `pull_request_target`: a workflow on `main` with it queued a run (listed
+      as event `pull_request`) that stayed `waiting` for 2 min: inconclusive, not settled. (4) **Yes, broken**: the
+      ID-token URL is `http://localhost:8080/git//gitapi/actions/_apis/pipelines/workflows/2/idtoken?...` (double slash,
+      localhost), and the request fails (curl rc=7).
 - [ ] **T0.4** (app-db, V5) On `vault-fundamentals`: as student01's dynamic DB role, `\c <student02's db>`.
       *Verify:* result recorded. If it connects, add **T3.5** (`REVOKE CONNECT ... FROM PUBLIC` in
       `compose/app-db/init.sh`, [WORKSHOP]).
+      *Result (2026-09-28, locally, vault-fundamentals):* **refused**: `\c app_student02` and `-d app_student02` both give
+      `FATAL: permission denied for database "app_student02" / User does not have CONNECT privilege`. The dynamic role
+      can connect to `postgres` (and `template1`), the default PUBLIC grant; no student data there. T3.5 not needed.
 - [ ] **T0.5** Write-up: results above, plan edits, a §8 entry. **Ask the user before starting P1.**
 
 ### P1 — Edge and quick wins
@@ -365,7 +382,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 | Task | Finding | Sev | Scope | Status |
 |------|---------|-----|-------|--------|
-| T0.1-T0.5 | Live verification | — | — | Not started |
+| T0.1-T0.5 | Live verification | — | — | T0.1-T0.4 run 2026-09-28 (results under each task); `pull_request_target` still open; T0.5 next |
 | T1.1 | FIND-01 | Important | ENGINE | Not started |
 | T1.2 | FIND-02 | Low | ENGINE | Not started |
 | T1.3 | FIND-08 | Moderate | ENGINE | Not started |
@@ -374,7 +391,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T2.1 | FIND-03 | **Critical** | ENGINE | Not started |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Not started |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Not started |
-| T3.1 | FIND-05 | Important | WS+MODULE | Waiting for T0.3 (Q-A) |
+| T3.1 | FIND-05 | Important | WS+MODULE | T0.3 run; Q-A waits on the `pull_request_target` answer |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
 | T3.4 | FIND-07 | Moderate | ENGINE, ask | Not started |
