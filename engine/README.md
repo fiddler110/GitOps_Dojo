@@ -606,7 +606,7 @@ account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
 
-**Service status strip.** The top right of `/admin` shows one chip per service —
+**Service status strip.** The bottom of the `/admin` sidebar (a row under the tabs on a narrow screen) shows one chip per service —
 a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
 for Forgejo, the terminals, the slides (probed through the gateway exactly as a
 browser would, using `PUBLIC_BASE_URL`), and any `status_checks` a workshop or module declares in its `extensions.json`.

@@ -161,8 +161,9 @@ cd .. && python3 -B -m unittest test_parity                                     
 ```
 
 `test_parity` checks that the terminal's broker and `cloud-api` agree on how a username maps to credentials.
-There is no committed end-to-end or load test yet (`PLAN.md` T9.1, T9.3, T9.6). Note that `--test` demo
-bots only exercise git, not OpenTofu.
+The end-to-end and load suites are in [`tests/`](tests/) (`e2e.sh`, `load.sh`); [`tests/README.md`](tests/README.md)
+has the run sheet and the last live results. `--test` demo bots run OpenTofu too: the lab 0 tour, Track A, a
+deploy, a policy fix and edit, then a destroy.
 
 ## Known limits
 

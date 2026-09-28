@@ -48,7 +48,7 @@ EOF
 has  "the app reads version 1" 'cd ~/lab/app && python3 app_vault.py' 'read version 1'
 has  "after a patch it reads version 2" 'bao kv patch secret/students/$USER/app db_password=rotated-db-pass-000 >/dev/null && cd ~/lab/app && python3 app_vault.py' 'read version 2'
 has  "DEBUG logs the secret" 'cd ~/lab/app && LOG_LEVEL=DEBUG python3 app_vault.py' 'rotated-db-pass-000'
-lacks "the fixed line doesn't" 'cd ~/lab/app && sed -i "s/log.debug(\"loaded config: %s\", secret)/log.debug(\"loaded config keys: %s\", sorted(secret))/" app_vault.py && LOG_LEVEL=DEBUG python3 app_vault.py' 'rotated-db-pass-000'
+lacks "the fixed line doesn't" 'cd ~/lab/app && sed -i "s/log.debug(\"loaded config: %s\", secret)/log.debug(\"loaded config keys: %s\", sorted(secret.keys()))/" app_vault.py && LOG_LEVEL=DEBUG python3 app_vault.py' 'rotated-db-pass-000'
 ok   "renew_self" 'python3 -c "import hvac; c = hvac.Client(); c.auth.token.renew_self(); print(c.auth.token.lookup_self()[\"data\"][\"ttl\"])"'
 
 echo "== lab 6: OpenBao Agent"

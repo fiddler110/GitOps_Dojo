@@ -175,10 +175,10 @@ LOG_LEVEL=DEBUG python3 app_vault.py
 Log _that_ you loaded the config, never _what_ it holds. In VS Code, change the `log.debug` line in `app_vault.py` to log only the key names, and save:
 
 ```python
-log.debug("loaded config keys: %s", sorted(secret))
+log.debug("loaded config keys: %s", sorted(secret.keys()))
 ```
 
-The fix works because `secret` is a dictionary, iterating it only yields keys, so `sorted(secret)` logs `['db_password', 'db_user']` without values, whereas doing this on a plain string would leak every character. Instead use `sorted(secret.keys())`, since it behaves identically but makes the intent explicit that you want to log the keys, not the values.
+`secret.keys()` asks for the key names only, and says so. It also fails safe: if `secret` were ever a plain string instead of a dictionary, `.keys()` raises an error, whereas `sorted(secret)` would log the string one character at a time, which is the secret itself.
 
 Run it with debug logging again:
 

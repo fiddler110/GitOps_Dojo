@@ -9,7 +9,7 @@ identity and short-lived credentials. Fourteen labs (0-13, about 3½ hours) on a
 
 ```bash
 ./run.sh vault-fundamentals             # the class
-./run.sh vault-fundamentals --test 20   # plus 20 demo bots that walk labs 0-10
+./run.sh vault-fundamentals --test 20   # plus 20 demo bots that walk labs 0-11
 ./run.sh stop                           # removes every container and volume, the vault with them
 ```
 
@@ -34,7 +34,7 @@ and their panel are `modules/runner-pool/`.
 
 With the stack up, from the repo root, `bash workshops/vault-fundamentals/tests/e2e.sh` runs everything in order
 and prints one line per area (`--list` says what each proves, `--only` / `--skip` pick areas):
-unit tests, `tenancy.sh`, `cli_login.sh`, `lab_2.sh`, `labs_5_7.sh`, `labs_8_9.sh`, `labs_10_12.sh`, `pool.sh`, the Audit tab's
+unit tests, `tenancy.sh`, `cli_login.sh`, `lab_2.sh`, `labs_5_7.sh`, `labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`, `pool.sh`, the Audit tab's
 API, the demo bots, and the browser checks (`sso_browser.py`, `p4_browser.py`, `p5_browser.py` in Playwright's
 image). `--load MIN` also watches a `--test` class of bots for `MIN` minutes and writes `stats.csv`, `queue.csv` and
 `report.txt` (peak memory and CPU per container, runner queue, apps running). Each lab script resets its own

@@ -124,7 +124,7 @@ automation instead of being made by hand.
 | DNS as Code | Ready |
 | Certificate Autorenewal | Ready |
 | OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
-| **Vault Fundamentals** (OpenBao) | In progress: labs 0-11 are built: the core (OpenBao, single sign-on, passwordless CLI login, namespaces), secrets in code and git, CI on single-use autoscaled runners, and deployments (`app-host` with a platform identity per slot, dynamic Postgres logins, an incident drill); the facilitator pieces, talk and VM run come next. Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
+| **Vault Fundamentals** (OpenBao) | In progress on `feat/vault-fundamentals`: labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs are built: the core (OpenBao, single sign-on, passwordless CLI login, namespaces), `pass`, secrets in code and git, CI on single-use autoscaled runners, and deployments (`app-host` with a platform identity per slot, a delivered secret ID, dynamic Postgres logins, an incident drill). The long live pass with demo bots comes next ([`ROADMAP.md`](ROADMAP.md)). Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout

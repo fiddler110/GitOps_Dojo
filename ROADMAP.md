@@ -92,8 +92,6 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
 - `handouts/build-presentations.sh` hashes all of `workshops/assets/` as a deck input, so a lab-reader-only change
   re-exports every deck (new ~15-36 MB blobs with identical slides). Narrow `shared=` to what Marp reads (the
   themes, not `lab-reader.*` or `vendor/`).
-- Fix `workshops/vault-fundamentals/content/lab/lab5.md` ~181: the logged keys are `['api_key', 'db_password']`, not
-  `db_user`; drop the `sorted(secret.keys())` sentence that contradicts the code. README line 12: bots walk labs 0-11.
 - `AGENTS.md` is a committed copy of the git-ignored `CLAUDE.md` and will drift from it. Pick one: keep only
   `AGENTS.md`, or make one a symlink to the other.
 - `workshops/vault-fundamentals/PLAN.md`: the header's status and "Last updated" still say P3/P4; T5.7-T5.11 say
