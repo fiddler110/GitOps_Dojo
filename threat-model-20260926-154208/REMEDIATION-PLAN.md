@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0 done (2026-09-28). Next: P1, starting with T1.1.** |
+| Overall status | **P0 done, T1.1 done (2026-09-28). Next: T1.2.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -188,7 +188,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 ### P1 — Edge and quick wins
 
-- [ ] **T1.1** (FIND-01, T1, Important) **[ENGINE, approved]** Default credentials and brute force.
+- [x] **T1.1** (FIND-01, T1, Important) **[ENGINE, approved]** Default credentials and brute force.
       Files: `engine/scripts/env-setup.sh`, `engine/run.sh`, `engine/gateway/Dockerfile`, `engine/gateway/Caddyfile`.
       a. `run.sh` refuses to start when `TTYD_PASSWORD`, `FACILITATOR_PASSWORD`, `FORGEJO_ADMIN_PASSWORD` (and any
          remaining `STUDENT_PASSWORD`) equal the `--default` values and the effective `PUBLIC_BASE_URL` host isn't
@@ -201,6 +201,19 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          NAT address and every student polls every ~3 s, so a key of `{remote_host}` must allow a whole class
          (e.g. 35 × polling) while stopping a guessing loop; measure with `--test 20` before picking numbers.
       d. `./run.sh setup --rotate-class` regenerates only `TTYD_PASSWORD` (optional, cheap).
+      *Status (2026-09-28):* a and d done (bf3b98c, setup follow-ups 9f36484, 7bac4a8). b: `--default` generates
+      `FORGEJO_ADMIN_PASSWORD`; `STUDENT_PASSWORD_SEED` moves to T2.1, its first user. c: the limit counts only
+      requests whose `Authorization` is not exactly one of the two valid headers (`entrypoint.sh` computes them from
+      the plaintext it already hashes), 30/min per `{remote_host}`, so a NAT'd class or the home-lab proxy is never
+      limited for being signed in, and no class-size tuning is needed. Keyed on `{client_ip}`:
+      `GATEWAY_TRUSTED_PROXIES` (unset by default) names the proxy in front, e.g. the home-lab Caddy, so one guesser
+      there can't block everyone's login prompt. Caddy 2.11.4 + caddy-ratelimit
+      `v0.1.1-0.20260612195517-5625512f24f6`, both images by index digest (d934055).
+      *Verified locally* (git-fundamentals `--test 20`): 50 wrong → 30×401 then 429; 200 correct class and 100
+      `/admin` requests never limited; `/slides` never limited; window resets after 60 s; a different
+      `X-Forwarded-For` per request doesn't split the count; zero 429s for the 20 bots. **Open:** set
+      `GATEWAY_TRUSTED_PROXIES` in `engine/.env.home` to the address the gateway sees for the home-lab Caddy (read it
+      from the gateway log on the first `--env home` run).
       *Verify:* `--default` + `--env home` refuses to start; `--default` on localhost starts; 50 bad attempts in a
       loop get 429; `--test 20` bots and a browser student are never limited; `/admin` still loads.
 - [ ] **T1.2** (FIND-02, T1, Low) **[ENGINE, approved]** (D2) All of `/slides` behind the shared class gate: move
@@ -391,7 +404,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | Task | Finding | Sev | Scope | Status |
 |------|---------|-----|-------|--------|
 | T0.1-T0.5 | Live verification | — | — | Done 2026-09-28 (734ed33 + T0.5 write-up) |
-| T1.1 | FIND-01 | Important | ENGINE | Not started |
+| T1.1 | FIND-01 | Important | ENGINE | Done 2026-09-28 (bf3b98c, d934055) |
 | T1.2 | FIND-02 | Low | ENGINE | Not started |
 | T1.3 | FIND-08 | Moderate | ENGINE | Not started |
 | T1.4 | FIND-13 | Low | ENGINE+MODULE+WS | Not started |
