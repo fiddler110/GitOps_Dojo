@@ -8,7 +8,7 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0 T0.1-T0.4 run, T0.5 open             |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0 done, P1 next                        |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
@@ -16,11 +16,9 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 ## Now
 
-1. **Remediation T0.5: close P0** (set aside for now, 2026-09-28). Results of T0.1-T0.4 are in the plan (734ed33): FIND-03 open (`su` works, homes
-   `0755`), FIND-04 can be downgraded (app refused, runner can't resolve `web-terminal`), FIND-05 confirmed (a
-   same-repo PR runs its own workflow; ID-token URL broken under `/git/`), app-db leak refused (no T3.5). Still open:
-   does Forgejo 16 run `pull_request_target`? (the test run sat "waiting"; needs a dns-as-code stack). It settles
-   Q-A for T3.1. Then write-up and a §8 entry; **ask the user before P1.** Reset R0 can run on that stack.
+1. **Remediation P1, T1.1** (P0 closed 2026-09-28): refuse default passwords off localhost, generated secrets, the
+   gateway rate limit. Detail in the plan's §5. Q-A (dns-as-code PR model) has a recommendation to confirm before
+   T3.1.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
    "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
    fine). The 404 is code-server's optional `vsda` files, on every load and harmless. The "unknown error" is

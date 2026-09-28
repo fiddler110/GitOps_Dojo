@@ -11,9 +11,9 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **Plan agreed, nothing implemented. Next: P0 (live verification), after the user's go.** |
-| Working branch | `feat/vault-fundamentals` (the plan was drafted on `fix/threat-model-remediation`, folded in and deleted 2026-09-28, D12) |
-| Last updated | 2026-09-28 (moved onto `feat/vault-fundamentals`; open items also listed in `/ROADMAP.md`) |
+| Overall status | **P0 done (2026-09-28). Next: P1, starting with T1.1.** |
+| Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
+| Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
 ---
 
@@ -41,8 +41,10 @@
   `fix/threat-model-remediation` branch is gone. Work happens here (D12). The user's own uncommitted edits to the
   report files are **theirs**: never stage them. `/ROADMAP.md` lists this plan's phases next to the other open work;
   the task detail stays here.
-- **Next: P0** (V1-V5 on a live stack). Check `podman ps` first: the user also tests other workshops on this
-  machine, and `feat/vault-fundamentals` still has T5.6 (the long live pass) open.
+- 2026-09-28: vault-fundamentals merged to `main` (PR #3); the old feature branches are deleted and this work
+  continues on `feat/remediation`. **P0 is done** (T0.1-T0.5, results under each task and in §8).
+- **Next: P1, T1.1** (the user gave the go on 2026-09-28). Check `podman ps` first: the user also tests other
+  workshops on this machine.
 
 **Task markers:** `[ ]` todo · `[~]` in progress · `[x]` done (+ SHA) · `[!]` blocked · `[-]` dropped (say why).
 
@@ -81,7 +83,7 @@ edit not approved in D1, and about anything in section 6.
 | D9 | **Accepted residual risks (documented, not fixed):** FIND-19 (plaintext to OpenBao/Postgres), FIND-17's single unseal share, FIND-15's privileged DinD if the rootless spike shows no gain. |
 | D10 | **Brute-force limit in the repo: build the gateway with `xcaddy` + `github.com/mholt/caddy-ratelimit`**, pinned by version and digest (not only in the home-lab Caddy). |
 | D11 | **Revoke the OpenBao provisioner token after setup, re-mint it every start** (the report's suggestion): each start generates a temporary root from the unseal key, mints the provisioner, runs the hooks, then revokes both. Accepted: it doesn't help against someone who has the setup volume (the unseal key is there, D9). |
-| D12 | **Work on `feat/vault-fundamentals`**, not `main` (`main` is far behind, with nothing of its own; openbao, runner-pool, app-host and a24d0e7 exist only there). First decided as a separate branch from it; on 2026-09-28 the user folded that branch back in. Keep each remediation fix in its own commit (`security:` or the finding ID in the subject) so it can be cherry-picked or reviewed apart from workshop work. |
+| D12 | **Work on `feat/remediation`** (2026-09-28: branched from `main` after vault-fundamentals merged in PR #3; before that the work lived on `feat/vault-fundamentals`). Keep each remediation fix in its own commit (`security:` or the finding ID in the subject) so it can be cherry-picked or reviewed apart from workshop work. |
 | D13 | *(From the draft, confirmed by D3.)* **Per-student secrets are derived, not stored:** `STUDENT_PASSWORD_SEED` (random, written by `env-setup.sh`), `pw(user) = base32(HMAC-SHA256(seed, "forgejo:" + user))[:16]`. The same helper in shell and Python with a known-answer test so they can't drift. Reused for DNS keys (FIND-11) with a different label. |
 | D15 | *(2026-09-28, with the student-reset plan's R9.)* **D11 stays; T5.3 also mints a narrow reset token.** In the same temporary-root window, mint a periodic token with the narrowed provisioner policy limited to `sys/namespaces/student*` and the per-student hook paths, handed to a resident `openbao-reset` service (memory only, never the setup volume). One narrowed policy serves both the start-up hooks and the reset. No long-lived provisioner token and no unseal key outside `openbao-setup`. |
 | D16 | *(2026-09-28, with the student-reset plan's R10.)* **T2.1 builds on `provision-account.sh`.** The reset plan's R1.1 (a behaviour-free extraction of the per-account work out of `entrypoint.sh`, **engine, ask**) goes before T2.1, and T2.1's a/b/c/e changes land in that script, so a reset re-runs the hardened provisioning. T2.1c's token step must stay idempotent (a reset calls it again). |
@@ -147,21 +149,21 @@ a24d0e7 (present on this branch).
 The analysis was static. These checks decide how far the top findings reach. Run on a disposable local stack; ask
 before any `stop`. Results go into this section and into §8; the P6 report records them as overrides.
 
-- [ ] **T0.1** (FIND-03, V1+V2) On `./run.sh git-fundamentals`: from student01's terminal, `su - student02` with the
+- [x] **T0.1** (734ed33, locally) (FIND-03, V1+V2) On `./run.sh git-fundamentals`: from student01's terminal, `su - student02` with the
       landing-page password; `ls -ld /home/student*`.
       *Verify:* result recorded. If `su` fails, FIND-03's Linux path is already closed (T2.1a stays as defence in
       depth); if homes are `0700`, drop T2.1c.
       *Result (2026-09-28, locally, vault-fundamentals; the account setup is engine-level):* `su - student02` from
       student01's terminal with the class password **succeeds** (`uid=1002(student02)`); homes are `drwxr-xr-x` (0755).
       FIND-03 is open on both counts: T2.1a and T2.1c stay.
-- [ ] **T0.2** (FIND-04, V3) From a deployed app on `vault-fundamentals` (AppHost slot) and from a `dns-as-code`
+- [x] **T0.2** (734ed33, locally) (FIND-04, V3) From a deployed app on `vault-fundamentals` (AppHost slot) and from a `dns-as-code`
       host-runner job: `curl -m 3 http://web-terminal:9001/`.
       *Verify:* result recorded. If it times out, FIND-04 downgrades; T2.2 stays as defence in depth.
       *Result (2026-09-28, locally, vault-fundamentals, AppHost part):* as a slot user in `app-host` (same `su` +
       `unshare` wrapper as an app), `web-terminal:9001` is **connection refused**: this terminal image listens only on
       7682. `web-terminal:7682/` is reachable over TCP but answers **403** without the gateway token. *Result (2026-09-28, locally, dns-as-code, host-runner job):* `web-terminal` **does not resolve** (curl rc=6 on
       9001, 7682, 7681); `dns-api:8080` is refused (rc=7). The runner can't reach the terminal.
-- [ ] **T0.3** (FIND-05, V4) On `dns-as-code`: push a branch that edits `dns-preview.yml`, open a same-repo PR. Does
+- [x] **T0.3** (734ed33, locally) (FIND-05, V4) On `dns-as-code`: push a branch that edits `dns-preview.yml`, open a same-repo PR. Does
       it run the PR's version? Are repo secrets visible? Does Forgejo 16 support `pull_request_target`? Does the
       Actions ID-token URL come out broken under `/git/` as in vault §14 (S24)?
       *Verify:* answers recorded; they settle Q-A (§6) for T3.1.
@@ -172,13 +174,17 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       as event `pull_request`) that stayed `waiting` for 2 min: inconclusive, not settled. (4) **Yes, broken**: the
       ID-token URL is `http://localhost:8080/git//gitapi/actions/_apis/pipelines/workflows/2/idtoken?...` (double slash,
       localhost), and the request fails (curl rc=7).
-- [ ] **T0.4** (app-db, V5) On `vault-fundamentals`: as student01's dynamic DB role, `\c <student02's db>`.
+      *(3) settled in T0.5 without a live run:* Forgejo documents `pull_request_target` (base-branch workflow, repo
+      secrets visible), which matches what the user found online. Not confirmed locally, and T3.1 no longer needs it
+      (see Q-A).
+- [x] **T0.4** (734ed33, locally) (app-db, V5) On `vault-fundamentals`: as student01's dynamic DB role, `\c <student02's db>`.
       *Verify:* result recorded. If it connects, add **T3.5** (`REVOKE CONNECT ... FROM PUBLIC` in
       `compose/app-db/init.sh`, [WORKSHOP]).
       *Result (2026-09-28, locally, vault-fundamentals):* **refused**: `\c app_student02` and `-d app_student02` both give
       `FATAL: permission denied for database "app_student02" / User does not have CONNECT privilege`. The dynamic role
       can connect to `postgres` (and `template1`), the default PUBLIC grant; no student data there. T3.5 not needed.
-- [ ] **T0.5** Write-up: results above, plan edits, a §8 entry. **Ask the user before starting P1.**
+- [x] **T0.5** Write-up: results above, plan edits, a §8 entry. **Ask the user before starting P1.** (2026-09-28;
+      the user gave the go for P1.)
 
 ### P1 — Edge and quick wins
 
@@ -384,7 +390,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 | Task | Finding | Sev | Scope | Status |
 |------|---------|-----|-------|--------|
-| T0.1-T0.5 | Live verification | — | — | T0.1-T0.4 run 2026-09-28 (results under each task); `pull_request_target` still open; T0.5 next |
+| T0.1-T0.5 | Live verification | — | — | Done 2026-09-28 (734ed33 + T0.5 write-up) |
 | T1.1 | FIND-01 | Important | ENGINE | Not started |
 | T1.2 | FIND-02 | Low | ENGINE | Not started |
 | T1.3 | FIND-08 | Moderate | ENGINE | Not started |
@@ -393,7 +399,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T2.1 | FIND-03 | **Critical** | ENGINE | Not started |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Not started |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Not started |
-| T3.1 | FIND-05 | Important | WS+MODULE | T0.3 run; Q-A waits on the `pull_request_target` answer |
+| T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A has a recommendation (§6), user to confirm |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
 | T3.4 | FIND-07 | Moderate | ENGINE, ask | Not started |
@@ -409,13 +415,19 @@ rest tracked as defence in depth or accepted risk (D9).
 ## 6. Open questions for the user
 
 - **Q-A (after T0.3).** dns-as-code PR model for T3.1b: (A) base-branch workflow + branch protection, or (B) fork
-  PRs (changes the lab flow). Recommendation after T0.3's results.
+  PRs (changes the lab flow). **Recommendation (T0.5): (A) without `pull_request_target`.** Keep the preview on
+  `pull_request`. T3.1a's claim check (`event_name` = `push`, `ref` = `refs/heads/main`, the class repo) is what
+  stops a PR from writing, whichever workflow version runs, so a PR that rewrites `dns-preview.yml` still gets 403.
+  Add branch protection on `main` (one approval) so an edited workflow can't reach `main` unreviewed.
+  `pull_request_target` would only protect the preview's output, and it brings the usual risk of a secret-bearing
+  run that checks out PR code; (B) changes the lab flow for no extra protection. Needs the user's confirmation
+  before T3.1.
 - **Q-B (before T2.3b and every `[ENGINE, ask]` task).** Engine go for that task.
 
 ## 7. Worth knowing
 
-- `main` is strictly behind `feat/vault-fundamentals` (D12). Remediation and vault work now share that branch, so
-  a live pass can cover both (T5.6 and P0 on the same stack).
+- Since PR #3, `main` has everything this plan builds on (openbao, runner-pool, app-host, a24d0e7);
+  `feat/remediation` branches from it (D12).
 - The shared class gate authenticates the *class*, not `studentXX`; identity comes from the allocator cookie after
   it. D2 needs only the class gate.
 - With D2, `CLAUDE.md`'s "slides are open at `/slides/...`" stops being true: Playwright checks pass
@@ -449,3 +461,14 @@ rest tracked as defence in depth or accepted risk (D9).
 - D15: D11 stays, and T5.3 also mints a narrow reset token for `openbao-reset` (the reset plan's R9, its Q2).
 - D16: the reset plan's R1.1 (`provision-account.sh`, engine, ask) goes before T2.1, which then builds on it
   (R10). The order is in `/ROADMAP.md`.
+
+### 2026-09-28 — T0.5: P0 closed
+
+- T0.1-T0.4 results are under each task (734ed33). Summary: FIND-03 open (`su` to another student works, homes
+  `0755`): T2.1a and c stay. FIND-04 can be downgraded (app gets connection refused or 403 without the token; the
+  host runner can't resolve `web-terminal`): T2.2 stays as defence in depth. FIND-05 confirmed (a same-repo PR
+  runs its own `dns-preview.yml`; the ID-token URL is broken under `/git/`, so T3.1a needs the S24-style fix).
+  app-db cross-database connect refused: no T3.5.
+- `pull_request_target` (T0.3 part 3) settled without another stack: Forgejo documents it; the local run that sat
+  `waiting` was not retried. Not needed: Q-A now recommends (A) without it (§6), pending the user's confirmation.
+- Work moved to `feat/remediation` (D12). The user gave the go for P1.
