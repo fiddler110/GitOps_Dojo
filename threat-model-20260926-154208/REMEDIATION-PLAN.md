@@ -216,7 +216,9 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       decisions.
       a. Allocator, `workspace-control.py`, dns-api `gate.py`: keep the per-request no-op, add one structured line per
          decision (`assign`, `release`, `forgejo-login`, `watch`, workspace start/stop, zone write): slot, account,
-         action, target, result; never a secret.
+         action, target, result; never a secret. Also one line per `/auth-check` result (tool, account, 200/202/303,
+         milliseconds): the facilitator's VS Code flake under load (vault PLAN, 2026-09-28) is suspected to be a 202
+         (the starting page) served to a VS Code asset request instead of a page load, and today nothing logs it.
       b. Caddy access log to stdout with `X-Auth-User`; confirm this Caddy redacts `Authorization`/`Cookie` by
          default; never `log_credentials`.
       c. CloudAPI, runner controller, app-host: check their audit trails, add the same line format where missing.

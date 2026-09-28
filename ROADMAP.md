@@ -21,8 +21,11 @@ Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (merged to
    same-repo PR runs its own workflow; ID-token URL broken under `/git/`), app-db leak refused (no T3.5). Still open:
    does Forgejo 16 run `pull_request_target`? (the test run sat "waiting"; needs a dns-as-code stack). It settles
    Q-A for T3.1. Then write-up and a §8 entry; **ask the user before P1.** Reset R0 can run on that stack.
-2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load, with a 404 and a VS Code
-   "unknown error" in the console (not traced). Sizing for 20-35 students is extrapolated from 10 bots.
+2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
+   "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
+   fine). The 404 is code-server's optional `vsda` files, on every load and harmless. The "unknown error" is
+   unexplained; recheck at the first 20+ student run, with the `/auth-check` logging added in remediation T1.4.
+   Sizing for 20-35 students is extrapolated from 10 bots.
 
 ## Order agreed with the student-reset plan (2026-09-28)
 

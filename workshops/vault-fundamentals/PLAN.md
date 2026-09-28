@@ -1453,3 +1453,14 @@ tiles, the Terminal tab; the VS Code tab loaded on a retry under load with a 404
 console (not followed up). All 64 slides fit 16:9. Peak about 2.0 GiB for the stack, under one core; runner
 queue peaked at 5. `./run.sh stop` left no container, volume or network. Also run on the same stack: remediation
 P0 T0.1, T0.2 (AppHost) and T0.4; results in `threat-model-20260926-154208/REMEDIATION-PLAN.md`.
+
+### 2026-09-28 — T5.6 follow-up: the facilitator's VS Code flake, not reproduced
+
+Locally, `./run.sh vault-fundamentals --test 10` with the bots active: Playwright loaded the facilitator's
+`/ide/` in fresh contexts 12 times, 6 in a row and 6 at once right after killing the facilitator's code-server
+(concurrent cold start). The workbench opened every time (2.6-7.8 s), with no retry. The starting page was served
+only for the top-level `GET /ide/` during the cold start, as designed; no asset, XHR or websocket got it. The
+404 is code-server's optional `vsda.js`/`vsda_bg.wasm`, on every load and harmless. The "unknown error" is still
+unexplained, and nothing logs `/ide` requests (no Caddy access log, allocator request log off). Next: the
+`/auth-check` logging in remediation T1.4, then recheck at 20+ students. Not tested: more than 10 bots, a
+first-ever code-server start with an empty extensions dir. `./run.sh stop` left nothing.
