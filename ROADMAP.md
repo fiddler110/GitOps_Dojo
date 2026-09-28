@@ -17,8 +17,8 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 ## Now
 
 1. **Remediation P2**: R1.1, T2.1 (per-student passwords and git tokens), T2.2 (terminal ingress, app egress)
-   and T2.3a (secrets off the command line) done 2026-09-28. Open: T2.3b PID-namespace spike (engine, ask),
-   T2.4 docs. Then P3 after the user's go.
+   and T2.3 (secrets off the command line, a PID namespace per student) done 2026-09-28. Open: T2.4 docs.
+   Then P3 after the user's go.
    Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
    "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all

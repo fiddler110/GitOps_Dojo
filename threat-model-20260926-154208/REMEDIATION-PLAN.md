@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0, P1 done; P2 T2.1, T2.2, T2.3a done (2026-09-28). Open in P2: T2.3b spike (needs the engine go), T2.4.** |
+| Overall status | **P0, P1 done; P2 T2.1-T2.3 done (2026-09-28). Open in P2: T2.4 (docs). Then P3 after the user's go.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -306,7 +306,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       *Verify:* T0.2 repeated: curl from an AppHost slot and from a dns-as-code runner job to `web-terminal:9001`
       times out; student IDE and terminal, `/admin` VS Code/Terminal tabs and watch tiles work (Playwright);
       `tests/labs_11_13.sh` and `tests/lab_10.sh` pass.
-- [ ] **T2.3** *(a: 9074e7f; b: spike done 2026-09-28, works; implementation waits for the go)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
+- [x] **T2.3** *(a: 9074e7f; b: 1caf9d3, spike 38bbfaa)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
       a. **Labs now:** labs that put secrets on the command line use stdin or `@file` (`bao kv put ... key=-`,
          `curl -H @hdr`), taught as a lesson ("why argv leaks"), vault-fundamentals first.
       b. **Spike (D5, ½ day, needs the engine go):** each student's shell and IDE in its own PID namespace
@@ -428,7 +428,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T1.5 | FIND-18 | Low | all | Done 2026-09-28 (6b047ca) |
 | T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
-| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | a done 9074e7f; b spike works, build needs go |
+| T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Done 9074e7f, 1caf9d3 |
 | T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A has a recommendation (§6), user to confirm |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
@@ -552,3 +552,13 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
 - Build (after the go): holder lifecycle in workspace-control.py (start, check, restart; `stop_user` kills it),
   the two spawn commands, then a live pass (IDE, terminal, watch, reconnect, vault labs with the broker, bots).
 
+### 2026-09-28 — T2.3b built (user's go)
+
+- 1caf9d3: the holder design from the spike, in workspace-control.py; `is_alive` skips the holder; release
+  kills it; no namespace for the facilitator or bots; fallback without one (`pidns-unavailable`).
+- Verified locally (vault-fundamentals): student01's shells, tmux server and code-server run in the namespace;
+  its `ps` shows 13 processes, all its own, none of student02's; the OpenBao broker signs a shell there in as
+  `jwt-student01`; p2 browser check 8/8 (IDE, terminal, watch, Roster), 33 shell checks, labs 8-9 pass. An
+  offline test in the terminal image covered stop and restart (new namespace) and bots staying outside.
+- Lab 3's lesson now says this platform isolates `ps`, most machines don't. Not re-tested: dojo-cloud's broker
+  (same `SO_PEERCRED` uid check as openbao's, which passed), git-fundamentals bots (outside, unchanged).
