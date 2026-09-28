@@ -476,9 +476,16 @@ def make_handler(ctl, static_dir=HERE):
 
         do_HEAD = do_GET
 
+        def _audit(self, action, result):
+            # One JSON line per panel action (remediation T1.4, FIND-13).
+            print(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                              "event": "runners", "account": self.headers.get("X-Auth-User"),
+                              "action": action, "result": result}, separators=(",", ":")), flush=True)
+
         def do_POST(self):
             path = self._path()
             if not self._facilitator():
+                self._audit(path, 403)
                 self._json(403, {"error": "facilitator only"})
                 return
             if self.headers.get("X-Requested-With") != "dojo-runners":
@@ -501,6 +508,7 @@ def make_handler(ctl, static_dir=HERE):
             else:
                 self._json(400, {"error": "bad request"})
                 return
+            self._audit(f"{path} {body.get('delta', body.get('mode'))}", 200 if ok else 409)
             with ctl.lock:
                 doc = ctl.snapshot
             self._json(200 if ok else 409, {"ok": ok, "message": msg, "state": doc})

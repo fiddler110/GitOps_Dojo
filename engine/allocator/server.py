@@ -62,6 +62,32 @@ WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "Workshop Lab")
 # and docker-compose.yml both default this to "root", not "facilitator", so
 # it has to come from the same env var, never be hardcoded here.
 FACILITATOR_USERNAME = os.environ.get("FACILITATOR_USERNAME", "root")
+
+
+def audit(event, **fields):
+    """One JSON line on stdout per identity or control-plane decision
+    (remediation T1.4, FIND-13): who, what, on which target, with what
+    result. Never a secret: no tokens, passwords or cookies. Student names
+    are student-typed; json.dumps escapes them."""
+    rec = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds"),
+           "event": event}
+    rec.update(fields)
+    print(json.dumps(rec, separators=(",", ":")), flush=True)
+
+
+# /auth-check runs once per request VS Code or ttyd makes (every asset), so
+# logging each 200 would flood the log. Log every non-200, and a 200 only
+# when it's the first for that (event, account, tool) or follows a non-200.
+_last_check = {}
+
+
+def audit_check(event, account, tool, status, **fields):
+    key = (event, account, tool)
+    if status != 200 or _last_check.get(key) != 200:
+        audit(event, account=account, tool=tool, result=status, **fields)
+    _last_check[key] = status
+
+
 # The class login, only for the Slides status check (probe_slides).
 CLASS_BASIC_AUTH = "Basic " + base64.b64encode(
     f'{os.environ.get("TTYD_USERNAME", "")}:{os.environ.get("TTYD_PASSWORD", "")}'.encode()).decode()
@@ -1205,6 +1231,8 @@ setInterval(refresh, 5000);
             else:
                 forgejo_user, forgejo_password = sid, STUDENT_PASSWORD
             cookies = forgejo_login_request(forgejo_user, forgejo_password)
+            audit("forgejo-login", account=username, target=forgejo_user,
+                  result="ok" if cookies else "failed")
             # ?next=<path>: signed in to Forgejo, go on to another page on
             # this site (a module's OIDC sign-in, say). Anything else: the repo.
             nxt = urllib.parse.parse_qs(parsed.query).get("next", [""])[0]
@@ -1261,8 +1289,12 @@ setInterval(refresh, 5000);
             self.end_headers()
             return
 
+        # The page or asset the browser asked for (gateway/Caddyfile sends
+        # it), without the query string, to tell a page load from an asset.
+        uri = self.headers.get("X-Forwarded-Uri", "").split("?", 1)[0][:200]
         username, _sid = self.resolve_identity()
         if username is None:
+            audit_check("auth-check", None, tool, 303, uri=uri)
             self.send_response(303)
             self.send_header("Location", "/")
             self.send_header("Content-Length", "0")
@@ -1270,6 +1302,7 @@ setInterval(refresh, 5000);
             return
 
         port = ide_port(username) if tool == "ide" else term_port(username)
+        started = time.monotonic()
         resp = control_request("POST", f"/start/{tool}/{username}")
         ready = False
         if resp is not None:
@@ -1277,6 +1310,8 @@ setInterval(refresh, 5000);
                 ready = bool(json.loads(resp).get("ready"))
             except (ValueError, AttributeError):
                 ready = False
+        audit_check("auth-check", username, tool, 200 if ready else 202, uri=uri,
+                    ms=round((time.monotonic() - started) * 1000))
 
         if ready:
             self.send_response(200)
@@ -1302,12 +1337,22 @@ setInterval(refresh, 5000);
         other tools. Unknown or shared route: 404, so nothing reaches an
         upstream this workshop didn't declare."""
         route = EXT_ROUTES.get(route_id)
+        username, _sid = self.resolve_identity()
+        denied = None
+        if route is None or route["gate"] not in ("identity", "facilitator"):
+            denied = 404
+        elif username is None:
+            denied = 303
+        elif route["gate"] == "facilitator" and username != FACILITATOR_USERNAME:
+            denied = 403
+        elif "host" in route and not DNS_LABEL_RE.match(username.lower()):
+            denied = 403
+        audit_check("route-check", username, route_id, denied or 200)
         if route is None or route["gate"] not in ("identity", "facilitator"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        username, _sid = self.resolve_identity()
         if username is None:
             self.send_response(303)
             self.send_header("Location", "/")
@@ -1341,20 +1386,23 @@ setInterval(refresh, 5000);
         re-checked here too -- this process shouldn't trust routing alone
         to keep a student out of another student's terminal."""
         username, _sid = self.resolve_identity()
+        sid = (urllib.parse.parse_qs(parsed.query).get("student") or [""])[0][:40]
         if username != FACILITATOR_USERNAME:
+            audit_check("watch", username, sid, 403)
             self.send_response(403)
             self.end_headers()
             return
 
-        sid = (urllib.parse.parse_qs(parsed.query).get("student") or [""])[0]
         # A demo bot has no "held slot" concept -- see BOT_IDS above -- it's
         # always watchable as long as --test provisioned it.
         if sid not in BOT_IDS and (sid not in slots or slots[sid]["name"] is None):
+            audit_check("watch", username, sid, 404)
             self.send_response(404)  # not a currently held slot
             self.end_headers()
             return
 
         body = control_request("POST", f"/start/watch/{sid}")
+        audit_check("watch", username, sid, 409 if body is None else 200)
         if body is None:
             self.send_response(409)  # student has no term session to watch yet
             self.end_headers()
@@ -1476,12 +1524,14 @@ setInterval(refresh, 5000);
 
         sid = find_free_slot()
         if sid is None:
+            audit("assign", name=name, ip=self.client_ip(), result="full")
             self.send_html(self.render_full())
             return
 
         token = secrets.token_urlsafe(32)
         slots[sid].update(name=name, ip=self.client_ip(), token=token, assigned_at=time.time())
         token_index[token] = sid
+        audit("assign", account=sid, name=name, ip=self.client_ip(), result="assigned")
 
         cookie = f"{COOKIE_NAME}={token}; HttpOnly; Path=/; SameSite=Lax"
         if COOKIE_SECURE:
@@ -1502,6 +1552,7 @@ setInterval(refresh, 5000);
             # own persisted (round, step) state -- see engine/README.md's
             # "Demo bots (--test)" section.
             control_request("POST", f"/stop/{sid}")
+            audit("release", target=sid, result="bot-restarted")
             self.send_json({"released": sid})
             return
         if sid not in slots:
@@ -1512,6 +1563,7 @@ setInterval(refresh, 5000);
         old_token = slots[sid]["token"]
         if old_token in token_index:
             del token_index[old_token]
+        audit("release", target=sid, name=slots[sid]["name"], result="released")
         slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
         self.send_json({"released": sid})
 

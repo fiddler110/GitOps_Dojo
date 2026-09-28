@@ -121,6 +121,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.1"
 
+    def audit(self, who, method, path, result):
+        # One JSON line per zone-write decision (remediation T1.4, FIND-13).
+        # All students share one network namespace, so "ip" tells CI from a
+        # terminal, not one student from another.
+        print(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "event": "zone-write",
+                          "account": who, "ip": self.client_address[0], "action": method, "target": path[:200],
+                          "result": result}, separators=(",", ":")), flush=True)
+
     def log_message(self, fmt, *args):
         pass
 
@@ -139,6 +147,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(200, "") if method == "GET" else self.send_json(405, "GET only")
         key = self.headers.get("X-API-Key", "")
         if not hmac.compare_digest(key.encode(), PUBLIC_KEY.encode()):
+            self.audit("-", method, path, 401)
             return self.send_json(401, "Unauthorized")
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -152,10 +161,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         refusal = decide(method, path, body, from_ci)
         who = "ci" if from_ci else "terminal"
         if refusal:
-            print(f"deny {who} {method} {path}", flush=True)
+            self.audit(who, method, path, 403)
             return self.send_json(403, refusal)
         if method in WRITE_METHODS:
-            print(f"allow {who} {method} {path}", flush=True)
+            self.audit(who, method, path, "allow")
 
         headers = {k: v for k, v in self.headers.items() if k.lower() not in HOP_BY_HOP and k.lower() != "x-api-key"}
         headers["X-API-Key"] = UPSTREAM_KEY

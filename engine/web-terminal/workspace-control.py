@@ -15,8 +15,10 @@ shared mutable state here is `running`, guarded by a lock, and each
 handler's real work is a short-lived subprocess/pgrep call -- serializing
 those on one thread would make Release feel laggy for no benefit.
 """
+import datetime
 import hmac
 import http.server
+import json
 import os
 import re
 import socket
@@ -177,6 +179,15 @@ running_lock = threading.Lock()
 watch_target = {}  # username -> tmux session name the running watch ttyd is attached to
 
 
+def audit(event, **fields):
+    """One JSON line on stdout (the container log) per workspace decision,
+    same shape as the allocator's (remediation T1.4, FIND-13). No secrets."""
+    rec = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds"),
+           "event": event}
+    rec.update(fields)
+    print(json.dumps(rec, separators=(",", ":")), flush=True)
+
+
 def valid_username(username):
     return bool(USERNAME_RE.match(username))
 
@@ -241,6 +252,7 @@ def start_workspace(tool, username):
                    "-c", f"tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    audit("workspace-start", account=username, tool=tool, port=port)
     # Doesn't wait for the port to open -- the caller (do_POST's /start
     # handler) reports actual readiness back via port_open() right after
     # this returns, and the allocator's /auth-check uses that to decide
@@ -316,6 +328,7 @@ def start_watch(username):
                "-c", f"tmux attach -t {session} -r"]
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         watch_target[username] = session
+    audit("watch-start", target=username, session=session, port=port)
 
     for _ in range(50):
         if port_open(port):
@@ -331,6 +344,7 @@ def stop_user(username):
                 del running[key]
         watch_target.pop(username, None)
     subprocess.run(["pkill", "-KILL", "-u", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    audit("workspace-stop", account=username)
 
 
 def reap_children():

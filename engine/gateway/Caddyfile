@@ -55,6 +55,14 @@
 }
 
 {$GATEWAY_LISTEN} {
+	# Access log on stdout, JSON (remediation T1.4, FIND-13). user_id is the
+	# account that passed basic_auth. Caddy redacts the Authorization and
+	# Cookie headers by default; never set log_credentials here.
+	log {
+		output stdout
+		format json
+	}
+
 	# Brute-force limit for both basic_auth gates (remediation T1.1c, FIND-01).
 	# It counts only requests whose Authorization header is not exactly one
 	# of the two valid ones (entrypoint.sh computes them): each wrong guess,
@@ -160,6 +168,8 @@
 				method GET
 				rewrite /auth-check?tool=ide
 				header_up X-Auth-User {http.auth.user.id}
+				# Logged by the allocator's auth-check line (T1.4).
+				header_up X-Forwarded-Uri {http.request.orig_uri}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 
 				@ide_ready status 200
@@ -184,6 +194,8 @@
 				method GET
 				rewrite /auth-check?tool=term
 				header_up X-Auth-User {http.auth.user.id}
+				# Logged by the allocator's auth-check line (T1.4).
+				header_up X-Forwarded-Uri {http.request.orig_uri}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 
 				@term_ready status 200

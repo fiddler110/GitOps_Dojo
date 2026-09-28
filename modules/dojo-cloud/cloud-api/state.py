@@ -85,6 +85,11 @@ class State:
                 "resourceId": resource_id, "status": status, "message": message,
             }
             self.data["activity"].append(event)
+            # Also on stdout, one JSON line per operation, the same shape as
+            # the engine's decision log (remediation T1.4, FIND-13).
+            print(json.dumps({"ts": event["time"], "event": "cloud-op", "account": user,
+                              "subscription": sub, "action": operation, "target": resource_id,
+                              "result": status}, separators=(",", ":")), flush=True)
             del self.data["activity"][:-ACTIVITY_MAX]
             self._note(event, int(now))
 
