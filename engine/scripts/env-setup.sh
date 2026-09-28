@@ -19,7 +19,9 @@
 #                                        # easy-to-remember "lazy" value
 #                                        # (below) instead of prompting.
 #                                        # Machine-to-machine secrets
-#                                        # (CONTROL_TOKEN/GATEWAY_TOKEN) are
+#                                        # (CONTROL_TOKEN/GATEWAY_TOKEN) and
+#                                        # FORGEJO_ADMIN_PASSWORD (only the
+#                                        # facilitator's SSO uses it) are
 #                                        # still randomly generated even in
 #                                        # this mode -- nobody ever types
 #                                        # those, so there's no reason to
@@ -30,11 +32,15 @@
 #
 # --force skips the "engine/.env already exists -- overwrite?" prompt (also
 # implied by --default, since that mode is meant to run unattended).
+#
+# --rotate-class changes only TTYD_PASSWORD (the shared class login) in an
+# existing engine/.env, e.g. after a class so the last one's login stops
+# working. Nothing else in .env changes.
 set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh setup [--default] [--force]
+Usage: ./run.sh setup [--default] [--force] | --rotate-class
 
 Creates engine/.env from engine/.env.example.
 
@@ -43,8 +49,13 @@ Creates engine/.env from engine/.env.example.
                strong random value.
   --default    non-interactive: fixed, easy-to-remember credentials for
                local/throwaway use (student/student123/admin/admin).
-               CONTROL_TOKEN/GATEWAY_TOKEN are still random. Implies --force.
+               CONTROL_TOKEN/GATEWAY_TOKEN and FORGEJO_ADMIN_PASSWORD are
+               still random. './run.sh <workshop>' refuses these defaults
+               unless the gateway is loopback-only. Implies --force.
   --force      overwrite an existing engine/.env without asking.
+  --rotate-class
+               only generate a new TTYD_PASSWORD (the shared class login) in
+               the existing engine/.env; restart the workshop to apply it.
   -h, --help   show this message.
 
 Both modes try to size the terminal resource limits for this machine via
@@ -60,6 +71,7 @@ for arg in "$@"; do
   case "$arg" in
     --default) mode="default" ;;
     --force) force=1 ;;
+    --rotate-class) mode="rotate-class" ;;
     -h | --help) usage; exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
@@ -73,17 +85,6 @@ if [ ! -f .env.example ]; then
   echo ".env.example not found (expected at engine/.env.example)." >&2
   exit 1
 fi
-
-if [ -f .env ] && [ "$force" -ne 1 ]; then
-  printf 'engine/.env already exists. Overwrite it? [y/N] '
-  read -r ans
-  case "$ans" in
-    [Yy]*) ;;
-    *) echo "Leaving .env untouched."; exit 0 ;;
-  esac
-fi
-
-cp .env.example .env
 
 # Portable in-place sed replace (BSD/macOS sed needs `-i ''`, GNU sed needs
 # `-i`; this form works on both without a temp-file dance).
@@ -108,6 +109,33 @@ random_hex() {
 random_password() {
   random_hex 6
 }
+
+if [ "$mode" = "rotate-class" ]; then
+  if [ ! -f .env ]; then
+    echo "engine/.env not found -- run './run.sh setup' first." >&2
+    exit 1
+  fi
+  if ! grep -q '^TTYD_PASSWORD=' .env; then
+    echo "engine/.env has no TTYD_PASSWORD line to rotate." >&2
+    exit 1
+  fi
+  new_password="$(random_password)"
+  set_var TTYD_PASSWORD "$new_password"
+  echo "New class password (TTYD_PASSWORD): ${new_password}"
+  echo "Restart the workshop ('./run.sh <workshop>') for the gateway to use it."
+  exit 0
+fi
+
+if [ -f .env ] && [ "$force" -ne 1 ]; then
+  printf 'engine/.env already exists. Overwrite it? [y/N] '
+  read -r ans
+  case "$ans" in
+    [Yy]*) ;;
+    *) echo "Leaving .env untouched."; exit 0 ;;
+  esac
+fi
+
+cp .env.example .env
 
 random_hex_32() {
   random_hex 32
@@ -165,17 +193,19 @@ if [ "$mode" = "default" ]; then
   set_var STUDENT_PASSWORD "student123"
   set_var FACILITATOR_USERNAME "admin"
   set_var FACILITATOR_PASSWORD "admin"
-  set_var FORGEJO_ADMIN_PASSWORD "admin"
 
   # Machine-to-machine secrets: always random, even in --default mode --
   # nobody ever types these, so there's no lazy/careful tradeoff to make.
   set_var CONTROL_TOKEN "$(random_hex_32)"
   set_var GATEWAY_TOKEN "$(random_hex_32)"
+  # Nobody types this one either: the facilitator reaches Forgejo through the
+  # allocator's /forgejo-login SSO, which reads it from .env.
+  set_var FORGEJO_ADMIN_PASSWORD "$(random_password)"
 
   echo "Set: TTYD_PASSWORD=student, STUDENT_PASSWORD=student123,"
-  echo "     FACILITATOR_USERNAME=admin, FACILITATOR_PASSWORD=admin, FORGEJO_ADMIN_PASSWORD=admin"
+  echo "     FACILITATOR_USERNAME=admin, FACILITATOR_PASSWORD=admin"
   echo "     (FORGEJO_ADMIN_USER, TTYD_USERNAME, and everything else kept .env.example's default)"
-  echo "Generated random CONTROL_TOKEN / GATEWAY_TOKEN."
+  echo "Generated random CONTROL_TOKEN / GATEWAY_TOKEN / FORGEJO_ADMIN_PASSWORD."
   echo
 
   apply_capacity_sizing "$(current_value STUDENT_COUNT)" || true
@@ -183,7 +213,8 @@ if [ "$mode" = "default" ]; then
 
   echo "Wrote engine/.env."
   echo "Review PUBLIC_BASE_URL, LAB_HOST_IP, and STUDENT_COUNT in .env before a"
-  echo "real workshop -- these lazy credentials are meant for quick/local use."
+  echo "real workshop -- these lazy credentials are meant for quick/local use, and"
+  echo "'./run.sh <workshop>' refuses them unless the gateway is loopback-only."
   echo
   echo "Next: ./run.sh <workshop-name>"
   exit 0

@@ -4,7 +4,7 @@
 # (./run.sh, a thin forwarder to this file) or from engine/ -- same thing.
 #
 # Usage:
-#   ./run.sh setup [--default] [--force]  # create engine/.env (scripts/env-setup.sh)
+#   ./run.sh setup [--default] [--force]  # create engine/.env (scripts/env-setup.sh; --rotate-class: new class password)
 #   ./run.sh capacity --students N [...]  # size the terminal limits (scripts/capacity-calc.sh)
 #   ./run.sh <workshop-name>              # e.g. ./run.sh dns-as-code
 #   ./run.sh <workshop-name> --test       # also spin up demo/test bot students (3)
@@ -88,7 +88,7 @@ usage() {
 Usage: ./run.sh <command | workshop-name> [options]
 
 Commands:
-  <workshop-name> [--test [N]] [--env NAME] [--dry-run]
+  <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]
                                 build and start a workshop; --test also starts
                                 demo bot students (3 by default, or N, max 35:
                                 testuser1-3 are expert/intermediate/novice, any
@@ -96,11 +96,14 @@ Commands:
                                 --env NAME loads engine/.env.NAME on top of
                                 engine/.env (e.g. another address or port);
                                 --dry-run only previews what would be rebuilt
-                                and started
+                                and started; default passwords are refused
+                                unless PUBLIC_BASE_URL and LAB_HOST_IP are
+                                loopback (--allow-default-passwords overrides)
   list                          show available workshops
   modules                       show available modules (../modules/) and which
                                 workshops use them (MODULES= in workshop.env)
-  setup [--default] [--force]   create engine/.env
+  setup [--default] [--force]   create engine/.env (--rotate-class: new class
+                                password only)
   capacity --students N [...]   size the terminal resource limits for this machine
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
                                 --dry-run lists what would be removed instead
@@ -204,13 +207,14 @@ shift
 case "$workshop" in
   *[!a-z0-9-]* | -*)
     echo "'${workshop}' is not a workshop name (lowercase letters, digits and '-')." >&2
-    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
+    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]" >&2
     echo "Run './run.sh list' to see available workshops." >&2
     exit 1 ;;
 esac
 test_mode=0
 test_count=""
 env_name=""
+allow_default_passwords=0
 while [ "$#" -gt 0 ]; do
   arg="$1"
   shift
@@ -243,12 +247,13 @@ while [ "$#" -gt 0 ]; do
           exit 1 ;;
       esac ;;
     --dry-run) ;; # already picked up above
+    --allow-default-passwords) allow_default_passwords=1 ;;
     -h | --help)
       usage
       exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
-      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
+      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]" >&2
       exit 1 ;;
   esac
 done
@@ -347,6 +352,40 @@ if [ "$url_port" != "$gateway_port" ]; then
   echo "WARNING: ${listen_url} points at port ${url_port}, but the gateway" >&2
   echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
   echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
+fi
+
+# Default passwords (FIND-01): `setup --default`'s values and .env.example's
+# placeholder are public, so they are only allowed when nothing but this
+# machine can reach the gateway: a loopback PUBLIC_BASE_URL host and a loopback
+# LAB_HOST_IP. Checked after .env.<name> and the modules, so --env wins.
+public_host="${PUBLIC_BASE_URL#*://}"; public_host="${public_host%%/*}"
+case "$public_host" in
+  \[*\]*) public_host="${public_host%%\]*}"; public_host="${public_host#\[}" ;;
+  *) public_host="${public_host%:*}" ;;
+esac
+case "$public_host:${LAB_HOST_IP:-}" in
+  localhost:127.0.0.1 | 127.0.0.1:127.0.0.1 | ::1:127.0.0.1 | localhost:::1 | ::1:::1) local_only=1 ;;
+  *) local_only=0 ;;
+esac
+default_passwords=""
+for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "STUDENT_PASSWORD:${STUDENT_PASSWORD:-}" \
+  "FACILITATOR_PASSWORD:${FACILITATOR_PASSWORD:-}" "FORGEJO_ADMIN_PASSWORD:${FORGEJO_ADMIN_PASSWORD:-}"; do
+  case "${pair#*:}" in
+    change-me | student | student123 | admin) default_passwords="${default_passwords} ${pair%%:*}" ;;
+  esac
+done
+if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
+  if [ "$allow_default_passwords" = "1" ]; then
+    echo "WARNING: default passwords in use (${default_passwords# }) on ${PUBLIC_BASE_URL}," >&2
+    echo "         reachable beyond this machine (--allow-default-passwords)." >&2
+  else
+    echo "Refusing to start: default passwords (${default_passwords# }) with PUBLIC_BASE_URL=${PUBLIC_BASE_URL}" >&2
+    echo "and LAB_HOST_IP=${LAB_HOST_IP:-<unset>}, i.e. reachable beyond this machine. Anyone who has seen" >&2
+    echo "'./run.sh setup --default' can sign in. Generate real ones with './run.sh setup --force'" >&2
+    echo "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass" >&2
+    echo "--allow-default-passwords to start anyway." >&2
+    exit 1
+  fi
 fi
 
 if [ "$dry_run" = "1" ]; then

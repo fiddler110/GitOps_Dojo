@@ -309,9 +309,19 @@ this path for a real workshop, since it gives every session unique
 credentials. `--default` skips all of that and fills in fixed, easy values
 instead (`student`/`student123`/`admin`/`admin` — see the script's header
 for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
-`GATEWAY_TOKEN`) are still randomly generated even in `--default` mode,
-since nobody ever types those. Either way it still tries to auto-size the
+`GATEWAY_TOKEN`) and `FORGEJO_ADMIN_PASSWORD` (the facilitator reaches Forgejo
+through SSO) are still randomly generated even in `--default` mode, since
+nobody ever types those. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
+
+**Default passwords stay on this machine.** `./run.sh <workshop>` refuses to
+start when any of `TTYD_PASSWORD`, `STUDENT_PASSWORD`, `FACILITATOR_PASSWORD` or
+`FORGEJO_ADMIN_PASSWORD` is a `--default` value or `.env.example`'s `change-me`,
+unless both `PUBLIC_BASE_URL`'s host and `LAB_HOST_IP` are loopback (checked
+after `--env NAME` is loaded). Run `./run.sh setup` for real values, or pass
+`--allow-default-passwords` to start anyway with a warning.
+`./run.sh setup --rotate-class` changes only the shared class password
+(`TTYD_PASSWORD`) in the existing `.env`; restart the workshop to apply it.
 
 `./run.sh setup --force` skips the "`.env` already exists" prompt. Prefer to
 do it by hand instead? `cp .env.example .env` and edit directly — same
