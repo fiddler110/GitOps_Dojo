@@ -36,7 +36,7 @@ services:
   # single-container, internal-only PowerDNS instance — not a real secret,
   # same tier as TTYD_PASSWORD/STUDENT_PASSWORD (see engine/.env.example).
   dns-server:
-    image: docker.io/powerdns/pdns-auth-49:latest
+    image: docker.io/powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
     container_name: workshop_powerdns
     # POWERDNS_API_KEY is derived in workshop.env from the install's
     # GATEWAY_TOKEN: only dns-api and the dns-ui module get it. Students and
@@ -95,7 +95,7 @@ services:
   # (compose/gates/protect-main.sh). Same image and admin credentials as the
   # engine's bootstrap, after it has created and seeded the repo.
   dns-gates:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_dns_gates
     depends_on:
       bootstrap:

@@ -11,7 +11,7 @@
 ARG TOOLS_IMAGE=gitopsdojo/web-terminal:base
 FROM ${TOOLS_IMAGE} AS tools
 
-FROM data.forgejo.org/forgejo/runner:13
+FROM data.forgejo.org/forgejo/runner:13.2.0@sha256:ca3d5eea46004789a175d1369eec6829d3ea9bfbe2011a06625b4bdaa55f7552
 
 USER root
 # util-linux: unshare, prlimit. shadow: useradd/userdel. python3: the

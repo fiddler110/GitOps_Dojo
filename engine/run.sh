@@ -862,7 +862,23 @@ if [ "$dry_run" = "1" ]; then
     say_bad "invalid: run 'compose ${compose_args} config' to see why"
   fi
   echo
+  echo "Checking image pins..."
+  # Every external FROM / image: needs a digest (FIND-18). Whole repo, so a
+  # dry run of any workshop also catches a module or workshop it doesn't use.
+  pins_ok=1
+  if pins_out="$(sh scripts/check-pins.sh 2>&1)"; then
+    say_ok "every external image pinned by digest"
+  else
+    pins_ok=0
+    printf '%s\n' "$pins_out" | sed '$d' | sed '$d' | while IFS= read -r line; do say_bad "$line"; done
+    say_bad "not pinned: add @sha256:<digest> (see scripts/check-pins.sh)"
+  fi
+  echo
   echo "Would run: compose ${compose_args} up -d"
+  if [ "$pins_ok" = "0" ]; then
+    echo "Dry run complete: nothing was built or started, but unpinned images were found." >&2
+    exit 1
+  fi
   echo "Dry run complete: nothing was built or started."
   exit 0
 fi

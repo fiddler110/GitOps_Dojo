@@ -24,7 +24,7 @@ services:
   # same image/admin volume access bootstrap.sh already has - no new
   # credentials needed.
   runner-setup:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_runner_setup
     depends_on:
       bootstrap:

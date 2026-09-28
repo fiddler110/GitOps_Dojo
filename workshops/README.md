@@ -121,12 +121,15 @@ want the same thing, make it a module instead.
    `podman image inspect <img> --format '{{json .Config.Volumes}}'` and give
    every declared path a named volume, or each start leaves an anonymous
    volume behind that `./run.sh stop` can't find.
+   Pin every external image (`FROM` and `image:`) by digest, keeping the tag
+   in front for people: `docker.io/library/alpine:3.20@sha256:<index digest>`.
+   `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`).
 5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
    work through *your* labs instead of the default git-fundamentals ones (see
    `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
 6. Add a row to the table above.
 7. `./run.sh <name> --dry-run` shows what would build and start and checks the
-   manifests. Then run it locally end to end, including the facilitator's
+   manifests and image pins. Then run it locally end to end, including the facilitator's
    `/admin` view, before trusting it for a live session.
 
 Nothing about adding a workshop this way ever requires editing

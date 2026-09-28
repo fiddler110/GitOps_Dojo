@@ -19,7 +19,7 @@ version: '3.8'
 services:
   # 1. Git server (Forgejo)
   git-server:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_forge
     environment:
       - USER_UID=1000
@@ -55,7 +55,7 @@ services:
   # 2. One-shot bootstrap: admin user, org, sample repo, and one Forgejo
   #    account per configured student. Safe to re-run; exits after it's done.
   bootstrap:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_bootstrap
     depends_on:
       git-server:
