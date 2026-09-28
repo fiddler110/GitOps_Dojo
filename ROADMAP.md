@@ -8,7 +8,7 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0, T1.1-T1.2 done; T1.3 next          |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0, P1 done; P2 waits for go            |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
@@ -16,9 +16,9 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 ## Now
 
-1. **Remediation P1, T1.3** (T1.1-T1.2 done 2026-09-28: defaults refused off localhost, gateway login rate limit,
-   `/slides` behind the class login): plain-HTTP warning, HSTS, LAN-over-HTTPS recipe. Detail in the plan's §5. Q-A (dns-as-code PR model) has a
-   recommendation to confirm before T3.1. Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
+1. **Remediation P2** waits for the user's go (P1 closed 2026-09-28: login rate limit, `/slides` behind the class
+   login, HTTP warning + HSTS, decision logs, images pinned by digest). First R1.1 (engine, ask), then T2.1.
+   Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
    "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
    fine). The 404 is code-server's optional `vsda` files, on every load and harmless. The "unknown error" is
@@ -41,9 +41,6 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
 
 | Task | Finding              | What                                                                                                                                   | Scope                       |
 | ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| T1.3 | FIND-08 Moderate     | Warn on plain HTTP off localhost, HSTS, LAN-over-HTTPS recipe                                                                          | engine, approved            |
-| T1.4 | FIND-13 Low          | One structured log line per identity / control-plane decision                                                                          | engine, approved            |
-| T1.5 | FIND-18 Low          | Pin every image by digest, `check-pins.sh` in `--dry-run`                                                                              | all, approved               |
 | R1.1 | (reset plan)         | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1                                                     | engine, **ask**             |
 | T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved            |
 | T2.2 | FIND-04 Important    | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist                                                    | engine, approved + workshop |

@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0 done, T1.1-T1.2 done (2026-09-28). Next: T1.3.** |
+| Overall status | **P0 and P1 done (2026-09-28). Next: P2 (R1.1, then T2.1), waiting for the user's go.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -228,14 +228,17 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       and its polling would count towards T1.1's rate limit). Verified locally on vault-fundamentals: 401 without /
       200 with credentials, status green, `p4_browser.py`/`p5_browser.py` pass (they already sent credentials),
       `/admin` Slides tab loads with no second prompt.
-- [ ] **T1.3** (FIND-08, T2, Moderate) **[ENGINE, approved]** Cleartext over HTTP.
+- [x] **T1.3** (FIND-08, T2, Moderate) **[ENGINE, approved]** Cleartext over HTTP.
       a. `run.sh` warns when `PUBLIC_BASE_URL` is `http://` and the host isn't localhost.
       b. `Strict-Transport-Security` when `PUBLIC_BASE_URL` is `https://` (env-driven matcher in the Caddyfile, or
          documented for the fronting proxy when `GATEWAY_LISTEN` is plain HTTP).
       c. `engine/README.md`: "LAN class over HTTPS" recipe (`tls internal` + distributing the root, or a real name).
       *Verify:* under `--env home`, `Set-Cookie` has `Secure` and HSTS is present; an `http://<lan-ip>` URL prints
       the warning.
-- [ ] **T1.4** (FIND-13, T2, Low) **[ENGINE, approved]** + [MODULE] + [WORKSHOP] Log identity and control-plane
+      *Done 2026-09-28 (94ca136):* all three, verified locally (proxy-shaped run: HSTS, `Secure` cookie, status
+      green; dry-run warning). The IP + Caddy-CA route needed `default_sni` (no SNI for an IP address), confirmed
+      on a standalone gateway. HSTS `max-age` is one day.
+- [x] **T1.4** (FIND-13, T2, Low) **[ENGINE, approved]** + [MODULE] + [WORKSHOP] Log identity and control-plane
       decisions.
       a. Allocator, `workspace-control.py`, dns-api `gate.py`: keep the per-request no-op, add one structured line per
          decision (`assign`, `release`, `forgejo-login`, `watch`, workspace start/stop, zone write): slot, account,
@@ -247,14 +250,24 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       c. CloudAPI, runner controller, app-host: check their audit trails, add the same line format where missing.
       *Verify:* `podman logs allocator` shows one line per assign/release/SSO; `grep -i 'authorization: basic'` on
       the gateway log finds nothing.
-- [ ] **T1.5** (FIND-18, T3, Low) **[ENGINE, approved]** + [MODULE] + [WORKSHOP] Pin images by digest:
+      *Done 2026-09-28 (244ff59):* allocator (assign, release, forgejo-login, auth-check, route-check, watch),
+      workspace-control, cloud-api (`cloud-op`), runner controller (`runners`), dns-api gate (`zone-write`);
+      app-host already logged deploys. `/auth-check` logs every non-200 with the path and ms, a 200 only after a
+      change. Gateway access log on stdout, `Authorization` shows `REDACTED`. Verified locally (git-fundamentals
+      with 3 bots, a dns-as-code write, a vault Runners scale). **Open:** auth-check volume under a real browser
+      load (bots don't use `/ide`); look at it on the first 20+ student run, with the VS Code flake.
+- [x] **T1.5** (FIND-18, T3, Low) **[ENGINE, approved]** + [MODULE] + [WORKSHOP] Pin images by digest:
       `engine/gateway/Dockerfile` (incl. the new xcaddy builder), `engine/allocator/Dockerfile`, other
       `python:3.12-alpine` bases, `modules/dojo-cloud/cloud-host/Dockerfile` (`docker:dind`), `forgejo/runner:13`,
       `workshops/cert-autorenewal/compose/step-ca/Dockerfile`, dns-as-code's `pdns-auth-49:latest`. Human tag as a
       comment (the OpenBao/Postgres/PowerDNS-Admin pattern). New `engine/scripts/check-pins.sh`, called by
       `run.sh --dry-run`, fails on an external `FROM`/`image:` without a digest.
       *Verify:* `check-pins.sh` passes; each workshop reaches healthy with `./run.sh <workshop>`.
-- [ ] **T1.6** P1 docs, `.env.example`, §8 entry. **Ask the user before starting P2.**
+      *Done 2026-09-28 (6b047ca):* floating tags pinned to the version they pointed at (pdns-auth-49 4.9.17,
+      step-ca 0.30.2, docker 29.8.1-dind, forgejo/runner 13.2.0); `FORGEJO_VERSION` removed. All five workshops
+      healthy with every status green, locally.
+- [x] **T1.6** P1 docs, `.env.example`, §8 entry. **Ask the user before starting P2.** (2026-09-28: the user
+      chose to close P1 only; P2 and R1.1 wait for their go.)
 
 ### P2 — Student identity and isolation
 
@@ -410,9 +423,9 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T0.1-T0.5 | Live verification | — | — | Done 2026-09-28 (734ed33 + T0.5 write-up) |
 | T1.1 | FIND-01 | Important | ENGINE | Done 2026-09-28 (bf3b98c, d934055) |
 | T1.2 | FIND-02 | Low | ENGINE | Done 2026-09-28 (cad3132) |
-| T1.3 | FIND-08 | Moderate | ENGINE | Not started |
-| T1.4 | FIND-13 | Low | ENGINE+MODULE+WS | Not started |
-| T1.5 | FIND-18 | Low | all | Not started |
+| T1.3 | FIND-08 | Moderate | ENGINE | Done 2026-09-28 (94ca136) |
+| T1.4 | FIND-13 | Low | ENGINE+MODULE+WS | Done 2026-09-28 (244ff59) |
+| T1.5 | FIND-18 | Low | all | Done 2026-09-28 (6b047ca) |
 | T2.1 | FIND-03 | **Critical** | ENGINE | Not started |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Not started |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Not started |
@@ -437,8 +450,8 @@ rest tracked as defence in depth or accepted risk (D9).
   stops a PR from writing, whichever workflow version runs, so a PR that rewrites `dns-preview.yml` still gets 403.
   Add branch protection on `main` (one approval) so an edited workflow can't reach `main` unreviewed.
   `pull_request_target` would only protect the preview's output, and it brings the usual risk of a secret-bearing
-  run that checks out PR code; (B) changes the lab flow for no extra protection. Needs the user's confirmation
-  before T3.1.
+  run that checks out PR code; (B) changes the lab flow for no extra protection. **Confirmed by the user
+  2026-09-28: (A).**
 - **Q-B (before T2.3b and every `[ENGINE, ask]` task).** Engine go for that task.
 
 ## 7. Worth knowing
@@ -489,3 +502,15 @@ rest tracked as defence in depth or accepted risk (D9).
 - `pull_request_target` (T0.3 part 3) settled without another stack: Forgejo documents it; the local run that sat
   `waiting` was not retried. Not needed: Q-A now recommends (A) without it (§6), pending the user's confirmation.
 - Work moved to `feat/remediation` (D12). The user gave the go for P1.
+
+### 2026-09-28 — P1 closed
+
+- T1.1-T1.5 done and verified locally (commits under each task). Tested as a batch at the user's request: cheap
+  checks per task, then one live pass over all five workshops.
+- Changes from the plan: T1.1c counts only requests without a valid `Authorization` header (no class-size tuning;
+  `GATEWAY_TRUSTED_PROXIES` for a proxy in front); T1.2 also gave the allocator the class login for its Slides
+  check; T1.3 added `default_sni` for the IP + Caddy-CA route; `STUDENT_PASSWORD_SEED` moved to T2.1.
+- Open: `GATEWAY_TRUSTED_PROXIES` in `.env.home` (read the proxy's address from the gateway log on the next home
+  run); auth-check volume under real browsers.
+- Also: `core.fileMode` was false in this clone; now true, and the scripts run directly are 755 (5fae93c, e914b5d).
+- Q-A confirmed (A). The user chose to close P1 only: P2 and R1.1 wait for their go.
