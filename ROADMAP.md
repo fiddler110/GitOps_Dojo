@@ -4,26 +4,24 @@ Every piece of open work in one place. Each line is a summary; the linked plan h
 verify lines, and stays the source of truth for them. When a task is done, tick it in its plan (with the commit
 SHA) and update or remove its line here.
 
-Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (`main` is behind it with nothing of its own)
+Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (merged to `main` in PR #3, 3a59106)
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
 | [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0 T0.1-T0.4 run, T0.5 open             |
-| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done (T5.6 in 7684f07)            |
+| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
 | [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md)                                       | tofu-basics (merged, PR #1)                                        | Only manual checks open                 |
 
 ## Now
 
-1. **Remediation T0.5: close P0.** Results of T0.1-T0.4 are in the plan (734ed33): FIND-03 open (`su` works, homes
+1. **Remediation T0.5: close P0** (set aside for now, 2026-09-28). Results of T0.1-T0.4 are in the plan (734ed33): FIND-03 open (`su` works, homes
    `0755`), FIND-04 can be downgraded (app refused, runner can't resolve `web-terminal`), FIND-05 confirmed (a
    same-repo PR runs its own workflow; ID-token URL broken under `/git/`), app-db leak refused (no T3.5). Still open:
    does Forgejo 16 run `pull_request_target`? (the test run sat "waiting"; needs a dns-as-code stack). It settles
    Q-A for T3.1. Then write-up and a §8 entry; **ask the user before P1.** Reset R0 can run on that stack.
-2. **Merge `feat/vault-fundamentals` → `main`**, now that T5.6 is done (brings a24d0e7, the `run.sh --env` fix for
-   workshops with modules, and ca89792 `/forgejo-login?next=`).
-3. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load, with a 404 and a VS Code
+2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load, with a 404 and a VS Code
    "unknown error" in the console (not traced). Sizing for 20-35 students is extrapolated from 10 bots.
 
 ## Order agreed with the student-reset plan (2026-09-28)
