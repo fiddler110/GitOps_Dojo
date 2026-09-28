@@ -174,7 +174,7 @@ except ValueError: s = {}
 try: a = json.loads(ap)
 except ValueError: a = {}
 running = sum(1 for x in a.get("slots", []) if x.get("state") == "running")
-print(f"{t},{s.get(\"alive\",\"\")},{s.get(\"busy\",\"\")},{len(s.get(\"waiting\", []))},{running}")' "$now" "$st" "$ap" >> "$OUT/queue.csv"
+print(t, s.get("alive", ""), s.get("busy", ""), len(s.get("waiting", [])), running, sep=",")' "$now" "$st" "$ap" >> "$OUT/queue.csv"
     sleep 15
   done
   local restarts_after
@@ -206,6 +206,7 @@ EOF
   fi
   local w
   w="$(tail -n 1 "$OUT/queue.csv" | cut -d, -f4)"
+  [[ "$w" =~ ^[0-9]+$ ]] || w=0
   [ "${w:-0}" -le 3 ] || { echo "FAIL: $w jobs still waiting at the end"; return 1; }
   bots
 }

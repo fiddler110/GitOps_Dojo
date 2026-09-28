@@ -32,14 +32,23 @@ vf_env() {
   [ -s "$HOME/.vault-token" ]
 }
 
-# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined (as tests/labs_11_13.sh does).
+# vf_block FILE N...: the Nth ```bash blocks of a lab page, joined; LANG:N:PATH (+PATH appends) writes the page's
+# Nth LANG block (a file students create in VS Code) to PATH, studentXX filled in (as tests/lab_10.sh does).
 vf_block() {
   local f="$1"; shift
-  python3 -B - "$VF_LABS/$f" "$@" <<'EOF'
+  python3 -B - "$VF_LABS/$f" "$BOT_USER" "$@" <<'EOF'
 import re, sys
-blocks = re.findall(r"^```bash\n(.*?)^```$", open(sys.argv[1]).read(), re.S | re.M)
-for n in sys.argv[2:]:
-    sys.stdout.write(blocks[int(n) - 1])
+text, user = open(sys.argv[1]).read(), sys.argv[2]
+fences = re.findall(r"^```(\w+)\n(.*?)^```$", text, re.S | re.M)
+for tok in sys.argv[3:]:
+    if ":" not in tok:
+        sys.stdout.write([c for lang, c in fences if lang == "bash"][int(tok) - 1])
+        continue
+    lang, n, path = tok.split(":", 2)
+    body = [c for l, c in fences if l == lang][int(n) - 1].replace("studentXX", user)
+    op = ">>" if path.startswith("+") else ">"
+    path = path.lstrip("+")
+    sys.stdout.write(f"mkdir -p {path.rsplit('/', 1)[0] if '/' in path else '.'} && cat {op} {path} <<'LABFILE'\n{body}LABFILE\n")
 EOF
 }
 
@@ -279,27 +288,30 @@ EOF"
  \"token_policies\":[\"ci-read\"],\"token_ttl\":\"5m\"}
 EOF"
   local wf
-  wf="$(sed -n "/cat > .forgejo\/workflows\/vault-oidc.yml <<'EOF'/,/^EOF\$/p" "$VF_LABS/lab9.md")"
+  # lab9.md has students create the file in VS Code: take its ```yaml block (from `name: vault-oidc`).
+  wf="$(awk '/^name: vault-oidc$/{p=1} p&&/^```/{exit} p' "$VF_LABS/lab9.md")"
   [ -n "$wf" ] || { narrate "couldn't find the vault-oidc workflow in lab9.md"; return 1; }
-  paste_cmd "mkdir -p .forgejo/workflows && $wf"
+  paste_cmd "mkdir -p .forgejo/workflows && cat > .forgejo/workflows/vault-oidc.yml <<'EOF'
+$wf
+EOF"
   run_cmd "git add .forgejo/workflows/vault-oidc.yml && git commit -qm 'CI logs in with its own identity' && git push -q"
   unset BAO_NAMESPACE
 }
 
 # Lab 10: the pipeline delivers the app's AppRole secret ID, wrapped, and deploys it to this bot's
-# app-host slot. Runs lab10.md's blocks 1-12 as written (not the restart, which leaves the app down).
+# app-host slot. Runs lab10.md's blocks 1-11 and its files as written (not the restart, which leaves the app down).
 step_vf_lab10() {
   vf_env || return 1
   cd "$REPO_DIR" || return 1
   narrate "Lab 10 -- deploy with a delivered secret ID: the pipeline mints it, wrapped, and can't read"
-  paste_cmd "$(vf_block lab10.md 1 2 3)" || return 1
-  paste_cmd "$(vf_block lab10.md 4 5 6)" || return 1
-  paste_cmd "$(vf_block lab10.md 7 8 9 10 11)" || return 1
-  paste_cmd "$(vf_block lab10.md 12)" || return 1
+  paste_cmd "$(vf_block lab10.md 1 2 3 hcl:1:policies/app-deliver.hcl)" || return 1
+  paste_cmd "$(vf_block lab10.md 4 5 6)"  # ends on the refused second unwrap, on purpose
+  paste_cmd "$(vf_block lab10.md 7 8 9 hcl:2:app/agent.hcl sh:1:app/start.sh python:1:app/app.py)" || return 1
+  paste_cmd "$(vf_block lab10.md 10 yaml:1:.forgejo/workflows/deploy.yml 11)" || return 1
   narrate "waiting for the deploy job"
-  if vf_wait_app 'API_KEY fingerprint' 240; then
+  if vf_wait_app 'AppRole login' 240 && vf_wait_app 'API_KEY fingerprint' 60; then
     run_cmd "curl -s http://app-host:8080/\$USER/ | head -8"
-    paste_cmd "$(vf_block lab10.md 14)"
+    paste_cmd "$(vf_block lab10.md 13)"
   else
     narrate "no app yet after 4 minutes -- the runners may be busy; moving on"
   fi
@@ -307,18 +319,19 @@ step_vf_lab10() {
 }
 
 # Lab 11: the pipeline deploys the app to this bot's app-host slot, and the app gets its own secrets
-# through its platform identity. Runs lab11.md's blocks 1-8 as written, then a rotation (block 11).
+# through its platform identity. Runs lab11.md's blocks 1-7 and its files as written, then a rotation (block 10).
 step_vf_lab11() {
   vf_env || return 1
   cd "$REPO_DIR" || return 1
   narrate "Lab 11 -- deploy with workload identity: the pipeline deploys, the app reads its own secrets"
   paste_cmd "$(vf_block lab11.md 1 2 3 4)" || return 1
-  paste_cmd "$(vf_block lab11.md 5 6 7)" || return 1
-  paste_cmd "$(vf_block lab11.md 8)" || return 1
+  paste_cmd "$(vf_block lab11.md 5 hcl:1:app/agent.hcl sh:1:app/start.sh python:1:app/app.py)" || return 1
+  paste_cmd "$(vf_block lab11.md 6 yaml:1:.forgejo/workflows/deploy.yml 7)" || return 1
   narrate "waiting for the deploy job"
-  if vf_wait_app 'API_KEY fingerprint' 240; then
+  # Lab 10's app answers the same way until this deploy replaces it; this one's first line has no ", AppRole login".
+  if vf_wait_app 'on app-host$' 240 && vf_wait_app 'API_KEY fingerprint' 60; then
     run_cmd "curl -s http://app-host:8080/\$USER/ | head -12"
-    paste_cmd "$(vf_block lab11.md 11)"
+    paste_cmd "$(vf_block lab11.md 10)"
   else
     narrate "no app yet after 4 minutes -- the runners may be busy; moving on"
   fi

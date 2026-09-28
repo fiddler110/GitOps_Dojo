@@ -52,4 +52,20 @@ Memory limits per container (the engine's own services come on top):
 | `app-db` | 512 MiB | `APP_DB_MEM_LIMIT` |
 | `openbao-audit`, `runner-controller`, the shims, `openbao-setup` | 64-128 MiB each | |
 
-Measured for 20 students (T5.6, `e2e.sh --load` with `--test 20`): *to be filled in by the live pass.*
+Measured (T5.6, 2026-09-28, locally on a WSL2 desktop, 8 vCPU / 14 GiB): `--test 10`, the full `e2e.sh` (every lab
+script as one student, the browser checks) and then `e2e.sh --load 15` with the bots doing labs 0-11, sampled every
+15-30 s with `podman stats`:
+
+| | Peak |
+| - | ---- |
+| Whole stack (sum of the `workshop_*` containers) | 2.0 GiB (1.9 GiB in the bots-only load window) |
+| `web-terminal` (every student's shell) | 0.9 GiB during the lab scripts, 0.65 GiB bots-only; up to 42 % of a core |
+| `forge` | 0.44 GiB, 33 % of a core |
+| `app-host` (5 apps running) | 0.24 GiB |
+| `runner-pool` (2 runners alive, up to 5 jobs waiting briefly) | 0.16 GiB |
+| `openbao`, `app-db` | 0.14 GiB, 0.09 GiB; CPU a few % |
+| CPU, all containers together | under 0.9 of a core |
+
+Nothing restarted and no container came near its limit. For 20-35 students, extrapolating: `web-terminal` grows
+with shells (roughly 50-60 MiB per active student, estimated from 10 bots), the rest barely; budget about 4 GiB and 4
+cores, and watch the runner queue on the Runners panel (the queue was back to 0 at the end of the run).
