@@ -344,8 +344,8 @@ listen_url="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
 url_scheme="${listen_url%%://*}"
 url_hostport="${listen_url#*://}"; url_hostport="${url_hostport%%/*}"
 case "$url_scheme" in
-  https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
-  *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
+  https) gateway_port="${GATEWAY_HTTPS_PORT:-8443}"; url_port=443 ;;
+  *)     gateway_port="${GATEWAY_HTTP_PORT:-8080}"; url_port=80 ;;
 esac
 case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
 if [ "$url_port" != "$gateway_port" ]; then

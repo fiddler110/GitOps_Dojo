@@ -300,9 +300,13 @@ Everything is driven from `run.sh`, which lives in the repo root (and in
 ./run.sh setup --default
 ```
 
-`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below, showing its
-current default in `[brackets]` (Enter accepts it) and auto-generating a
-strong random value for passwords/tokens on a bare Enter. It also offers to
+`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below with a
+short explanation, showing its current value in `[brackets]` (Enter accepts it). When
+`engine/.env` already exists, its values are the defaults and settings the script doesn't ask
+about are carried over; a password that is still a public default (`change-me`, `student`,
+`student123`, `admin`) is replaced by a generated one on a bare Enter, while a real one is kept
+(type `new` to generate). The file is built as `.env.new` and moved into place at the end, so
+Ctrl-C leaves `.env` as it was; the old one is kept as `.env.previous`. It also offers to
 run `capacity-calc.sh` for you to size `WEB_TERMINAL_MEM_LIMIT`/
 `WEB_TERMINAL_PIDS_LIMIT`/`CODE_SERVER_MAX_HEAP_MB` to this machine. Prefer
 this path for a real workshop, since it gives every session unique
@@ -337,7 +341,7 @@ services) is selected separately, by name, via `./run.sh` below.
 | `WORKSHOP_NAME`                                    | Name shown in the terminal welcome message                     |
 | `PUBLIC_BASE_URL`                                  | What students type into their browser. See **Deployment scenarios** below |
 | `LAB_HOST_IP`                                      | Interface the gateway binds to on this machine — see below     |
-| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 80/443)               |
+| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 8080/8443: rootless podman can't bind below 1024) |
 | `TTYD_USERNAME`, `TTYD_PASSWORD`                   | Shared gate in front of the terminal and Forgejo browsing       |
 | `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD` | Linux terminal accounts *and* matching Forgejo accounts (1-99) |
 | `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`     | Facilitator's Linux login, sudo-capable                        |
@@ -349,12 +353,14 @@ every session. `.env` is gitignored.
 
 ### Deployment scenarios
 
-**Local laptop (default):**
+**Local machine (default):**
 ```
-PUBLIC_BASE_URL=http://localhost
+PUBLIC_BASE_URL=http://localhost:8080
 LAB_HOST_IP=127.0.0.1
+GATEWAY_HTTP_PORT=8080
 ```
-Plain HTTP, no TLS, reachable only from this machine.
+Plain HTTP, no TLS, reachable only from this machine. The port in
+`PUBLIC_BASE_URL` must match `GATEWAY_HTTP_PORT` (`run.sh` warns otherwise).
 
 **Azure VM, internal workshop:** bind the gateway to all interfaces and let
 Azure's free per-public-IP DNS label give you a real hostname — Caddy then
@@ -841,7 +847,9 @@ or the public internet.
 hostname actually resolves to the VM's public IP already, and that the NSG
 allows inbound 80/443 from the internet (Let's Encrypt's HTTP-01 challenge
 needs to reach the gateway on port 80 to issue the cert, even though the
-final result is served on 443):
+final result is served on 443). The defaults publish 8080/8443, so on a VM set
+`GATEWAY_HTTP_PORT=80` and `GATEWAY_HTTPS_PORT=443` (Docker or rootful podman),
+or map 80/443 to them:
 
 ```sh
 docker compose logs gateway

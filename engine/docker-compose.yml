@@ -296,8 +296,8 @@ services:
     # names (e.g. http://localhost:8080 -> :8080 inside the container), and
     # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:${GATEWAY_HTTP_PORT:-80}"
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:${GATEWAY_HTTPS_PORT:-443}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-8443}:${GATEWAY_HTTPS_PORT:-8443}"
     volumes:
       # The workshop's extension routes, rendered from its extensions.json
       # by run.sh before every start; gateway/Caddyfile imports them.
