@@ -887,6 +887,11 @@ fi
 printf '%s\n' $extra_files > .last-overlay
 
 sync_lab_docs "$WORKSHOP_CONTENT_DIR"
+# A workshop that shows other workshops' slides (dojo-introduction) needs their
+# lab copies too; they are cheap and git-ignored, so make them for every pack.
+for other_content in ../workshops/*/content; do
+  [ "$other_content" = "$WORKSHOP_CONTENT_DIR" ] || sync_lab_docs "$other_content"
+done
 
 echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
 # No --build: every image Compose references was already brought up to

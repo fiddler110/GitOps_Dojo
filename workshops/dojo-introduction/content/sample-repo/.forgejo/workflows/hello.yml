@@ -1,0 +1,15 @@
+# A job that runs on the class's single-use runners (the `host` label). Push any
+# change to see it start; the facilitator's Runners tab shows the runner come
+# and go.
+name: hello
+on: push
+jobs:
+  hello:
+    runs-on: host
+    steps:
+      - name: Where does this job run?
+        run: |
+          echo "runner user: $(id -un)"
+          echo "commit:      ${GITHUB_SHA:-unknown}"
+      - name: Which tools does the runner have?
+        run: bao version

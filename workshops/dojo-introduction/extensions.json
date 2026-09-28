@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "library", "label": "Workshop Library", "desc": "Every workshop's slides, labs and cheat sheet on one page.",
+      "href": "/slides/workshops.md", "icon": "slides" }
+  ],
+  "admin_tabs": [
+    { "id": "library", "label": "Workshop Library", "src": "/slides/workshops.md" }
+  ]
+}
