@@ -18,25 +18,26 @@ A **workflow** is a YAML file in `.forgejo/workflows/` that tells Forgejo Action
 
 ## 1. Your own copy of the repo
 
-The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone. This asks Forgejo's API to make the fork (`-u "$USER"` signs in as you; `-d '{}'` sends an empty request body):
+The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone. This asks Forgejo's API to make the fork (`--netrc` signs in as you; `-d '{}'` sends an empty request body):
 
 ```bash
-curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+curl --netrc -H "Content-Type: application/json" -d '{}' \
   http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
 ```
 
-`curl` asks for your **Forgejo password**, which is on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON means it worked; `repository is already forked` means you made it earlier.
+No password prompt: your terminal came with a Forgejo **access token** for your account, which `curl --netrc` reads from `~/.netrc` and git reads from `~/.git-credentials`. A block of JSON means it worked; `repository is already forked` means you made it earlier.
 
-Clone it (download it into `~/lab/vault-fundamentals`), and let git remember your password in memory for an hour so you don't type it on every push:
+Clone it (download it into `~/lab/vault-fundamentals`):
 
 ```bash
 cd ~/lab
 git clone http://git-server:3000/$USER/vault-fundamentals.git
 cd vault-fundamentals
-git config credential.helper 'cache --timeout=3600'
 ```
 
-The folder appears in VS Code's Explorer as **vault-fundamentals**. The `cache` helper keeps the password in memory only. The `store` helper would write it to a plaintext file in your home, which is exactly what this workshop is against (rule 8).
+The folder appears in VS Code's Explorer as **vault-fundamentals**.
+
+A token in a plain-text file sounds like what this workshop warns against, so look at what makes it acceptable here. `ls -l ~/.netrc ~/.git-credentials` shows `-rw-------`: only you can read them. It's a token, not a password: limited to repositories, revocable on its own, and it can't sign in to the Forgejo web page. And the platform issued it (secret zero again, as in lab 0). For your own accounts, prefer a credential manager or git's in-memory `cache` helper.
 
 ## 2. Add a repository secret
 
@@ -93,7 +94,7 @@ git commit -m "Add a workflow that uses a repository secret"
 git push
 ```
 
-`git push` asks for your username (`studentXX`) and Forgejo password once; the cache remembers them.
+`git push` signs in with your token; nothing to type.
 
 Open your fork in Forgejo → **Actions** → the newest run → the **demo** job, and open each step.
 

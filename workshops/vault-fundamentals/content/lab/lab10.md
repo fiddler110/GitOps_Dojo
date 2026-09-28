@@ -37,12 +37,11 @@ bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app
 printf 'path "team/data/app" {\n  capabilities = ["read"]\n}\n' | bao policy write app-read -
 bao auth list | grep -q '^approle/' || bao auth enable approle
 [ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  curl --netrc -H "Content-Type: application/json" -d '{}' \
     http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
   git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
 }
 cd ~/lab/vault-fundamentals && git switch main && git pull
-git config credential.helper 'cache --timeout=3600'
 ```
 
 ## 2. The app's role, made strict

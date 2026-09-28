@@ -19,7 +19,7 @@
 #                                        # remember "lazy" credentials from
 #                                        # .env.example's defaults. Machine-
 #                                        # to-machine secrets (CONTROL_TOKEN/
-#                                        # GATEWAY_TOKEN) and
+#                                        # GATEWAY_TOKEN/STUDENT_PASSWORD_SEED) and
 #                                        # FORGEJO_ADMIN_PASSWORD (only the
 #                                        # facilitator's SSO uses it) are
 #                                        # still random. Also sizes the
@@ -232,7 +232,6 @@ if [ "$mode" = "default" ]; then
   # workshop where credentials should be unique per session.
   set_var TTYD_USERNAME "student"
   set_var TTYD_PASSWORD "student"
-  set_var STUDENT_PASSWORD "student123"
   set_var FACILITATOR_USERNAME "admin"
   set_var FACILITATOR_PASSWORD "admin"
 
@@ -240,14 +239,17 @@ if [ "$mode" = "default" ]; then
   # nobody ever types these, so there's no lazy/careful tradeoff to make.
   set_var CONTROL_TOKEN "$(random_hex_32)"
   set_var GATEWAY_TOKEN "$(random_hex_32)"
+  # Each student's own Forgejo password is derived from it (remediation
+  # T2.1b); git uses a token, so nobody types those either.
+  set_var STUDENT_PASSWORD_SEED "$(random_hex_32)"
   # Nobody types this one either: the facilitator reaches Forgejo through the
   # allocator's /forgejo-login SSO, which reads it from .env.
   set_var FORGEJO_ADMIN_PASSWORD "$(random_password)"
 
-  echo "Set: TTYD_USERNAME=student, TTYD_PASSWORD=student, STUDENT_PASSWORD=student123,"
+  echo "Set: TTYD_USERNAME=student, TTYD_PASSWORD=student,"
   echo "     FACILITATOR_USERNAME=admin, FACILITATOR_PASSWORD=admin"
   echo "     (PUBLIC_BASE_URL=$(current_value PUBLIC_BASE_URL) and everything else: .env.example's defaults)"
-  echo "Generated random CONTROL_TOKEN / GATEWAY_TOKEN / FORGEJO_ADMIN_PASSWORD."
+  echo "Generated random CONTROL_TOKEN / GATEWAY_TOKEN / STUDENT_PASSWORD_SEED / FORGEJO_ADMIN_PASSWORD."
   echo
 
   apply_capacity_sizing "$(current_value STUDENT_COUNT)" || true
@@ -373,12 +375,12 @@ echo
 
 cat <<'EOF'
 --- Student accounts ---
-  studentNN Linux + Forgejo accounts. The count sizes the roster; the password
-  is the one labs use for git over HTTPS.
+  studentNN Linux + Forgejo accounts. The count sizes the roster. Each student
+  gets their own Forgejo password (from STUDENT_PASSWORD_SEED below) and a git
+  token in the terminal; the Roster shows a password when you need one.
 EOF
 ask STUDENT_COUNT "Number of student accounts"
 ask STUDENT_PREFIX "Student account username prefix"
-ask_secret STUDENT_PASSWORD "Student password (shared by all students)" random_password
 echo
 
 cat <<'EOF'
@@ -405,6 +407,7 @@ cat <<'EOF'
 EOF
 ask_secret CONTROL_TOKEN "CONTROL_TOKEN (allocator <-> web-terminal)" random_hex_32
 ask_secret GATEWAY_TOKEN "GATEWAY_TOKEN (gateway <-> allocator)" random_hex_32
+ask_secret STUDENT_PASSWORD_SEED "STUDENT_PASSWORD_SEED (each student's Forgejo password is derived from it)" random_hex_32
 echo
 
 cat <<'EOF'
@@ -432,7 +435,7 @@ echo "Summary:"
 echo "  Address:      $(file_value PUBLIC_BASE_URL .env)  (bound on $(file_value LAB_HOST_IP .env))"
 echo "  Class login:  $(file_value TTYD_USERNAME .env) / $(file_value TTYD_PASSWORD .env)  (on the slide)"
 echo "  Facilitator:  $(file_value FACILITATOR_USERNAME .env) / $(file_value FACILITATOR_PASSWORD .env)  (private)"
-echo "  Students:     $(file_value STUDENT_COUNT .env) x $(file_value STUDENT_PREFIX .env)NN, password $(file_value STUDENT_PASSWORD .env)"
+echo "  Students:     $(file_value STUDENT_COUNT .env) x $(file_value STUDENT_PREFIX .env)NN, own Forgejo passwords (Roster > Password)"
 note_env_overrides
 echo
 echo "WORKSHOP_CONTENT_DIR/WORKSHOP_NAME/FORGEJO_ORG/FORGEJO_REPO come from"

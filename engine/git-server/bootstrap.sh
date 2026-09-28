@@ -17,7 +17,9 @@ seed_dir="${FORGEJO_SEED_DIR:-/seed}"
 
 student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
-student_password="${STUDENT_PASSWORD:-student123}"
+# Each student's own Forgejo password, derived from STUDENT_PASSWORD_SEED
+# (remediation T2.1b, D13); see dojo-secret.sh.
+. /dojo-secret.sh
 
 # Demo/test bots (--test) -- see engine/run.sh and engine/README.md. 0 by
 # default, so this whole block is a no-op unless a facilitator opted in.
@@ -161,18 +163,27 @@ counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
 
+  # -d @file instead of an inline string so the password doesn't sit in
+  # this curl call's argv either. An existing account gets the password
+  # set again, so it always matches the current seed (the allocator's SSO
+  # and the terminal's token step derive the same one).
+  user_json="$(mktemp)"
   if [ "$(http_status "$api/users/$username")" != "200" ]; then
-    # -d @file instead of an inline string so student_password doesn't sit
-    # in this curl call's argv either.
-    user_json="$(mktemp)"
     printf '{"username":"%s","password":"%s","email":"%s@example.com","must_change_password":false}' \
-      "$username" "$student_password" "$username" > "$user_json"
+      "$username" "$(forgejo_password "$username")" "$username" > "$user_json"
     api_curl -sf -X POST "$api/admin/users" \
       -H 'Content-Type: application/json' \
       -d "@$user_json" \
       >/dev/null
-    rm -f "$user_json"
+  else
+    printf '{"login_name":"%s","source_id":0,"password":"%s","must_change_password":false}' \
+      "$username" "$(forgejo_password "$username")" > "$user_json"
+    api_curl -sf -X PATCH "$api/admin/users/$username" \
+      -H 'Content-Type: application/json' \
+      -d "@$user_json" \
+      >/dev/null
   fi
+  rm -f "$user_json"
 
   if [ -n "$team_id" ]; then
     api_curl -sf -X PUT "$api/teams/$team_id/members/$username" >/dev/null || true

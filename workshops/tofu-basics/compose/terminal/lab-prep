@@ -60,14 +60,13 @@ fork_and_clone() {
   if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API/repos/$USER/tofu-basics")" = 200 ]; then
     done_ "fork $USER/tofu-basics exists"
   else
-    echo "    Forking asks for your Forgejo password (shown on your landing page)."
     # 202 = forked now, 409 = already forked (e.g. private, so the check above
     # couldn't see it). Anything else is a real failure.
-    code=$(curl -s -o /dev/null -w '%{http_code}' -u "$USER" \
+    code=$(curl -s -o /dev/null -w '%{http_code}' --netrc \
       -H 'Content-Type: application/json' -d '{}' "$API/repos/$TEAM_REPO/forks")
     case "$code" in
       202|409) echo "    fork ready (HTTP $code)" ;;
-      401) die "wrong password for $USER. Run lab-prep again." ;;
+      401) die "Forgejo refused your token (~/.netrc). Ask the facilitator." ;;
       *) die "forking failed (HTTP $code). Try Lab 0 step 1 by hand." ;;
     esac
   fi

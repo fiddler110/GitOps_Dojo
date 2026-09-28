@@ -368,7 +368,11 @@ case "$public_host:${LAB_HOST_IP:-}" in
   *) local_only=0 ;;
 esac
 default_passwords=""
-for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "STUDENT_PASSWORD:${STUDENT_PASSWORD:-}" \
+# Without STUDENT_PASSWORD_SEED the shared STUDENT_PASSWORD is every
+# student's Forgejo password, so it is checked instead of the seed.
+if [ -n "${STUDENT_PASSWORD_SEED:-}" ]; then student_secret="STUDENT_PASSWORD_SEED:${STUDENT_PASSWORD_SEED}"
+else student_secret="STUDENT_PASSWORD:${STUDENT_PASSWORD:-student123}"; fi
+for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "$student_secret" \
   "FACILITATOR_PASSWORD:${FACILITATOR_PASSWORD:-}" "FORGEJO_ADMIN_PASSWORD:${FORGEJO_ADMIN_PASSWORD:-}"; do
   case "${pair#*:}" in
     change-me | student | student123 | admin) default_passwords="${default_passwords} ${pair%%:*}" ;;
@@ -386,6 +390,12 @@ if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
     echo "--allow-default-passwords to start anyway." >&2
     exit 1
   fi
+fi
+
+# An engine/.env from before per-student passwords (remediation T2.1b).
+if [ -z "${STUDENT_PASSWORD_SEED:-}" ]; then
+  echo "WARNING: no STUDENT_PASSWORD_SEED in engine/.env: every student's Forgejo password is the" >&2
+  echo "         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run './run.sh setup'." >&2
 fi
 
 # Plain HTTP off this machine (FIND-08): the class login, cookies and every

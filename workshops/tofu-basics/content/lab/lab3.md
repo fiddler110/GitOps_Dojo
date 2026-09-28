@@ -85,7 +85,7 @@ git commit -m "Set my name in the sandbox"
 git push -u origin my-tofu-change
 ```
 
-This pushes to **your fork** (the `origin` you cloned in Lab 0), so your branch name can't clash with anyone else's. Pushing asks you to sign in to the git server — in VS Code a popup appears at the top of the screen (username, then password); in the plain terminal you get a `Username for 'http://git-server:3000':` prompt. Use your student account name (`studentXX`) and your **Forgejo password**. Both are shown on your landing page (the page with the VS Code, Terminal and Forgejo cards; reloading it always brings it back), the same as in Git Fundamentals.
+This pushes to **your fork** (the `origin` you cloned in Lab 0), so your branch name can't clash with anyone else's. Git signs in with your access token (in `~/.git-credentials`), so there's no password prompt.
 
 ## Track A complete
 

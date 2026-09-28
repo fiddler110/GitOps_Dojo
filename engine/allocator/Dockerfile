@@ -2,6 +2,8 @@ FROM docker.io/library/python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154
 
 # Stdlib only -- no pip installs, matches this repo's minimal-deps convention.
 COPY server.py /usr/local/bin/allocator-server.py
+# Per-student Forgejo passwords (remediation D13); imported by the server.
+COPY dojo_secret.py /usr/local/bin/dojo_secret.py
 
 EXPOSE 8080
 # Must send X-Gateway-Token -- server.py now rejects every request

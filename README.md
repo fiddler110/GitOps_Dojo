@@ -322,7 +322,7 @@ sequenceDiagram
     S->>WT: git clone http://git-server:3000/training/sample-training-repo
     WT->>GS: clone, direct over workshop_lab
     S->>WT: branch, edit, commit
-    WT->>GS: git push (studentNN + STUDENT_PASSWORD)
+    WT->>GS: git push (studentNN's own token, ~/.git-credentials)
     end
 
     rect rgba(139,92,246,0.16)

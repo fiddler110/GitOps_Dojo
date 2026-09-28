@@ -48,7 +48,7 @@ cd engine
 There are no engine settings for this workshop: the landing-page card, `/cloud` route, the facilitator's
 **Dojo Cloud** tab in `/admin` and the status-strip entry all come from `modules/dojo-cloud/extensions.json`
 (see `engine/MODULES-PLAN.md`). Two engine
-features are on for every workshop: each student's landing page shows their **Forgejo password**, and `/admin`
+features are on for every workshop: each student's git is signed in to Forgejo with their own token, and `/admin`
 shows the status strip. See `engine/README.md`.
 
 ## Architecture

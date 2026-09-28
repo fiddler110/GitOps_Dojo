@@ -21,12 +21,11 @@ export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 bao auth list | grep -q '^approle/' || bao auth enable approle
 [ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  curl --netrc -H "Content-Type: application/json" -d '{}' \
     http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
   git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
 }
 cd ~/lab/vault-fundamentals
-git config credential.helper 'cache --timeout=3600'
 ```
 
 The pipeline's job is to read a **deploy token**, the kind of secret a pipeline uses to push a release somewhere. Store one at `team/ci` (`$RANDOM` makes it different for each of you), and a policy, `ci-read`, that can read it and nothing else (the same one-line form as Lab 6's catch-up):
@@ -60,7 +59,7 @@ Now store its two IDs as **repository secrets** in your fork, as you did by hand
 ```bash
 put_secret() {  # put_secret NAME VALUE: a repository secret in your fork
   (umask 077; printf '{"data":"%s"}' "$2" > ~/.secret-body.json)
-  curl -s -o /dev/null -w "$1: HTTP %{http_code}\n" -u "$USER" -X PUT \
+  curl -s -o /dev/null -w "$1: HTTP %{http_code}\n" --netrc -X PUT \
     -H "Content-Type: application/json" -d @$HOME/.secret-body.json \
     http://git-server:3000/api/v1/repos/$USER/vault-fundamentals/actions/secrets/$1
   rm -f ~/.secret-body.json
@@ -228,7 +227,7 @@ The OIDC login does the job, so the AppRole path goes: first its role in the vau
 ```bash
 bao delete auth/approle/role/ci
 for s in BAO_ROLE_ID BAO_SECRET_ID; do
-  curl -s -o /dev/null -w "$s: HTTP %{http_code}\n" -u "$USER" -X DELETE \
+  curl -s -o /dev/null -w "$s: HTTP %{http_code}\n" --netrc -X DELETE \
     http://git-server:3000/api/v1/repos/$USER/vault-fundamentals/actions/secrets/$s
 done
 git rm .forgejo/workflows/vault-approle.yml

@@ -194,7 +194,7 @@ while [ "$counter" -le "$student_count" ]; do
     exit 1
   fi
 
-  /usr/local/lib/dojo/provision-account.sh "$username"
+  DOJO_DEFER_TOKEN=1 /usr/local/lib/dojo/provision-account.sh "$username"
 
   # 9000+counter/9500+counter must match IDE_PORT_BASE/TERM_PORT_BASE in
   # workspace-control.py.
@@ -202,6 +202,14 @@ while [ "$counter" -le "$student_count" ]; do
 
   counter=$((counter + 1))
 done
+
+# Each student's Forgejo git token (remediation T2.1c; see
+# forgejo-token.py). In the background: Forgejo and its bootstrap may still
+# be starting, and the workspaces shouldn't wait for them. The summary line
+# ("N created, N kept, N failed") lands in this container's log.
+# shellcheck disable=SC2046
+python3 /usr/local/lib/dojo/forgejo-token.py --wait 600 \
+  $(i=1; while [ "$i" -le "$student_count" ]; do printf '%s%02d ' "$student_prefix" "$i"; i=$((i + 1)); done) &
 
 # Demo/test bot accounts -- separate from the studentNN pool above (own
 # prefix, own numbering starting at 1) so they never compete with real

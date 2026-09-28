@@ -142,7 +142,7 @@ These are the commands you typed yourself in Lab 3. You started on `main`, so it
 | `[1/5] Create branch ...` | `Switched to a new branch 'dns/add-studentxx-api-dojo-test'` | Nothing |
 | `[2/5] Stage dnsconfig.js` | `Staged: dnsconfig.js`. Only that file goes into the commit. | Nothing |
 | `[3/5] Commit it as ...` | `pre-commit: ... running 'dnsctl lint'...`, `[ok] lint passed`, then the commit line with its short hash | Nothing. If lint fails, the commit is blocked: fix the file and run `submit` again. |
-| `[4/5] Push ... to Forgejo` | `* [new branch] dns/add-studentxx-api-dojo-test -> ...` | If git asks for `Username`/`Password`, enter your Forgejo login, as in Lab 3 (usually it remembers from then). |
+| `[4/5] Push ... to Forgejo` | `* [new branch] dns/add-studentxx-api-dojo-test -> ...` | Nothing: git signs in with your token, as in Lab 3. |
 | `[5/5] Open a pull request ...` | `Pull request opened: <link>` and `Your PR number is <n>.` | Note the **number**: it's your `<PR#>` for steps 4 to 6. |
 
 It ends with a `Done` heading and the next commands, with your PR number already filled in. Afterwards you're left on the new branch, not `main`. Open the link to see the PR in Forgejo if you want to.

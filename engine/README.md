@@ -105,7 +105,7 @@ sequenceDiagram
 
     S->>GW: GET /forgejo-login (cookie attached, opened in a new tab)
     GW->>AL: proxy /forgejo-login
-    AL->>GS: POST /user/login (studentNN / STUDENT_PASSWORD — server-side, no CSRF token needed)
+    AL->>GS: POST /user/login (studentNN / own derived password — server-side, no CSRF token needed)
     GS-->>AL: Set-Cookie: session=... (Forgejo's own login)
     AL-->>S: 303 + Set-Cookie (relayed verbatim) → /git/<org>/<repo>
 
@@ -201,7 +201,7 @@ straight back to `/`.
 — it links to `/forgejo-login`, which resolves the browser's identity
 exactly like `/ide`/`/term` do, then has `allocator` POST Forgejo's own
 login form itself, server-side, over the internal network (`studentNN` +
-`STUDENT_PASSWORD` for a student, `FORGEJO_ADMIN_USER` +
+that student's own password for a student, `FORGEJO_ADMIN_USER` +
 `FORGEJO_ADMIN_PASSWORD` for the facilitator — matching whatever
 `bootstrap.sh` actually seeded those accounts with), then relays Forgejo's
 own `Set-Cookie` response straight onto the browser and redirects into the
@@ -212,16 +212,28 @@ have shell access on `web-terminal`, the same internal network Forgejo
 sits on, so trusting any header-based identity from that network would let
 a student forge one for another account). A student can only ever land in
 their own resolved identity's Forgejo account through this route, the same
-guarantee `/auth-check` already relies on for `/ide`/`/term`. Separately,
-note that `bootstrap.sh` gives every `studentNN` Forgejo account the *same*
-`STUDENT_PASSWORD` (matching their shared Linux/ttyd password) — a student
-who knows another student's account name could already sign into that
-account manually on Forgejo's own login form; this route doesn't change
-that, since it only ever authenticates the caller as their own resolved
-identity. Forgejo's
+guarantee `/auth-check` already relies on for `/ide`/`/term`. Forgejo's
 login form needs no CSRF token to POST (verified against the running
 instance), which is what makes this possible without `allocator` holding a
 live Forgejo session of its own.
+
+**Student credentials** (remediation T2.1, FIND-03). Each student's Forgejo
+password is derived, not stored: `base32(HMAC-SHA256(STUDENT_PASSWORD_SEED,
+"forgejo:" + user))[:16]`, computed the same way by `bootstrap.sh` (creates
+the account, `git-server/dojo-secret.sh`), the allocator (SSO) and the
+terminal (`dojo_secret.py`; `allocator/tests/test_dojo_secret.py` keeps the
+three in step). Knowing one student's password tells you nothing about
+another's. Students never type it: at start the terminal mints each student a
+Forgejo token (`dojo-git`: `write:repository`, `write:issue`, `read:user`)
+with it and writes `~/.git-credentials` (git's `store` helper) and `~/.netrc`
+(the labs' `curl --netrc`), both `0600` (`web-terminal/forgejo-token.py`,
+idempotent: a working token is kept). Student Linux passwords are locked
+(only root's `su -` gets in, so no student can `su` to another) and homes
+are `0700`. The per-account steps live in `web-terminal/provision-account.sh`,
+which a student reset reruns. The Roster's **Password** button shows one
+student's Forgejo password for the desk (logged as
+`forgejo-password-shown`). Without a seed (an old `engine/.env`), every
+student's password is `STUDENT_PASSWORD` and `run.sh` warns.
 
 Git operations (`clone`/`push`) never go through the gateway or this SSO
 route at all — students run them from inside the terminal, straight to
@@ -319,7 +331,8 @@ nobody ever types those. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
 
 **Default passwords stay on this machine.** `./run.sh <workshop>` refuses to
-start when any of `TTYD_PASSWORD`, `STUDENT_PASSWORD`, `FACILITATOR_PASSWORD` or
+start when any of `TTYD_PASSWORD`, `STUDENT_PASSWORD_SEED` (or `STUDENT_PASSWORD`
+without a seed), `FACILITATOR_PASSWORD` or
 `FORGEJO_ADMIN_PASSWORD` is a `--default` value or `.env.example`'s `change-me`,
 unless both `PUBLIC_BASE_URL`'s host and `LAB_HOST_IP` are loopback (checked
 after `--env NAME` is loaded). Run `./run.sh setup` for real values, or pass
@@ -343,7 +356,7 @@ services) is selected separately, by name, via `./run.sh` below.
 | `LAB_HOST_IP`                                      | Interface the gateway binds to on this machine — see below     |
 | `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 8080/8443: rootless podman can't bind below 1024) |
 | `TTYD_USERNAME`, `TTYD_PASSWORD`                   | Shared gate in front of the terminal and Forgejo browsing       |
-| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD` | Linux terminal accounts *and* matching Forgejo accounts (1-99) |
+| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD_SEED` | Linux terminal accounts *and* matching Forgejo accounts (1-99); each Forgejo password is derived from the seed (see **Student credentials**) |
 | `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`     | Facilitator's Linux login, sudo-capable                        |
 | `FORGEJO_ADMIN_USER`, `FORGEJO_ADMIN_PASSWORD`, `FORGEJO_ADMIN_EMAIL` | Forgejo admin created by `bootstrap` (avoid the reserved name `admin`) |
 | `FORGEJO_ORG`, `FORGEJO_REPO`                      | Where the seeded sample repo lives                              |
@@ -489,12 +502,9 @@ assigned the next free `${STUDENT_PREFIX}NN` account — no second password
 to type, no picking their own account. They land straight in code-server
 (or ttyd, their choice) as that account. Their Open Forgejo link SSOs them
 straight into their matching Forgejo account with no login prompt (see
-**Forgejo SSO** above); `STUDENT_PASSWORD` is only something they'd need to
-type themselves for a `git clone`/`push` from inside the terminal, and
-the landing page they see after that shows it to them as their **Forgejo
-password** (`no-store`, HTML-escaped, and only ever their own account's
-secret, never the shared gate or facilitator credentials), so labs can
-send students there instead of quoting a value that depends on your `.env`.
+**Forgejo SSO** above), and git in their terminal is already signed in with
+their own token (**Student credentials** above), so they never type a
+Forgejo password.
 `/slides` is reachable from the same address too. The facilitator sees every
 assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see

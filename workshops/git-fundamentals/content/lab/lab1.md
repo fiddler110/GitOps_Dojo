@@ -114,22 +114,6 @@ git log -1
 
 Try just a simple `git push` now and see what git tells you. 
 
-You will need to authenticate your git session to the git-server here and will see a popup at the top of your screen in VS Code for your `username `and then `password`, or a `username for 'http://git-server:3000':` prompt in the ttyd.
-
-Use your student account name (`studentXX`) and your **Forgejo password**. Both are shown on your landing page (the page with the VS Code, Terminal and Forgejo cards; reloading it always brings it back).
-
-```sh
-# Ex. If you look at your terminal, your username is your student user id or use whoami
-studentXX@952724d621d6 ~/lab/sample-training-repo/roster
-$ git push
-
-# Or
-
-studentXX@952724d621d6 ~/lab/sample-training-repo/roster
-$ whoami
-studentXX
-```
-
 Your local branch doesn't exist on the remote repository, so you need to push the current branch and set the remote as *upstream* for it to be added to the repo.
 
 ```sh
@@ -140,6 +124,18 @@ git push --set-upstream origin <branch>
 ```
 
 This uploads your branch and its commit to the shared Forgejo server. Until this point, everything you did was entirely local — nobody else could see it. `-u origin add-yourname` also remembers this branch's remote, so future pushes from this branch just need `git push`.
+
+Git didn't ask for a password. Your terminal came with a Forgejo **access token** for your account, saved in `~/.git-credentials`; git's `store` helper (set in your `~/.gitconfig`) sends it with every push. Look at the file:
+
+```sh
+ls -l ~/.git-credentials
+```
+
+```text
+-rw------- 1 studentXX studentXX 74 ... /home/studentXX/.git-credentials
+```
+
+`-rw-------` (mode `0600`) means only you can read it. Anyone who has the token can push as you, so it must not be readable by the other accounts on this machine. It is also narrow: it works on repositories and pull requests, but it can't change your account settings or sign in to the Forgejo web page.
 
 ---
 

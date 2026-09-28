@@ -35,12 +35,11 @@ bao read auth/jwt-ci/role/ci-main >/dev/null 2>&1 || bao write auth/jwt-ci/role/
   "bound_claims": { "repository": "$USER/vault-fundamentals", "ref": "refs/heads/main" }, "token_ttl": "5m" }
 EOF
 [ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  curl --netrc -H "Content-Type: application/json" -d '{}' \
     http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
   git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
 }
 cd ~/lab/vault-fundamentals && git switch main && git pull
-git config credential.helper 'cache --timeout=3600'
 ```
 
 ## 2. Meet the platform

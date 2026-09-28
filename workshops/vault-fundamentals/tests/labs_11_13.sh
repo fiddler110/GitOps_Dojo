@@ -4,9 +4,9 @@
 # writes the files they have them make), and
 # checks what the terminal, the deploy jobs and the app show. Blocks that share
 # shell variables run in one shell; a block that pushes is followed by a wait
-# for its job logs. git's password prompt is replaced by a ~/.netrc (removed at
-# the end). It first removes what an earlier run left (the fork, the clone, the
-# roles and policies these labs write), so it can run again. Needs python3 >=
+# for its job logs. git and curl sign in with the student's own token (the
+# terminal's ~/.netrc). It first removes what an earlier run left (the fork,
+# the clone, the roles and policies these labs write), so it can run again. Needs python3 >=
 # 3.14 on the host (job logs are zstd). Exits 1 on any failure.
 #   sh workshops/vault-fundamentals/tests/labs_11_13.sh [student03]
 s="${1:-student03}"
@@ -55,8 +55,9 @@ api DELETE "/repos/$s/vault-fundamentals" >/dev/null
 as 'rm -rf ~/lab/vault-fundamentals ~/lab/nightly-report.hcl; export BAO_NAMESPACE=students/$USER
     bao delete auth/jwt-platform/role/app; bao delete database/roles/app
     for p in db-app nightly-report; do bao policy delete $p; done' >/dev/null 2>&1
-printf 'machine git-server login %s password %s\n' "$s" "${STUDENT_PASSWORD:-student123}" \
-  | as 'umask 077; cat > ~/.netrc'
+# The terminal already signed git and curl in with the student's own token
+# (~/.git-credentials, ~/.netrc: remediation T2.1c).
+as 'test -s ~/.netrc' || { echo "FAIL: $s has no ~/.netrc (the terminal's token step)"; exit 1; }
 as 'git config --global user.name "$USER"; git config --global user.email "$USER@dojo.test"' >/dev/null
 ok "fork and clone (Lab 8)" 'curl -sf --netrc -H "Content-Type: application/json" -d "{}" http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks >/dev/null &&
     git clone -q http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals'
@@ -113,6 +114,5 @@ new="$(fp api_key app)"
   || { echo "  FAIL: the app didn't pick up $new"; failed=1; }
 check "remote_address shown" "$out" 'remote_address'
 
-as 'rm -f ~/.netrc'
 [ "$failed" -eq 0 ] && echo "PASS: labs 11-13" || echo "FAIL: labs 11-13"
 exit "$failed"

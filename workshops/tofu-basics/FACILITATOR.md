@@ -32,9 +32,9 @@ people finish its clean-up section before Lab 10.
 
 1. `cd engine && ./run.sh setup` if there is no `engine/.env`. It must contain `PUBLIC_BASE_URL` (what
    students will type, including the port if it isn't 80/443) and `GATEWAY_TOKEN`. Set `STUDENT_COUNT`.
-2. **Student password:** nothing to announce. Each student's landing page shows their account and their
-   **Forgejo password** (the `STUDENT_PASSWORD` in `engine/.env`, whatever it is), and Labs 0 (forking the repo), 3 and 10 send them
-   there when `git push` asks. Change the value in `.env` and the landing page follows on the next start.
+2. **Student password:** nothing to announce. Each student's terminal is signed in to Forgejo with their own
+   token (`~/.git-credentials` for git, `~/.netrc` for Lab 0's `curl --netrc` fork), so no lab asks for a password.
+   If you ever need one, **Password** on the student's Roster tile shows it.
 3. Build and start: `./run.sh tofu-basics`. The first build takes several minutes (the terminal image is
    about 1.1 GB, `cloud-host` about 370 MB). Open `/admin` and check the **service status strip** at the top right: **Forgejo**,
    **Terminals**, **Slides** and **Dojo Cloud** should all be green (Ready). On a warm start they turned green
@@ -129,9 +129,9 @@ Lab 7 if people are clicking around.
 | No `ARM_` variables (`env` shows none), or `curl: (60) SSL certificate problem` | Credentials attach when a shell starts. A new terminal tab fixes it. If not, the broker is not running: `docker logs workshop_terminal --tail 50`, and as a last resort `docker restart workshop_terminal` (untested for this case; it drops every student's shell) |
 | Portal card or page won't open | Back to the landing page, click **Dojo Cloud**. A 404 on `/cloud/` means the stack was started for another workshop |
 | Portal shows stale data | It polls every ~3 s. **Refresh now** |
-| Lab 0's `curl` fork prints `401` / `Unauthorized` | Wrong password, or the student typed it as the username. It is the **Forgejo password** on their landing page. `repository is already forked` is not an error: they did it before |
+| Lab 0's `curl` fork prints `401` / `Unauthorized` | The student left out `--netrc`, or their token is missing (`ls -l ~/.netrc` in their terminal; the terminal's log has a `forgejo-token:` line). `repository is already forked` is not an error: they did it before |
 | `git push` rejected, or it goes to `iac-team/tofu-basics` | The student cloned the team repo instead of their fork. `git remote set-url origin http://git-server:3000/<student>/tofu-basics.git` in the repo, then push again |
-| `git push` keeps asking for a password | The student is typing the wrong one. It is the **Forgejo password** on their landing page (reload the landing page; it always comes back). In VS Code the prompt is a popup at the top |
+| `git push` asks for a password | The token is missing from `~/.git-credentials` (check with `ls -l`; the terminal's log has a `forgejo-token:` line). As a stop-gap, **Password** on their Roster tile shows the Forgejo password to type |
 | The `url` output or portal link is missing the port | Dev box with a non-default port: `PUBLIC_BASE_URL` has no port. The labs already say `<class-address>` |
 | Every apply fails or hangs | Check the Dojo Cloud chip first (red: hover for the reason). Then `docker ps`: is `workshop_cloud_host` up? `docker logs workshop_cloud_api --tail 50`. If the control plane is broken, **fall back to Track A** (below) and fix it in the break |
 | One student's terminal is wedged | `/admin` roster, **Release** on their tile; their next visit reassigns an account (the same one if it is still free) |

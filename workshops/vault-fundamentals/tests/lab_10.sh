@@ -54,8 +54,9 @@ echo "== reset $s"
 api DELETE "/repos/$s/vault-fundamentals" >/dev/null
 as 'rm -rf ~/lab/vault-fundamentals; export BAO_NAMESPACE=students/$USER
     bao delete auth/jwt-ci/role/deliver-main; bao policy delete app-deliver' >/dev/null 2>&1
-printf 'machine git-server login %s password %s\n' "$s" "${STUDENT_PASSWORD:-student123}" \
-  | as 'umask 077; cat > ~/.netrc'
+# The terminal already signed git and curl in with the student's own token
+# (~/.git-credentials, ~/.netrc: remediation T2.1c).
+as 'test -s ~/.netrc' || { echo "FAIL: $s has no ~/.netrc (the terminal's token step)"; exit 1; }
 as 'git config --global user.name "$USER"; git config --global user.email "$USER@dojo.test"' >/dev/null
 ok "fork and clone (Lab 8)" 'curl -sf --netrc -H "Content-Type: application/json" -d "{}" http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks >/dev/null &&
     git clone -q http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals'
@@ -99,6 +100,5 @@ check "the redeploy ran" "$log" '"state": "running"'
 p="$(wait_page 'API_KEY fingerprint' 30)"
 check "a new deploy brings the secrets back" "$p" "API_KEY fingerprint: $(fp api_key app)"
 
-as 'rm -f ~/.netrc'
 [ "$failed" -eq 0 ] && echo "PASS: lab 10" || echo "FAIL: lab 10"
 exit "$failed"

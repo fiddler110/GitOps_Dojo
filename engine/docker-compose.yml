@@ -70,6 +70,9 @@ services:
       - FORGEJO_SEED_DIR=/seed
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # Per-student Forgejo passwords (dojo-secret.sh). STUDENT_PASSWORD is
+      # only the fallback for an engine/.env without a seed.
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       # Demo/test bots (--test) -- see run.sh and README.md. 0 (disabled)
       # unless a facilitator opted in.
@@ -79,6 +82,7 @@ services:
     volumes:
       - forgejo_data:/data
       - ./git-server/bootstrap.sh:/bootstrap.sh:ro
+      - ./git-server/dojo-secret.sh:/dojo-secret.sh:ro
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/seed:ro
     entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
     # Isolated to its own network, not workshop_lab -- bootstrap only ever
@@ -139,6 +143,11 @@ services:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # Root only: forgejo-token.py derives each student's Forgejo password
+      # from the seed to mint that student's git token. Students never see
+      # it: their shells and IDEs start through `su -`, which clears the
+      # environment, and /proc/1/environ is root's.
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       # Demo/test bots (--test) -- see run.sh and README.md's "Demo bots"
       # section. BOT_COUNT=0 (the default) disables this entirely.
@@ -246,7 +255,9 @@ services:
       # matching whatever identity it already resolved (studentNN or the
       # facilitator's own admin account) by POSTing Forgejo's login form
       # itself, server-side, over the internal network -- these must match
-      # bootstrap.sh's own credentials for the accounts it actually seeded.
+      # bootstrap.sh's own credentials for the accounts it actually seeded
+      # (per-student passwords from the seed, dojo_secret.py).
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}

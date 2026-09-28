@@ -9,11 +9,11 @@
 The team's repo is `iac-team/tofu-basics`. Instead of everyone pushing branches into that one repo, each of you works in your own **fork**: a copy on the git server under your account, which still knows where it came from. This one command asks the git server's API to make it:
 
 ```sh
-curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+curl --netrc -H "Content-Type: application/json" -d '{}' \
   http://git-server:3000/api/v1/repos/iac-team/tofu-basics/forks
 ```
 
-`curl` asks for your **Forgejo password**, which is shown on your landing page (the page with the VS Code, Terminal and Forgejo cards). A block of JSON describing the new repo means it worked. If you see `repository is already forked`, you made it earlier; carry on.
+`--netrc` signs in as you with the access token your terminal came with (in `~/.netrc`, readable by you only), so there's no password to type. A block of JSON describing the new repo means it worked. If you see `repository is already forked`, you made it earlier; carry on.
 
 Now clone **your** fork (`$USER` is your account name, `studentXX`):
 

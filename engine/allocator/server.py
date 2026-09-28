@@ -37,6 +37,8 @@ import threading
 import time
 import urllib.parse
 
+from dojo_secret import forgejo_password
+
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 # Marks the session cookie Secure whenever the public deployment actually
 # terminates TLS (see gateway/README's Deployment scenarios) -- the browser
@@ -96,9 +98,9 @@ CLASS_BASIC_AUTH = "Basic " + base64.b64encode(
 # defaults (see docker-compose.yml's bootstrap service), not hardcoded here.
 FORGEJO_ORG = os.environ.get("FORGEJO_ORG", "training")
 FORGEJO_REPO = os.environ.get("FORGEJO_REPO", "sample-training-repo")
-# SSO into Forgejo (see /forgejo-login below): must match the credentials
-# bootstrap.sh actually created each account with, not hardcoded here.
-STUDENT_PASSWORD = os.environ.get("STUDENT_PASSWORD", "student123")
+# SSO into Forgejo (see /forgejo-login below) signs a student in with their
+# own password, forgejo_password(sid) from dojo_secret.py: the same one
+# bootstrap.sh created the account with (remediation T2.1b, D13).
 FORGEJO_ADMIN_USER = os.environ["FORGEJO_ADMIN_USER"]
 FORGEJO_ADMIN_PASSWORD = os.environ["FORGEJO_ADMIN_PASSWORD"]
 # Shared secret sent on every call to web-terminal's control API (see
@@ -720,12 +722,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 {cards}
 </div>
 <div class="secret">
-  <span class="secret-label">Your Forgejo sign-in</span>
+  <span class="secret-label">Your Forgejo account</span>
   <table class="secret-table">
     <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
-    <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(STUDENT_PASSWORD)}</code></td></tr>
   </table>
-  <span class="secret-hint">Use these when git asks you to sign in (for example on <code>git push</code>). The password is also your terminal account's password.</span>
+  <span class="secret-hint">No password to type: git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
 
@@ -957,6 +958,17 @@ function releaseTile(sid, btn) {
   }).then(refresh);
 }
 
+// Roster "Password": fetch one student's Forgejo password on demand and show
+// it in the tile (textContent only); a second click hides it again.
+function togglePassword(sid, btn, out) {
+  if (out.textContent) { out.textContent = ''; btn.textContent = 'Password'; return; }
+  fetch('/admin/api/forgejo-password/' + encodeURIComponent(sid), {
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.password; btn.textContent = 'Hide'; })
+    .catch(() => { out.textContent = 'unavailable'; });
+}
+
 function toggleEnlarge(sid) {
   if (enlarged === sid) { closeEnlarge(); return; }
   if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
@@ -986,11 +998,17 @@ function buildTile(r) {
     <div class="tile-meta">
       <span class="tile-ip">${escapeHtml(r.ip)}</span>
       <span class="tile-status">${statusHtml(r.active)}</span>
+      <code class="tile-pw"></code>
+      <button class="tile-pw-btn">Password</button>
       <button class="tile-release">Release</button>
     </div>`;
   head.querySelector('.tile-label').onclick = () => toggleEnlarge(r.studentId);
   head.querySelector('.tile-reload').onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
   head.querySelector('.tile-release').onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
+  const pwBtn = head.querySelector('.tile-pw-btn');
+  // Bots sign in with BOT_PASSWORD, not a derived one: no button.
+  if (r.ip === 'bot') pwBtn.remove();
+  else pwBtn.onclick = (e) => { e.stopPropagation(); togglePassword(r.studentId, e.currentTarget, head.querySelector('.tile-pw')); };
   const wrap = document.createElement('div');
   wrap.className = 'tile-frame-wrap';
   const waiting = document.createElement('div');
@@ -1170,9 +1188,12 @@ setInterval(refresh, 5000);
   .tile-meta {{ display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }}
   .tile-ip {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
   .tile-status {{ white-space: nowrap; }}
-  .tile-release {{ margin-left: auto; padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+  .tile-release, .tile-pw-btn {{ padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
           border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }}
-  .tile-release:hover {{ background: #7c8494; }}
+  .tile-pw {{ margin-left: auto; font-size: 0.72rem; user-select: all; }}
+  .tile-pw:empty {{ display: none; }}
+  .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release {{ margin-left: auto; }}
+  .tile-release:hover, .tile-pw-btn:hover {{ background: #7c8494; }}
   .tile-release:disabled {{ opacity: 0.6; cursor: default; }}
   /* The iframe is laid out at a fixed, generous pixel size (see
      FRAME_W/H below), then CSS-transformed to fill whatever size the
@@ -1227,10 +1248,10 @@ setInterval(refresh, 5000);
                 self.end_headers()
                 return
             if username == FACILITATOR_USERNAME:
-                forgejo_user, forgejo_password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
+                forgejo_user, password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
             else:
-                forgejo_user, forgejo_password = sid, STUDENT_PASSWORD
-            cookies = forgejo_login_request(forgejo_user, forgejo_password)
+                forgejo_user, password = sid, forgejo_password(sid)
+            cookies = forgejo_login_request(forgejo_user, password)
             audit("forgejo-login", account=username, target=forgejo_user,
                   result="ok" if cookies else "failed")
             # ?next=<path>: signed in to Forgejo, go on to another page on
@@ -1273,6 +1294,10 @@ setInterval(refresh, 5000);
 
         if path == "/admin/api/status":
             self.handle_status_api()
+            return
+
+        if path.startswith("/admin/api/forgejo-password/"):
+            self.handle_forgejo_password(path[len("/admin/api/forgejo-password/"):])
             return
 
         self.send_response(404)
@@ -1419,6 +1444,23 @@ setInterval(refresh, 5000);
         /admin* basic_auth is the facilitator gate). Reads the snapshot the
         probe thread publishes -- no upstream I/O here."""
         self.send_json(_status_snapshot)
+
+    def handle_forgejo_password(self, sid):
+        """The Roster's "Password" button (remediation T2.1d): one student's
+        own Forgejo password, for when the facilitator helps at a desk.
+        Behind /admin's facilitator gate like the other /admin/api routes;
+        also needs the roster JS's X-Requested-With header, as Release does,
+        so no other page can have a browser fetch it. Logged."""
+        if self.headers.get("X-Requested-With") != "dojo-admin":
+            self.send_response(403)
+            self.end_headers()
+            return
+        if sid not in STUDENT_IDS:
+            self.send_response(404)
+            self.end_headers()
+            return
+        audit("forgejo-password-shown", target=sid)
+        self.send_json({"studentId": sid, "password": forgejo_password(sid)}, headers=NO_STORE_HEADERS)
 
     def handle_sessions_api(self):
         held = [sid for sid in STUDENT_IDS if slots[sid]["name"] is not None]

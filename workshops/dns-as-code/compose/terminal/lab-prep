@@ -89,7 +89,6 @@ open(p, "w").write(s)
 '
     git diff --quiet dnsconfig.js && die "couldn't add $USER-app to dnsconfig.js. Do Lab 3 step 4 by hand."
     echo "    added $USER-app (203.0.113.30) to dnsconfig.js"
-    echo "    Submitting asks for your Forgejo password (shown on your landing page)."
     run python3 scripts/dnsctl.py submit "Add $USER-app.dojo.test" --branch "add-$USER-app" --yes
   fi
   cat <<EOF

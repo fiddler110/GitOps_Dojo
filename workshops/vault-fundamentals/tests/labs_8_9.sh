@@ -1,7 +1,7 @@
 #!/bin/sh
 # vault-fundamentals labs 8-9 (T3.9), with the stack up: runs the labs' steps
-# as one student and checks what each job's log shows. The lab's password
-# prompts are replaced by a ~/.netrc (removed at the end), and the Forgejo UI
+# as one student and checks what each job's log shows. git and curl sign in
+# with the student's own token (the terminal's ~/.netrc), and the Forgejo UI
 # steps (adding and removing a repository secret) by the same API calls. It
 # first removes what an earlier run left (the fork, the clone, the CI roles and
 # secret in the student's namespace), so it can run again. Needs python3 >=
@@ -32,8 +32,9 @@ api DELETE "/repos/$s/vault-fundamentals" >/dev/null
 as 'rm -rf ~/lab/vault-fundamentals; export BAO_NAMESPACE=students/$USER
     bao delete auth/jwt-ci/role/ci-main; bao delete auth/approle/role/ci
     bao kv metadata delete team/ci; bao policy delete ci-read' >/dev/null 2>&1
-printf 'machine git-server login %s password %s\n' "$s" "${STUDENT_PASSWORD:-student123}" \
-  | as 'umask 077; cat > ~/.netrc'
+# The terminal already signed git and curl in with the student's own token
+# (~/.git-credentials, ~/.netrc: remediation T2.1c).
+as 'test -s ~/.netrc' || { echo "FAIL: $s has no ~/.netrc (the terminal's token step)"; exit 1; }
 as 'git config --global user.name "$USER"; git config --global user.email "$USER@dojo.test"' >/dev/null
 
 echo "== lab 8: Forgejo Actions secrets"
@@ -122,5 +123,5 @@ ok "retire AppRole" 'export BAO_NAMESPACE=students/$USER; bao delete auth/approl
 log="$(push_and_read 1 'git rm -q .forgejo/workflows/vault-approle.yml && git commit -qm "drop approle" && git push -q')"
 check "OIDC still works on main" "$log" "deploy token fingerprint: $fp"
 
-as 'rm -f ~/.netrc; git credential-cache exit 2>/dev/null' >/dev/null 2>&1
+as 'git credential-cache exit 2>/dev/null' >/dev/null 2>&1
 [ "$failed" = 0 ] && echo PASS || { echo FAIL; exit 1; }

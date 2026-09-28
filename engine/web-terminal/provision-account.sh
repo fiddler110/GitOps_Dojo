@@ -13,9 +13,15 @@
 # Reads the same environment as entrypoint.sh, with the same defaults. The
 # per-port DOJO_ISOLATION rules stay in entrypoint.sh: they must be appended
 # in order, before the final DROP.
+#
+# Hardening (remediation T2.1, FIND-03): a student's Linux password is
+# locked (only root's `su -` gets in, so one student can't `su` to
+# another), the home is 0700, and git is signed in to Forgejo with the
+# student's own token (forgejo-token.py). DOJO_DEFER_TOKEN=1 skips that last
+# step: the entrypoint runs it for everyone at once, in the background,
+# because Forgejo may still be starting.
 set -eu
 
-student_password="${STUDENT_PASSWORD:-student123}"
 student_prefix="${STUDENT_PREFIX:-student}"
 facilitator_username="${FACILITATOR_USERNAME:-root}"
 lab_seed_dir="${LAB_SEED_DIR:-/opt/lab}"
@@ -114,10 +120,11 @@ EOF
   ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
 
   chown -R "$username:$username" "/home/$username"
+  chmod 700 "/home/$username"
   exit 0
 fi
 
-echo "$username:$student_password" | chpasswd
+usermod -p '!' "$username"
 mkdir -p "/home/$username/lab"
 
 # Copy any lab file the student doesn't already have (new files land on
@@ -218,3 +225,9 @@ fi
 # same as the README.md symlink above.
 rm -f "/home/$username/.zshrc"
 ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
+
+chmod 700 "/home/$username"
+
+if [ "${DOJO_DEFER_TOKEN:-0}" != 1 ]; then
+  python3 /usr/local/lib/dojo/forgejo-token.py --wait 60 "$username"
+fi
