@@ -2,6 +2,8 @@
 
 **Goal:** run the core loop once and see what each step does. All commands run in `~/lab/tofu-basics/sandbox`.
 
+> **Starting here?** This lab needs your fork of the repo, cloned (Lab 0). Run `lab-prep 1` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics/sandbox
 ```

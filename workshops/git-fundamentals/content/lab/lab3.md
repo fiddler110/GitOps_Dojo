@@ -4,6 +4,8 @@
 
 Do this from your `sample-training-repo` clone, on your `add-yourname` branch.
 
+> **Starting here?** This lab needs the sample repo cloned and a branch of your own (Lab 1 step 2). Run `lab-prep 3` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Make an uncommitted edit

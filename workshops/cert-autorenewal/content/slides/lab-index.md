@@ -9,7 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
+<!-- _class: lead lab-index -->
 
 # Labs
 
@@ -25,6 +25,12 @@ footer: '[&larr; Hub](index.md)'
 <p>The complete lab guide, read right here in the browser.</p>
 </div>
 </div>
+
+<p class="setup-label">Labs 3–5 build on your Lab 2 site on demo-app. Starting partway through? Catch up to lab N with:</p>
+
+```sh
+lab-prep 4    # e.g. sets up Lab 2's site and certificate for Lab 4
+```
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Trusting the CA: bootstrap, inspect the root cert</span></li>

@@ -83,7 +83,7 @@ at some point; let that land before moving to the mechanism.
 
 - A cert is issued once, by hand, during a project's setup
 - It works. Nobody touches it again
-- Months later, it expires — often on a weekend, often on the one service
+- <label for="cert-outages" class="pop-trigger">Months later, it expires</label> — often on a weekend, often on the one service
   nobody's looked at recently
 - The person who issued it has moved teams, or forgotten how
 - Renewal becomes an emergency instead of a non-event
@@ -92,6 +92,31 @@ at some point; let that land before moving to the mechanism.
 
 > The manual process isn't wrong on issuance day. It's wrong every day after
 > that, silently, until it isn't.
+
+<div class="pop">
+<input type="checkbox" id="cert-outages" class="pop-toggle">
+<div class="pop-overlay">
+<label for="cert-outages" class="pop-close">close &#10005;</label>
+<h3>Expired certificates, real outages</h3>
+<p class="pop-sub">Every one of these had a known expiry date. Nothing acted on it in time.</p>
+<div class="leak-grid cols-4">
+<div class="leak"><i>2013</i><b>Microsoft Azure</b>Storage's HTTPS certificates expired.<em>Worldwide storage outage, Xbox services hit, SLA credits paid</em></div>
+<div class="leak"><i>2017</i><b>Equifax</b>An expired certificate had turned off traffic inspection.<em>The breach went unseen for 76 days</em></div>
+<div class="leak"><i>2018</i><b>Oculus</b>The Rift's code-signing certificate expired.<em>Every Rift headset stopped working until a manual patch</em></div>
+<div class="leak"><i>2018</i><b>Ericsson (O2, SoftBank)</b>An expired certificate in core network software.<em>Mobile data down for millions, in about 11 countries</em></div>
+<div class="leak"><i>2020</i><b>Microsoft Teams</b>An authentication certificate expired.<em>About 3 hours down, for 20M daily users</em></div>
+<div class="leak"><i>2021</i><b>Epic Games</b>A wildcard certificate used by hundreds of internal services expired.<em>Fortnite, Rocket League and store logins down</em></div>
+<div class="leak"><i>2021</i><b>Let's Encrypt's old root</b>DST Root CA X3 expired, on schedule.<em>Older devices that didn't trust the new root broke</em></div>
+<div class="leak"><i>2023</i><b>Starlink</b>An expired ground-station certificate.<em>Global outage lasting hours</em></div>
+</div>
+<p class="pop-src">Sources: <a href="https://azure.microsoft.com/en-in/blog/windows-azure-service-disruption-from-expired-certificate/" target="_blank" rel="noopener">Microsoft</a>, <a href="https://oversight.house.gov/wp-content/uploads/2018/12/Equifax-Report.pdf" target="_blank" rel="noopener">US House Oversight</a>, <a href="https://techcrunch.com/2018/03/07/all-of-oculuss-rift-headsets-have-stopped-working-due-to-an-expired-certificate/" target="_blank" rel="noopener">TechCrunch</a>, <a href="https://www.theregister.com/2018/12/06/ericsson_o2_telefonica_uk_outage/" target="_blank" rel="noopener">The Register</a>, <a href="https://www.geekwire.com/2020/microsofts-slack-competitor-teams-due-expired-authentication-certificate/" target="_blank" rel="noopener">GeekWire</a>, <a href="https://www.epicgames.com/site/en-US/expiration-date-4-6-2021" target="_blank" rel="noopener">Epic Games</a>, <a href="https://letsencrypt.org/docs/dst-root-ca-x3-expiration-september-2021/" target="_blank" rel="noopener">Let's Encrypt</a>, <a href="https://www.datacenterdynamics.com/en/news/spacex-starlink-outage-caused-by-expired-ground-station-certificates/" target="_blank" rel="noopener">DCD</a>.</p>
+</div>
+</div>
+
+<!--
+Click "Months later, it expires" for the wall of real expired-certificate
+outages; "close" at the top right hides it.
+-->
 
 ---
 

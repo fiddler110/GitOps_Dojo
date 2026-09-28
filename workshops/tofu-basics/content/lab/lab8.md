@@ -2,6 +2,8 @@
 
 **Goal:** make three small edits and predict, before you run `plan`, whether each one is a quiet update (`~`) or a rebuild (`-/+`). Then try forcing a rebuild and meet `create_before_destroy`.
 
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 8` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics
 ```

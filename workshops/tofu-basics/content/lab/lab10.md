@@ -2,6 +2,8 @@
 
 **Goal:** destroy everything you built, prove the cloud is empty, understand what OpenTofu leaves behind, and commit your work.
 
+> **Starting here?** This lab needs something deployed to clean up: hello (Lab 5). Run `lab-prep 10` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics
 ```

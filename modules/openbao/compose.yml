@@ -1,0 +1,156 @@
+# openbao module: one OpenBao server for the class, with its web UI behind
+# the gateway (/ui, /v1, from extensions.json) and single sign-on through
+# Forgejo. Layered on top of engine/docker-compose.yml by engine/run.sh when a
+# workshop.env lists it in MODULES (see README.md). Relative paths resolve
+# against engine/, not this folder.
+
+services:
+  openbao:
+    # 2.7.0, pinned by its multi-arch index digest (amd64
+    # sha256:6d575d906d70d40b9d789149c8dc09897291c5a1707d4d0ba8a459eaaa94c8c4,
+    # arm64 sha256:4ca9310dd2a50c746d4227f44058088ee0470a8470031ee3f09cc8b1a69dd7f6).
+    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    container_name: workshop_openbao
+    command: ["server", "-config=/openbao/config/config.hcl"]
+    volumes:
+      - ../modules/openbao/config.hcl:/openbao/config/config.hcl:ro
+      - openbao_data:/openbao/file
+      - openbao_logs:/openbao/logs
+    networks:
+      - workshop_lab
+    # The public name means this container's own localhost, where the SSO
+    # shim below answers for it. OPENBAO_PUBLIC_HOST comes from module.env.
+    extra_hosts:
+      - "${OPENBAO_PUBLIC_HOST:-localhost}:127.0.0.1"
+    mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
+    restart: unless-stopped
+
+  # SSO shim: Caddy in OpenBao's network namespace, answering for
+  # PUBLIC_BASE_URL and forwarding /git/* to git-server, so OpenBao reaches
+  # Forgejo's OIDC issuer by its public URL (the browser still goes through
+  # the gateway). On an https:// name it serves with its own CA (kept in
+  # openbao_shim_data), which OpenBao is told to trust.
+  openbao-sso-shim:
+    image: gitopsdojo/gateway:local
+    container_name: workshop_openbao_sso_shim
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    network_mode: "service:openbao"
+    # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
+    user: "0:0"
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+    volumes:
+      - ../modules/openbao/sso-shim/Caddyfile:/etc/caddy/Caddyfile:ro
+      - openbao_shim_data:/data
+      - openbao_shim_config:/config
+    depends_on:
+      - openbao
+    # The image's check asks Caddy's admin API, which the shim turns off.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --no-check-certificate \"$$PUBLIC_BASE_URL/git/api/healthz\" || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 64m
+    restart: unless-stopped
+
+  # Init, unseal and first-start set-up (setup/setup.sh). It stays running to
+  # re-unseal whenever openbao restarts sealed. Its key and provisioner token
+  # live on openbao_setup, mounted nowhere else.
+  openbao-setup:
+    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    container_name: workshop_openbao_setup
+    entrypoint: ["sh", "/etc/openbao-setup/setup.sh"]
+    # Root: writes the key and token to the volume. No capabilities needed.
+    user: "0:0"
+    cap_drop:
+      - ALL
+    # For SSO (setup/sso.sh): the Forgejo admin owns OpenBao's OAuth2 app,
+    # and every account gets an identity entity.
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # For CLI login (setup/cli.sh): the facilitator's terminal account.
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+    volumes:
+      - ../modules/openbao/setup:/etc/openbao-setup:ro
+      - openbao_setup:/setup
+      # The SSO shim's CA, which OpenBao must trust on an https:// name.
+      - openbao_shim_data:/shim:ro
+      # The terminal broker's public key, for the jwt auth method.
+      - openbao_broker_pub:/broker:ro
+    tmpfs:
+      - /run/openbao-setup
+    networks:
+      - workshop_lab
+    depends_on:
+      - openbao
+      - openbao-sso-shim
+      - git-server
+    healthcheck:
+      test: ["CMD", "test", "-f", "/run/openbao-setup/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+    mem_limit: 64m
+    restart: unless-stopped
+
+  # The audit trail for students (audit/audit.py): each namespace's admin
+  # reads their own namespace's entries, proving it with their vault token.
+  # The terminal's `bao-audit` calls it.
+  openbao-audit:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_openbao_audit
+    entrypoint: ["python3", "-B", "/opt/openbao-audit/audit.py"]
+    environment:
+      - BAO_ADDR=http://openbao:8200
+      # The facilitator's Audit tab (route /vault-audit): checked like the
+      # Runners panel, since workshop_lab reaches this port directly.
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+    volumes:
+      - ../modules/openbao/audit:/opt/openbao-audit:ro
+      - openbao_logs:/logs:ro
+    # OpenBao's own uid and gid in its image: podman gives a new volume to the
+    # user of whichever container mounts it first, and OpenBao must write it.
+    user: "100:1000"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    depends_on:
+      - openbao
+    # The image's own check sends the gateway token to /; /healthz needs none.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 128m
+    restart: unless-stopped
+
+  # The terminal image gets bao and the identity broker from terminal/ (built
+  # and chained by run.sh). The broker's key stays here; its public half is
+  # shared with openbao-setup.
+  web-terminal:
+    volumes:
+      - openbao_broker_key:/var/lib/openbao-broker
+      - openbao_broker_pub:/run/openbao-broker-pub
+    depends_on:
+      openbao:
+        condition: service_started
+
+volumes:
+  openbao_data:
+  openbao_logs:
+  openbao_shim_data:
+  openbao_shim_config:
+  openbao_setup:
+  openbao_broker_key:
+  openbao_broker_pub:

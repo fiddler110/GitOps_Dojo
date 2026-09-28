@@ -6,6 +6,8 @@ Same protocol, same CA, very different level of transparency into what's
 actually happening. This lab issues a second certificate for comparison —
 it won't touch the live site you built in Lab 2.
 
+> **Starting here?** This lab needs Lab 2's port-80 site on demo-app (steps 1-2). Run `lab-prep 3` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Issue, into a separate directory

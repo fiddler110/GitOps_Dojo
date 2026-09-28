@@ -87,7 +87,14 @@ in the browser.
 - **Take-home handouts** ([`handouts/`](handouts/)): the Git Fundamentals and
   DNS as Code labs adapted for self-paced practice against a student's own
   GitHub account (and, for DNS, a local PowerDNS stack or a real Cloudflare
-  domain).
+  domain). Every workshop's talk is also there as PowerPoint,
+  `handouts/<workshop>_presentation.pptx` (slides as pictures, speaker notes as
+  text), exported by `./run.sh update-decks` (`handouts/build-presentations.sh`;
+  needs podman and internet). The pre-commit hook in `.githooks/` re-exports any
+  deck a commit changes; enable it once per clone with
+  `git config core.hooksPath .githooks`. The `handouts` check in
+  `.github/workflows/` and `.azure-pipelines/` fails a pull request whose decks
+  are out of date.
 - **Azure DevOps edition** of Git Fundamentals
   ([`workshops/git-fundamentals/delivery-azure-devops/`](workshops/git-fundamentals/delivery-azure-devops/)):
   the same session delivered against Azure Repos, with a facilitator guide,
@@ -117,7 +124,7 @@ automation instead of being made by hand.
 | DNS as Code | Ready |
 | Certificate Autorenewal | Ready |
 | OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
-| **Vault Fundamentals** (OpenBao) | Planned: secrets in code, git, pipelines and deployments, on a real OpenBao with CI runners ([`keyvault-workshop-plan.md`](keyvault-workshop-plan.md)). |
+| **Vault Fundamentals** (OpenBao) | In progress on `feat/vault-fundamentals`: labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs are built: the core (OpenBao, single sign-on, passwordless CLI login, namespaces), `pass`, secrets in code and git, CI on single-use autoscaled runners, and deployments (`app-host` with a platform identity per slot, a delivered secret ID, dynamic Postgres logins, an incident drill). The long live pass with demo bots comes next ([`ROADMAP.md`](ROADMAP.md)). Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout
@@ -130,17 +137,22 @@ automation instead of being made by hand.
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
 ├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
 │   ├── forgejo-runner/       # Forgejo Actions runner (dns-as-code)
-│   └── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
+│   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
+│   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
+│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals)
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
 │   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   └── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, tests/
-├── handouts/                 # Take-home versions of the labs
-├── assets/branding/          # Shared branding
-└── keyvault-workshop-plan.md # Plan for the next workshop (vault-fundamentals)
+│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, TEST-PLAN.md, tests/
+│   └── vault-fundamentals/   # In progress; openbao + runner-pool modules, app-host and app-db; PLAN.md, tests/
+├── ROADMAP.md                # All open work (remediation, workshops, reset), linking each detailed plan
+├── threat-model-20260926-154208/  # Threat model report and its REMEDIATION-PLAN.md
+├── handouts/                 # Take-home versions of the labs, and each talk as .pptx
+├── .githooks/                # pre-commit: re-export changed decks to handouts/
+└── assets/branding/          # Shared branding
 ```
 
 ```mermaid
@@ -279,6 +291,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
 | `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
+| `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -888,7 +901,9 @@ graph LR
   a unix socket. The broker asks the kernel who is on the other end
   (`SO_PEERCRED`), so a student can only get their own credentials. The key that
   derives them is readable by root only, and `cloud-api` accepts a token only
-  for that student's own subscription.
+  for that student's own subscription. The `openbao` module's identity broker
+  (vault-fundamentals) works the same way: it signs a short-lived JWT only for
+  the account on the other end of its socket, which OpenBao trades for a token.
 
 ### Who can reach what
 
@@ -900,6 +915,7 @@ blocked by network isolation or never routed.
 | Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
 | `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
 | `forgejo-runner` (dns-as-code) | ✓ | — | ✓ | — | — | — | — |
+| `runner-pool` (vault-fundamentals; also `openbao`, `app-host`) | ✓ | — | — | — | — | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |

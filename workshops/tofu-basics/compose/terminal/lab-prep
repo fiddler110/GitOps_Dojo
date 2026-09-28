@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# from, so someone joining late (or coming back another day) can resume there
+# instead of redoing every earlier lab. Each step checks before it acts, so
+# running it twice, or after doing some labs by hand, is safe. It only moves
+# forward: it never runs destroy or undoes an edit.
+#
+# What each lab needs (keep in step with content/lab/*.md when a lab changes):
+#   1-3   your fork of iac-team/tofu-basics, cloned to ~/lab/tofu-basics (Lab 0)
+#   2-3   the sandbox applied (Lab 1)
+#   3     learner set in sandbox/terraform.tfvars, applied (Lab 2)
+#   4     the clone only: Track B doesn't use the sandbox
+#   5     `terraform init` in the repo root (Lab 4)
+#   6-10  hello deployed to Dojo Cloud (Lab 5). Labs 9 and 10 run fine without
+#         Lab 8's edits or Lab 9's extra site, so lab-prep doesn't make them.
+set -euo pipefail
+
+GIT_SERVER=http://git-server:3000
+API=$GIT_SERVER/api/v1
+TEAM_REPO=iac-team/tofu-basics
+REPO_DIR=$HOME/lab/tofu-basics
+LAST_LAB=10
+
+say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+done_() { printf '    already done: %s\n' "$*"; }
+run()  { printf '    $ %s\n' "$*"; "$@"; }
+die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+Usage: lab-prep <lab>       (0-$LAST_LAB)
+
+Sets up everything the earlier labs would have left behind, so you can start
+lab <lab> right away. Safe to run more than once. It never runs destroy
+or undoes an edit you made.
+
+  lab-prep 5    fork + clone the repo, and terraform init for Dojo Cloud
+  lab-prep 9    ...and deploy hello
+EOF
+}
+
+# Track B needs this account's Dojo Cloud credentials. An interactive zsh gets
+# them from /etc/zsh/zshenv; do the same here in case we were started from a
+# shell that didn't (same pattern as content/bots/steps.sh).
+ensure_cloud_creds() {
+  if [ -z "${ARM_CLIENT_ID:-}" ] && [ -x /usr/local/bin/dojo-env ]; then
+    eval "$(/usr/local/bin/dojo-env 2>/dev/null)" || true
+  fi
+  [ -n "${ARM_CLIENT_ID:-}" ] ||
+    die "no Dojo Cloud credentials for $USER yet. Wait a minute and try again, or ask the facilitator."
+}
+
+# -- Lab 0: fork, then clone the fork -----------------------------------------
+fork_and_clone() {
+  say "Lab 0: your fork of $TEAM_REPO, cloned to ~/lab/tofu-basics"
+  if [ -d "$REPO_DIR/.git" ]; then
+    done_ "$REPO_DIR exists"
+    return
+  fi
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API/repos/$USER/tofu-basics")" = 200 ]; then
+    done_ "fork $USER/tofu-basics exists"
+  else
+    echo "    Forking asks for your Forgejo password (shown on your landing page)."
+    # 202 = forked now, 409 = already forked (e.g. private, so the check above
+    # couldn't see it). Anything else is a real failure.
+    code=$(curl -s -o /dev/null -w '%{http_code}' -u "$USER" \
+      -H 'Content-Type: application/json' -d '{}' "$API/repos/$TEAM_REPO/forks")
+    case "$code" in
+      202|409) echo "    fork ready (HTTP $code)" ;;
+      401) die "wrong password for $USER. Run lab-prep again." ;;
+      *) die "forking failed (HTTP $code). Try Lab 0 step 1 by hand." ;;
+    esac
+  fi
+  mkdir -p "$HOME/lab"
+  (cd "$HOME/lab" && run git clone "$GIT_SERVER/$USER/tofu-basics.git")
+}
+
+# -- Track A: the sandbox -----------------------------------------------------
+sandbox_apply() {
+  say "Lab 1: apply the sandbox"
+  cd "$REPO_DIR/sandbox"
+  [ -d .terraform ] || run terraform init -input=false
+  if [ -n "$(terraform state list 2>/dev/null)" ]; then
+    done_ "sandbox is applied"
+  else
+    run terraform apply -auto-approve -input=false
+  fi
+}
+
+sandbox_learner() {
+  say "Lab 2: put your name in the sandbox"
+  cd "$REPO_DIR/sandbox"
+  if grep -q '^learner *= *"student"' terraform.tfvars; then
+    # The lab asks for a first name; the account name is a fine stand-in.
+    run sed -i "s/^learner *= *\"student\"/learner  = \"$USER\"/" terraform.tfvars
+  else
+    done_ "learner is already set"
+  fi
+  run terraform apply -auto-approve -input=false
+}
+
+# -- Track B: Dojo Cloud ------------------------------------------------------
+cloud_init() {
+  say "Lab 4: terraform init for Dojo Cloud"
+  cd "$REPO_DIR"
+  if [ -d .terraform ]; then
+    done_ ".terraform exists"
+  else
+    run terraform init -input=false
+  fi
+}
+
+cloud_apply() {
+  say "Deploy to Dojo Cloud"
+  cd "$REPO_DIR"
+  run terraform apply -auto-approve -input=false
+}
+
+# -----------------------------------------------------------------------------
+case "${1:-}" in
+  -h|--help|"") usage; exit 0 ;;
+esac
+lab=$1
+[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+
+if [ "$lab" -eq 0 ]; then
+  echo "Lab 0 is the start: nothing to set up. Open lab0.md and go."
+  exit 0
+fi
+
+fork_and_clone
+if [ "$lab" -le 3 ]; then
+  [ "$lab" -ge 2 ] && sandbox_apply
+  [ "$lab" -ge 3 ] && sandbox_learner
+elif [ "$lab" -ge 5 ]; then
+  ensure_cloud_creds
+  cloud_init
+  [ "$lab" -ge 6 ] && cloud_apply
+fi
+
+cd "$REPO_DIR"
+say "Ready for Lab $lab"
+echo "    cd ~/lab/tofu-basics    then open lab$lab.md"
+if [ -n "$(git status --short)" ]; then
+  echo "    Files changed so far (git status):"
+  git status --short | sed 's/^/      /'
+fi

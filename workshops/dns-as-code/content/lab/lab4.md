@@ -11,6 +11,8 @@ git pull
 git status   # should be clean — finish or discard anything from Lab 3 first
 ```
 
+> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Check your setup

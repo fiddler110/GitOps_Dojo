@@ -2,6 +2,8 @@
 
 **Goal:** make three deliberate mistakes, read the errors the cloud gives back, and learn where each kind of mistake gets caught.
 
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 6` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics
 ```

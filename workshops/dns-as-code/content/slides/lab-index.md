@@ -9,7 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
+<!-- _class: lead lab-index -->
 
 # Labs
 
@@ -25,6 +25,14 @@ footer: '[&larr; Hub](index.md)'
 <p>The complete lab guide, read right here in the browser.</p>
 </div>
 </div>
+
+<p class="setup-label">Labs 3–6 work in the shared repo. Clone it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
+
+```sh
+cd ~/lab
+git clone http://git-server:3000/dns-team/dns-as-code.git
+cd dns-as-code
+```
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Your own zone: preview, push, verify; add, edit, remove</span></li>

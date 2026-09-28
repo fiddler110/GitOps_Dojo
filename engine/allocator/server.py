@@ -202,6 +202,16 @@ def control_request(method, path):
         return None
 
 
+def local_path(value):
+    """`value` if it is a path on this site (for /forgejo-login?next=), else
+    None: one leading '/', no backslash (browsers read "/\\host" as
+    "//host"), printable ASCII only."""
+    if (value.startswith("/") and not value.startswith("//") and "\\" not in value
+            and all("!" <= c <= "~" for c in value)):
+        return value
+    return None
+
+
 def forgejo_login_request(username, password):
     """POST straight to Forgejo's own login form over the internal network
     and return the raw Set-Cookie header values from its response, in
@@ -783,21 +793,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         "active" genuinely changes over a session -- just without touching
         that tile's iframe."""
         body = """
-<div id="bar">
-  <div>
+<nav id="side">
+  <div id="bar">
     <h1>Facilitator</h1>
     <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
   </div>
-  <div id="status" role="group" aria-label="Service status"></div>
-</div>
-<div class="tabs">
+  <div class="tabs" role="tablist" aria-orientation="vertical">
   <button class="tab active" data-tab="roster">Roster</button>
   <button class="tab" data-tab="ide">VS Code</button>
   <button class="tab" data-tab="term">Terminal</button>
   <button class="tab" data-tab="forgejo">Forgejo</button>
   <button class="tab" data-tab="slides">Slides</button>
-EXT_TABS_PLACEHOLDER</div>
+EXT_TABS_PLACEHOLDER  </div>
+  <div id="status" role="group" aria-label="Service status"></div>
+</nav>
 
+<main id="main">
 <div class="panel active" id="panel-roster">
   <p id="empty" class="sub">No students connected yet.</p>
   <div id="grid"></div>
@@ -807,7 +818,7 @@ EXT_TABS_PLACEHOLDER</div>
 <div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
 <div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
 <div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
-EXT_PANELS_PLACEHOLDER
+EXT_PANELS_PLACEHOLDER</main>
 <script>
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -1069,16 +1080,20 @@ setInterval(refresh, 5000);
   :root {{ color-scheme: light dark; }}
   * {{ box-sizing: border-box; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          max-width: 1400px; margin: 0 auto; padding: 1.25rem 1.5rem 2rem;
+          margin: 0; height: 100vh; display: flex; overflow: hidden;
           color: #1a1a1a; background: #fafafa; }}
   @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  h1 {{ font-size: 1.4rem; margin: 0 0 0.15rem; }}
+  #side {{ flex: none; width: 13.5rem; display: flex; flex-direction: column; gap: 1.1rem;
+           padding: 1.1rem 0.75rem; overflow-y: auto; border-right: 1px solid #ddd; background: #f3f3f3; }}
+  @media (prefers-color-scheme: dark) {{ #side {{ border-right-color: #333; background: #121212; }} }}
+  #main {{ flex: 1; min-width: 0; overflow: auto; padding: 0.75rem; }}
+  h1 {{ font-size: 1.3rem; margin: 0 0 0.15rem; }}
   .sub {{ opacity: 0.7; }}
-  #bar {{ display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.5rem 1.5rem; }}
-  #status {{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem 0.4rem; }}
+  #bar .sub {{ margin: 0.25rem 0 0; font-size: 0.9rem; }}
+  #status {{ display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: auto; }}
   #status.stale {{ opacity: 0.45; }}
   .svc {{ display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
-          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; white-space: nowrap; cursor: default; }}
+          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; max-width: 100%; cursor: default; }}
   @media (prefers-color-scheme: dark) {{ .svc {{ border-color: #333; background: #1f1f1f; }} }}
   .svc-dot {{ width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }}
   .svc.green .svc-dot {{ background: #16a34a; }}
@@ -1096,15 +1111,21 @@ setInterval(refresh, 5000);
           padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
   @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
   button {{ font: inherit; }}
-  .tabs {{ display: flex; gap: 0.25rem; flex-wrap: wrap; border-bottom: 2px solid #ddd; margin: 1.25rem 0 1.25rem; }}
-  @media (prefers-color-scheme: dark) {{ .tabs {{ border-bottom-color: #333; }} }}
-  .tab {{ padding: 0.55rem 1.1rem; font-size: 0.95rem; border: none; background: none; cursor: pointer;
-          color: inherit; opacity: 0.6; border-bottom: 2px solid transparent; margin-bottom: -2px; }}
-  .tab:hover {{ opacity: 0.85; }}
-  .tab.active {{ opacity: 1; border-bottom-color: #2563eb; font-weight: 600; }}
+  .tabs {{ display: flex; flex-direction: column; gap: 0.15rem; }}
+  .tab {{ padding: 0.55rem 0.8rem; font-size: 0.95rem; border: none; background: none; cursor: pointer; text-align: left;
+          color: inherit; opacity: 0.65; border-left: 3px solid transparent; border-radius: 0 0.35rem 0.35rem 0; }}
+  .tab:hover {{ opacity: 0.9; background: rgba(127, 127, 127, 0.12); }}
+  .tab.active {{ opacity: 1; border-left-color: #2563eb; background: rgba(37, 99, 235, 0.1); font-weight: 600; }}
   .panel {{ display: none; }}
   .panel.active {{ display: block; }}
-  .panel iframe {{ width: 100%; height: calc(100vh - 200px); min-height: 400px; border: 0; border-radius: 0.5rem; }}
+  .panel iframe {{ display: block; width: 100%; height: calc(100vh - 1.5rem); min-height: 400px; border: 0; border-radius: 0.5rem; }}
+  @media (max-width: 700px) {{
+    body {{ flex-direction: column; height: auto; overflow: visible; }}
+    #side {{ width: auto; border-right: none; border-bottom: 1px solid #ddd; }}
+    .tabs {{ flex-direction: row; flex-wrap: wrap; }}
+    #status {{ flex-direction: row; flex-wrap: wrap; margin-top: 0; }}
+    #main {{ overflow: visible; }}
+  }}
   #grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }}
   .tile {{ border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
            display: flex; flex-direction: column; height: 280px; }}
@@ -1133,7 +1154,7 @@ setInterval(refresh, 5000);
   .tile iframe {{ position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
           background: #000; transform-origin: top left; }}
   #grid.has-enlarged .tile {{ display: none; }}
-  #grid.has-enlarged .tile.enlarged {{ display: flex; grid-column: 1 / -1; height: 80vh; }}
+  #grid.has-enlarged .tile.enlarged {{ display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }}
 </style></head>
 <body>{body}</body></html>"""
 
@@ -1178,8 +1199,11 @@ setInterval(refresh, 5000);
             else:
                 forgejo_user, forgejo_password = sid, STUDENT_PASSWORD
             cookies = forgejo_login_request(forgejo_user, forgejo_password)
+            # ?next=<path>: signed in to Forgejo, go on to another page on
+            # this site (a module's OIDC sign-in, say). Anything else: the repo.
+            nxt = urllib.parse.parse_qs(parsed.query).get("next", [""])[0]
             self.send_response(303)
-            self.send_header("Location", f"/git/{FORGEJO_ORG}/{FORGEJO_REPO}")
+            self.send_header("Location", local_path(nxt) or f"/git/{FORGEJO_ORG}/{FORGEJO_REPO}")
             for cookie in cookies:
                 self.send_header("Set-Cookie", cookie)
             self.send_header("Content-Length", "0")

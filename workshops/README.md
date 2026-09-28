@@ -15,6 +15,7 @@ one workshop can use live in [`../modules/`](../modules/).
 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `forgejo-runner` | `./run.sh dns-as-code` |
 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | — | `./run.sh cert-autorenewal` |
 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
+| [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
 
 `./run.sh list` prints this same list from each workshop's `workshop.env`;
 `./run.sh modules` lists the modules and which workshops use them.
@@ -215,5 +216,5 @@ Rules for `compose.yml`:
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
 
-Existing modules: [`forgejo-runner`](../modules/forgejo-runner/) and
-[`dojo-cloud`](../modules/dojo-cloud/).
+Existing modules: [`forgejo-runner`](../modules/forgejo-runner/), [`dojo-cloud`](../modules/dojo-cloud/),
+[`openbao`](../modules/openbao/) and [`runner-pool`](../modules/runner-pool/).

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apps</title>
+<link rel="stylesheet" href="panel.css">
+<script src="panel.js" defer></script>
+</head>
+<body>
+<header>
+  <h1 id="title">My app</h1>
+  <p class="sub" id="sub">Your slot on app-host, the platform your pipeline deploys to (Lab 11).</p>
+</header>
+<p id="error" class="error" hidden></p>
+<p id="empty" class="empty" hidden>No slot for this account: slots are for student accounts.</p>
+<div id="slots"></div>
+<template id="slot-card">
+  <section class="slot">
+    <div class="head">
+      <span class="light"></span>
+      <strong class="name"></strong>
+      <span class="state"></span>
+      <a class="open" target="_blank" rel="noopener">Open the app</a>
+    </div>
+    <dl>
+      <div><dt>Deployed</dt><dd class="deployed"></dd></div>
+      <div><dt>By</dt><dd class="actor"></dd></div>
+      <div><dt>Platform token</dt><dd class="token"></dd></div>
+      <div><dt>Restarts</dt><dd class="restarts"></dd></div>
+    </dl>
+    <details>
+      <summary>Log</summary>
+      <pre class="log"></pre>
+    </details>
+  </section>
+</template>
+</body>
+</html>

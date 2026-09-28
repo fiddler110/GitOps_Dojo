@@ -135,3 +135,41 @@ tr:nth-child(even) { background: rgba(105, 174, 232, 0.05) !important; }
 .two-column { columns: 2; column-gap: 64px; }
 .command { color: var(--cyan) !important; }
 footer { color: var(--muted) !important; font-size: 16px; }
+
+/* Click-to-open overlay ("wall" of real incidents behind a claim on a slide).
+   A hidden checkbox and its <label>, so it needs no script. Markup:
+     <label for="ID" class="pop-trigger">claim</label>   (anywhere on the slide)
+     <div class="pop"><input type="checkbox" id="ID" class="pop-toggle">
+     <div class="pop-overlay"><label for="ID" class="pop-close">close &#10005;</label>
+     <h3>..</h3><p class="pop-sub">..</p>
+     <div class="leak-grid cols-4"><div class="leak"><i>year</i><b>who</b>what<em>impact</em></div>...</div>
+     <p class="pop-src">Sources: ..</p></div></div>
+   IDs must be unique per deck. Used by vault-fundamentals, cert-autorenewal,
+   dns-as-code and tofu-basics. */
+.pop-trigger { cursor: pointer; color: var(--teal); font-weight: 700; border-bottom: 2px dotted var(--teal); }
+.pop-trigger::after { content: " \2197"; font-size: 0.7em; vertical-align: super; }
+.pop-toggle { display: none; }
+.pop-overlay { position: absolute; inset: 0; z-index: 20; padding: 36px 56px; background: #0a1117;
+  opacity: 0; visibility: hidden; transform: scale(0.96); transition: opacity .25s, transform .25s, visibility .25s; }
+.pop-toggle:checked + .pop-overlay { opacity: 1; visibility: visible; transform: none; }
+.pop-overlay h3 { margin: 0 0 4px; font-size: 30px; }
+.pop-overlay .pop-sub { margin: 0 0 16px; font-size: 18px; color: var(--muted); }
+.pop-overlay .pop-close { position: absolute; top: 28px; right: 44px; cursor: pointer; font-size: 18px; color: var(--muted); }
+.leak-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.leak-grid.cols-3 { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.leak-grid.cols-4 { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.leak-grid.cols-3 .leak, .leak-grid.cols-4 .leak { font-size: 17px; padding: 12px 14px; }
+.leak-grid.cols-3 .leak b, .leak-grid.cols-4 .leak b { font-size: 19px; }
+.leak { background: var(--surface-raised); border: 1px solid var(--line); border-top: 3px solid var(--teal); border-radius: 6px;
+  padding: 10px 12px; font-size: 15px; line-height: 1.35; opacity: 0; transform: translateY(12px); }
+.leak b { display: block; font-size: 17px; color: var(--text); }
+.leak i { display: block; font-style: normal; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.leak em { display: block; font-style: normal; color: #f0b95b; margin-top: 6px; }
+.pop-toggle:checked + .pop-overlay .leak { animation: leak-in .35s ease-out forwards; }
+.leak:nth-child(2) { animation-delay: .06s !important; } .leak:nth-child(3) { animation-delay: .12s !important; }
+.leak:nth-child(4) { animation-delay: .18s !important; } .leak:nth-child(5) { animation-delay: .24s !important; }
+.leak:nth-child(6) { animation-delay: .30s !important; } .leak:nth-child(7) { animation-delay: .36s !important; }
+.leak:nth-child(8) { animation-delay: .42s !important; } .leak:nth-child(9) { animation-delay: .48s !important; }
+.leak:nth-child(10) { animation-delay: .54s !important; }
+@keyframes leak-in { to { opacity: 1; transform: none; } }
+.pop-overlay .pop-src { margin-top: 14px; font-size: 16px; color: var(--muted); }

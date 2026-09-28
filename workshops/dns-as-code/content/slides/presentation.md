@@ -85,11 +85,36 @@ both make sense later.
 - Clicks around, changes a record
 - No review, no diff, no history of *why*
 - "Who changed the MX record last Tuesday?" — nobody knows
-- A typo in an A record takes down a service with zero warning
+- A typo in an A record <label for="dns-outages" class="pop-trigger">takes down a service with zero warning</label>
 
 </div>
 
 > The dashboard *is* the audit log — and it's not a very good one.
+
+<div class="pop">
+<input type="checkbox" id="dns-outages" class="pop-toggle">
+<div class="pop-overlay">
+<label for="dns-outages" class="pop-close">close &#10005;</label>
+<h3>One DNS change, everything down</h3>
+<p class="pop-sub">Routine changes, big outages: DNS sits in front of everything else.</p>
+<div class="leak-grid cols-4">
+<div class="leak"><i>2009</i><b>.se (Sweden)</b>A script left the trailing dot off every record.<em>The whole .se domain offline for about 1.5 hours</em></div>
+<div class="leak"><i>2019</i><b>Microsoft Azure</b>A nameserver delegation change during a DNS migration.<em>Microsoft 365, Dynamics and DevOps down worldwide, ~2 hours</em></div>
+<div class="leak"><i>2021</i><b>Salesforce</b>A DNS change pushed everywhere at once, through the emergency process.<em>Global outage of about 5 hours</em></div>
+<div class="leak"><i>2021</i><b>Akamai</b>A configuration update hit a bug in Edge DNS.<em>Banks, airlines and more unreachable for an hour</em></div>
+<div class="leak"><i>2021</i><b>Slack</b>A DNSSEC change, then a rollback some resolvers didn't see.<em>Some users cut off for 24 hours</em></div>
+<div class="leak"><i>2021</i><b>Facebook</b>A maintenance command cut the backbone; its DNS servers went dark.<em>Facebook, Instagram, WhatsApp down 7+ hours</em></div>
+<div class="leak"><i>2025</i><b>Cloudflare 1.1.1.1</b>A June config mistake, set off by a July change.<em>The resolver offline worldwide for 62 minutes</em></div>
+<div class="leak"><i>2025</i><b>AWS</b>Automation left DynamoDB's DNS record empty.<em>us-east-1 disrupted for about 15 hours</em></div>
+</div>
+<p class="pop-src">Sources: <a href="https://www.theregister.com/on-prem/2009/10/13/missing-dot-sends-sweden-tumbling-off-internet/744915" target="_blank" rel="noopener">The Register (.se)</a>, <a href="https://www.theregister.com/2019/05/02/microsoft_azure_outage_dns/" target="_blank" rel="noopener">The Register (Azure)</a>, <a href="https://www.theregister.com/2021/05/19/salesforce_root_cause" target="_blank" rel="noopener">The Register (Salesforce)</a>, <a href="https://www.akamai.com/blog/news/akamai-summarizes-service-disruption-resolved" target="_blank" rel="noopener">Akamai</a>, <a href="https://slack.engineering/what-happened-during-slacks-dnssec-rollout/" target="_blank" rel="noopener">Slack</a>, <a href="https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/" target="_blank" rel="noopener">Meta</a>, <a href="https://blog.cloudflare.com/cloudflare-1-1-1-1-incident-on-july-14-2025/" target="_blank" rel="noopener">Cloudflare</a>, <a href="https://www.thousandeyes.com/blog/aws-outage-analysis-october-20-2025" target="_blank" rel="noopener">ThousandEyes (AWS)</a>.</p>
+</div>
+</div>
+
+<!--
+Click "takes down a service with zero warning" for the wall of real DNS
+outages; "close" at the top right hides it.
+-->
 
 ---
 

@@ -160,3 +160,18 @@ footer { color: var(--muted) !important; font-size: 16px; }
 }
 .lab-links li { break-inside: avoid; margin-bottom: 10px; }
 .lab-links .topic { color: var(--muted) !important; display: block; font-size: 17px; }
+/* lab-index.md with a setup step: section class "lab-index". Slimmer
+   cards make room for one short code block (the commands every lab
+   needs, whichever one a student starts from) above the lab list.
+   !important for the same reason as above: Marp's default theme wins. */
+.lab-index h1 { font-size: 44px !important; margin: 0 0 6px !important; padding-bottom: 10px !important; }
+.lab-index .nav { font-size: 18px !important; margin: 6px 0 0 !important; }
+.lab-index .cards { gap: 16px !important; margin-top: 14px !important; }
+.lab-index .cards > div { padding: 8px 18px !important; }
+.lab-index .cards h3 { font-size: 24px !important; margin: 0 !important; }
+.lab-index .cards p { font-size: 16px !important; }
+.lab-index .setup-label { color: var(--muted) !important; font-size: 17px !important; margin: 10px 0 6px !important; }
+.lab-index marp-pre { font-size: 17px !important; margin: 0 !important; padding: 8px 14px !important; }
+.lab-index .lab-links { columns: 3; font-size: 19px !important; margin-top: 14px !important; }
+.lab-index .lab-links li { margin-bottom: 4px !important; }
+.lab-index .lab-links .topic { font-size: 14px !important; }

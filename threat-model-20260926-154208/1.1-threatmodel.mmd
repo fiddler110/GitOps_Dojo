@@ -1,0 +1,104 @@
+flowchart LR
+%%{init: {'theme': 'base', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'lineColor': '#666666' }}}%%
+    classDef process fill:#6baed6,stroke:#2171b5,stroke-width:2px,color:#000000
+    classDef external fill:#fdae61,stroke:#d94701,stroke-width:2px,color:#000000
+    classDef datastore fill:#74c476,stroke:#238b45,stroke-width:2px,color:#000000
+
+    EndUser["EndUser (Student Browser)"]:::external
+    Operator["Operator (Facilitator)"]:::external
+
+    subgraph LabHost["Lab Host"]
+        RunScript(("RunScript")):::process
+        EnvFile[("EnvFile")]:::datastore
+    end
+
+    subgraph PublicEdge["Public Edge"]
+        Gateway(("Gateway")):::process
+        Presentation(("Presentation")):::process
+    end
+
+    subgraph WorkshopLab["workshop_lab Network"]
+        Allocator(("Allocator")):::process
+        Forgejo(("Forgejo")):::process
+        ForgejoData[("ForgejoData")]:::datastore
+        CloudAPI(("CloudAPI")):::process
+        OpenBao(("OpenBao")):::process
+        OpenBaoSetup(("OpenBaoSetup")):::process
+        OpenBaoSetupVolume[("OpenBaoSetupVolume")]:::datastore
+        RunnerController(("RunnerController")):::process
+        AppHost(("AppHost")):::process
+        PostgreSQL[("PostgreSQL")]:::datastore
+        DNSAPI(("DNSAPI")):::process
+        PowerDNS(("PowerDNS")):::process
+        PowerDNSAdmin(("PowerDNSAdmin")):::process
+        StepCA(("StepCA")):::process
+    end
+
+    subgraph WebTerminalContainer["Shared Terminal Container"]
+        WorkspaceControl(("WorkspaceControl")):::process
+        WebTerminal(("WebTerminal")):::process
+        DojoBroker(("DojoBroker")):::process
+        OpenBaoBroker(("OpenBaoBroker")):::process
+        TerminalHome[("TerminalHome")]:::datastore
+    end
+
+    subgraph RunnerNet["runner_net Network"]
+        RunnerPool(("RunnerPool")):::process
+        ForgejoRunner(("ForgejoRunner")):::process
+    end
+
+    subgraph CloudNet["cloud_net Network"]
+        CloudHost(("CloudHost")):::process
+    end
+
+    EndUser <-->|"DF01: HTTPS/HTTP + shared Basic Auth"| Gateway
+    Operator <-->|"DF02: HTTPS/HTTP + facilitator Basic Auth"| Gateway
+    Gateway <-->|"DF03: HTTP + X-Auth-User, X-Gateway-Token"| Allocator
+    Gateway <-->|"DF04: HTTP/WebSocket code-server, ttyd"| WebTerminal
+    Gateway <-->|"DF05: HTTP /git"| Forgejo
+    Gateway <-->|"DF06: HTTP /slides"| Presentation
+    Allocator <-->|"DF07: HTTP + X-Control-Token"| WorkspaceControl
+    Allocator <-->|"DF08: HTTP login POST (SSO)"| Forgejo
+    WorkspaceControl <-->|"DF09: su spawn code-server, ttyd"| WebTerminal
+    WebTerminal <-->|"DF10: File I/O"| TerminalHome
+    WebTerminal <-->|"DF11: git HTTP + password"| Forgejo
+    WebTerminal <-->|"DF12: Unix socket SO_PEERCRED"| DojoBroker
+    WebTerminal <-->|"DF13: Unix socket SO_PEERCRED"| OpenBaoBroker
+    WebTerminal <-->|"DF14: HTTPS ARM API + JWT"| CloudAPI
+    WebTerminal <-->|"DF15: HTTP bao API"| OpenBao
+    WebTerminal <-->|"DF16: HTTP dnscontrol + public key"| DNSAPI
+    WebTerminal <-->|"DF17: HTTPS ACME"| StepCA
+    Gateway <-->|"DF18: HTTP portal + identity headers"| CloudAPI
+    Gateway <-->|"DF19: HTTP /openbao UI"| OpenBao
+    Gateway <-->|"DF20: HTTP Runners panel"| RunnerController
+    Gateway <-->|"DF21: HTTP app panel, apps"| AppHost
+    Gateway <-->|"DF22: HTTP remote-user"| PowerDNSAdmin
+    CloudAPI <-->|"DF23: Docker API Unix socket"| CloudHost
+    OpenBaoSetup <-->|"DF24: HTTP init, unseal, provision"| OpenBao
+    OpenBaoSetup <-->|"DF25: File I/O"| OpenBaoSetupVolume
+    OpenBao <-->|"DF26: OIDC"| Forgejo
+    OpenBao <-->|"DF27: PostgreSQL wire"| PostgreSQL
+    RunnerPool <-->|"DF28: HTTP runner protocol"| Forgejo
+    RunnerController <-->|"DF29: HTTP admin API"| Forgejo
+    RunnerPool <-->|"DF30: HTTP JWT login"| OpenBao
+    RunnerPool <-->|"DF31: HTTP deploy + ID token"| AppHost
+    AppHost <-->|"DF32: HTTP platform login"| OpenBao
+    AppHost <-->|"DF33: PostgreSQL wire"| PostgreSQL
+    ForgejoRunner <-->|"DF34: HTTP runner protocol"| Forgejo
+    ForgejoRunner <-->|"DF35: HTTP dnscontrol push"| DNSAPI
+    DNSAPI <-->|"DF36: HTTP API + real key"| PowerDNS
+    PowerDNSAdmin <-->|"DF37: HTTP API + real key"| PowerDNS
+    Forgejo <-->|"DF38: File I/O SQLite"| ForgejoData
+    RunScript <-->|"DF39: File I/O"| EnvFile
+    RunScript <-->|"DF40: compose up, rendered config"| Gateway
+    StepCA <-->|"DF41: DNS challenge lookup"| PowerDNS
+    Operator <-->|"DF42: Shell ./run.sh"| RunScript
+
+    style LabHost fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style PublicEdge fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style WorkshopLab fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style WebTerminalContainer fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style RunnerNet fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+    style CloudNet fill:none,stroke:#e31a1c,stroke-width:3px,stroke-dasharray: 5 5
+
+    linkStyle default stroke:#666666,stroke-width:2px

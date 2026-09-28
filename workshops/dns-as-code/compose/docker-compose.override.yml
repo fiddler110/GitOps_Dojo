@@ -106,8 +106,11 @@ services:
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
       - DNS_REQUIRED_APPROVALS=${DNS_REQUIRED_APPROVALS:-1}
+    # The Forgejo image declares VOLUME /data; naming it lets ./run.sh stop
+    # remove it (an anonymous one is left behind).
     volumes:
       - ../workshops/dns-as-code/compose/gates/protect-main.sh:/protect-main.sh:ro
+      - dns_gates_data:/data
     entrypoint: ["/bin/sh", "/protect-main.sh"]
     networks:
       - runner_net
@@ -128,3 +131,6 @@ services:
   forgejo-runner:
     build:
       context: ../workshops/dns-as-code/compose/runner
+
+volumes:
+  dns_gates_data:

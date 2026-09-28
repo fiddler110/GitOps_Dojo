@@ -148,3 +148,7 @@ body {
 }
 
 .lab-content th { background: var(--panel); }
+
+/* ```mermaid diagrams (see drawMermaid in lab-reader.js). */
+.lab-content pre.mermaid { text-align: center; }
+.lab-content pre.mermaid svg { max-width: 100%; height: auto; }

@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# from, so someone joining late (or coming back another day) can resume there
+# instead of redoing every earlier lab. Each step checks before it acts, so
+# running it twice, or after doing some labs by hand, is safe. It only moves
+# forward: it never reverts, resets or undoes an edit.
+#
+# What each lab needs (keep in step with content/lab/*.md when a lab changes):
+#   1     nothing: ~/lab/my-zone is seeded for every account
+#   2     your zone pushed to the server (Lab 1 step 3); Lab 1's extra records
+#         aren't needed
+#   3     nothing: its step 1 clones the shared repo
+#   4-6   the shared repo cloned to ~/lab/dns-as-code (Lab 4 step 1 runs
+#         dnsctl.py setup itself, and no other lab needs it)
+#   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
+#         classmate's approval, so lab-prep opens the pull request and stops.
+set -euo pipefail
+
+GIT_SERVER=http://git-server:3000
+SHARED_REPO=dns-team/dns-as-code
+ZONE_DIR=$HOME/lab/my-zone
+REPO_DIR=$HOME/lab/dns-as-code
+LAST_LAB=6
+
+say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+done_() { printf '    already done: %s\n' "$*"; }
+run()  { printf '    $ %s\n' "$*"; "$@"; }
+die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+Usage: lab-prep <lab>       (1-$LAST_LAB)
+
+Sets up everything the earlier labs would have left behind, so you can start
+lab <lab> right away. Safe to run more than once. It never reverts or undoes
+an edit you made.
+
+  lab-prep 2    push your own zone to the server
+  lab-prep 4    clone the shared repo
+EOF
+}
+
+# -- Lab 1: your own zone -----------------------------------------------------
+zone_pushed() {
+  say "Lab 1 step 3: push $USER.dojo.test to the server"
+  [ -d "$ZONE_DIR/.git" ] || die "$ZONE_DIR is missing. Ask the facilitator."
+  cd "$ZONE_DIR"
+  # push is a no-op when the zone already matches the file.
+  run dnscontrol push
+}
+
+# -- Part 2: the shared repo --------------------------------------------------
+clone_shared() {
+  say "Lab 3 step 1: clone $SHARED_REPO to ~/lab/dns-as-code"
+  if [ -d "$REPO_DIR/.git" ]; then
+    done_ "$REPO_DIR exists"
+  else
+    mkdir -p "$HOME/lab"
+    (cd "$HOME/lab" && run git clone "$GIT_SERVER/$SHARED_REPO.git")
+  fi
+  cd "$REPO_DIR"
+}
+
+# Lab 5 rolls back your Lab 3 record, so it has to be on main already.
+# Returns 1 when the pull request still needs a classmate's approval.
+lab3_record() {
+  say "Lab 3: your $USER-app record, merged into dojo.test"
+  cd "$REPO_DIR"
+  run git fetch -q origin
+  if grep -q "\"$USER-app\"" <(git show origin/main:dnsconfig.js); then
+    done_ "$USER-app is on main"
+    return 0
+  fi
+  if git ls-remote --exit-code --heads origin "add-$USER-app" >/dev/null; then
+    done_ "branch add-$USER-app is pushed"
+  else
+    [ -z "$(git status --porcelain)" ] ||
+      die "~/lab/dns-as-code has uncommitted edits. Commit or 'git restore' them, then run lab-prep again."
+    run git checkout -q main
+    run git pull -q --ff-only
+    run git checkout -q -B "add-$USER-app"
+    # Lab 3 step 4's own one-liner.
+    python3 -c '
+import os
+p = "dnsconfig.js"
+s = open(p).read()
+s = s.replace("\tA(\"mail\"", "\tA(\"%s-app\", \"203.0.113.30\"),\n\tA(\"mail\"" % os.environ["USER"], 1)
+open(p, "w").write(s)
+'
+    git diff --quiet dnsconfig.js && die "couldn't add $USER-app to dnsconfig.js. Do Lab 3 step 4 by hand."
+    echo "    added $USER-app (203.0.113.30) to dnsconfig.js"
+    echo "    Submitting asks for your Forgejo password (shown on your landing page)."
+    run python3 scripts/dnsctl.py submit "Add $USER-app.dojo.test" --branch "add-$USER-app" --yes
+  fi
+  cat <<EOF
+
+    Lab 5 rolls this record back, so it has to be merged first. Merging needs
+    someone else's approval, which lab-prep can't give you:
+      1. python3 scripts/dnsctl.py status          # your PR's number
+      2. ask a neighbour (or the facilitator) to run:
+           python3 scripts/dnsctl.py approve <PR#>
+      3. python3 scripts/dnsctl.py merge <PR#> --wait
+    Then run lab-prep 5 again, or go straight to Lab 5.
+EOF
+  return 1
+}
+
+# -----------------------------------------------------------------------------
+case "${1:-}" in
+  -h|--help|"") usage; exit 0 ;;
+esac
+lab=$1
+[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -ge 1 ] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+
+if [ "$lab" -eq 1 ]; then
+  echo "Lab 1 is the start: ~/lab/my-zone is already set up. Open lab1.md and go."
+  exit 0
+fi
+
+if [ "$lab" -eq 3 ]; then
+  echo "Lab 3 needs nothing from Part 1: its step 1 clones the shared repo. Open lab3.md and go."
+  exit 0
+fi
+
+if [ "$lab" -eq 2 ]; then
+  zone_pushed
+  say "Ready for Lab 2"
+  echo "    cd ~/lab/my-zone    then open lab2.md"
+  exit 0
+fi
+
+clone_shared
+if [ "$lab" -eq 5 ]; then
+  lab3_record || { say "Not ready for Lab 5 yet: merge the pull request above first"; exit 0; }
+fi
+
+say "Ready for Lab $lab"
+echo "    cd ~/lab/dns-as-code    then open lab$lab.md"

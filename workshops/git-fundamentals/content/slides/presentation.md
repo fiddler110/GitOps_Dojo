@@ -11,6 +11,7 @@ style: |
   .split-30-70 > div:first-child { flex: 0 0 30%; }
   .split-30-70 > div:last-child { flex: 0 0 70%; }
   .mermaid .commit-label { font-size: 18px !important; }
+  .mermaid foreignObject p, .mermaid foreignObject div { margin: 0 !important; line-height: 1.5 !important; }
 footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; Git Fundamentals | Engineering & IT Operations'
 ---
 
@@ -522,7 +523,7 @@ The commands are small. The reliable workflow is the real skill.
 <script type="module">
 	import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
 	mermaid.initialize({
-		startOnLoad: true,
+		startOnLoad: false,
 		theme: "dark",
 		themeVariables: {
 			background: "#18242e",
@@ -540,4 +541,22 @@ The commands are small. The reliable workflow is the real skill.
 			tagLabelBackground: "#f0b95b",
 		},
 	})
+	// Mermaid sizes each box from the text it measures, so it must measure
+	// unscaled, in the real font. Drawing in place (startOnLoad) measures
+	// inside the slide, which Marp scales to the window: a window smaller than
+	// 1280x720 got boxes too small and labels cut off. mermaid.render() draws
+	// in a scratch element on <body> instead; the SVG then goes into the slide.
+	async function draw() {
+		const decode = document.createElement("textarea")
+		let n = 0
+		for (const el of document.querySelectorAll(".mermaid:not([data-processed])")) {
+			decode.innerHTML = el.innerHTML
+			const src = decode.value.replace(/<br\s*\/?>/gi, "<br/>").trim()
+			const { svg, bindFunctions } = await mermaid.render(`mermaid-${n++}`, src)
+			el.innerHTML = svg
+			bindFunctions?.(el)
+			el.setAttribute("data-processed", "true")
+		}
+	}
+	document.fonts.ready.then(draw)
 </script>

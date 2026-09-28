@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runners</title>
+<link rel="stylesheet" href="panel.css">
+<script src="panel.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>Runners</h1>
+  <p class="sub">Single-use CI runners: each takes one job, then it is thrown away and replaced.</p>
+</header>
+
+<section class="controls">
+  <div class="scale">
+    <button type="button" id="minus" aria-label="Remove a runner">−</button>
+    <div class="count"><span id="alive">–</span><small id="count-label">runners</small></div>
+    <button type="button" id="plus" aria-label="Add a runner">+</button>
+  </div>
+  <div class="mode" role="group" aria-label="Mode">
+    <button type="button" id="mode-auto" data-mode="auto">Auto</button>
+    <button type="button" id="mode-manual" data-mode="manual">Manual</button>
+  </div>
+  <dl class="numbers">
+    <div><dt>Busy</dt><dd id="busy">–</dd></div>
+    <div><dt>Jobs waiting</dt><dd id="waiting-count">–</dd></div>
+    <div><dt>Warm idle (min)</dt><dd id="min">–</dd></div>
+    <div><dt>Max</dt><dd id="max">–</dd></div>
+  </dl>
+</section>
+<p id="help" class="help"></p>
+<p id="message" class="message" role="status"></p>
+<p id="error" class="error" hidden></p>
+
+<section>
+  <h2>Runners</h2>
+  <table>
+    <thead><tr><th></th><th>Runner</th><th>Status</th><th>Repo</th><th>For</th></tr></thead>
+    <tbody id="runners"></tbody>
+  </table>
+  <p id="no-runners" class="empty" hidden>No runners yet.</p>
+</section>
+
+<section>
+  <h2>Jobs waiting</h2>
+  <ul id="waiting"></ul>
+  <p id="no-waiting" class="empty">None.</p>
+</section>
+
+<section>
+  <h2>Recent problems</h2>
+  <ul id="problems"></ul>
+  <p id="no-problems" class="empty">None.</p>
+</section>
+</body>
+</html>

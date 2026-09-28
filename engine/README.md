@@ -205,7 +205,8 @@ login form itself, server-side, over the internal network (`studentNN` +
 `FORGEJO_ADMIN_PASSWORD` for the facilitator — matching whatever
 `bootstrap.sh` actually seeded those accounts with), then relays Forgejo's
 own `Set-Cookie` response straight onto the browser and redirects into the
-repo. No Forgejo reverse-proxy-auth config, no header-trust surface across
+repo, or to `?next=<path>` when that is a path on this site (a module's
+OIDC sign-in uses it, so Forgejo already knows the user). No Forgejo reverse-proxy-auth config, no header-trust surface across
 the internal network (which would have been a real problem here — students
 have shell access on `web-terminal`, the same internal network Forgejo
 sits on, so trusting any header-based identity from that network would let
@@ -605,7 +606,7 @@ account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
 
-**Service status strip.** The top right of `/admin` shows one chip per service —
+**Service status strip.** The bottom of the `/admin` sidebar (a row under the tabs on a narrow screen) shows one chip per service —
 a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
 for Forgejo, the terminals, the slides (probed through the gateway exactly as a
 browser would, using `PUBLIC_BASE_URL`), and any `status_checks` a workshop or module declares in its `extensions.json`.

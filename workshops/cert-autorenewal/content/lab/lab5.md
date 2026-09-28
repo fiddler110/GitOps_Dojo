@@ -16,6 +16,8 @@ just driven by a raw API call here instead of `dnscontrol`.
 You'll want a second terminal pane for this one — split one if you don't
 already have one open (`Ctrl+b %`).
 
+> **Starting here?** This lab needs Lab 2's certbot certificate: step 3 reads the `-0001` copy certbot makes next to it. Run `lab-prep 5` to set that up; it's safe to run even if you did the earlier labs.
+
 ---
 
 ## 1. Start the challenge

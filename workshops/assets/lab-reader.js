@@ -43,7 +43,7 @@
 
   // Syntax highlighting for fenced code blocks (```terraform, ```sh, ...),
   // via the vendored Prism build (hcl, bash, javascript, json, yaml,
-  // diff, gitignore, dockerfile). Prism
+  // diff, gitignore, dockerfile, python). Prism
   // escapes the source itself, so the returned HTML is safe to insert.
   // Unknown or ```text fences return '' and markdown-it escapes them as
   // plain text.
@@ -61,15 +61,63 @@
     });
   }
 
+  function escapeHtml(text) {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   function highlight(code, lang) {
+    // ```mermaid fences become diagrams in drawMermaid(); until then (or if
+    // Mermaid can't load) the escaped source shows as a plain code block.
+    if (lang && lang.toLowerCase() === 'mermaid') {
+      return '<pre class="mermaid">' + escapeHtml(code) + '</pre>';
+    }
     var grammar = prism && lang && prism.languages[lang.toLowerCase()];
     return grammar ? prism.highlight(code, grammar, lang) : '';
+  }
+
+  // Same Mermaid build and colours as the slide decks. Loaded only when a
+  // lab has a diagram.
+  function drawMermaid(container) {
+    var blocks = container.querySelectorAll('pre.mermaid');
+    if (!blocks.length) return;
+    import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+      .then(function (mod) {
+        var mermaid = mod.default;
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          fontFamily: 'Manrope, sans-serif',
+          sequence: { mirrorActors: false, boxMargin: 8 },
+          themeVariables: {
+            fontSize: '16px',
+            background: '#17171a',
+            primaryColor: '#21313c',
+            primaryTextColor: '#e8f0f2',
+            primaryBorderColor: '#3dd6c3',
+            lineColor: '#a9bac2',
+            actorBkg: '#21313c',
+            actorBorder: '#3dd6c3',
+            actorTextColor: '#e8f0f2',
+            signalColor: '#a9bac2',
+            signalTextColor: '#e8f0f2',
+            noteBkgColor: '#137f7a',
+            noteTextColor: '#e8f0f2',
+            noteBorderColor: '#3dd6c3'
+          }
+        });
+        // Boxes are sized from measured text: measure in the real font.
+        return document.fonts.ready.then(function () {
+          return mermaid.run({ nodes: blocks });
+        });
+      })
+      .catch(function () {});
   }
 
   function render(markdownSource, file) {
     var md = window.markdownit({ html: false, linkify: true, breaks: false, highlight: highlight });
     contentEl.innerHTML = md.render(markdownSource);
     rewriteLabLinks(contentEl);
+    drawMermaid(contentEl);
     var heading = contentEl.querySelector('h1');
     document.title = (heading ? heading.textContent : file) + ' — Lab';
   }

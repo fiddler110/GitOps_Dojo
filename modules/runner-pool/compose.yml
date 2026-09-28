@@ -1,0 +1,142 @@
+# runner-pool module: single-use Forgejo Actions runners for every repo on
+# the instance, scaled by a controller, with a Runners panel in /admin.
+# Layered on top of engine/docker-compose.yml by engine/run.sh when a
+# workshop.env lists it in MODULES (see README.md). Relative paths resolve
+# against engine/, not this folder. Never list it together with
+# forgejo-runner: both define runner_net and turn on Actions.
+#
+# Two containers share one spool volume and nothing else. runner-pool runs
+# student-authored CI and has no network listener; runner-controller holds the
+# Forgejo admin login, registers runners and serves the panel, and is never on
+# runner_net (README.md has the protocol).
+
+services:
+  git-server:
+    environment:
+      - FORGEJO__actions__ENABLED=true
+      # Forgejo makes forks with Actions off (Forgejo 16's default is code and
+      # pull requests only); students run workflows in their forks.
+      - FORGEJO__repository__DEFAULT_FORK_REPO_UNITS=repo.code,repo.pulls,repo.actions
+    # Added to the engine's own networks (lists append), so runners poll it
+    # without reaching the control plane.
+    networks:
+      - runner_net
+
+  # The runners. A supervisor (pool/supervise.py) starts one
+  # `forgejo-runner one-job` per config the controller drops in /spool/start,
+  # each as its own Linux user in its own user + PID namespace, and deletes
+  # the user and its files when the job ends. Jobs run in this container (the
+  # `host` label), so the tools they call are baked in: the basics here, plus
+  # whatever the workshop names in JOB_TOOLS, copied from the terminal image
+  # run.sh has just built (so a tool has one pin, in the terminal's Dockerfile).
+  runner-pool:
+    build:
+      context: ../modules/runner-pool/pool
+      # JOB_TOOLS comes from the workshop's overlay only: podman-compose
+      # appends build args across files instead of replacing them.
+      args:
+        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    container_name: workshop_runner_pool
+    # Root inside the container: it creates and deletes the runner users.
+    # Rootless podman's default capabilities; no extra ones (T0.8).
+    user: "0:0"
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - RUNNER_NPROC=${RUNNER_NPROC:-256}
+      - RUNNER_NOFILE=${RUNNER_NOFILE:-1024}
+      - RUNNER_AS=${RUNNER_AS:-}
+    volumes:
+      - runner_pool_spool:/spool
+      # The runner image declares VOLUME /data: named, so ./run.sh stop removes it.
+      - runner_pool_data:/data
+      # The ID-token shim's CA, trusted by jobs on an https:// name.
+      - runner_pool_shim_data:/shim:ro
+    # The public name means this container's own localhost, where the shim
+    # below answers for it. RUNNER_PUBLIC_HOST comes from module.env.
+    extra_hosts:
+      - "${RUNNER_PUBLIC_HOST:-localhost}:127.0.0.1"
+    networks:
+      - runner_net
+    mem_limit: ${RUNNER_POOL_MEM_LIMIT:-2g}
+    pids_limit: ${RUNNER_POOL_PIDS:-2048}
+    healthcheck:
+      test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /spool/state.json) )) -lt 15"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # ID-token shim: Caddy in the pool's network namespace, answering for
+  # PUBLIC_BASE_URL. Forgejo builds the job's ID-token URL from its public
+  # ROOT_URL (and malforms it under /git/), and gives jobs its public URL for
+  # git; the shim sends both straight to git-server.
+  runner-pool-shim:
+    image: gitopsdojo/gateway:local
+    container_name: workshop_runner_pool_shim
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    network_mode: "service:runner-pool"
+    # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
+    user: "0:0"
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+    volumes:
+      - ../modules/runner-pool/shim/Caddyfile:/etc/caddy/Caddyfile:ro
+      - runner_pool_shim_data:/data
+      - runner_pool_shim_config:/config
+    depends_on:
+      - runner-pool
+    # The image's check asks Caddy's admin API, which the shim turns off.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --no-check-certificate \"$$PUBLIC_BASE_URL/git/api/healthz\" || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 64m
+    restart: unless-stopped
+
+  # Registers runners, scales them and serves the Runners panel
+  # (controller/controller.py, stdlib Python on the allocator's image).
+  runner-controller:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_runner_controller
+    entrypoint: ["python3", "-B", "/opt/runner-controller/controller.py"]
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - RUNNER_MIN_IDLE=${RUNNER_MIN_IDLE:-2}
+      - RUNNER_MAX=${RUNNER_MAX:-}
+      - RUNNER_IDLE_TIMEOUT=${RUNNER_IDLE_TIMEOUT:-120}
+      - RUNNER_JOB_TIMEOUT=${RUNNER_JOB_TIMEOUT:-900}
+      - RUNNER_LABELS=${RUNNER_LABELS:-host:host}
+    volumes:
+      - ../modules/runner-pool/controller:/opt/runner-controller:ro
+      - runner_pool_spool:/spool
+    networks:
+      - workshop_lab
+    depends_on:
+      - git-server
+      - runner-pool
+    # The image's own check sends the gateway token to /; /healthz needs none.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 128m
+    restart: unless-stopped
+
+volumes:
+  runner_pool_spool:
+  runner_pool_data:
+  runner_pool_shim_data:
+  runner_pool_shim_config:
+
+networks:
+  # Isolates the runners (student-authored CI) from the control plane
+  # (allocator, web-terminal). A workshop adds the services its jobs may call.
+  runner_net:
+    internal: true

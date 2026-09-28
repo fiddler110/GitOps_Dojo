@@ -2,6 +2,8 @@
 
 **Goal:** destroy what you created, and understand what is left behind and what belongs in git.
 
+> **Starting here?** This lab needs your clone, with your name in the sandbox and applied (Labs 1-2). Run `lab-prep 3` to set that up; it's safe to run even if you did the earlier labs.
+
 ```sh
 cd ~/lab/tofu-basics/sandbox
 ```

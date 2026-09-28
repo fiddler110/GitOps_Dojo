@@ -81,11 +81,31 @@ everyone still finishes the core loop.
 
 </div>
 
-> The console is the only record, and it only shows what exists **now**, not how it got there.
+> <label for="infra-outages" class="pop-trigger">The console is the only record</label>, and it only shows what exists **now**, not how it got there.
+
+<div class="pop">
+<input type="checkbox" id="infra-outages" class="pop-toggle">
+<div class="pop-overlay">
+<label for="infra-outages" class="pop-close">close &#10005;</label>
+<h3>Hand-made infrastructure, real consequences</h3>
+<p class="pop-sub">Changes made by hand, with no plan to review first and no record of what was done.</p>
+<div class="leak-grid cols-3">
+<div class="leak"><i>2012</i><b>Knight Capital</b>A manual deploy missed one of eight servers.<em>$460M lost in 45 minutes</em></div>
+<div class="leak"><i>2017</i><b>AWS S3</b>One mistyped input to a command removed far more servers than intended.<em>About 4 hours; much of the internet down</em></div>
+<div class="leak"><i>2017</i><b>GitLab.com</b>A command run by hand on the wrong database server.<em>300 GB deleted; five backup methods had failed</em></div>
+<div class="leak"><i>2019</i><b>Capital One</b>A misconfigured firewall and an over-privileged role.<em>About 106M people's data stolen</em></div>
+<div class="leak"><i>2023</i><b>Toyota</b>Cloud settings left a database open to anyone.<em>2.15M customers exposed for about 10 years</em></div>
+<div class="leak"><i>2024</i><b>UniSuper / Google Cloud</b>A parameter left blank when the private cloud was created.<em>The whole subscription deleted a year later</em></div>
+</div>
+<p class="pop-src">Sources: <a href="https://www.sec.gov/newsroom/press-releases/2013-222" target="_blank" rel="noopener">SEC</a>, <a href="https://aws.amazon.com/message/41926" target="_blank" rel="noopener">AWS</a>, <a href="https://about.gitlab.com/blog/postmortem-of-database-outage-of-january-31/" target="_blank" rel="noopener">GitLab</a>, <a href="https://krebsonsecurity.com/2019/08/what-we-can-learn-from-the-capital-one-hack/" target="_blank" rel="noopener">Krebs on Security</a>, <a href="https://www.bleepingcomputer.com/news/security/toyota-car-location-data-of-2-million-customers-exposed-for-ten-years/" target="_blank" rel="noopener">BleepingComputer</a>, <a href="https://www.unisuper.com.au/about-us/media-centre/2024/a-joint-statement-from-unisuper-and-google-cloud" target="_blank" rel="noopener">UniSuper and Google Cloud</a>.</p>
+</div>
+</div>
 
 <!--
 Ask the room: who has built something in a cloud console and then had to
 rebuild it? What did you forget? That memory is the whole motivation.
+Click "The console is the only record" for the wall of real incidents;
+"close" at the top right hides it.
 -->
 
 ---

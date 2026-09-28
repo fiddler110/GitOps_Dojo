@@ -1,0 +1,109 @@
+# Overlay for vault-fundamentals, layered on top of engine/docker-compose.yml
+# and the openbao module (MODULES in workshop.env) by engine/run.sh. Relative
+# paths resolve against engine/, not this folder.
+#
+# The workshop's own OpenBao set-up runs as hooks in the module's
+# openbao-setup (PLAN.md S29): it sources every /etc/openbao-setup.d/*.sh on
+# each start with the provisioner token, after the module's own set-up.
+#
+# CI jobs (runner-pool) run bao and sops, the terminal's own binaries, and
+# log in to OpenBao over runner_net (lab 9).
+#
+# Labs 11-13 (P4): app-host, the platform jobs deploy to (a slot per student,
+# a platform identity per slot), and app-db, Postgres for lab 12's logins made
+# on demand. The 30-platform.sh hook half-configures both in each namespace.
+
+services:
+  openbao-setup:
+    volumes:
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d:/etc/openbao-setup.d:ro
+      # vault_<s>'s first passwords (30-platform.sh hands them to the vault,
+      # which rotates them).
+      - app_db_bootstrap:/app-db:ro
+
+  openbao:
+    networks:
+      - runner_net
+
+  runner-pool:
+    build:
+      args:
+        JOB_TOOLS: "bao sops"
+
+  # The deployment target (compose/app-host/apphost.py). Jobs deploy over
+  # runner_net; apps reach OpenBao and app-db, and the gateway reaches the
+  # /apps page, over workshop_lab.
+  app-host:
+    build:
+      context: ../workshops/vault-fundamentals/compose/app-host
+      args:
+        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    container_name: workshop_app_host
+    # Root inside the container: it makes the slot users and runs each app as
+    # its own. Rootless podman's default capabilities, no extra ones.
+    user: "0:0"
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - DEPLOY_REPO=${FORGEJO_REPO:-vault-fundamentals}
+    volumes:
+      - ../workshops/vault-fundamentals/compose/app-host:/opt/app-host:ro
+      # The platform's signing key.
+      - app_host_keys:/var/lib/app-host
+    # The slots' platform tokens stay in memory.
+    tmpfs:
+      - /run/platform
+    networks:
+      - workshop_lab
+      - runner_net
+    depends_on:
+      - git-server
+    mem_limit: ${APP_HOST_MEM_LIMIT:-1g}
+    pids_limit: 1024
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # Postgres for lab 12. compose/app-db/init.sh makes a database per student
+  # on the first start. The superuser's password is random and thrown away:
+  # set-up runs over the local socket, and nothing else needs it.
+  app-db:
+    # 17.11, pinned by its multi-arch index digest (amd64
+    # sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3,
+    # arm64 sha256:0b2882c46a2b8d8e148431b333394348cf4d7f15aec6df7f17d51dc641e56cfa).
+    image: docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    container_name: workshop_app_db
+    # Starts as root: /bootstrap is the postgres user's to write (init.sh),
+    # then the image's entrypoint drops to that user.
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres"]
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
+    volumes:
+      - ../workshops/vault-fundamentals/compose/app-db/init.sh:/docker-entrypoint-initdb.d/10-students.sh:ro
+      - app_db_data:/var/lib/postgresql/data
+      - app_db_bootstrap:/bootstrap
+    networks:
+      - workshop_lab
+    mem_limit: ${APP_DB_MEM_LIMIT:-512m}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  app_host_keys:
+  app_db_data:
+  app_db_bootstrap:

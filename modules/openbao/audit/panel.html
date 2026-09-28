@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault audit</title>
+<link rel="stylesheet" href="panel.css">
+<script src="panel.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>Vault audit</h1>
+  <p class="sub">Every request OpenBao answered, newest first. Click an accessor to follow that token.</p>
+</header>
+
+<form id="filters" class="controls">
+  <label>Student
+    <select id="student"><option value="*">Everyone</option></select>
+  </label>
+  <label>Operation
+    <select id="op">
+      <option value="">Any</option>
+      <option value="read">read</option>
+      <option value="list">list</option>
+      <option value="create">create</option>
+      <option value="update">update</option>
+      <option value="delete">delete</option>
+    </select>
+  </label>
+  <label>Path starts with <input id="path" type="text" spellcheck="false" autocomplete="off"></label>
+  <label>Accessor <input id="accessor" type="text" spellcheck="false" autocomplete="off"></label>
+  <label class="check"><input id="errors" type="checkbox"> Errors only</label>
+  <label class="check"><input id="live" type="checkbox" checked> Live</label>
+  <button type="button" id="clear">Clear</button>
+</form>
+<p id="summary" class="help" role="status"></p>
+<p id="error" class="error" hidden></p>
+
+<div class="scroll">
+  <table>
+    <thead><tr><th>Time</th><th>Namespace</th><th>Who</th><th>Op</th><th>Path</th><th>Accessor</th><th>Result</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+<p id="empty" class="empty" hidden>Nothing matches.</p>
+</body>
+</html>

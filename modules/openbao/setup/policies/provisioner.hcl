@@ -1,0 +1,53 @@
+# openbao-setup's own identity after root is revoked: re-runs setup, resets a
+# student, re-creates a namespace. It manages structure (namespaces, policies,
+# auth methods, identities, mounts) in the root namespace and in each
+# students/<name> namespace, and writes seed secrets it can't read back.
+#
+# It is not a security boundary against itself: anything that can write
+# policies and identities can grant itself more. What protects it is where it
+# lives: only on the openbao_setup volume, which only openbao-setup mounts.
+
+path "sys/namespaces"   { capabilities = ["list"] }
+path "sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+path "students/sys/namespaces"   { capabilities = ["list"] }
+path "students/sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+
+path "sys/policies/acl"            { capabilities = ["list"] }
+path "sys/policies/acl/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
+path "students/+/sys/policies/acl/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+
+path "sys/auth"              { capabilities = ["read"] }
+path "sys/auth/*"            { capabilities = ["create", "read", "update", "delete", "sudo"] }
+path "students/+/sys/auth"   { capabilities = ["read"] }
+path "students/+/sys/auth/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }
+
+path "sys/mounts"              { capabilities = ["read"] }
+path "sys/mounts/*"            { capabilities = ["create", "read", "update", "delete"] }
+path "students/+/sys/mounts"   { capabilities = ["read"] }
+path "students/+/sys/mounts/*" { capabilities = ["create", "read", "update", "delete"] }
+
+# Auth method config and roles (OIDC, JWT), not token creation.
+path "auth/oidc/*"            { capabilities = ["create", "read", "update", "delete", "list"] }
+path "auth/jwt/*"             { capabilities = ["create", "read", "update", "delete", "list"] }
+path "students/+/auth/jwt/*"  { capabilities = ["create", "read", "update", "delete", "list"] }
+path "students/+/auth/jwt-*"  { capabilities = ["create", "read", "update", "delete", "list"] }
+
+# Secrets-engine connections a workshop sets up in each namespace (e.g. a
+# database engine's login, which it then rotates so no person knows it); not
+# the credentials those engines hand out.
+path "students/+/database/config/*"      { capabilities = ["create", "read", "update"] }
+path "students/+/database/rotate-root/*" { capabilities = ["update"] }
+
+path "identity/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+
+path "sys/config/ui/headers/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }
+
+# Seed secrets: write, never read.
+path "secret/data/*"               { capabilities = ["create", "update"] }
+path "students/+/secret/data/*"    { capabilities = ["create", "update"] }
+path "students/+/transit/keys/*"   { capabilities = ["create", "update"] }
+
+# Its own token: created with -no-default-policy, so renewing and looking
+# itself up must be granted here.
+path "auth/token/renew-self"  { capabilities = ["update"] }
+path "auth/token/lookup-self" { capabilities = ["read"] }
