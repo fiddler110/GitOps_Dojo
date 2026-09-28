@@ -72,7 +72,14 @@ alias rg="rg -i"
 
 # Bat Alias for Colours
 alias bat="bat --color=always --paging=auto"
-alias batf="bat --language=terraform"
+alias battf="bat --language=terraform"
+alias batj="bat --language=json"
+
+
+# Python Aliases
+alias python="python3"
+alias py="python3"
+
 
 alias aliases="bat ~/.zshrc_aliases | rg alias"
 
