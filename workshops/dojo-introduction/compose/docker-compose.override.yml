@@ -14,8 +14,11 @@
 #     vault-fundamentals hooks (10-tenancy.sh, 20-ci.sh); its app-host/app-db
 #     (labs 11-13) are left out.
 #   - the other four workshops' slides, served under /slides/w/<name>/.
-# Left out on purpose: dns-api and the dojo.test protection (dns-as-code),
-# which need forgejo-runner.
+#   - dns-api, from dns-as-code: the only way from a terminal to the PowerDNS
+#     API, so `dnscontrol push` works in each account's own <user>.dojo.test
+#     zone (~/lab/my-zone, from dns-as-code's 90-my-zone.sh hook). The shared
+#     dojo.test zone is refused for everyone: there is no CI runner here
+#     (CI_HOSTS is empty), and this pack has no branch protection.
 
 services:
   # PowerDNS, map-form networks because dns-ui adds dns_admin_net to it.
@@ -49,6 +52,31 @@ services:
     networks:
       - workshop_lab
     restart: "no"
+
+  dns-api:
+    build:
+      context: ../workshops/dns-as-code/compose/dns-api
+    image: gitopsdojo/dns-api:local
+    container_name: workshop_dns_api
+    init: true
+    depends_on:
+      - dns-server
+    environment:
+      - PDNS_API_URL=http://dns-server:8081
+      - PDNS_UPSTREAM_KEY=${POWERDNS_API_KEY:-}
+      - PUBLIC_API_KEY=workshop-not-a-secret
+      - PROTECTED_ZONE=dojo.test
+      - CI_HOSTS=
+    networks:
+      - workshop_lab
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    pids_limit: 64
+    mem_limit: 64m
+    restart: unless-stopped
 
   step-ca:
     build:
@@ -114,10 +142,15 @@ services:
   web-terminal:
     depends_on:
       - dns-server
+      - dns-api
       - step-ca
       - demo-app
     volumes:
       - cert_lab_webroot:/srv/webroot
+      # Each account's ~/lab/my-zone (dnscontrol config for <user>.dojo.test) and
+      # the record-types doc it copies in, both from dns-as-code.
+      - ../workshops/dns-as-code/compose/terminal/start.d/90-my-zone.sh:/etc/dojo/start.d/90-my-zone.sh:ro
+      - ../workshops/dns-as-code/content/sample-repo/docs:/opt/dojo/dns-docs:ro
       # Public root cert only, never the CA's private keys.
       - step_ca_root_pub:/opt/step-ca-root:ro
       # Starts cron and makes each account's webroot folder (cert-autorenewal's hook).

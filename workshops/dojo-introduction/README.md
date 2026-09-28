@@ -16,7 +16,7 @@ is not a lab: nothing has to be completed. Every capability is running at once.
 | **Workshop Library** (card and `/admin` tab) | One page linking each workshop's own `index.md` (its presentation, labs and cheat sheet), served under `/slides/w/<name>/` |
 | **Forgejo** | The `dojo-team/dojo-tour` repository, with Actions on |
 | **Vault** card, **Audit** and **Runners** tabs | OpenBao (sign in with Forgejo), its audit log, and the single-use CI runner pool |
-| **DNS Zones** card, **DNS Admin** tab | PowerDNS with the `certs.dojo.test` zone, the live viewer and PowerDNS-Admin |
+| **DNS Zones** card, **DNS Admin** tab | PowerDNS with the `certs.dojo.test` zone and each account's own `<user>.dojo.test` (`~/lab/my-zone`, pushed with `dnscontrol` through `dns-api`), the live viewer and PowerDNS-Admin |
 | **Dojo Cloud** card | The training cloud's portal; `tofu` in the terminal talks to it |
 | **VS Code / Terminal** | One image with the tools of all four workshops: `bao`, `sops`, `gitleaks`, `pass`, `dnscontrol`, `dig`, `step`, `certbot`, `acme.sh`, `tofu` |
 
@@ -35,5 +35,22 @@ is not a lab: nothing has to be completed. Every capability is running at once.
 
 ## Left out on purpose
 
-vault-fundamentals' `app-host` and `app-db` (labs 11-13), and dns-as-code's `dns-api` gate and protected `dojo.test`
-zone (which need `forgejo-runner`). Their slides and labs are in the library; to run those flows, start that workshop.
+- vault-fundamentals' `app-host` and `app-db` (labs 11-13): no **Apps** tab or **My App** card, and no dynamic database logins.
+- dns-as-code's shared `dojo.test` zone, its CI preview and branch protection (they need `forgejo-runner`, which can't run
+  beside `runner-pool`). `dns-api` is here with an empty `CI_HOSTS`, so `dojo.test` itself is refused for everyone and only
+  each account's own zone is writable.
+
+Their slides and labs are in the library; to run those flows, start that workshop.
+
+## Demo bots
+
+`./run.sh dojo-introduction --test 5` adds bots that walk the tool tour (`content/bots/steps.sh`): a push and pipeline, vault
+reads and writes, a `dnscontrol` push, the CA and (the expert bot) an OpenTofu apply on Dojo Cloud. It fills the Roster,
+Audit, Runners and DNS Zones tabs.
+
+## Keeping the tool pins in step
+
+`./check-pins-sync.sh` fails if a tool version or checksum in `compose/terminal/Dockerfile` differs from the workshop
+Dockerfile it was copied from. Run it after changing any pin.
+
+See [`FACILITATOR.md`](FACILITATOR.md) for a run-of-show.

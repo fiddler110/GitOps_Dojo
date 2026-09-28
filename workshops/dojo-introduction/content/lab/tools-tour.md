@@ -50,13 +50,21 @@ gitleaks version
 
 ## 4. DNS as code
 
+Your own zone, `$USER.dojo.test`, is already set up as a small git repository in `~/lab/my-zone`.
+
 ```sh
-dig @dns-server $USER.certs.dojo.test A +short
-cd ~/lab/dojo-tour/dns && dnscontrol check
+cd ~/lab/my-zone
+cat dnsconfig.js
+dnscontrol preview
+dnscontrol push
+dig @dns-server www.$USER.dojo.test A +short
 ```
 
-Open the **DNS Zones** card: every record PowerDNS serves, live. The facilitator's **DNS Admin** tab is PowerDNS-Admin, for the
-dashboard edit that the next `dnscontrol push` would undo.
+Open the **DNS Zones** card: your new records are there, live. The facilitator can then edit one in the **DNS Admin**
+tab; run `dnscontrol preview` again and it shows the difference, and `dnscontrol push` puts your file's version back.
+The file in git is the truth; the dashboard is not.
+
+`~/lab/dojo-tour/dns` is a second, offline example: `dnscontrol check` validates it without a server.
 
 ## 5. Certificates (ACME)
 

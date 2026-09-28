@@ -36,62 +36,31 @@ student view and the facilitator view.
 
 ---
 
-## The problem it solves
+## One URL, nothing to install
 
-Hands-on training usually loses its first half hour to setup:
+Hands-on training loses its first half hour to setup: versions, blocked installs, shared accounts, and a facilitator who can't see who is stuck.
 
-- "Which version of the tool do I need?" · "It works on my laptop."
-- Installs blocked by corporate laptops, VPNs and proxies
-- Shared accounts, stepping on each other's work
-- The facilitator can't see who is stuck
-
-> **One URL. Nothing to install. Everyone gets a real, private lab.**
-
----
-
-## What a student gets
-
-<div class="split split-40">
+<div class="split">
 <div>
 
-Open one address, type a name, and you have:
+**A student** opens one address, types a name, and gets their own:
 
-- **VS Code** in the browser
-- a **terminal**
-- a **git server** (Forgejo)
+- **VS Code** and a **terminal**, in the browser
+- a **Forgejo** git server account
 - the **slides** and lab guides
-- whatever the workshop adds: a vault, a DNS server, a cloud
+- the workshop's extras: a vault, DNS, a cloud
 
 </div>
 <div>
 
-<div class="mermaid">
-flowchart TB
-  u["Browser"] --> l["One URL"]
-  l --> id["Assigned an account<br/>(student07)"]
-  id --> ide["VS Code"]
-  id --> t["Terminal"]
-  id --> g["Forgejo"]
-  id --> s["Slides + labs"]
-  id --> x["Workshop extras"]
-</div>
+**The facilitator** gets `/admin`, with everything a student can reach, plus:
+
+- **Roster**: a tile per student, a read-only view of their terminal, **Release**
+- the workshop's own tabs: Vault, Audit, Runners, DNS Admin
+- a **status strip**: green when each service answers
 
 </div>
 </div>
-
----
-
-## What the facilitator gets
-
-The **/admin** workspace, behind its own login. Whatever a student can reach, the facilitator can too.
-
-| Tab | What it is |
-| --- | ---------- |
-| **Roster** | A tile per student: status, a read-only view of their terminal, **Release** |
-| **VS Code, Terminal, Forgejo, Slides** | The facilitator's own copies of the tools |
-| **Workshop tabs** | Added by the workshop: Vault, Audit, Runners, DNS Admin, ... |
-| **Status strip** | Green when each service answers |
-
 
 ---
 
@@ -116,11 +85,14 @@ flowchart LR
   al -.-> wt
 </div>
 
-<p class="small">Everything is a container on internal networks. Only the gateway has a port to the outside.</p>
+<p class="small">Everything is a container. The first person to type a name gets <b>studentNN</b>: a real Linux user, and a matching Forgejo account.</p>
 
 ---
 
-## How a request is checked
+## Every request is checked
+
+<div class="split">
+<div>
 
 <div class="mermaid">
 sequenceDiagram
@@ -128,93 +100,55 @@ sequenceDiagram
   participant G as gateway
   participant A as allocator
   participant W as web-terminal
-  S->>G: /ide/ (class login + cookie)
+  S->>G: /ide/ (login + cookie)
   G->>A: who is this?
   A-->>G: student07, port 9007
-  G->>W: proxy to that student's VS Code
-  W-->>S: already signed in, no prompt
+  G->>W: that student's VS Code
 </div>
 
-The gateway asks the allocator on **every** request, and it sets the identity headers itself. A client can't send its own.
+</div>
+<div>
 
----
+- The gateway asks the allocator on **every** request
+- Caddy sets the identity headers itself: a client **can't send its own**
+- Students share a network, so **nothing trusts a source address**
+- Student-typed text is shown to the class as **text only**
 
-## Names, slots and accounts
-
-- The first person to type a name gets **studentNN**, claimed atomically; it sticks to that browser
-- Each account is a real Linux user with its own home, VS Code and terminal process
-- Forgejo has a matching user, in a team with write access to the workshop repo
-- The facilitator's login can never be handed a student slot
-
-<div class="mermaid">
-flowchart LR
-  bs["bootstrap<br/>(one-shot)"] --> o["org + repo + seed content"]
-  bs --> u["student01 ... studentNN"]
-  bs --> t["team with write access"]
+</div>
 </div>
 
 ---
 
-## Three layers, so a new workshop is mostly content
+## Three layers: a new workshop is mostly content
 
 <div class="split">
 <div>
 
-**engine/**
-The shared runtime. Knows nothing about any one workshop.
+**engine/** the shared runtime; knows nothing about any workshop
 
-**modules/**
-Reusable pieces: a vault, a CI runner pool, a cloud, a DNS viewer. Each is a folder of compose file, front-door manifest and terminal tools.
+**modules/** reusable pieces: vault, CI runners, cloud, DNS viewer
 
-**workshops/**
-A pack: slides, labs, a seed repo, and the list of modules it wants.
+**workshops/** slides, labs, a seed repo, and the modules it wants
 
 </div>
 <div>
 
-```text
-./run.sh dns-as-code
-        │
-        ├─ engine           always
-        ├─ modules          MODULES="..."
-        └─ workshop pack    content + extras
-```
+Each declares its front door in an `extensions.json`:
+
+| Gate | Who gets through |
+| ---- | ---------------- |
+| `shared` | anyone with the class login |
+| `identity` | a student with a slot, or the facilitator |
+| `facilitator` | the facilitator only |
 
 </div>
 </div>
 
-<!-- Adding a workshop never edits the engine. -->
+<p class="small">Cards, <code>/admin</code> tabs, routes and status lights all come from fixed templates: a manifest can't inject raw config.</p>
 
 ---
 
-## Front doors are declared, not hand-wired
-
-A workshop or module ships an `extensions.json`:
-
-```json
-{ "cards":       [{ "id": "dns", "label": "DNS Zones", "href": "/dns/", "icon": "dns" }],
-  "admin_tabs":  [{ "id": "dns", "label": "DNS Zones", "src": "/dns/" }],
-  "routes":      [{ "id": "dns", "path": "/dns", "upstream": "zone-viewer:8080", "gate": "shared" }],
-  "status_checks": [{ "label": "DNS Zones", "url": "http://zone-viewer:8080/dns/readyz" }] }
-```
-
-The engine turns it into the landing card, the facilitator tab, the gateway route and the status light, through **fixed templates**. A manifest can't inject raw config, and a bad one stops the start.
-
----
-
-## Three gates
-
-| Gate | Who gets through | The service receives |
-| ---- | ---------------- | -------------------- |
-| `shared` | anyone with the class login | no identity |
-| `identity` | a student with a slot, or the facilitator | who they are, set by the gateway |
-| `facilitator` | the facilitator only | who they are, set by the gateway |
-
-<p class="lede">A service behind `identity` or `facilitator` still checks a shared token, because students can reach the internal network directly and only the gateway holds the token.</p>
-
----
-
-## The terminal is built from layers
+## One terminal with every tool
 
 <div class="mermaid">
 flowchart LR
@@ -223,193 +157,58 @@ flowchart LR
   w --> run["the image the class runs"]
 </div>
 
-- Student terminals have **no internet**: every tool is baked in, version-pinned and checksum-verified
-- Start-up jobs run as small hooks after the accounts exist
-- No `docker.sock` in any terminal, ever
-
----
-
-## Keeping students in their lane
-
+- Terminals have **no internet** and no `docker.sock`: every tool is baked in, version-pinned and checksum-verified
 - Each student is a separate Linux user with a private home
-- Students can reach the internal network, so **nothing trusts a source address**; services check the gateway's token, or a per-student credential
-- Anything a student types is shown to the class as **text only**, with a strict content policy
-- CI jobs run on runners that hold no control-plane access
 - Every external image is pinned by digest
 
 ---
 
-## The workshops
+## What is in the box
 
-| Workshop | What it teaches |
-| -------- | --------------- |
-| **Git Fundamentals** | clone, branch, commit, push, pull request, undo, merge |
-| **DNS as Code** | DNS records in git with dnscontrol, review, and a CI preview |
-| **Certificate Autorenewal** | ACME with step-ca, certbot and acme.sh; renewal you can watch |
-| **OpenTofu Basics** | init / plan / apply / destroy against Dojo Cloud |
-| **Vault Fundamentals** | secrets out of code, git and pipelines; OpenBao |
+| Workshop | Teaches | Brings |
+| -------- | ------- | ------ |
+| **Git Fundamentals** | clone, branch, commit, PR, undo, merge | Forgejo |
+| **DNS as Code** | DNS in git with dnscontrol, review, CI preview | `forgejo-runner`, `dns-ui` |
+| **Certificate Autorenewal** | ACME: step-ca, certbot, acme.sh | `dns-ui` |
+| **OpenTofu Basics** | init / plan / apply / destroy | `dojo-cloud` |
+| **Vault Fundamentals** | secrets out of code, git and pipelines | `openbao`, `runner-pool` |
 
-All five are on the **Workshop library** page, each with its slides, labs and a cheat sheet.
-
----
-
-## Modules: reusable building blocks
-
-| Module | What it brings |
-| ------ | -------------- |
-| `forgejo-runner` | Forgejo Actions with one runner |
-| `runner-pool` | single-use CI runners, scaled by a controller, and a **Runners** panel |
-| `openbao` | OpenBao, its UI, sign-in with your Forgejo account, an audit view |
-| `dojo-cloud` | an Azure-inspired training cloud: ARM-style API, portal, real containers |
-| `dns-ui` | a live DNS Zones page, and PowerDNS-Admin for the facilitator |
+<p class="small">All five, with slides, labs and cheat sheets, are on the <a href="workshops.md">Workshop library</a>. Not running in this tour: the app host and its database (vault labs 11-13) and the DNS review flow (they need their own workshop).</p>
 
 ---
 
-## CI that can't hurt anything
+## What you can click through
 
-<div class="mermaid">
-flowchart LR
-  push["git push"] --> fg["Forgejo Actions"]
-  fg --> ctl["controller<br/>starts a runner"]
-  ctl --> r["single-use runner<br/>own Linux user"]
-  r --> job["the job"]
-  job --> gone["runner + user deleted"]
-</div>
-
-- One job per runner, then it is deleted
-- Runs on its own network, with no route to the control plane
-- The facilitator's **Runners** tab shows the pool and its health
+| Capability | How it works | Where to look |
+| ---------- | ------------ | ------------- |
+| **CI** | a single-use runner per job, in its own user, on a network with no route to the control plane | Forgejo **Actions**, facilitator **Runners** |
+| **Vault** | real OpenBao; sign in with Forgejo, a namespace per student, CI logs in by identity | **Vault** card, **Audit** tab |
+| **DNS and certificates** | records declared in git, pushed to PowerDNS; step-ca issues short-lived certs | **DNS Zones**, **DNS Admin** |
+| **Dojo Cloud** | an Azure-*inspired* cloud: ARM-style API, real containers, policy | **Dojo Cloud** card, `tofu` in the terminal |
 
 ---
 
-## The vault: OpenBao
-
-<div class="split">
-<div>
-
-- Real OpenBao, the open-source Vault
-- Sign in **with your Forgejo account**, in the UI and the CLI; no password to hand out
-- A **namespace per student**, and a shared policy
-- CI logs in with its **own identity**, not a stored secret
-- The facilitator's **Audit** tab: every request, by student and path
-
-</div>
-<div>
-
-```sh
-bao status
-bao kv get secret/students/$USER/welcome
-```
-
-```text
-Key         Value
----         -----
-Sealed      false
-```
-
-</div>
-</div>
-
----
-
-## DNS and certificates
-
-<div class="mermaid">
-flowchart LR
-  git["dnsconfig.js in git"] --> dc["dnscontrol"]
-  dc --> pdns["PowerDNS"]
-  pdns --> zv["DNS Zones page"]
-  pdns --> ca["step-ca<br/>checks names"]
-  ca --> cert["short-lived certificate"]
-  cert --> web["demo site"]
-</div>
-
-- Records are **declared in git** and pushed; a dashboard edit is undone by the next push
-- The CA issues certificates in minutes, so renewal is something you can watch
-
----
-
-## Dojo Cloud
-
-An Azure-*inspired* cloud made for training: the same tools and workflow, nothing to pay for.
-
-<div class="mermaid">
-flowchart LR
-  tofu["tofu apply"] --> api["cloud-api<br/>ARM-style API + portal"]
-  api --> host["cloud-host<br/>real containers"]
-</div>
-
-- Students use the real `azurerm` provider, with their own credentials handed to the shell, never written in a file
-- A policy layer enforces names, regions and tags, like a real landing zone
-- The portal shows what each student deployed
-
----
-
-## Practice without a class: demo bots
-
-`./run.sh <workshop> --test 20` adds 20 demo students that work through a workshop's labs on their own.
-
-- A full roster to look at, and real load on the stack
-- Each workshop can supply its own bot script
-
-It is how the platform is checked before a live session.
-
----
-
-## Running it
+## Running it, and your route through it
 
 ```sh
 ./run.sh setup                  # first time: accounts and secrets
-./run.sh list                   # the workshops
 ./run.sh dojo-introduction      # this tour
 ./run.sh dns-as-code --test 20  # a workshop with 20 demo students
 ./run.sh stop                   # removes every container and volume
 ```
 
-- **Localhost** for a demo, or a hostname with TLS for a room full of people
-- Runs on rootless podman or docker
-
----
-
-## Your turn: a route through it
-
 <div class="split">
 <div>
 
-**As a student**
-
-1. Type a name at the landing page
-2. **VS Code**: open `~/lab/tools-tour.md`
-3. **Forgejo**: the `dojo-tour` repository
-4. **Vault** (OpenBao): sign in with Forgejo
-5. **DNS Zones**, **Dojo Cloud**
-6. **Workshop Library**
+**As a student:** type a name, open `~/lab/tools-tour.md` in **VS Code**, then **Forgejo**, **Vault**, **DNS Zones**, **Dojo Cloud**
 
 </div>
 <div>
 
-**As the facilitator**
-
-1. Sign in at `/admin`
-2. **Roster**: watch a terminal
-3. **Runners**: a job comes and goes
-4. **Audit**: the vault's request log
-5. **DNS Admin**: a dashboard edit
-6. The status strip
+**As the facilitator:** sign in at `/admin`, watch the **Roster**, then **Runners**, **Audit**, **DNS Admin** and the status strip
 
 </div>
 </div>
-
----
-
-<!-- _class: lead -->
-<!-- _paginate: false -->
-
-# Questions?
-
-## Then let's click around
-
-[Workshop library](workshops.md) · [Tool tour](lab-index.md)
 
 <script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
