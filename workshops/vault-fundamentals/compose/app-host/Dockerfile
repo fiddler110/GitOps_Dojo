@@ -16,6 +16,7 @@ FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c
 # util-linux (su, unshare, prlimit) and passwd (useradd) are in the base image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
+        iptables \
         openssl \
         python3 \
         tini \

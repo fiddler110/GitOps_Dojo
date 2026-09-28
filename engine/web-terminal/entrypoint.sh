@@ -250,6 +250,42 @@ done
 # unaffected.
 iptables -A DOJO_ISOLATION -p tcp -m multiport --dports 9000:9099,9500:9599,9600:9699,9700:9799,9800:9899 -j DROP
 
+# -- Ingress: IDE/terminal ports only through the gateway --------------------
+# (remediation T2.2a, D4, FIND-04.) DOJO_ISOLATION above covers traffic from
+# inside this container. code-server and ttyd have no auth of their own, so
+# anything else on workshop_lab (a CI job, a runner, a module service) could
+# also dial web-terminal:9001 and skip Caddy's auth-check. The gateway
+# reaches these ports over the terminal_ingress network only (as
+# web-terminal-ingress, see docker-compose.yml), so accept them on that
+# interface and on lo (workspace-control.py's readiness probes, and this
+# container's own traffic, which DOJO_ISOLATION filters) and drop them on
+# every other interface. The interface is found by its subnet.
+ingress_subnet="${TERMINAL_INGRESS_SUBNET:-172.30.9.0/24}"
+ingress_if="$(python3 - "$ingress_subnet" <<'PY'
+import fcntl, ipaddress, os, socket, struct, sys
+net = ipaddress.ip_network(sys.argv[1])
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+for name in sorted(os.listdir("/sys/class/net")):
+    try:  # SIOCGIFADDR: the interface's IPv4 address
+        raw = fcntl.ioctl(s.fileno(), 0x8915, struct.pack("256s", name.encode()[:15]))
+    except OSError:
+        continue
+    if ipaddress.ip_address(socket.inet_ntoa(raw[20:24])) in net:
+        print(name)
+        break
+PY
+)"
+if [ -z "$ingress_if" ]; then
+  echo "No interface in TERMINAL_INGRESS_SUBNET=${ingress_subnet}: web-terminal must be on the terminal_ingress network" >&2
+  exit 1
+fi
+echo "IDE/terminal ports accept only lo and ${ingress_if} (terminal_ingress, ${ingress_subnet})." >&2
+iptables -N DOJO_INGRESS 2>/dev/null || iptables -F DOJO_INGRESS
+iptables -C INPUT -j DOJO_INGRESS 2>/dev/null || iptables -A INPUT -j DOJO_INGRESS
+iptables -A DOJO_INGRESS -i lo -j RETURN
+iptables -A DOJO_INGRESS -i "$ingress_if" -j RETURN
+iptables -A DOJO_INGRESS -p tcp -m multiport --dports 9000:9899 -j DROP
+
 if [ "$bot_count" -gt 0 ]; then
   echo "Provisioned $bot_count demo bot account(s) with prefix '$bot_prefix'."
   # Backgrounded, not exec'd: workspace-control.py below stays PID 1 for the

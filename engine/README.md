@@ -72,6 +72,14 @@ inside a student's shell, `git-server:3000` is reachable but
 `presentation:8080` is not (deliberately; slides are a browser-only
 concern). `gateway` is the one service that joins every network, since it
 has to reach every backend and also be the thing with a published port.
+It reaches the students' IDE and terminal ports (9000-9899) over a network of
+their own, `terminal_ingress` (only `gateway` and `web-terminal`, subnet
+`TERMINAL_INGRESS_SUBNET`, default `172.30.9.0/24`), dialling the alias
+`web-terminal-ingress`. `web-terminal/entrypoint.sh` drops those ports on
+every other interface (`DOJO_INGRESS`), so a CI job or module service on
+`workshop_lab` can't skip Caddy's auth-check by dialling
+`web-terminal:9001` (remediation T2.2a, FIND-04); `run.sh` refuses a
+fragment that joins `terminal_ingress`.
 `allocator` holds no persistent state (in-memory only, same ephemeral
 design as everything else) and never touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.

@@ -40,8 +40,11 @@ services:
         TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_app_host
     # Root inside the container: it makes the slot users and runs each app as
-    # its own. Rootless podman's default capabilities, no extra ones.
+    # its own. NET_ADMIN for the slots' egress allowlist (apphost.py's
+    # isolate_slots, remediation T2.2b); dropping it after start-up is T4.1.
     user: "0:0"
+    cap_add:
+      - NET_ADMIN
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}

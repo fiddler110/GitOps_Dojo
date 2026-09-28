@@ -214,7 +214,14 @@ Rules for `compose.yml`:
 - Use the **list form** of `networks:` on any engine service
   (`networks: [runner_net]`). The engine uses list form, and mixing list and
   map for one service fails at `up` under podman-compose (not at `config`).
-  Pinned addresses belong on the module's own services only.
+  Pinned addresses belong on the module's own services only. The exception is
+  `web-terminal`, which uses the map form (for its `terminal_ingress` alias):
+  to add a network there, use the map form too (`runner_net: {}`).
+- Never join `terminal_ingress` or use `web-terminal-ingress`. It is the
+  gateway's private path to the students' IDE and terminal ports, which answer
+  nowhere else (remediation T2.2a); `run.sh` refuses a fragment that mentions
+  it. A module service that needs the terminal reaches it on `workshop_lab`,
+  like the allocator does.
 - Name every volume, including paths an image declares as `VOLUME`, so
   `./run.sh stop` removes them.
 - A workshop can swap a module service's image from its overlay by overriding

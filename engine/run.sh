@@ -796,6 +796,17 @@ for f in $extra_files; do
   compose_args="$compose_args -f $f"
 done
 
+# terminal_ingress is the gateway's only path to the students' IDE and
+# terminal ports (remediation T2.2a). A module or workshop service that
+# joined it would get that path too, so no fragment may mention it.
+for f in $extra_files; do
+  if grep -n 'terminal_ingress\|web-terminal-ingress' "$f" >&2; then
+    echo "Refusing to start: $f joins terminal_ingress, the gateway's private path to the" >&2
+    echo "students' IDE and terminal ports. Use workshop_lab (see workshops/README.md)." >&2
+    exit 1
+  fi
+done
+
 # Any other build: blocks the modules and the overlay add beyond web-terminal
 # (already handled above) -- e.g. forgejo-runner, cert-autorenewal's
 # dns-seed/step-ca/demo-app -- only rebuild when one of those directories

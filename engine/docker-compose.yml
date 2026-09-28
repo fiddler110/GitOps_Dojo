@@ -143,6 +143,9 @@ services:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # entrypoint.sh finds the terminal_ingress interface by this subnet
+      # and lets the IDE/terminal ports answer only there (and on lo).
+      - TERMINAL_INGRESS_SUBNET=${TERMINAL_INGRESS_SUBNET:-172.30.9.0/24}
       # Root only: forgejo-token.py derives each student's Forgejo password
       # from the seed to mint that student's git token. Students never see
       # it: their shells and IDEs start through `su -`, which clears the
@@ -185,8 +188,15 @@ services:
       # (content/bots/steps.sh, see bot-runner.sh). Mounted as the dir rather
       # than content/bots so a workshop without bots doesn't break the mount.
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}:/opt/workshop-content:ro
+    # Map form (not the usual list) for the alias: the gateway dials
+    # web-terminal-ingress, which resolves only to this container's
+    # terminal_ingress address. No fragment adds networks here; one that
+    # does must use the map form too.
     networks:
-      - workshop_lab
+      workshop_lab: {}
+      terminal_ingress:
+        aliases:
+          - web-terminal-ingress
     restart: unless-stopped
     # Grants only what entrypoint.sh's iptables DOJO_ISOLATION chain needs
     # to firewall loopback traffic between accounts inside this container's
@@ -324,6 +334,7 @@ services:
       - public
       - workshop_lab
       - web_lab
+      - terminal_ingress
     restart: unless-stopped
     # Backstop, same reasoning as git-server's above -- Caddy proxying 30
     # concurrent sessions is still lightweight, this is just a ceiling.
@@ -339,6 +350,18 @@ networks:
     internal: true
   web_lab:
     internal: true
+  # The gateway's only path to the students' IDE and terminal ports
+  # (9000-9899) (remediation T2.2a, FIND-04): web-terminal drops them on
+  # every other interface, so a CI job, runner or module service on
+  # workshop_lab can't reach a workspace that skips Caddy's auth-check.
+  # Only gateway and web-terminal join it; run.sh refuses a module or
+  # workshop fragment that mentions it. Fixed subnet so entrypoint.sh can
+  # find the interface; TERMINAL_INGRESS_SUBNET overrides a clash.
+  terminal_ingress:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${TERMINAL_INGRESS_SUBNET:-172.30.9.0/24}
   # Isolates the one-shot bootstrap service (only ever calls git-server) so
   # it has no network path to allocator or web-terminal at all -- those two
   # stay on workshop_lab only. See the bootstrap/git-server service blocks
