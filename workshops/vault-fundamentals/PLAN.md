@@ -11,9 +11,9 @@
 | Owner | scott |
 | Workshop folder | `workshops/vault-fundamentals/` |
 | Run command (when built) | `./run.sh vault-fundamentals` |
-| Overall status | **P0-P4 done (P4 committed 2026-09-25: 91031d6, 21daddf). Next: P5, after the user's go. Read "Where we stopped" in §0 first.** |
+| Overall status | **P0-P4 done; P5 done through T5.6 (live pass 2026-09-28, 7684f07). Open: the user's browser passes, then the merge to `main`. Read "Where we stopped" in §0 first.** |
 | Working branch | `feat/vault-fundamentals` (branched from `main` at `ebd0457`, after tofu-basics merged) |
-| Last updated | 2026-09-25 (P3 done) |
+| Last updated | 2026-09-28 (T5.6 live pass) |
 
 ---
 
@@ -37,7 +37,14 @@
 7. If you are blocked, mark the task `[!]`, say why in §15, and move to the
    next unblocked task.
 
-### Where we stopped (2026-09-25): start here next
+### Where we stopped (2026-09-28): start here next
+
+- **2026-09-28: T5.6 done** (7684f07). Locally: `--test 10`, the full `e2e.sh`, then `e2e.sh --only load,bots --load 15`
+  all PASS after fixing the bot steps for labs 9-11 (they looked for a heredoc lab 9 no longer has) and the load
+  sampler. Four bots completed labs 10 and 11; six had not reached lab 10 when the run ended. Audit tab, Roster (10
+  bot tiles) and 64 slides within 16:9 PASS; the facilitator's VS Code tab needed a retry under load (two console
+  errors). README "Sizing" has the numbers (about 2 GiB and under one core for 10 bots). `./run.sh stop` left
+  nothing. Next: the user's browser passes, then merge to `main` (ROADMAP "Later").
 
 - **2026-09-25: the deliverer lab (S39), T5.12-T5.16 done.** New `lab10.md`; labs 10-12 are now 11-13. Tested
   locally: `tests/lab_10.sh` PASS (26 checks, student03), `tests/labs_11_13.sh` after it (see T5.16). Not yet run:
@@ -876,17 +883,17 @@ Build T5.1-T5.5 without long stack runs (unit tests and `--dry-run` only); T5.6 
 - [x] **T5.4** *(d83c4cb; 16:9 check in T5.6)* Talk: a closing recap slide (the 8 principles, an "at work" checklist); slides stay within 16:9.
 - [x] **T5.5** *(57aa4be; runs and numbers in T5.6)* `tests/e2e.sh` (chains `tenancy`, `cli_login`, labs 4-11, `pool.sh`, the browser checks; `--load`
       runs with 20 bots and records memory/CPU), sizing notes in the workshop README (20, extrapolated to 35).
-- [ ] **T5.6** The live pass: fresh stack with `--test 20`, `e2e.sh --load`, the Audit tab in a browser, the
-      facilitator view of bots, `./run.sh stop` leaves nothing.
-- [x] **T5.7** *(uncommitted)* Plan: S37, S38, §4 outline, these tasks.
-- [x] **T5.8** *(uncommitted)* Terminal image: `pass` from Debian (brings `gnupg`, `pinentry-curses`, `tree`), `GPG_TTY` in
+- [x] **T5.6** *(7684f07)* The live pass: fresh stack with `--test 20`, `e2e.sh --load`, the Audit tab in a browser, the
+      facilitator view of bots, `./run.sh stop` leaves nothing. Run with `--test 10` and `--load 15` (§15, 2026-09-28).
+- [x] **T5.7** *(95c9c71)* Plan: S37, S38, §4 outline, these tasks.
+- [x] **T5.8** *(95c9c71)* Terminal image: `pass` from Debian (brings `gnupg`, `pinentry-curses`, `tree`), `GPG_TTY` in
       `/etc/zsh/zshrc`. No helper needed: students type a passphrase into pinentry (tested in a pty).
-- [x] **T5.9** *(uncommitted)* Lab 2 (`pass`), with the `gopass` note; cheat-sheet section (Linux, macOS, Windows);
+- [x] **T5.9** *(95c9c71)* Lab 2 (`pass`), with the `gopass` note; cheat-sheet section (Linux, macOS, Windows);
       `tests/lab_2.sh` (14 checks, in `e2e.sh` as `lab_2`); bot step `step_vf_lab2` for every persona (key without a
       passphrase; the reset removes `~/.gnupg` and `~/.password-store`).
-- [x] **T5.10** *(uncommitted)* Renumber labs 2-11 → 3-12: lab files and their cross-references, README, `labs.md`, `lab-index.md`,
+- [x] **T5.10** *(95c9c71)* Renumber labs 2-11 → 3-12: lab files and their cross-references, README, `labs.md`, `lab-index.md`,
       cheat sheet, slides, bots (`steps.sh`), tests (renamed), setup hooks' comments, module comments.
-- [x] **T5.11** *(uncommitted)* Talk: two slides in Part 1 (the `pass` store as the mental model; why it stops at your machine), a
+- [x] **T5.11** *(95c9c71)* Talk: two slides in Part 1 (the `pass` store as the mental model; why it stops at your machine), a
       back-reference on the KV slides, the labs map and wrap-up tables on the new numbers; 16:9 check.
       Verify: the lab-2 steps in a fresh terminal image; `labs_*` tests on a stack (in T5.6 at the latest).
 
@@ -1432,3 +1439,17 @@ The openbao module's terminal link installs `hashicorp.hcl` 0.5.0 from Open VSX 
 `main`/`browser`/`activationEvents` and `out/`, leaving a declarative grammar. Verified locally in a standalone
 code-server from a test build of the module image (language mode "HCL", tokens coloured); the running stack still
 has the old image until the next `./run.sh stop` and `./run.sh vault-fundamentals`.
+
+### 2026-09-28 — T5.6 live pass: done (7684f07)
+
+Locally, on the WSL2 desktop (8 vCPU / 14 GiB). `./run.sh vault-fundamentals --test 10` built and started in 254 s.
+The full `e2e.sh --load 20`: unit, tenancy, cli_login, lab_2, labs_5_7, labs_8_9, lab_10, labs_11_13, audit and
+browser PASS; pool SKIP (it runs only without `--test`); bots and load FAIL. The bots stuck at lab 9, because
+`steps.sh` looked for a heredoc the lab no longer has (the workflow is written in VS Code since 19e2040). Fixed:
+`vf_block` writes VS Code files, lab 10/11 block numbers, the refused second unwrap, each lab waits for its own
+app page. The load sampler had an f-string SyntaxError and no numeric guard. After the fixes, `--only load,bots
+--load 15` PASS; four bots finished labs 10 and 11. Browser: Audit tab (rows, filters, 390 px), Roster 10/10 live
+tiles, the Terminal tab; the VS Code tab loaded on a retry under load with a 404 and an "unknown error" in the
+console (not followed up). All 64 slides fit 16:9. Peak about 2.0 GiB for the stack, under one core; runner
+queue peaked at 5. `./run.sh stop` left no container, volume or network. Also run on the same stack: remediation
+P0 T0.1, T0.2 (AppHost) and T0.4; results in `threat-model-20260926-154208/REMEDIATION-PLAN.md`.
