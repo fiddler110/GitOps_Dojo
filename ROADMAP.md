@@ -90,5 +90,3 @@ Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Import
 - `handouts/build-presentations.sh` hashes all of `workshops/assets/` as a deck input, so a lab-reader-only change
   re-exports every deck (new ~15-36 MB blobs with identical slides). Narrow `shared=` to what Marp reads (the
   themes, not `lab-reader.*` or `vendor/`).
-- `AGENTS.md` is a committed copy of the git-ignored `CLAUDE.md` and will drift from it. Pick one: keep only
-  `AGENTS.md`, or make one a symlink to the other.
