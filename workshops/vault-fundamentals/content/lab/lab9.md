@@ -32,7 +32,7 @@ The pipeline's job is to read a **deploy token**, the kind of secret a pipeline 
 
 ```bash
 # a new KV mount refuses writes for a moment while it upgrades: retry
-until bao kv put team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"; do sleep 2; done
+until printf '%s' "deploy-$USER-$RANDOM$RANDOM" | bao kv put team/ci deploy_token=-; do sleep 2; done
 printf 'path "team/data/ci" {\n  capabilities = ["read"]\n}\n' | bao policy write ci-read -
 ```
 

@@ -41,7 +41,7 @@ This lab uses what you built in Lab 4. If you skipped it, this block makes it; i
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 # a new KV mount refuses writes for a moment while it upgrades: retry
-until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
+until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
 printf 'path "team/data/app" {\n  capabilities = ["read"]\n}\n' | bao policy write app-read -
 ```
 
@@ -189,7 +189,7 @@ cd ~/lab/agent && python3 app.py
 Back in the first terminal, rotate the password. `$(date +%s)` puts the current time in seconds into the new value, so it's different every time:
 
 ```bash
-bao kv patch team/app db_password=rotated-$(date +%s)
+printf '%s' "rotated-$(date +%s)" | bao kv patch team/app db_password=-
 ```
 
 Watch the app's terminal: within about 5 seconds the fingerprint changes. No commit, no new build, no restart, and nobody had to tell the app. A real app would reload when the file changes, or the Agent can run a command after each render (`command` in the `template` block) to signal it.

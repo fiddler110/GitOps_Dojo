@@ -30,8 +30,10 @@ On your own machine at work: Linux `apt install pass`; macOS `brew install pass 
 ## KV v2 secrets (labs 3-4)
 
 ```bash
-bao kv put    secret/students/$USER/db user=app password=pw   # new version, replaces all keys
-bao kv patch  secret/students/$USER/db password=pw2           # new version, changes only these keys
+printf '%s' 'pw' | bao kv put secret/students/$USER/db user=app password=-   # new version, replaces all keys
+printf '%s' 'pw2' | bao kv patch secret/students/$USER/db password=-         # new version, changes only these keys
+echo '{"a": "1", "b": "2"}' | bao kv put secret/students/$USER/x -          # several keys, as JSON
+# key=- reads the value from stdin: a command line is visible to everyone in `ps`
 bao kv get    secret/students/$USER/db                        # newest version
 bao kv get    -field=password secret/students/$USER/db        # one value, for scripts
 bao kv get    -version=1 secret/students/$USER/db             # an old version
@@ -151,8 +153,8 @@ EOF
 bao write auth/approle/role/app token_policies=app-read token_period=10m \
   secret_id_num_uses=1 secret_id_ttl=5m                  # single-use, 5 minutes; a renewable token
 bao write -f -wrap-ttl=60s -field=wrapping_token auth/approle/role/app/secret-id   # the wrapper
-bao write sys/wrapping/lookup token=<wrapper>              # where it was made, how long it lives
-bao unwrap -field=secret_id <wrapper>                      # once; again: "not valid or does not exist"
+printf '%s' "$WRAPPED" | bao write sys/wrapping/lookup token=-   # where it was made, how long it lives
+BAO_TOKEN="$WRAPPED" bao unwrap -field=secret_id                  # once; again: "not valid or does not exist"
 ```
 
 ```hcl

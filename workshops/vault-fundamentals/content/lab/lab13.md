@@ -24,9 +24,9 @@ First make sure the three secrets are there (a catch-up, as in earlier labs):
 ```bash
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
-bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
-bao kv get team/ci >/dev/null 2>&1 || bao kv put team/ci deploy_token="deploy-$USER-$RANDOM"
-bao kv get team/admin >/dev/null 2>&1 || bao kv put team/admin root_password=do-not-share
+bao kv get team/app >/dev/null 2>&1 || until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
+bao kv get team/ci >/dev/null 2>&1 || printf '%s' "deploy-$USER-$RANDOM" | bao kv put team/ci deploy_token=-
+bao kv get team/admin >/dev/null 2>&1 || printf '%s' 'do-not-share' | bao kv put team/admin root_password=-
 ```
 
 The job's policy. In VS Code, create **`nightly-report.hcl`** at the top of your lab folder (right-click an empty part of the Explorer → **New File...**):
@@ -110,8 +110,8 @@ BAO_TOKEN=$LEAKED bao kv get team/app                # permission denied
 Revoking stops *new* reads. It doesn't un-read `team/app` and `team/ci`: those values are out, so they change now, to new random values. (At work you'd also change them at their source, e.g. issue a new API key at the provider; the vault holds the copy the apps use.)
 
 ```bash
-bao kv patch team/app api_key="rotated-$(date +%s)" db_password="rotated-$RANDOM$RANDOM"
-bao kv patch team/ci deploy_token="deploy-$USER-$RANDOM$RANDOM"
+printf '{"api_key": "rotated-%s", "db_password": "rotated-%s"}' "$(date +%s)" "$RANDOM$RANDOM" | bao kv patch team/app -
+printf '%s' "deploy-$USER-$RANDOM$RANDOM" | bao kv patch team/ci deploy_token=-
 ```
 
 `team/admin` was refused, so it stays: the audit log tells you what you *don't* need to rotate, too.

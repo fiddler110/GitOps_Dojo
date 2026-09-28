@@ -91,7 +91,7 @@ unset DB_PASSWORD API_KEY
 Put the app's secrets in your folder of the shared vault (Lab 3):
 
 ```bash
-bao kv put secret/students/$USER/app db_password=vault-db-pass-789 api_key=vault-api-key-012
+echo '{"db_password": "vault-db-pass-789", "api_key": "vault-api-key-012"}' | bao kv put secret/students/$USER/app -
 ```
 
 Now the app asks the vault for them itself. `hvac` is Python's Vault client, and it works with OpenBao unchanged. In VS Code, create **app → `app_vault.py`**:
@@ -154,7 +154,7 @@ rm .env
 Now rotate the password in one place, and run the app again:
 
 ```bash
-bao kv patch secret/students/$USER/app db_password=rotated-db-pass-000
+printf '%s' 'rotated-db-pass-000' | bao kv patch secret/students/$USER/app db_password=-
 python3 app_vault.py       # version 2, a new length, no commit, nobody told
 ```
 
