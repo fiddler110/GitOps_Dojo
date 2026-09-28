@@ -284,6 +284,9 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # Set only when another proxy terminates TLS in front of the lab.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
+      # The proxy in front of GATEWAY_LISTEN, as the gateway sees it (CIDR,
+      # space-separated): the rate limit then keys on the real client address.
+      - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
       - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
       - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}

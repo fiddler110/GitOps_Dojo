@@ -395,6 +395,10 @@ LAB_HOST_IP=0.0.0.0
 ```
 and on the proxy, `dojo.example.com { reverse_proxy <this-host>:8080 }`. Scope a
 firewall rule so only the proxy can reach port 8080.
+Also set `GATEWAY_TRUSTED_PROXIES` to the proxy's address as the gateway sees it
+(a CIDR such as `10.0.0.2/32`), so the login rate limit counts each browser
+separately instead of the proxy as one client. Name only the proxy, never a
+whole private range: anyone the gateway trusts can set `X-Forwarded-For`.
 
 ## Start
 

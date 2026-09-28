@@ -37,7 +37,48 @@
 # Signing into Forgejo is a separate, deliberate step with each student's
 # own credentials, same as before.
 
+{
+	# caddy-ratelimit (see the Dockerfile) has no default place in the order.
+	order rate_limit before basic_auth
+	# Behind another proxy (engine/.env.home) every request arrives from the
+	# proxy's address. GATEWAY_TRUSTED_PROXIES names that proxy (CIDR list) so
+	# {client_ip} below is the real browser's address from X-Forwarded-For,
+	# read right to left so a client can't prepend a fake one. Only that
+	# proxy: trusting all private ranges would let a LAN student spoof the
+	# header and dodge the limit. Unset (the default): nothing is trusted and
+	# {client_ip} is the connecting address.
+	servers {
+		trusted_proxies static {$GATEWAY_TRUSTED_PROXIES}
+		trusted_proxies_strict
+	}
+}
+
 {$GATEWAY_LISTEN} {
+	# Brute-force limit for both basic_auth gates (remediation T1.1c, FIND-01).
+	# It counts only requests whose Authorization header is not exactly one
+	# of the two valid ones (entrypoint.sh computes them): each wrong guess,
+	# plus the single unauthenticated request before a login prompt. Signed-in
+	# browsers and polling are never counted, so a class behind one NAT
+	# address is not limited for being signed in. Keyed on {client_ip} (see
+	# trusted_proxies above), so behind a proxy one guesser doesn't lock
+	# everyone else out of the login. Past the limit the answer is 429 before
+	# any bcrypt check.
+	@auth_guess {
+		not path /slides*
+		# Two lines on one field merge into one header matcher: either value.
+		not {
+			header Authorization "{$CLASS_BASIC_AUTH}"
+			header Authorization "{$FACILITATOR_BASIC_AUTH}"
+		}
+	}
+	rate_limit @auth_guess {
+		zone auth_guess {
+			key {client_ip}
+			events 30
+			window 1m
+		}
+	}
+
 	@slides path /slides*
 	handle @slides {
 		uri strip_prefix /slides

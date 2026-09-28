@@ -12,4 +12,11 @@ export GATEWAY_LISTEN="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
 export TTYD_PASSWORD_HASH="$(caddy hash-password --plaintext "$TTYD_PASSWORD")"
 export FACILITATOR_PASSWORD_HASH="$(caddy hash-password --plaintext "$FACILITATOR_PASSWORD")"
 
+# The exact Authorization headers a signed-in browser sends. The Caddyfile's
+# rate limit counts only requests that carry neither, i.e. wrong guesses (and
+# the one unauthenticated request before a login prompt), so a whole class
+# behind one NAT address is never limited for being signed in.
+export CLASS_BASIC_AUTH="Basic $(printf '%s:%s' "$TTYD_USERNAME" "$TTYD_PASSWORD" | base64 | tr -d '\n')"
+export FACILITATOR_BASIC_AUTH="Basic $(printf '%s:%s' "$FACILITATOR_USERNAME" "$FACILITATOR_PASSWORD" | base64 | tr -d '\n')"
+
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
