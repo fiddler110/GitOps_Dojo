@@ -4,7 +4,7 @@ Every piece of open work in one place. Each line is a summary; the linked plan h
 verify lines, and stays the source of truth for them. When a task is done, tick it in its plan (with the commit
 SHA) and update or remove its line here.
 
-Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (merged to `main` in PR #3, 3a59106)
+Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` after PR #3, 3a59106; the merged feature branches are deleted)
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
