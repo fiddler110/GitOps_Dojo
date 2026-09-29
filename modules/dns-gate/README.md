@@ -43,6 +43,11 @@ DNS_API_KEY=$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKE
 
 `creds.json` for dnscontrol names the variable, not the key: `"apiKey": "$DNS_API_KEY"`.
 
+**Rate limit (tripwire, not a budget):** a token bucket per authenticated identity (never the source IP). Knobs in
+module.env: `DNS_API_RATE_BURST` (default `200`) and `DNS_API_RATE_PER_SEC` (default `50`); `0` = off. CI and the
+read key are shared by the class, so they get a x5 bucket. A refusal is a 429 with `Retry-After` and a
+`"result":429,"why":"rate limit"` audit line naming the account.
+
 **Not covered:** in `cert-autorenewal`, http-01. That challenge is answered from demo-app's shared webroot, where
 each student owns only their own directory; this module doesn't change it. step-ca's name policy
 (`*.certs.dojo.test` only) keeps every certificate inside the lab zone.

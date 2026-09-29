@@ -27,6 +27,8 @@ pool, Auto / Manual, − / +) and **Apps** (every app-host slot and its log).
 | `content/` | Slides, labs 0-13 and the cheat sheet, the seed repo, and `bots/steps.sh` (demo bots). |
 | `tests/` | Below. |
 
+`app-host` runs as root inside its container but drops all capabilities except those `useradd`, `su` and the slots' files need, and sets `no-new-privileges`. NET_ADMIN (for the slots' egress allowlist) is held only at start: `compose/app-host/start.sh` runs `apphost.py --isolate-only`, then `setpriv` removes NET_ADMIN and SETPCAP before the platform starts. A restart re-runs the allowlist. Podman's default seccomp profile applies.
+
 The vault itself (`openbao`, SSO, CLI login, `openbao-audit` and the Audit tab) is `modules/openbao/`; the runners
 and their panel are `modules/runner-pool/`.
 

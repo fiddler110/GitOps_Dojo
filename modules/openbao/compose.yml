@@ -76,6 +76,8 @@ services:
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # Per-student-namespace rate-limit tripwire (module.env; 0 = none).
+      - OPENBAO_NAMESPACE_RATE=${OPENBAO_NAMESPACE_RATE:-200}
       # For CLI login (setup/cli.sh): the facilitator's terminal account.
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:

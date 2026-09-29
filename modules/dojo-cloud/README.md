@@ -26,4 +26,11 @@ cd modules/dojo-cloud/cloud-api && python3 -B -m unittest test_portal_api test_e
 cd .. && python3 -B -m unittest test_parity
 ```
 
+## Rate limit (tripwire)
+
+CloudAPI keeps a token bucket per student for ARM calls (never keyed by source IP), far above a `tofu apply` or a
+`--test` run. Knobs in module.env: `CLOUD_API_RATE_BURST` (default `200`) and `CLOUD_API_RATE_PER_SEC` (default
+`20`); `0` = off. A refusal is a 429 with `Retry-After` and a `rate limit: <account> ...` log line. Test:
+`python3 -B -m unittest test_ratelimit`.
+
 Used by: `tofu-basics`.

@@ -20,6 +20,7 @@ import signal
 import ssl
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -64,6 +65,45 @@ REASONS = {"first": "the first readiness check has not finished",
 
 def log(msg):
     print(msg, flush=True)
+
+
+class RateLimit:
+    """A token bucket per authenticated identity: a tripwire against a runaway
+    loop, far above what a lab does, not a budget (0 = off). Never keyed by
+    source IP (all students share one address). The lock covers arithmetic
+    only, no I/O."""
+
+    def __init__(self, burst, per_sec, clock=time.monotonic):
+        self.burst, self.rate, self.clock = float(burst), float(per_sec), clock
+        self.buckets = {}  # key -> [tokens, last]
+        self.lock = threading.Lock()
+
+    def take(self, key, scale=1):
+        """0 if the request may go now, else seconds until one may. `scale`
+        widens the bucket for shared identities (CI, the read key)."""
+        if self.burst <= 0 or self.rate <= 0:
+            return 0
+        burst, rate = self.burst * scale, self.rate * scale
+        with self.lock:
+            now = self.clock()
+            tokens, last = self.buckets.get(key, (burst, now))
+            tokens = min(burst, tokens + (now - last) * rate)
+            if tokens >= 1:
+                self.buckets[key] = (tokens - 1, now)
+                return 0
+            self.buckets[key] = (tokens, now)
+            return max(1, int((1 - tokens) / rate + 0.999))
+
+
+def _rate(name, default):
+    try:
+        return float(ENV.get(name, default))
+    except ValueError:
+        return float(default)
+
+
+# Per-student ARM request tripwire (CLOUD_API_RATE_*, module.env; 0 = off).
+LIMIT = RateLimit(_rate("CLOUD_API_RATE_BURST", 200), _rate("CLOUD_API_RATE_PER_SEC", 20))
 
 
 def load_signing_key():
@@ -472,6 +512,11 @@ class Handler(BaseHTTPRequestHandler):
         if user is None:
             return 401, {"error": {"code": "InvalidAuthenticationToken",
                                    "message": "The access token is missing, invalid or expired."}}
+        wait = LIMIT.take(user)
+        if wait:
+            log(f"rate limit: {user} {self.command} {path[:120]} -> 429 (retry in {wait}s)")
+            return (429, arm_error(429, "TooManyRequests", "Too many requests: slow down and retry.")[1],
+                    {"Retry-After": str(wait)})
         parts = [p for p in path.split("/") if p]
         lparts = [p.lower() for p in parts]
         if len(parts) == 1:  # GET /subscriptions

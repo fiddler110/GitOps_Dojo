@@ -13,7 +13,7 @@ FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c
 
 # python3: the platform and the apps. openssl: the platform's signing key and
 # signature checks. tini: PID 1, reaping the processes of stopped apps.
-# util-linux (su, unshare, prlimit) and passwd (useradd) are in the base image.
+# util-linux (su, unshare, prlimit, setpriv) and passwd (useradd) are in the base image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         iptables \
@@ -27,6 +27,6 @@ COPY --from=tools /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3
 RUN bao version && python3 -c 'import hvac, pg8000'
 
 EXPOSE 8080
-ENTRYPOINT ["/usr/bin/tini", "--", "python3", "-B", "-u", "/opt/app-host/apphost.py"]
+ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/opt/app-host/start.sh"]
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/healthz", timeout=2)'

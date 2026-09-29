@@ -40,3 +40,10 @@ Each login name is aliased to the same entity as the account's SSO login. Every 
 --quiet` from `/etc/zsh/zshenv`: it trades a JWT for a token in `~/.vault-token` (read by `bao`, sops and `hvac`)
 when there is none or the one it wrote has under an hour left, and leaves alone a token the user got with `bao
 login`. A shell opened before OpenBao was ready has no token: run `openbao-login`.
+
+## Rate limit (tripwire)
+
+A workshop whose tenancy hook makes per-student namespaces (vault-fundamentals) also puts a `sys/quotas/rate-limit`
+quota in each one. It is a tripwire against a runaway loop, not a budget: `OPENBAO_NAMESPACE_RATE` (module.env) is
+requests per second per namespace, default `200`, `0` = no quota. One student's loop gets 429s; the rest of the class
+is untouched. The provisioner policy grants `sys/quotas/rate-limit/*` (root and `students/+/`) for this.

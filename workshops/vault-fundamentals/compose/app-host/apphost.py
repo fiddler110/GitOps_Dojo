@@ -311,13 +311,19 @@ class Slot:
         return doc
 
 
+def slot_uid_range(cfg):
+    uids = [UID_BASE + i for i in range(1, len(cfg.slots) + 1)]
+    return min(uids), max(uids)
+
+
 def isolate_slots(first_uid, last_uid):
     """An OUTPUT allowlist for the slot users (the DOJO_ISOLATION pattern of
     the web-terminal): loopback (this platform's proxy to each app, and the
     app's own port), SLOT_EGRESS_PORTS, and a reject for the rest, so a
     student's app can't reach the terminals, Forgejo or anything else on
     workshop_lab and runner_net. Idempotent across restarts. Needs NET_ADMIN
-    (docker-compose.override.yml)."""
+    (docker-compose.override.yml); start.sh runs it alone with --isolate-only,
+    then drops NET_ADMIN before the platform starts."""
     def ipt(*args, check=True):
         return run(["iptables", *args], check=check)
     if ipt("-N", "DOJO_SLOT_EGRESS", check=False).returncode != 0:
@@ -356,8 +362,10 @@ class Platform:
         # A tmpfs comes world-writable; each slot's own folder is 0700.
         os.chmod(TOKEN_DIR, 0o755)
         os.chmod(APPS_DIR, 0o755)
-        uids = [s.uid for s in self.slots.values()]
-        isolate_slots(min(uids), max(uids))
+        # start.sh has already run the allowlist (--isolate-only) and dropped
+        # NET_ADMIN; a bare `apphost.py` still sets it up itself.
+        if os.environ.get("APPHOST_ISOLATED") != "1":
+            isolate_slots(*slot_uid_range(self.cfg))
         for s in self.slots.values():
             try:
                 pwd.getpwnam(s.name)
@@ -701,7 +709,11 @@ def make_handler(platform):
 
 def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    platform = Platform(Config(os.environ))
+    cfg = Config(os.environ)
+    if "--isolate-only" in sys.argv:
+        isolate_slots(*slot_uid_range(cfg))
+        return
+    platform = Platform(cfg)
     platform.prepare()
     threading.Thread(target=platform.refresh_tokens, daemon=True).start()
     threading.Thread(target=platform.watch_running, daemon=True).start()

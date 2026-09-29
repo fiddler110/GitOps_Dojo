@@ -28,6 +28,14 @@ seed() {
 for s in $(class_users); do
   BAO_NAMESPACE=students bao namespace lookup "$s" >/dev/null 2>&1 \
     || BAO_NAMESPACE=students retry 10 bao namespace create "$s" >/dev/null
+  # Tripwire against a runaway loop in one namespace (OPENBAO_NAMESPACE_RATE,
+  # module.env; 0 = none). A quota made inside a namespace covers only it. A
+  # write replaces, so a re-run is harmless.
+  if [ "${OPENBAO_NAMESPACE_RATE:-200}" -gt 0 ]; then
+    BAO_NAMESPACE="students/$s" retry 10 bao write sys/quotas/rate-limit/namespace \
+      rate="${OPENBAO_NAMESPACE_RATE:-200}" interval=1s >/dev/null \
+      || { log "tenancy: could not set $s's rate limit"; exit 1; }
+  fi
   retry 30 seed "$s" || { log "tenancy: could not seed $s's welcome secret"; exit 1; }
 done
 log "tenancy: secret/, the student policy and $(class_users | wc -l) namespaces under students/"

@@ -38,8 +38,20 @@ services:
         TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_runner_pool
     # Root inside the container: it creates and deletes the runner users.
-    # Rootless podman's default capabilities; no extra ones (T0.8).
+    # Only what useradd/userdel, su, chown and killing a job's processes need
+    # (T4.1); podman's default seccomp profile applies and is not pinned here.
     user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+      - KILL
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - RUNNER_NPROC=${RUNNER_NPROC:-256}
@@ -77,7 +89,15 @@ services:
     command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     network_mode: "service:runner-pool"
     # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
+    # NET_BIND_SERVICE is the only capability it needs (default seccomp
+    # profile, not pinned).
     user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
     volumes:

@@ -71,8 +71,46 @@ def dns_key(seed, user):
     return f"{user}.{base64.b32encode(mac).decode()[:32]}"
 
 
+def _rate(env, name, default):
+    try:
+        return float(env.get(name, default))
+    except ValueError:
+        return float(default)
+
+
+class RateLimit:
+    """A token bucket per authenticated identity: a tripwire against a runaway
+    loop, far above what a lab does, not a budget (0 = off). Never keyed by
+    source IP (all students share one address). The lock covers arithmetic
+    only, no I/O."""
+
+    def __init__(self, burst, per_sec, clock=time.monotonic):
+        self.burst, self.rate, self.clock = float(burst), float(per_sec), clock
+        self.buckets = {}  # key -> [tokens, last]
+        self.lock = threading.Lock()
+
+    def take(self, key, scale=1):
+        """0 if the request may go now, else seconds until one may. `scale`
+        widens the bucket for shared identities (CI, the read key)."""
+        if self.burst <= 0 or self.rate <= 0:
+            return 0
+        burst, rate = self.burst * scale, self.rate * scale
+        with self.lock:
+            now = self.clock()
+            tokens, last = self.buckets.get(key, (burst, now))
+            tokens = min(burst, tokens + (now - last) * rate)
+            if tokens >= 1:
+                self.buckets[key] = (tokens - 1, now)
+                return 0
+            self.buckets[key] = (tokens, now)
+            return max(1, int((1 - tokens) / rate + 0.999))
+
+
 class Config:
     def __init__(self, env=os.environ):
+        # Per-identity request tripwire (DNS_API_RATE_*, module.env; 0 = off).
+        self.rate_burst = _rate(env, "DNS_API_RATE_BURST", 200)
+        self.rate_per_sec = _rate(env, "DNS_API_RATE_PER_SEC", 50)
         self.upstream = urlsplit(env.get("PDNS_API_URL", "http://dns-server:8081"))
         self.upstream_key = env.get("PDNS_UPSTREAM_KEY", "")
         self.read_key = env.get("DNS_GATE_READ_KEY", "workshop-not-a-secret")
@@ -287,6 +325,7 @@ def decide(method, path, body, caller, cfg):
 
 CFG = Config()
 KEYS = ForgejoKeys(CFG.jwks_url)
+LIMIT = RateLimit(CFG.rate_burst, CFG.rate_per_sec)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -307,8 +346,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def send_json(self, status, message):
+        self.send_json_headers(status, message, {})
+
+    def send_json_headers(self, status, message, extra):
         data = json.dumps({"error": message}).encode()
         self.send_response(status)
+        for k, v in extra.items():
+            self.send_header(k, v)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -324,6 +368,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as e:
             self.audit("-", method, path, 401, str(e))
             return self.send_json(401, "Unauthorized: use your own key ($DNS_API_KEY)")
+        # Shared identities (CI, the read key) serve the whole class: x5.
+        wait = LIMIT.take(repr(caller), 1 if caller.kind == "user" else 5)
+        if wait:
+            self.audit(repr(caller), method, path, 429, "rate limit")
+            return self.send_json_headers(429, "Too many requests: slow down and retry", {"Retry-After": str(wait)})
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:

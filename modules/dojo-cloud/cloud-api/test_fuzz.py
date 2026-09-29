@@ -63,6 +63,7 @@ DOCKER_MIN_NANO_CPUS = 10_000_000       # 0.01 CPU: the smallest CFS quota that 
 
 
 def setUpModule():
+    server.LIMIT = server.RateLimit(0, 0)  # the fuzzer sends thousands of requests as one user: rate limit off
     print(f"\ntest_fuzz: seed={SEED} iterations={ITERATIONS} "
           f"(reproduce with DOJO_FUZZ_SEED={SEED})", file=sys.stderr)
 

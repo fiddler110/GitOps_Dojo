@@ -26,7 +26,7 @@ cross-site form can't send and a cross-site `fetch` can't send without a CORS pr
 served from the loop's snapshot, never with a Forgejo call of their own.
 
 **Why a process pool and not containers:** the stack has no container-engine socket anywhere, and this keeps it that
-way. The pool is one unprivileged container with rootless podman's default capabilities. Its weak point is that runners
+way. The pool is one container that drops every capability except the six its supervisor uses (CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL) and sets `no-new-privileges`; the ID-token shim keeps only NET_BIND_SERVICE. Podman's default seccomp profile still applies. Its weak point is that runners
 running at the same moment share a kernel and a filesystem; users, namespaces and umask keep them apart, and each is
 thrown away after one job. Hosts that block unprivileged user namespaces (e.g. Ubuntu 24.04's AppArmor
 `kernel.apparmor_restrict_unprivileged_userns=1`) stop the runners from starting: they turn red on the panel.

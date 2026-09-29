@@ -69,6 +69,9 @@ services:
       # Dojo Portal API trusts X-Auth-User only together with this token (the
       # gateway sets both; students on workshop_lab can reach :8080 directly).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      # Per-student request tripwire (module.env; 0 = off).
+      - CLOUD_API_RATE_BURST=${CLOUD_API_RATE_BURST:-200}
+      - CLOUD_API_RATE_PER_SEC=${CLOUD_API_RATE_PER_SEC:-20}
     volumes:
       - cloud_run:/run/cloud
       - cloud_pki:/pki
