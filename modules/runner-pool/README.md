@@ -52,3 +52,18 @@ services:
 
 Jobs use `runs-on: host`. The runners serve every repo on the instance, so students can run workflows in their own
 forks.
+
+## Controller credentials (FIND-16, T5.2c/d)
+
+`runner-token-init` is a one-shot service that signs in once with the Forgejo admin login and writes a
+`write:admin` token (`runner-controller`) to the `runner_controller_token` volume; `runner-controller` mounts it
+read-only and no longer gets `FORGEJO_ADMIN_PASSWORD` (it re-reads the file on every call, and shows "waiting"
+until it exists). A leaked controller environment now yields a revocable token, not the admin login.
+The token is still admin-scoped: Forgejo's runner endpoints accept no narrower scope.
+
+Compose `secrets:` under podman-compose (evaluated from docs and existing behaviour only, not run here):
+1. podman-compose supports file-based `secrets:` (bind-mounted at `/run/secrets/<name>`) but not `environment:`
+   secrets, and support for `mode`/`uid`/`gid` varies by version.
+2. That needs a host file holding the value, i.e. another plaintext copy beside `engine/.env`, and `./run.sh stop`
+   would have to delete it; the named volume above is wiped with the rest.
+3. Not adopted: revisit if the engine gains a secrets directory. Needs a live check on this machine's version.
