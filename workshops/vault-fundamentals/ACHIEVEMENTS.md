@@ -6,6 +6,12 @@ of the `core` set). Triggers: `shell:` (shell hook), `bao:` (an OpenBao audit-lo
 namespace, read by the audit event adapter), `forgejo:` (webhook), `verify:` (end-state verbs: `secret_exists`,
 `policy_attached`, `resource_state`).
 
+**Challenges and the capstone follow the "Rules for challenges and capstones" in `workshops/git-fundamentals/ACHIEVEMENTS.md`.**
+Here every challenge works only inside the student's own namespace `students/{user}`, their own database `app_{user}`,
+their own fork and their own app slot (one per student, `/srv/apps/{user}`). Nothing writes to the shared
+`secret/` mount outside `secret/students/{user}/`. Challenges use fresh names (`buddy-{user}`, `c2-app`, `capstone-*`)
+rather than the labs' roles and policies, so redoing one never breaks another or a lab.
+
 **Every lab is mandatory** (labs 0-13), so every lab milestone is `core`. Challenges, the capstone and funny unlocks
 never count toward completion. Secret *values* are never logged or scored: only paths, counts and states.
 
@@ -145,22 +151,36 @@ never count toward completion. Secret *values* are never logged or scored: only 
 
 ### C1: The Shared Secret (after Lab 4 or 5)
 - **Goal:** "Give a teammate's app read access to one of your secrets without giving it access to anything else in your namespace."
-- **Seed:** a per-student teammate identity `buddy-{user}` with no policy.
-- **Verify:** `policy_attached` for `buddy-{user}`, allows read of exactly one path, denied elsewhere.
+- **Seed:** in the student's namespace, a teammate identity `buddy-{user}` with no policy, and two secrets at
+  `challenge/one` and `challenge/two` in a KV mount the seed creates there.
+- **Verify:** in `students/{user}`: `policy_attached` for `buddy-{user}`, allows read of exactly one path, denied on the other.
 - **Hint 1:** "A policy, then attach it." **Hint 2:** "The path in the policy is the whole permission."
+- **Collision check:** namespace-scoped; the shared `secret/` mount is not touched.
 
 ### C2: The Right Lease (after Lab 12)
-- **Goal:** "The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so."
-- **Verify:** DB role has `default_ttl=2m`, `max_ttl=10m`, and the app got a credential from it.
+- **Goal:** "The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a
+  **new** role called `c2-app`, and get a credential from it."
+- **Verify:** in `students/{user}`: database role `c2-app` has `default_ttl=2m`, `max_ttl=10m`, and a credential
+  was issued from it (lease exists).
 - **Hint 1:** "TTL and max TTL are separate settings." **Hint 2:** "On the role, not on the mount."
+- **Changed from the draft:** it changed "the DB role", which would rewrite the role Lab 12 (and the app) use. A new
+  role name keeps the lab's role intact.
+- **Collision check:** each student has their own database `app_{user}` and their own `database/` engine.
 
 ## Capstone (300 points): Zero Standing Secrets
-- **Goal:** "Deploy a new app slot with no secret stored anywhere in git, CI or on disk: identity from the platform,
-  its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no deploy."
-- **Seed:** a fresh slot and a starter repo per student.
-- **Verify:** workload login only (no AppRole, no CI secret), policy narrow, dynamic credential issued, secret rotated
-  with no deploy event, no secret in git history (scanner passes).
+- **Goal:** "Give your app slot a new app with no secret stored anywhere in git, CI or on disk: identity from the
+  platform, its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no
+  deploy."
+- **Seed:** a starter `capstone/` folder in the student's fork, and empty names to use: policy `capstone-app`, role
+  `capstone-app`, KV path `capstone/`. There is **one** slot per student, so the capstone reuses the student's own
+  slot (`/srv/apps/{user}`): deploying it replaces the app the labs left running there. The brief says so.
+- **Verify:** in `students/{user}` only: workload login (no AppRole, no CI secret) for the role `capstone-app`;
+  policy narrow (only `capstone/` and the DB creds path); one dynamic credential issued from `database/creds/`;
+  the static secret rotated while the app kept running, with no deploy event in between (from the student's
+  audit entries); no secret in the student's fork history (scanner passes).
 - **Hints:** (1) "Labs 9, 11 and 12 combined." (2) "Rotation is a write, not a deploy."
+- **Collision check:** namespace, database, fork and slot are all the student's own. It is safe for the whole class
+  to run it at once. If the facilitator wants a slot other than the lab's, that is a new `app-host` feature (not needed for this).
 - **Badge tier:** capstone (stars).
 
 ## Rough totals

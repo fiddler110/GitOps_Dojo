@@ -19,6 +19,25 @@ banner come at 80% of them, and the student's home page shows a running completi
 and the funny unlocks are optional bonuses and never count toward completion. `l1-merged` stays non-core: it depends on
 someone merging the PR (see the auto-merge item in `ROADMAP.md`).
 
+## Rules for challenges and capstones (apply to every workshop)
+
+Students share one Forgejo, one DNS server, one CA, one cloud and one vault, so a challenge that changes shared state
+breaks for the second person to try it. Every challenge and capstone must follow these:
+
+1. **Write only to a space keyed on `{user}`:** their own repo, zone, namespace, slot or name prefix. Never `main` of a
+   shared repo, a shared zone's apex, or an unprefixed name.
+2. **Verify only that space.** Assertions read `{user}`-keyed state, never global state (a shared `main`, a whole zone,
+   "the cloud is empty"), so another student's work can neither pass nor fail yours.
+3. **No dependency on another student.** No peer approval, no "wait for a classmate". If a review or a merge is part of
+   the goal, the seed provides the other party (a seeded PR from a bot account), or the facilitator, and only where
+   truly required (the catalog says so).
+4. **Change no shared config:** CA lifetimes, quotas, policies, branch protection and shared zones are read-only to a challenge.
+5. **Seed per student.** The service creates one seed for each student (a repo, a branch set, a zone file) when the
+   challenge is first opened. It is never one shared seed with a per-student label, because a fix to it lands for everyone.
+6. **Independent of each other.** A challenge must still pass if another challenge was never attempted, or was undone
+   (for example a capstone that destroys everything must not break an earlier challenge's check, which is verified when
+   it runs, not re-checked later).
+
 ## Lab 1: the core workflow
 
 | ID | Title | Joke | Pts | Core | Trigger |
@@ -85,40 +104,50 @@ module, not here.)
 
 Each has two hints (25% each) and an answer that scores zero. The check is by outcome, so any way of doing it counts.
 
+**Where they run.** The lab repo `training/sample-training-repo` is shared by the class, so a challenge never merges
+into its `main`. When a student opens a challenge, the service creates their own copy, `{user}/challenge-repo` (a
+seeded fork owned by that student, with the challenge's planted branches and commits). Pull requests, merges and
+`main` below all mean that repo. Merging there is safe: nobody else can see it change.
+
 ### C1: The Hotfix (after Lab 1 or 2)
 
 - **Goal shown to the student:** "Production has a typo in `roster/team.yaml`. Ship a fix without touching `main`
   directly. Prove it with a pull request."
-- **Constraints:** branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`;
-  the change sets Alice's role to `{role_for_user}` (a per-student value from a fixed silly list, e.g. "Chief Snack
-  Officer") so no two students share an answer.
-- **Verify:** forgejo `branch_exists`, `pr_open`, `pr_files == [roster/team.yaml]`, `file_contains` on the branch.
+- **Constraints:** in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`;
+  PR title starts with `hotfix:`; the change sets Alice's role to `{role_for_user}` (a per-student value from a fixed
+  silly list, e.g. "Chief Snack Officer") so an answer can't be copied.
+- **Verify:** forgejo `branch_exists`, `pr_open` or `pr_merged`, `pr_files == [roster/team.yaml]`, `file_contains` on
+  the branch. No direct push to `main` (checked from the repo's own history).
 - **Hint 1:** "Everything you need is in Lab 1. What do you do before you edit anything?"
 - **Hint 2:** "Branch, edit the one line, commit, push, open the PR from Forgejo."
 - **Answer:** the command list.
+- **Collision check:** own repo, own branch, no merge into a shared `main`. Nothing needs a facilitator.
 
 ### C2: The Detective (after Lab 3 or 4)
 
 - **Goal:** "Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its
   short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it."
-- **Seed needed:** a few planted commits in the sample repo; `{target_line}` is picked per student from a list, and
-  the verifier computes the true answer with `git log -S` / `git blame`.
-- **Verify:** forgejo `file_contains` on `case-{user}` for the right hash and author.
+- **Seed:** planted commits in `{user}/challenge-repo`; `{target_line}` is picked per student from a list, and the
+  verifier computes the true answer for that repo with `git log -S` / `git blame`. Each student's history has its
+  own hashes, so an answer can't be shared.
+- **Verify:** forgejo `file_contains` on `case-{user}` in the student's repo for the right hash and author.
 - **Hint 1:** "Which command answers 'who changed this line?'"
 - **Hint 2:** "`git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared."
 - **Answer:** the two commands and the expected output shape.
+- **Collision check:** read-only investigation of a private repo, one new branch.
 
 ## Capstone (300 points, optional): The Great Merge
 
-- **Goal:** "Two feature branches, `feature-{user}-a` and `feature-{user}-b`, both edit the same lines. A third commit
-  on one of them broke something. Bring both changes into `main` through a pull request with **both** edits kept, no
-  conflict markers left behind, and the broken commit undone the safe way."
-- **Seed needed:** the service creates the two conflicting branches and the bad commit for each student at
-  setup or on first request.
-- **Verify:** forgejo `pr_merged` into `main`; `file_contains` both edits and no `<<<<<<<`; history contains a revert
-  commit for the bad one.
+- **Goal:** "Two feature branches, `feature-a` and `feature-b`, both edit the same lines. A third commit on one of them
+  broke something. Bring both changes into `main` through a pull request with **both** edits kept, no conflict markers
+  left behind, and the broken commit undone the safe way."
+- **Seed:** the two conflicting branches and the bad commit are created in the student's own `{user}/challenge-repo`
+  (Forgejo user repos, so no branch names need a `{user}` suffix).
+- **Verify:** forgejo `pr_merged` into that repo's `main`; `file_contains` both edits and no `<<<<<<<`; history
+  contains a revert commit for the bad one.
 - **Hints:** (1) "Merge one, then the other; expect a conflict." (2) "`git revert` undoes a commit without rewriting
   history."
+- **Collision check:** the merge lands in a private repo, so it can't conflict with anyone. Fully solo; no facilitator.
 - **Badge tier:** capstone (stars).
 
 ## Rough totals (for scale)

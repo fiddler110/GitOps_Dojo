@@ -4,6 +4,11 @@ Nothing here is built. Same format and rules as `workshops/git-fundamentals/ACHI
 it" first). Points are the defaults (milestone 10, funny 5, challenge 100, capstone 300, all settable in `.env`);
 `core` counts toward the certificate (80% of the `core` set). Triggers: `shell:` (shell hook), `forgejo:` (webhook), `dns:` (dns-gate / PowerDNS audit lines), `verify:` (end state).
 
+**Challenges and the capstone follow the "Rules for challenges and capstones" in `workshops/git-fundamentals/ACHIEVEMENTS.md`.**
+Here that means they run in the student's own zone, `{user}.dojo.test` (Lab 1: own repo, own API key, nobody else's
+config touches it), never in the shared `dojo.test` zone or its repo. Labs 3-6 are the shared-zone practice; the
+challenges are not.
+
 **Every lab is mandatory**, so every lab milestone is `core`. Challenges, the capstone and funny unlocks are bonuses and
 never count toward completion. The shared cheating and "bumped into your neighbour" unlocks live with the module.
 
@@ -33,7 +38,7 @@ never count toward completion. The shared cheating and "bumped into your neighbo
 | d3-clone | Shared Custody | "Cloned the class's production zone. Nobody panic." | 10 | yes | forgejo: clone of `dns-team/dns-as-code` |
 | d3-blocked | Computer Says No | "You tried the shortcut. It said no." | 10 | yes | forgejo: direct push to `main` rejected (also a funny unlock, no double score) |
 | d3-pr | Please Look at This | "A pull request, as nature intended." | 10 | yes | forgejo: PR opened on `dns-team/dns-as-code` |
-| d3-review | Second Pair of Eyes | "You reviewed someone else's change." | 10 | yes | forgejo: review submitted on a PR by another student |
+| d3-review | Second Pair of Eyes | "You reviewed someone else's change." | 10 | yes | forgejo: review submitted on any PR in `dns-team/dns-as-code` that the student did not open (a neighbour's, or the seeded `dns-bot` PR, which the facilitator's setup opens so nobody is left without one) |
 | d3-applied | CI Did the Thing | "Merged, and the robot applied it." | 10 | yes | forgejo: PR merged; verify: record present in the zone |
 
 ## Lab 4: `dnsctl.py`
@@ -73,25 +78,37 @@ never count toward completion. The shared cheating and "bumped into your neighbo
 
 ## Challenges (100 points, no steps given)
 
+All in the student's own zone `{user}.dojo.test`; verified with `resource_state` against that zone only. A student's
+zone is created in Lab 1, and the service seeds the challenge's files when it is opened, in the same repo. Nothing here
+touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no challenge needs a second person.
+
 ### C1: The Typo (after Lab 1 or 2)
 - **Goal:** "The zone contains a record whose hostname is wrong. Find it and fix it without touching any other record."
-- **Seed:** a per-student zone file with one doubled-zone hostname (`www.{user}.dojo.test.dojo.test`) among ~6 records.
-- **Verify:** `resource_state`: the record now resolves, and the other records are unchanged.
+- **Seed:** the student's `dnsconfig.js` gains one doubled-zone hostname (`www.{user}.dojo.test.dojo.test`) among ~6 records.
+- **Verify:** `resource_state`: the record now resolves under `{user}.dojo.test`, and the other records are unchanged.
 - **Hint 1:** "Run the tool that shows you what it would change." **Hint 2:** "Look at the end of each hostname."
 
 ### C2: The Cutover (after Lab 5 or 6)
 - **Goal:** "`app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in
-  one pull request that someone else approves."
-- **Verify:** PR merged; `app` A record equals `10.20.0.{n}`; `www` is a CNAME to `app`; one approval by another user.
-- **Hint 1:** "One PR, two records." **Hint 2:** "An alias is a CNAME; the target ends with a dot."
+  one commit, and the zone must show no other changes."
+- **Verify:** `app` A record equals `10.20.0.{n}`; `www` is a CNAME to `app`; a `dnscontrol preview` is clean afterwards;
+  the change is one commit in the student's repo.
+- **Hint 1:** "One commit, two records." **Hint 2:** "An alias is a CNAME; the target ends with a dot."
+- **Changed from the draft:** it needed a merged PR approved by another student. The review process is already
+  covered by Lab 3 (with the seeded `dns-bot` PR), so the challenge drops it and stays solo.
 
 ## Capstone (300 points): The Bad Push
-- **Goal:** "A record merged to `dojo.test` an hour ago is sending traffic to the wrong address, and the same commit
-  also added a record you want to keep. Get `dojo.test` to the right state through the process, keeping the good
-  record, dropping the bad one, with a review."
-- **Seed:** a merged commit in the shared repo that adds one good and one bad record (one seed per student prefix).
-- **Verify:** bad record absent, good record present in the live zone, the PR approved by another student, no direct push.
+- **Goal:** "A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is
+  sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record
+  and dropping the bad one, without rewriting history."
+- **Seed:** the service commits and pushes (applies) one such commit in the student's own repo and zone, with the good
+  and bad record names built from `{user}`. The bad one's address is a per-student value.
+- **Verify:** in `{user}.dojo.test`: bad record absent, good record present, all other records unchanged; the repo's
+  history still contains the seed commit (no force-push), plus a new commit that fixes it.
 - **Hints:** (1) "History shows you which commit." (2) "You can roll back part of a commit by editing, not only by `revert`."
+- **Changed from the draft:** it ran in the shared `dojo.test` zone and repo with one seed per student prefix. Reverting
+  one seed edits lines next to everyone else's, and "the bad record is gone" became true for the whole class when
+  the first student fixed it. It also required another student's approval.
 - **Badge tier:** capstone (stars).
 
 ## Rough totals

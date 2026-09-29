@@ -4,6 +4,13 @@ Nothing here is built. Same format and rules as `workshops/git-fundamentals/ACHI
 it" first). Points are the defaults (milestone 10, funny 5, challenge 100, capstone 300, all settable in `.env`);
 `core` counts toward the certificate (80% of the `core` set). Triggers: `shell:`, `cloud:` (Dojo Cloud Activity log, an event adapter on the dojo-cloud module), `verify:` (`resource_state`).
 
+**Challenges and the capstone follow the "Rules for challenges and capstones" in `workshops/git-fundamentals/ACHIEVEMENTS.md`.**
+Here each student has a private Dojo Cloud subscription ("nobody else can touch yours"), so resources are already
+isolated. The two shared things are the **site DNS label** (class-wide unique, pattern `<workload>-<env>-<owner>-<key>`)
+and, within one student, the **quota of 2 container groups** across all their work. So: every site name in a challenge
+carries `{user}`, verifiers count only the resources tagged with that challenge, and no challenge asks for more than
+2 container groups at once.
+
 **Every lab is mandatory**, so every lab milestone is `core`. Challenges, the capstone and funny unlocks are bonuses and
 never count toward completion. The shared cheating and "bumped into your neighbour" unlocks live with the module.
 
@@ -110,24 +117,44 @@ milestone is core.
 
 ## Challenges (100 points, no steps given)
 
-### C1: Tag Team (after Lab 5 or 6)
-- **Goal:** "Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL."
-- **Verify:** `resource_state`: second container running, policy-compliant; an `output` named `url` in the state.
-- **Hint 1:** "Copy your first site, and remember what the policy asked for." **Hint 2:** "Tags, region, size, and a new name."
+Each challenge starts in its own folder (`~/challenges/cN`, seeded when opened, with its own state), so it doesn't
+change the lab's `main.tf` or state. Everything it creates is tagged `challenge=cN`, and the verifier looks only at
+those (`resource_state`), so leftover lab resources never fail a check. Quota is shared by the whole subscription, so
+each brief says how many groups it needs. A pass is recorded when checked; destroying it afterwards (or the
+capstone's clean-up) does not undo it.
 
-### C2: Quota Whisperer (after Lab 9)
-- **Goal:** "Your code declares 5 sites, the quota allows `{quota}`. Make the plan apply cleanly without touching the quota."
-- **Seed:** a starter `main.tf` per student with a `for_each` over 5 names.
-- **Verify:** `resource_state`: exactly the allowed count running, `plan` clean.
+### C1: Tag Team (after Lab 5 or 6; needs 1 free container group)
+- **Goal:** "Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL."
+- **Verify:** `resource_state`: one `challenge=c1` container running, policy-compliant, with `{user}` in its site name;
+  an `output` named `url` in the challenge state.
+- **Hint 1:** "Copy your first site, and remember what the policy asked for." **Hint 2:** "Tags, region, size, and a new name."
+- **Collision check:** the site name has `{user}`, so the class-wide unique DNS label can't clash.
+
+### C2: Quota Whisperer (after Lab 9; needs 1 free container group)
+- **Goal:** "Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply
+  succeed without asking for more quota."
+- **Seed:** a starter `main.tf` in `~/challenges/c2` with a `for_each` over 5 names, each already prefixed with the
+  student's username.
+- **Verify:** `resource_state`: at least one `challenge=c2` site running, no `QuotaExceeded` in the last apply, and a
+  `plan` in the challenge folder that is clean. The count never needs to be exact, since the free quota depends on
+  what the student still has from the labs.
 - **Hint 1:** "The error tells you the limit." **Hint 2:** "The list feeding `for_each` is what decides how many."
+- **Changed from the draft:** it used a per-student `{quota}` and an exact count, which would depend on what else
+  the student had running.
 
 ## Capstone (300 points): Site Factory
-- **Goal:** "Build, from scratch, one module-like layout that deploys three differently named sites from one
-  `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and shows
-  an empty cloud."
-- **Verify:** three containers live; an output map with three URLs; after destroy, `resource_state` is empty; the code is
-  pushed to the student's fork.
+- **Goal:** "Build, from scratch, one module-like layout that deploys **two** differently named sites from one
+  `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing
+  running."
+- **Seed:** an empty folder `~/challenges/capstone` (own state) and a Forgejo repo `{user}/site-factory`. All names use
+  `{user}`.
+- **Verify:** two `challenge=capstone` containers live at check time 1 (`dojo-check` while up); an output map with two
+  URLs; the second check after `destroy`: `resource_state` for `challenge=capstone` is empty; the code is pushed to
+  `{user}/site-factory`. Two checks, both run by the student.
 - **Hints:** (1) "Lab 9 plus Lab 10, in one go." (2) "`for_each` gives you `each.key`; outputs can use a `for` expression."
+- **Changed from the draft:** it asked for three sites and an "empty cloud", but the quota is 2 container groups, so
+  three could never run, and "empty" would fail for anyone who kept a lab site. It needs 2 free groups, so students
+  should clean up Lab 10 first (the brief says so).
 - **Badge tier:** capstone (stars).
 
 ## Rough totals

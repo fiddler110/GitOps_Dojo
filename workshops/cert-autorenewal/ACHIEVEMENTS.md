@@ -4,6 +4,12 @@ Nothing here is built. Same format and rules as `workshops/git-fundamentals/ACHI
 it" first). Points are the defaults (milestone 10, funny 5, challenge 100, capstone 300, all settable in `.env`);
 `core` counts toward the certificate (80% of the `core` set). Triggers: `shell:`, `verify:` (end state on demo-app / the CA), `ca:` (event from the CA log), `dns:` (dns-gate lines).
 
+**Challenges and the capstone follow the "Rules for challenges and capstones" in `workshops/git-fundamentals/ACHIEVEMENTS.md`.**
+Here the shared pieces are the CA (`step-ca`), `demo-app` and the `certs.dojo.test` zone. A challenge changes only the
+student's own vhost directory (`/srv/webroot/{user}/`) and names under `{user}.certs.dojo.test`, which is exactly what
+the DNS gate's per-student key already allows. No challenge reconfigures the CA, nginx or the zone's shared records.
+The student's hostname is `{user}.certs.dojo.test` (not `{user}.demo`, as an earlier draft said).
+
 **Every lab is mandatory**, so every lab milestone is `core`. Challenges, the capstone and funny unlocks are bonuses and
 never count toward completion. The shared cheating and "bumped into your neighbour" unlocks live with the module.
 
@@ -61,23 +67,35 @@ never count toward completion. The shared cheating and "bumped into your neighbo
 
 ## Challenges (100 points, no steps given)
 
+At open, the service seeds one wildcard A record `*.{user}.certs.dojo.test` to `demo-app` (through the DNS gate, in the
+student's own scope), so any new hostname the challenge needs already resolves. Verifiers read the student's own
+vhost directory and the certificate `demo-app` serves for their own hostnames only.
+
 ### C1: The Second Site (after Lab 2 or 3)
-- **Goal:** "Give `{user}-shop.demo` its own trusted certificate, using either tool, without touching the first site."
-- **Verify:** demo-app serves a valid chain for that hostname; the first site's cert serial is unchanged.
+- **Goal:** "Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site."
+- **Verify:** `demo-app` serves a valid chain for that hostname (checked over SNI); the first site's cert serial is unchanged.
 - **Hint 1:** "Same steps as your first site, new hostname." **Hint 2:** "New vhost, new issuance, new install."
+- **Collision check:** a second vhost in the student's own subdirectory; issuance goes through the shared CA, which
+  handles concurrent orders for different names.
 
 ### C2: The Short Fuse (after Lab 4)
-- **Goal:** "The CA now issues certificates that last 10 minutes. Make `{user}.demo` renew on its own and stay valid
-  for 20 minutes without you touching it."
-- **Verify:** the served serial changes at least once within the window, and never presents an expired cert.
+- **Goal:** "Certificates from this CA only last 5-10 minutes. Make `{user}.certs.dojo.test` renew on its own and stay
+  valid for 20 minutes without you touching it."
+- **Verify:** the served serial for the student's hostname changes at least twice within the window, and it never
+  presents an expired cert.
 - **Hint 1:** "Cron runs at most once a minute." **Hint 2:** "`renew` only acts when the cert is close to expiry."
+- **Changed from the draft:** it said "the CA now issues 10-minute certificates", which reads as reconfiguring the
+  shared CA. Its short lifetime is already set for the whole class; the challenge only uses it.
 
 ## Capstone (300 points): The Wildcard Heist (a friendly one)
-- **Goal:** "Issue a wildcard certificate for `*.{user}.demo` using dns-01, install it on two different vhosts, and set
-  up renewal that works for both."
-- **Seed:** two extra vhosts per student on demo-app; the DNS pipeline from Lab 5.
-- **Verify:** both vhosts serve the same wildcard serial; renewal entry exists; a forced renewal updates both.
+- **Goal:** "Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different
+  vhosts (`www` and `api` under your name), and set up renewal that works for both."
+- **Seed:** the wildcard A record above. The two vhosts are created by the student in their own directory. The DNS
+  pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.
+- **Verify:** both vhosts serve the same wildcard serial; a renewal entry exists; a forced renewal updates both.
 - **Hints:** (1) "A wildcard only works through DNS." (2) "One cert file, two vhosts, one reload."
+- **Collision check:** the challenge TXT name is under the student's own parent, so two students issuing at once never
+  overwrite each other's record.
 - **Badge tier:** capstone (stars).
 
 ## Rough totals
