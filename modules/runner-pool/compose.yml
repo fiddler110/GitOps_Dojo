@@ -118,7 +118,7 @@ services:
   # One-shot (T5.2c): the only holder of the Forgejo admin password in this
   # module. Mints the controller's scoped token into a volume the controller
   # mounts read-only, then exits. Started (not healthy) is enough: the
-  # controller reports "waiting" until the file exists.
+  # controller waits on its completion.
   runner-token-init:
     image: gitopsdojo/allocator:local
     container_name: workshop_runner_token_init
@@ -169,10 +169,15 @@ services:
       - runner_controller_token:/token:ro
     networks:
       - workshop_lab
+    # completed, not started: podman-compose waits for a plain dependency to be
+    # *running*, and this one-shot has already exited, so it would wait forever.
     depends_on:
-      - git-server
-      - runner-pool
-      - runner-token-init
+      git-server:
+        condition: service_started
+      runner-pool:
+        condition: service_started
+      runner-token-init:
+        condition: service_completed_successfully
     # The image's own check sends the gateway token to /; /healthz needs none.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
