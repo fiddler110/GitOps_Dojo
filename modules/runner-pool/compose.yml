@@ -151,7 +151,7 @@ services:
       # No admin password here (T5.2c): runner-token-init mints a scoped token.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
       - FORGEJO_TOKEN_FILE=/token/forgejo-token
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_RUNNER_CONTROLLER:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - RUNNER_MIN_IDLE=${RUNNER_MIN_IDLE:-2}

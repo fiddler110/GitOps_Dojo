@@ -115,7 +115,7 @@ services:
       - BAO_ADDR=http://openbao:8200
       # The facilitator's Audit tab (route /vault-audit): checked like the
       # Runners panel, since workshop_lab reaches this port directly.
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_OPENBAO_AUDIT:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
       - ../modules/openbao/audit:/opt/openbao-audit:ro
