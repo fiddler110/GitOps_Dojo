@@ -120,9 +120,12 @@ EOF
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   c_green="$(printf '\033[32m')"; c_yellow="$(printf '\033[33m')"
   c_red="$(printf '\033[31m')"; c_off="$(printf '\033[0m')"
+  c_cyan="$(printf '\033[1;36m')"; c_dim="$(printf '\033[2m')"
 else
-  c_green=""; c_yellow=""; c_red=""; c_off=""
+  c_green=""; c_yellow=""; c_red=""; c_off=""; c_cyan=""; c_dim=""
 fi
+# A phase heading: bold cyan, so the steps stand out from build and compose output.
+say_step() { printf '%s==> %s%s\n' "$c_cyan" "$*" "$c_off"; }
 say_ok() { printf '  %s%s%s\n' "$c_green" "$*" "$c_off"; }
 say_changed() { printf '  %s%s%s\n' "$c_yellow" "$*" "$c_off"; }
 say_bad() { printf '  %s%s%s\n' "$c_red" "$*" "$c_off"; }
@@ -151,14 +154,19 @@ progress_watch() {
     if [ -n "$changed" ]; then
       pw_quiet=0
       printf '%s\n' "$changed" | while IFS= read -r line; do
-        printf '  [%s] %s\n' "$(fmt_elapsed $((now - pw_start)))" "$line"
+        case "$line" in
+          *": healthy"|*": running"|*": done") col="$c_green" ;;
+          *FAILED*|*unhealthy*) col="$c_red" ;;
+          *) col="$c_yellow" ;;
+        esac
+        printf '  %s[%s]%s %s%s%s\n' "$c_dim" "$(fmt_elapsed $((now - pw_start)))" "$c_off" "$col" "$line" "$c_off"
       done
     else
       pw_quiet=$((pw_quiet + 5))
       if [ "$pw_quiet" -ge 30 ]; then
         pw_quiet=0
         waiting="$(awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s (%s)", sep, $1, $2; sep = ", " }' "$pw_cur")"
-        [ -z "$waiting" ] || printf '  [%s] still waiting on: %s\n' "$(fmt_elapsed $((now - pw_start)))" "$waiting"
+        [ -z "$waiting" ] || printf '  %s[%s]%s %sstill waiting on: %s%s\n' "$c_dim" "$(fmt_elapsed $((now - pw_start)))" "$c_off" "$c_yellow" "$waiting" "$c_off"
       fi
     fi
     cp "$pw_cur" "$pw_prev"
@@ -767,9 +775,9 @@ if [ -n "$corp_ca_bundle" ] && [ -f "$corp_ca_bundle" ]; then
 fi
 
 if [ "$dry_run" = "1" ]; then
-  echo "Checking images (dry run)..."
+  say_step "Checking images (dry run)"
 else
-  echo "Checking images..."
+  say_step "Checking images"
 fi
 # A dry run builds nothing, so it can't see that a rebuilt base makes the
 # workshop terminal (FROM base) stale too; build_if_changed records what it
@@ -928,7 +936,7 @@ fi
 # ordering or clean up their volumes.
 if [ "$dry_run" = "1" ]; then
   echo
-  echo "Checking the Compose config..."
+  say_step "Checking the Compose config"
   # shellcheck disable=SC2086
   if compose $compose_args config >/dev/null 2>&1; then
     say_ok "valid"
@@ -936,7 +944,7 @@ if [ "$dry_run" = "1" ]; then
     say_bad "invalid: run 'compose ${compose_args} config' to see why"
   fi
   echo
-  echo "Checking image pins..."
+  say_step "Checking image pins"
   # Every external FROM / image: needs a digest (FIND-18). Whole repo, so a
   # dry run of any workshop also catches a module or workshop it doesn't use.
   pins_ok=1
@@ -967,12 +975,12 @@ for other_content in ../workshops/*/content; do
   [ "$other_content" = "$WORKSHOP_CONTENT_DIR" ] || sync_lab_docs "$other_content"
 done
 
-echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
+say_step "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})"
 # No --build: every image Compose references was already brought up to
 # date (or confirmed unchanged) above, either by build_if_changed (for the
 # fixed-tag images) or compose_overlay_build_if_changed (for the rest of
 # this workshop's overlay, if any).
-echo "Creating networks and volumes, then starting containers in dependency order."
+say_step "Creating networks and volumes, then starting containers in dependency order"
 echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
 up_start="$(date +%s)"
 progress_watch &
@@ -983,7 +991,7 @@ up_rc=0
 compose $compose_args up -d || up_rc=$?
 kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
 trap - EXIT INT TERM
-echo "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))."
+say_ok "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))"
 not_ready="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }')"
 [ -z "$not_ready" ] || say_changed "not ready yet: ${not_ready}"
 [ "$up_rc" = 0 ] || exit "$up_rc"
