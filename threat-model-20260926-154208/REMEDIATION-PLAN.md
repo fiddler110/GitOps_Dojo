@@ -460,16 +460,16 @@ scoping (files with line numbers, what could break, verify steps, token estimate
 
 ### P5 — Tier 3 defence in depth
 
-- [ ] **T5.1** (FIND-15, T3, Important) [MODULE] dojo-cloud: socket `0660` with a `cloud` group shared only with
+- [x] **T5.1** *(effe96b; socket 660 cloud, cloud-api /readyz 200, tofu-basics e2e 284/0 locally 2026-09-29; DinD spike skipped, accepted D9)* (FIND-15, T3, Important) [MODULE] dojo-cloud: socket `0660` with a `cloud` group shared only with
       CloudAPI (digest pin in T1.5). Spike rootless DinD / podman-in-container on WSL2; if no gain, accept (D9) and
       document in the module README.
       *Verify:* `stat` on the socket; tofu-basics labs pass.
-- [ ] **T5.2** (FIND-16, T3, Moderate) a. `chmod 600 engine/.env` in `env-setup.sh` **[ENGINE, ask]**. b. Per-upstream
+- [x] **T5.2** *(b560cfe, 72c82de, 008441e, 72d5be0; own token 200, wrong or shared token 401 at cloud-api; .env 600; token init + controller ok on vault stack)* (FIND-16, T3, Moderate) a. `chmod 600 engine/.env` in `env-setup.sh` **[ENGINE, ask]**. b. Per-upstream
       gateway tokens minted by `render_extensions.py`, set per route with `header_up` **[ENGINE, ask]**. c. The
       runner controller uses a scoped Forgejo token instead of `FORGEJO_ADMIN_PASSWORD` [MODULE]. d. Evaluate
       compose `secrets:` under podman-compose.
       *Verify:* app-host's token is refused by CloudAPI; runner-pool tests pass.
-- [ ] **T5.3** (FIND-17, T3, Moderate) [MODULE] openbao (D11): `setup.sh` on every start generates a temporary root
+- [x] **T5.3** *(16b1f80; setup_tokens.sh, tenancy, cli_login pass; openbao restart re-unseals. Open: second-start re-run and the reset token stays in openbao-setup until reset R3.2)* (FIND-17, T3, Moderate) [MODULE] openbao (D11): `setup.sh` on every start generates a temporary root
       from the unseal share (`bao operator generate-root`), mints the provisioner, runs the hooks, revokes both;
       the setup container keeps only the unseal key for re-unsealing. Narrow `provisioner.hcl` to the hooks' paths.
       (D15) In the same window, mint the periodic reset token (narrowed policy limited to `student*`) for the
@@ -480,9 +480,9 @@ scoping (files with line numbers, what could break, verify steps, token estimate
       reset token can delete and re-create `student01`'s namespace but is refused on the root namespace's `sys/`;
       a `podman restart workshop_openbao` still re-unseals; a second `./run.sh vault-fundamentals` start re-runs the
       hooks; `tenancy.sh`, `cli_login.sh`, `sso_browser.py` pass.
-- [ ] **T5.4** (FIND-19, T3, Low) **Accepted (D9).** Document in the openbao module README and vault workshop
+- [x] **T5.4** *(16b1f80; docs and slide)* (FIND-19, T3, Low) **Accepted (D9).** Document in the openbao module README and vault workshop
       README; keep `hmac_accessor = false` (the Audit tab needs it).
-- [ ] **T5.5** P5 docs, §8 entry.
+- [x] **T5.5** *(P5 docs done; user browser pass for vault (SSO, /admin tabs) still to do)* P5 docs, §8 entry.
 
 ### P6 — Incremental threat model
 
@@ -510,7 +510,7 @@ scoping (files with line numbers, what could break, verify steps, token estimate
 | T4.1 | FIND-06 | Moderate | MODULE+WS | Not started |
 | T4.2 | FIND-14 | Low | ENGINE, ask | Not started |
 | T4.3 | FIND-12 | Low | mixed | Not started |
-| T5.1-T5.4 | FIND-15/16/17/19 | Imp/Mod/Mod/Low | mixed | Not started |
+| T5.1-T5.4 | FIND-15/16/17/19 | Imp/Mod/Mod/Low | mixed | Built + live-tested locally 2026-09-29; vault browser pass and second start open |
 | T6.1 | Incremental report | — | — | Not started |
 
 **Expected after P1-P3:** no Tier 1 findings and no Critical or Important Tier 2 findings; overall **Moderate**, the
@@ -705,3 +705,10 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   lock error after lab 4, "off-zone name refused, as expected", no 429s in dns-api/powerdns logs, certificates issued.
   dns-as-code, dojo-introduction, git-fundamentals not re-run (scope cut by the user; passed before P4).
   T3.6 and T4.1-T4.5 ticked. Next: P5, **ask the user first**.
+- **2026-09-29, P5.** T5.1-T5.4 built (effe96b, 008441e, b560cfe, 16b1f80, 72c82de, 72d5be0); e2e split into per-lab
+  scripts (3f9a0f0). Live, locally: vault stack e2e unit, tenancy, cli_login, setup_tokens, labs 2, 5-13 pass (lab_12
+  failed once on "revoked: the login is gone", passed on retry, probably a revoke vs DROP ROLE race, unconfirmed);
+  openbao restart re-unseals; tofu-basics e2e 284 passed, 0 failed, socket `660 cloud`, per-upstream tokens (own 200,
+  wrong/shared 401). User checked tofu browser (admin Dojo Cloud green, student card, Forgejo SSO, slides). Landing page
+  shows the student's own password again (efda7c4, user request). Not run: vault second start, vault pool/audit/browser
+  areas after the split (user's browser pass), PowerDNS keys still derived from the shared token. Next: P6 (ask first).
