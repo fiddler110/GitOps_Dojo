@@ -361,7 +361,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       under 1 s; `--test 20` bots still get slots.
 - [x] **T3.5** *(not needed: T0.4 was refused)* *(only if T0.4 connects)* [WORKSHOP] `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` in app-db init.
       *Verify:* student01's role can't `\c` student02's database; `tests/labs_11_13.sh` passes.
-- [~] **T3.6** P3 docs, §8 entry. *(2026-09-29: tests 2-4 below PASSED locally, test 1 partial and fixed, test 5 and
+- [x] **T3.6** P3 docs, §8 entry. *(2026-09-29: tests 2-4 below PASSED locally, test 1 partial and fixed, test 5 and
       the re-run moved to T4.5; the docs are drafted, uncommitted: `engine/README.md`, `modules/forgejo-runner/README.md`.)*
       **Live tests still to run** (each locally; `podman ps` first, one stack at a time):
       1. cert-autorenewal `--test 2` to round 2: lab 3 (acme.sh `_ecc` path fix), lab 4 renewals, lab 5 dns-01
@@ -397,7 +397,7 @@ scoping (files with line numbers, what could break, verify steps, token estimate
 - **Order (user, 2026-09-29): do all the P4 work first, then one combined test pass (T4.5).** Per-task checks below
   are run in T4.5, together with the P3 tests still open.
 
-- [~] **T4.1** *(built 2026-09-29, uncommitted; live checks: T4.5 items 8)* (FIND-06, T2, Moderate) [MODULE] + [WORKSHOP] runner-pool and app-host as root with default caps.
+- [x] **T4.1** *(built 2026-09-29, uncommitted; live checks: T4.5 items 8)* (FIND-06, T2, Moderate) [MODULE] + [WORKSHOP] runner-pool and app-host as root with default caps.
       a. `security_opt: [no-new-privileges:true]`, `cap_drop: [ALL]`, add back only what tests need (candidates
          `SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`). Check `unshare -U` and `setpriv` under
          no-new-privileges. (dns-as-code's compose services already do this: copy their form.)
@@ -406,28 +406,38 @@ scoping (files with line numbers, what could break, verify steps, token estimate
       c. State the seccomp profile (podman default) explicitly.
       *Verify:* `podman inspect` shows the dropped caps and `NoNewPrivileges`; `modules/runner-pool/tests/pool.sh`,
       `tests/labs_8_9.sh`, `tests/lab_10.sh`, `tests/labs_11_13.sh` pass.
-- [~] **T4.2** *(built 2026-09-29, uncommitted; live checks: T4.5 item 7)* (FIND-14, T2, Low) **[ENGINE, ask]** Allocator pages: landing and `/admin` scripts to static files,
+- [x] **T4.2** *(built 2026-09-29, uncommitted; live checks: T4.5 item 7)* (FIND-14, T2, Low) **[ENGINE, ask]** Allocator pages: landing and `/admin` scripts to static files,
       roster fields with `textContent` (delete `escapeHtml` + `innerHTML`),
       `Content-Security-Policy: default-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'none'`.
       *Verify:* headers present; no CSP violations on `/` and `/admin` in Playwright; `/admin` iframes (IDE,
       terminal, Forgejo, slides, module tabs) still frame; roster updates live.
-- [~] **T4.3** *(built 2026-09-29, uncommitted: a, b, c and d; live checks: T4.5 items 6 and 9)* (FIND-12, T2, Low) [MODULE] + [WORKSHOP] + **[ENGINE, ask]** Rate limits and shared pools:
+- [x] **T4.3** *(built 2026-09-29, uncommitted: a, b, c and d; live checks: T4.5 items 6 and 9)* (FIND-12, T2, Low) [MODULE] + [WORKSHOP] + **[ENGINE, ask]** Rate limits and shared pools:
       OpenBao `sys/quotas/rate-limit` per student namespace (tenancy hook); app-db `CONNECTION LIMIT 5` per student
       role; token bucket per identity in CloudAPI and dns-api; terminal (engine) per-user `nproc`/`as` via
       `limits.d` or `prlimit` around the `su` in `workspace-control.py`.
       *Verify:* a 1000-request loop from one student is throttled while another's succeed; a fork bomb in one
       account doesn't stall others.
-- [ ] **T4.4** P4 docs, §8 entry.
-- [ ] **T4.5** **Combined live pass: all the testing, at the end** (locally; `podman ps` first, one stack at a time;
+- [x] **T4.4** P4 docs, §8 entry.
+- [x] **T4.5** **Combined live pass: all the testing, at the end** (locally; `podman ps` first, one stack at a time;
       batch, then test). Covers what P3 and P4 left open:
-      1. cert-autorenewal `--test 2` to round 2 with the fixes from 2026-09-29 (bot and lab 5 remove the lab-4 cron
-         first; the bot now also tries an off-zone name and must see it refused).
-      2. dns-as-code `--test 3`: the P4 rate limit doesn't touch `dnscontrol push` or the CI apply (a merge still
-         writes `dojo.test`; the facilitator approves and merges one PR).
-      3. dojo-introduction: healthy, `dnscontrol push` works, certs issue, `vhost-http.conf.template` question (see §7).
-      4. git-fundamentals `--test 3`: 0 failures (re-check only if the terminal image changed for T4.3d).
+      *Scope cut (user, 2026-09-29): one live stack after vault-fundamentals, cert-autorenewal `--test 1`. Items 2-4
+      are settled without a stack, see each.*
+      1. **cert-autorenewal `--test 1`, the only extra live run** (`podman ps` first; `./run.sh cert-autorenewal
+         --test 1`, then `./run.sh stop`). Bot 1 is the fast "expert" persona (bots 2-3 are slower; not used). First
+         confirm in `engine/web-terminal/bot-runner.sh` that the expert attempts lab 5; if not, use `--test 2` and
+         watch bot 2. Pass = bot finishes lab 5 with no certbot lock error (lab-4 cron removed first) and its log has
+         "off-zone name refused, as expected", not "UNEXPECTED". Also check the CloudAPI/DNS gate rate limit doesn't
+         throttle the certbot issue (no 429 in gate logs). Token rules: `tail -n 30`/`grep` only, max 2 retries.
+      2. dns-as-code: **no live run.** Read `gate.py` limits (burst 200 at 50/s; a `dnscontrol push` and a CI apply
+         send a handful of requests) and run `modules/dns-gate/.../test_ratelimit.py`. Risk accepted: the merge that
+         writes `dojo.test` isn't re-run after P4 (it passed before; P4 doesn't touch that path).
+      3. dojo-introduction: **no live run.** Its only P4 change is the app-host caps, covered by the vault run.
+         The `vhost-http.conf.template` seed question (see §7) is content, not a test.
+      4. git-fundamentals: **no live run** (passed 2026-09-29; the terminal image change for T4.3d is covered by
+         item 9 on the vault stack).
       5. T3.4 rest: `/auth-check` under 1 s with 5 idle sockets open to the allocator; the Roster's **Release
-         unused** button in a real browser; vault-fundamentals `checks.sh` + `p2_browser.py`.
+         unused** button (API check on the vault stack; a real browser is the user's manual pass); vault-fundamentals
+         `tests/e2e.sh` and `pw.py`/`p4_browser.py` (`checks.sh` and `p2_browser.py` don't exist).
       6. P4 checks: `podman inspect` caps and `NoNewPrivileges` for `runner-pool`, `runner-pool-shim` and `app-host`;
          `modules/runner-pool/tests/pool.sh`, `tests/labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`; CSP headers and no
          violations on `/` and `/admin` (Playwright), `/admin` iframes frame, roster updates live; a 1000-request
@@ -685,3 +695,13 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   All limits are env knobs, 0 = off (D17). Unit tests pass (gate 18, ratelimit 5, concurrency 24, fuzz 42, policy
   71, portal 18, readiness 35, app-host 17). One agent ran `git stash` + `pop` by mistake; checked, no edit lost.
 - Left: T4.4 docs (module READMEs done by the agents), then the T4.5 combined live pass, then commit.
+- **2026-09-29, T4.5 done (locally).** vault-fundamentals stack: OpenBao root-namespace quota `students-student01`
+  (`path=students/student01/`, 200 rps) throttles: student01 553x200 + 447x429 in 1000 requests, student02 30x200 and
+  no 429. `tests/e2e.sh` all areas pass (unit, tenancy, cli_login, lab_2, labs_5_7, labs_8_9, lab_10, labs_11_13,
+  pool, audit, browser incl. `p4_browser.py`/`p5_browser.py`). `/auth-check` 1.5-4 ms with 5 idle sockets (allocator
+  threading fix). 30 parallel `/assign`: no duplicates, no 5xx, 20 hit the rate limit (`ASSIGN_BURST=10`); Release
+  frees a slot. app-db 71 MB of 537 MB at idle. Not exercised: 300 app-db connections, shim on 443 (base URL was
+  http://localhost:8080), a real-browser Release unused (user's manual pass). cert-autorenewal `--test 1`: no certbot
+  lock error after lab 4, "off-zone name refused, as expected", no 429s in dns-api/powerdns logs, certificates issued.
+  dns-as-code, dojo-introduction, git-fundamentals not re-run (scope cut by the user; passed before P4).
+  T3.6 and T4.1-T4.5 ticked. Next: P5, **ask the user first**.

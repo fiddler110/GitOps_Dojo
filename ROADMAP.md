@@ -8,7 +8,7 @@ Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` afte
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P2 done; P3 built; P4 scoped        |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P4 done; P5 next (ask first)        |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
@@ -24,11 +24,10 @@ Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` afte
       tripwire with an env knob, nothing reduces what students can do): T4.1 caps on runner-pool, its shim and
       app-host (incl. dojo-introduction) → T4.3a-c OpenBao quota, app-db per-database limit, per-identity buckets
       → T4.2 allocator CSP (engine, ask) → T4.3d terminal `nproc` (engine, ask) → T4.4 docs. D18 confirmed; engine edits done.
-   3. **Then T4.5, the one combined live pass** (locally, one stack at a time, `podman ps` first): cert-autorenewal
-      `--test 2` (cron fix + off-zone refusal), dns-as-code `--test 3` (merge still applies `dojo.test`),
-      dojo-introduction, git-fundamentals `--test 3`, T3.4 rest (`/auth-check` under 1 s with 5 idle sockets, Release
-      unused in a browser, vault `checks.sh` + `p2_browser.py`) and the P4 checks. Passed already on 2026-09-29 (before
-      P4 changes): dns-as-code incl. a facilitator merge writing `dojo.test`, dojo-introduction, git-fundamentals.
+   3. **Then T4.5, the combined live pass** (locally, one stack at a time, `podman ps` first): the vault-fundamentals
+      stack (T3.4 rest, `e2e.sh`, P4 checks; running now), then a single `./run.sh cert-autorenewal --test 1` (cron
+      fix + off-zone refusal). dns-as-code, dojo-introduction and git-fundamentals are not re-run (user, 2026-09-29):
+      they passed before P4 and the P4 changes to them are covered by the vault stack and offline checks.
       Then tick T3.6 and P4, and ask before P5.
    Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
