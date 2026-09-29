@@ -4,6 +4,8 @@ FROM docker.io/library/python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154
 COPY server.py /usr/local/bin/allocator-server.py
 # Per-student Forgejo passwords (remediation D13); imported by the server.
 COPY dojo_secret.py /usr/local/bin/dojo_secret.py
+# The /login page and its logo, styles and script (server.py's LOGIN_DIR).
+COPY login/ /usr/local/bin/login/
 
 EXPOSE 8080
 # Must send X-Gateway-Token -- server.py now rejects every request

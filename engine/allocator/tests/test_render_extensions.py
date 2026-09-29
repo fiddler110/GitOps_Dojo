@@ -199,7 +199,7 @@ class CaddyTests(unittest.TestCase):
     def test_braces_balanced(self):
         c = self.render(strip_prefix=True, host="{user}.certs.dojo.test")
         body = c.replace("{http.request.header.X-Dojo-User}", "").replace("{http.request.header.X-Dojo-Host}", "")
-        body = body.replace("{http.auth.user.id}", "").replace("{$GATEWAY_TOKEN}", "")
+        body = body.replace("{http.request.header.X-Session-User}", "").replace("{$GATEWAY_TOKEN}", "")
         body = body.replace("{user}", "")
         self.assertEqual(body.count("{"), body.count("}"))
 

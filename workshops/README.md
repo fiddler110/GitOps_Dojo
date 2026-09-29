@@ -90,6 +90,7 @@ want the same thing, make it a module instead.
 3. Write `workshop.env`:
    ```sh
    WORKSHOP_NAME=<display name>
+   WORKSHOP_DESCRIPTION="<one sentence, shown on the login page>"
    WORKSHOP_ORDER=<n>    # place in the learning path (0 = showcase); ./run.sh list sorts by it
    WORKSHOP_CONTENT_DIR=../workshops/<name>/content
    FORGEJO_ORG=<org name>

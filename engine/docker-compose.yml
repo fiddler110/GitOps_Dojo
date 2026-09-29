@@ -242,10 +242,12 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # The Slides status check calls the gateway at this address when set.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
-      # The Slides status check signs in with the class login (/slides is
-      # behind it).
+      # The sign-in page (/login) checks these; the Slides status check
+      # signs in as the class account (/slides is behind it).
       - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
       - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
+      - WORKSHOP_DESCRIPTION=${WORKSHOP_DESCRIPTION:-}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -316,12 +318,8 @@ services:
       # Set only when another proxy terminates TLS in front of the lab.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       # The proxy in front of GATEWAY_LISTEN, as the gateway sees it (CIDR,
-      # space-separated): the rate limit then keys on the real client address.
+      # space-separated): the login limit then keys on the real client address.
       - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
-      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
-      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
-      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       # Shared secret the Caddyfile sends as X-Gateway-Token on every block
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).

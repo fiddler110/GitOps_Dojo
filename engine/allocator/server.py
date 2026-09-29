@@ -109,9 +109,10 @@ def audit_check(event, account, tool, status, **fields):
         audit(event, account=account, tool=tool, result=status, **fields)
 
 
-# The class login, only for the Slides status check (probe_slides).
-CLASS_BASIC_AUTH = "Basic " + base64.b64encode(
-    f'{os.environ.get("TTYD_USERNAME", "")}:{os.environ.get("TTYD_PASSWORD", "")}'.encode()).decode()
+TTYD_USERNAME = os.environ.get("TTYD_USERNAME", "")
+TTYD_PASSWORD = os.environ.get("TTYD_PASSWORD", "")
+FACILITATOR_PASSWORD = os.environ.get("FACILITATOR_PASSWORD", "")
+WORKSHOP_DESCRIPTION = os.environ.get("WORKSHOP_DESCRIPTION", "").strip()
 # Deep-links the landing page's Forgejo button straight at the seeded
 # workshop repo -- must match bootstrap.sh's FORGEJO_ORG/FORGEJO_REPO
 # defaults (see docker-compose.yml's bootstrap service), not hardcoded here.
@@ -141,6 +142,111 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 # default -- same fail-fast pattern as CONTROL_TOKEN above. Must match
 # gateway's own GATEWAY_TOKEN (gateway/Caddyfile).
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
+
+# The front door (/login): a signed cookie replaces HTTP Basic Auth. The
+# cookie names the account that signed in (the class login or the
+# facilitator's); gateway/Caddyfile asks /session-check about it on every
+# request and passes the answer upstream as X-Auth-User, exactly as
+# basic_auth's user id used to be. Signed with a key derived from
+# GATEWAY_TOKEN and both passwords, so changing either password signs
+# everyone out. Stateless: nothing to store, survives allocator restarts.
+SESSION_COOKIE = "dojo_login"
+SESSION_SECONDS = 12 * 3600
+_SESSION_KEY = hmac.new(GATEWAY_TOKEN.encode(),
+                        f"dojo-login|{TTYD_PASSWORD}|{FACILITATOR_PASSWORD}".encode(),
+                        hashlib.sha256).digest()
+
+
+def _session_sig(body):
+    return hmac.new(_SESSION_KEY, body.encode(), hashlib.sha256).hexdigest()
+
+
+def make_session(account, now=None):
+    exp = int((time.time() if now is None else now) + SESSION_SECONDS)
+    body = base64.urlsafe_b64encode(account.encode()).decode().rstrip("=") + "." + str(exp)
+    return body + "." + _session_sig(body)
+
+
+def read_session(token, now=None):
+    """The account a session cookie was issued to, or None."""
+    try:
+        name, exp, sig = token.split(".")
+        body = f"{name}.{exp}"
+        if not hmac.compare_digest(sig, _session_sig(body)):
+            return None
+        if int(exp) < (time.time() if now is None else now):
+            return None
+        account = base64.urlsafe_b64decode(name + "=" * (-len(name) % 4)).decode()
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) else None
+
+
+def check_login(username, password):
+    """The account this username/password opens, or None. Both accounts are
+    always compared, so timing says nothing about which one was close. An
+    empty password never matches, whatever is configured."""
+    if not username or not password:
+        return None
+    ok_class = hmac.compare_digest(username.encode(), TTYD_USERNAME.encode()) & \
+        hmac.compare_digest(password.encode(), TTYD_PASSWORD.encode())
+    ok_fac = hmac.compare_digest(username.encode(), FACILITATOR_USERNAME.encode()) & \
+        hmac.compare_digest(password.encode(), FACILITATOR_PASSWORD.encode())
+    return FACILITATOR_USERNAME if ok_fac else TTYD_USERNAME if ok_class else None
+
+
+class LoginGuard:
+    """Brute-force limit (remediation T1.1c, FIND-01): at most `limit` wrong
+    guesses per client address per `window` seconds; past it the answer is
+    429 before any password is compared. Only failures count, so a class
+    behind one NAT address signing in correctly is never limited."""
+
+    def __init__(self, limit=30, window=60, clock=time.monotonic):
+        self.limit, self.window, self.clock = limit, window, clock
+        self.fails = {}
+        self.lock = threading.Lock()
+
+    def _recent(self, ip):
+        cutoff = self.clock() - self.window
+        recent = [t for t in self.fails.get(ip, ()) if t > cutoff]
+        if recent:
+            self.fails[ip] = recent
+        else:
+            self.fails.pop(ip, None)
+        return recent
+
+    def blocked(self, ip):
+        with self.lock:
+            return len(self._recent(ip)) >= self.limit
+
+    def fail(self, ip):
+        with self.lock:
+            if len(self.fails) > 2000:  # a spray from many addresses
+                for other in list(self.fails):
+                    self._recent(other)
+            self.fails.setdefault(ip, []).append(self.clock())
+
+
+LOGIN_GUARD = LoginGuard()
+
+LOGIN_DIR = os.environ.get("LOGIN_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "login")
+LOGIN_ASSET_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                     ".png": "image/png"}
+
+
+def _load_login_assets():
+    assets = {}
+    for name in os.listdir(LOGIN_DIR):
+        ext = os.path.splitext(name)[1]
+        if ext in LOGIN_ASSET_TYPES:
+            with open(os.path.join(LOGIN_DIR, name), "rb") as f:
+                assets[name] = (LOGIN_ASSET_TYPES[ext], f.read())
+    return assets
+
+
+LOGIN_ASSETS = _load_login_assets()
+with open(os.path.join(LOGIN_DIR, "login.html"), encoding="utf-8") as _f:
+    LOGIN_HTML = _f.read()
 
 # Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
@@ -502,15 +608,15 @@ def probe_slides():
     site is an https hostname, so neither would say anything about slides.
     Behind another proxy, GATEWAY_LISTEN is the address to call; with no
     host in it (http://:8080) Caddy takes any Host, so send the public one.
-    /slides is behind the class login, so sign in with it: without it the
-    probe would get 401 and count towards the gateway's login rate limit."""
+    /slides is behind the class login, so send a session for it: without one
+    the probe would only see the login redirect."""
     public = urllib.parse.urlsplit(PUBLIC_BASE_URL)
     base = urllib.parse.urlsplit(GATEWAY_LISTEN) if GATEWAY_LISTEN else public
     tls = base.scheme == "https"
     host = base.hostname or public.hostname
     return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
                       tls=tls, sni=host, host_header=base.netloc if base.hostname else public.netloc,
-                      headers={"Authorization": CLASS_BASIC_AUTH}, require_body=True)
+                      headers={"Cookie": f"{SESSION_COOKIE}={make_session(TTYD_USERNAME)}"}, require_body=True)
 
 
 def _extra_probe(url):
@@ -1304,7 +1410,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
   </table>
   <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
-<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
+<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost. <a href="/logout">Sign out</a></p>"""
 
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1355,7 +1461,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <nav id="side">
   <div id="bar">
     <h1>Facilitator</h1>
-    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
+    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span> &middot; <a href="/logout" target="_top">Sign out</a></p>
   </div>
   <div class="tabs" role="tablist" aria-orientation="vertical">
   <button class="tab active" data-tab="roster">Roster</button>
@@ -1412,6 +1518,38 @@ EXT_PANELS_PLACEHOLDER</main>
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+
+        if path == "/session-check":
+            self.handle_session_check(parsed)
+            return
+
+        if path == "/login":
+            nxt = self.login_next(urllib.parse.parse_qs(parsed.query).get("next", [""])[0])
+            if self.session_account():
+                self.redirect(nxt)
+            else:
+                self.send_html(self.render_login(nxt=nxt), headers=NO_STORE_HEADERS)
+            return
+
+        if path.startswith("/login/assets/"):
+            asset = LOGIN_ASSETS.get(path[len("/login/assets/"):])
+            if asset is None:
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", asset[0])
+            self.send_header("Content-Length", str(len(asset[1])))
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(asset[1])
+            return
+
+        if path == "/logout":
+            self.redirect("/login", cookies=[self.session_cookie("", 0)])
+            return
 
         if path == "/":
             username, sid = self.resolve_identity()
@@ -1712,6 +1850,10 @@ EXT_PANELS_PLACEHOLDER</main>
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
 
+        if path == "/login":
+            self.handle_login()
+            return
+
         if path == "/assign":
             self.handle_assign()
             return
@@ -1746,6 +1888,109 @@ EXT_PANELS_PLACEHOLDER</main>
 
         self.send_response(404)
         self.end_headers()
+
+    # -- front door (/login) ---------------------------------------------
+    def session_cookie(self, value, max_age):
+        cookie = f"{SESSION_COOKIE}={value}; HttpOnly; Path=/; SameSite=Lax; Max-Age={max_age}"
+        return cookie + "; Secure" if COOKIE_SECURE else cookie
+
+    def session_account(self):
+        """The account the browser's login cookie was issued to, or None."""
+        for part in self.headers.get("Cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                return read_session(value)
+        return None
+
+    @staticmethod
+    def login_next(value):
+        """Where to go after signing in: a path on this site, never the login
+        page itself, else the front page."""
+        value = local_path(value or "")
+        return value if value and not value.startswith("/login") else "/"
+
+    def redirect(self, location, cookies=()):
+        self.send_response(303)
+        self.send_header("Location", location)
+        for cookie in cookies:
+            self.send_header("Set-Cookie", cookie)
+        for k, v in NO_STORE_HEADERS:
+            self.send_header(k, v)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def render_login(self, error=None, username="", nxt="/"):
+        esc = html.escape
+        alert = ""
+        if error:
+            alert = ('<p class="alert" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true">'
+                     '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+                     f'{esc(error)}</p>')
+        lede = esc(WORKSHOP_DESCRIPTION) if WORKSHOP_DESCRIPTION else "Sign in with the class login to reach your lab."
+        return (LOGIN_HTML.replace("{{WORKSHOP}}", esc(WORKSHOP_NAME))
+                .replace("{{LEDE}}", lede)
+                .replace("{{ERROR}}", alert)
+                .replace("{{CARD_CLASS}}", " shake" if error else "")
+                .replace("{{USERNAME}}", esc(username, quote=True))
+                .replace("{{NEXT}}", esc(nxt, quote=True)))
+
+    def handle_session_check(self, parsed):
+        """Caddy's forward_auth target for every gated request. 200 plus
+        X-Session-User (Caddy copies it to X-Auth-User upstream) when the
+        cookie is a live session; otherwise a browser page load is sent to
+        /login and anything else (a poll, an API call) gets 401. ?role=
+        facilitator is /admin: the class login is refused there."""
+        account = self.session_account()
+        role = urllib.parse.parse_qs(parsed.query).get("role", [""])[0]
+        if account is None:
+            wants_page = (self.headers.get("X-Forwarded-Method", "GET") == "GET"
+                          and "text/html" in self.headers.get("Accept", ""))
+            if wants_page:
+                target = local_path(self.headers.get("X-Forwarded-Uri", ""))
+                self.redirect("/login" if not target or target == "/"
+                              else "/login?next=" + urllib.parse.quote(target, safe=""))
+            else:
+                self.send_response(401)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            return
+        if role == "facilitator" and account != FACILITATOR_USERNAME:
+            self.send_html(page("Facilitator only", (
+                "<h1>Facilitator only</h1><p>This page is for the facilitator's login.</p>"
+                '<p><a href="/logout">Sign in as someone else</a></p>')), status=403,
+                headers=NO_STORE_HEADERS)
+            return
+        self.send_response(200)
+        self.send_header("X-Session-User", account)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_login(self):
+        form = self.read_form_body()
+        username = (form.get("username") or "").strip()
+        password = form.get("password") or ""
+        nxt = self.login_next(form.get("next"))
+        ip = self.client_ip()
+        account = check_login(username, password)
+        if account is None:
+            # A right password still gets in during someone else's guessing
+            # spree from the same address (a class behind one NAT).
+            if LOGIN_GUARD.blocked(ip):
+                audit("login", ip=ip, result="rate-limited")
+                self.send_html(self.render_login("Too many wrong guesses. Wait a minute and try again.",
+                                                 username, nxt),
+                               status=429, headers=[("Retry-After", "60")] + NO_STORE_HEADERS)
+                return
+            LOGIN_GUARD.fail(ip)
+            audit("login", ip=ip, result="failed")
+            self.send_html(self.render_login("That username and password don't match. Try again.",
+                                             username, nxt),
+                           status=401, headers=NO_STORE_HEADERS)
+            return
+        audit("login", account=account, ip=ip, result="ok")
+        self.redirect(nxt, cookies=[self.session_cookie(make_session(account), SESSION_SECONDS)])
 
     def handle_assign(self):
         # Idempotent: a valid existing cookie just re-renders the confirmation

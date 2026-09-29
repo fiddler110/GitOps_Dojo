@@ -297,14 +297,14 @@ def caddy_for_route(r, token=None):
         lines += ["\t\tforward_auth allocator:8080 {",
                   "\t\t\timport allocator_timeouts",
                   f"\t\t\turi /auth-check?route={r['id']}",
-                  "\t\t\theader_up X-Auth-User {http.auth.user.id}",
+                  "\t\t\theader_up X-Auth-User {http.request.header.X-Session-User}",
                   "\t\t\theader_up X-Gateway-Token {$GATEWAY_TOKEN}",
                   "\t\t\tcopy_headers X-Dojo-User X-Dojo-Host",
                   "\t\t}"]
     if r["strip_prefix"]:
         lines.append(f"\t\turi strip_prefix {path}")
     lines.append(f"\t\treverse_proxy {r['upstream']} {{")
-    # The shared login's Basic credentials are ours, not the upstream's.
+    # Any Authorization header is the browser's, not the upstream's.
     lines.append("\t\t\theader_up -Authorization")
     if r["gate"] in ("identity", "facilitator"):
         # header_up with no +/- replaces, so the upstream only ever sees

@@ -7,6 +7,16 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Unreleased: `feat/front-door` (not yet merged to `main`)
+
+**Front door.** The browser Basic Auth popup is replaced by a styled `/login` page (logo, dark/light, workshop name and
+description, show-password, error shake). Sign-in sets a signed 12-hour `dojo_login` cookie checked by Caddy through
+the allocator's `/session-check`; same class and facilitator accounts, same `X-Auth-User` trust model, `/admin` still
+facilitator-only, wrong guesses limited to 30 a minute per address. The `caddy-ratelimit` plugin is gone. New
+`WORKSHOP_DESCRIPTION` in each `workshop.env`. Tested locally (git-fundamentals): login, redirect with `#slide`
+fragment, student and facilitator flows, `/admin` 403 for students, IDE/terminal/Forgejo/slides, rate limit, browser
+screenshots dark/light/mobile. Not tested: `--env home` behind the proxy, other workshops' extension routes.
+
 ## Unreleased: `feat/remediation` (not yet merged to `main`)
 
 **Threat-model remediation** (report: `threat-model-20260926-154208/`; plan: `docs/archive/REMEDIATION-PLAN.md`).

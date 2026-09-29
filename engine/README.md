@@ -107,11 +107,14 @@ sequenceDiagram
     participant WT as web-terminal
     participant GS as git-server
 
-    S->>GW: GET / (no credentials)
-    GW-->>S: 401 + WWW-Authenticate
-    S->>GW: GET / (Basic: TTYD_USERNAME/PASSWORD)
-    GW->>AL: proxy /
-    AL-->>S: name-entry form (browser now caches the shared credential for this origin)
+    S->>GW: GET / (no session cookie)
+    GW-->>S: 303 to /login
+    S->>GW: POST /login (TTYD_USERNAME/PASSWORD)
+    GW->>AL: proxy /login
+    AL-->>S: 303 back to / + dojo_login cookie
+    S->>GW: GET / (cookie)
+    GW->>AL: /session-check, then proxy /
+    AL-->>S: name-entry form
 
     S->>AL: POST /assign (name)
     AL-->>S: 303 + Set-Cookie (first free studentNN slot claimed, atomically)
@@ -185,31 +188,32 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | Path            | Goes to        | Auth                                                              |
 | ---------------- | --------------- | -------------------------------------------------------------------- |
 | `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
-| `/`              | `allocator`     | Shared gate (`TTYD_USERNAME`/`TTYD_PASSWORD` **or** `FACILITATOR_USERNAME`/`PASSWORD`) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/`              | `allocator`     | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
 | `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
-| `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
+| `/admin/*`       | `allocator`     | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
 | `/<name>`, `/<name>/*` | whatever a workshop or module declares (e.g. `/cloud` → `cloud-api`, `/demo` → `demo-app`) | Shared gate, then one of three fixed gates. For `identity`/`facilitator`, `forward_auth` to `allocator`'s `/auth-check?route=<id>`, and Caddy itself sets `X-Auth-User` and `X-Gateway-Token` for the upstream. Only exists while that workshop runs (see [Workshop extensions](#workshop-extensions-extensionsjson)) |
 
-The shared gate is one Caddy `basic_auth` block covering everything except
-`/slides/*`, and it accepts **either** the shared student credential or the
-facilitator's own — so a facilitator only ever needs to remember one
-credential (theirs) to reach anything in the stack, including `/ide`,
-`/term`, and `/git`, all of which still sit behind this same gate after
-`/admin` routes them there. Both `basic_auth` blocks use Caddy's same
-default realm (this Caddy version has no Caddyfile option to change it),
-which works in our favor: a browser that's already authenticated as the
-facilitator on either block transparently reuses that cached credential on
-the other too, rather than prompting twice.
+Sign-in is the allocator's `/login` page (`allocator/login/`), not a browser
+popup. A correct username and password (the class login, or the
+facilitator's) sets a signed `dojo_login` cookie, good for 12 hours. It is
+derived from `GATEWAY_TOKEN` and both passwords, so changing either password
+signs everyone out. Caddy's `session_gate` snippet then calls the allocator's
+`/session-check` on every other request: no cookie sends a page load to
+`/login?next=<page>` and answers anything else with 401; `/admin/*` asks for
+the facilitator account and answers the class login with 403. Wrong guesses
+are limited in the allocator (30 a minute per client address, then 429); a
+correct password is never refused, so a class behind one NAT address can
+still sign in. `/logout` clears the cookie. The login page shows
+`WORKSHOP_NAME` and `WORKSHOP_DESCRIPTION` from `workshop.env`.
 
-Whichever basic_auth account actually matched is forwarded to `allocator`
-on every request as `X-Auth-User` (`header_up {http.auth.user.id}` in
-`gateway/Caddyfile` — this always *overwrites* any client-supplied header
-of the same name, so it can't be spoofed). `allocator/server.py` trusts
-this to recognize the facilitator immediately, on the very first request —
-typing the facilitator credential once, anywhere, is enough; there's no
-separate login step and no dependency on a cookie existing yet. This is
+Whichever account the cookie proves is forwarded to `allocator` on every
+request as `X-Auth-User` (Caddy copies the check's `X-Session-User` and
+sends it with `header_up`, which always *overwrites* any client-supplied
+header of the same name, so it can't be spoofed). `allocator/server.py`
+trusts this to recognize the facilitator immediately, on the very first
+request — no dependency on the slot cookie existing yet. This is
 also what stops a facilitator from ever being accidentally assigned a
 student slot: entering the facilitator credential at `/` renders their own
 page instead of the name-entry form. Reaching `/ide` or `/term` is a

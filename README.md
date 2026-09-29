@@ -925,7 +925,7 @@ sequenceDiagram
     rect rgba(139,92,246,0.16)
     Note over B,GW: Sign in
     B->>GW: request with the class login, the dojo_session cookie and perhaps a forged X-Auth-User
-    GW->>GW: basic_auth - the class credential, or the facilitator's own (the only one /admin accepts)
+    GW->>GW: session_gate - a signed dojo_login cookie from /login for the class or the facilitator (only the facilitator's opens /admin)
     end
 
     rect rgba(59,130,246,0.16)
@@ -954,9 +954,8 @@ sequenceDiagram
   student's own identity lives in their `dojo_session` cookie, which the
   allocator issues and checks on every `/auth-check`. A released or
   never-assigned session can't reach a workspace, even with the class password.
-- **The facilitator has a separate door.** `/admin` has its own `basic_auth`
-  block that accepts only the facilitator's credential, checked before the
-  shared one.
+- **The facilitator has a separate door.** `/admin` accepts only a session
+  signed in as the facilitator; the class login gets 403.
 
 ### 3. Kernel checks: students share a container, not an identity
 
