@@ -1,6 +1,6 @@
 # Lab 2 — Issue and Install a Certificate with certbot
 
-**Required.** certbot is the most widely used ACME client in the industry —
+certbot is the most widely used ACME client in the industry —
 this is the most transferable skill in the whole workshop. By the end of
 this lab you'll have a real certificate, issued by `step-ca`, actually
 serving HTTPS for your own site on the shared `demo-app`.
@@ -140,5 +140,4 @@ you've watched the full ACME http-01 exchange happen. You also now know
 that certificate expires in minutes, not months — which is exactly what
 Lab 4 automates.
 
-Next: [lab3.md](lab3.md) (optional — same task with acme.sh) or skip ahead
-to [lab4.md](lab4.md) (required — automate renewal).
+Next: [lab3.md](lab3.md), the same task with acme.sh.

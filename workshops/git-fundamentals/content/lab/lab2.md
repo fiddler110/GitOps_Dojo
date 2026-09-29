@@ -1,6 +1,6 @@
 # Lab 2 — Reviewing & Undoing Before You Commit
 
-**Optional.** Not everything you type is meant to be kept. This lab practices catching mistakes before they become part of your history — discarding an edit, unstaging a file, and keeping local-only files out of git entirely.
+Not everything you type is meant to be kept. This lab practices catching mistakes before they become part of your history — discarding an edit, unstaging a file, and keeping local-only files out of git entirely.
 
 Do this from your `sample-training-repo` clone, on your `add-yourname` branch from Lab 1 (or any branch — nothing here needs to be pushed).
 

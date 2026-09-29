@@ -1,6 +1,6 @@
 # Lab 3 — The Same Task with acme.sh
 
-**Optional.** certbot is a full Python application with plugins and a
+certbot is a full Python application with plugins and a
 config system; acme.sh is a single shell script that speaks ACME directly.
 Same protocol, same CA, very different level of transparency into what's
 actually happening. This lab issues a second certificate for comparison —
@@ -72,4 +72,4 @@ You can name at least one thing acme.sh showed you directly that certbot
 summarized. (There's no single right answer — that's the point: different
 tools, same protocol underneath.)
 
-Next: [lab4.md](lab4.md) — required, automating renewal.
+Next: [lab4.md](lab4.md), automating renewal.

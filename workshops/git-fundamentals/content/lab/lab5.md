@@ -1,6 +1,6 @@
 # Lab 5 — Merge Conflicts & Safely Undoing a Change
 
-**Optional.** Two topics that go together: what happens when git *can't* merge automatically, and how to undo something once it's out there — safely.
+Two topics that go together: what happens when git *can't* merge automatically, and how to undo something once it's out there — safely.
 
 Do this from your `sample-training-repo` clone. This lab creates its own throwaway branches, so it won't interfere with your Lab 1 branch.
 

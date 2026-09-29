@@ -1,6 +1,6 @@
 # Lab 6 — Merge Conflicts in `dnsconfig.js`
 
-**Optional. Part 2.** What happens when git can't automatically combine two changes to the same DNS record — and why that's a bigger deal here than in a roster file.
+**Part 2.** What happens when git can't automatically combine two changes to the same DNS record — and why that's a bigger deal here than in a roster file.
 
 This lab creates its own throwaway local branches and never pushes them, so it's safe to run regardless of what you did in the other labs and won't interfere with anyone else's work.
 

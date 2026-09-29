@@ -1,6 +1,6 @@
-# Lab 5 — Capstone: the dns-01 Challenge
+# Lab 5 — The dns-01 Challenge
 
-**Optional.** Every certificate so far proved you control `${host}` by
+Every certificate so far proved you control `${host}` by
 serving a file over HTTP. dns-01 proves the same thing a completely
 different way: by writing a DNS TXT record only the domain's owner could
 write. It's what you reach for when there's no web server to answer

@@ -6,15 +6,15 @@ You are working in your own student account. Keep all lab work under this `~/lab
 
 ## What you'll do
 
-The session slides cover the *why*. This lab is the *how* — five short, self-contained labs. **Lab 1 is required** and covers the everyday workflow end to end. Labs 2-5 are optional, go deeper on one topic each, and can be done in any order if you have time left after Lab 1.
+The session slides cover the *why*. This lab is the *how* — five short, self-contained labs. **Every lab is part of the workshop.** Lab 1 covers the everyday workflow end to end; Labs 2-5 each go deeper on one topic, so work through them in order.
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | ---------- |
-| [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request | ~15 min | **Yes — start here** |
-| [lab2.md](lab2.md) | Reviewing changes and undoing mistakes before you commit | ~10 min | Optional |
-| [lab3.md](lab3.md) | Stashing — switching gears without committing | ~8 min | Optional |
-| [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min | Optional |
-| [lab5.md](lab5.md) | Merge conflicts and safely undoing a shared change | ~12 min | Optional |
+| Lab | Topic | Time |
+| --- | ----- | ---- |
+| [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request | ~15 min |
+| [lab2.md](lab2.md) | Reviewing changes and undoing mistakes before you commit | ~10 min |
+| [lab3.md](lab3.md) | Stashing — switching gears without committing | ~8 min |
+| [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min |
+| [lab5.md](lab5.md) | Merge conflicts and safely undoing a shared change | ~12 min |
 
 **Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
 

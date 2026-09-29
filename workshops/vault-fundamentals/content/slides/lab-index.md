@@ -45,7 +45,7 @@ footer: '[&larr; Hub](index.md)'
 <li><a href="assets/lab-reader.html?file=lab9.md.txt">Lab 9</a><span class="topic">CI logs in with its own identity (OIDC)</span></li>
 <li><a href="assets/lab-reader.html?file=lab10.md.txt">Lab 10</a><span class="topic">Deploy with a delivered secret ID</span></li>
 <li><a href="assets/lab-reader.html?file=lab11.md.txt">Lab 11</a><span class="topic">Deploy with the platform's identity</span></li>
-<li><a href="assets/lab-reader.html?file=lab12.md.txt">Lab 12</a><span class="topic">Database logins on demand (optional)</span></li>
+<li><a href="assets/lab-reader.html?file=lab12.md.txt">Lab 12</a><span class="topic">Database logins on demand</span></li>
 <li><a href="assets/lab-reader.html?file=lab13.md.txt">Lab 13</a><span class="topic">Incident drill: a token leaked</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 </ul>

@@ -37,6 +37,6 @@ lab-prep 4    # e.g. sets up Lab 2's site and certificate for Lab 4
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Issue and install a certificate with certbot</span></li>
 <li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">The same task with acme.sh</span></li>
 <li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Automating renewal, and watching it happen</span></li>
-<li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">Capstone: the dns-01 challenge</span></li>
+<li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">The dns-01 challenge</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 </ul>

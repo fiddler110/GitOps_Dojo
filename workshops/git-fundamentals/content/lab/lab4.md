@@ -1,6 +1,6 @@
 # Lab 4 — Investigating History
 
-**Optional.** "Who changed this? When? Why?" — these are the tools for answering that without asking around. Especially useful once a repo has more than a handful of commits and more than one contributor.
+"Who changed this? When? Why?" — these are the tools for answering that without asking around. Especially useful once a repo has more than a handful of commits and more than one contributor.
 
 Do this from your `sample-training-repo` clone (Lab 1, step 1, if you haven't cloned it yet). If you haven't made a commit of your own yet either, do Lab 1 steps 3-5 first so you have something in your own history to look at.
 

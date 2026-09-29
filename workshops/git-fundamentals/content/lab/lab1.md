@@ -1,6 +1,6 @@
 # Lab 1 — The Core Workflow
 
-**Required.** By the end of this lab you'll have personally cloned a repo, created a branch, made and committed a change, pushed it, and opened a pull request. This is the loop you'll use for most of your day-to-day git work — see the table in [README.md](README.md) if you want the one-line summary of each step first.
+By the end of this lab you'll have personally cloned a repo, created a branch, made and committed a change, pushed it, and opened a pull request. This is the loop you'll use for most of your day-to-day git work — see the table in [README.md](README.md) if you want the one-line summary of each step first.
 
 ---
 
@@ -190,4 +190,4 @@ Before moving on, be ready to show or say:
 - In your own words: what changed locally at `git commit`, and what changed remotely at `git push`?
 - What `git fetch --prune` cleaned up, and why `git branch -d` refuses to delete an unmerged branch.
 
-**Next:** Labs 2-5 in [README.md](README.md) are optional deep dives — pick whichever sounds most useful, or work through them in order.
+**Next:** [lab2.md](lab2.md) — reviewing and undoing changes before you commit.

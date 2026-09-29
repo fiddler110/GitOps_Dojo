@@ -1,6 +1,6 @@
 # Lab 2 — Drift, and Undoing Your Own Changes
 
-**Optional. Part 1.** DNS as code only works if the file stays the source of truth. In real life someone eventually "just fixes it in the dashboard". This lab shows what `dnscontrol` does about that, and how to undo a change you've already pushed. Still in your own zone:
+**Part 1.** DNS as code only works if the file stays the source of truth. In real life someone eventually "just fixes it in the dashboard". This lab shows what `dnscontrol` does about that, and how to undo a change you've already pushed. Still in your own zone:
 
 ```sh
 cd ~/lab/my-zone
@@ -80,4 +80,4 @@ dig @dns-server www.$USER.dojo.test A +short
 - A change made outside the code survives only until the next push, unless someone adds it to the code.
 - Undo a pushed change with `git revert` and another push, not by hand.
 
-**Next:** [lab3.md](lab3.md), the required Part 2 lab: the shared zone.
+**Next:** [lab3.md](lab3.md), the first Part 2 lab: the shared zone.

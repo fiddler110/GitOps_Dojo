@@ -1,6 +1,6 @@
 # Lab 3 — The Change Process on a Shared Zone
 
-**Required. Part 2.** `dojo.test` is the whole class's zone, standing in for your company's production DNS. Here you can't just push. By the end of this lab you'll have taken one change through the full process: branch, pull request, CI preview, a review by someone else, merge, and CI applying it. On the way, you'll see the two gates that make that process the only way in.
+**Part 2.** `dojo.test` is the whole class's zone, standing in for your company's production DNS. Here you can't just push. By the end of this lab you'll have taken one change through the full process: branch, pull request, CI preview, a review by someone else, merge, and CI applying it. On the way, you'll see the two gates that make that process the only way in.
 
 | Rule | Enforced by |
 | --- | --- |
@@ -178,4 +178,4 @@ Before moving on, be ready to show or say:
 - The `dig` output proving your record is live in `dojo.test`.
 - What stopped `dnscontrol push` and `git push` to `main` from your terminal, and why a company wants both gates.
 
-**Next:** the rest of Part 2 is optional: [lab4.md](lab4.md) (`dnsctl.py`), [lab5.md](lab5.md) (history and rollback) and [lab6.md](lab6.md) (merge conflicts).
+**Next:** the rest of Part 2: [lab4.md](lab4.md) (`dnsctl.py`), [lab5.md](lab5.md) (history and rollback) and [lab6.md](lab6.md) (merge conflicts).

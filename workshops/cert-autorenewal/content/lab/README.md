@@ -16,18 +16,18 @@ same idea as your home directory, just also reachable by `demo-app`.
 ## What you'll do
 
 The session slides cover the *why*. This lab is the *how* — five short,
-self-contained labs. **Labs 1, 2, and 4 are required** and cover the
-end-to-end workflow: trust the CA, issue and install a certificate, then
-automate its renewal. Labs 3 and 5 are optional and go deeper on one topic
-each.
+self-contained labs. **Every lab is part of the workshop.** Together they
+cover the end-to-end workflow (trust the CA, issue and install a
+certificate, then automate its renewal), with a second ACME client and the
+dns-01 challenge to go deeper. Work through them in order.
 
-| Lab                | Topic                                                              | Time    | Required?            |
-| ------------------ | ------------------------------------------------------------------ | ------- | -------------------- |
-| [lab1.md](lab1.md) | Trusting the CA: bootstrap, inspect the root cert                  | ~10 min | **Yes — start here** |
-| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~20 min | **Yes**              |
-| [lab3.md](lab3.md) | The same task with acme.sh — comparing ACME clients                | ~15 min | Optional             |
-| [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min | **Yes**              |
-| [lab5.md](lab5.md) | Capstone: the dns-01 challenge, against real DNS records you write | ~15 min | Optional             |
+| Lab                | Topic                                                              | Time    |
+| ------------------ | ------------------------------------------------------------------ | ------- |
+| [lab1.md](lab1.md) | Trusting the CA: bootstrap, inspect the root cert                  | ~10 min |
+| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~20 min |
+| [lab3.md](lab3.md) | The same task with acme.sh — comparing ACME clients                | ~15 min |
+| [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min |
+| [lab5.md](lab5.md) | The dns-01 challenge, against real DNS records you write           | ~15 min |
 
 **Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
 

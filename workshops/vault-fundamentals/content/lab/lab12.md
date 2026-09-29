@@ -1,8 +1,6 @@
-# Lab 12 (optional) — Dynamic database credentials
+# Lab 12 — Dynamic database credentials
 
 **Goal:** stop sharing a database password. The vault **makes a new Postgres login** for whoever asks (you, then your app), with a **lease**: it expires by itself, you can renew it, and you can revoke it early. There is no long-lived database password left to leak.
-
-This lab is optional. Lab 13 doesn't need it.
 
 **In this lab you will:**
 

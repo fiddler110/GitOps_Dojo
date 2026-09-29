@@ -1,6 +1,6 @@
 # Lab 4 — Automate Renewal
 
-**Required.** This is the actual point of the workshop: a certificate that
+This is the actual point of the workshop: a certificate that
 renews itself before it expires, with no one watching it happen. By the end
 of this lab you'll have a cron job doing that for real, and you'll have
 watched it fire.
@@ -113,5 +113,4 @@ the whole workshop's goal, achieved with three open-source pieces (a CA, a
 client, a scheduler) — the same shape as what a managed platform automates
 for you, minus the vendor.
 
-Next: [lab5.md](lab5.md) (optional capstone — the dns-01 challenge), or
-you're done with the required path.
+Next: [lab5.md](lab5.md), the dns-01 challenge.

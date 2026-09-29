@@ -1,6 +1,6 @@
 # Lab 3 — Stashing
 
-**Optional.** Scenario: you're halfway through an edit, and you suddenly need to switch branches — check something on `main`, or help debug another branch — but you're not ready to commit what you have. `git stash` is the "set this aside for a minute" escape hatch.
+Scenario: you're halfway through an edit, and you suddenly need to switch branches — check something on `main`, or help debug another branch — but you're not ready to commit what you have. `git stash` is the "set this aside for a minute" escape hatch.
 
 Do this from your `sample-training-repo` clone, on your `add-yourname` branch.
 

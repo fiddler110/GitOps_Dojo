@@ -1,6 +1,6 @@
 # Lab 1 — Trust the CA
 
-**Required.** Before any ACME client will talk to `step-ca`, it has to trust
+Before any ACME client will talk to `step-ca`, it has to trust
 it — the same way your laptop trusts a public CA's root, or the way this
 org's systems trust whatever root Venafi issues from. By the end of this
 lab you'll have fetched and verified `step-ca`'s root certificate, told the

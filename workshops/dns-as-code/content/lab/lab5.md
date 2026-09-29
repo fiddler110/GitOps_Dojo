@@ -1,6 +1,6 @@
 # Lab 5 — Investigating & Rolling Back History
 
-**Optional. Part 2.** "Who changed this, when, and how do I undo it safely?" — the tools for answering that without hand-editing `dnsconfig.js` back to what it used to be. This lab uses `dnsctl.py`, so run [lab4.md](lab4.md)'s setup steps first if you haven't (`python3 scripts/dnsctl.py doctor` should be clean). You'll also need a merged PR to work with — Lab 3's is exactly right; grab its PR number if you wrote it down.
+**Part 2.** "Who changed this, when, and how do I undo it safely?" — the tools for answering that without hand-editing `dnsconfig.js` back to what it used to be. This lab uses `dnsctl.py`, so run [lab4.md](lab4.md)'s setup steps first if you haven't (`python3 scripts/dnsctl.py doctor` should be clean). You'll also need a merged PR to work with — Lab 3's is exactly right; grab its PR number if you wrote it down.
 
 ```sh
 cd ~/lab/dns-as-code

@@ -189,7 +189,7 @@ exchange happen twice in Lab 2 and Lab 3, once per client.
 | **dns-01** | Publishing a specific TXT record under the domain | Write access to the domain's DNS zone |
 
 http-01 is what Labs 1-4 use — simplest to reason about, and what most
-real-world issuance looks like. dns-01 (Lab 5, optional capstone) is what
+real-world issuance looks like. dns-01 (Lab 5) is what
 you reach for when there's **no web server to answer at all** — an
 internal service, a mail server, or a wildcard certificate, none of which
 http-01 can validate.
@@ -255,7 +255,7 @@ you see exactly what's being automated before you automate it. Step 5
 | What you see | A summarized log of each ACME step | More of the raw HTTP exchange, less summarized |
 | State | `~/certbot/config/` (this lab keeps it out of the system-wide default) | `~/.acme.sh` or wherever `--cert-home` points — plain per-user files |
 
-Lab 2 uses certbot. Lab 3 (optional) redoes the *same* issuance with
+Lab 2 uses certbot. Lab 3 redoes the *same* issuance with
 acme.sh, so you can compare the two side by side — same CA, same result,
 different level of transparency into how it got there.
 
@@ -339,7 +339,7 @@ knowing before you turn it off anywhere else.
 
 ---
 
-## dns-01 — the optional capstone
+## dns-01 — the last lab
 
 Every certificate up to this point proves control over HTTP. Lab 5 proves
 the same thing a different way: publishing a TXT record under
@@ -366,13 +366,13 @@ Reach for dns-01 instead of http-01 when:
 
 ## The five labs
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | --------- |
-| 1 | Trust the CA: bootstrap, inspect the root cert | ~10 min | <span class="required">Yes — start here</span> |
-| 2 | Issue and install a certificate with certbot | ~20 min | <span class="required">Yes</span> |
-| 3 | The same task with acme.sh — comparing clients | ~15 min | Optional |
-| 4 | Automating renewal, and watching it actually happen | ~15 min | <span class="required">Yes</span> |
-| 5 | Capstone: the dns-01 challenge, against real DNS | ~15 min | Optional |
+| Lab | Topic | Time |
+| --- | ----- | ---- |
+| 1 | Trust the CA: bootstrap, inspect the root cert | ~10 min |
+| 2 | Issue and install a certificate with certbot | ~20 min |
+| 3 | The same task with acme.sh — comparing clients | ~15 min |
+| 4 | Automating renewal, and watching it actually happen | ~15 min |
+| 5 | The dns-01 challenge, against real DNS | ~15 min |
 
 **Full steps are in `~/lab/README.md`** inside your terminal — it's the
 menu for all five labs plus a command cheat-sheet.
