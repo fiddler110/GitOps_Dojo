@@ -7,6 +7,7 @@
 #   bash workshops/vault-fundamentals/tests/e2e.sh              # every area but load
 #   bash workshops/vault-fundamentals/tests/e2e.sh --load 30    # also watch the bots for 30 minutes
 #   bash workshops/vault-fundamentals/tests/e2e.sh --only audit,bots
+#   bash workshops/vault-fundamentals/tests/e2e.sh --only lab_8         # one lab (each lab script also runs alone)
 #   bash workshops/vault-fundamentals/tests/e2e.sh --list       # the areas, and what each proves
 #
 # The lab scripts reset what they create in their student's account, so a run can be repeated. Output (each
@@ -20,17 +21,22 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT" || exit 2
 T=workshops/vault-fundamentals/tests
 
-AREAS=(unit tenancy cli_login setup_tokens lab_2 labs_5_7 labs_8_9 lab_10 labs_11_13 pool audit bots browser load)
+AREAS=(unit tenancy cli_login setup_tokens lab_2 lab_5 lab_6 lab_7 lab_8 lab_9 lab_10 lab_11 lab_12 lab_13 pool audit bots browser load)
 declare -A DESC=(
   [unit]="unit tests without the stack: openbao-audit, app-host, runner-controller"
   [tenancy]="labs 0-4: the shared secret/ and each namespace are private (tenancy.sh)"
   [cli_login]="the terminal's CLI login signs in as the right entity (modules/openbao/tests/cli_login.sh)"
   [setup_tokens]="openbao-setup keeps no live token; the reset token reaches students/ only (modules/openbao/tests/setup_tokens.sh)"
   [lab_2]="lab 2: pass, a GPG key, sharing and taking back (lab_2.sh)"
-  [labs_5_7]="labs 5-7: the SDK, the Agent, sops + transit, as one student"
-  [labs_8_9]="labs 8-9: Actions secrets and masking, AppRole, the job's OIDC identity, a branch refused"
+  [lab_5]="lab 5: the app reads a secret: .env vs hvac, versions, a log leak, renew (lab_5.sh)"
+  [lab_6]="lab 6: the OpenBao Agent renders a secret to a 0600 file and follows a rotation (lab_6.sh)"
+  [lab_7]="lab 7: sops with transit: encrypt, diff, rotate, close the old key (lab_7.sh)"
+  [lab_8]="lab 8: Actions secrets and masking, a single-use runner (lab_8.sh)"
+  [lab_9]="lab 9: AppRole, the job's OIDC identity, a branch refused (lab_9.sh)"
   [lab_10]="lab 10: the pipeline delivers a wrapped, single-use secret ID; spent, audited, a branch refused, the restart cost (lab_10.sh)"
-  [labs_11_13]="labs 11-13: deploy by workload identity, dynamic DB logins, the incident drill"
+  [lab_11]="lab 11: deploy by workload identity, rotation with no deploy, a branch refused (lab_11.sh)"
+  [lab_12]="lab 12: dynamic database logins, the app's own login, leases (lab_12.sh)"
+  [lab_13]="lab 13: the incident drill: audit, revoke, rotate, the app recovers (lab_13.sh)"
   [pool]="runner-pool: warm pool, isolated one-job runners, the Runners panel (modules/runner-pool/tests/pool.sh)"
   [audit]="the Audit tab's API: facilitator only, filters, and a student's own bao-audit still works"
   [bots]="with --test: each bot has a vault login, a namespace and an app slot, and no bot is stuck on a step"
@@ -218,10 +224,15 @@ area tenancy    sh "$T/tenancy.sh"
 area cli_login  sh modules/openbao/tests/cli_login.sh
 area setup_tokens sh modules/openbao/tests/setup_tokens.sh
 area lab_2      sh "$T/lab_2.sh" "$student"
-area labs_5_7   sh "$T/labs_5_7.sh" "$student"
-area labs_8_9   sh "$T/labs_8_9.sh" "$student"
+area lab_5      sh "$T/lab_5.sh" "$student"
+area lab_6      sh "$T/lab_6.sh" "$student"
+area lab_7      sh "$T/lab_7.sh" "$student"
+area lab_8      sh "$T/lab_8.sh" "$student"
+area lab_9      sh "$T/lab_9.sh" "$student"
 area lab_10     sh "$T/lab_10.sh" "$student"
-area labs_11_13  sh "$T/labs_11_13.sh" "$student"
+area lab_11     sh "$T/lab_11.sh" "$student"
+area lab_12     sh "$T/lab_12.sh" "$student"
+area lab_13     sh "$T/lab_13.sh" "$student"
 # pool.sh counts idle runners and scales by hand: with bots, their jobs take the runners and it fails.
 if [ "${bots:-0}" -gt 0 ] && wanted pool; then
   echo "  SKIP  pool       (bots are using the runners; run it on a stack without --test)"

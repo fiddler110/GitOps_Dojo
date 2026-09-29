@@ -1,7 +1,7 @@
 #!/bin/sh
 # vault-fundamentals lab 10 (T5.16), with the stack up: runs every `bash` block
 # of lab10.md as one student, as written (and writes the files it has them make), and checks what the terminal, the
-# deploy jobs and the app show. Same helpers as labs_11_13.sh. It first removes
+# deploy jobs and the app show. Same helpers as lib.sh. It first removes
 # what an earlier run left (the fork, the clone, the roles and the policy this
 # lab writes), so it can run again. Needs python3 >= 3.14 on the host (job logs
 # are zstd). Exits 1 on any failure.

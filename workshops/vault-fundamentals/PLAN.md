@@ -47,7 +47,7 @@
   nothing. Next: the user's browser passes, then merge to `main` (ROADMAP "Later").
 
 - **2026-09-25: the deliverer lab (S39), T5.12-T5.16 done.** New `lab10.md`; labs 10-12 are now 11-13. Tested
-  locally: `tests/lab_10.sh` PASS (26 checks, student03), `tests/labs_11_13.sh` after it (see T5.16). Not yet run:
+  locally: `tests/lab_10.sh` PASS (26 checks, student03), `tests/lab_11.sh` to `lab_13.sh` after it (see T5.16). Not yet run:
   the new bot step `step_vf_lab10` (needs `--test`; it runs in T5.6). Lab 11 doesn't yet *show* a restart logging
   in again (lab 10 ends on that promise). Next is still T5.6.
 - **2026-09-25: the `pass` lab (S37, S38), tasks T5.7-T5.11.** New lab 2, labs renumbered 2-11 → 3-12. Older
@@ -1443,7 +1443,7 @@ has the old image until the next `./run.sh stop` and `./run.sh vault-fundamental
 ### 2026-09-28 — T5.6 live pass: done (7684f07)
 
 Locally, on the WSL2 desktop (8 vCPU / 14 GiB). `./run.sh vault-fundamentals --test 10` built and started in 254 s.
-The full `e2e.sh --load 20`: unit, tenancy, cli_login, lab_2, labs_5_7, labs_8_9, lab_10, labs_11_13, audit and
+The full `e2e.sh --load 20`: unit, tenancy, cli_login, lab_2, lab_5 ... lab_13, audit and
 browser PASS; pool SKIP (it runs only without `--test`); bots and load FAIL. The bots stuck at lab 9, because
 `steps.sh` looked for a heredoc the lab no longer has (the workflow is written in VS Code since 19e2040). Fixed:
 `vf_block` writes VS Code files, lab 10/11 block numbers, the refused second unwrap, each lab waits for its own

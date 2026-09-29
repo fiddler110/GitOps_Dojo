@@ -51,7 +51,7 @@ to the class on the slide "What today's vault cuts short":
 
 With the stack up, from the repo root, `bash workshops/vault-fundamentals/tests/e2e.sh` runs everything in order
 and prints one line per area (`--list` says what each proves, `--only` / `--skip` pick areas):
-unit tests, `tenancy.sh`, `cli_login.sh`, `setup_tokens.sh`, `lab_2.sh`, `labs_5_7.sh`, `labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`, `pool.sh`, the Audit tab's
+unit tests, `tenancy.sh`, `cli_login.sh`, `setup_tokens.sh`, `lab_2.sh`, `lab_5.sh` to `lab_13.sh` (one per lab), `pool.sh`, the Audit tab's
 API, the demo bots, and the browser checks (`sso_browser.py`, `p4_browser.py`, `p5_browser.py` in Playwright's
 image). `--load MIN` also watches a `--test` class of bots for `MIN` minutes and writes `stats.csv`, `queue.csv` and
 `report.txt` (peak memory and CPU per container, runner queue, apps running). Each lab script resets its own
