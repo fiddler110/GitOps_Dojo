@@ -134,6 +134,10 @@ services:
       - workshop_lab
     depends_on:
       - git-server
+    # The allocator image's HEALTHCHECK can never pass for a one-shot that exits;
+    # podman-compose would wait on it forever before starting the controller.
+    healthcheck:
+      disable: true
     cap_drop:
       - ALL
     security_opt:
