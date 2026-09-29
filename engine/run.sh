@@ -859,12 +859,22 @@ if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
   echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
 else
   # shellcheck disable=SC2086
-  if ! run_once --network none $ext_env_args -v "$PWD/${gen_dir}:/gen" \
+  # GATEWAY_TOKEN (by name, never on the command line) derives each
+  # identity/facilitator upstream's own X-Gateway-Token (FIND-16).
+  if ! run_once --network none $ext_env_args -e GATEWAY_TOKEN -v "$PWD/${gen_dir}:/gen" \
       -v "$PWD/allocator/render_extensions.py:/render_extensions.py:ro" gitopsdojo/allocator:local \
       python3 -B /render_extensions.py --in /gen/in --out /gen --services "$ext_services"; then
     echo "The workshop's extensions.json was rejected (see above); nothing was started." >&2
     exit 1
   fi
+fi
+# Each routed upstream's own gateway token, GATEWAY_TOKEN_<SERVICE>, for the
+# compose fragments to pass in as that service's GATEWAY_TOKEN (FIND-16).
+if [ -f "${gen_dir}/upstream-tokens.env" ]; then
+  set -a
+  # shellcheck disable=SC1090,SC1091
+  . "./${gen_dir}/upstream-tokens.env"
+  set +a
 fi
 
 # Record which module and overlay files this run used (in .last-overlay,

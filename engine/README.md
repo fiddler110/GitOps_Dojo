@@ -288,7 +288,15 @@ this is how the engine uses it.
   `forward_auth` (wrapped in `route {}`, since Caddy would otherwise sort
   `request_header` after `forward_auth`), always strips `Authorization`, and for
   `identity`/`facilitator` replaces `X-Auth-User` and `X-Gateway-Token` with
-  what the allocator vouched for. Caddy re-sorts path-matched `handle` blocks,
+  what the allocator vouched for. The token each upstream gets is its own,
+  `HMAC-SHA256(GATEWAY_TOKEN, "dojo-gateway-token/v1/<service>")`, never the
+  shared `GATEWAY_TOKEN` (which only the allocator and engine blocks use), so
+  one upstream's token is refused by every other. The renderer also writes
+  `.generated/upstream-tokens.env` (`GATEWAY_TOKEN_<SERVICE>=...`, mode 0600),
+  which `run.sh` exports before `compose up`; the upstream's fragment passes it
+  in as `GATEWAY_TOKEN=${GATEWAY_TOKEN_<SERVICE>:-}`. The snippet holds those
+  tokens, so it is owned by the gateway's `nobody`, mode 0440 (0644 when the
+  renderer can't chown, under Docker). Caddy re-sorts path-matched `handle` blocks,
   so correct routing relies on the renderer's no-overlap rule, not on order.
 - **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
   go on the landing page after the built-in ones, tabs into `/admin` after the
@@ -348,7 +356,8 @@ instead (`student`/`student123`/`admin`/`admin` — see the script's header
 for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
 `GATEWAY_TOKEN`) and `FORGEJO_ADMIN_PASSWORD` (the facilitator reaches Forgejo
 through SSO) are still randomly generated even in `--default` mode, since
-nobody ever types those. Either way it still tries to auto-size the
+nobody ever types those. `engine/.env` (and `.env.previous`) is written
+mode 0600: it holds every master secret. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
 
 **Default passwords stay on this machine.** `./run.sh <workshop>` refuses to

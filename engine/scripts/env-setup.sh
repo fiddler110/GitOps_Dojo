@@ -89,6 +89,11 @@ if [ ! -f .env.example ]; then
   exit 1
 fi
 
+# engine/.env holds every master secret (GATEWAY_TOKEN, CONTROL_TOKEN,
+# FORGEJO_ADMIN_PASSWORD...): owner-only, like every file made on the way
+# (.env.new, .env.new.tmp, .env.previous). FIND-16.
+umask 077
+
 # The file set_var/current_value work on: engine/.env.new while building one,
 # engine/.env itself for --rotate-class.
 target=".env.new"
@@ -153,6 +158,7 @@ if [ "$mode" = "rotate-class" ]; then
   target=".env"
   new_password="$(random_password)"
   set_var TTYD_PASSWORD "$new_password"
+  chmod 600 .env
   echo "New class password (TTYD_PASSWORD): ${new_password}"
   echo "Restart the workshop ('./run.sh <workshop>') for the gateway to use it."
   exit 0
@@ -177,8 +183,10 @@ cp .env.example "$target"
 install_env() {
   if [ -f .env ]; then
     cp .env .env.previous
+    chmod 600 .env.previous
   fi
   mv "$target" .env
+  chmod 600 .env
   trap - EXIT
 }
 
