@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0, P1, P2 done (2026-09-28). Next: P3, after the user's go.** |
+| Overall status | **P0-P2 done. P3 built (T3.1-T3.4, de09a30 + 3056674, 2026-09-28); its remaining live tests are listed under T3.6. Open: T3.6.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -320,7 +320,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 ### P3 — CI and shared-service trust
 
-- [ ] **T3.1** (FIND-05, T2, Important) [WORKSHOP] + [MODULE] PR workflows on a shared host runner trusted by IP.
+- [x] **T3.1** *(de09a30; tests left: T3.6)* (FIND-05, T2, Important) [WORKSHOP] + [MODULE] PR workflows on a shared host runner trusted by IP.
       Files: `workshops/dns-as-code/content/sample-repo/.forgejo/workflows/*.yml`,
       `workshops/dns-as-code/compose/dns-api/gate.py`, `modules/forgejo-runner/`.
       a. **(D6)** `gate.py` accepts protected-zone writes only with a Forgejo Actions ID token: RS256 checked against
@@ -334,14 +334,14 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          this branch). Until then, the host runner's registration file is root-only `0600`.
       *Verify:* a PR that edits `dns-preview.yml` to PATCH `dojo.test` gets 403; a token from another repo or branch
       gets 403; a merge to `main` still applies; the dns-as-code lab passes end to end.
-- [ ] **T3.2** (FIND-11, T2, Moderate) [WORKSHOP] Shared DNS API key.
+- [x] **T3.2** *(de09a30; tests left: T3.6)* (FIND-11, T2, Moderate) [WORKSHOP] Shared DNS API key.
       a. **dns-as-code:** per-student key `HMAC(seed, "dns:" + user)` (D13) written `0600` to the student's home by
          `90-my-zone.sh`; `gate.py` maps key → user and allows only `<user>.dojo.test`; every student zone is
          pre-created at start (no squatting).
       b. **cert-autorenewal:** the same gate in front of PowerDNS; students get only their key, never
          `PDNS_AUTH_API_KEY` (generated, not `workshop-not-a-secret`). Consider `modules/dns-gate/` shared by both.
       *Verify:* student01's key → 403 on `student02.dojo.test`, 2xx on its own zone; cert-autorenewal renewals work.
-- [ ] **T3.3** (FIND-09, T2, Moderate) [WORKSHOP] Shared ACME CA.
+- [x] **T3.3** *(de09a30; tests left: T3.6)* (FIND-09, T2, Moderate) [WORKSHOP] Shared ACME CA.
       a. `STEP_CA_PASSWORD` generated at first start by the workshop (its entrypoint or `workshop.env`, not the
          engine), never given to students.
       b. The `admin` JWK provisioner gets its own random password, out of student reach.
@@ -350,16 +350,29 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          in the workshop README.
       *Verify:* a certificate for a name outside `certs.dojo.test` is refused; with T3.2, dns-01 for
       `student02.certs.dojo.test` as student01 fails; the lab's own renewal flow passes.
-- [ ] **T3.4** (FIND-07, T2, Moderate) **[ENGINE, ask]** Slot exhaustion and head-of-line blocking.
+- [x] **T3.4** *(3056674, user's go 2026-09-28; tests left: T3.6)* (FIND-07, T2, Moderate) **[ENGINE, ask]** Slot exhaustion and head-of-line blocking.
       a. Global `/assign` rate limit (N per minute + burst), in memory, no Docker call under a lock. (D8: no join code.)
       b. `/admin` "release all unclaimed / idle" if missing.
       c. Allocator socket timeout 10 s → 3 s; Caddy dial/response timeouts to the allocator. `ThreadingHTTPServer`
          is a separate spike (locking rules).
       *Verify:* 40 cookie-less `/assign` POSTs grant at most the burst; with 5 idle sockets `/auth-check` stays
       under 1 s; `--test 20` bots still get slots.
-- [ ] **T3.5** *(only if T0.4 connects)* [WORKSHOP] `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` in app-db init.
+- [x] **T3.5** *(not needed: T0.4 was refused)* *(only if T0.4 connects)* [WORKSHOP] `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` in app-db init.
       *Verify:* student01's role can't `\c` student02's database; `tests/labs_11_13.sh` passes.
 - [ ] **T3.6** P3 docs, §8 entry. **Ask the user before starting P4.**
+      **Live tests still to run** (each locally; `podman ps` first, one stack at a time):
+      1. cert-autorenewal `--test 2` to round 2: lab 3 (acme.sh `_ecc` path fix), lab 4 renewals, lab 5 dns-01
+         through dns-api with the bot's own key. Last run stopped before this (bots were on lab 3).
+      2. dns-as-code `--test 3` to round 2 again, now with the bots' git identity: my-zone commits work, PRs get
+         reviewed and merged, DNS Apply writes `dojo.test` (gate log: `ci:...@refs/heads/main#push` allow).
+      3. dojo-introduction: starts healthy with `dns-gate`; a student's and a bot's `dnscontrol push` in
+         `~/lab/my-zone`; `dojo.test` refused; certs still issue. Slide 7-ish module table: check for overflow.
+      4. git-fundamentals `--test 3`: bots reach round 2 with 0 failures (the bot `.gitconfig` change).
+      5. T3.4 rest: `/auth-check` stays under 1 s with 5 idle sockets open to the allocator; the Roster's
+         **Release unused** button in a real browser (renders under the CSP, frees a slot left unused for 2 min);
+         vault-fundamentals `checks.sh` + `p2_browser.py` as a gateway regression (the Caddy timeout snippet).
+      Docs: `engine/README.md` (ASSIGN_*, Release unused, allocator timeouts, the forgejo-runner example at its
+      line ~629), `modules/forgejo-runner/README.md` (no workshop uses it now).
 
 ### P4 — Container and UI hardening
 
@@ -430,7 +443,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 | T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Done 9074e7f, 1caf9d3 |
-| T3.1 | FIND-05 | Important | WS+MODULE | Not started; Q-A: (A), confirmed by the user |
+| T3.1 | FIND-05 | Important | WS+MODULE | Built de09a30; live tests left (T3.6) |
 | T3.2 | FIND-11 | Moderate | WS | Not started |
 | T3.3 | FIND-09 | Moderate | WS | Not started |
 | T3.4 | FIND-07 | Moderate | ENGINE, ask | Not started |
@@ -573,3 +586,28 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   password and token, ingress only from the gateway, a PID namespace per student); `engine/student-reset.md`:
   a reset keeps the derived password but must re-create the token.
 - P2 is closed. P3 (CI and shared-service trust) waits for the user's go.
+
+### 2026-09-28 — P3 built: T3.1-T3.4
+
+- de09a30 (T3.1-T3.3): new `modules/dns-gate/` (dns-api moved out of dns-as-code). Keys: the read key (reads
+  only), each account's own `<user>.<mac>` (HMAC of the seed, `"dns:"+user`; `~/.config/dojo/dns-api-key` 0600,
+  exported as `DNS_API_KEY`) that owns `<user>.<parent>` and below, and Forgejo Actions ID tokens (RS256 checked in
+  stdlib Python against Forgejo's JWKS) that write CI-only zones only for repository = class repo,
+  `refs/heads/main`, `event_name` = `push`. dns-as-code moves to runner-pool (JOB_TOOLS dnscontrol);
+  `creds.json` says `"apiKey": "$DNS_API_KEY"`. cert-autorenewal: dns-gate with `certs.dojo.test` shared (PATCH
+  only own names), derived PowerDNS key, step-ca with random passwords (the admin provisioner's discarded) and an
+  **authority-level** name policy. dojo-introduction switched to dns-gate (user's go).
+- 3056674 (T3.4, user's go): `/assign` token bucket (ASSIGN_BURST 10, ASSIGN_PER_MINUTE 20, cookie-less new slots
+  only), Roster **Release unused** (slots over 2 min old with no IDE/terminal), allocator socket timeout 3 s, Caddy
+  `allocator_timeouts` snippet (dial 3 s, reply 10 s). Also: bots get a `.gitconfig` (they never had one).
+- Verified locally: dns-as-code: 10/10 key checks (own zone 204, another's 403, `dojo.test` 403, read key can't
+  write, old shared key 401, my-zone push, shared preview, `dnsctl.py doctor`); **a student PR that rewrites
+  `dns-preview.yml` to PATCH `dojo.test` with its job token gets 403 (`pull_request`, `refs/pull/1/head`), and so
+  does a new workflow on a feature-branch push (`refs/heads/attack-ci`)**; the merge-to-main apply writes it; 3
+  bots reached round 2. cert-autorenewal: 7/7 key checks (own TXT 204, another's 403, apex 403); step-ca: the old
+  password no longer opens the admin provisioner, an in-zone cert issues, `a.student01.certs.dojo.test` is refused
+  at new-order. T3.4: 14 cookie-less POSTs gave 10 through (3 assigned, 7 full) then 4× 429; landing page 0.02 s.
+- Found on the way: Forgejo's ID tokens do carry `event_name`. Self-hosted step-ca ignores a provisioner-level
+  policy (authority level only). Bots start before start.d hooks (engine/entrypoint.sh), so a hook's per-account
+  env isn't in a bot's shell: bot steps read the key file. Lab 3's acme.sh path was wrong (`<host>_ecc`).
+- Left: the live tests and docs under T3.6. Nothing pushed.
