@@ -127,6 +127,45 @@ say_ok() { printf '  %s%s%s\n' "$c_green" "$*" "$c_off"; }
 say_changed() { printf '  %s%s%s\n' "$c_yellow" "$*" "$c_off"; }
 say_bad() { printf '  %s%s%s\n' "$c_red" "$*" "$c_off"; }
 
+# Elapsed time as m:ss, for the progress lines below.
+fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
+
+# `compose up -d` prints little while it waits on a container, so a slow start
+# looks hung. This runs beside it and prints one line whenever a workshop_*
+# container changes state (created, starting, healthy, exited), and every 30 s
+# a list of what is still not ready, so you can see which one is holding things up.
+progress_watch() {
+  pw_start="$(date +%s)"; pw_prev="$(mktemp)"; pw_cur="$(mktemp)"; pw_quiet=0
+  while :; do
+    ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '
+      { st = $2; s = "running"
+        if (st ~ /\(unhealthy\)/) s = "unhealthy"
+        else if (st ~ /\(healthy\)/) s = "healthy"
+        else if (st ~ /health: starting|\(starting\)/) s = "starting"
+        else if (st ~ /^Exited \(0\)/) s = "done"
+        else if (st ~ /^Exited/) s = "FAILED (" st ")"
+        else if (st ~ /^(Created|Initialized)/) s = "waiting to start"
+        print $1 "|" s }' | sort > "$pw_cur"
+    changed="$(awk -F'|' -v pf="$pw_prev" 'BEGIN { while ((getline l < pf) > 0) { split(l, a, "|"); p[a[1]] = a[2] } } p[$1] != $2 { printf "%s: %s\n", $1, $2 }' "$pw_cur")"
+    now="$(date +%s)"
+    if [ -n "$changed" ]; then
+      pw_quiet=0
+      printf '%s\n' "$changed" | while IFS= read -r line; do
+        printf '  [%s] %s\n' "$(fmt_elapsed $((now - pw_start)))" "$line"
+      done
+    else
+      pw_quiet=$((pw_quiet + 5))
+      if [ "$pw_quiet" -ge 30 ]; then
+        pw_quiet=0
+        waiting="$(awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s (%s)", sep, $1, $2; sep = ", " }' "$pw_cur")"
+        [ -z "$waiting" ] || printf '  [%s] still waiting on: %s\n' "$(fmt_elapsed $((now - pw_start)))" "$waiting"
+      fi
+    fi
+    cp "$pw_cur" "$pw_prev"
+    sleep 5
+  done
+}
+
 list_workshops() {
   echo "Available workshops:"
   for d in ../workshops/*/; do
@@ -453,6 +492,7 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   compose() { docker compose "$@"; }
   inspect() { docker inspect "$@"; }
   images() { docker images "$@"; }
+  ps_all() { docker ps -a "$@"; }
   rmi() { docker rmi "$@"; }
   # One-shot helper containers write into engine/ (render_extensions);
   # rootful docker would leave those files owned by root without --user.
@@ -463,6 +503,7 @@ else
   compose() { podman-compose "$@"; }
   inspect() { podman inspect "$@"; }
   images() { podman images "$@"; }
+  ps_all() { podman ps -a "$@"; }
   rmi() { podman rmi "$@"; }
   # Rootless podman maps the container's root to the calling user already;
   # --user <uid> here would map to a subordinate uid that can't write engine/.
@@ -654,8 +695,10 @@ build_if_changed() {
     would_build="${would_build} ${image} "
     return 0
   fi
-  say_changed "${image}: changed, building..."
+  say_changed "${image}: changed, building (this can take a few minutes)..."
+  bstart="$(date +%s)"
   track_superseded build "$@" --label "dojo.src-hash=${new_hash}" -t "$image" "$context"
+  say_ok "${image}: built in $(fmt_elapsed $(($(date +%s) - bstart)))"
 }
 
 # Same idea as build_if_changed, for a workshop overlay's own build
@@ -929,8 +972,21 @@ echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
 # date (or confirmed unchanged) above, either by build_if_changed (for the
 # fixed-tag images) or compose_overlay_build_if_changed (for the rest of
 # this workshop's overlay, if any).
+echo "Creating networks and volumes, then starting containers in dependency order."
+echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
+up_start="$(date +%s)"
+progress_watch &
+watch_pid=$!
+trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
 # shellcheck disable=SC2086
-compose $compose_args up -d
+up_rc=0
+compose $compose_args up -d || up_rc=$?
+kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+trap - EXIT INT TERM
+echo "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))."
+not_ready="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }')"
+[ -z "$not_ready" ] || say_changed "not ready yet: ${not_ready}"
+[ "$up_rc" = 0 ] || exit "$up_rc"
 
 # Containers now run on the freshly built images, so the ones those builds
 # displaced are no longer pinned.
