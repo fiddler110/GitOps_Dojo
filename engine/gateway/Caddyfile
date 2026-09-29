@@ -58,6 +58,18 @@
 	}
 }
 
+# Every call to the allocator (remediation T3.4, FIND-07). It serves one
+# request at a time, so a stuck call must fail fast instead of queueing the
+# whole class behind it: a dial that takes over 3 s or a reply that hasn't
+# started within 10 s is a 502. Imported into each allocator block below and
+# into the rendered extension gates (allocator/render_extensions.py).
+(allocator_timeouts) {
+	transport http {
+		dial_timeout 3s
+		response_header_timeout 10s
+	}
+}
+
 {$GATEWAY_LISTEN} {
 	# Access log on stdout, JSON (remediation T1.4, FIND-13). user_id is the
 	# account that passed basic_auth. Caddy redacts the Authorization and
@@ -113,6 +125,7 @@
 		@watch path_regexp watch ^/admin/watch/([a-zA-Z0-9]+)(/.*)?$
 		handle @watch {
 			forward_auth allocator:8080 {
+				import allocator_timeouts
 				uri /auth-check-watch?student={re.watch.1}
 				header_up X-Auth-User {http.auth.user.id}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
@@ -124,6 +137,7 @@
 
 		handle {
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				header_up X-Auth-User {http.auth.user.id}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}
@@ -169,6 +183,7 @@
 		@ide path /ide*
 		handle @ide {
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				method GET
 				rewrite /auth-check?tool=ide
 				header_up X-Auth-User {http.auth.user.id}
@@ -195,6 +210,7 @@
 		@term path /term*
 		handle @term {
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				method GET
 				rewrite /auth-check?tool=term
 				header_up X-Auth-User {http.auth.user.id}
@@ -234,6 +250,7 @@
 			# allocator/server.py's gateway_authorized()) -- a plain client
 			# has no way to set it either, for the same reason.
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				header_up X-Auth-User {http.auth.user.id}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}

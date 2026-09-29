@@ -180,6 +180,55 @@ slots = {sid: {"name": None, "ip": None, "token": None, "tool": None, "assigned_
 token_index = {}  # token -> studentId
 
 
+def _env_int(name, default):
+    try:
+        return max(1, int(os.environ.get(name) or default))
+    except ValueError:
+        return default
+
+
+class AssignLimit:
+    """How fast new slots go out (remediation T3.4, FIND-07): a token bucket,
+    ASSIGN_BURST at once, then ASSIGN_PER_MINUTE. It counts only new
+    assignments (a cookie-less POST /assign that would take a slot), so a
+    class arriving together gets in within a minute or so while a script
+    can't empty every slot in one go. The facilitator, bots, returning
+    browsers and /auth-check never touch it. In memory, and no lock needed:
+    this server handles one request at a time."""
+
+    def __init__(self, burst, per_minute, clock=time.monotonic):
+        self.burst, self.rate, self.clock = float(burst), per_minute / 60.0, clock
+        self.tokens, self.last = float(burst), clock()
+
+    def take(self):
+        """0 if a slot may go out now, else seconds until one may."""
+        now = self.clock()
+        self.tokens = min(self.burst, self.tokens + (now - self.last) * self.rate)
+        self.last = now
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return 0
+        return max(1, int((1 - self.tokens) / self.rate + 0.999))
+
+
+ASSIGN_LIMIT = AssignLimit(_env_int("ASSIGN_BURST", 10), _env_int("ASSIGN_PER_MINUTE", 20))
+# "Release unused" frees a slot taken at least this long ago with no IDE or
+# terminal running.
+UNUSED_AFTER_SECONDS = 120
+
+
+def release_slot(sid, result="released"):
+    """Stop a student's workspace and free their slot. Returns the name that held it."""
+    control_request("POST", f"/stop/{sid}")
+    old_token = slots[sid]["token"]
+    if old_token in token_index:
+        del token_index[old_token]
+    name = slots[sid]["name"]
+    audit("release", target=sid, name=name, result=result)
+    slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+    return name
+
+
 def student_number(student_id):
     return int(student_id[len(STUDENT_PREFIX):])
 
@@ -545,8 +594,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # indefinitely. 10s is generous for any legitimate request this process
     # ever serves (all local, in-memory, no upstream I/O except the
     # best-effort control_request/forgejo_login_request calls, which have
-    # their own shorter CONTROL_TIMEOUT).
-    timeout = 10
+    # their own shorter CONTROL_TIMEOUT). 3 s (remediation T3.4, was 10):
+    # a stalled client holds everyone up for at most that long per read.
+    timeout = 3
 
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
@@ -665,6 +715,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = f"""
 <h1>{html.escape(WORKSHOP_NAME)}</h1>
 <p class="sub">All workshop seats are currently taken. Please ask your facilitator for help.</p>"""
+        return page(WORKSHOP_NAME, body)
+
+    def render_busy(self, wait):
+        body = f"""
+<h1>{html.escape(WORKSHOP_NAME)}</h1>
+<p class="sub">A lot of people are joining at once. Please try again in {int(wait)} seconds.</p>
+<p><a href="/">Try again</a></p>"""
         return page(WORKSHOP_NAME, body)
 
     def render_confirmation(self, sid):
@@ -843,6 +900,10 @@ EXT_TABS_PLACEHOLDER  </div>
 
 <main id="main">
 <div class="panel active" id="panel-roster">
+  <div id="roster-bar">
+    <button id="release-unused" type="button" title="Frees every slot taken over 2 minutes ago with no VS Code or terminal running">Release unused</button>
+    <span id="release-unused-out" class="sub"></span>
+  </div>
   <p id="empty" class="sub">No students connected yet.</p>
   <div id="grid"></div>
 </div>
@@ -957,6 +1018,22 @@ function releaseTile(sid, btn) {
     headers: { 'X-Requested-With': 'dojo-admin' },
   }).then(refresh);
 }
+
+// Roster "Release unused": free every slot taken a while ago whose student
+// never started VS Code or a terminal (e.g. slots a script grabbed).
+function releaseUnused(btn, out) {
+  if (!confirm('Release every slot taken over 2 minutes ago with no VS Code or terminal running?')) return;
+  btn.disabled = true;
+  fetch('/admin/release-unused', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.released.length ? 'Released: ' + d.released.join(', ') : 'Nothing to release'; })
+    .catch(() => { out.textContent = 'Release failed'; })
+    .finally(() => { btn.disabled = false; refresh(); });
+}
+document.getElementById('release-unused').onclick = (e) =>
+  releaseUnused(e.currentTarget, document.getElementById('release-unused-out'));
 
 // Roster "Password": fetch one student's Forgejo password on demand and show
 // it in the tile (textContent only); a second click hides it again.
@@ -1195,6 +1272,11 @@ setInterval(refresh, 5000);
   .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release {{ margin-left: auto; }}
   .tile-release:hover, .tile-pw-btn:hover {{ background: #7c8494; }}
   .tile-release:disabled {{ opacity: 0.6; cursor: default; }}
+  #roster-bar {{ display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }}
+  #release-unused {{ padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
+    background: #64748b; color: #fff; cursor: pointer; }}
+  #release-unused:hover {{ background: #7c8494; }}
+  #release-unused:disabled {{ opacity: 0.6; cursor: default; }}
   /* The iframe is laid out at a fixed, generous pixel size (see
      FRAME_W/H below), then CSS-transformed to fill whatever size the
      tile wrapper actually is, enlarged or not -- see that comment and
@@ -1538,6 +1620,14 @@ setInterval(refresh, 5000);
             self.handle_release(sid)
             return
 
+        if path == "/admin/release-unused":
+            if self.headers.get("X-Requested-With") != "dojo-admin":
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.handle_release_unused()
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -1562,6 +1652,13 @@ setInterval(refresh, 5000);
         name = (form.get("name") or "").strip()[:60]
         if not name:
             self.send_html(self.render_name_form(), status=400)
+            return
+
+        wait = ASSIGN_LIMIT.take()
+        if wait:
+            audit("assign", name=name, ip=self.client_ip(), result="rate-limited")
+            self.send_html(self.render_busy(wait), status=429,
+                           headers=[("Retry-After", str(wait))] + NO_STORE_HEADERS)
             return
 
         sid = find_free_slot()
@@ -1601,13 +1698,34 @@ setInterval(refresh, 5000);
             self.send_response(404)
             self.end_headers()
             return
-        control_request("POST", f"/stop/{sid}")
-        old_token = slots[sid]["token"]
-        if old_token in token_index:
-            del token_index[old_token]
-        audit("release", target=sid, name=slots[sid]["name"], result="released")
-        slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+        release_slot(sid)
         self.send_json({"released": sid})
+
+    def handle_release_unused(self):
+        """The Roster's "Release unused" (remediation T3.4): frees every slot
+        taken at least UNUSED_AFTER_SECONDS ago with no IDE or terminal
+        running, e.g. slots a script grabbed. One status call for all."""
+        now = time.time()
+        held = [sid for sid in STUDENT_IDS
+                if slots[sid]["name"] is not None and now - (slots[sid]["assigned_at"] or now) >= UNUSED_AFTER_SECONDS]
+        status = {}
+        if held:
+            body = control_request("GET", "/status?users=" + ",".join(held))
+            if not body:
+                self.send_json({"error": "workspace status unavailable"}, status=503)
+                return
+            try:
+                status = json.loads(body)
+            except json.JSONDecodeError:
+                self.send_json({"error": "workspace status unavailable"}, status=503)
+                return
+        released = []
+        for sid in held:
+            s = status.get(sid) or {}
+            if not s.get("active") and not s.get("watchable"):
+                release_slot(sid, result="released-unused")
+                released.append(sid)
+        self.send_json({"released": released})
 
 
 def main():

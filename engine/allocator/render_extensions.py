@@ -248,6 +248,7 @@ def caddy_for_route(r):
              "\t\trequest_header -X-Dojo-Host"]
     if r["gate"] in ("identity", "facilitator"):
         lines += ["\t\tforward_auth allocator:8080 {",
+                  "\t\t\timport allocator_timeouts",
                   f"\t\t\turi /auth-check?route={r['id']}",
                   "\t\t\theader_up X-Auth-User {http.auth.user.id}",
                   "\t\t\theader_up X-Gateway-Token {$GATEWAY_TOKEN}",

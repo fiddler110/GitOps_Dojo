@@ -246,6 +246,9 @@ services:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # How fast new slots go out (allocator/server.py AssignLimit).
+      - ASSIGN_BURST=${ASSIGN_BURST:-10}
+      - ASSIGN_PER_MINUTE=${ASSIGN_PER_MINUTE:-20}
       # Demo/test bots (--test): included as always-on roster rows (see
       # /admin/api/sessions) so a facilitator can watch/Release them like
       # any student, without ever competing with real students for a

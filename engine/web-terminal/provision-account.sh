@@ -119,6 +119,18 @@ EOF
   rm -f "/home/$username/.zshrc"
   ln -s /opt/dojo-shell/zshrc "/home/$username/.zshrc"
 
+  # The same git identity a student gets below: without it a bot's commits
+  # outside the shared clone (dns-as-code's ~/lab/my-zone) fail.
+  if [ ! -f "/home/$username/.gitconfig" ]; then
+    cat > "/home/$username/.gitconfig" <<EOF
+[user]
+	name = $username
+	email = $username@example.com
+[init]
+	defaultBranch = main
+EOF
+  fi
+
   chown -R "$username:$username" "/home/$username"
   chmod 700 "/home/$username"
   exit 0
