@@ -18,6 +18,8 @@ already have one open (`Ctrl+b %`).
 
 > **Starting here?** This lab needs Lab 2's certbot certificate: step 3 reads the `-0001` copy certbot makes next to it. Run `lab-prep 5` to set that up; it's safe to run even if you did the earlier labs.
 
+> **Did Lab 4?** Remove its cron job first: `crontab -r`. It runs `certbot renew` every minute on the same `~/certbot` folder, so it can hold certbot's lock ("Another instance of Certbot is already running") and renew the certificate you're about to create.
+
 ---
 
 ## 1. Start the challenge

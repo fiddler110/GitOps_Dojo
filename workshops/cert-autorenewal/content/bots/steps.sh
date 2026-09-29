@@ -151,6 +151,11 @@ step_lab5_dns01() {
   narrate "Lab 5 (optional capstone) -- prove control via dns-01 instead of http-01"
   mkdir -p "$hookdir"
 
+  # Lab 4's every-minute cron job runs `certbot renew` on the same ~/certbot
+  # work dir, so it would hold certbot's lock (and renew this lineage) while
+  # this step runs. lab5.md tells students to remove it first; so does the bot.
+  run_cmd "(crontab -l 2>/dev/null | grep -v 'renew-and-reload.sh') | crontab -"
+
   # lab5.md has a human paste the TXT value into a second pane. Standing in
   # for that: --manual-auth-hook/--manual-cleanup-hook run the exact same
   # PowerDNS PATCH, driven by certbot's own $CERTBOT_DOMAIN/$CERTBOT_VALIDATION,
@@ -179,6 +184,9 @@ HOOK
 
   run_cmd "openssl x509 -in ~/certbot/config/live/${me}-dns01/fullchain.pem -noout -dates -subject"
   run_cmd "dig @dns-server _acme-challenge.${host} TXT +short"
+
+  # step-ca's name policy allows only *.certs.dojo.test, so this must be refused.
+  run_cmd "REQUESTS_CA_BUNDLE=/opt/step-ca-root/root_ca.crt certbot certonly --webroot -w \"/srv/webroot/${me}/html\" --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs --cert-name ${me}-offzone -d \"${me}.example.test\" --server https://step-ca:9443/acme/acme/directory --agree-tos --non-interactive --email \"${me}@example.com\" && echo 'UNEXPECTED: off-zone name was issued' || echo 'off-zone name refused, as expected'"
 }
 
 # cert-flavored look-around commands, in place of bot-runner.sh's git-status
