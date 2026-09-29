@@ -181,6 +181,17 @@ table_loop() {
   while :; do table_draw; sleep 1; done
 }
 
+# `compose up -d` can return while containers are still starting (health checks
+# take longer than compose waits). Keep the progress display running until none
+# is starting any more, or STARTUP_WAIT seconds (default 300) have passed.
+not_ready_list() {
+  ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|\(starting\)|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }'
+}
+wait_until_ready() {
+  wr_end=$(($(date +%s) + ${STARTUP_WAIT:-300}))
+  while [ -n "$(not_ready_list)" ] && [ "$(date +%s)" -lt "$wr_end" ]; do sleep 2; done
+}
+
 # `compose up -d` prints little while it waits on a container, so a slow start
 # looks hung. This runs beside it and prints one line whenever a workshop_*
 # container changes state (created, starting, healthy, exited), and every 30 s
@@ -222,17 +233,24 @@ progress_watch() {
   done
 }
 
+# Listed in learning-path order: WORKSHOP_ORDER= in workshop.env (0 = showcase,
+# 1.. = the path); workshops without one come last, alphabetically.
 list_workshops() {
-  echo "Available workshops:"
+  echo "Available workshops (in learning-path order):"
   for d in ../workshops/*/; do
     name="$(basename "$d")"
     [ -f "${d}workshop.env" ] || continue
+    order="$(sed -n 's/^WORKSHOP_ORDER=//p' "${d}workshop.env" | head -1 | sed 's/[[:space:]]*#.*//' | tr -d '"')"
+    case "$order" in '' | *[!0-9]*) order=99 ;; esac
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
     case "$name" in
       setup | capacity | stop | teardown | help | list | modules)
         title="(unreachable: '${name}' is also a command, rename the folder)" ;;
     esac
-    printf '  %-20s %s\n' "$name" "${title:-}"
+    printf '%02d\t%s\t%s\n' "$order" "$name" "${title:-}"
+  done | sort -t "$(printf '\t')" -k1,1n -k2,2 | while IFS="$(printf '\t')" read -r order name title; do
+    if [ "$order" = 99 ]; then n=' '; else n="${order#0}"; n="${n:-0}"; fi
+    printf '  %s  %-20s %s\n' "$n" "$name" "$title"
   done
 }
 
@@ -474,15 +492,15 @@ for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "$student_secret" \
   esac
 done
 if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
-  if [ "$allow_default_passwords" = "1" ]; then
+  if [ "$allow_default_passwords" = "1" ] || [ "${ALLOW_DEFAULT_PASSWORDS:-0}" = "1" ]; then
     echo "WARNING: default passwords in use (${default_passwords# }) on ${PUBLIC_BASE_URL}," >&2
-    echo "         reachable beyond this machine (--allow-default-passwords)." >&2
+    echo "         reachable beyond this machine (--allow-default-passwords / ALLOW_DEFAULT_PASSWORDS=1)." >&2
   else
     echo "Refusing to start: default passwords (${default_passwords# }) with PUBLIC_BASE_URL=${PUBLIC_BASE_URL}" >&2
     echo "and LAB_HOST_IP=${LAB_HOST_IP:-<unset>}, i.e. reachable beyond this machine. Anyone who has seen" >&2
     echo "'./run.sh setup --default' can sign in. Generate real ones with './run.sh setup --force'" >&2
     echo "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass" >&2
-    echo "--allow-default-passwords to start anyway." >&2
+    echo "--allow-default-passwords (or ALLOW_DEFAULT_PASSWORDS=1 in .env.<name>) to start anyway." >&2
     exit 1
   fi
 fi
@@ -1045,6 +1063,7 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT INT TERM
   # shellcheck disable=SC2086
   compose $compose_args up -d > "$up_log" 2>&1 || up_rc=$?
+  [ "$up_rc" != 0 ] || wait_until_ready
   kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
   table_draw
   printf '\033[?25h'
@@ -1061,11 +1080,12 @@ else
   trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
   # shellcheck disable=SC2086
   compose $compose_args up -d || up_rc=$?
+  [ "$up_rc" != 0 ] || wait_until_ready
   kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
   trap - EXIT INT TERM
 fi
 say_ok "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))"
-not_ready="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }')"
+not_ready="$(not_ready_list)"
 [ -z "$not_ready" ] || say_changed "not ready yet: ${not_ready}"
 [ "$up_rc" = 0 ] || exit "$up_rc"
 
