@@ -17,9 +17,19 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 ## Now
 
 1. **Remediation P3 built** 2026-09-28 (de09a30, 3056674; P2 closed before it): dns-gate (per-account DNS
-   keys, CI writes by ID token), step-ca locked down, `/assign` rate limit + Release unused. **Next: the P3 live
-   tests** listed under T3.6 in the remediation plan (cert-autorenewal and dns-as-code bots to round 2,
-   dojo-introduction start, git-fundamentals bots, T3.4 browser/timing checks, vault regression), then T3.6 docs.
+   keys, CI writes by ID token), step-ca locked down, `/assign` rate limit + Release unused. **Up next, the P3
+   live tests** (locally, one stack at a time, `podman ps` first; details under T3.6 in the remediation plan):
+   1. `./run.sh cert-autorenewal --test 2` to round 2: labs 3-5, incl. the acme.sh `_ecc` path fix and lab 5's
+      dns-01 through dns-api with the bot's own key (the last run stopped at lab 3).
+   2. `./run.sh dns-as-code --test 3` to round 2 again, with the bots' new git identity: my-zone commits, PRs
+      reviewed and merged, DNS Apply writing `dojo.test` (dns-api log: `ci:...@refs/heads/main#push` allow).
+   3. `./run.sh dojo-introduction`: healthy with `dns-gate`; a student's and a bot's `dnscontrol push` in
+      `~/lab/my-zone`; `dojo.test` refused; certs still issue; the slide's module table doesn't overflow.
+   4. `./run.sh git-fundamentals --test 3`: bots reach round 2 with 0 failures (bot `.gitconfig` change).
+   5. T3.4: `/auth-check` under 1 s with 5 idle sockets held open to the allocator; the Roster's **Release
+      unused** button in a real browser; vault-fundamentals `checks.sh` + `p2_browser.py` (gateway regression).
+
+   Then T3.6 docs (`engine/README.md`: ASSIGN_*, Release unused, allocator timeouts; forgejo-runner README).
    P4 after the user's go.
    Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
