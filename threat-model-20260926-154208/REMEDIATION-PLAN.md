@@ -88,6 +88,8 @@ edit not approved in D1, and about anything in section 6.
 | D15 | *(2026-09-28, with the student-reset plan's R9.)* **D11 stays; T5.3 also mints a narrow reset token.** In the same temporary-root window, mint a periodic token with the narrowed provisioner policy limited to `sys/namespaces/student*` and the per-student hook paths, handed to a resident `openbao-reset` service (memory only, never the setup volume). One narrowed policy serves both the start-up hooks and the reset. No long-lived provisioner token and no unseal key outside `openbao-setup`. |
 | D16 | *(2026-09-28, with the student-reset plan's R10.)* **T2.1 builds on `provision-account.sh`.** The reset plan's R1.1 (a behaviour-free extraction of the per-account work out of `entrypoint.sh`, **engine, ask**) goes before T2.1, and T2.1's a/b/c/e changes land in that script, so a reset re-runs the hardened provisioning. T2.1c's token step must stay idempotent (a reset calls it again). |
 | D14 | **This plan lives next to the report** (`threat-model-20260926-154208/REMEDIATION-PLAN.md`). |
+| D17 | *(2026-09-29, user: "internal lab, be lax on rate limits, keep the control, don't reduce what students can do".)* **P4 design rule: every limit is a tripwire, not a budget.** Defaults sit far above normal class use (a student running a compile, `tofu apply`, a test suite or a `dnscontrol push` never sees them), every one is an env knob in the module/workshop `.env`, `0` turns it off, and each refusal is logged so the facilitator can see abuse. No P4 task may remove a tool, permission or workflow a lab uses; a task that would is redesigned or dropped. |
+| D18 | *(2026-09-29, proposed by Claude, **confirmed by the user 2026-09-29** ("implement your recommendations", incl. the engine edits T4.2 and T4.3d); answers to the P4 scoping questions, see `P4-SCOPING.md`.)* Q1 seccomp: comment plus a `podman inspect` check, no custom profile. Q2 harden `runner-pool-shim`: yes, `cap_drop: [ALL]` with only `NET_BIND_SERVICE` added back. Q3 T4.2: go; `/admin` script and CSS served at `/admin/admin.js` and `/admin/admin.css` (no Caddy change); student pages get style hashes and lose the cosmetic `onsubmit` (no new engine route). Q4 T4.3d: go; `nproc` only, default 1024 (was 4096: the container-wide `WEB_TERMINAL_PIDS_LIMIT` of 2048 must stay above it, found by the T4.3d agent), no address-space cap, per-user cgroups recorded as residual. Q5 app-db: a per-database `CONNECTION LIMIT` (not per role) of 20 and `max_connections` raised to fit `--test 20`. Q6 rates: OpenBao 200 rps per namespace; dns-api burst 200 at 50/s; CloudAPI burst 200 at 20/s. Q7 `dojo-introduction` is included in T4.1 and T4.3a. |
 
 ## 2. Validation of the draft (2026-09-26)
 
@@ -359,7 +361,8 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       under 1 s; `--test 20` bots still get slots.
 - [x] **T3.5** *(not needed: T0.4 was refused)* *(only if T0.4 connects)* [WORKSHOP] `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` in app-db init.
       *Verify:* student01's role can't `\c` student02's database; `tests/labs_11_13.sh` passes.
-- [ ] **T3.6** P3 docs, §8 entry. **Ask the user before starting P4.**
+- [~] **T3.6** P3 docs, §8 entry. *(2026-09-29: tests 2-4 below PASSED locally, test 1 partial and fixed, test 5 and
+      the re-run moved to T4.5; the docs are drafted, uncommitted: `engine/README.md`, `modules/forgejo-runner/README.md`.)*
       **Live tests still to run** (each locally; `podman ps` first, one stack at a time):
       1. cert-autorenewal `--test 2` to round 2: lab 3 (acme.sh `_ecc` path fix), lab 4 renewals, lab 5 dns-01
          through dns-api with the bot's own key. Last run stopped before this (bots were on lab 3).
@@ -376,7 +379,25 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 ### P4 — Container and UI hardening
 
-- [ ] **T4.1** (FIND-06, T2, Moderate) [MODULE] + [WORKSHOP] runner-pool and app-host as root with default caps.
+**Design rule (D17): every limit is a tripwire, not a budget; nothing may reduce what a workshop can do.** Full
+scoping (files with line numbers, what could break, verify steps, token estimates) is in
+[`P4-SCOPING.md`](P4-SCOPING.md). Worth knowing before you start:
+
+- `dojo-introduction` has NO app-host (its overlay leaves it out; scoping was wrong), only runner-pool applies to T4.1; it does use `openbao`, `dns-gate`, `dojo-cloud`): T4.1 and T4.3a-c must
+  cover it, not just vault-fundamentals.
+- T4.1 add-back set is a strict subset of podman's default caps (`CHOWN DAC_OVERRIDE FOWNER SETUID SETGID KILL`).
+  `su` then `unshare -U` should survive `no-new-privileges`; only the live pass proves it.
+- app-host drops `NET_ADMIN` after start by splitting start-up (`apphost.py --isolate-only`, then `exec setpriv
+  --bounding-set -net_admin,-setpcap python3 apphost.py`); `SETPCAP` is needed for that call and dropped by it.
+- T4.2 touches the allocator's inline `<style>`, the `/admin` script and roster `innerHTML`/`escapeHtml`, and an
+  inline `onsubmit`; the CSP goes in `send_html`. Same file as T3.4's Release unused button.
+- T4.3b: the plan's per-role `CONNECTION LIMIT` doesn't hold (apps log in as short-lived vault-created roles); use a
+  per-database limit. Postgres' default 100 connections is too few for `--test 20`.
+- T4.3d: `RLIMIT_AS` would likely kill code-server (V8 reserves GBs); `nproc` only. Threads count against `nproc`.
+- **Order (user, 2026-09-29): do all the P4 work first, then one combined test pass (T4.5).** Per-task checks below
+  are run in T4.5, together with the P3 tests still open.
+
+- [~] **T4.1** *(built 2026-09-29, uncommitted; live checks: T4.5 items 8)* (FIND-06, T2, Moderate) [MODULE] + [WORKSHOP] runner-pool and app-host as root with default caps.
       a. `security_opt: [no-new-privileges:true]`, `cap_drop: [ALL]`, add back only what tests need (candidates
          `SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`). Check `unshare -U` and `setpriv` under
          no-new-privileges. (dns-as-code's compose services already do this: copy their form.)
@@ -385,18 +406,47 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       c. State the seccomp profile (podman default) explicitly.
       *Verify:* `podman inspect` shows the dropped caps and `NoNewPrivileges`; `modules/runner-pool/tests/pool.sh`,
       `tests/labs_8_9.sh`, `tests/lab_10.sh`, `tests/labs_11_13.sh` pass.
-- [ ] **T4.2** (FIND-14, T2, Low) **[ENGINE, ask]** Allocator pages: landing and `/admin` scripts to static files,
+- [~] **T4.2** *(built 2026-09-29, uncommitted; live checks: T4.5 item 7)* (FIND-14, T2, Low) **[ENGINE, ask]** Allocator pages: landing and `/admin` scripts to static files,
       roster fields with `textContent` (delete `escapeHtml` + `innerHTML`),
       `Content-Security-Policy: default-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'none'`.
       *Verify:* headers present; no CSP violations on `/` and `/admin` in Playwright; `/admin` iframes (IDE,
       terminal, Forgejo, slides, module tabs) still frame; roster updates live.
-- [ ] **T4.3** (FIND-12, T2, Low) [MODULE] + [WORKSHOP] + **[ENGINE, ask]** Rate limits and shared pools:
+- [~] **T4.3** *(built 2026-09-29, uncommitted: a, b, c and d; live checks: T4.5 items 6 and 9)* (FIND-12, T2, Low) [MODULE] + [WORKSHOP] + **[ENGINE, ask]** Rate limits and shared pools:
       OpenBao `sys/quotas/rate-limit` per student namespace (tenancy hook); app-db `CONNECTION LIMIT 5` per student
       role; token bucket per identity in CloudAPI and dns-api; terminal (engine) per-user `nproc`/`as` via
       `limits.d` or `prlimit` around the `su` in `workspace-control.py`.
       *Verify:* a 1000-request loop from one student is throttled while another's succeed; a fork bomb in one
       account doesn't stall others.
-- [ ] **T4.4** P4 docs, §8 entry. **Ask the user before starting P5.**
+- [ ] **T4.4** P4 docs, §8 entry.
+- [ ] **T4.5** **Combined live pass: all the testing, at the end** (locally; `podman ps` first, one stack at a time;
+      batch, then test). Covers what P3 and P4 left open:
+      1. cert-autorenewal `--test 2` to round 2 with the fixes from 2026-09-29 (bot and lab 5 remove the lab-4 cron
+         first; the bot now also tries an off-zone name and must see it refused).
+      2. dns-as-code `--test 3`: the P4 rate limit doesn't touch `dnscontrol push` or the CI apply (a merge still
+         writes `dojo.test`; the facilitator approves and merges one PR).
+      3. dojo-introduction: healthy, `dnscontrol push` works, certs issue, `vhost-http.conf.template` question (see §7).
+      4. git-fundamentals `--test 3`: 0 failures (re-check only if the terminal image changed for T4.3d).
+      5. T3.4 rest: `/auth-check` under 1 s with 5 idle sockets open to the allocator; the Roster's **Release
+         unused** button in a real browser; vault-fundamentals `checks.sh` + `p2_browser.py`.
+      6. P4 checks: `podman inspect` caps and `NoNewPrivileges` for `runner-pool`, `runner-pool-shim` and `app-host`;
+         `modules/runner-pool/tests/pool.sh`, `tests/labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`; CSP headers and no
+         violations on `/` and `/admin` (Playwright), `/admin` iframes frame, roster updates live; a 1000-request
+         loop from one student is throttled while another's `dnscontrol push` and `tofu apply` succeed; a fork bomb
+         in one terminal leaves another student's terminal and IDE responsive; `--test 20` bots still finish.
+      7. T4.2 Playwright checklist (console open, no CSP violations): `/` name form submits to the confirmation page;
+         confirmation cards open, light and dark; busy (429) and full pages unchanged; `/admin/admin.js` and
+         `/admin/admin.css` 200 for the facilitator, 401 without; `/admin` tabs Roster, VS Code, Terminal, Forgejo,
+         Slides and a module tab each frame; Roster tiles appear and vanish live, dot green "active" or red
+         "inactive"; tile label enlarges, Esc closes, Password shows and hides, Release frees, Release unused reports;
+         a watch iframe shows the terminal and scales; service strip updates; a student name `<b>x</b>` shows as text.
+      8. T4.1 live risks: runner-pool jobs under `cap_drop ALL` (`su` + `unshare -U`, `useradd`/`userdel`,
+         `kill -9 -1`; add `FSETID` if `useradd` complains); app-host `su`/PAM, `iptables` in `--isolate-only`,
+         `setpriv` really removes `NET_ADMIN` (`grep Cap /proc/1/status` vs the app pid), isolation re-applied after a
+         container restart; the shim binds 443 and writes `/data`; `podman inspect` seccomp not unconfined.
+      9. T4.3d: `TERMINAL_NPROC_LIMIT` (default 1024) logged at start; `grep 'Max processes' /proc/self/limits` in a
+         terminal and an IDE terminal; `:(){ :|:& };:` in one student's terminal hits `fork: Resource temporarily
+         unavailable` while another's terminal and IDE stay responsive; `--test 3` bots finish; `=0` logs `off`.
+      *Then:* tick T3.6 and T4.x, add the §8 entry, update `/ROADMAP.md`. **Ask the user before starting P5.**
 
 ### P5 — Tier 3 defence in depth
 
@@ -478,6 +528,13 @@ rest tracked as defence in depth or accepted risk (D9).
   `http_credentials` (update `CLAUDE.md` locally; it is git-ignored).
 - Rate limits keyed on the client address see a LAN class as one address (T1.1c).
 - dns-as-code's compose services already have `cap_drop` and `no-new-privileges`: a working example for T4.1.
+- 2026-09-29 P3 live results: dns-as-code round 2 clean and a facilitator-approved merge wrote `dojo.test` 6 s later
+  (`ci:...@refs/heads/main#push` allow, 0 denies); git-fundamentals 3 bots at round 2, 0 identity errors;
+  dojo-introduction all checks (own zone pushes, `dojo.test` and another student's zone 403, cert issues, module
+  table fits 16:9). cert-autorenewal: lab 5 collided with lab 4's every-minute cron on certbot's lock ("Another
+  instance of Certbot is already running"); fixed in the bot and lab5.md, to re-test in T4.5.
+- `dojo-introduction`'s seed has no `~/lab/sample-repo`, so a student following the cert lab there misses
+  `vhost-http.conf.template`. Decide whether that workshop is meant to cover the cert lab (open, not a P3/P4 item).
 - Caddy (2.5+) redacts `Authorization`, `Cookie` and `Set-Cookie` in access logs unless `log_credentials` is on;
   confirm on the pinned version in T1.4.
 
@@ -611,3 +668,20 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   policy (authority level only). Bots start before start.d hooks (engine/entrypoint.sh), so a hook's per-account
   env isn't in a bot's shell: bot steps read the key file. Lab 3's acme.sh path was wrong (`<host>_ecc`).
 - Left: the live tests and docs under T3.6. Nothing pushed.
+
+### 2026-09-29 — P3 live tests, P4 scoped, plan reordered
+- Live (locally, one stack at a time, Sonnet sub-agents): dns-as-code, dojo-introduction and git-fundamentals pass;
+  cert-autorenewal lab 5 hit a cron/lock collision (fixed in content, re-test pending). T3.6 docs drafted.
+- P4 scoped read-only by an Opus sub-agent: [`P4-SCOPING.md`](P4-SCOPING.md). Design rule D17 and proposed answers
+  D18 recorded (confirmed by the user the same day).
+- Order changed by the user: do the P3/P4 work first, one combined test pass (T4.5) at the end.
+- P4 built (four agents in parallel, no stack started, nothing committed): T4.1 caps on runner-pool, its shim and
+  app-host (`start.sh` runs `--isolate-only`, then `setpriv` drops `NET_ADMIN`; `dojo-introduction` has no app-host,
+  the scoping was wrong). T4.2 allocator CSP: `ADMIN_JS`/`ADMIN_CSS` served at `/admin/admin.js|css`, student styles
+  hashed at import, roster via `textContent`, no `innerHTML`. T4.3a OpenBao `sys/quotas/rate-limit` 200 rps per
+  namespace; T4.3b app-db `CONNECTION LIMIT 20` per database and `max_connections=300`; T4.3c `RateLimit` in
+  dns-gate (burst 200 at 50/s, CI and read key x5) and CloudAPI (burst 200 at 20/s, authenticated ARM only); T4.3d
+  `TERMINAL_NPROC_LIMIT` default **1024** (4096 would never fire under the container's 2048 pids cap).
+  All limits are env knobs, 0 = off (D17). Unit tests pass (gate 18, ratelimit 5, concurrency 24, fuzz 42, policy
+  71, portal 18, readiness 35, app-host 17). One agent ran `git stash` + `pop` by mistake; checked, no edit lost.
+- Left: T4.4 docs (module READMEs done by the agents), then the T4.5 combined live pass, then commit.

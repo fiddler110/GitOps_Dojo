@@ -4,11 +4,11 @@ Every piece of open work in one place. Each line is a summary; the linked plan h
 verify lines, and stays the source of truth for them. When a task is done, tick it in its plan (with the commit
 SHA) and update or remove its line here.
 
-Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` after PR #3, 3a59106; the merged feature branches are deleted)
+Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` after PR #3, 3a59106; the merged feature branches are deleted)
 
 | Plan                                                                                                   | What it covers                                                     | Status                                  |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P2 done; P3 built, tests left        |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P2 done; P3 built; P4 scoped        |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
@@ -16,21 +16,20 @@ Last updated: 2026-09-28 · Working branch: `feat/remediation` (from `main` afte
 
 ## Now
 
-1. **Remediation P3 built** 2026-09-28 (de09a30, 3056674; P2 closed before it): dns-gate (per-account DNS
-   keys, CI writes by ID token), step-ca locked down, `/assign` rate limit + Release unused. **Up next, the P3
-   live tests** (locally, one stack at a time, `podman ps` first; details under T3.6 in the remediation plan):
-   1. `./run.sh cert-autorenewal --test 2` to round 2: labs 3-5, incl. the acme.sh `_ecc` path fix and lab 5's
-      dns-01 through dns-api with the bot's own key (the last run stopped at lab 3).
-   2. `./run.sh dns-as-code --test 3` to round 2 again, with the bots' new git identity: my-zone commits, PRs
-      reviewed and merged, DNS Apply writing `dojo.test` (dns-api log: `ci:...@refs/heads/main#push` allow).
-   3. `./run.sh dojo-introduction`: healthy with `dns-gate`; a student's and a bot's `dnscontrol push` in
-      `~/lab/my-zone`; `dojo.test` refused; certs still issue; the slide's module table doesn't overflow.
-   4. `./run.sh git-fundamentals --test 3`: bots reach round 2 with 0 failures (bot `.gitconfig` change).
-   5. T3.4: `/auth-check` under 1 s with 5 idle sockets held open to the allocator; the Roster's **Release
-      unused** button in a real browser; vault-fundamentals `checks.sh` + `p2_browser.py` (gateway regression).
-
-   Then T3.6 docs (`engine/README.md`: ASSIGN_*, Release unused, allocator timeouts; forgejo-runner README).
-   P4 after the user's go.
+1. **Remediation P3 built, P4 scoped** (2026-09-29). Order set by the user: **do the work first, test everything at
+   the end** in one combined pass (T4.5 in the remediation plan).
+   1. **Docs and content, done and uncommitted:** `engine/README.md` and `modules/forgejo-runner/README.md` (T3.6),
+      the cert-autorenewal lab-5 cron fix (`bots/steps.sh`, `lab/lab5.md`). Review, then commit.
+   2. **P4 work, built 2026-09-29 (uncommitted, untested live):** ([`P4-SCOPING.md`](threat-model-20260926-154208/P4-SCOPING.md); design rule D17: every limit is a
+      tripwire with an env knob, nothing reduces what students can do): T4.1 caps on runner-pool, its shim and
+      app-host (incl. dojo-introduction) → T4.3a-c OpenBao quota, app-db per-database limit, per-identity buckets
+      → T4.2 allocator CSP (engine, ask) → T4.3d terminal `nproc` (engine, ask) → T4.4 docs. D18 confirmed; engine edits done.
+   3. **Then T4.5, the one combined live pass** (locally, one stack at a time, `podman ps` first): cert-autorenewal
+      `--test 2` (cron fix + off-zone refusal), dns-as-code `--test 3` (merge still applies `dojo.test`),
+      dojo-introduction, git-fundamentals `--test 3`, T3.4 rest (`/auth-check` under 1 s with 5 idle sockets, Release
+      unused in a browser, vault `checks.sh` + `p2_browser.py`) and the P4 checks. Passed already on 2026-09-29 (before
+      P4 changes): dns-as-code incl. a facilitator merge writing `dojo.test`, dojo-introduction, git-fundamentals.
+      Then tick T3.6 and P4, and ask before P5.
    Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
 2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
    "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
