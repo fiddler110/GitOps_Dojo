@@ -148,9 +148,9 @@ table_draw() {
       else if (st ~ /^Exited/) s = "FAILED"
       else if (st ~ /^(Created|Initialized)/) s = "waiting"
       print $1 "|" s }' | sort)"
-  td_total="$(printf '%s\n' "$td_rows" | grep -c .)"
-  td_ready="$(printf '%s\n' "$td_rows" | grep -c '|\(healthy\|running\|done\)$')"
-  td_vols="$(vol_ls -q 2>/dev/null | grep -c '^engine_')"
+  td_total="$(printf '%s\n' "$td_rows" | grep -c . || true)"
+  td_ready="$(printf '%s\n' "$td_rows" | grep -c '|\(healthy\|running\|done\)$' || true)"
+  td_vols="$(vol_ls -q 2>/dev/null | grep -c '^engine_' || true)"
   td_now="$(date +%s)"
   td_max="$(stty size 2>/dev/null | cut -d' ' -f1)"; [ "${td_max:-0}" -gt 0 ] 2>/dev/null || td_max=30
   out="$(printf '  %s%s%s   %s%s of %s ready%s   volumes: %s\n' "$c_dim" "$(fmt_elapsed $((td_now - up_start)))" "$c_off" "$c_cyan" "$td_ready" "$td_total" "$c_off" "$td_vols")"
