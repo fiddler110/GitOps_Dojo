@@ -133,6 +133,52 @@ say_bad() { printf '  %s%s%s\n' "$c_red" "$*" "$c_off"; }
 # Elapsed time as m:ss, for the progress lines below.
 fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
 
+# The same information as progress_watch as one block that redraws in place (a
+# terminal only; compose's own output goes to a log so it can't scramble it).
+# table_draw prints the block once, over the previous one; table_loop repeats it.
+table_draw() {
+  td_lines=0; [ ! -s "$tbl_state" ] || td_lines="$(cat "$tbl_state")"
+  [ "$td_lines" -eq 0 ] || printf '\033[%dA\033[J' "$td_lines"
+  td_rows="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '
+    { st = $2; s = "running"
+      if (st ~ /\(unhealthy\)/) s = "unhealthy"
+      else if (st ~ /\(healthy\)/) s = "healthy"
+      else if (st ~ /health: starting|\(starting\)/) s = "starting"
+      else if (st ~ /^Exited \(0\)/) s = "done"
+      else if (st ~ /^Exited/) s = "FAILED"
+      else if (st ~ /^(Created|Initialized)/) s = "waiting"
+      print $1 "|" s }' | sort)"
+  td_total="$(printf '%s\n' "$td_rows" | grep -c .)"
+  td_ready="$(printf '%s\n' "$td_rows" | grep -c '|\(healthy\|running\|done\)$')"
+  td_vols="$(vol_ls -q 2>/dev/null | grep -c '^engine_')"
+  td_now="$(date +%s)"
+  td_max="$(stty size 2>/dev/null | cut -d' ' -f1)"; [ "${td_max:-0}" -gt 0 ] 2>/dev/null || td_max=30
+  out="$(printf '  %s%s%s   %s%s of %s ready%s   volumes: %s\n' "$c_dim" "$(fmt_elapsed $((td_now - up_start)))" "$c_off" "$c_cyan" "$td_ready" "$td_total" "$c_off" "$td_vols")"
+  # Too many rows for the window: show only what isn't ready yet.
+  if [ "$td_total" -gt $((td_max - 5)) ]; then
+    td_show="$(printf '%s\n' "$td_rows" | grep -v '|\(healthy\|running\|done\)$')"
+  else
+    td_show="$td_rows"
+  fi
+  if [ -n "$td_show" ]; then
+    out="${out}
+$(printf '%s\n' "$td_show" | awk -F'|' -v g="$c_green" -v y="$c_yellow" -v r="$c_red" -v o="$c_off" '
+      { col = y
+        if ($2 == "healthy" || $2 == "running" || $2 == "done") col = g
+        else if ($2 == "unhealthy" || $2 == "FAILED") col = r
+        mark = (col == g) ? "+" : ((col == r) ? "x" : "~")
+        printf "  %s%s %-36s %s%s\n", col, mark, $1, $2, o }')"
+  fi
+  waiting="$(printf '%s\n' "$td_rows" | awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s", sep, $1; sep = ", " }')"
+  [ -z "$waiting" ] || out="${out}
+  ${c_yellow}waiting on: ${waiting}${c_off}"
+  printf '%s\n' "$out"
+  printf '%s\n' "$(printf '%s\n' "$out" | wc -l)" > "$tbl_state"
+}
+table_loop() {
+  while :; do table_draw; sleep 1; done
+}
+
 # `compose up -d` prints little while it waits on a container, so a slow start
 # looks hung. This runs beside it and prints one line whenever a workshop_*
 # container changes state (created, starting, healthy, exited), and every 30 s
@@ -501,6 +547,7 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   inspect() { docker inspect "$@"; }
   images() { docker images "$@"; }
   ps_all() { docker ps -a "$@"; }
+  vol_ls() { docker volume ls "$@"; }
   rmi() { docker rmi "$@"; }
   # One-shot helper containers write into engine/ (render_extensions);
   # rootful docker would leave those files owned by root without --user.
@@ -512,6 +559,7 @@ else
   inspect() { podman inspect "$@"; }
   images() { podman images "$@"; }
   ps_all() { podman ps -a "$@"; }
+  vol_ls() { podman volume ls "$@"; }
   rmi() { podman rmi "$@"; }
   # Rootless podman maps the container's root to the calling user already;
   # --user <uid> here would map to a subordinate uid that can't write engine/.
@@ -983,14 +1031,37 @@ say_step "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})"
 say_step "Creating networks and volumes, then starting containers in dependency order"
 echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
 up_start="$(date +%s)"
-progress_watch &
-watch_pid=$!
-trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
-# shellcheck disable=SC2086
 up_rc=0
-compose $compose_args up -d || up_rc=$?
-kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
-trap - EXIT INT TERM
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  # A terminal: one table that redraws in place. Compose's own output goes to a log.
+  up_log="$(mktemp "${TMPDIR:-/tmp}/dojo-up.XXXXXX")"
+  tbl_state="$(mktemp)"; echo 0 > "$tbl_state"
+  echo "Compose output is in ${up_log}"
+  printf '\033[?25l'
+  table_loop &
+  watch_pid=$!
+  trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT INT TERM
+  # shellcheck disable=SC2086
+  compose $compose_args up -d > "$up_log" 2>&1 || up_rc=$?
+  kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+  table_draw
+  printf '\033[?25h'
+  trap - EXIT INT TERM
+  rm -f "$tbl_state"
+  if [ "$up_rc" != 0 ]; then
+    say_bad "compose failed (exit ${up_rc}); the last lines of its output:"
+    tail -n 20 "$up_log"
+  fi
+else
+  echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
+  progress_watch &
+  watch_pid=$!
+  trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
+  # shellcheck disable=SC2086
+  compose $compose_args up -d || up_rc=$?
+  kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+  trap - EXIT INT TERM
+fi
 say_ok "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))"
 not_ready="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }')"
 [ -z "$not_ready" ] || say_changed "not ready yet: ${not_ready}"
