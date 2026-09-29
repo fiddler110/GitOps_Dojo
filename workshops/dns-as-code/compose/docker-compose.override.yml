@@ -1,5 +1,6 @@
 # Overlay for the dns-as-code workshop, layered on top of engine/docker-compose.yml
-# and the forgejo-runner module (MODULES in workshop.env) by engine/run.sh.
+# and the runner-pool, dns-ui and dns-gate modules (MODULES in workshop.env)
+# by engine/run.sh.
 #
 # IMPORTANT: because this file is merged with a base file, Compose resolves
 # every relative path in it relative to the base file's directory —
@@ -7,21 +8,22 @@
 # is `../workshops/dns-as-code/compose/runner`, not `./runner`.
 #
 # Adds dns-server (a PowerDNS authoritative server students push real
-# records to and `dig` against) and builds the Actions runner from
-# compose/runner/ so CI jobs have dnscontrol. The terminal image
-# (dnscontrol + python3) is compose/terminal/, built by engine/run.sh.
-# Forgejo Actions and the runner itself come from modules/forgejo-runner/.
+# records to and `dig` against) and gives CI jobs the terminal's dnscontrol.
+# The terminal image (dnscontrol + python3) is compose/terminal/, built by
+# engine/run.sh. Forgejo Actions and the single-use runners come from
+# modules/runner-pool/, the dns-api gate from modules/dns-gate/.
 #
 # Two kinds of zone (see content/lab/README.md):
 #   - <user>.dojo.test, each account's own sandbox (Part 1), in
 #     ~/lab/my-zone (terminal/start.d/90-my-zone.sh); students push it themselves.
 #   - dojo.test, the shared "production" zone (Part 2): only CI changes it.
-# Enforced in two places: dns-api (a gate in front of the PowerDNS API that
-# refuses dojo.test changes from anywhere but the CI runner) and dns-gates
-# (branch protection: main takes only reviewed PRs with a passing preview).
+# Enforced in two places: dns-api (a gate in front of the PowerDNS API: each
+# account's key changes only its own zone, and dojo.test changes only with an
+# ID token from a push to main, see workshop.env) and dns-gates (branch
+# protection: main takes only reviewed PRs with a passing preview).
 #
 #   terminals --workshop_lab--> dns-api --> dns-server:8081 (internal key)
-#   runner ----runner_net-----> dns-api        (dojo.test writes allowed)
+#   CI jobs ---runner_net-----> dns-api        (dojo.test with an ID token)
 
 services:
   # PowerDNS authoritative server. Ephemeral by design, same as every other
@@ -32,15 +34,11 @@ services:
   #
   # PDNS_AUTH_API_KEY enables PowerDNS's built-in HTTP API + webserver on
   # :8081 (see https://github.com/PowerDNS/pdns/blob/master/Docker-README.md).
-  # This is a workshop-only key with no access to anything but this
-  # single-container, internal-only PowerDNS instance — not a real secret,
-  # same tier as TTYD_PASSWORD/STUDENT_PASSWORD (see engine/.env.example).
   dns-server:
-    image: docker.io/powerdns/pdns-auth-49:latest
+    image: docker.io/powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
     container_name: workshop_powerdns
     # POWERDNS_API_KEY is derived in workshop.env from the install's
-    # GATEWAY_TOKEN: only dns-api and the dns-ui module get it. Students and
-    # CI hold the public key in creds.json, which only dns-api accepts.
+    # GATEWAY_TOKEN: only dns-api and the dns-ui module get it.
     # `:-` not `:?`: `./run.sh stop` reads this file without workshop.env.
     # An empty key leaves PowerDNS's API off, and dns-api refuses to start.
     environment:
@@ -62,40 +60,19 @@ services:
       runner_net: {}
     restart: unless-stopped
 
-  # The only way to the PowerDNS API for students and CI (compose/dns-api/
-  # gate.py). Reads are open; changes to dojo.test are accepted only from
-  # forgejo-runner; changes to other zones only under dojo.test.
+  # From modules/dns-gate/: the only way to the PowerDNS API. CI jobs reach
+  # it over runner_net.
   dns-api:
-    build:
-      context: ../workshops/dns-as-code/compose/dns-api
-    image: gitopsdojo/dns-api:local
-    container_name: workshop_dns_api
-    init: true
     depends_on:
       - dns-server
-    environment:
-      - PDNS_API_URL=http://dns-server:8081
-      - PDNS_UPSTREAM_KEY=${POWERDNS_API_KEY:-}
-      - PUBLIC_API_KEY=workshop-not-a-secret
-      - PROTECTED_ZONE=dojo.test
-      - CI_HOSTS=forgejo-runner
     networks:
-      - workshop_lab
       - runner_net
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    pids_limit: 64
-    mem_limit: 64m
-    restart: unless-stopped
 
   # One-shot: branch protection on the workshop repo's main
   # (compose/gates/protect-main.sh). Same image and admin credentials as the
   # engine's bootstrap, after it has created and seeded the repo.
   dns-gates:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_dns_gates
     depends_on:
       bootstrap:
@@ -120,17 +97,16 @@ services:
   web-terminal:
     depends_on:
       - dns-server
-      - dns-api
     # The seed repo's docs, read by start.d/90-my-zone.sh so each sandbox gets
     # docs/record-types.md from the one source copy.
     volumes:
       - ../workshops/dns-as-code/content/sample-repo/docs:/opt/dojo/dns-docs:ro
 
-  # Same runner as modules/forgejo-runner/, built from compose/runner/ so
-  # CI jobs (which run in the runner container itself) have dnscontrol.
-  forgejo-runner:
+  # CI jobs run the terminal's own dnscontrol (runner-pool copies it in).
+  runner-pool:
     build:
-      context: ../workshops/dns-as-code/compose/runner
+      args:
+        JOB_TOOLS: "dnscontrol"
 
 volumes:
   dns_gates_data:

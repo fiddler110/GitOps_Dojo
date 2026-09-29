@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import render_extensions as rx  # noqa: E402
 
 SERVICES = {"allocator", "gateway", "cloud-api", "demo-app"}
+MASTER = "m" * 64
 
 
 def manifest(**kinds):
@@ -163,14 +164,19 @@ class CardTabStatusTests(unittest.TestCase):
 class CaddyTests(unittest.TestCase):
     def render(self, **over):
         out, _ = run_merge(manifest(routes=[route(**over)]))
-        return rx.render_caddy(out["routes"])
+        return rx.render_caddy(out["routes"], rx.upstream_tokens(out["routes"], MASTER))
 
     def test_identity_gate(self):
         c = self.render()
         self.assertIn("@ext_cloud_ui path /portal /portal/*", c)
         self.assertIn("uri /auth-check?route=cloud-ui", c)
         self.assertIn("header_up X-Auth-User {http.request.header.X-Dojo-User}", c)
-        self.assertIn("header_up X-Gateway-Token {$GATEWAY_TOKEN}", c)
+        # forward_auth to the allocator keeps the shared token; the upstream gets its own
+        self.assertEqual(c.count("header_up X-Gateway-Token {$GATEWAY_TOKEN}"), 1)
+        self.assertLess(c.index("{$GATEWAY_TOKEN}"), c.index("reverse_proxy"))
+        own = rx.upstream_tokens([{"upstream": "cloud-api:8080", "gate": "identity"}], MASTER)["cloud-api"]
+        self.assertIn(f"header_up X-Gateway-Token {own}", c)
+        self.assertNotIn(MASTER, c)
         self.assertIn("request_header -X-Dojo-User", c)
         self.assertIn("header_up -Authorization", c)
         self.assertNotIn("strip_prefix", c)
@@ -193,14 +199,58 @@ class CaddyTests(unittest.TestCase):
     def test_braces_balanced(self):
         c = self.render(strip_prefix=True, host="{user}.certs.dojo.test")
         body = c.replace("{http.request.header.X-Dojo-User}", "").replace("{http.request.header.X-Dojo-Host}", "")
-        body = body.replace("{http.auth.user.id}", "").replace("{$GATEWAY_TOKEN}", "")
+        body = body.replace("{http.request.header.X-Session-User}", "").replace("{$GATEWAY_TOKEN}", "")
+        body = body.replace("{user}", "")
         self.assertEqual(body.count("{"), body.count("}"))
 
     def test_empty(self):
         self.assertIn("no extension routes", rx.render_caddy([]))
 
 
+class TokenTests(unittest.TestCase):
+    def routes(self, *pairs):
+        return [{"id": f"r{i}", "upstream": u, "gate": g} for i, (u, g) in enumerate(pairs)]
+
+    def test_one_token_per_identity_upstream(self):
+        t = rx.upstream_tokens(self.routes(("cloud-api:8080", "identity"), ("app-host:8080", "facilitator"),
+                                           ("zone-viewer:8080", "shared")), MASTER)
+        self.assertEqual(set(t), {"cloud-api", "app-host"})
+        self.assertNotEqual(t["cloud-api"], t["app-host"])
+        for v in t.values():
+            self.assertRegex(v, r"^[0-9a-f]{64}$")
+            self.assertNotEqual(v, MASTER)
+
+    def test_stable_and_bound_to_master(self):
+        r = self.routes(("cloud-api:8080", "identity"))
+        self.assertEqual(rx.upstream_tokens(r, MASTER), rx.upstream_tokens(r, MASTER))
+        self.assertNotEqual(rx.upstream_tokens(r, MASTER), rx.upstream_tokens(r, "n" * 64))
+
+    def test_needs_master_only_with_identity_routes(self):
+        self.assertEqual(rx.upstream_tokens(self.routes(("demo-app:80", "shared")), ""), {})
+        with self.assertRaises(rx.ManifestError):
+            rx.upstream_tokens(self.routes(("demo-app:80", "identity")), "")
+
+    def test_env_name_collision(self):
+        with self.assertRaises(rx.ManifestError):
+            rx.upstream_tokens(self.routes(("a-b:80", "identity"), ("a_b:80", "identity")), MASTER)
+
+    def test_env_file(self):
+        env = rx.render_tokens_env({"cloud-api": "ab" * 32})
+        self.assertIn("GATEWAY_TOKEN_CLOUD_API=" + "ab" * 32 + "\n", env)
+
+    def test_route_without_token_refused(self):
+        out, _ = run_merge(manifest(routes=[route()]))
+        with self.assertRaises(rx.ManifestError):
+            rx.render_caddy(out["routes"])
+
+
 class MainTests(unittest.TestCase):
+    def setUp(self):
+        old = os.environ.get("GATEWAY_TOKEN")
+        os.environ["GATEWAY_TOKEN"] = MASTER
+        self.addCleanup(lambda: os.environ.__setitem__("GATEWAY_TOKEN", old) if old is not None
+                        else os.environ.pop("GATEWAY_TOKEN", None))
+
     def test_end_to_end(self):
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "in"))
@@ -211,6 +261,20 @@ class MainTests(unittest.TestCase):
             with open(os.path.join(d, "allocator", "extensions.json")) as f:
                 self.assertEqual(json.load(f)["routes"][0]["id"], "cloud-ui")
             self.assertTrue(os.path.exists(os.path.join(d, "gateway", "extensions.caddy")))
+            env_path = os.path.join(d, "upstream-tokens.env")
+            self.assertEqual(os.stat(env_path).st_mode & 0o777, 0o600)
+            with open(env_path) as f:
+                self.assertIn("GATEWAY_TOKEN_CLOUD_API=", f.read())
+
+    def test_missing_master_writes_nothing(self):
+        os.environ.pop("GATEWAY_TOKEN", None)
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "in"))
+            with open(os.path.join(d, "in", "01-workshop-x.json"), "w") as f:
+                json.dump(manifest(routes=[route()]), f)
+            rc = rx.main(["--in", os.path.join(d, "in"), "--out", d, "--services", " ".join(SERVICES)])
+            self.assertEqual(rc, 1)
+            self.assertFalse(os.path.exists(os.path.join(d, "gateway")))
 
     def test_error_writes_nothing(self):
         with tempfile.TemporaryDirectory() as d:

@@ -18,7 +18,11 @@ users() {
   i=1
   while [ "$i" -le "${BOT_COUNT:-0}" ]; do printf '%s%d\n' "${BOT_PREFIX:-testuser}" "$i"; i=$((i + 1)); done
 }
+# A tripwire, not a budget: connections one student's database accepts,
+# counting every login (the vault's short-lived roles too). 0 = unlimited.
+if [ "${APP_DB_CONN_LIMIT:-20}" -gt 0 ]; then n="${APP_DB_CONN_LIMIT:-20}"; else n=-1; fi
 for s in $(users); do
+  limit_sql="ALTER DATABASE app_${s} CONNECTION LIMIT ${n};"
   pw="$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
   psql -v ON_ERROR_STOP=1 -q --username "$POSTGRES_USER" --dbname postgres <<SQL
 CREATE ROLE app_${s}_rw NOLOGIN;
@@ -27,6 +31,7 @@ GRANT app_${s}_rw TO vault_${s} WITH ADMIN OPTION;
 CREATE DATABASE app_${s};
 REVOKE ALL ON DATABASE app_${s} FROM PUBLIC;
 GRANT CONNECT ON DATABASE app_${s} TO app_${s}_rw, vault_${s};
+${limit_sql}
 SQL
   psql -v ON_ERROR_STOP=1 -q --username "$POSTGRES_USER" --dbname "app_${s}" <<SQL
 REVOKE ALL ON SCHEMA public FROM PUBLIC;

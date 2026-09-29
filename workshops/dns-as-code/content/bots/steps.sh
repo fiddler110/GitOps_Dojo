@@ -12,6 +12,17 @@
 # Part 1 sandbox, made by compose/terminal/start.d/90-my-zone.sh.
 MY_ZONE_DIR="$HOME/lab/my-zone"
 
+# -- helper: this bot's own dns-api key ------------------------------------
+# The dns-gate module's start.d hook writes it after bot-runner.sh has
+# started (so it isn't in this shell's environment yet): read it from the
+# file at the start of every step until it's there.
+dns_key_env() {
+  if [ -z "${DNS_API_KEY:-}" ] && [ -r "$HOME/.config/dojo/dns-api-key" ]; then
+    DNS_API_KEY="$(cat "$HOME/.config/dojo/dns-api-key")"
+    export DNS_API_KEY
+  fi
+}
+
 # -- helper: insert-or-update this bot's own A record -----------------------
 # Mirrors lab3.md's python3 option for editing dnsconfig.js (the lab's own
 # suggested non-interactive method). Uses argv, not string interpolation
@@ -56,6 +67,7 @@ dns_octet() { # $1 = round offset (0 for the bot's own record, 1 for a scratch o
 # Idempotent (preview/push both are), so safe to repeat every round: the
 # first round creates <bot>.dojo.test, later ones MODIFY its app record.
 step_dns_baseline() {
+  dns_key_env
   cd "$MY_ZONE_DIR" || return 1
   narrate "Lab 1 -- my own zone: preview, push, verify"
   run_cmd "dnscontrol preview"
@@ -72,6 +84,7 @@ step_dns_baseline() {
 
 # -- Lab 3 (Part 2) -- a refused local push, then branch, add, commit -------
 step_dns_lab1_branch_and_edit() {
+  dns_key_env
   cd "$REPO_DIR" || return 1
   local branch; branch="$(branch_name "add-${BOT_USER}")"
   narrate "Lab 3, step 3 -- trying to push the shared zone from my terminal"
@@ -106,6 +119,7 @@ step_dns_lab1_branch_and_edit() {
 # Same shape as bot-runner.sh's own step_lab1_push_and_pr, but DNS-flavored
 # title/body and PR against dns-team/dns-as-code.
 step_dns_lab1_push_and_pr() {
+  dns_key_env
   cd "$REPO_DIR" || return 1
   local branch; branch="$(branch_name "add-${BOT_USER}")"
   narrate "Lab 3, step 4 -- push (bare form first)"
@@ -132,6 +146,7 @@ step_dns_lab1_push_and_pr() {
 # mistake, in the bot's own zone. Entirely uncommitted (git restore at every
 # discard point), so it leaves nothing behind.
 step_dns_lab2_mistakes() {
+  dns_key_env
   cd "$MY_ZONE_DIR" || return 1
   narrate "Lab 1, step 7 -- a scratch idea, then the trailing-dot mistake, both discarded"
 
@@ -170,6 +185,7 @@ PYEOF
 # has no use for) and would open a second, untracked PR alongside the one
 # Lab 3's step already tracks via PENDING_PR_BRANCH/NUMBER.
 step_dns_lab4_dnsctl() {
+  dns_key_env
   cd "$REPO_DIR" || return 1
   narrate "Lab 4 -- dnsctl.py, the CLI wrapper (local commands)"
   run_cmd "git checkout main"
@@ -193,6 +209,7 @@ step_dns_lab4_dnsctl() {
 # a revert on a disposable local branch to demonstrate the mechanism, never
 # pushed, always cleaned up.
 step_dns_lab5_history() {
+  dns_key_env
   cd "$REPO_DIR" || return 1
   narrate "Lab 5 -- investigating history and a local rollback demo"
   run_cmd "git checkout main"
@@ -219,6 +236,7 @@ step_dns_lab5_history() {
 # All local, all throwaway branches, never pushed -- safe regardless of
 # what any other step/round is mid-way through.
 step_dns_lab6_conflict() {
+  dns_key_env
   cd "$REPO_DIR" || return 1
   narrate "Lab 6 -- causing and resolving a DNS merge conflict"
   orient

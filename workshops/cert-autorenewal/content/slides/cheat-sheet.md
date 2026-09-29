@@ -109,8 +109,8 @@ full chain up to `step-ca`'s root — the same check any real client does.
 dig @dns-server "${host}" A +short                       # your seeded A record (already there, Labs 1-4)
 dig @dns-server "_acme-challenge.${host}" TXT +short      # your dns-01 TXT record, once you've added one
 
-curl -s -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
-  -X PATCH "http://dns-server:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
+curl -s -H "X-API-Key: $DNS_API_KEY" -H "Content-Type: application/json" \
+  -X PATCH "http://dns-api:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
   -d '{"rrsets":[{"name":"_acme-challenge.'"${host}"'.","type":"TXT","ttl":60,
         "changetype":"REPLACE","records":[{"content":"\"VALUE\"","disabled":false}]}]}'
 ```

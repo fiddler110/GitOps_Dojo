@@ -15,7 +15,7 @@
 # route to the internet or to any student, publishes no ports to the host, has
 # no listener except a unix socket shared with cloud-api, and the only thing that
 # ever talks to it is cloud-api's fixed-template executor. Students never speak
-# Docker. See workshops/tofu-basics/PLAN.md §7.
+# Docker. See docs/archive/TOFU-BASICS-PLAN.md §7.
 #
 # Start-up is deliberately NOT chained on health: each service only waits for the
 # previous one to have started (service_started), so the lab and the terminals
@@ -37,6 +37,8 @@ services:
       # ANONYMOUS volume. `down --volumes` (./run.sh stop) leaves anonymous volumes behind, one per start,
       # so name it: then stop removes it like every other volume.
       - cloud_docker:/var/lib/docker
+    environment:
+      - CLOUD_GID=1900
     networks:
       - cloud_net
     healthcheck:
@@ -68,12 +70,18 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # Dojo Portal API trusts X-Auth-User only together with this token (the
       # gateway sets both; students on workshop_lab can reach :8080 directly).
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CLOUD_API:-}
+      # Per-student request tripwire (module.env; 0 = off).
+      - CLOUD_API_RATE_BURST=${CLOUD_API_RATE_BURST:-200}
+      - CLOUD_API_RATE_PER_SEC=${CLOUD_API_RATE_PER_SEC:-20}
     volumes:
       - cloud_run:/run/cloud
       - cloud_pki:/pki
       - cloud_secrets:/secrets
       - cloud_data:/data
+    # The docker.sock is 0660 root:cloud (cloud-host/entrypoint.sh, gid 1900): CloudAPI is the only member.
+    group_add:
+      - "1900"
     networks:
       cloud_net:
       workshop_lab:

@@ -8,7 +8,7 @@ the latest event plus the times of recent Failed events -- so the class progress
 board doesn't lose a student's failures when someone else's noise pushes them out
 of the log. It is derived data: rebuilt from the persisted log when state loads.
 
-State.lock is never held across a Docker call (PLAN.md 5.8). A write that must talk to Docker first reserves
+State.lock is never held across a Docker call (TOFU-BASICS-PLAN.md 5.8). A write that must talk to Docker first reserves
 what it needs under the lock (pending / deleting_rgs), lets go of the lock for the call, then commits under the
 lock again and releases. Reservations live in memory only: a restart mid-operation is what reconcile() handles.
 """
@@ -85,6 +85,11 @@ class State:
                 "resourceId": resource_id, "status": status, "message": message,
             }
             self.data["activity"].append(event)
+            # Also on stdout, one JSON line per operation, the same shape as
+            # the engine's decision log (remediation T1.4, FIND-13).
+            print(json.dumps({"ts": event["time"], "event": "cloud-op", "account": user,
+                              "subscription": sub, "action": operation, "target": resource_id,
+                              "result": status}, separators=(",", ":")), flush=True)
             del self.data["activity"][:-ACTIVITY_MAX]
             self._note(event, int(now))
 

@@ -1,27 +1,46 @@
 #!/bin/sh
 # openbao-setup: brings the class OpenBao up with no manual step, then keeps
 # it unsealed. Runs in the OpenBao image (for the bao CLI), as root with no
-# capabilities, with /setup (the openbao_setup volume, mounted nowhere else)
-# holding the unseal key and the provisioner token.
+# capabilities. /setup (the openbao_setup volume, mounted nowhere else) keeps
+# the unseal key and no live token.
 #
-# First start (vault not initialised):
-#   init (one key share: a lab shortcut, production uses auto-unseal), unseal,
-#   the provisioner policy and token (with root), revoke root. The root token
-#   waits on /setup until it is revoked, so a start that dies half-way is
-#   finished by the next one instead of leaving a live root token behind.
-# Every start, with the provisioner token:
-#   the UI's framing header, the facilitator policy, SSO (sso.sh), CLI login (cli.sh), then every
-#   /etc/openbao-setup.d/*.sh hook in name order (a workshop mounts its own
-#   there; each must be safe to re-run). Hooks are sourced in a subshell, so
-#   they get BAO_TOKEN and the helpers below; a failing hook stops setup.
+# First start (vault not initialised): init with one key share (a lab
+# shortcut, production uses auto-unseal) and unseal. The init root token is
+# this start's temporary root; it waits on /setup until it is revoked below,
+# so a start that dies half-way has it revoked by the next one.
+# Every start:
+#   1. a temporary root token, generated from the unseal key
+#      (`bao operator generate-root`);
+#   2. with it: revoke whatever an earlier start left (the accessors in
+#      /setup/pending-accessors, the last reset token); write the provisioner
+#      policy (policies/provisioner.hcl plus a workshop's
+#      /etc/openbao-setup.d/provisioner.hcl) and mint a short-lived provisioner
+#      token; if the workshop has /etc/openbao-setup.d/reset.hcl, mint the
+#      periodic reset token (policies/reset.hcl plus that file) into this
+#      container's tmpfs; revoke the temporary root;
+#   3. with the provisioner: the UI's framing header, the facilitator policy,
+#      SSO (sso.sh), CLI login (cli.sh), then every /etc/openbao-setup.d/*.sh
+#      hook in name order (a workshop mounts its own there; each must be safe
+#      to re-run). Hooks are sourced in a subshell, so they get BAO_TOKEN and
+#      the helpers below; a failing hook stops setup;
+#   4. revoke the provisioner.
 # Then forever: unseal whenever the vault is sealed (after a restart of
-#   `openbao`), and renew the provisioner token.
+# `openbao`), and renew the reset token.
+#
+# Accepted (remediation D9, D11): anyone with the openbao_setup volume has the
+# unseal key and can make a root token the same way. Revoking the tokens
+# protects against a token read from /setup or a leaked environment, not that.
 set -eu
 
 export BAO_ADDR="${BAO_ADDR:-http://openbao:8200}"
 state=/setup
-ready=/run/openbao-setup/ready
+run=/run/openbao-setup # tmpfs: memory only, gone when the container stops
+ready=$run/ready
 policies=/etc/openbao-setup/policies
+hooks=/etc/openbao-setup.d
+# Accessors of this start's temporary tokens (the root, the provisioner): not
+# tokens, but enough for the next start to revoke them if this one dies.
+pending=$state/pending-accessors
 umask 077
 # PID 1 ignores SIGTERM without a handler, so `stop` would wait 10 s and kill.
 trap 'exit 0' TERM INT
@@ -69,15 +88,60 @@ unseal_if_sealed() {
   fi
 }
 
+# json_string NAME: a string field from `bao ... -format=json` on stdin.
+json_string() {
+  sed -n "s/^ *\"$1\": *\"\([^\"]*\)\",*$/\1/p" | head -1
+}
+
+# generate_root: print a new root token, made from the unseal key (one share,
+# so one step). Cancels any attempt an earlier start left half-way.
+generate_root() {
+  bao operator generate-root -cancel >/dev/null 2>&1 || true
+  _gr_otp="$(bao operator generate-root -generate-otp)" || return 1
+  _gr_nonce="$(bao operator generate-root -init -otp="$_gr_otp" -format=json | json_string nonce)"
+  [ -n "$_gr_nonce" ] || return 1
+  _gr_out="$(bao operator generate-root -nonce="$_gr_nonce" -format=json "$(cat "$state/unseal-key")")" || return 1
+  _gr_enc="$(printf '%s\n' "$_gr_out" | json_string encoded_token)"
+  [ -n "$_gr_enc" ] || _gr_enc="$(printf '%s\n' "$_gr_out" | json_string encoded_root_token)"
+  [ -n "$_gr_enc" ] || return 1
+  bao operator generate-root -decode="$_gr_enc" -otp="$_gr_otp" | tr -d ' \r\n'
+}
+
+# accessor_of TOKEN: the token's accessor.
+accessor_of() {
+  _ao_out="$(BAO_TOKEN="$1" bao token lookup -format=json)" || return 1
+  printf '%s\n' "$_ao_out" | json_string accessor | grep .
+}
+
+# mint VAR_TOKEN VAR_ACCESSOR ARGS...: `bao token create ARGS`, setting the two
+# variables (sh has no arrays or out-parameters, hence eval on fixed names).
+mint() {
+  _m_t="$1"; _m_a="$2"; shift 2
+  _m_out="$(bao token create -format=json "$@")" || return 1
+  eval "$_m_t=\$(printf '%s\n' \"\$_m_out\" | json_string client_token)"
+  eval "$_m_a=\$(printf '%s\n' \"\$_m_out\" | json_string accessor)"
+  eval "[ -n \"\$$_m_t\" ] && [ -n \"\$$_m_a\" ]"
+}
+
+# policy NAME FILE [EXTRA]: write FILE (plus EXTRA, a workshop's file, if it
+# exists) as policy NAME.
+policy() {
+  { cat "$2"; [ -n "${3:-}" ] && [ -e "$3" ] && { echo; cat "$3"; }; true; } \
+    | bao policy write "$1" - >/dev/null
+}
+
 log "waiting for $BAO_ADDR"
 until [ -n "$(status_field initialized)" ]; do sleep 1; done
 
 if [ "$(status_field initialized)" = "false" ]; then
   if [ -e "$state/unseal-key" ]; then
     # The vault's storage is new but this volume is not: the old key and
-    # token are for a vault that no longer exists.
+    # accessors are for a vault that no longer exists.
     log "stale state from an earlier vault, moving it aside"
-    mkdir -p "$state/stale.$$" && mv "$state"/unseal-key "$state"/provisioner-token "$state"/root-token "$state/stale.$$/" 2>/dev/null || true
+    mkdir -p "$state/stale.$$"
+    for f in unseal-key root-token provisioner-token reset-accessor pending-accessors; do
+      if [ -e "$state/$f" ]; then mv "$state/$f" "$state/stale.$$/"; fi
+    done
   fi
   log "initialising"
   out="$(bao operator init -key-shares=1 -key-threshold=1)"
@@ -88,33 +152,77 @@ fi
 
 unseal_if_sealed
 
-# The root token is still on /setup until the first start has finished: do
-# (or finish) it now.
-if [ -e "$state/root-token" ]; then
-  BAO_TOKEN="$(cat "$state/root-token")"; export BAO_TOKEN
-  # The provisioner can manage namespaces, policies, auth methods, identities
-  # and mounts, and write (not read) seed secrets: policies/provisioner.hcl.
-  # Periodic, so it lives as long as this container keeps renewing it.
-  retry 30 bao policy write provisioner "$policies/provisioner.hcl" >/dev/null
-  if [ ! -s "$state/provisioner-token" ]; then
-    retry 30 bao token create -orphan -policy=provisioner -no-default-policy \
-      -period=168h -display-name=openbao-setup -field=token > "$state/provisioner-token.new"
-    mv "$state/provisioner-token.new" "$state/provisioner-token"
-  fi
-  # Treat "permission denied" on the root token as done: an earlier start
-  # revoked it and died before removing the file.
-  revoke_root() {
-    bao token revoke -self >/dev/null 2>&1 \
-      || bao token lookup 2>&1 | grep -q 'permission denied'
-  }
-  retry 30 revoke_root || { log "could not revoke the root token"; exit 1; }
+# 1. The temporary root: the init root token if this is (or finishes) the
+# first start, else a new one from the unseal key.
+mkdir -p "$run"
+root=
+if [ -s "$state/root-token" ] && retry 5 env BAO_TOKEN="$(cat "$state/root-token")" bao token lookup >/dev/null 2>&1; then
+  root="$(cat "$state/root-token")"
+else
   rm -f "$state/root-token"
-  log "initialised; root token revoked"
+  root="$(retry 30 generate_root)" && [ -n "$root" ] || { log "could not generate a root token"; exit 1; }
+fi
+BAO_TOKEN="$root"; export BAO_TOKEN
+
+# 2. Clean up after earlier starts (not this root: a first start that died
+# half-way left it listed too), then mint this start's tokens.
+root_acc="$(retry 30 accessor_of "$root")" || { log "could not look up the root token"; exit 1; }
+if [ -s "$pending" ]; then
+  while read -r acc; do
+    if [ -n "$acc" ] && [ "$acc" != "$root_acc" ]; then
+      bao token revoke -accessor "$acc" >/dev/null 2>&1 || true
+    fi
+  done < "$pending"
+  log "revoked the tokens an earlier start left"
+fi
+echo "$root_acc" > "$pending"
+if [ -s "$state/provisioner-token" ]; then
+  # A long-lived provisioner token from before remediation T5.3.
+  bao token revoke "$(cat "$state/provisioner-token")" >/dev/null 2>&1 || true
+  rm -f "$state/provisioner-token"
 fi
 
-BAO_TOKEN="$(cat "$state/provisioner-token")"
-export BAO_TOKEN
-retry 30 bao token renew >/dev/null
+retry 30 policy provisioner "$policies/provisioner.hcl" "$hooks/provisioner.hcl" \
+  || { log "could not write the provisioner policy"; exit 1; }
+# Short-lived, not renewed: a start takes minutes. -orphan so revoking the
+# root doesn't revoke it with it.
+retry 30 mint prov prov_acc -orphan -policy=provisioner -no-default-policy \
+  -ttl=2h -explicit-max-ttl=2h -display-name=openbao-setup \
+  || { log "could not mint the provisioner token"; exit 1; }
+echo "$prov_acc" >> "$pending"
+
+# The reset token (student-reset R9): the last start's is revoked, a new one
+# kept in memory only. Its accessor stays on /setup for the next start.
+if [ -s "$state/reset-accessor" ]; then
+  bao token revoke -accessor "$(cat "$state/reset-accessor")" >/dev/null 2>&1 || true
+  rm -f "$state/reset-accessor"
+fi
+rm -f "$run/reset-token"
+if [ -e "$hooks/reset.hcl" ]; then
+  retry 30 policy reset "$policies/reset.hcl" "$hooks/reset.hcl" \
+    || { log "could not write the reset policy"; exit 1; }
+  retry 30 mint reset reset_acc -orphan -policy=reset -no-default-policy \
+    -period=24h -display-name=openbao-reset \
+    || { log "could not mint the reset token"; exit 1; }
+  printf '%s\n' "$reset" > "$run/reset-token"
+  echo "$reset_acc" > "$state/reset-accessor"
+  unset reset
+fi
+
+# Revoke the temporary root. "permission denied" means it is gone already.
+revoke_self() {
+  bao token revoke -self >/dev/null 2>&1 \
+    || bao token lookup 2>&1 | grep -q 'permission denied'
+}
+retry 30 revoke_self || { log "could not revoke the root token"; exit 1; }
+rm -f "$state/root-token"
+echo "$prov_acc" > "$pending"
+unset root root_acc
+log "root token revoked"
+
+# 3. The set-up, as the provisioner.
+BAO_TOKEN="$prov"; export BAO_TOKEN
+unset prov
 
 # The UI ships frame-ancestors 'none'; the /admin Vault tab frames it from the
 # same origin. Keep the rest of OpenBao's own policy as it is.
@@ -131,16 +239,22 @@ retry 30 bao policy write facilitator "$policies/facilitator.hcl" >/dev/null
 # CLI login from the terminal through its identity broker (cli.sh).
 . /etc/openbao-setup/cli.sh
 
-for hook in /etc/openbao-setup.d/*.sh; do
+for hook in "$hooks"/*.sh; do
   [ -e "$hook" ] || continue
   log "hook $(basename "$hook")"
-  ( . "$hook" ) || { log "hook $(basename "$hook") failed"; exit 1; }
+  ( . "$hook" ) || { log "hook $(basename "$hook") failed"; bao token revoke -self >/dev/null 2>&1; exit 1; }
 done
+
+# 4. Revoke the provisioner.
+retry 30 revoke_self || { log "could not revoke the provisioner token"; exit 1; }
+rm -f "$pending"
+unset BAO_TOKEN prov_acc
+log "provisioner token revoked"
 
 mkdir -p "$(dirname "$ready")" && touch "$ready"
 log "ready"
 
-# Keep the vault unsealed and the provisioner token alive.
+# Keep the vault unsealed and the reset token alive.
 n=0
 while :; do
   sleep 5 & wait $! # in the background, so the TERM trap runs at once
@@ -148,6 +262,8 @@ while :; do
   n=$((n + 1))
   if [ "$n" -ge 720 ]; then # about an hour
     n=0
-    bao token renew >/dev/null || log "provisioner token renew failed"
+    if [ -s "$run/reset-token" ]; then
+      BAO_TOKEN="$(cat "$run/reset-token")" bao token renew >/dev/null || log "reset token renew failed"
+    fi
   fi
 done

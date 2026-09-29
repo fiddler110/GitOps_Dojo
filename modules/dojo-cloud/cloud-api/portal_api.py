@@ -1,4 +1,4 @@
-"""Dojo Portal backend: serves the SPA and the JSON API under /cloud/ (PLAN.md §5.6).
+"""Dojo Portal backend: serves the SPA and the JSON API under /cloud/ (TOFU-BASICS-PLAN.md §5.6).
 
 Trust: identity is taken from X-Auth-User ONLY when the request also carries
 X-Gateway-Token equal to $GATEWAY_TOKEN (students can curl cloud-api directly, so a
@@ -377,7 +377,7 @@ class Portal:
         return self._purge(user, sub)
 
     def _progress(self, user):
-        """Class progress board (PLAN.md 5.6a): one row per roster user except the facilitator.
+        """Class progress board (TOFU-BASICS-PLAN.md 5.6a): one row per roster user except the facilitator.
         `user` is the (already authorised) facilitator."""
         now, st = time.time(), self.app.state
         by_sub = {}  # sub -> {"rgs": n, "cgs": [(summary, container)]}

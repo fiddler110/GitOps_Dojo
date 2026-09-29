@@ -9,13 +9,28 @@ one workshop can use live in [`../modules/`](../modules/).
 
 ## Available workshops
 
-| Workshop | What it teaches | Modules | Run it |
-| -------- | ---------------- | ------- | ------ |
-| [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
-| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `forgejo-runner` | `./run.sh dns-as-code` |
-| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | — | `./run.sh cert-autorenewal` |
-| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
-| [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
+| # | Workshop | What it teaches | Modules | Run it |
+| - | -------- | ---------------- | ------- | ------ |
+| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
+| 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
+| 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
+| 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
+| 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
+| 5 | [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
+
+### Learning path
+
+The numbers are the order to teach them in. `0` is the showcase for facilitators and visitors, not a course.
+`1` to `5` build on each other; a later workshop assumes the earlier ones' ideas, not their files.
+
+| # | Workshop | Builds on |
+| - | -------- | --------- |
+| 0 | `dojo-introduction` | Nothing. A tour of the platform and every workshop; no student learning goals. |
+| 1 | `git-fundamentals` | Nothing. Clone, branch, commit, push, pull request, undo, stash, history, conflicts. |
+| 2 | `dns-as-code` | 1: the same git flow, now with CI. First look at declarative config, preview vs apply, drift, and a pull request that runs a pipeline. |
+| 3 | `cert-autorenewal` | 2 (lightly): its dns-01 capstone drives the PowerDNS API that `dnscontrol` wraps in workshop 2. Otherwise stands alone: ACME, `certbot`, `acme.sh`, renewal automation. |
+| 4 | `tofu-basics` | 1 for the git steps, and 2 for the ideas of declarative config, plan before apply and drift, taken further with state, `for_each`, policy and quotas on a real provider. |
+| 5 | `vault-fundamentals` | 1 (stated prerequisite). Also leans on 2's pull request and CI pipeline ideas for the Forgejo Actions labs; the longest and most advanced course. |
 
 `./run.sh list` prints this same list from each workshop's `workshop.env`;
 `./run.sh modules` lists the modules and which workshops use them.
@@ -75,6 +90,8 @@ want the same thing, make it a module instead.
 3. Write `workshop.env`:
    ```sh
    WORKSHOP_NAME=<display name>
+   WORKSHOP_DESCRIPTION="<one sentence, shown on the login page>"
+   WORKSHOP_ORDER=<n>    # place in the learning path (0 = showcase); ./run.sh list sorts by it
    WORKSHOP_CONTENT_DIR=../workshops/<name>/content
    FORGEJO_ORG=<org name>
    FORGEJO_REPO=<repo name>
@@ -121,12 +138,15 @@ want the same thing, make it a module instead.
    `podman image inspect <img> --format '{{json .Config.Volumes}}'` and give
    every declared path a named volume, or each start leaves an anonymous
    volume behind that `./run.sh stop` can't find.
+   Pin every external image (`FROM` and `image:`) by digest, keeping the tag
+   in front for people: `docker.io/library/alpine:3.20@sha256:<index digest>`.
+   `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`).
 5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
    work through *your* labs instead of the default git-fundamentals ones (see
    `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
 6. Add a row to the table above.
 7. `./run.sh <name> --dry-run` shows what would build and start and checks the
-   manifests. Then run it locally end to end, including the facilitator's
+   manifests and image pins. Then run it locally end to end, including the facilitator's
    `/admin` view, before trusting it for a live session.
 
 Nothing about adding a workshop this way ever requires editing
@@ -210,11 +230,20 @@ Rules for `compose.yml`:
 - Use the **list form** of `networks:` on any engine service
   (`networks: [runner_net]`). The engine uses list form, and mixing list and
   map for one service fails at `up` under podman-compose (not at `config`).
-  Pinned addresses belong on the module's own services only.
+  Pinned addresses belong on the module's own services only. The exception is
+  `web-terminal`, which uses the map form (for its `terminal_ingress` alias):
+  to add a network there, use the map form too (`runner_net: {}`).
+- Never join `terminal_ingress` or use `web-terminal-ingress`. It is the
+  gateway's private path to the students' IDE and terminal ports, which answer
+  nowhere else (remediation T2.2a); `run.sh` refuses a fragment that mentions
+  it. A module service that needs the terminal reaches it on `workshop_lab`,
+  like the allocator does.
 - Name every volume, including paths an image declares as `VOLUME`, so
   `./run.sh stop` removes them.
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
 
-Existing modules: [`forgejo-runner`](../modules/forgejo-runner/), [`dojo-cloud`](../modules/dojo-cloud/),
-[`openbao`](../modules/openbao/) and [`runner-pool`](../modules/runner-pool/).
+Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
+[`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and
+[`forgejo-runner`](../modules/forgejo-runner/) (a long-lived runner for one repo; no workshop uses it since
+dns-as-code moved to `runner-pool`).

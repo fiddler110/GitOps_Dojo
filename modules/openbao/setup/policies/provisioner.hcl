@@ -1,53 +1,38 @@
-# openbao-setup's own identity after root is revoked: re-runs setup, resets a
-# student, re-creates a namespace. It manages structure (namespaces, policies,
-# auth methods, identities, mounts) in the root namespace and in each
-# students/<name> namespace, and writes seed secrets it can't read back.
+# The provisioner: openbao-setup's identity while it sets the vault up on each
+# start (setup.sh). It lives for one start only: minted from a temporary root
+# token, used for the module's own set-up below and the workshop's hooks, then
+# revoked. Nothing keeps it.
 #
-# It is not a security boundary against itself: anything that can write
-# policies and identities can grant itself more. What protects it is where it
-# lives: only on the openbao_setup volume, which only openbao-setup mounts.
+# This file covers the module's own set-up (setup.sh, sso.sh, cli.sh). A
+# workshop whose hooks need more adds /etc/openbao-setup.d/provisioner.hcl,
+# which setup.sh appends to this one (vault-fundamentals: its tenancy, CI and
+# platform hooks). Grant the exact paths the hooks write, nothing wider.
+#
+# It is not a boundary against itself: a token that writes policies and
+# identities can grant itself more. What limits it is that it exists only for
+# the few minutes of a start.
 
-path "sys/namespaces"   { capabilities = ["list"] }
-path "sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
-path "students/sys/namespaces"   { capabilities = ["list"] }
-path "students/sys/namespaces/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+# The UI's framing header (setup.sh).
+path "sys/config/ui/headers/Content-Security-Policy" { capabilities = ["create", "read", "update", "sudo"] }
 
-path "sys/policies/acl"            { capabilities = ["list"] }
-path "sys/policies/acl/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
-path "students/+/sys/policies/acl/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+# The facilitator policy (setup.sh).
+path "sys/policies/acl/facilitator" { capabilities = ["create", "read", "update"] }
 
-path "sys/auth"              { capabilities = ["read"] }
-path "sys/auth/*"            { capabilities = ["create", "read", "update", "delete", "sudo"] }
-path "students/+/sys/auth"   { capabilities = ["read"] }
-path "students/+/sys/auth/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }
+# SSO through Forgejo (sso.sh) and CLI login from the terminal (cli.sh): the two
+# auth methods, their config and one role each.
+path "sys/auth"      { capabilities = ["read"] }
+path "sys/auth/oidc" { capabilities = ["create", "read", "update", "sudo"] }
+path "sys/auth/jwt"  { capabilities = ["create", "read", "update", "sudo"] }
+path "auth/oidc/config"        { capabilities = ["create", "read", "update"] }
+path "auth/oidc/role/forgejo"  { capabilities = ["create", "read", "update"] }
+path "auth/jwt/config"         { capabilities = ["create", "read", "update"] }
+path "auth/jwt/role/terminal"  { capabilities = ["create", "read", "update"] }
 
-path "sys/mounts"              { capabilities = ["read"] }
-path "sys/mounts/*"            { capabilities = ["create", "read", "update", "delete"] }
-path "students/+/sys/mounts"   { capabilities = ["read"] }
-path "students/+/sys/mounts/*" { capabilities = ["create", "read", "update", "delete"] }
+# One entity per account, aliased to its SSO and CLI logins.
+path "identity/entity/name/*" { capabilities = ["create", "read", "update"] }
+path "identity/entity-alias"  { capabilities = ["create", "update"] }
 
-# Auth method config and roles (OIDC, JWT), not token creation.
-path "auth/oidc/*"            { capabilities = ["create", "read", "update", "delete", "list"] }
-path "auth/jwt/*"             { capabilities = ["create", "read", "update", "delete", "list"] }
-path "students/+/auth/jwt/*"  { capabilities = ["create", "read", "update", "delete", "list"] }
-path "students/+/auth/jwt-*"  { capabilities = ["create", "read", "update", "delete", "list"] }
-
-# Secrets-engine connections a workshop sets up in each namespace (e.g. a
-# database engine's login, which it then rotates so no person knows it); not
-# the credentials those engines hand out.
-path "students/+/database/config/*"      { capabilities = ["create", "read", "update"] }
-path "students/+/database/rotate-root/*" { capabilities = ["update"] }
-
-path "identity/*" { capabilities = ["create", "read", "update", "delete", "list"] }
-
-path "sys/config/ui/headers/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }
-
-# Seed secrets: write, never read.
-path "secret/data/*"               { capabilities = ["create", "update"] }
-path "students/+/secret/data/*"    { capabilities = ["create", "update"] }
-path "students/+/transit/keys/*"   { capabilities = ["create", "update"] }
-
-# Its own token: created with -no-default-policy, so renewing and looking
-# itself up must be granted here.
-path "auth/token/renew-self"  { capabilities = ["update"] }
+# Its own token: created with -no-default-policy, so these must be granted here.
 path "auth/token/lookup-self" { capabilities = ["read"] }
+path "auth/token/renew-self"  { capabilities = ["update"] }
+path "auth/token/revoke-self" { capabilities = ["update"] }

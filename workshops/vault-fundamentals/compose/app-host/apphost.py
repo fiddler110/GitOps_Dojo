@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """app-host: the deployment target of labs 11-13, a small "platform".
 
-One slot per student (PLAN.md §5.6, P4). Each slot is its own Linux user with
+One slot per student (VAULT-FUNDAMENTALS-PLAN.md §5.6, P4). Each slot is its own Linux user with
 the student's name; its app runs as that user in its own user + PID
 namespace, with prlimit caps (the runner pool's pattern, T0.8), so one slot
 can't see or signal another's processes or read its files.
@@ -69,6 +69,10 @@ RESTART_DELAY = 3
 RESTART_LIMIT = 5
 RESTART_WINDOW = 120
 CLEAN_ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}
+# What a slot's app may connect to (remediation T2.2b, FIND-04): DNS,
+# OpenBao and app-db, by port. Nothing else on these networks listens on
+# them, and a port rule survives either service being restarted.
+SLOT_EGRESS_PORTS = {"udp": [53], "tcp": [53, 8200, 5432]}
 # Proxied app pages: no script, an opaque origin, nothing loaded from elsewhere.
 APP_CSP = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 PANEL_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
@@ -307,6 +311,36 @@ class Slot:
         return doc
 
 
+def slot_uid_range(cfg):
+    uids = [UID_BASE + i for i in range(1, len(cfg.slots) + 1)]
+    return min(uids), max(uids)
+
+
+def isolate_slots(first_uid, last_uid):
+    """An OUTPUT allowlist for the slot users (the DOJO_ISOLATION pattern of
+    the web-terminal): loopback (this platform's proxy to each app, and the
+    app's own port), SLOT_EGRESS_PORTS, and a reject for the rest, so a
+    student's app can't reach the terminals, Forgejo or anything else on
+    workshop_lab and runner_net. Idempotent across restarts. Needs NET_ADMIN
+    (docker-compose.override.yml); start.sh runs it alone with --isolate-only,
+    then drops NET_ADMIN before the platform starts."""
+    def ipt(*args, check=True):
+        return run(["iptables", *args], check=check)
+    if ipt("-N", "DOJO_SLOT_EGRESS", check=False).returncode != 0:
+        ipt("-F", "DOJO_SLOT_EGRESS")
+    jump = ["OUTPUT", "-m", "owner", "--uid-owner", f"{first_uid}-{last_uid}", "-j", "DOJO_SLOT_EGRESS"]
+    if ipt("-C", *jump, check=False).returncode != 0:
+        ipt("-A", *jump)
+    ipt("-A", "DOJO_SLOT_EGRESS", "-o", "lo", "-j", "RETURN")
+    for proto, ports in SLOT_EGRESS_PORTS.items():
+        ipt("-A", "DOJO_SLOT_EGRESS", "-p", proto, "-m", "multiport",
+            "--dports", ",".join(map(str, ports)), "-j", "RETURN")
+    ipt("-A", "DOJO_SLOT_EGRESS", "-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
+    ipt("-A", "DOJO_SLOT_EGRESS", "-j", "REJECT")
+    log(f"slot egress: uids {first_uid}-{last_uid} reach only lo and " +
+        ", ".join(f"{p}/{','.join(map(str, v))}" for p, v in SLOT_EGRESS_PORTS.items()))
+
+
 class Platform:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -328,6 +362,10 @@ class Platform:
         # A tmpfs comes world-writable; each slot's own folder is 0700.
         os.chmod(TOKEN_DIR, 0o755)
         os.chmod(APPS_DIR, 0o755)
+        # start.sh has already run the allowlist (--isolate-only) and dropped
+        # NET_ADMIN; a bare `apphost.py` still sets it up itself.
+        if os.environ.get("APPHOST_ISOLATED") != "1":
+            isolate_slots(*slot_uid_range(self.cfg))
         for s in self.slots.values():
             try:
                 pwd.getpwnam(s.name)
@@ -671,7 +709,11 @@ def make_handler(platform):
 
 def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    platform = Platform(Config(os.environ))
+    cfg = Config(os.environ)
+    if "--isolate-only" in sys.argv:
+        isolate_slots(*slot_uid_range(cfg))
+        return
+    platform = Platform(cfg)
     platform.prepare()
     threading.Thread(target=platform.refresh_tokens, daemon=True).start()
     threading.Thread(target=platform.watch_running, daemon=True).start()

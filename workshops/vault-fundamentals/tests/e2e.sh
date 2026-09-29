@@ -7,6 +7,7 @@
 #   bash workshops/vault-fundamentals/tests/e2e.sh              # every area but load
 #   bash workshops/vault-fundamentals/tests/e2e.sh --load 30    # also watch the bots for 30 minutes
 #   bash workshops/vault-fundamentals/tests/e2e.sh --only audit,bots
+#   bash workshops/vault-fundamentals/tests/e2e.sh --only lab_8         # one lab (each lab script also runs alone)
 #   bash workshops/vault-fundamentals/tests/e2e.sh --list       # the areas, and what each proves
 #
 # The lab scripts reset what they create in their student's account, so a run can be repeated. Output (each
@@ -20,16 +21,22 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT" || exit 2
 T=workshops/vault-fundamentals/tests
 
-AREAS=(unit tenancy cli_login lab_2 labs_5_7 labs_8_9 lab_10 labs_11_13 pool audit bots browser load)
+AREAS=(unit tenancy cli_login setup_tokens lab_2 lab_5 lab_6 lab_7 lab_8 lab_9 lab_10 lab_11 lab_12 lab_13 pool audit bots browser load)
 declare -A DESC=(
   [unit]="unit tests without the stack: openbao-audit, app-host, runner-controller"
   [tenancy]="labs 0-4: the shared secret/ and each namespace are private (tenancy.sh)"
   [cli_login]="the terminal's CLI login signs in as the right entity (modules/openbao/tests/cli_login.sh)"
+  [setup_tokens]="openbao-setup keeps no live token; the reset token reaches students/ only (modules/openbao/tests/setup_tokens.sh)"
   [lab_2]="lab 2: pass, a GPG key, sharing and taking back (lab_2.sh)"
-  [labs_5_7]="labs 5-7: the SDK, the Agent, sops + transit, as one student"
-  [labs_8_9]="labs 8-9: Actions secrets and masking, AppRole, the job's OIDC identity, a branch refused"
+  [lab_5]="lab 5: the app reads a secret: .env vs hvac, versions, a log leak, renew (lab_5.sh)"
+  [lab_6]="lab 6: the OpenBao Agent renders a secret to a 0600 file and follows a rotation (lab_6.sh)"
+  [lab_7]="lab 7: sops with transit: encrypt, diff, rotate, close the old key (lab_7.sh)"
+  [lab_8]="lab 8: Actions secrets and masking, a single-use runner (lab_8.sh)"
+  [lab_9]="lab 9: AppRole, the job's OIDC identity, a branch refused (lab_9.sh)"
   [lab_10]="lab 10: the pipeline delivers a wrapped, single-use secret ID; spent, audited, a branch refused, the restart cost (lab_10.sh)"
-  [labs_11_13]="labs 11-13: deploy by workload identity, dynamic DB logins, the incident drill"
+  [lab_11]="lab 11: deploy by workload identity, rotation with no deploy, a branch refused (lab_11.sh)"
+  [lab_12]="lab 12: dynamic database logins, the app's own login, leases (lab_12.sh)"
+  [lab_13]="lab 13: the incident drill: audit, revoke, rotate, the app recovers (lab_13.sh)"
   [pool]="runner-pool: warm pool, isolated one-job runners, the Runners panel (modules/runner-pool/tests/pool.sh)"
   [audit]="the Audit tab's API: facilitator only, filters, and a student's own bao-audit still works"
   [bots]="with --test: each bot has a vault login, a namespace and an app slot, and no bot is stuck on a step"
@@ -51,6 +58,7 @@ while [ $# -gt 0 ]; do
 done
 
 set -a; . engine/.env; [ -z "${DOJO_ENV:-}" ] || . "engine/.env.$DOJO_ENV"; set +a
+[ ! -r engine/.generated/upstream-tokens.env ] || { set -a; . engine/.generated/upstream-tokens.env; set +a; }  # per-upstream tokens (FIND-16)
 podman container exists workshop_terminal 2>/dev/null || { echo "the stack isn't up (./run.sh vault-fundamentals)" >&2; exit 2; }
 OUT="$(mktemp -d "${TMPDIR:-/tmp}/vf-e2e.XXXXXX")"
 echo "run directory: $OUT"
@@ -92,7 +100,7 @@ unit() {
 }
 
 audit() {
-  local bad=0 base=http://openbao-audit:8080 gw=(-H "X-Gateway-Token: $GATEWAY_TOKEN")
+  local bad=0 base=http://openbao-audit:8080 gw=(-H "X-Gateway-Token: $GATEWAY_TOKEN_OPENBAO_AUDIT")
   [ "$(code "$base/api/entries")" = 403 ] && say ok "no gateway token: 403" || say no "no gateway token"
   [ "$(code "${gw[@]}" -H 'X-Auth-User: student01' "$base/api/entries")" = 403 ] \
     && say ok "a student with the token: 403" || say no "a student with the token"
@@ -123,7 +131,7 @@ bots() {
   local bad=0 i b log
   if [ "${bots:-0}" -lt 1 ]; then echo "  no bots in this run (./run.sh vault-fundamentals --test N); nothing to check"; return 0; fi
   local slots
-  slots="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
+  slots="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_APP_HOST" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
   for i in $(seq 1 "$bots"); do
     b="$bot_prefix$i"
     term su - "$b" -c 'openbao-login --quiet && BAO_NAMESPACE=students/$USER bao secrets list >/dev/null' 2>/dev/null \
@@ -164,8 +172,8 @@ load() {
       | awk -F, -v t="$now" '{ split($2, m, " / "); v=m[1]; u=v; gsub(/[0-9.]/, "", u); gsub(/[^0-9.]/, "", v);
           mib = (u ~ /^G/) ? v * 1024 : (u ~ /^k/) ? v / 1024 : (u ~ /^M/) ? v : v / 1048576;
           c=$3; gsub(/%/, "", c); printf "%s,%s,%.1f,%s\n", t, $1, mib, c }' >> "$OUT/stats.csv"
-    st="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://runner-controller:8080/api/state)"
-    ap="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
+    st="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_RUNNER_CONTROLLER" -H "X-Auth-User: $FACILITATOR_USERNAME" http://runner-controller:8080/api/state)"
+    ap="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_APP_HOST" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
     python3 -B -c '
 import json, sys
 t, st, ap = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -214,11 +222,17 @@ EOF
 area unit       unit
 area tenancy    sh "$T/tenancy.sh"
 area cli_login  sh modules/openbao/tests/cli_login.sh
+area setup_tokens sh modules/openbao/tests/setup_tokens.sh
 area lab_2      sh "$T/lab_2.sh" "$student"
-area labs_5_7   sh "$T/labs_5_7.sh" "$student"
-area labs_8_9   sh "$T/labs_8_9.sh" "$student"
+area lab_5      sh "$T/lab_5.sh" "$student"
+area lab_6      sh "$T/lab_6.sh" "$student"
+area lab_7      sh "$T/lab_7.sh" "$student"
+area lab_8      sh "$T/lab_8.sh" "$student"
+area lab_9      sh "$T/lab_9.sh" "$student"
 area lab_10     sh "$T/lab_10.sh" "$student"
-area labs_11_13  sh "$T/labs_11_13.sh" "$student"
+area lab_11     sh "$T/lab_11.sh" "$student"
+area lab_12     sh "$T/lab_12.sh" "$student"
+area lab_13     sh "$T/lab_13.sh" "$student"
 # pool.sh counts idle runners and scales by hand: with bots, their jobs take the runners and it fails.
 if [ "${bots:-0}" -gt 0 ] && wanted pool; then
   echo "  SKIP  pool       (bots are using the runners; run it on a stack without --test)"

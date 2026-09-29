@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
 """Student self-service login + facilitator dashboard for the workshop engine.
 
-Single-threaded on purpose (http.server.HTTPServer, not ThreadingHTTPServer):
-the "find the first free studentNN slot and claim it" critical section below
-is one plain synchronous function with no I/O in the middle, so two
-concurrent /assign requests physically cannot claim the same slot -- the
-single accept loop means they can't interleave. No lock, no DB transaction.
+One thread per connection (http.server.ThreadingHTTPServer, remediation
+T3.4). It used to be single-threaded so that slot claiming needed no lock,
+but then one idle or slow client stalled /auth-check -- and with it every
+student's VS Code and terminal -- for the whole 3 s socket timeout, once per
+idle connection. Now an idle socket only times out in its own thread.
+
+Locking rules (keep them when touching shared state):
+- `_state_lock` guards `slots` and `token_index`. Claiming a slot
+  (claim_slot) finds the first free studentNN and writes it in one critical
+  section, so two concurrent /assign requests can never get the same slot.
+- Never hold a lock across I/O: no control_request, forgejo_login_request,
+  probe or socket write inside one. Handlers copy what they need under the
+  lock (slot_snapshot, held_slots), release it, then do the I/O.
+- A release first records the slot's token, stops the workspace without the
+  lock, then clears the slot only if the token is unchanged, so a slow
+  release never frees a slot someone else has claimed in the meantime.
+- AssignLimit, audit() and audit_check() each have their own small lock.
 
 All state is in-memory and reset on container restart, matching this
 project's ephemeral-by-design stack (see engine/docker-compose.yml).
 
-There is exactly one other thread: a background daemon that probes the
+Besides the request threads there is one background daemon that probes the
 lab's services (Forgejo, terminals, slides, plus whatever a workshop lists
 in STATUS_CHECKS) every few seconds for the facilitator's status strip
-(/admin/api/status). It does not weaken the guarantee above, because it
-never touches `slots`, `token_index` or anything else a request handler
-mutates: its only output is one status snapshot that it replaces wholesale
-(a single reference assignment, atomic in CPython), and request handlers
-only ever read that snapshot. All upstream I/O for status happens in that
-thread; no request handler waits on a probe, so a hung service can slow the
-probe thread down but never /assign, /auth-check or the roster.
+(/admin/api/status). It never touches `slots`, `token_index` or anything
+else a request handler mutates: its only output is one status snapshot that
+it replaces wholesale (a single reference assignment, atomic in CPython),
+and request handlers only ever read that snapshot. All upstream I/O for
+status happens in that thread; no request handler waits on a probe.
 """
+import base64
 import datetime
+import hashlib
 import hmac
 import html
 import http.client
@@ -35,6 +47,8 @@ import ssl
 import threading
 import time
 import urllib.parse
+
+from dojo_secret import forgejo_password
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
 # Marks the session cookie Secure whenever the public deployment actually
@@ -61,14 +75,52 @@ WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "Workshop Lab")
 # and docker-compose.yml both default this to "root", not "facilitator", so
 # it has to come from the same env var, never be hardcoded here.
 FACILITATOR_USERNAME = os.environ.get("FACILITATOR_USERNAME", "root")
+
+
+_audit_lock = threading.Lock()
+
+
+def audit(event, **fields):
+    """One JSON line on stdout per identity or control-plane decision
+    (remediation T1.4, FIND-13): who, what, on which target, with what
+    result. Never a secret: no tokens, passwords or cookies. Student names
+    are student-typed; json.dumps escapes them."""
+    rec = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds"),
+           "event": event}
+    rec.update(fields)
+    line = json.dumps(rec, separators=(",", ":"))
+    with _audit_lock:  # one whole line at a time from concurrent handlers
+        print(line, flush=True)
+
+
+# /auth-check runs once per request VS Code or ttyd makes (every asset), so
+# logging each 200 would flood the log. Log every non-200, and a 200 only
+# when it's the first for that (event, account, tool) or follows a non-200.
+_last_check = {}
+_last_check_lock = threading.Lock()
+
+
+def audit_check(event, account, tool, status, **fields):
+    key = (event, account, tool)
+    with _last_check_lock:
+        log = status != 200 or _last_check.get(key) != 200
+        _last_check[key] = status
+    if log:
+        audit(event, account=account, tool=tool, result=status, **fields)
+
+
+TTYD_USERNAME = os.environ.get("TTYD_USERNAME", "")
+TTYD_PASSWORD = os.environ.get("TTYD_PASSWORD", "")
+FACILITATOR_PASSWORD = os.environ.get("FACILITATOR_PASSWORD", "")
+WORKSHOP_DESCRIPTION = os.environ.get("WORKSHOP_DESCRIPTION", "").strip()
 # Deep-links the landing page's Forgejo button straight at the seeded
 # workshop repo -- must match bootstrap.sh's FORGEJO_ORG/FORGEJO_REPO
 # defaults (see docker-compose.yml's bootstrap service), not hardcoded here.
 FORGEJO_ORG = os.environ.get("FORGEJO_ORG", "training")
 FORGEJO_REPO = os.environ.get("FORGEJO_REPO", "sample-training-repo")
-# SSO into Forgejo (see /forgejo-login below): must match the credentials
-# bootstrap.sh actually created each account with, not hardcoded here.
-STUDENT_PASSWORD = os.environ.get("STUDENT_PASSWORD", "student123")
+# SSO into Forgejo (see /forgejo-login below) signs a student in with their
+# own password, forgejo_password(sid) from dojo_secret.py: the same one
+# bootstrap.sh created the account with (remediation T2.1b, D13).
 FORGEJO_ADMIN_USER = os.environ["FORGEJO_ADMIN_USER"]
 FORGEJO_ADMIN_PASSWORD = os.environ["FORGEJO_ADMIN_PASSWORD"]
 # Shared secret sent on every call to web-terminal's control API (see
@@ -90,6 +142,111 @@ CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 # default -- same fail-fast pattern as CONTROL_TOKEN above. Must match
 # gateway's own GATEWAY_TOKEN (gateway/Caddyfile).
 GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
+
+# The front door (/login): a signed cookie replaces HTTP Basic Auth. The
+# cookie names the account that signed in (the class login or the
+# facilitator's); gateway/Caddyfile asks /session-check about it on every
+# request and passes the answer upstream as X-Auth-User, exactly as
+# basic_auth's user id used to be. Signed with a key derived from
+# GATEWAY_TOKEN and both passwords, so changing either password signs
+# everyone out. Stateless: nothing to store, survives allocator restarts.
+SESSION_COOKIE = "dojo_login"
+SESSION_SECONDS = 12 * 3600
+_SESSION_KEY = hmac.new(GATEWAY_TOKEN.encode(),
+                        f"dojo-login|{TTYD_PASSWORD}|{FACILITATOR_PASSWORD}".encode(),
+                        hashlib.sha256).digest()
+
+
+def _session_sig(body):
+    return hmac.new(_SESSION_KEY, body.encode(), hashlib.sha256).hexdigest()
+
+
+def make_session(account, now=None):
+    exp = int((time.time() if now is None else now) + SESSION_SECONDS)
+    body = base64.urlsafe_b64encode(account.encode()).decode().rstrip("=") + "." + str(exp)
+    return body + "." + _session_sig(body)
+
+
+def read_session(token, now=None):
+    """The account a session cookie was issued to, or None."""
+    try:
+        name, exp, sig = token.split(".")
+        body = f"{name}.{exp}"
+        if not hmac.compare_digest(sig, _session_sig(body)):
+            return None
+        if int(exp) < (time.time() if now is None else now):
+            return None
+        account = base64.urlsafe_b64decode(name + "=" * (-len(name) % 4)).decode()
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) else None
+
+
+def check_login(username, password):
+    """The account this username/password opens, or None. Both accounts are
+    always compared, so timing says nothing about which one was close. An
+    empty password never matches, whatever is configured."""
+    if not username or not password:
+        return None
+    ok_class = hmac.compare_digest(username.encode(), TTYD_USERNAME.encode()) & \
+        hmac.compare_digest(password.encode(), TTYD_PASSWORD.encode())
+    ok_fac = hmac.compare_digest(username.encode(), FACILITATOR_USERNAME.encode()) & \
+        hmac.compare_digest(password.encode(), FACILITATOR_PASSWORD.encode())
+    return FACILITATOR_USERNAME if ok_fac else TTYD_USERNAME if ok_class else None
+
+
+class LoginGuard:
+    """Brute-force limit (remediation T1.1c, FIND-01): at most `limit` wrong
+    guesses per client address per `window` seconds; past it the answer is
+    429 before any password is compared. Only failures count, so a class
+    behind one NAT address signing in correctly is never limited."""
+
+    def __init__(self, limit=30, window=60, clock=time.monotonic):
+        self.limit, self.window, self.clock = limit, window, clock
+        self.fails = {}
+        self.lock = threading.Lock()
+
+    def _recent(self, ip):
+        cutoff = self.clock() - self.window
+        recent = [t for t in self.fails.get(ip, ()) if t > cutoff]
+        if recent:
+            self.fails[ip] = recent
+        else:
+            self.fails.pop(ip, None)
+        return recent
+
+    def blocked(self, ip):
+        with self.lock:
+            return len(self._recent(ip)) >= self.limit
+
+    def fail(self, ip):
+        with self.lock:
+            if len(self.fails) > 2000:  # a spray from many addresses
+                for other in list(self.fails):
+                    self._recent(other)
+            self.fails.setdefault(ip, []).append(self.clock())
+
+
+LOGIN_GUARD = LoginGuard()
+
+LOGIN_DIR = os.environ.get("LOGIN_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "login")
+LOGIN_ASSET_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                     ".png": "image/png"}
+
+
+def _load_login_assets():
+    assets = {}
+    for name in os.listdir(LOGIN_DIR):
+        ext = os.path.splitext(name)[1]
+        if ext in LOGIN_ASSET_TYPES:
+            with open(os.path.join(LOGIN_DIR, name), "rb") as f:
+                assets[name] = (LOGIN_ASSET_TYPES[ext], f.read())
+    return assets
+
+
+LOGIN_ASSETS = _load_login_assets()
+with open(os.path.join(LOGIN_DIR, "login.html"), encoding="utf-8") as _f:
+    LOGIN_HTML = _f.read()
 
 # Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
@@ -146,6 +303,98 @@ BOT_IDS = [f"{BOT_PREFIX}{n}" for n in range(1, BOT_COUNT + 1)]
 # studentId -> {name, ip, token, tool, assigned_at}
 slots = {sid: {"name": None, "ip": None, "token": None, "tool": None, "assigned_at": None} for sid in STUDENT_IDS}
 token_index = {}  # token -> studentId
+# Guards slots and token_index (see the locking rules at the top).
+_state_lock = threading.Lock()
+
+
+def _env_int(name, default):
+    try:
+        return max(1, int(os.environ.get(name) or default))
+    except ValueError:
+        return default
+
+
+class AssignLimit:
+    """How fast new slots go out (remediation T3.4, FIND-07): a token bucket,
+    ASSIGN_BURST at once, then ASSIGN_PER_MINUTE. It counts only new
+    assignments (a cookie-less POST /assign that would take a slot), so a
+    class arriving together gets in within a minute or so while a script
+    can't empty every slot in one go. The facilitator, bots, returning
+    browsers and /auth-check never touch it. In memory, behind its own lock
+    (requests run in parallel threads)."""
+
+    def __init__(self, burst, per_minute, clock=time.monotonic):
+        self.burst, self.rate, self.clock = float(burst), per_minute / 60.0, clock
+        self.tokens, self.last = float(burst), clock()
+        self.lock = threading.Lock()
+
+    def take(self):
+        """0 if a slot may go out now, else seconds until one may."""
+        with self.lock:
+            return self._take()
+
+    def _take(self):
+        now = self.clock()
+        self.tokens = min(self.burst, self.tokens + (now - self.last) * self.rate)
+        self.last = now
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return 0
+        return max(1, int((1 - self.tokens) / self.rate + 0.999))
+
+
+ASSIGN_LIMIT = AssignLimit(_env_int("ASSIGN_BURST", 10), _env_int("ASSIGN_PER_MINUTE", 20))
+# "Release unused" frees a slot taken at least this long ago with no IDE or
+# terminal running.
+UNUSED_AFTER_SECONDS = 120
+
+
+def release_slot(sid, result="released", token=None):
+    """Stop a student's workspace and free their slot. Returns the name that
+    held it, or None if the slot was already free or has changed hands.
+    `token` is the holder the caller decided to release (default: whoever
+    holds it now); the stop runs without the lock, and the slot is cleared
+    only if that same holder still has it."""
+    with _state_lock:
+        if token is None:
+            token = slots[sid]["token"]
+        if token is None or slots[sid]["token"] != token:
+            return None
+    control_request("POST", f"/stop/{sid}")
+    with _state_lock:
+        if slots[sid]["token"] != token:
+            return None  # someone else released it while we were stopping
+        token_index.pop(token, None)
+        name = slots[sid]["name"]
+        slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+    audit("release", target=sid, name=name, result=result)
+    return name
+
+
+def claim_slot(name, ip):
+    """Give the first free studentNN to `name`: (sid, token), or (None, None)
+    when the lab is full. One critical section, so no two callers can get
+    the same slot."""
+    token = secrets.token_urlsafe(32)
+    with _state_lock:
+        sid = find_free_slot()
+        if sid is None:
+            return None, None
+        slots[sid].update(name=name, ip=ip, token=token, assigned_at=time.time())
+        token_index[token] = sid
+    return sid, token
+
+
+def slot_snapshot(sid):
+    """A copy of one slot, taken under the lock."""
+    with _state_lock:
+        return dict(slots[sid])
+
+
+def held_slots():
+    """{sid: copy of slot} for every held student slot, in roster order."""
+    with _state_lock:
+        return {sid: dict(slots[sid]) for sid in STUDENT_IDS if slots[sid]["name"] is not None}
 
 
 def student_number(student_id):
@@ -179,6 +428,7 @@ def watch_port(sid):
 
 
 def find_free_slot():
+    """Caller holds _state_lock (claim_slot)."""
     for sid in STUDENT_IDS:
         if slots[sid]["name"] is None:
             return sid
@@ -357,14 +607,16 @@ def probe_slides():
     http://localhost, and a 308 redirect (or a TLS failure on 443) when the
     site is an https hostname, so neither would say anything about slides.
     Behind another proxy, GATEWAY_LISTEN is the address to call; with no
-    host in it (http://:8080) Caddy takes any Host, so send the public one."""
+    host in it (http://:8080) Caddy takes any Host, so send the public one.
+    /slides is behind the class login, so send a session for it: without one
+    the probe would only see the login redirect."""
     public = urllib.parse.urlsplit(PUBLIC_BASE_URL)
     base = urllib.parse.urlsplit(GATEWAY_LISTEN) if GATEWAY_LISTEN else public
     tls = base.scheme == "https"
     host = base.hostname or public.hostname
     return probe_http(GATEWAY_HOST, base.port or (443 if tls else 80), "/slides/",
                       tls=tls, sni=host, host_header=base.netloc if base.hostname else public.netloc,
-                      require_body=True)
+                      headers={"Cookie": f"{SESSION_COOKIE}={make_session(TTYD_USERNAME)}"}, require_body=True)
 
 
 def _extra_probe(url):
@@ -471,355 +723,176 @@ ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="cur
              '<polyline points="7 7 17 7 17 17"></polyline></svg>'
 
 
-def page(title, body):
-    return f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          max-width: 30rem; margin: 8vh auto; padding: 0 1.25rem; color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  h1 {{ font-size: 1.4rem; margin-bottom: 0.25rem; }}
-  .sub {{ opacity: 0.7; margin-bottom: 2rem; }}
-  input[type=text] {{ width: 100%; padding: 0.6rem 0.8rem; font-size: 1rem; border-radius: 0.5rem;
-          border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 1rem; }}
-  button, .btn {{ display: inline-block; padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 0.5rem;
+# -- page assets (remediation T4.2, FIND-14) ------------------------------
+# Every allocator page is served under a strict Content-Security-Policy (see
+# CSP below): no inline script, no style attributes. The facilitator page's
+# script and stylesheet are served from memory at /admin/admin.js and
+# /admin/admin.css (behind the same facilitator gate as /admin). The student
+# pages keep one inline <style> each, allowed by its sha256 hash, computed
+# here from the exact text so the header can't drift from the page.
+LANDING_CSS = """
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          max-width: 30rem; margin: 8vh auto; padding: 0 1.25rem; color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .sub { opacity: 0.7; margin-bottom: 2rem; }
+  input[type=text] { width: 100%; padding: 0.6rem 0.8rem; font-size: 1rem; border-radius: 0.5rem;
+          border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 1rem; }
+  button, .btn { display: inline-block; padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 0.5rem;
           border: none; background: #2563eb; color: white; cursor: pointer; text-decoration: none;
-          margin-right: 0.5rem; margin-bottom: 0.5rem; }}
-  button:disabled {{ opacity: 0.6; cursor: default; }}
-  .btn.secondary {{ background: #6b7280; }}
-  .badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
-          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
-</style></head>
-<body>{body}</body></html>"""
+          margin-right: 0.5rem; margin-bottom: 0.5rem; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .btn.secondary { background: #6b7280; }
+  .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .badge { background: #1e2352; color: #c7d2fe; } }
+"""
 
-
-# The landing page shows the student's Forgejo password, so nothing between
-# here and the browser (or the browser's own back/forward cache) may keep a copy.
-NO_STORE_HEADERS = [("Cache-Control", "no-store"), ("Pragma", "no-cache")]
-
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    server_version = "AllocatorHTTP/1.0"
-    # This server is single-threaded by design (see module docstring) --
-    # every request blocks every other request/connection for its duration,
-    # including the accept loop itself. Without a socket timeout, one client
-    # that opens a connection and then sends bytes slowly (or not at all)
-    # would stall the entire workshop's assignment/auth-check traffic
-    # indefinitely. 10s is generous for any legitimate request this process
-    # ever serves (all local, in-memory, no upstream I/O except the
-    # best-effort control_request/forgejo_login_request calls, which have
-    # their own shorter CONTROL_TIMEOUT).
-    timeout = 10
-
-    def log_message(self, fmt, *args):
-        pass  # keep container logs quiet; nothing sensitive is worth logging by default
-
-    # -- helpers ---------------------------------------------------------
-    def send_html(self, body, status=200, headers=None):
-        encoded = body.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(encoded)))
-        for k, v in (headers or {}):
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(encoded)
-
-    def send_json(self, data, status=200, headers=None):
-        encoded = json.dumps(data).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(encoded)))
-        for k, v in (headers or {}):
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(encoded)
-
-    def gateway_authorized(self):
-        """True only if this request carries the shared secret Caddy alone
-        knows (see GATEWAY_TOKEN above) -- mirrors workspace-control.py's
-        own authorized()/CONTROL_TOKEN check byte for byte. Checked first,
-        in do_GET/do_POST, before any path parsing or resolve_identity()
-        call: resolve_identity() trusts X-Auth-User, and this is the only
-        thing standing between that trust and any other container on the
-        shared workshop_lab network forging it."""
-        token = self.headers.get("X-Gateway-Token", "")
-        return hmac.compare_digest(token, GATEWAY_TOKEN)
-
-    def get_cookie(self):
-        cookie_header = self.headers.get("Cookie", "")
-        for part in cookie_header.split(";"):
-            part = part.strip()
-            if part.startswith(f"{COOKIE_NAME}="):
-                return part[len(COOKIE_NAME) + 1:]
-        return None
-
-    def resolve_identity(self):
-        """Return (username_for_control_plane, student_id_or_None) for the
-        current request, or (None, None) if it isn't valid.
-
-        Facilitator identity comes from X-Auth-User, set by
-        gateway/Caddyfile's basic_auth + header_up on every request (this
-        always overwrites any client-supplied value, so it can't be
-        spoofed by a browser/curl -- only Caddy, on the internal-only
-        network, can set it) to whichever account actually satisfied the
-        shared or /admin basic_auth challenge. Caddy authenticates every
-        request before it ever reaches this process, so this header is
-        always present and correct -- typing the facilitator credential
-        once, anywhere, is immediately enough; no cookie needed. A student
-        identity, by contrast, only ever comes from the dojo_session
-        cookie minted when they claim a slot via /assign.
-        """
-        if self.headers.get("X-Auth-User") == FACILITATOR_USERNAME:
-            return FACILITATOR_USERNAME, None
-        token = self.get_cookie()
-        if token is None:
-            return None, None
-        sid = token_index.get(token)
-        if sid is not None and slots[sid]["token"] == token and slots[sid]["name"] is not None:
-            return sid, sid
-        return None, None
-
-    def client_ip(self):
-        # gateway/Caddyfile has no trusted_proxies configured, so Caddy's
-        # reverse_proxy APPENDS the address it actually saw to whatever
-        # X-Forwarded-For value the client already sent, rather than
-        # replacing it -- the same header a curl/browser client is free to
-        # set to anything. That means the FIRST entry can be attacker-
-        # supplied, but the LAST entry is always the address Caddy itself
-        # observed on the connection, since gateway is the sole public
-        # entry point with nothing in front of it to have appended anything
-        # earlier. Only that last hop is safe to trust (this is only ever
-        # used for the facilitator roster display, not an auth decision).
-        forwarded = self.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[-1].strip()
-        return self.client_address[0]
-
-    # Real form bodies here are tiny (a name, capped at 60 chars, is the
-    # only field any form on this service ever submits) -- capping well
-    # above that but far below "attacker-declared Content-Length" stops a
-    # client from making this single-threaded process (see class docstring)
-    # allocate or block on reading an enormous declared body.
-    MAX_BODY_BYTES = 4096
-
-    def read_form_body(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-        except ValueError:
-            length = 0
-        length = max(0, min(length, self.MAX_BODY_BYTES))
-        raw = self.rfile.read(length) if length else b""
-        parsed = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
-        return {k: v[0] for k, v in parsed.items()}
-
-    # -- pages -------------------------------------------------------------
-    def render_name_form(self):
-        body = f"""
-<h1>{html.escape(WORKSHOP_NAME)}</h1>
-<p class="sub">Enter your name to get started.</p>
-<form method="post" action="/assign" onsubmit="this.querySelector('button').disabled=true">
-  <input type="text" name="name" placeholder="Your name" required autofocus maxlength="60">
-  <button type="submit">Join workshop</button>
-</form>"""
-        return page(WORKSHOP_NAME, body)
-
-    def render_full(self):
-        body = f"""
-<h1>{html.escape(WORKSHOP_NAME)}</h1>
-<p class="sub">All workshop seats are currently taken. Please ask your facilitator for help.</p>"""
-        return page(WORKSHOP_NAME, body)
-
-    def render_confirmation(self, sid):
-        """The landing page a student sees on every visit after /assign has
-        claimed them a slot (including refresh/back-button -- see
-        handle_assign). Deliberately its own full HTML document, like
-        render_facilitator_workspace, rather than page() -- page()'s
-        narrow single-column layout is tuned for the two short forms
-        (name entry, "lab full"), not a set of tool choices that benefits
-        from room to show what each one actually does."""
-        slot = slots[sid]
-        tools = [
-            {
-                "href": "/ide/", "label": "VS Code", "icon": ICON_CODE, "primary": True,
-                "desc": "Your editor, already open in your lab folder.",
-            },
-            {
-                "href": "/term/", "label": "Terminal", "icon": ICON_TERMINAL,
-                "desc": "A plain shell, same account, if you'd rather type.",
-            },
-            {
-                "href": "/forgejo-login", "label": "Forgejo", "icon": ICON_GIT,
-                "desc": "Your repo -- branches, commits, pull requests.",
-            },
-            {
-                "href": "/slides/", "label": "Slides", "icon": ICON_SLIDES,
-                "desc": "Today's material, for reference as you go.",
-            },
-        ]
-        for card in EXTENSIONS["cards"]:
-            tools.append({
-                "href": card["href"], "label": card["label"], "desc": card["desc"],
-                "icon": ICONS_BY_NAME.get(card["icon"], ICON_ARROW),
-            })
-
-        cards = "\n".join(
-            f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
-  <span class="card-icon">{t['icon']}</span>
-  <span class="card-text">
-    <span class="card-title">{html.escape(t['label'])}</span>
-    <span class="card-desc">{html.escape(t['desc'])}</span>
-  </span>
-  {ICON_ARROW}
-</a>"""
-            for t in tools
-        )
-
-        body = f"""
-<div class="hero">
-  <span class="hero-badge">{html.escape(sid)}</span>
-  <h1>You're in, {html.escape(slot['name'])}</h1>
-  <p class="sub">Pick a tool to get started -- each one opens in a new tab.</p>
-</div>
-<div class="cards">
-{cards}
-</div>
-<div class="secret">
-  <span class="secret-label">Your Forgejo sign-in</span>
-  <table class="secret-table">
-    <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
-    <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(STUDENT_PASSWORD)}</code></td></tr>
-  </table>
-  <span class="secret-hint">Use these when git asks you to sign in (for example on <code>git push</code>). The password is also your terminal account's password.</span>
-</div>
-<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
-
-        return f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(WORKSHOP_NAME)}</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  .hero {{ text-align: center; margin-bottom: 2rem; }}
-  .hero-badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+CONFIRM_CSS = """
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  .hero { text-align: center; margin-bottom: 2rem; }
+  .hero-badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
           padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
-          margin-bottom: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .hero-badge {{ background: #1e2352; color: #c7d2fe; }} }}
-  .hero h1 {{ font-size: 1.6rem; margin: 0 0 0.4rem; }}
-  .hero .sub {{ opacity: 0.7; margin: 0; }}
-  .cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }}
-  @media (max-width: 30rem) {{ .cards {{ grid-template-columns: 1fr; }} }}
-  .card {{ display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
+          margin-bottom: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .hero-badge { background: #1e2352; color: #c7d2fe; } }
+  .hero h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
+  .hero .sub { opacity: 0.7; margin: 0; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  @media (max-width: 30rem) { .cards { grid-template-columns: 1fr; } }
+  .card { display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
           border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
-          transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }}
-  @media (prefers-color-scheme: dark) {{ .card {{ border-color: #333; background: #1f1f1f; }} }}
-  .card:hover, .card:focus-visible {{ border-color: #2563eb; transform: translateY(-1px);
-          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15); }}
-  .card.primary {{ grid-column: 1 / -1; border-color: #2563eb; background: #eff6ff; }}
-  @media (prefers-color-scheme: dark) {{ .card.primary {{ background: #172554; }} }}
-  .card-icon {{ flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; background: #eef2ff;
-          color: #2563eb; display: flex; align-items: center; justify-content: center; }}
-  @media (prefers-color-scheme: dark) {{ .card-icon {{ background: #1e2352; }} }}
-  .card.primary .card-icon {{ background: #2563eb; color: #fff; }}
-  .card-icon svg {{ width: 1.25rem; height: 1.25rem; }}
-  .card-text {{ display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }}
-  .card-title {{ font-weight: 600; font-size: 0.98rem; }}
-  .card-desc {{ font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }}
-  .card-arrow {{ flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }}
-  .card:hover .card-arrow, .card:focus-visible .card-arrow {{ opacity: 0.7; }}
-  .secret {{ margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e2e2;
-          background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }}
-  @media (prefers-color-scheme: dark) {{ .secret {{ border-color: #333; background: #1f1f1f; }} }}
-  .secret-label {{ font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em; }}
-  .secret code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #eef2ff;
-          color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }}
-  @media (prefers-color-scheme: dark) {{ .secret code {{ background: #1e2352; color: #c7d2fe; }} }}
-  .secret-hint code {{ font-size: 0.75rem; padding: 0.05rem 0.3rem; }}
-  .secret-table {{ border-collapse: collapse; margin: 0.15rem 0; }}
-  .secret-table th, .secret-table td {{ padding: 0.35rem 0.75rem; border-bottom: 1px solid #e2e2e2; }}
-  @media (prefers-color-scheme: dark) {{ .secret-table th, .secret-table td {{ border-color: #333; }} }}
-  .secret-table tr:last-child th, .secret-table tr:last-child td {{ border-bottom: none; }}
-  .secret-table th {{ text-align: right; font-weight: 500; font-size: 0.85rem; opacity: 0.7; }}
-  .secret-table td {{ text-align: left; }}
-  .secret-value {{ font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }}
-  .secret-hint {{ font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }}
-  .footnote {{ margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }}
-</style></head>
-<body>{body}</body></html>"""
+          transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+  @media (prefers-color-scheme: dark) { .card { border-color: #333; background: #1f1f1f; } }
+  .card:hover, .card:focus-visible { border-color: #2563eb; transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15); }
+  .card.primary { grid-column: 1 / -1; border-color: #2563eb; background: #eff6ff; }
+  @media (prefers-color-scheme: dark) { .card.primary { background: #172554; } }
+  .card-icon { flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; background: #eef2ff;
+          color: #2563eb; display: flex; align-items: center; justify-content: center; }
+  @media (prefers-color-scheme: dark) { .card-icon { background: #1e2352; } }
+  .card.primary .card-icon { background: #2563eb; color: #fff; }
+  .card-icon svg { width: 1.25rem; height: 1.25rem; }
+  .card-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+  .card-title { font-weight: 600; font-size: 0.98rem; }
+  .card-desc { font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }
+  .card-arrow { flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }
+  .card:hover .card-arrow, .card:focus-visible .card-arrow { opacity: 0.7; }
+  .secret { margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e2e2;
+          background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+  @media (prefers-color-scheme: dark) { .secret { border-color: #333; background: #1f1f1f; } }
+  .secret-label { font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em; }
+  .secret code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #eef2ff;
+          color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }
+  @media (prefers-color-scheme: dark) { .secret code { background: #1e2352; color: #c7d2fe; } }
+  .secret-hint code { font-size: 0.75rem; padding: 0.05rem 0.3rem; }
+  .secret-table { border-collapse: collapse; margin: 0.15rem 0; }
+  .secret-table th, .secret-table td { padding: 0.35rem 0.75rem; border-bottom: 1px solid #e2e2e2; }
+  @media (prefers-color-scheme: dark) { .secret-table th, .secret-table td { border-color: #333; } }
+  .secret-table tr:last-child th, .secret-table tr:last-child td { border-bottom: none; }
+  .secret-table th { text-align: right; font-weight: 500; font-size: 0.85rem; opacity: 0.7; }
+  .secret-table td { text-align: left; }
+  .secret-value { font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }
+  .secret-hint { font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }
+  .footnote { margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }
+"""
 
-    def render_facilitator_workspace(self):
-        """The facilitator's one-stop page at /admin: a roster of live
-        terminal tiles (one per held slot -- account/name/IP/status/Release
-        in the tile header, an iframe onto /admin/watch/<sid>/ underneath),
-        plus their own VS Code/Terminal/Forgejo/Slides as further tabs, all
-        on one wide page -- no dependency on the shared student gate either
-        (see gateway/Caddyfile: /admin has its own basic_auth, which is
-        also now accepted at the shared gate, so a facilitator never needs
-        the student credential at all).
+ADMIN_CSS = """
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          margin: 0; height: 100vh; display: flex; overflow: hidden;
+          color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  #side { flex: none; width: 13.5rem; display: flex; flex-direction: column; gap: 1.1rem;
+           padding: 1.1rem 0.75rem; overflow-y: auto; border-right: 1px solid #ddd; background: #f3f3f3; }
+  @media (prefers-color-scheme: dark) { #side { border-right-color: #333; background: #121212; } }
+  #main { flex: 1; min-width: 0; overflow: auto; padding: 0.75rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 0.15rem; }
+  .sub { opacity: 0.7; }
+  #bar .sub { margin: 0.25rem 0 0; font-size: 0.9rem; }
+  #status { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: auto; }
+  #status.stale { opacity: 0.45; }
+  .svc { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
+          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; max-width: 100%; cursor: default; }
+  @media (prefers-color-scheme: dark) { .svc { border-color: #333; background: #1f1f1f; } }
+  .svc-dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }
+  .svc.green .svc-dot { background: #16a34a; }
+  .svc.yellow .svc-dot { background: #d97706; }
+  .svc.red .svc-dot { background: #dc2626; }
+  @media (prefers-color-scheme: dark) {
+    .svc.green .svc-dot { background: #22c55e; }
+    .svc.yellow .svc-dot { background: #f59e0b; }
+    .svc.red .svc-dot { background: #f87171; }
+  }
+  .svc-name { font-weight: 600; }
+  .svc-word { opacity: 0.75; }
+  .svc.yellow .svc-word, .svc.red .svc-word { opacity: 1; font-weight: 600; }
+  .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .badge { background: #1e2352; color: #c7d2fe; } }
+  button { font: inherit; }
+  .tabs { display: flex; flex-direction: column; gap: 0.15rem; }
+  .tab { padding: 0.55rem 0.8rem; font-size: 0.95rem; border: none; background: none; cursor: pointer; text-align: left;
+          color: inherit; opacity: 0.65; border-left: 3px solid transparent; border-radius: 0 0.35rem 0.35rem 0; }
+  .tab:hover { opacity: 0.9; background: rgba(127, 127, 127, 0.12); }
+  .tab.active { opacity: 1; border-left-color: #2563eb; background: rgba(37, 99, 235, 0.1); font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel iframe { display: block; width: 100%; height: calc(100vh - 1.5rem); min-height: 400px; border: 0; border-radius: 0.5rem; }
+  @media (max-width: 700px) {
+    body { flex-direction: column; height: auto; overflow: visible; }
+    #side { width: auto; border-right: none; border-bottom: 1px solid #ddd; }
+    .tabs { flex-direction: row; flex-wrap: wrap; }
+    #status { flex-direction: row; flex-wrap: wrap; margin-top: 0; }
+    #main { overflow: visible; }
+  }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+  .tile { border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
+           display: flex; flex-direction: column; height: 280px; }
+  .tile-head { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.3rem 0.6rem 0.4rem;
+                font-size: 0.8rem; background: #111; color: #ccc; flex-shrink: 0; }
+  .tile-title { display: flex; align-items: center; justify-content: space-between; }
+  .tile-label { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .tile-reload { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }
+  .tile-reload:hover { color: #fff; }
+  .tile-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }
+  .tile-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-status { white-space: nowrap; }
+  .tile-status.st-on { color: #16a34a; }
+  .tile-status.st-off { color: #dc2626; }
+  .tile-release, .tile-pw-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-pw { margin-left: auto; font-size: 0.72rem; user-select: all; }
+  .tile-pw:empty { display: none; }
+  .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release { margin-left: auto; }
+  .tile-release:hover, .tile-pw-btn:hover { background: #7c8494; }
+  .tile-release:disabled { opacity: 0.6; cursor: default; }
+  #roster-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+  #release-unused { padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
+    background: #64748b; color: #fff; cursor: pointer; }
+  #release-unused:hover { background: #7c8494; }
+  #release-unused:disabled { opacity: 0.6; cursor: default; }
+  /* The iframe is laid out at a fixed, generous pixel size (see
+     FRAME_W/H below), then CSS-transformed to fill whatever size the
+     tile wrapper actually is, enlarged or not -- see that comment and
+     updateScale's for why. */
+  .tile-frame-wrap { position: relative; flex: 1; overflow: hidden; background: #000; }
+  .tile-waiting { position: absolute; inset: 0; display: flex; align-items: center;
+          justify-content: center; text-align: center; padding: 1rem;
+          font-size: 0.78rem; color: #888; }
+  .tile.watching .tile-waiting { display: none; }
+  .tile iframe { position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
+          background: #000; transform-origin: top left; }
+  #grid.has-enlarged .tile { display: none; }
+  #grid.has-enlarged .tile.enlarged { display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }
+"""
 
-        Deliberately its own full HTML document rather than page() (which
-        is tuned for the narrow single-column student flow) -- this page
-        needs real width for the tool iframes and the roster grid.
-
-        The VS Code/Terminal/Forgejo/Slides tabs are plain iframes onto the
-        same /ide/, /term/, /forgejo-login, /slides/ routes the old
-        separate-tab links used -- nothing new for Caddy or the allocator
-        to authorize, since the facilitator's browser already carries
-        whatever those routes need (the shared-gate basic_auth realm is
-        reused automatically once /admin's has been satisfied -- see the
-        Caddyfile comment above the shared block -- and neither ttyd nor
-        code-server nor Forgejo send X-Frame-Options/frame-ancestors, the
-        same fact that already makes the watch tiles embeddable). Each
-        iframe's src is set lazily, on that tab's first click, so opening
-        /admin doesn't eagerly spin up the facilitator's own VS
-        Code/terminal/Forgejo session -- and once set it's never torn
-        down, just hidden via CSS when another tab is active, so switching
-        tabs doesn't lose editor/terminal state.
-
-        The roster tab itself, unlike those, is the page's default (active)
-        tab, so it builds its tiles -- and connects each one's watch
-        websocket -- as soon as /admin loads, not lazily. It's kept in sync
-        by polling /admin/api/sessions: client-side Set-diffing against the
-        existing `tiles` object so a join/leave only ever adds/removes the
-        one tile involved, never a wholesale replace (that would tear down
-        and reconnect every iframe's websocket every poll). An existing
-        tile's status dot does get refreshed in place on every poll, since
-        "active" genuinely changes over a session -- just without touching
-        that tile's iframe."""
-        body = """
-<nav id="side">
-  <div id="bar">
-    <h1>Facilitator</h1>
-    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
-  </div>
-  <div class="tabs" role="tablist" aria-orientation="vertical">
-  <button class="tab active" data-tab="roster">Roster</button>
-  <button class="tab" data-tab="ide">VS Code</button>
-  <button class="tab" data-tab="term">Terminal</button>
-  <button class="tab" data-tab="forgejo">Forgejo</button>
-  <button class="tab" data-tab="slides">Slides</button>
-EXT_TABS_PLACEHOLDER  </div>
-  <div id="status" role="group" aria-label="Service status"></div>
-</nav>
-
-<main id="main">
-<div class="panel active" id="panel-roster">
-  <p id="empty" class="sub">No students connected yet.</p>
-  <div id="grid"></div>
-</div>
-
-<div class="panel" id="panel-ide"><iframe data-src="/ide/"></iframe></div>
-<div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
-<div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
-<div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
-EXT_PANELS_PLACEHOLDER</main>
-<script>
+ADMIN_JS = """
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
 const panels = {};
@@ -889,14 +962,19 @@ const frameObserver = new ResizeObserver(entries => {
   for (const entry of entries) updateScale(entry.target);
 });
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Builds one element; any text goes in via textContent (student names and
+// the like are data, never markup).
+function make(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
 
-function statusHtml(active) {
-  return active
-    ? '<span style="color:#16a34a">&#9679; active</span>'
-    : '<span style="color:#dc2626">&#9679; inactive</span>';
+function setStatus(el, active) {
+  el.textContent = active ? '\\u25CF active' : '\\u25CF inactive';
+  el.classList.toggle('st-on', !!active);
+  el.classList.toggle('st-off', !active);
 }
 
 // Connects a tile's iframe to its watch endpoint the first time the
@@ -925,6 +1003,33 @@ function releaseTile(sid, btn) {
   }).then(refresh);
 }
 
+// Roster "Release unused": free every slot taken a while ago whose student
+// never started VS Code or a terminal (e.g. slots a script grabbed).
+function releaseUnused(btn, out) {
+  if (!confirm('Release every slot taken over 2 minutes ago with no VS Code or terminal running?')) return;
+  btn.disabled = true;
+  fetch('/admin/release-unused', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.released.length ? 'Released: ' + d.released.join(', ') : 'Nothing to release'; })
+    .catch(() => { out.textContent = 'Release failed'; })
+    .finally(() => { btn.disabled = false; refresh(); });
+}
+document.getElementById('release-unused').onclick = (e) =>
+  releaseUnused(e.currentTarget, document.getElementById('release-unused-out'));
+
+// Roster "Password": fetch one student's Forgejo password on demand and show
+// it in the tile (textContent only); a second click hides it again.
+function togglePassword(sid, btn, out) {
+  if (out.textContent) { out.textContent = ''; btn.textContent = 'Password'; return; }
+  fetch('/admin/api/forgejo-password/' + encodeURIComponent(sid), {
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.password; btn.textContent = 'Hide'; })
+    .catch(() => { out.textContent = 'unavailable'; });
+}
+
 function toggleEnlarge(sid) {
   if (enlarged === sid) { closeEnlarge(); return; }
   if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
@@ -946,19 +1051,25 @@ function buildTile(r) {
   tile.className = 'tile';
   const head = document.createElement('div');
   head.className = 'tile-head';
-  head.innerHTML = `
-    <div class="tile-title">
-      <span class="tile-label">${escapeHtml(r.studentId)} &mdash; ${escapeHtml(r.name)}</span>
-      <button class="tile-reload" title="Reload (follow current terminal)">&#8635;</button>
-    </div>
-    <div class="tile-meta">
-      <span class="tile-ip">${escapeHtml(r.ip)}</span>
-      <span class="tile-status">${statusHtml(r.active)}</span>
-      <button class="tile-release">Release</button>
-    </div>`;
-  head.querySelector('.tile-label').onclick = () => toggleEnlarge(r.studentId);
-  head.querySelector('.tile-reload').onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
-  head.querySelector('.tile-release').onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
+  const title = make('div', 'tile-title');
+  const label = make('span', 'tile-label', String(r.studentId) + ' \\u2014 ' + String(r.name));
+  const reload = make('button', 'tile-reload', '\\u21BB');
+  reload.title = 'Reload (follow current terminal)';
+  title.append(label, reload);
+  const meta = make('div', 'tile-meta');
+  const status = make('span', 'tile-status');
+  setStatus(status, r.active);
+  const pw = make('code', 'tile-pw');
+  const pwBtn = make('button', 'tile-pw-btn', 'Password');
+  const release = make('button', 'tile-release', 'Release');
+  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release);
+  head.append(title, meta);
+  label.onclick = () => toggleEnlarge(r.studentId);
+  reload.onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
+  release.onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
+  // Bots sign in with BOT_PASSWORD, not a derived one: no button.
+  if (r.ip === 'bot') pwBtn.remove();
+  else pwBtn.onclick = (e) => { e.stopPropagation(); togglePassword(r.studentId, e.currentTarget, pw); };
   const wrap = document.createElement('div');
   wrap.className = 'tile-frame-wrap';
   const waiting = document.createElement('div');
@@ -981,7 +1092,7 @@ function updateRoster(rows) {
   for (const r of rows) {
     seen.add(r.studentId);
     if (tiles[r.studentId]) {
-      tiles[r.studentId].querySelector('.tile-status').innerHTML = statusHtml(r.active);
+      setStatus(tiles[r.studentId].querySelector('.tile-status'), r.active);
       if (r.watchable) activateWatch(tiles[r.studentId], r.studentId);
       continue;
     }
@@ -1058,7 +1169,328 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 5000);
-</script>"""
+"""
+
+
+def _style_hash(text):
+    return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
+
+
+CSP = ("default-src 'self'; script-src 'self'; "
+       f"style-src 'self' {_style_hash(LANDING_CSS)} {_style_hash(CONFIRM_CSS)}; "
+       "img-src 'self' data:; object-src 'none'; base-uri 'none'; "
+       "form-action 'self'; frame-ancestors 'self'")
+
+ADMIN_ASSETS = {
+    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS),
+    "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
+}
+
+
+def page(title, body):
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<style>{LANDING_CSS}</style></head>
+<body>{body}</body></html>"""
+
+
+# The landing page shows the student's Forgejo password, so nothing between
+# here and the browser (or the browser's own back/forward cache) may keep a copy.
+NO_STORE_HEADERS = [("Cache-Control", "no-store"), ("Pragma", "no-cache")]
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "AllocatorHTTP/1.0"
+    # Per-connection socket timeout. Each connection has its own thread
+    # (AllocatorServer), so a client that connects and then sends slowly or
+    # not at all only holds its own thread, for at most this long per read,
+    # and never delays anyone else. 3 s is plenty for any legitimate request
+    # (all local; control_request/forgejo_login_request have their own
+    # CONTROL_TIMEOUT).
+    timeout = 3
+
+    def log_message(self, fmt, *args):
+        pass  # keep container logs quiet; nothing sensitive is worth logging by default
+
+    # -- helpers ---------------------------------------------------------
+    def send_html(self, body, status=200, headers=None):
+        encoded = body.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Content-Security-Policy", CSP)
+        for k, v in (headers or {}):
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def send_asset(self, content_type, body):
+        encoded = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def send_json(self, data, status=200, headers=None):
+        encoded = json.dumps(data).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        for k, v in (headers or {}):
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def gateway_authorized(self):
+        """True only if this request carries the shared secret Caddy alone
+        knows (see GATEWAY_TOKEN above) -- mirrors workspace-control.py's
+        own authorized()/CONTROL_TOKEN check byte for byte. Checked first,
+        in do_GET/do_POST, before any path parsing or resolve_identity()
+        call: resolve_identity() trusts X-Auth-User, and this is the only
+        thing standing between that trust and any other container on the
+        shared workshop_lab network forging it."""
+        token = self.headers.get("X-Gateway-Token", "")
+        return hmac.compare_digest(token, GATEWAY_TOKEN)
+
+    def get_cookie(self):
+        cookie_header = self.headers.get("Cookie", "")
+        for part in cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith(f"{COOKIE_NAME}="):
+                return part[len(COOKIE_NAME) + 1:]
+        return None
+
+    def resolve_identity(self):
+        """Return (username_for_control_plane, student_id_or_None) for the
+        current request, or (None, None) if it isn't valid.
+
+        Facilitator identity comes from X-Auth-User, set by
+        gateway/Caddyfile's basic_auth + header_up on every request (this
+        always overwrites any client-supplied value, so it can't be
+        spoofed by a browser/curl -- only Caddy, on the internal-only
+        network, can set it) to whichever account actually satisfied the
+        shared or /admin basic_auth challenge. Caddy authenticates every
+        request before it ever reaches this process, so this header is
+        always present and correct -- typing the facilitator credential
+        once, anywhere, is immediately enough; no cookie needed. A student
+        identity, by contrast, only ever comes from the dojo_session
+        cookie minted when they claim a slot via /assign.
+        """
+        if self.headers.get("X-Auth-User") == FACILITATOR_USERNAME:
+            return FACILITATOR_USERNAME, None
+        token = self.get_cookie()
+        if token is None:
+            return None, None
+        with _state_lock:
+            sid = token_index.get(token)
+            if sid is not None and slots[sid]["token"] == token and slots[sid]["name"] is not None:
+                return sid, sid
+        return None, None
+
+    def client_ip(self):
+        # gateway/Caddyfile has no trusted_proxies configured, so Caddy's
+        # reverse_proxy APPENDS the address it actually saw to whatever
+        # X-Forwarded-For value the client already sent, rather than
+        # replacing it -- the same header a curl/browser client is free to
+        # set to anything. That means the FIRST entry can be attacker-
+        # supplied, but the LAST entry is always the address Caddy itself
+        # observed on the connection, since gateway is the sole public
+        # entry point with nothing in front of it to have appended anything
+        # earlier. Only that last hop is safe to trust (this is only ever
+        # used for the facilitator roster display, not an auth decision).
+        forwarded = self.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[-1].strip()
+        return self.client_address[0]
+
+    # Real form bodies here are tiny (a name, capped at 60 chars, is the
+    # only field any form on this service ever submits) -- capping well
+    # above that but far below "attacker-declared Content-Length" stops a
+    # client from making this single-threaded process (see class docstring)
+    # allocate or block on reading an enormous declared body.
+    MAX_BODY_BYTES = 4096
+
+    def read_form_body(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
+        length = max(0, min(length, self.MAX_BODY_BYTES))
+        raw = self.rfile.read(length) if length else b""
+        parsed = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+        return {k: v[0] for k, v in parsed.items()}
+
+    # -- pages -------------------------------------------------------------
+    def render_name_form(self):
+        body = f"""
+<h1>{html.escape(WORKSHOP_NAME)}</h1>
+<p class="sub">Enter your name to get started.</p>
+<form method="post" action="/assign">
+  <input type="text" name="name" placeholder="Your name" required autofocus maxlength="60">
+  <button type="submit">Join workshop</button>
+</form>"""
+        return page(WORKSHOP_NAME, body)
+
+    def render_full(self):
+        body = f"""
+<h1>{html.escape(WORKSHOP_NAME)}</h1>
+<p class="sub">All workshop seats are currently taken. Please ask your facilitator for help.</p>"""
+        return page(WORKSHOP_NAME, body)
+
+    def render_busy(self, wait):
+        body = f"""
+<h1>{html.escape(WORKSHOP_NAME)}</h1>
+<p class="sub">A lot of people are joining at once. Please try again in {int(wait)} seconds.</p>
+<p><a href="/">Try again</a></p>"""
+        return page(WORKSHOP_NAME, body)
+
+    def render_confirmation(self, sid):
+        """The landing page a student sees on every visit after /assign has
+        claimed them a slot (including refresh/back-button -- see
+        handle_assign). Deliberately its own full HTML document, like
+        render_facilitator_workspace, rather than page() -- page()'s
+        narrow single-column layout is tuned for the two short forms
+        (name entry, "lab full"), not a set of tool choices that benefits
+        from room to show what each one actually does."""
+        slot = slot_snapshot(sid)
+        tools = [
+            {
+                "href": "/ide/", "label": "VS Code", "icon": ICON_CODE, "primary": True,
+                "desc": "Your editor, already open in your lab folder.",
+            },
+            {
+                "href": "/term/", "label": "Terminal", "icon": ICON_TERMINAL,
+                "desc": "A plain shell, same account, if you'd rather type.",
+            },
+            {
+                "href": "/forgejo-login", "label": "Forgejo", "icon": ICON_GIT,
+                "desc": "Your repo -- branches, commits, pull requests.",
+            },
+            {
+                "href": "/slides/", "label": "Slides", "icon": ICON_SLIDES,
+                "desc": "Today's material, for reference as you go.",
+            },
+        ]
+        for card in EXTENSIONS["cards"]:
+            tools.append({
+                "href": card["href"], "label": card["label"], "desc": card["desc"],
+                "icon": ICONS_BY_NAME.get(card["icon"], ICON_ARROW),
+            })
+
+        cards = "\n".join(
+            f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
+  <span class="card-icon">{t['icon']}</span>
+  <span class="card-text">
+    <span class="card-title">{html.escape(t['label'])}</span>
+    <span class="card-desc">{html.escape(t['desc'])}</span>
+  </span>
+  {ICON_ARROW}
+</a>"""
+            for t in tools
+        )
+
+        body = f"""
+<div class="hero">
+  <span class="hero-badge">{html.escape(sid)}</span>
+  <h1>You're in, {html.escape(slot['name'])}</h1>
+  <p class="sub">Pick a tool to get started -- each one opens in a new tab.</p>
+</div>
+<div class="cards">
+{cards}
+</div>
+<div class="secret">
+  <span class="secret-label">Your Forgejo account</span>
+  <table class="secret-table">
+    <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
+    <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(forgejo_password(sid))}</code></td></tr>
+  </table>
+  <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
+</div>
+<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>
+<p class="footnote"><a href="/logout">Sign out</a></p>"""
+
+        return f"""<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(WORKSHOP_NAME)}</title>
+<style>{CONFIRM_CSS}</style></head>
+<body>{body}</body></html>"""
+
+    def render_facilitator_workspace(self):
+        """The facilitator's one-stop page at /admin: a roster of live
+        terminal tiles (one per held slot -- account/name/IP/status/Release
+        in the tile header, an iframe onto /admin/watch/<sid>/ underneath),
+        plus their own VS Code/Terminal/Forgejo/Slides as further tabs, all
+        on one wide page -- no dependency on the shared student gate either
+        (see gateway/Caddyfile: /admin has its own basic_auth, which is
+        also now accepted at the shared gate, so a facilitator never needs
+        the student credential at all).
+
+        Deliberately its own full HTML document rather than page() (which
+        is tuned for the narrow single-column student flow) -- this page
+        needs real width for the tool iframes and the roster grid.
+
+        The VS Code/Terminal/Forgejo/Slides tabs are plain iframes onto the
+        same /ide/, /term/, /forgejo-login, /slides/ routes the old
+        separate-tab links used -- nothing new for Caddy or the allocator
+        to authorize, since the facilitator's browser already carries
+        whatever those routes need (the shared-gate basic_auth realm is
+        reused automatically once /admin's has been satisfied -- see the
+        Caddyfile comment above the shared block -- and neither ttyd nor
+        code-server nor Forgejo send X-Frame-Options/frame-ancestors, the
+        same fact that already makes the watch tiles embeddable). Each
+        iframe's src is set lazily, on that tab's first click, so opening
+        /admin doesn't eagerly spin up the facilitator's own VS
+        Code/terminal/Forgejo session -- and once set it's never torn
+        down, just hidden via CSS when another tab is active, so switching
+        tabs doesn't lose editor/terminal state.
+
+        The roster tab itself, unlike those, is the page's default (active)
+        tab, so it builds its tiles -- and connects each one's watch
+        websocket -- as soon as /admin loads, not lazily. It's kept in sync
+        by polling /admin/api/sessions: client-side Set-diffing against the
+        existing `tiles` object so a join/leave only ever adds/removes the
+        one tile involved, never a wholesale replace (that would tear down
+        and reconnect every iframe's websocket every poll). An existing
+        tile's status dot does get refreshed in place on every poll, since
+        "active" genuinely changes over a session -- just without touching
+        that tile's iframe."""
+        body = """
+<nav id="side">
+  <div id="bar">
+    <h1>Facilitator</h1>
+    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
+    <p class="sub"><a href="/logout" target="_top">Sign out</a></p>
+  </div>
+  <div class="tabs" role="tablist" aria-orientation="vertical">
+  <button class="tab active" data-tab="roster">Roster</button>
+  <button class="tab" data-tab="ide">VS Code</button>
+  <button class="tab" data-tab="term">Terminal</button>
+  <button class="tab" data-tab="forgejo">Forgejo</button>
+  <button class="tab" data-tab="slides">Slides</button>
+EXT_TABS_PLACEHOLDER  </div>
+  <div id="status" role="group" aria-label="Service status"></div>
+</nav>
+
+<main id="main">
+<div class="panel active" id="panel-roster">
+  <div id="roster-bar">
+    <button id="release-unused" type="button" title="Frees every slot taken over 2 minutes ago with no VS Code or terminal running">Release unused</button>
+    <span id="release-unused-out" class="sub"></span>
+  </div>
+  <p id="empty" class="sub">No students connected yet.</p>
+  <div id="grid"></div>
+</div>
+
+<div class="panel" id="panel-ide"><iframe data-src="/ide/"></iframe></div>
+<div class="panel" id="panel-term"><iframe data-src="/term/"></iframe></div>
+<div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
+<div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
+EXT_PANELS_PLACEHOLDER</main>
+<script src="/admin/admin.js"></script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
         # The facilitator gets every tool a student has: every tab a workshop
         # or module declares next to its cards (extensions.json).
@@ -1076,86 +1508,8 @@ setInterval(refresh, 5000);
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)} — Facilitator</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          margin: 0; height: 100vh; display: flex; overflow: hidden;
-          color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  #side {{ flex: none; width: 13.5rem; display: flex; flex-direction: column; gap: 1.1rem;
-           padding: 1.1rem 0.75rem; overflow-y: auto; border-right: 1px solid #ddd; background: #f3f3f3; }}
-  @media (prefers-color-scheme: dark) {{ #side {{ border-right-color: #333; background: #121212; }} }}
-  #main {{ flex: 1; min-width: 0; overflow: auto; padding: 0.75rem; }}
-  h1 {{ font-size: 1.3rem; margin: 0 0 0.15rem; }}
-  .sub {{ opacity: 0.7; }}
-  #bar .sub {{ margin: 0.25rem 0 0; font-size: 0.9rem; }}
-  #status {{ display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: auto; }}
-  #status.stale {{ opacity: 0.45; }}
-  .svc {{ display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
-          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; max-width: 100%; cursor: default; }}
-  @media (prefers-color-scheme: dark) {{ .svc {{ border-color: #333; background: #1f1f1f; }} }}
-  .svc-dot {{ width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }}
-  .svc.green .svc-dot {{ background: #16a34a; }}
-  .svc.yellow .svc-dot {{ background: #d97706; }}
-  .svc.red .svc-dot {{ background: #dc2626; }}
-  @media (prefers-color-scheme: dark) {{
-    .svc.green .svc-dot {{ background: #22c55e; }}
-    .svc.yellow .svc-dot {{ background: #f59e0b; }}
-    .svc.red .svc-dot {{ background: #f87171; }}
-  }}
-  .svc-name {{ font-weight: 600; }}
-  .svc-word {{ opacity: 0.75; }}
-  .svc.yellow .svc-word, .svc.red .svc-word {{ opacity: 1; font-weight: 600; }}
-  .badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
-          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
-  button {{ font: inherit; }}
-  .tabs {{ display: flex; flex-direction: column; gap: 0.15rem; }}
-  .tab {{ padding: 0.55rem 0.8rem; font-size: 0.95rem; border: none; background: none; cursor: pointer; text-align: left;
-          color: inherit; opacity: 0.65; border-left: 3px solid transparent; border-radius: 0 0.35rem 0.35rem 0; }}
-  .tab:hover {{ opacity: 0.9; background: rgba(127, 127, 127, 0.12); }}
-  .tab.active {{ opacity: 1; border-left-color: #2563eb; background: rgba(37, 99, 235, 0.1); font-weight: 600; }}
-  .panel {{ display: none; }}
-  .panel.active {{ display: block; }}
-  .panel iframe {{ display: block; width: 100%; height: calc(100vh - 1.5rem); min-height: 400px; border: 0; border-radius: 0.5rem; }}
-  @media (max-width: 700px) {{
-    body {{ flex-direction: column; height: auto; overflow: visible; }}
-    #side {{ width: auto; border-right: none; border-bottom: 1px solid #ddd; }}
-    .tabs {{ flex-direction: row; flex-wrap: wrap; }}
-    #status {{ flex-direction: row; flex-wrap: wrap; margin-top: 0; }}
-    #main {{ overflow: visible; }}
-  }}
-  #grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }}
-  .tile {{ border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
-           display: flex; flex-direction: column; height: 280px; }}
-  .tile-head {{ display: flex; flex-direction: column; gap: 0.2rem; padding: 0.3rem 0.6rem 0.4rem;
-                font-size: 0.8rem; background: #111; color: #ccc; flex-shrink: 0; }}
-  .tile-title {{ display: flex; align-items: center; justify-content: space-between; }}
-  .tile-label {{ cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }}
-  .tile-reload {{ background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }}
-  .tile-reload:hover {{ color: #fff; }}
-  .tile-meta {{ display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }}
-  .tile-ip {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-  .tile-status {{ white-space: nowrap; }}
-  .tile-release {{ margin-left: auto; padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
-          border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }}
-  .tile-release:hover {{ background: #7c8494; }}
-  .tile-release:disabled {{ opacity: 0.6; cursor: default; }}
-  /* The iframe is laid out at a fixed, generous pixel size (see
-     FRAME_W/H below), then CSS-transformed to fill whatever size the
-     tile wrapper actually is, enlarged or not -- see that comment and
-     updateScale's for why. */
-  .tile-frame-wrap {{ position: relative; flex: 1; overflow: hidden; background: #000; }}
-  .tile-waiting {{ position: absolute; inset: 0; display: flex; align-items: center;
-          justify-content: center; text-align: center; padding: 1rem;
-          font-size: 0.78rem; color: #888; }}
-  .tile.watching .tile-waiting {{ display: none; }}
-  .tile iframe {{ position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
-          background: #000; transform-origin: top left; }}
-  #grid.has-enlarged .tile {{ display: none; }}
-  #grid.has-enlarged .tile.enlarged {{ display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }}
-</style></head>
+<link rel="stylesheet" href="/admin/admin.css">
+</head>
 <body>{body}</body></html>"""
 
     # -- GET routes ----------------------------------------------------
@@ -1166,6 +1520,38 @@ setInterval(refresh, 5000);
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+
+        if path == "/session-check":
+            self.handle_session_check(parsed)
+            return
+
+        if path == "/login":
+            nxt = self.login_next(urllib.parse.parse_qs(parsed.query).get("next", [""])[0])
+            if self.session_account():
+                self.redirect(nxt)
+            else:
+                self.send_html(self.render_login(nxt=nxt), headers=NO_STORE_HEADERS)
+            return
+
+        if path.startswith("/login/assets/"):
+            asset = LOGIN_ASSETS.get(path[len("/login/assets/"):])
+            if asset is None:
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", asset[0])
+            self.send_header("Content-Length", str(len(asset[1])))
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(asset[1])
+            return
+
+        if path == "/logout":
+            self.redirect("/login", cookies=[self.session_cookie("", 0)])
+            return
 
         if path == "/":
             username, sid = self.resolve_identity()
@@ -1195,10 +1581,12 @@ setInterval(refresh, 5000);
                 self.end_headers()
                 return
             if username == FACILITATOR_USERNAME:
-                forgejo_user, forgejo_password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
+                forgejo_user, password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
             else:
-                forgejo_user, forgejo_password = sid, STUDENT_PASSWORD
-            cookies = forgejo_login_request(forgejo_user, forgejo_password)
+                forgejo_user, password = sid, forgejo_password(sid)
+            cookies = forgejo_login_request(forgejo_user, password)
+            audit("forgejo-login", account=username, target=forgejo_user,
+                  result="ok" if cookies else "failed")
             # ?next=<path>: signed in to Forgejo, go on to another page on
             # this site (a module's OIDC sign-in, say). Anything else: the repo.
             nxt = urllib.parse.parse_qs(parsed.query).get("next", [""])[0]
@@ -1233,12 +1621,22 @@ setInterval(refresh, 5000);
             self.send_html(self.render_facilitator_workspace())
             return
 
+        if path in ADMIN_ASSETS:
+            # The /admin page's own script and stylesheet (see ADMIN_JS):
+            # same facilitator gate as /admin itself.
+            self.send_asset(*ADMIN_ASSETS[path])
+            return
+
         if path == "/admin/api/sessions":
             self.handle_sessions_api()
             return
 
         if path == "/admin/api/status":
             self.handle_status_api()
+            return
+
+        if path.startswith("/admin/api/forgejo-password/"):
+            self.handle_forgejo_password(path[len("/admin/api/forgejo-password/"):])
             return
 
         self.send_response(404)
@@ -1255,8 +1653,12 @@ setInterval(refresh, 5000);
             self.end_headers()
             return
 
+        # The page or asset the browser asked for (gateway/Caddyfile sends
+        # it), without the query string, to tell a page load from an asset.
+        uri = self.headers.get("X-Forwarded-Uri", "").split("?", 1)[0][:200]
         username, _sid = self.resolve_identity()
         if username is None:
+            audit_check("auth-check", None, tool, 303, uri=uri)
             self.send_response(303)
             self.send_header("Location", "/")
             self.send_header("Content-Length", "0")
@@ -1264,6 +1666,7 @@ setInterval(refresh, 5000);
             return
 
         port = ide_port(username) if tool == "ide" else term_port(username)
+        started = time.monotonic()
         resp = control_request("POST", f"/start/{tool}/{username}")
         ready = False
         if resp is not None:
@@ -1271,6 +1674,8 @@ setInterval(refresh, 5000);
                 ready = bool(json.loads(resp).get("ready"))
             except (ValueError, AttributeError):
                 ready = False
+        audit_check("auth-check", username, tool, 200 if ready else 202, uri=uri,
+                    ms=round((time.monotonic() - started) * 1000))
 
         if ready:
             self.send_response(200)
@@ -1296,12 +1701,22 @@ setInterval(refresh, 5000);
         other tools. Unknown or shared route: 404, so nothing reaches an
         upstream this workshop didn't declare."""
         route = EXT_ROUTES.get(route_id)
+        username, _sid = self.resolve_identity()
+        denied = None
+        if route is None or route["gate"] not in ("identity", "facilitator"):
+            denied = 404
+        elif username is None:
+            denied = 303
+        elif route["gate"] == "facilitator" and username != FACILITATOR_USERNAME:
+            denied = 403
+        elif "host" in route and not DNS_LABEL_RE.match(username.lower()):
+            denied = 403
+        audit_check("route-check", username, route_id, denied or 200)
         if route is None or route["gate"] not in ("identity", "facilitator"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        username, _sid = self.resolve_identity()
         if username is None:
             self.send_response(303)
             self.send_header("Location", "/")
@@ -1335,20 +1750,23 @@ setInterval(refresh, 5000);
         re-checked here too -- this process shouldn't trust routing alone
         to keep a student out of another student's terminal."""
         username, _sid = self.resolve_identity()
+        sid = (urllib.parse.parse_qs(parsed.query).get("student") or [""])[0][:40]
         if username != FACILITATOR_USERNAME:
+            audit_check("watch", username, sid, 403)
             self.send_response(403)
             self.end_headers()
             return
 
-        sid = (urllib.parse.parse_qs(parsed.query).get("student") or [""])[0]
         # A demo bot has no "held slot" concept -- see BOT_IDS above -- it's
         # always watchable as long as --test provisioned it.
-        if sid not in BOT_IDS and (sid not in slots or slots[sid]["name"] is None):
+        if sid not in BOT_IDS and (sid not in slots or slot_snapshot(sid)["name"] is None):
+            audit_check("watch", username, sid, 404)
             self.send_response(404)  # not a currently held slot
             self.end_headers()
             return
 
         body = control_request("POST", f"/start/watch/{sid}")
+        audit_check("watch", username, sid, 409 if body is None else 200)
         if body is None:
             self.send_response(409)  # student has no term session to watch yet
             self.end_headers()
@@ -1366,9 +1784,26 @@ setInterval(refresh, 5000);
         probe thread publishes -- no upstream I/O here."""
         self.send_json(_status_snapshot)
 
+    def handle_forgejo_password(self, sid):
+        """The Roster's "Password" button (remediation T2.1d): one student's
+        own Forgejo password, for when the facilitator helps at a desk.
+        Behind /admin's facilitator gate like the other /admin/api routes;
+        also needs the roster JS's X-Requested-With header, as Release does,
+        so no other page can have a browser fetch it. Logged."""
+        if self.headers.get("X-Requested-With") != "dojo-admin":
+            self.send_response(403)
+            self.end_headers()
+            return
+        if sid not in STUDENT_IDS:
+            self.send_response(404)
+            self.end_headers()
+            return
+        audit("forgejo-password-shown", target=sid)
+        self.send_json({"studentId": sid, "password": forgejo_password(sid)}, headers=NO_STORE_HEADERS)
+
     def handle_sessions_api(self):
-        held = [sid for sid in STUDENT_IDS if slots[sid]["name"] is not None]
-        all_ids = held + BOT_IDS
+        held = held_slots()  # copies; the status call below runs without the lock
+        all_ids = list(held) + BOT_IDS
         status = {}
         if all_ids:
             body = control_request("GET", "/status?users=" + ",".join(all_ids))
@@ -1378,8 +1813,7 @@ setInterval(refresh, 5000);
                 except json.JSONDecodeError:
                     status = {}
         rows = []
-        for sid in held:
-            slot = slots[sid]
+        for sid, slot in held.items():
             s = status.get(sid) or {}
             rows.append({
                 "studentId": sid,
@@ -1418,6 +1852,10 @@ setInterval(refresh, 5000);
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
 
+        if path == "/login":
+            self.handle_login()
+            return
+
         if path == "/assign":
             self.handle_assign()
             return
@@ -1442,8 +1880,119 @@ setInterval(refresh, 5000);
             self.handle_release(sid)
             return
 
+        if path == "/admin/release-unused":
+            if self.headers.get("X-Requested-With") != "dojo-admin":
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.handle_release_unused()
+            return
+
         self.send_response(404)
         self.end_headers()
+
+    # -- front door (/login) ---------------------------------------------
+    def session_cookie(self, value, max_age):
+        cookie = f"{SESSION_COOKIE}={value}; HttpOnly; Path=/; SameSite=Lax; Max-Age={max_age}"
+        return cookie + "; Secure" if COOKIE_SECURE else cookie
+
+    def session_account(self):
+        """The account the browser's login cookie was issued to, or None."""
+        for part in self.headers.get("Cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                return read_session(value)
+        return None
+
+    @staticmethod
+    def login_next(value):
+        """Where to go after signing in: a path on this site, never the login
+        page itself, else the front page."""
+        value = local_path(value or "")
+        return value if value and not value.startswith("/login") else "/"
+
+    def redirect(self, location, cookies=()):
+        self.send_response(303)
+        self.send_header("Location", location)
+        for cookie in cookies:
+            self.send_header("Set-Cookie", cookie)
+        for k, v in NO_STORE_HEADERS:
+            self.send_header(k, v)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def render_login(self, error=None, username="", nxt="/"):
+        esc = html.escape
+        alert = ""
+        if error:
+            alert = ('<p class="alert" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true">'
+                     '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+                     f'{esc(error)}</p>')
+        lede = esc(WORKSHOP_DESCRIPTION) if WORKSHOP_DESCRIPTION else "Sign in with the class login to reach your lab."
+        return (LOGIN_HTML.replace("{{WORKSHOP}}", esc(WORKSHOP_NAME))
+                .replace("{{LEDE}}", lede)
+                .replace("{{ERROR}}", alert)
+                .replace("{{CARD_CLASS}}", " shake" if error else "")
+                .replace("{{USERNAME}}", esc(username, quote=True))
+                .replace("{{NEXT}}", esc(nxt, quote=True)))
+
+    def handle_session_check(self, parsed):
+        """Caddy's forward_auth target for every gated request. 200 plus
+        X-Session-User (Caddy copies it to X-Auth-User upstream) when the
+        cookie is a live session; otherwise a browser page load is sent to
+        /login and anything else (a poll, an API call) gets 401. ?role=
+        facilitator is /admin: the class login is refused there."""
+        account = self.session_account()
+        role = urllib.parse.parse_qs(parsed.query).get("role", [""])[0]
+        if account is None:
+            wants_page = (self.headers.get("X-Forwarded-Method", "GET") == "GET"
+                          and "text/html" in self.headers.get("Accept", ""))
+            if wants_page:
+                target = local_path(self.headers.get("X-Forwarded-Uri", ""))
+                self.redirect("/login" if not target or target == "/"
+                              else "/login?next=" + urllib.parse.quote(target, safe=""))
+            else:
+                self.send_response(401)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            return
+        if role == "facilitator" and account != FACILITATOR_USERNAME:
+            self.send_html(page("Facilitator only", (
+                "<h1>Facilitator only</h1><p>This page is for the facilitator's login.</p>"
+                '<p><a href="/logout">Sign in as someone else</a></p>')), status=403,
+                headers=NO_STORE_HEADERS)
+            return
+        self.send_response(200)
+        self.send_header("X-Session-User", account)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_login(self):
+        form = self.read_form_body()
+        username = (form.get("username") or "").strip()
+        password = form.get("password") or ""
+        nxt = self.login_next(form.get("next"))
+        ip = self.client_ip()
+        account = check_login(username, password)
+        if account is None:
+            # A right password still gets in during someone else's guessing
+            # spree from the same address (a class behind one NAT).
+            if LOGIN_GUARD.blocked(ip):
+                audit("login", ip=ip, result="rate-limited")
+                self.send_html(self.render_login("Too many wrong guesses. Wait a minute and try again.",
+                                                 username, nxt),
+                               status=429, headers=[("Retry-After", "60")] + NO_STORE_HEADERS)
+                return
+            LOGIN_GUARD.fail(ip)
+            audit("login", ip=ip, result="failed")
+            self.send_html(self.render_login("That username and password don't match. Try again.",
+                                             username, nxt),
+                           status=401, headers=NO_STORE_HEADERS)
+            return
+        audit("login", account=account, ip=ip, result="ok")
+        self.redirect(nxt, cookies=[self.session_cookie(make_session(account), SESSION_SECONDS)])
 
     def handle_assign(self):
         # Idempotent: a valid existing cookie just re-renders the confirmation
@@ -1468,14 +2017,20 @@ setInterval(refresh, 5000);
             self.send_html(self.render_name_form(), status=400)
             return
 
-        sid = find_free_slot()
+        wait = ASSIGN_LIMIT.take()
+        if wait:
+            audit("assign", name=name, ip=self.client_ip(), result="rate-limited")
+            self.send_html(self.render_busy(wait), status=429,
+                           headers=[("Retry-After", str(wait))] + NO_STORE_HEADERS)
+            return
+
+        sid, token = claim_slot(name, self.client_ip())
         if sid is None:
+            audit("assign", name=name, ip=self.client_ip(), result="full")
             self.send_html(self.render_full())
             return
 
-        token = secrets.token_urlsafe(32)
-        slots[sid].update(name=name, ip=self.client_ip(), token=token, assigned_at=time.time())
-        token_index[token] = sid
+        audit("assign", account=sid, name=name, ip=self.client_ip(), result="assigned")
 
         cookie = f"{COOKIE_NAME}={token}; HttpOnly; Path=/; SameSite=Lax"
         if COOKIE_SECURE:
@@ -1496,23 +2051,59 @@ setInterval(refresh, 5000);
             # own persisted (round, step) state -- see engine/README.md's
             # "Demo bots (--test)" section.
             control_request("POST", f"/stop/{sid}")
+            audit("release", target=sid, result="bot-restarted")
             self.send_json({"released": sid})
             return
         if sid not in slots:
             self.send_response(404)
             self.end_headers()
             return
-        control_request("POST", f"/stop/{sid}")
-        old_token = slots[sid]["token"]
-        if old_token in token_index:
-            del token_index[old_token]
-        slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+        release_slot(sid)
         self.send_json({"released": sid})
+
+    def handle_release_unused(self):
+        """The Roster's "Release unused" (remediation T3.4): frees every slot
+        taken at least UNUSED_AFTER_SECONDS ago with no IDE or terminal
+        running, e.g. slots a script grabbed. One status call for all."""
+        now = time.time()
+        # sid -> the token holding it now: a slot released and re-claimed
+        # while the status call below runs is left alone (release_slot).
+        held = {sid: slot["token"] for sid, slot in held_slots().items()
+                if now - (slot["assigned_at"] or now) >= UNUSED_AFTER_SECONDS}
+        status = {}
+        if held:
+            body = control_request("GET", "/status?users=" + ",".join(held))
+            if not body:
+                self.send_json({"error": "workspace status unavailable"}, status=503)
+                return
+            try:
+                status = json.loads(body)
+            except json.JSONDecodeError:
+                self.send_json({"error": "workspace status unavailable"}, status=503)
+                return
+        released = []
+        for sid, token in held.items():
+            s = status.get(sid) or {}
+            if not s.get("active") and not s.get("watchable"):
+                if release_slot(sid, result="released-unused", token=token) is not None:
+                    released.append(sid)
+        self.send_json({"released": released})
+
+
+class AllocatorServer(http.server.ThreadingHTTPServer):
+    """One daemon thread per connection, so a slow or idle client only ties
+    up its own thread (for at most Handler.timeout) and never the class."""
+    daemon_threads = True
+    request_queue_size = 128  # a whole class arriving at once (default 5)
+
+
+def make_server(addr):
+    return AllocatorServer(addr, Handler)
 
 
 def main():
     threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
-    server = http.server.HTTPServer(("0.0.0.0", 8080), Handler)
+    server = make_server(("0.0.0.0", 8080))
     server.serve_forever()
 
 

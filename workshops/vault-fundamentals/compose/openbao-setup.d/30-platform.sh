@@ -1,4 +1,4 @@
-# vault-fundamentals setup hook: labs 11-12 start half-configured (PLAN.md S19,
+# vault-fundamentals setup hook: labs 11-12 start half-configured (VAULT-FUNDAMENTALS-PLAN.md S19,
 # P4). Sourced by the openbao module's setup.sh on every start with the
 # provisioner token; safe to re-run. In each student's namespace:
 #   - auth/jwt-platform trusts app-host's platform identity: its public keys

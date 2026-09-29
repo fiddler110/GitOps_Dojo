@@ -9,11 +9,9 @@
 #
 # Two stages: npm and yarn (~25 MB) are only needed to fetch marp-cli, not
 # to run it, so the runtime stage takes just the `node` binary and the
-# installed package. Both stages stay on the same Alpine release so the
+# installed package. Both stages stay on the same Alpine release (3.24) so the
 # copied node binary sees the musl / libstdc++ it was built against.
-ARG ALPINE_VERSION=3.24
-
-FROM docker.io/library/node:22-alpine${ALPINE_VERSION} AS build
+FROM docker.io/library/node:22-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
 WORKDIR /opt/marp
 # package.json names the same marp-cli release the upstream image was pinned
 # to (so slide rendering -- themes, directives -- doesn't change with this
@@ -30,7 +28,7 @@ RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force \
     && find node_modules \( -name '*.map' -o -name '*.d.ts' \) -type f -delete
 
-FROM docker.io/library/alpine:${ALPINE_VERSION}
+FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 # libstdc++ / libgcc: the only shared libraries node needs beyond musl.
 RUN apk add --no-cache libstdc++
 COPY --from=build /usr/local/bin/node /usr/local/bin/node

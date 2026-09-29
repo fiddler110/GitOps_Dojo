@@ -41,12 +41,19 @@ is part of the lesson and never an incident.
 
 ### The workshops
 
-| Workshop | What students learn | Labs | Length |
-| -------- | ------------------- | ---- | ------ |
-| [**Git Fundamentals**](workshops/git-fundamentals/) | The core git workflow: clone, branch, commit, push, pull request, then reviewing and undoing changes, stashing, reading history and resolving merge conflicts. | 5 | 60 min |
-| [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | 45-60 min |
-| [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
-| [**OpenTofu Basics**](workshops/tofu-basics/) | The Terraform workflow (`init`, `plan`, `apply`, `destroy`) and how an IaC repo is laid out. Track A is an offline sandbox. Track B deploys real containers through the real `azurerm` provider into **Dojo Cloud**, an Azure-inspired practice cloud with a portal, policies, quotas and drift. `terraform` runs OpenTofu. | 11 | ~2¼ h |
+| # | Workshop | What students learn | Labs | Length |
+| - | -------- | ------------------- | ---- | ------ |
+| 0 | [**Dojo Introduction**](workshops/dojo-introduction/) | A show-and-tell of the whole platform for a facilitator, not a lab: every module runs at once (vault, DNS, certificates, Dojo Cloud, CI runners) with a platform tour, a workshop library and a tools tour. | none | ~30 min |
+| 1 | [**Git Fundamentals**](workshops/git-fundamentals/) | The core git workflow: clone, branch, commit, push, pull request, then reviewing and undoing changes, stashing, reading history and resolving merge conflicts. | 5 | 60 min |
+| 2 | [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | 45-60 min |
+| 3 | [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
+| 4 | [**OpenTofu Basics**](workshops/tofu-basics/) | The Terraform workflow (`init`, `plan`, `apply`, `destroy`) and how an IaC repo is laid out. Track A is an offline sandbox. Track B deploys real containers through the real `azurerm` provider into **Dojo Cloud**, an Azure-inspired practice cloud with a portal, policies, quotas and drift. `terraform` runs OpenTofu. | 11 | ~2¼ h |
+| 5 | [**Vault Fundamentals**](workshops/vault-fundamentals/) | Using a vault well, on a real OpenBao: get secrets out of code, git, pipelines and servers, and swap long-lived secrets for identity and short-lived credentials. Labs cover leaking and scanning, `sops` and `pass`, per-student namespaces and policies, an app and OpenBao Agent, CI that logs in with its Forgejo identity on single-use runners, deployments with a delivered secret ID or workload identity, dynamic Postgres logins and an incident drill. | 14 | ~3½ h |
+
+The numbers are a learning path: teach them in order. `0` showcases the platform and is not a course; `1` to `5`
+build on each other (DNS as Code reuses the git flow, Certificate Autorenewal's capstone drives the DNS API from
+workshop 2, OpenTofu Basics extends the plan-before-apply and drift ideas, and Vault Fundamentals, which lists Git
+Fundamentals as a prerequisite, comes last as the longest).
 
 Each workshop pack has its own slide deck, lab guides, cheat sheet and a seed
 repository. The lab guides are copied into every student's `~/lab` and shown
@@ -61,8 +68,9 @@ in the browser.
 - **A facilitator workspace at `/admin`.** A live roster with a read-only view
   of every student's terminal, a Release button to free a stuck account, a
   service status strip, and the facilitator's own VS Code, Terminal, Forgejo,
-  Slides and Dojo Cloud tabs. The **Class progress** board (tofu-basics) shows
-  where each student has got to.
+  Slides tabs, plus the tabs a workshop's modules add: Dojo Cloud and the **Class
+  progress** board (tofu-basics), Vault, Audit, Runners and Apps
+  (vault-fundamentals), DNS Admin (dns-as-code, cert-autorenewal).
 - **Isolated labs.** Student terminals have no internet and no Docker socket.
   Every tool is baked into the workshop's image, pinned to a version and checked
   against a sha256. Extra services sit on internal-only networks, and anything a
@@ -70,13 +78,16 @@ in the browser.
   See [Security boundaries](#security-boundaries).
 - **Workshops are plug-ins.** A workshop is a folder under `workshops/`: a
   `workshop.env`, its content and, only if it needs them, reusable modules
-  (`MODULES="forgejo-runner"`), a Compose overlay, extra terminal tools and an
+  (`MODULES="runner-pool dns-gate"`), a Compose overlay, extra terminal tools and an
   `extensions.json` that declares its landing cards, `/admin` tabs and routes.
   The engine is never edited to add a workshop. See [`workshops/README.md`](workshops/README.md).
 - **Demo bots.** `--test [N]` adds up to 35 simulated students (expert,
   intermediate and novice personas) who work through the labs for real, pushing
   branches and opening pull requests. Use them to rehearse solo, demo the
   admin dashboard or load-test a machine before a class.
+- **A live start-up view.** In a terminal, `./run.sh` shows one status table
+  that updates in place while the stack starts, and `./run.sh stop` shows one
+  while it comes down (plain lines when piped or with `NO_COLOR`).
 - **Runs on one machine.** A laptop for rehearsal or a single cloud VM for a
   real class, with Docker or Podman. `./run.sh capacity --students 30` sizes the
   per-student memory and process limits for that host. Nothing persists once the
@@ -102,10 +113,13 @@ in the browser.
 - **Facilitator guides.** [`engine/README.md`](engine/README.md) covers setup,
   deployment, the admin workspace, mid-session content updates, cleanup and
   troubleshooting. OpenTofu Basics also has a run-of-show in
-  [`FACILITATOR.md`](workshops/tofu-basics/FACILITATOR.md).
+  [`FACILITATOR.md`](workshops/tofu-basics/FACILITATOR.md), and the roadmap and
+  release history are in [`ROADMAP.md`](ROADMAP.md) and [`RELEASES.md`](RELEASES.md).
 - **Tests.** OpenTofu Basics ships an end-to-end suite and a load test against
   the live stack ([`workshops/tofu-basics/tests/`](workshops/tofu-basics/tests/)),
-  and Dojo Cloud's control plane has its own unit tests.
+  and Dojo Cloud's control plane has its own unit tests. Vault Fundamentals has
+  one script per lab, a runner-pool and audit check, browser checks and a
+  demo-bot load run ([`workshops/vault-fundamentals/tests/`](workshops/vault-fundamentals/tests/)).
 
 ## Who it's for
 
@@ -123,8 +137,10 @@ automation instead of being made by hand.
 | Git Fundamentals | Ready |
 | DNS as Code | Ready |
 | Certificate Autorenewal | Ready |
-| OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain ([`PLAN.md`](workshops/tofu-basics/PLAN.md)). |
-| **Vault Fundamentals** (OpenBao) | In progress on `feat/vault-fundamentals`: labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs are built: the core (OpenBao, single sign-on, passwordless CLI login, namespaces), `pass`, secrets in code and git, CI on single-use autoscaled runners, and deployments (`app-host` with a platform identity per slot, a delivered secret ID, dynamic Postgres logins, an incident drill). The long live pass with demo bots comes next ([`ROADMAP.md`](ROADMAP.md)). Secrets in code, git, pipelines and deployments, on a real OpenBao ([`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)). |
+| OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain (see [`ROADMAP.md`](ROADMAP.md)). |
+| Vault Fundamentals (OpenBao) | Ready. Merged to `main` (PR #3): labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs. Live-tested with demo bots (10 students, about 2 GiB); a person walking labs 7-9 in the browser remains ([`ROADMAP.md`](ROADMAP.md)). |
+| Dojo Introduction | Built and tested locally; a showcase, not a lab. |
+| Threat-model remediation | 15 of 19 findings fixed, 2 partial, 2 accepted, on `feat/remediation` and not yet merged to `main`; see [`RELEASES.md`](RELEASES.md). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout
@@ -133,23 +149,27 @@ automation instead of being made by hand.
 ├── run.sh                    # Forwards to engine/run.sh
 ├── engine/                   # The shared runtime: gateway, allocator, web-terminal, Forgejo, slides
 │   ├── README.md             # Setup, routing, auth, facilitator operations, troubleshooting
-│   ├── MODULES-PLAN.md       # Design and history of extensions and modules
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
 ├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
-│   ├── forgejo-runner/       # Forgejo Actions runner (dns-as-code)
+│   ├── dns-gate/             # dns-api: PowerDNS API gate, per-account keys, CI by ID token (dns-as-code, cert-autorenewal)
+│   ├── dns-ui/               # DNS Zones page and the facilitator's DNS Admin (dns-as-code, cert-autorenewal)
 │   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
+│   ├── forgejo-runner/       # One long-lived Actions runner for one repo (no workshop uses it now)
 │   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
-│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals)
+│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals, dns-as-code)
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
-│   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
+│   ├── dns-as-code/          # + PowerDNS; runner-pool, dns-ui and dns-gate modules
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, TEST-PLAN.md, tests/
-│   └── vault-fundamentals/   # In progress; openbao + runner-pool modules, app-host and app-db; PLAN.md, tests/
-├── ROADMAP.md                # All open work (remediation, workshops, reset), linking each detailed plan
-├── threat-model-20260926-154208/  # Threat model report and its REMEDIATION-PLAN.md
+│   ├── dojo-introduction/    # Showcase of the whole platform; all modules at once
+│   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; FACILITATOR.md, tests/
+│   └── vault-fundamentals/   # openbao + runner-pool modules, app-host and app-db; labs 0-13, tests/
+├── ROADMAP.md                # All open work: the single list of tasks
+├── RELEASES.md               # What shipped, newest first
+├── docs/archive/             # Frozen design plans and decision logs (modules, tofu-basics, vault, remediation, reset)
+├── threat-model-20260926-154208/  # Threat model report (fix history is in RELEASES.md)
 ├── handouts/                 # Take-home versions of the labs, and each talk as .pptx
 ├── .githooks/                # pre-commit: re-export changed decks to handouts/
 └── assets/branding/          # Shared branding
@@ -288,10 +308,11 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | Workshop | Modules | Extra services | Extra networks | Terminal image adds | Data leaves the terminal to |
 | -------- | ------- | -------------- | -------------- | ------------------- | --------------------------- |
 | `git-fundamentals` | — | none | none | nothing (base image) | Forgejo only |
-| `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
-| `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
+| `dns-as-code` | `runner-pool`, `dns-ui`, `dns-gate` | `dns-server`, `dns-gates`; `runner-pool`, `runner-pool-shim`, `runner-controller`, `zone-viewer`, `dns-admin`, `dns-api` (modules) | `runner_net` (module) | `dnscontrol`, `dig`, `python3`; own DNS key (module) | Forgejo, `dns-api` |
+| `cert-autorenewal` | `dns-ui`, `dns-gate` | `dns-server`, `dns-seed`, `step-ca`, `demo-app`; `zone-viewer`, `dns-admin`, `dns-api` (modules) | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq`; own DNS key (module) | step-ca, `dns-api`, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 | `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
+| `dojo-introduction` | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate` | Every module's services, plus PowerDNS, `step-ca` and the demo site reused from cert-autorenewal | `runner_net`, `cloud_net` (modules) | One image with `bao`, `sops`, `gitleaks`, `pass`, `dnscontrol`, `dig`, `step`, `certbot`, `acme.sh`, `tofu` | Everything above; nothing to complete |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -322,7 +343,7 @@ sequenceDiagram
     S->>WT: git clone http://git-server:3000/training/sample-training-repo
     WT->>GS: clone, direct over workshop_lab
     S->>WT: branch, edit, commit
-    WT->>GS: git push (studentNN + STUDENT_PASSWORD)
+    WT->>GS: git push (studentNN's own token, ~/.git-credentials)
     end
 
     rect rgba(139,92,246,0.16)
@@ -341,11 +362,14 @@ from the terminal to `git-server:3000`, and only the browser UI is proxied.
 
 ### `dns-as-code` — Forgejo Actions runner + PowerDNS
 
-**Infrastructure and connectivity.** Adds a PowerDNS authoritative server
-and a CI runner. The runner executes student-authored workflow steps
-directly on its own filesystem (no sandbox, no `docker.sock`), so it lives
-on its own `runner_net` and can reach only `git-server` and `dns-server` —
-never `allocator` or `web-terminal`.
+**Infrastructure and connectivity.** Adds a PowerDNS authoritative server,
+the `dns-gate` module's `dns-api` in front of its API, and single-use CI
+runners from the `runner-pool` module. Jobs run student-authored steps as
+processes in the pool (no `docker.sock`), each on a fresh runner that is
+deleted afterwards; the pool lives on its own `runner_net` and reaches only
+`git-server`, `dns-api` and `dns-server` — never `allocator` or
+`web-terminal`. PowerDNS's own API key is derived in `workshop.env` and
+reaches only `dns-api` and the `dns-ui` module.
 
 ```mermaid
 graph TB
@@ -353,47 +377,46 @@ graph TB
     GW -->|"/git"| GS
 
     subgraph lab["workshop_lab - internal"]
-        WT["web-terminal<br/>dnscontrol, dig"]
+        WT["web-terminal<br/>dnscontrol, dig<br/>own key in $DNS_API_KEY"]
         GS["git-server (Forgejo)<br/>Actions enabled<br/>also on runner_net"]
+        API["dns-api (dns-gate)<br/>checks the key or ID token<br/>also on runner_net"]
         DNS["dns-server (PowerDNS)<br/>:53 DNS, :8081 API<br/>also on runner_net"]
     end
 
     subgraph rn["runner_net - internal"]
-        RS["runner-setup<br/>one-shot"]
-        RN["forgejo-runner<br/>host label, runs CI in place"]
+        RP["runner-pool<br/>single-use runners, host label"]
+        SH["runner-pool-shim<br/>public URL, ID-token path"]
     end
 
-    RC[("dns_runner_config<br/>volume")]
-    FD[("forgejo_data<br/>volume")]
-
     WT -->|"git clone / push"| GS
-    WT -->|"dnscontrol preview / push, :8081"| DNS
+    WT -->|"dnscontrol preview / push, own zone only"| API
     WT -->|"dig @dns-server, :53"| DNS
-    RN -->|"poll for jobs, clone, post status"| GS
-    RN -->|"dnscontrol preview / push, :8081"| DNS
-    RS -->|"registers the runner with the forgejo CLI"| FD
-    RS -->|"writes config.yaml"| RC
-    RC -.->|"read-only"| RN
+    API -->|"PowerDNS key, :8081"| DNS
+    RP -->|"poll for jobs, clone, post status"| GS
+    RP -->|"ID token request"| SH
+    SH --> GS
+    RP -->|"dnscontrol preview (read key) / push (ID token)"| API
 
     classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
     classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
     classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
     classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
     classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
-    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
-    class DNS,RS addon
+    class DNS,API,SH addon
     class WT,GS core
     class GW gw
     class Browser person
-    class RN priv
-    class RC,FD store
+    class RP priv
     style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
     style rn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 **Dataflow.** One change travels the whole loop: local preview, PR, CI
 preview, merge, CI apply, verify. The record only goes live when CI pushes
-it after the merge — not when the student pushes their branch.
+it after the merge — not when the student pushes their branch. `dns-api`
+lets the apply job change `dojo.test` only because Forgejo signed its ID
+token for a push to `main` of the class repo; a PR's job, a feature branch
+or a fork gets `403` whatever its workflow says.
 
 ```mermaid
 sequenceDiagram
@@ -402,34 +425,37 @@ sequenceDiagram
     participant GS as git-server (Forgejo)
     end
     box rgba(16,185,129,0.1) dns-as-code adds
-    participant RN as forgejo-runner
+    participant RN as runner-pool
+    participant API as dns-api
     participant DNS as dns-server (PowerDNS)
     end
 
     rect rgba(59,130,246,0.16)
     Note over S,DNS: Pull request - preview only
-    S->>DNS: dnscontrol preview (reads zone via :8081, changes nothing)
+    S->>API: dnscontrol preview (own key, reads dojo.test)
     S->>GS: git push branch, open pull request
-    GS-->>RN: pull_request event, job queued (runner polls)
-    RN->>GS: clone PR head over runner_net
-    RN->>DNS: dnscontrol preview (:8081)
+    GS-->>RN: pull_request event, a fresh runner takes the job
+    RN->>GS: clone main, merge the PR head
+    RN->>API: dnscontrol preview (read key)
     RN->>GS: comment the diff on the PR, set "DNS Preview" status
     end
 
     rect rgba(16,185,129,0.16)
     Note over S,DNS: Merge - CI applies the change
-    S->>GS: merge the PR to main
-    GS-->>RN: push to main, job queued
-    RN->>GS: clone main
-    RN->>DNS: dnscontrol push (:8081), the record goes live
+    S->>GS: merge the PR to main (review + passing preview)
+    GS-->>RN: push to main, a fresh runner takes the job
+    RN->>GS: clone main, ask for an ID token (audience dns-api)
+    RN->>API: dnscontrol push with the token
+    API->>DNS: checked: class repo, main, push - forwarded
     RN->>GS: set "DNS Apply" status
     S->>DNS: dig @dns-server name A +short (:53), verify
     end
 ```
 
 Zone data lives only in the PowerDNS container's own filesystem, so it
-resets on every teardown. Credentials for the API (`creds.json`) are in the
-seeded repo and are workshop-only, not secrets.
+resets on every teardown. `creds.json` in the seeded repo names no secret:
+`"apiKey": "$DNS_API_KEY"`, each account's own key in its terminal and the
+job's ID token in CI.
 
 ---
 
@@ -683,6 +709,103 @@ teach reading real-looking failures.
 
 ---
 
+### `vault-fundamentals` — a real OpenBao, CI runners and a deploy target
+
+One OpenBao serves the whole class, and each student works in a namespace of
+their own under one shared, templated policy. The workshop adds three things
+on top of the engine: the `openbao` module (the vault, its start-up setup,
+single sign-on through Forgejo and an audit reader), the `runner-pool` module
+(single-use CI runners, autoscaled) and, in the workshop's own overlay,
+`app-host` (a deploy target with one slot per student) and `app-db`
+(Postgres for the dynamic-credentials lab).
+
+**Infrastructure and connectivity.** OpenBao listens on plain HTTP on
+`workshop_lab` only. The gateway fronts its UI at `/ui` and `/v1` for browsers.
+`openbao-setup` runs on every start: it unseals the vault, uses a temporary
+root token to provision namespaces, policies, auth methods and one identity per
+account, then revokes it, so no live root or provisioner token stays on disk.
+Students log in from the terminal with no password: a broker on a unix socket
+signs a short-lived JWT for the account on the other end (`SO_PEERCRED`) and
+OpenBao trades it for a token. In the browser, the vault signs in through
+Forgejo (OIDC).
+
+```mermaid
+graph TB
+    Browser(["Browser"]) --> GW["gateway"]
+    GW -->|"/ui, /v1"| OB
+    GW -->|"/admin: Vault, Audit, Runners, Apps"| Panels["openbao-audit, runner-controller,<br/>app-host"]
+
+    subgraph lab["workshop_lab - internal"]
+        WT["web-terminal<br/>bao, sops, gitleaks, pass, psql<br/>identity broker (root, unix socket)"]
+        OB["openbao<br/>namespace per student,<br/>one templated policy"]
+        SETUP["openbao-setup<br/>every start: unseal, provision,<br/>revoke temporary root"]
+        AUD["openbao-audit<br/>reads the audit log"]
+        GS["git-server (Forgejo)<br/>OIDC provider, Actions on"]
+        CTL["runner-controller<br/>autoscales the pool"]
+        AH["app-host<br/>one slot per student, own user,<br/>egress allowlist"]
+        DB[("app-db<br/>Postgres")]
+    end
+
+    subgraph rn["runner_net - internal"]
+        POOL["runner-pool<br/>single-use runners,<br/>one job each"]
+    end
+
+    WT -->|"JWT from broker, then bao"| OB
+    WT -->|"git push, fork, PR"| GS
+    SETUP --> OB
+    OB -->|"audit file"| AUD
+    OB -.->|"OIDC login"| GS
+    GS -->|"job"| POOL
+    CTL -->|"start and delete runners"| POOL
+    POOL -->|"Actions ID token to OpenBao, deploy"| OB
+    POOL -->|"deploy"| AH
+    AH -->|"workload identity"| OB
+    AH -->|"dynamic logins"| DB
+
+    classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
+    classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
+    classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
+    classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    class WT,GS core
+    class OB,SETUP,AUD,CTL,POOL,AH,DB,Panels addon
+    class GW gw
+    class Browser person
+```
+
+**The labs.** 0 sign in and take the tour, 1 leak a secret, 2 keep it
+encrypted on your own machine (`sops`, `pass`), 3 use the shared vault, 4 be
+the admin of your namespace, 5 an app reads a secret, 6 OpenBao Agent, 7
+encrypted config in the repo, 8 Forgejo Actions secrets, 9 CI logs in to
+OpenBao with its Actions ID token, 10 deploy with a delivered secret ID, 11
+deploy with workload identity, 12 dynamic database credentials (optional), 13
+an incident drill where a token leaks.
+
+**Runners.** Each job runs on a runner that takes one job and is deleted with
+everything it left behind, so no job finds another's files. The controller
+keeps a warm idle minimum and scales up to a cap; the facilitator's **Runners**
+panel shows each runner and has Auto / Manual and − / + controls.
+
+**Facilitator tabs.** **Vault** (the UI, signed in as the facilitator),
+**Audit** (every request, filterable by student, operation and path) and
+**Apps** (each app-host slot and its log), next to Runners.
+
+**Shortcuts stated to the class.** One unseal key share stays on a volume so the
+vault unseals itself after a restart, and traffic to OpenBao and Postgres is
+plain HTTP on the lab networks. See the workshop's
+[README](workshops/vault-fundamentals/README.md) for why, and for sizing
+(about 2 GiB for 10 demo bots).
+
+### `dojo-introduction` — everything at once
+
+Not a lab. The terminal image carries the tools of all four workshops and the
+stack runs the vault, the runner pool, DNS with per-account zones, the
+certificate authority and Dojo Cloud together, so a facilitator can click
+through each capability as a student and as the facilitator. It adds no
+services of its own: it lists the modules and reuses the other packs' sources
+in one overlay, and serves each workshop's slides under a Workshop Library.
+
+---
+
 ## Security boundaries
 
 The lab assumes students will poke at everything they can reach, whether out of
@@ -724,7 +847,7 @@ graph TB
             BS["bootstrap<br/>one-shot provisioning"]
         end
         subgraph rn["runner_net"]
-            RN["forgejo-runner<br/>runs student-written CI"]
+            RN["runner-pool<br/>single-use runners, student-written CI"]
         end
         subgraph cn["cloud_net"]
             HOST["cloud-host<br/>privileged docker-in-docker"]
@@ -740,7 +863,7 @@ graph TB
     WT -->|"lab traffic"| GS
     WT -->|"lab traffic"| SVC
     GS ---|"bootstrap's only door"| BS
-    GS ---|"runner's doors:<br/>Forgejo and PowerDNS"| RN
+    GS ---|"runners' doors: Forgejo,<br/>dns-api, OpenBao, app-host"| RN
     SVC ---|" "| RN
     SVC -->|"cloud-api's fixed templates only"| HOST
     WT -.-x|"no route"| OUT
@@ -785,7 +908,8 @@ graph TB
 The gateway signs everyone in and tells the services behind it who each request
 is from. To make that claim impossible to forge, it always travels as a pair of
 headers that Caddy sets itself: `X-Auth-User` (who) and `X-Gateway-Token` (a
-shared secret from `engine/.env` that only Caddy and the services know).
+secret from `engine/.env`, owner-only, that only Caddy and that one service know:
+each upstream gets a token of its own, so one service can't replay another's).
 
 ```mermaid
 sequenceDiagram
@@ -801,7 +925,7 @@ sequenceDiagram
     rect rgba(139,92,246,0.16)
     Note over B,GW: Sign in
     B->>GW: request with the class login, the dojo_session cookie and perhaps a forged X-Auth-User
-    GW->>GW: basic_auth - the class credential, or the facilitator's own (the only one /admin accepts)
+    GW->>GW: session_gate - a signed dojo_login cookie from /login for the class or the facilitator (only the facilitator's opens /admin)
     end
 
     rect rgba(59,130,246,0.16)
@@ -830,9 +954,8 @@ sequenceDiagram
   student's own identity lives in their `dojo_session` cookie, which the
   allocator issues and checks on every `/auth-check`. A released or
   never-assigned session can't reach a workspace, even with the class password.
-- **The facilitator has a separate door.** `/admin` has its own `basic_auth`
-  block that accepts only the facilitator's credential, checked before the
-  shared one.
+- **The facilitator has a separate door.** `/admin` accepts only a session
+  signed in as the facilitator; the class login gets 403.
 
 ### 3. Kernel checks: students share a container, not an identity
 
@@ -889,13 +1012,26 @@ graph LR
 
 - **One Linux user per student.** `entrypoint.sh` creates `student01`..`studentNN`,
   each with its own uid and home directory. No student runs as root (the
-  facilitator's shell does, by default, so they can help anyone).
+  facilitator's shell does, by default, so they can help anyone). Homes are
+  `0700`, and student Linux passwords are locked, so `su - student02` from
+  student01's shell fails.
+- **Each student has their own Forgejo login.** Every student's Forgejo password
+  is derived from `STUDENT_PASSWORD_SEED` and their name, so one student's
+  password doesn't open another's account. At start each terminal gets a scoped
+  Forgejo token in `~/.git-credentials` and `~/.netrc` (both `0600`), so `git`
+  and `curl` never ask for a password. The facilitator's Roster shows a
+  student's password on demand (**Password** on their tile).
 - **Workspace ports belong to their owner.** Each student's code-server and ttyd
   listen on a port of their own (9000+N and 9500+N). An `iptables` chain with an
   `owner` match lets a uid connect only to its own ports and drops everything
   else in those ranges, so student01 can't open student02's terminal from inside
-  the container. The gateway, connecting from outside, can reach them all, and
-  it only ever sends a request to the port `/auth-check` chose.
+  the container. From outside, only the gateway reaches them: it shares the
+  `terminal_ingress` network with the terminal, and those ports are dropped on
+  every other network. It only ever sends a request to the port `/auth-check`
+  chose.
+- **Each student sees only their own processes.** A student's IDE and terminal
+  run in a PID namespace of their own, so `ps` shows nothing of a neighbour's
+  command lines. The facilitator and the demo bots stay outside it.
 - **Cloud credentials come from the kernel, not from the student**
   (tofu-basics). A shell asks the root-owned broker for its `ARM_*` values over
   a unix socket. The broker asks the kernel who is on the other end
@@ -904,6 +1040,28 @@ graph LR
   for that student's own subscription. The `openbao` module's identity broker
   (vault-fundamentals) works the same way: it signs a short-lived JWT only for
   the account on the other end of its socket, which OpenBao trades for a token.
+
+### Other hardening
+
+- **Sign-in.** The gateway refuses the default class and facilitator passwords
+  off loopback and rate-limits wrong logins. `/slides` sits behind the class
+  login. Plain HTTP off localhost prints a warning, and HTTPS sends HSTS.
+- **Pages and services.** The allocator's pages run under a strict CSP with no
+  inline script, and student-supplied text is only ever shown as text. The
+  allocator is threaded, with a rate limit on new student assignments, so idle
+  sockets can't stall sign-in.
+- **Limits.** Each student's processes are capped, OpenBao has a request-rate
+  quota per namespace, and `app-db`, `dns-api` and Dojo Cloud limit connections
+  and request rates. Each limit is an env setting, and 0 turns it off.
+- **Containers.** Runner-pool, app-host and their shims drop capabilities and
+  set `no-new-privileges`. External images are pinned by digest. Every identity
+  and control-plane decision writes one JSON log line.
+- **Shared services.** CI writes DNS only with a Forgejo ID token issued for
+  the class repository's `main` branch (`dns-gate`), so a pull request can't
+  change live records. Each account has its own DNS key.
+
+The threat-model report is in `threat-model-20260926-154208/`, and
+[`RELEASES.md`](RELEASES.md) says which findings are fixed, partial or accepted.
 
 ### Who can reach what
 
@@ -914,8 +1072,9 @@ blocked by network isolation or never routed.
 | ------------- | :----------: | :------------: | :----------: | :--------------------: | :---------: | :----------: | :------: |
 | Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
 | `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
-| `forgejo-runner` (dns-as-code) | ✓ | — | ✓ | — | — | — | — |
-| `runner-pool` (vault-fundamentals; also `openbao`, `app-host`) | ✓ | — | — | — | — | — | — |
+| `runner-pool` (dns-as-code: also `dns-api`; vault-fundamentals: also `openbao`, `app-host`) | ✓ | — | dns-as-code | — | — | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |
+
+vault-fundamentals adds `openbao` (`workshop_lab`), which the student terminal and app-host reach and the gateway fronts at `/ui` and `/v1`, and `runner_net`, which only the runner pool, `git-server`, `openbao` and `app-host` join.

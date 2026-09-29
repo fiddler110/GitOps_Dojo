@@ -8,6 +8,17 @@ and writes the two files the stack reads:
 
   <out>/gateway/extensions.caddy     imported by gateway/Caddyfile
   <out>/allocator/extensions.json    read by allocator/server.py at start
+  <out>/upstream-tokens.env          GATEWAY_TOKEN_<SERVICE>=..., sourced by
+                                     run.sh so compose can hand each upstream
+                                     its own token (FIND-16)
+
+Per-upstream gateway tokens: an identity/facilitator route's upstream gets
+its own X-Gateway-Token, HMAC-SHA256(GATEWAY_TOKEN, service name), instead
+of the shared GATEWAY_TOKEN. A compromised upstream (app-host, say) then
+holds a token that every other upstream (cloud-api, ...) refuses, and never
+the master the allocator trusts. The token is derived, not random, so it is
+stable across restarts and rotates with GATEWAY_TOKEN. The upstream's
+compose fragment passes it in as GATEWAY_TOKEN=${GATEWAY_TOKEN_<SERVICE>:-}.
 
 It runs once per `./run.sh <workshop>`, before anything starts, in a
 throwaway allocator container (the host needs no Python). Any error stops
@@ -26,6 +37,8 @@ provides (run.sh passes the keys of workshop.env / module.env).
 """
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -61,6 +74,13 @@ HOST_RE = re.compile(r"^(\{user\}|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]
 VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 TEXT_MAX = {"label": 40, "desc": 120}
+
+# The gateway runs Caddy as `nobody` (gateway/Dockerfile). extensions.caddy
+# now holds upstream tokens, so when this script runs as (namespaced) root it
+# hands the file to that user, group root (= the calling user under rootless
+# podman), mode 0440, instead of leaving it world-readable.
+CADDY_UID = 65534
+TOKEN_CONTEXT = "dojo-gateway-token/v1/"
 
 KINDS = {
     "cards": {"required": ("id", "label", "href", "icon"), "optional": ("desc",)},
@@ -231,10 +251,34 @@ def merge(manifests, services):
     return out, warnings
 
 
-def caddy_for_route(r):
+def token_env_name(service):
+    """GATEWAY_TOKEN_<SERVICE>: cloud-api -> GATEWAY_TOKEN_CLOUD_API."""
+    return "GATEWAY_TOKEN_" + re.sub(r"[^A-Z0-9]", "_", service.upper())
+
+
+def upstream_tokens(routes, master):
+    """{service: token} for every upstream a route hands identity to."""
+    services = sorted({r["upstream"].rpartition(":")[0] for r in routes if r["gate"] in ("identity", "facilitator")})
+    if not services:
+        return {}
+    if not master:
+        raise ManifestError("GATEWAY_TOKEN is not set: identity/facilitator routes need it to derive "
+                            "their upstream tokens")
+    names = {}
+    for svc in services:
+        name = token_env_name(svc)
+        if name in names:
+            raise ManifestError(f"upstreams {names[name]!r} and {svc!r} would share the variable {name}")
+        names[name] = svc
+    return {svc: hmac.new(master.encode(), (TOKEN_CONTEXT + svc).encode(), hashlib.sha256).hexdigest()
+            for svc in services}
+
+
+def caddy_for_route(r, token=None):
     """One route, from a fixed template. Every interpolated value was matched
     against a strict pattern in merge(): id, path and upstream contain only
-    [a-z0-9_.:/-], so nothing here can break out of the Caddyfile syntax."""
+    [a-z0-9_.:/-], and the upstream token is hex, so nothing here can break
+    out of the Caddyfile syntax."""
     name = "ext_" + r["id"].replace("-", "_")
     path = r["path"]
     lines = [f"# {r['id']} ({r['gate']} gate), from {r['source']}",
@@ -246,23 +290,28 @@ def caddy_for_route(r):
              # Never let a client supply the headers the gate hands over.
              "\t\trequest_header -X-Dojo-User",
              "\t\trequest_header -X-Dojo-Host"]
-    if r["gate"] in ("identity", "facilitator"):
+    identity = r["gate"] in ("identity", "facilitator")
+    if identity and not (isinstance(token, str) and re.fullmatch(r"[0-9a-f]{64}", token)):
+        raise ManifestError(f"route {r['id']}: no upstream token")
+    if identity:
         lines += ["\t\tforward_auth allocator:8080 {",
+                  "\t\t\timport allocator_timeouts",
                   f"\t\t\turi /auth-check?route={r['id']}",
-                  "\t\t\theader_up X-Auth-User {http.auth.user.id}",
+                  "\t\t\theader_up X-Auth-User {http.request.header.X-Session-User}",
                   "\t\t\theader_up X-Gateway-Token {$GATEWAY_TOKEN}",
                   "\t\t\tcopy_headers X-Dojo-User X-Dojo-Host",
                   "\t\t}"]
     if r["strip_prefix"]:
         lines.append(f"\t\turi strip_prefix {path}")
     lines.append(f"\t\treverse_proxy {r['upstream']} {{")
-    # The shared login's Basic credentials are ours, not the upstream's.
+    # Any Authorization header is the browser's, not the upstream's.
     lines.append("\t\t\theader_up -Authorization")
     if r["gate"] in ("identity", "facilitator"):
         # header_up with no +/- replaces, so the upstream only ever sees
-        # what the allocator vouched for, next to the token only Caddy has.
+        # what the allocator vouched for, next to the token only Caddy has:
+        # this upstream's own, never the shared GATEWAY_TOKEN (FIND-16).
         lines += ["\t\t\theader_up X-Auth-User {http.request.header.X-Dojo-User}",
-                  "\t\t\theader_up X-Gateway-Token {$GATEWAY_TOKEN}"]
+                  f"\t\t\theader_up X-Gateway-Token {token}"]
         if "host" in r:
             lines.append("\t\t\theader_up Host {http.request.header.X-Dojo-Host}")
     else:
@@ -276,19 +325,39 @@ def caddy_for_route(r):
     return "\n".join(lines)
 
 
-def render_caddy(routes):
+def render_caddy(routes, tokens=None):
+    tokens = tokens or {}
     head = ("# Generated by engine/allocator/render_extensions.py on every ./run.sh start.\n"
             "# Do not edit: change the workshop's or module's extensions.json instead.\n")
     if not routes:
         return head + "# (no extension routes in this workshop)\n"
-    return head + "\n" + "\n\n".join(caddy_for_route(r) for r in routes) + "\n"
+    return head + "\n" + "\n\n".join(
+        caddy_for_route(r, tokens.get(r["upstream"].rpartition(":")[0])) for r in routes) + "\n"
 
 
-def write_atomic(path, text):
+def render_tokens_env(tokens):
+    head = ("# Generated by engine/allocator/render_extensions.py; sourced by run.sh.\n"
+            "# Each upstream's own X-Gateway-Token (FIND-16). Do not edit.\n")
+    return head + "".join(f"{token_env_name(s)}={t}\n" for s, t in sorted(tokens.items()))
+
+
+def write_atomic(path, text, mode=0o644, owner=None):
+    """owner=(uid, gid) is applied only when running as root (rootless
+    podman's namespaced root); otherwise the file keeps the caller's uid."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(text)
+    if owner is not None and hasattr(os, "geteuid") and os.geteuid() == 0:
+        os.chown(tmp, *owner)
+    elif owner is not None:
+        mode = 0o644  # not root: the gateway's `nobody` can only read it as "other"
+    os.chmod(tmp, mode)
     os.replace(tmp, path)
 
 
@@ -304,6 +373,8 @@ def main(argv=None):
         files = sorted(f for f in os.listdir(args.in_dir) if f.endswith(".json"))
         manifests = [load_manifest(os.path.join(args.in_dir, f)) for f in files]
         merged, warnings = merge(manifests, services)
+        tokens = upstream_tokens(merged["routes"], os.environ.get("GATEWAY_TOKEN", ""))
+        caddy = render_caddy(merged["routes"], tokens)
     except ManifestError as e:
         print(f"extensions: ERROR {e}", file=sys.stderr)
         return 1
@@ -311,7 +382,8 @@ def main(argv=None):
     for w in warnings:
         print(f"extensions: WARNING {w}", file=sys.stderr)
 
-    write_atomic(os.path.join(args.out, "gateway", "extensions.caddy"), render_caddy(merged["routes"]))
+    write_atomic(os.path.join(args.out, "gateway", "extensions.caddy"), caddy, 0o440, (CADDY_UID, 0))
+    write_atomic(os.path.join(args.out, "upstream-tokens.env"), render_tokens_env(tokens), 0o600)
     allocator_view = dict(merged, version=VERSION)
     write_atomic(os.path.join(args.out, "allocator", "extensions.json"),
                  json.dumps(allocator_view, indent=2) + "\n")

@@ -45,12 +45,14 @@ D("$zone", REG,
 );
 EOF
 
+  # No secret here: dnscontrol reads "$DNS_API_KEY" from the environment,
+  # each account's own key (the dns-gate module writes and exports it).
   cat > "$dir/creds.json" <<'EOF'
 {
   "powerdns": {
     "TYPE": "POWERDNS",
     "apiUrl": "http://dns-api:8081",
-    "apiKey": "workshop-not-a-secret",
+    "apiKey": "$DNS_API_KEY",
     "serverName": "localhost"
   }
 }

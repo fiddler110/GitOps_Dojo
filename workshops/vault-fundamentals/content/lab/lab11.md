@@ -27,7 +27,7 @@ This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6
 ```bash
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
-bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
+bao kv get team/app >/dev/null 2>&1 || until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
 printf 'path "team/data/app" {\n  capabilities = ["read"]\n}\n' | bao policy write app-read -
 printf 'path "team/data/ci" {\n  capabilities = ["read"]\n}\n' | bao policy write ci-read -
 bao read auth/jwt-ci/role/ci-main >/dev/null 2>&1 || bao write auth/jwt-ci/role/ci-main - <<EOF
@@ -35,12 +35,11 @@ bao read auth/jwt-ci/role/ci-main >/dev/null 2>&1 || bao write auth/jwt-ci/role/
   "bound_claims": { "repository": "$USER/vault-fundamentals", "ref": "refs/heads/main" }, "token_ttl": "5m" }
 EOF
 [ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  curl --netrc -H "Content-Type: application/json" -d '{}' \
     http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
   git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
 }
 cd ~/lab/vault-fundamentals && git switch main && git pull
-git config credential.helper 'cache --timeout=3600'
 ```
 
 ## 2. Meet the platform
@@ -296,7 +295,7 @@ The **My App** page also shows your slot's log: the Agent's `authentication succ
 Change the API key in the vault, give the Agent 12 seconds (it checks every 10), then compare the app's fingerprint with the vault's:
 
 ```bash
-bao kv patch team/app api_key=rotated-$(date +%s)
+printf '%s' "rotated-$(date +%s)" | bao kv patch team/app api_key=-
 sleep 12
 curl -s http://app-host:8080/$USER/ | grep API_KEY
 printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12

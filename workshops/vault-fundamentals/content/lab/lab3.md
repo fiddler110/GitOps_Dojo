@@ -29,6 +29,26 @@ bao kv get -field=password secret/students/$USER/db
 
 `-field` prints just the value, which is what a script wants. `-format=json` gives everything, for tools like `jq`.
 
+### Keep the value off the command line
+
+That `put` line has a problem. While a program runs, its whole command line is visible to every account on a shared machine: build servers, jump hosts, CI runners. Try it with a stand-in for a slow command:
+
+```bash
+python3 -c 'import time; time.sleep(30)' password=first-password &
+ps -eo user,args | grep '[p]assword='
+kill %1
+```
+
+`ps` lists processes with their arguments. Yours shows up; on an ordinary shared machine, so would a neighbour's `bao kv put ... password=...` while it runs. (Not here: this platform runs each of you in a process namespace of your own, so your `ps` shows only your processes. Most machines don't, so don't count on it.)
+
+Hand the value to `bao` on its **standard input** instead. `password=-` means "read this value from stdin", and `printf` is part of the shell, not a separate program, so the value never shows in `ps`:
+
+```bash
+printf '%s' 'first-password' | bao kv put secret/students/$USER/db username=app password=-
+```
+
+From here on the labs write secrets this way. Several keys at once go in as JSON, with a lone `-` for all of them: `echo '{"a": "1", "b": "2"}' | bao kv put <path> -`. (A value you type still lands in your shell history. For a real password, `read -rs PW` asks for it without showing it, then `printf '%s' "$PW" | ...`.)
+
 Open the same secret in the UI (**secret → students → your name → db**) and leave the tab open.
 
 ## 2. Versions
@@ -36,8 +56,8 @@ Open the same secret in the UI (**secret → students → your name → db**) an
 Change the password twice, once with each way of writing:
 
 ```bash
-bao kv put secret/students/$USER/db username=app password=second-password
-bao kv patch secret/students/$USER/db password=third-password
+printf '%s' 'second-password' | bao kv put secret/students/$USER/db username=app password=-
+printf '%s' 'third-password' | bao kv patch secret/students/$USER/db password=-
 bao kv get secret/students/$USER/db
 ```
 
@@ -86,7 +106,7 @@ Try the folders around yours. `list` shows what's in a folder; then read and wri
 ```bash
 bao kv list secret/students/
 bao kv get secret/students/student02/db
-bao kv put secret/students/student02/db password=mine-now
+printf '%s' 'mine-now' | bao kv put secret/students/student02/db password=-
 ```
 
 You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class. A **policy** is a list of paths, each with what may be done there (`read`, `create`, `delete`...). Read it:
@@ -114,7 +134,8 @@ Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the v
 
 1. Someone can `list` a folder but not `read` in it. What can they learn? _(The names of the secrets, not the values. Names can still leak something, so keep them boring.)_
 2. You deleted the newest version by mistake. Which command undoes it? _(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)_
+3. Why `printf ... | bao kv put ... password=-` and not `password=...`? _(On a shared machine, a command line is visible to every account in `ps` while the command runs. Standard input isn't.)_
 
-**Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy).
+**Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy), 8 (never in logs: nor on a command line).
 
 **Next:** [lab4.md](lab4.md)

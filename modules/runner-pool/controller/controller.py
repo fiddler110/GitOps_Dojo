@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """runner-controller: registers single-use runners, scales them, and serves
-the Runners panel (vault-fundamentals PLAN.md §6.3, §6.4).
+the Runners panel (VAULT-FUNDAMENTALS-PLAN.md §6.3, §6.4).
 
 Every few seconds it reads Forgejo's runner list and waiting jobs (admin
 API) and the pool supervisor's /spool/state.json, then:
@@ -75,6 +75,9 @@ class Config:
         self.forgejo_url = env.get("FORGEJO_URL") or "http://git-server:3000"
         self.forgejo_user = env.get("FORGEJO_ADMIN_USER", "")
         self.forgejo_password = env.get("FORGEJO_ADMIN_PASSWORD", "")
+        # T5.2c: a scoped token minted by the runner-token-init service, read
+        # from this file on every call; the password is only the fallback.
+        self.forgejo_token_file = env.get("FORGEJO_TOKEN_FILE", "")
         self.spool = env.get("SPOOL_DIR") or "/spool"
 
 
@@ -85,11 +88,30 @@ class ForgejoError(Exception):
 class Forgejo:
     """The few admin API calls the controller needs (T0.7)."""
 
-    def __init__(self, base, user, password, timeout=5):
+    def __init__(self, base, user, password, timeout=5, token_file=""):
         self.base = base.rstrip("/") + "/api/v1"
-        self.auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        self.basic = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        self.token_file = token_file
+        self.has_password = bool(password)
         self.timeout = timeout
         self.repo_names = {}
+
+    @property
+    def auth(self):
+        """The scoped token if the file holds one (re-read each call, so a
+        re-minted token is picked up), else the admin password login."""
+        if self.token_file:
+            try:
+                with open(self.token_file) as f:
+                    tok = f.read().strip()
+            except OSError:
+                tok = ""
+            if tok:
+                return "token " + tok
+            if self.has_password:
+                return self.basic
+            raise ForgejoError("waiting for the runner-token-init token")
+        return self.basic
 
     def _call(self, method, path, body=None, ok=(200, 201, 204)):
         data = json.dumps(body).encode() if body is not None else None
@@ -476,9 +498,16 @@ def make_handler(ctl, static_dir=HERE):
 
         do_HEAD = do_GET
 
+        def _audit(self, action, result):
+            # One JSON line per panel action (remediation T1.4, FIND-13).
+            print(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                              "event": "runners", "account": self.headers.get("X-Auth-User"),
+                              "action": action, "result": result}, separators=(",", ":")), flush=True)
+
         def do_POST(self):
             path = self._path()
             if not self._facilitator():
+                self._audit(path, 403)
                 self._json(403, {"error": "facilitator only"})
                 return
             if self.headers.get("X-Requested-With") != "dojo-runners":
@@ -501,6 +530,7 @@ def make_handler(ctl, static_dir=HERE):
             else:
                 self._json(400, {"error": "bad request"})
                 return
+            self._audit(f"{path} {body.get('delta', body.get('mode'))}", 200 if ok else 409)
             with ctl.lock:
                 doc = ctl.snapshot
             self._json(200 if ok else 409, {"ok": ok, "message": msg, "state": doc})
@@ -517,7 +547,8 @@ def main():
     # As PID 1, Python ignores SIGTERM unless it has a handler.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     cfg = Config()
-    ctl = Controller(cfg, Forgejo(cfg.forgejo_url, cfg.forgejo_user, cfg.forgejo_password), Spool(cfg.spool))
+    ctl = Controller(cfg, Forgejo(cfg.forgejo_url, cfg.forgejo_user, cfg.forgejo_password,
+                                     token_file=cfg.forgejo_token_file), Spool(cfg.spool))
     threading.Thread(target=ctl.loop, daemon=True).start()
     print(f"[runner-controller] min idle {cfg.min_idle}, max {cfg.max}, labels {cfg.labels}", flush=True)
     Server(("0.0.0.0", 8080), make_handler(ctl)).serve_forever()

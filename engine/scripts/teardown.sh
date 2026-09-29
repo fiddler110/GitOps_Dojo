@@ -110,8 +110,71 @@ if [ "$dry_run" = "1" ]; then
   exit 0
 fi
 
+# Same container CLI as compose() above, for the status table.
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  cli=docker
+else
+  cli=podman
+fi
+c_green="$(printf '\033[32m')"; c_yellow="$(printf '\033[33m')"; c_red="$(printf '\033[31m')"
+c_off="$(printf '\033[0m')"; c_cyan="$(printf '\033[1;36m')"; c_dim="$(printf '\033[2m')"
+fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
+
+# One block, redrawn in place: every container that was up when teardown began
+# and every volume, going from "up" to "removed". Terminal only.
+td_draw() {
+  n=0; [ ! -s "$td_state" ] || n="$(cat "$td_state")"
+  now_c="$($cli ps -a --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null)"
+  vols_left="$($cli volume ls -q 2>/dev/null | grep -c '^engine_' || true)"
+  rows="$(for c in $td_containers; do
+    st="$(printf '%s\n' "$now_c" | awk -F'|' -v c="$c" '$1 == c { print $2 }')"
+    if [ -z "$st" ]; then echo "$c|removed"
+    elif printf '%s' "$st" | grep -q '^Exited'; then echo "$c|stopped"
+    else echo "$c|up"; fi
+  done)"
+  gone="$(printf '%s\n' "$rows" | grep -c '|removed$' || true)"
+  out="$(printf '  %s%s%s   %s%s of %s containers removed%s   volumes left: %s of %s\n' "$c_dim" "$(fmt_elapsed $(($(date +%s) - td_start)))" "$c_off" "$c_cyan" "$gone" "$td_total" "$c_off" "$vols_left" "$td_vols")"
+  shown="$rows"
+  [ "$td_total" -le 25 ] || shown="$(printf '%s\n' "$rows" | grep -v '|removed$')"
+  [ -z "$shown" ] || out="${out}
+$(printf '%s\n' "$shown" | awk -F'|' -v g="$c_green" -v y="$c_yellow" -v o="$c_off" '
+    { col = ($2 == "removed") ? g : y; mark = ($2 == "removed") ? "+" : "~"
+      printf "  %s%s %-36s %s%s\n", col, mark, $1, $2, o }')"
+  # Erase and reprint in one go, after the slow container calls above, so the block never sits blank.
+  [ "$n" -eq 0 ] || printf '\033[%dA' "$n"
+  printf '%s\n' "$out" | awk '{ printf "%s\033[K\n", $0 }'
+  [ "$n" -le "$(printf '%s\n' "$out" | wc -l)" ] || printf '\033[J'
+  printf '%s\n' "$(printf '%s\n' "$out" | wc -l)" > "$td_state"
+}
+
 echo "Tearing down the workshop stack and all volumes (student homes, Forgejo data)..."
-# shellcheck disable=SC2086
-compose $compose_args down --volumes --remove-orphans
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  td_containers="$($cli ps -a --filter name=workshop_ --format '{{.Names}}' 2>/dev/null | sort)"
+  td_total="$(printf '%s\n' "$td_containers" | grep -c . || true)"
+  td_vols="$($cli volume ls -q 2>/dev/null | grep -c '^engine_' || true)"
+  td_start="$(date +%s)"; td_state="$(mktemp)"; echo 0 > "$td_state"
+  td_log="$(mktemp "${TMPDIR:-/tmp}/dojo-down.XXXXXX")"
+  echo "Compose output is in ${td_log}"
+  printf '\033[?25l'
+  ( while :; do td_draw; sleep 1; done ) &
+  watch_pid=$!
+  trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT INT TERM
+  rc=0
+  # shellcheck disable=SC2086
+  compose $compose_args down --volumes --remove-orphans > "$td_log" 2>&1 || rc=$?
+  kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+  td_draw
+  printf '\033[?25h'
+  trap - EXIT INT TERM
+  rm -f "$td_state"
+  if [ "$rc" != 0 ]; then
+    printf '%scompose down failed (exit %s); the last lines of its output:%s\n' "$c_red" "$rc" "$c_off"
+    tail -n 20 "$td_log"
+    exit "$rc"
+  fi
+else
+  # shellcheck disable=SC2086
+  compose $compose_args down --volumes --remove-orphans
+fi
 rm -f .last-overlay
 echo "Done. No workshop data was retained."

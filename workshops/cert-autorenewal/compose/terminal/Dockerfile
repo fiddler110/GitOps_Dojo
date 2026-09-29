@@ -7,7 +7,7 @@
 # provisioning, code-server/ttyd, shell helpers) is inherited unchanged
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-# engine/run.sh sets BASE to the image below this one in the chain (MODULES-PLAN.md §4.2).
+# engine/run.sh sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 

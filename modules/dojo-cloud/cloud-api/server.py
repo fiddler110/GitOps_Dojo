@@ -2,7 +2,7 @@
 """Dojo Cloud control plane ("cloud-api").
 
 Speaks just enough Azure Resource Manager for the real `azurerm` provider
-(PLAN.md §5.5): a metadata document, an OAuth client-credentials token
+(TOFU-BASICS-PLAN.md §5.5): a metadata document, an OAuth client-credentials token
 endpoint, and resource groups + container groups. Requests are authenticated
 (token -> student), authorised (path subscription must be the caller's), checked
 against policy, and executed on cloud-host by a fixed template. Also serves
@@ -20,6 +20,7 @@ import signal
 import ssl
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -64,6 +65,45 @@ REASONS = {"first": "the first readiness check has not finished",
 
 def log(msg):
     print(msg, flush=True)
+
+
+class RateLimit:
+    """A token bucket per authenticated identity: a tripwire against a runaway
+    loop, far above what a lab does, not a budget (0 = off). Never keyed by
+    source IP (all students share one address). The lock covers arithmetic
+    only, no I/O."""
+
+    def __init__(self, burst, per_sec, clock=time.monotonic):
+        self.burst, self.rate, self.clock = float(burst), float(per_sec), clock
+        self.buckets = {}  # key -> [tokens, last]
+        self.lock = threading.Lock()
+
+    def take(self, key, scale=1):
+        """0 if the request may go now, else seconds until one may. `scale`
+        widens the bucket for shared identities (CI, the read key)."""
+        if self.burst <= 0 or self.rate <= 0:
+            return 0
+        burst, rate = self.burst * scale, self.rate * scale
+        with self.lock:
+            now = self.clock()
+            tokens, last = self.buckets.get(key, (burst, now))
+            tokens = min(burst, tokens + (now - last) * rate)
+            if tokens >= 1:
+                self.buckets[key] = (tokens - 1, now)
+                return 0
+            self.buckets[key] = (tokens, now)
+            return max(1, int((1 - tokens) / rate + 0.999))
+
+
+def _rate(name, default):
+    try:
+        return float(ENV.get(name, default))
+    except ValueError:
+        return float(default)
+
+
+# Per-student ARM request tripwire (CLOUD_API_RATE_*, module.env; 0 = off).
+LIMIT = RateLimit(_rate("CLOUD_API_RATE_BURST", 200), _rate("CLOUD_API_RATE_PER_SEC", 20))
 
 
 def load_signing_key():
@@ -144,7 +184,7 @@ class App:
     # One implementation, so policy, activity log and executor behave identically
     # whoever asks. `via` ("portal") is appended to the logged operation name.
     # The executor is called with the state lock released: the group is reserved (State.pending) under the lock,
-    # Docker is called, then the result is recorded under the lock again and the reservation released (PLAN.md 5.8).
+    # Docker is called, then the result is recorded under the lock again and the reservation released (TOFU-BASICS-PLAN.md 5.8).
     @staticmethod
     def op_name(base, via):
         return f"{base} ({via})" if via else base
@@ -436,7 +476,7 @@ class Handler(BaseHTTPRequestHandler):
                 "loginEndpoint": f"{LOGIN}/",
                 "audiences": [f"{MGMT}/"],
                 # azurerm treats anything other than AAD + "common" as Azure Stack
-                # and refuses it (PLAN.md §5.5).
+                # and refuses it (TOFU-BASICS-PLAN.md §5.5).
                 "tenant": "common",
                 "identityProvider": "AAD",
             },
@@ -472,6 +512,11 @@ class Handler(BaseHTTPRequestHandler):
         if user is None:
             return 401, {"error": {"code": "InvalidAuthenticationToken",
                                    "message": "The access token is missing, invalid or expired."}}
+        wait = LIMIT.take(user)
+        if wait:
+            log(f"rate limit: {user} {self.command} {path[:120]} -> 429 (retry in {wait}s)")
+            return (429, arm_error(429, "TooManyRequests", "Too many requests: slow down and retry.")[1],
+                    {"Retry-After": str(wait)})
         parts = [p for p in path.split("/") if p]
         lparts = [p.lower() for p in parts]
         if len(parts) == 1:  # GET /subscriptions
@@ -711,7 +756,7 @@ class Handler(BaseHTTPRequestHandler):
         return 200, self.cg_view(sub, rec)
 
     def put_container_group(self, sub, owner, user, rg, cg, rid, key, body):
-        """Reserve, then Docker, then commit (PLAN.md 5.8): State.lock covers the decision and the record, never a
+        """Reserve, then Docker, then commit (TOFU-BASICS-PLAN.md 5.8): State.lock covers the decision and the record, never a
         Docker call. Meanwhile the reservation (State.pending) keeps the key, port, DNS label and quota slot ours."""
         st = APP.state
         with st.lock:  # phase 1: decide and reserve

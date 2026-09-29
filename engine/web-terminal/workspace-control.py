@@ -15,8 +15,10 @@ shared mutable state here is `running`, guarded by a lock, and each
 handler's real work is a short-lived subprocess/pgrep call -- serializing
 those on one thread would make Release feel laggy for no benefit.
 """
+import datetime
 import hmac
 import http.server
+import json
 import os
 import re
 import socket
@@ -117,6 +119,28 @@ CODE_SERVER_NODE_FLAGS = (
     f"--max-old-space-size={CODE_SERVER_MAX_HEAP_MB} --max-semi-space-size=2 --optimize-for-size"
 )
 
+# A tripwire against a fork bomb, not a budget: RLIMIT_NPROC per student uid
+# (each student has their own uid), applied with prlimit to everything that
+# starts as the student. Threads count against it, hence the high default:
+# code-server, language servers, builds and test suites must never notice.
+# 0 turns it off. Residual: no per-user memory cap (that needs per-user
+# cgroups; the container's mem_limit stays one shared pool).
+TERMINAL_NPROC_LIMIT = os.environ.get("TERMINAL_NPROC_LIMIT", "1024")
+if not (TERMINAL_NPROC_LIMIT.isascii() and TERMINAL_NPROC_LIMIT.isdigit()):
+    # Interpolated into a shell command below.
+    raise SystemExit(f"TERMINAL_NPROC_LIMIT must be a whole number (0 = off), got {TERMINAL_NPROC_LIMIT!r}")
+TERMINAL_NPROC_LIMIT = int(TERMINAL_NPROC_LIMIT)
+
+
+def nproc_prefix(username):
+    """`prlimit --nproc=N -- ` for a student's own commands, or "" (knob off,
+    the facilitator or a demo bot). Goes outermost, before any `nsenter`, so
+    the limit rides down (rlimits survive exec) to the process the student
+    actually runs; the root-side helpers are never wrapped."""
+    if TERMINAL_NPROC_LIMIT <= 0 or not uses_pid_namespace(username):
+        return ""
+    return f"prlimit --nproc={TERMINAL_NPROC_LIMIT} -- "
+
 
 def _seconds_env(name, default, floor=None):
     """Non-negative integer seconds from the environment. Interpolated into
@@ -175,6 +199,16 @@ def code_server_lifecycle_flags():
 running = {}  # (tool, username) -> subprocess.Popen
 running_lock = threading.Lock()
 watch_target = {}  # username -> tmux session name the running watch ttyd is attached to
+holders = {}  # username -> (Popen of su, unshare's pid, the namespace's init pid)
+
+
+def audit(event, **fields):
+    """One JSON line on stdout (the container log) per workspace decision,
+    same shape as the allocator's (remediation T1.4, FIND-13). No secrets."""
+    rec = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds"),
+           "event": event}
+    rec.update(fields)
+    print(json.dumps(rec, separators=(",", ":")), flush=True)
 
 
 def valid_username(username):
@@ -201,7 +235,98 @@ def watch_port(username):
 
 
 def is_alive(username):
-    return subprocess.run(["pgrep", "-u", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    """Any of this account's processes running, not counting its PID
+    namespace holder (which runs for as long as the account is in use)."""
+    out = subprocess.run(["pgrep", "-u", username], capture_output=True, text=True).stdout.split()
+    holder = holders.get(username)
+    skip = {str(holder[1]), str(holder[2])} if holder else set()
+    return any(pid not in skip for pid in out)
+
+
+# -- A PID namespace per student (remediation T2.3b, FIND-10) -------------------
+# Every account shares this container's PID namespace, so `ps` shows every
+# student's command lines (tokens and passwords typed as arguments included).
+# Each student's IDE and terminal instead run in a PID namespace of their own,
+# with /proc remounted for it, so `ps` shows only their own processes.
+#
+# Root can't make one here (rootless podman gives no CAP_SYS_ADMIN), but the
+# student can, inside a user namespace mapping only their own uid: the
+# pattern runner-pool and AppHost already use. The kernel uid is unchanged, so
+# DOJO_ISOLATION, file ownership and the SO_PEERCRED brokers see the student.
+# A PID namespace ends when its first process does, so one long-lived holder
+# per student keeps it (and the tmux server inside it) alive across
+# connections; code-server and ttyd's shell join it with nsenter. The
+# facilitator and demo bots stay outside. setuid tools (su, sudo, ping) don't
+# work inside; no lab uses them. If a namespace can't be made, the workspace
+# starts without one and a pidns-unavailable line is logged.
+
+def uses_pid_namespace(username):
+    return username != FACILITATOR_USERNAME and not username.startswith(BOT_PREFIX)
+
+
+def _children(pid):
+    kids = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/stat") as f:
+                ppid = int(f.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        if ppid == pid:
+            kids.append(int(d))
+    return kids
+
+
+def _is_ns_init(pid):
+    """True while pid is the first process of a PID namespace below ours
+    (its NSpid line has our pid and 1)."""
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith("NSpid:"):
+                    return line.split()[1:] == [str(pid), "1"]
+    except OSError:
+        pass
+    return False
+
+
+def ensure_holder(username):
+    """The init pid of this student's PID namespace, starting its holder
+    first if needed; None if one can't be made. Called with running_lock held."""
+    held = holders.get(username)
+    if held and held[0].poll() is None and _is_ns_init(held[2]):
+        return held[2]
+    proc = subprocess.Popen(
+        ["su", "-", username, "-c",
+         f"exec {nproc_prefix(username)}unshare -U --map-current-user -p -f --mount-proc --kill-child sleep infinity"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(50):
+        for unshare_pid in _children(proc.pid):
+            for init_pid in _children(unshare_pid):
+                if _is_ns_init(init_pid):
+                    holders[username] = (proc, unshare_pid, init_pid)
+                    audit("pidns-start", account=username, holder=init_pid)
+                    return init_pid
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    proc.kill()
+    holders.pop(username, None)
+    audit("pidns-unavailable", account=username)
+    return None
+
+
+def ns_prefix(username):
+    """`nsenter ... -- ` for this student's namespace, or "" (no namespace:
+    the facilitator, a bot, or one couldn't be made). Called with running_lock held."""
+    if not uses_pid_namespace(username):
+        return ""
+    init_pid = ensure_holder(username)
+    if init_pid is None:
+        return ""
+    return f"nsenter -t {init_pid} -U -p -m --preserve-credentials -- "
 
 
 def port_open(port):
@@ -219,11 +344,12 @@ def start_workspace(tool, username):
 
         port = port_for(tool, username)
         home = f"/home/{username}"
+        ns = ns_prefix(username)
         if tool == "ide":
             cmd = [
                 "su", "-", username, "-c",
                 f"export MALLOC_ARENA_MAX=2; "
-                f"exec /usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
+                f"exec {nproc_prefix(username)}{ns}/usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
                 f"--bind-addr 0.0.0.0:{port} --auth none "
                 f"--disable-telemetry --disable-update-check --disable-workspace-trust "
                 f"{code_server_lifecycle_flags()} "
@@ -237,10 +363,13 @@ def start_workspace(tool, username):
             # student's actual live session. `new-session -A` creates the
             # session on the first connect and reattaches on every one
             # after, including the student's own reconnects/extra tabs.
+            # Inside the student's PID namespace, like the IDE (whose VS Code
+            # terminals start tmux there too), so the tmux server lives there.
             cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
-                   "-c", f"tmux new-session -A -s {TMUX_SESSION}"]
+                   "-c", f"exec {nproc_prefix(username)}{ns}tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    audit("workspace-start", account=username, tool=tool, port=port)
     # Doesn't wait for the port to open -- the caller (do_POST's /start
     # handler) reports actual readiness back via port_open() right after
     # this returns, and the allocator's /auth-check uses that to decide
@@ -316,6 +445,7 @@ def start_watch(username):
                "-c", f"tmux attach -t {session} -r"]
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         watch_target[username] = session
+    audit("watch-start", target=username, session=session, port=port)
 
     for _ in range(50):
         if port_open(port):
@@ -330,7 +460,9 @@ def stop_user(username):
             if key[1] == username:
                 del running[key]
         watch_target.pop(username, None)
+        holders.pop(username, None)  # pkill below ends it; the next start makes a new one
     subprocess.run(["pkill", "-KILL", "-u", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    audit("workspace-stop", account=username)
 
 
 def reap_children():
@@ -440,6 +572,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     threading.Thread(target=reap_children, daemon=True).start()
+    print(f"per-student process limit (RLIMIT_NPROC): "
+          f"{TERMINAL_NPROC_LIMIT or 'off'}", flush=True)
     server = http.server.ThreadingHTTPServer(("0.0.0.0", 7682), Handler)
     server.serve_forever()
 

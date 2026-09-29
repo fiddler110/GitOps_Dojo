@@ -41,8 +41,13 @@ done
 iptables -C DOCKER-USER -i docker0 ! -o docker0 -m conntrack --ctstate NEW -j DROP 2>/dev/null ||
   iptables -I DOCKER-USER -i docker0 ! -o docker0 -m conntrack --ctstate NEW -j DROP
 
-# The socket is shared with cloud-api, which runs as a different user.
-chmod 0666 /run/cloud/docker.sock
+# The socket is shared with cloud-api only (T5.1, FIND-15): 0660, group `cloud` (gid CLOUD_GID, fixed so
+# compose can give the same gid to cloud-api with group_add). The volume is mounted by no other container;
+# this drops "other" so a process that ever lands there without the group cannot speak to dockerd.
+CLOUD_GID="${CLOUD_GID:-1900}"
+getent group "$CLOUD_GID" >/dev/null 2>&1 || addgroup -g "$CLOUD_GID" cloud
+chgrp "$CLOUD_GID" /run/cloud/docker.sock
+chmod 0660 /run/cloud/docker.sock
 
 import_hello() {
   version="$1"

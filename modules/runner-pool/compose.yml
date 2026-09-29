@@ -38,8 +38,20 @@ services:
         TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_runner_pool
     # Root inside the container: it creates and deletes the runner users.
-    # Rootless podman's default capabilities; no extra ones (T0.8).
+    # Only what useradd/userdel, su, chown and killing a job's processes need
+    # (T4.1); podman's default seccomp profile applies and is not pinned here.
     user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+      - KILL
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - RUNNER_NPROC=${RUNNER_NPROC:-256}
@@ -77,7 +89,15 @@ services:
     command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     network_mode: "service:runner-pool"
     # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
+    # NET_BIND_SERVICE is the only capability it needs (default seccomp
+    # profile, not pinned).
     user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
     volumes:
@@ -95,6 +115,36 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
+  # One-shot (T5.2c): the only holder of the Forgejo admin password in this
+  # module. Mints the controller's scoped token into a volume the controller
+  # mounts read-only, then exits. Started (not healthy) is enough: the
+  # controller waits on its completion.
+  runner-token-init:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_runner_token_init
+    entrypoint: ["python3", "-B", "/opt/runner-controller/mint_token.py"]
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
+      - FORGEJO_TOKEN_FILE=/token/forgejo-token
+    volumes:
+      - ../modules/runner-pool/controller:/opt/runner-controller:ro
+      - runner_controller_token:/token
+    networks:
+      - workshop_lab
+    depends_on:
+      - git-server
+    # The allocator image's HEALTHCHECK can never pass for a one-shot that exits;
+    # podman-compose would wait on it forever before starting the controller.
+    healthcheck:
+      disable: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    restart: on-failure
+
   # Registers runners, scales them and serves the Runners panel
   # (controller/controller.py, stdlib Python on the allocator's image).
   runner-controller:
@@ -102,9 +152,10 @@ services:
     container_name: workshop_runner_controller
     entrypoint: ["python3", "-B", "/opt/runner-controller/controller.py"]
     environment:
+      # No admin password here (T5.2c): runner-token-init mints a scoped token.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
-      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - FORGEJO_TOKEN_FILE=/token/forgejo-token
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_RUNNER_CONTROLLER:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - RUNNER_MIN_IDLE=${RUNNER_MIN_IDLE:-2}
@@ -115,11 +166,18 @@ services:
     volumes:
       - ../modules/runner-pool/controller:/opt/runner-controller:ro
       - runner_pool_spool:/spool
+      - runner_controller_token:/token:ro
     networks:
       - workshop_lab
+    # completed, not started: podman-compose waits for a plain dependency to be
+    # *running*, and this one-shot has already exited, so it would wait forever.
     depends_on:
-      - git-server
-      - runner-pool
+      git-server:
+        condition: service_started
+      runner-pool:
+        condition: service_started
+      runner-token-init:
+        condition: service_completed_successfully
     # The image's own check sends the gateway token to /; /healthz needs none.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
@@ -132,6 +190,7 @@ services:
 volumes:
   runner_pool_spool:
   runner_pool_data:
+  runner_controller_token:
   runner_pool_shim_data:
   runner_pool_shim_config:
 

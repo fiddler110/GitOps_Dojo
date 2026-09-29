@@ -9,7 +9,7 @@
 # stack that isn't Alpine-based. Everything not available via apt (ttyd,
 # zoxide, glow, code-server) is pinned to a specific version and
 # sha256-verified below, same as this file always did on Alpine.
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bat \
@@ -218,6 +218,12 @@ COPY entrypoint.sh /usr/local/bin/web-terminal-entrypoint
 COPY workspace-control.py /usr/local/bin/workspace-control.py
 COPY healthcheck.sh /usr/local/bin/web-terminal-healthcheck
 RUN chmod +x /usr/local/bin/web-terminal-entrypoint /usr/local/bin/web-terminal-healthcheck
+# One account's setup, run by the entrypoint and by a student reset.
+COPY provision-account.sh forgejo-token.py dojo_secret.py /usr/local/lib/dojo/
+# Root only: dojo_secret.py prints any student's Forgejo password.
+RUN chmod 700 /usr/local/lib/dojo \
+    && chmod 700 /usr/local/lib/dojo/provision-account.sh /usr/local/lib/dojo/forgejo-token.py \
+    && chmod 600 /usr/local/lib/dojo/dojo_secret.py
 
 # Authored shell config shared by the facilitator/student accounts. Kept as
 # a real, editable file here (not inline heredocs in entrypoint.sh) so shell

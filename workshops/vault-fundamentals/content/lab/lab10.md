@@ -16,12 +16,20 @@ This is the talk's **option 2** for secret zero. Option 3, one secret ID kept in
 8. Look at the running app, and at the audit trail.
 9. See a branch refused, and what a restart without a deploy costs.
 
-```text
- pipeline (deliver-main)          vault                        app-host, your slot
- "a secret ID for app, wrapped" → makes one, puts it in a box
- ships the box with the app ────────────────────────────────→  Agent opens the box (once)
-                                  logs the app in  ←──────────  logs in, deletes the file
-                                  team/app  ──────────────────→ Agent renders the secrets
+```mermaid
+sequenceDiagram
+  participant Pipe as Pipeline (deliver-main)
+  participant Vault as OpenBao
+  participant Agent as Agent, on app-host
+  participant App
+  Pipe->>Vault: a secret ID for app, wrapped
+  Vault-->>Pipe: a single-use box (wrapped)
+  Pipe->>Agent: ships the box with the app
+  Agent->>Vault: opens the box (once), logs the app in
+  Vault-->>Agent: a token
+  Agent->>Agent: deletes the file
+  Agent->>Vault: reads team/app
+  Agent->>App: renders the secrets
 ```
 
 ---
@@ -33,16 +41,15 @@ This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6
 ```bash
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
-bao kv get team/app >/dev/null 2>&1 || until bao kv put team/app db_password=app-db-pass api_key=app-api-key; do sleep 2; done
+bao kv get team/app >/dev/null 2>&1 || until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
 printf 'path "team/data/app" {\n  capabilities = ["read"]\n}\n' | bao policy write app-read -
 bao auth list | grep -q '^approle/' || bao auth enable approle
 [ -d ~/lab/vault-fundamentals ] || {
-  curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
+  curl --netrc -H "Content-Type: application/json" -d '{}' \
     http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
   git clone http://git-server:3000/$USER/vault-fundamentals.git ~/lab/vault-fundamentals
 }
 cd ~/lab/vault-fundamentals && git switch main && git pull
-git config credential.helper 'cache --timeout=3600'
 ```
 
 ## 2. The app's role, made strict
@@ -97,7 +104,7 @@ DELIVER=$(bao token create -orphan -policy=app-deliver -ttl=10m -field=token)
 BAO_TOKEN=$DELIVER bao kv get team/app                           # 403: it can't even see team/
 BAO_TOKEN=$DELIVER bao write -f auth/approle/role/app/secret-id  # permission denied: not wrapped
 WRAPPED=$(BAO_TOKEN=$DELIVER bao write -f -wrap-ttl=60s -field=wrapping_token auth/approle/role/app/secret-id)
-bao write sys/wrapping/lookup token="$WRAPPED"
+printf '%s' "$WRAPPED" | bao write sys/wrapping/lookup token=-
 ```
 
 The first two are refused: `kv get` stops at its preflight check (`preflight capability check returned 403`: this token can't even see the `team/` mount), and the unwrapped request gets `permission denied`. The third asks for the same thing wrapped (`-wrap-ttl=60s`), and works. What came back isn't the secret ID: it's the **wrapping token**. The lookup shows the box's label, not what's inside: `creation_path` (where it was made, so the app can check it came from the right place) and `creation_ttl` (60 seconds, then it's gone).
@@ -105,9 +112,11 @@ The first two are refused: `kv get` stops at its preflight check (`preflight cap
 Open it, as the app would. Then try to open it again, as someone who intercepted it would:
 
 ```bash
-SECRET_ID=$(bao unwrap -field=secret_id "$WRAPPED") && echo "unwrapped: got a secret ID"
-bao unwrap "$WRAPPED"
+SECRET_ID=$(BAO_TOKEN="$WRAPPED" bao unwrap -field=secret_id) && echo "unwrapped: got a secret ID"
+BAO_TOKEN="$WRAPPED" bao unwrap
 ```
+
+`bao unwrap` with no argument opens the wrapper it's signed in with, so `BAO_TOKEN=...` in front hands it the wrapper without putting it on the command line (Lab 3: on a shared machine every account can see a command line in `ps`). The lookup above did the same with `token=-` and standard input.
 
 The second one fails: `wrapping token is not valid or does not exist`. A wrapper opens **once**. If the app ever gets that error, someone opened its wrapper first: an interception you *know* about, instead of one you don't.
 
@@ -115,10 +124,10 @@ Now log in with the secret ID, twice. The first login prints only the parts of t
 
 ```bash
 ROLE_ID=$(bao read -field=role_id auth/approle/role/app/role-id)
-bao write -format=json auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID" \
+printf '%s' "$SECRET_ID" | bao write -format=json auth/approle/login role_id="$ROLE_ID" secret_id=- \
   | jq '.auth | {policies, lease_duration, renewable}'
-bao write auth/approle/login role_id="$ROLE_ID" secret_id="$SECRET_ID"
-bao token revoke "$DELIVER"
+printf '%s' "$SECRET_ID" | bao write auth/approle/login role_id="$ROLE_ID" secret_id=-
+BAO_TOKEN="$DELIVER" bao token revoke -self
 unset SECRET_ID WRAPPED DELIVER
 ```
 

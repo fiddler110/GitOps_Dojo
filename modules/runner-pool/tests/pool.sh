@@ -11,6 +11,7 @@
 # any failure.
 set -u
 set -a; . engine/.env; set +a
+[ ! -r engine/.generated/upstream-tokens.env ] || { set -a; . engine/.generated/upstream-tokens.env; set +a; }  # per-upstream tokens (FIND-16)
 ORG="${FORGEJO_ORG:-training}"
 [ -f "workshops/${WORKSHOP:-vault-fundamentals}/workshop.env" ] && ORG="$(sed -n 's/^FORGEJO_ORG=//p' "workshops/${WORKSHOP:-vault-fundamentals}/workshop.env")"
 failed=0
@@ -21,9 +22,9 @@ api() { # api METHOD PATH [JSON]: Forgejo admin API, from the terminal container
     -H 'Content-Type: application/json' -X "$1" "http://git-server:3000/api/v1$2" ${3:+-d "$3"}; }
 panel() { # panel METHOD PATH USER [JSON] [CSRF]: the controller, as the gateway would call it
   podman exec workshop_terminal curl -s -o /dev/null -w '%{http_code}' -X "$1" \
-    -H "X-Gateway-Token: ${GATEWAY_TOKEN}" -H "X-Auth-User: $3" -H 'Content-Type: application/json' \
+    -H "X-Gateway-Token: ${GATEWAY_TOKEN_RUNNER_CONTROLLER}" -H "X-Auth-User: $3" -H 'Content-Type: application/json' \
     ${5:+-H "X-Requested-With: $5"} ${4:+-d "$4"} "http://runner-controller:8080$2"; }
-state() { podman exec workshop_terminal curl -s -H "X-Gateway-Token: ${GATEWAY_TOKEN}" \
+state() { podman exec workshop_terminal curl -s -H "X-Gateway-Token: ${GATEWAY_TOKEN_RUNNER_CONTROLLER}" \
     -H "X-Auth-User: ${FACILITATOR_USERNAME}" http://runner-controller:8080/api/state; }
 field() { python3 -B -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 job_logs() { # job_logs REPO: every archived job log of ORG/REPO, decompressed

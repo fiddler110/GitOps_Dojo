@@ -16,8 +16,8 @@ for u in "$a" "$b" "$f"; do
   want=student; [ "$u" = "$f" ] && want=facilitator
   printf '%s' "$out" | tr -d ' \n' | grep -q "\"identity_policies\":\[\"$want\"\]"; check $? "the entity has the $want policy"
   ent="$(as "$u" 'bao token lookup -format=json' | sed -n 's/.*"entity_id": "\([^"]*\)".*/\1/p')"
-  name="$(podman exec -e BAO_ADDR=http://openbao:8200 -e BAO_TOKEN="$(podman exec workshop_openbao_setup cat /setup/provisioner-token)" \
-    workshop_openbao_setup bao read -field=name identity/entity/id/"$ent" 2>&1)"
+  # Read as the facilitator (policy facilitator): nothing else keeps a token.
+  name="$(as "$f" "bao read -field=name identity/entity/id/$ent")"
   exp="$u"; [ "$u" = "$f" ] && exp=facilitator
   [ "$name" = "$exp" ]; check $? "same entity as the SSO login ($name)"
 done

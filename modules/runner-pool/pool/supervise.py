@@ -4,7 +4,7 @@
 The controller (../controller/controller.py) registers each runner with
 Forgejo and drops its config in /spool/start/<name>.yaml. For each one this
 starts `forgejo-runner one-job --wait` as a fresh Linux user of the same name,
-inside its own user + PID namespace (vault-fundamentals PLAN.md §6.2, T0.8):
+inside its own user + PID namespace (VAULT-FUNDAMENTALS-PLAN.md §6.2, T0.8):
 a home only it can read, umask 077, its own TMPDIR, prlimit caps, and a view
 of its own processes only. When the job ends (or the controller asks for an
 idle runner to go, with /spool/stop/<name>) it kills whatever the user left
@@ -161,7 +161,7 @@ def watch(r):
         r.exit = rc
         if r.task is not None:
             # A job was run. Exit codes after a cancelled job are not errors
-            # (PLAN.md §14: the runner retries its log upload, then exits).
+            # (VAULT-FUNDAMENTALS-PLAN.md §14: the runner retries its log upload, then exits).
             r.state = "done"
         elif r.stop_requested:
             r.state = "removed"

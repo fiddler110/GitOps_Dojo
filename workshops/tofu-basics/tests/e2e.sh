@@ -97,22 +97,17 @@ install_exit_trap
 
 STUDENT=""; WORK=""; REPO=""
 
-# The Forgejo password, for Lab 0's fork and the push check. Read from the terminal container's own STUDENT_PASSWORD
-# and handed to the student's shell as an environment variable (TB_PASS_ENV), never on a command line.
-git_password() {
-  [ -n "${DOJO_GIT_PASSWORD:-}" ] && return 0
-  DOJO_GIT_PASSWORD=$(terminal_env STUDENT_PASSWORD || true)
-  [ -n "$DOJO_GIT_PASSWORD" ] || return 1
-  export DOJO_GIT_PASSWORD TB_PASS_ENV=DOJO_GIT_PASSWORD
-}
+# The terminal signs each student's git and curl in with their own Forgejo token (~/.git-credentials, ~/.netrc;
+# remediation T2.1c), so the fork, the push and the clean-up below need no password, as in the labs.
+git_token() { as_student "$STUDENT" "test -s ~/.netrc && echo netrc-ok" 30 netrc && out_has netrc-ok; }
 
 # Lab 0 step 1: fork the team repo into the student's account through Forgejo's API, as the lab does with curl.
 # 202 = forked now (this run deletes the fork again at cleanup), 409 = the student already had one (kept).
 fork_repo() {
   local code
   if is_dry; then dry "as $STUDENT: fork $FORGEJO_ORG/$FORGEJO_REPO through the Forgejo API (Lab 0), expect 202 or 409"; return 0; fi
-  git_password || { warn "no STUDENT_PASSWORD in $TERMINAL_CONTAINER: Lab 0's fork and the push are NOT tested"; return 1; }
-  as_student "$STUDENT" "curl -s -o /dev/null -w 'fork-http=%{http_code}\\n' -u '$STUDENT':\"\$DOJO_GIT_PASSWORD\" -H 'Content-Type: application/json' -d '{}' $TB_STARTER_URL_BASE/api/v1/repos/$FORGEJO_ORG/$FORGEJO_REPO/forks" 60 fork
+  git_token || { warn "$STUDENT has no ~/.netrc (the terminal's token step): Lab 0's fork and the push are NOT tested"; return 1; }
+  as_student "$STUDENT" "curl -s -o /dev/null -w 'fork-http=%{http_code}\\n' --netrc -H 'Content-Type: application/json' -d '{}' $TB_STARTER_URL_BASE/api/v1/repos/$FORGEJO_ORG/$FORGEJO_REPO/forks" 60 fork
   code=$(sed -n 's/^fork-http=//p' "$OUT" | head -n1)
   case $code in
     202) pass "Lab 0: the fork call creates $STUDENT/$FORGEJO_REPO (HTTP 202)"; : > "$RUN_DIR/fork-created" ;;
@@ -121,14 +116,13 @@ fork_repo() {
   esac
 }
 
-# Labs 3 and 10 push a branch to the fork. Push a throwaway branch with the student's password, then delete it.
+# Labs 3 and 10 push a branch to the fork. Push a throwaway branch with the student's token, then delete it.
 push_check() {
-  local b=e2e-$RUN_ID helper
-  helper="credential.helper=!f() { echo username=$STUDENT; echo password=\$DOJO_GIT_PASSWORD; }; f"
-  as_student "$STUDENT" "cd '$REPO' && git remote get-url origin && export GIT_TERMINAL_PROMPT=0 && git -c '$helper' push -q origin HEAD:refs/heads/$b && echo push-ok && git -c '$helper' push -q origin --delete $b && echo delete-ok" 120 push
+  local b=e2e-$RUN_ID
+  as_student "$STUDENT" "cd '$REPO' && git remote get-url origin && export GIT_TERMINAL_PROMPT=0 && git push -q origin HEAD:refs/heads/$b && echo push-ok && git push -q origin --delete $b && echo delete-ok" 120 push
   is_dry && return 0
   expect_has "the clone's origin is the student's fork (Lab 0)" "$TB_STARTER_URL_BASE/$STUDENT/$FORGEJO_REPO.git"
-  expect_has "git push to the fork works with the student's Forgejo password (Labs 3 and 10)" push-ok delete-ok
+  expect_has "git push to the fork works with the student's Forgejo token, no prompt (Labs 3 and 10)" push-ok delete-ok
 }
 
 # Lab 0 once per run: fork, clone the fork, check a push. If the fork step cannot run, clone the team repo instead;
@@ -182,8 +176,8 @@ e2e_cleanup() {
   verify_empty "$STUDENT"
   remove_workdirs
   # Delete the fork only if this run created it (Lab 0 answered 202); a fork the student already had stays.
-  if [ -e "$RUN_DIR/fork-created" ] && git_password; then
-    as_student "$STUDENT" "curl -s -o /dev/null -w 'delete-fork-http=%{http_code}\\n' -u '$STUDENT':\"\$DOJO_GIT_PASSWORD\" -X DELETE $TB_STARTER_URL_BASE/api/v1/repos/$STUDENT/$FORGEJO_REPO" 60 delete-fork
+  if [ -e "$RUN_DIR/fork-created" ]; then
+    as_student "$STUDENT" "curl -s -o /dev/null -w 'delete-fork-http=%{http_code}\\n' --netrc -X DELETE $TB_STARTER_URL_BASE/api/v1/repos/$STUDENT/$FORGEJO_REPO" 60 delete-fork
     if out_has delete-fork-http=204; then say "  deleted the fork $STUDENT/$FORGEJO_REPO this run created"
     else say "  could not delete the fork $STUDENT/$FORGEJO_REPO (delete it in Forgejo):"; tail -n 3 "$OUT" | say_block "        | "; fi
   fi

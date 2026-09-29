@@ -1,7 +1,6 @@
 #!/bin/sh
-# Hashes TTYD_PASSWORD and FACILITATOR_PASSWORD at startup so the Caddyfile
-# never needs a pre-computed hash pasted into .env — facilitators just set
-# a plaintext password like every other credential in this project.
+# Works out the addresses the Caddyfile needs from PUBLIC_BASE_URL. Passwords
+# are not handled here: sign-in is the allocator's /login page.
 set -eu
 
 # What Caddy serves: PUBLIC_BASE_URL, unless the lab sits behind another
@@ -9,7 +8,14 @@ set -eu
 # plain-HTTP address and PUBLIC_BASE_URL stays what the browser sees.
 export GATEWAY_LISTEN="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
 
-export TTYD_PASSWORD_HASH="$(caddy hash-password --plaintext "$TTYD_PASSWORD")"
-export FACILITATOR_PASSWORD_HASH="$(caddy hash-password --plaintext "$FACILITATOR_PASSWORD")"
+# The TLS name for clients that send none: browsers and curl send no SNI for
+# an IP address (https://192.168.1.50:8443, Caddy's own CA), and without a
+# default Caddy can't pick the certificate and aborts the handshake.
+public_host="${PUBLIC_BASE_URL#*://}"; public_host="${public_host%%/*}"
+case "$public_host" in
+  \[*\]*) public_host="${public_host%%\]*}"; public_host="${public_host#\[}" ;;
+  *) public_host="${public_host%:*}" ;;
+esac
+export GATEWAY_DEFAULT_SNI="$public_host"
 
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile

@@ -55,14 +55,15 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
-  # Init, unseal and first-start set-up (setup/setup.sh). It stays running to
-  # re-unseal whenever openbao restarts sealed. Its key and provisioner token
-  # live on openbao_setup, mounted nowhere else.
+  # Init, unseal and the set-up on every start (setup/setup.sh). It stays
+  # running to re-unseal whenever openbao restarts sealed. The unseal key lives
+  # on openbao_setup, mounted nowhere else; no live token does (the reset token
+  # is in the tmpfs below, memory only).
   openbao-setup:
     image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
     container_name: workshop_openbao_setup
     entrypoint: ["sh", "/etc/openbao-setup/setup.sh"]
-    # Root: writes the key and token to the volume. No capabilities needed.
+    # Root: writes the key to the volume. No capabilities needed.
     user: "0:0"
     cap_drop:
       - ALL
@@ -76,6 +77,8 @@ services:
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # Per-student-namespace rate-limit tripwire (module.env; 0 = none).
+      - OPENBAO_NAMESPACE_RATE=${OPENBAO_NAMESPACE_RATE:-200}
       # For CLI login (setup/cli.sh): the facilitator's terminal account.
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
@@ -112,7 +115,7 @@ services:
       - BAO_ADDR=http://openbao:8200
       # The facilitator's Audit tab (route /vault-audit): checked like the
       # Runners panel, since workshop_lab reaches this port directly.
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_OPENBAO_AUDIT:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
       - ../modules/openbao/audit:/opt/openbao-audit:ro

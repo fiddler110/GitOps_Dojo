@@ -5,7 +5,7 @@ Azure-inspired training cloud (API, portal, real containers) at /cloud.
 **Dojo Cloud**: an Azure-inspired training cloud with an ARM-style API, a portal and
 real containers. Students deploy to it with the `azurerm` provider. Add it with
 `MODULES="dojo-cloud"` in a `workshop.env`. The design and its history are in
-`workshops/tofu-basics/PLAN.md`.
+`docs/archive/TOFU-BASICS-PLAN.md`.
 
 | Part | What it does |
 |---|---|
@@ -26,4 +26,22 @@ cd modules/dojo-cloud/cloud-api && python3 -B -m unittest test_portal_api test_e
 cd .. && python3 -B -m unittest test_parity
 ```
 
+## Rate limit (tripwire)
+
+CloudAPI keeps a token bucket per student for ARM calls (never keyed by source IP), far above a `tofu apply` or a
+`--test` run. Knobs in module.env: `CLOUD_API_RATE_BURST` (default `200`) and `CLOUD_API_RATE_PER_SEC` (default
+`20`); `0` = off. A refusal is a 429 with `Retry-After` and a `rate limit: <account> ...` log line. Test:
+`python3 -B -m unittest test_ratelimit`.
+
 Used by: `tofu-basics`.
+
+## Docker socket and DinD (FIND-15, T5.1)
+
+The socket `/run/cloud/docker.sock` is `0660 root:cloud` (gid 1900, `cloud-host/entrypoint.sh`); `cloud-api` joins
+the group with `group_add`. The `cloud_run` volume is mounted only by `cloud-api` and `cloud-host`, so the socket
+has no "other" access. Check: `podman exec workshop_cloud_host stat -c '%a %G' /run/cloud/docker.sock` prints
+`660 cloud`.
+
+`cloud-host` stays a privileged Docker-in-Docker daemon. Rootless DinD / podman-in-container was **not adopted**
+(accepted residual risk, decision D9): the box is what limits it (`internal: true` network, no published port,
+the socket shared with `cloud-api` alone, fixed-template executor) and a rootless variant was not spiked on WSL2.

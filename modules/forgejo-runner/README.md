@@ -32,4 +32,9 @@ services:
 service on it too, in list form (`networks: [workshop_lab, runner_net]`).
 Never put allocator or web-terminal on it: jobs run student-written code.
 
-Used by: `dns-as-code`.
+**Security.** This is one long-lived runner shared by every job, so a job can see
+what earlier jobs left behind. The registration secret is a root-only `0600` file
+(`register.sh`). `dns-as-code` moved to the single-use `runner-pool` module for that
+reason (remediation T3.1); prefer `runner-pool` for anything that runs student code.
+
+Used by: no shipped workshop now (`dns-as-code` uses `runner-pool`).

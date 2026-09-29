@@ -43,8 +43,8 @@ A namespace starts empty. **Enable** a KV version 2 engine at the path `team/` (
 
 ```bash
 bao secrets enable -path=team kv-v2
-bao kv put team/app db_password=app-db-pass api_key=app-api-key
-bao kv put team/admin root_password=do-not-share
+echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -
+printf '%s' 'do-not-share' | bao kv put team/admin root_password=-
 bao kv list team/
 ```
 

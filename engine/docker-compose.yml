@@ -19,7 +19,7 @@ version: '3.8'
 services:
   # 1. Git server (Forgejo)
   git-server:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_forge
     environment:
       - USER_UID=1000
@@ -55,7 +55,7 @@ services:
   # 2. One-shot bootstrap: admin user, org, sample repo, and one Forgejo
   #    account per configured student. Safe to re-run; exits after it's done.
   bootstrap:
-    image: codeberg.org/forgejo/forgejo:${FORGEJO_VERSION:-16.0.4}
+    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_bootstrap
     depends_on:
       git-server:
@@ -70,6 +70,9 @@ services:
       - FORGEJO_SEED_DIR=/seed
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # Per-student Forgejo passwords (dojo-secret.sh). STUDENT_PASSWORD is
+      # only the fallback for an engine/.env without a seed.
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       # Demo/test bots (--test) -- see run.sh and README.md. 0 (disabled)
       # unless a facilitator opted in.
@@ -79,6 +82,7 @@ services:
     volumes:
       - forgejo_data:/data
       - ./git-server/bootstrap.sh:/bootstrap.sh:ro
+      - ./git-server/dojo-secret.sh:/dojo-secret.sh:ro
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/seed:ro
     entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
     # Isolated to its own network, not workshop_lab -- bootstrap only ever
@@ -139,6 +143,14 @@ services:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # entrypoint.sh finds the terminal_ingress interface by this subnet
+      # and lets the IDE/terminal ports answer only there (and on lo).
+      - TERMINAL_INGRESS_SUBNET=${TERMINAL_INGRESS_SUBNET:-172.30.9.0/24}
+      # Root only: forgejo-token.py derives each student's Forgejo password
+      # from the seed to mint that student's git token. Students never see
+      # it: their shells and IDEs start through `su -`, which clears the
+      # environment, and /proc/1/environ is root's.
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       # Demo/test bots (--test) -- see run.sh and README.md's "Demo bots"
       # section. BOT_COUNT=0 (the default) disables this entirely.
@@ -159,6 +171,9 @@ services:
       # workspace-control.py. A safety net under mem_limit below, not a
       # replacement for it.
       - CODE_SERVER_MAX_HEAP_MB=${CODE_SERVER_MAX_HEAP_MB:-384}
+      # Per-student process limit, a fork-bomb tripwire (0 = off); see
+      # workspace-control.py.
+      - TERMINAL_NPROC_LIMIT=${TERMINAL_NPROC_LIMIT:-1024}
       # How long a code-server lingers once its browser tab closes -- see
       # workspace-control.py. Frees memory from students who have left
       # (break, end of class) without touching anyone still connected.
@@ -176,8 +191,15 @@ services:
       # (content/bots/steps.sh, see bot-runner.sh). Mounted as the dir rather
       # than content/bots so a workshop without bots doesn't break the mount.
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}:/opt/workshop-content:ro
+    # Map form (not the usual list) for the alias: the gateway dials
+    # web-terminal-ingress, which resolves only to this container's
+    # terminal_ingress address. No fragment adds networks here; one that
+    # does must use the map form too.
     networks:
-      - workshop_lab
+      workshop_lab: {}
+      terminal_ingress:
+        aliases:
+          - web-terminal-ingress
     restart: unless-stopped
     # Grants only what entrypoint.sh's iptables DOJO_ISOLATION chain needs
     # to firewall loopback traffic between accounts inside this container's
@@ -220,9 +242,18 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # The Slides status check calls the gateway at this address when set.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
+      # The sign-in page (/login) checks these; the Slides status check
+      # signs in as the class account (/slides is behind it).
+      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
+      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
+      - WORKSHOP_DESCRIPTION=${WORKSHOP_DESCRIPTION:-}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # How fast new slots go out (allocator/server.py AssignLimit).
+      - ASSIGN_BURST=${ASSIGN_BURST:-10}
+      - ASSIGN_PER_MINUTE=${ASSIGN_PER_MINUTE:-20}
       # Demo/test bots (--test): included as always-on roster rows (see
       # /admin/api/sessions) so a facilitator can watch/Release them like
       # any student, without ever competing with real students for a
@@ -242,7 +273,9 @@ services:
       # matching whatever identity it already resolved (studentNN or the
       # facilitator's own admin account) by POSTing Forgejo's login form
       # itself, server-side, over the internal network -- these must match
-      # bootstrap.sh's own credentials for the accounts it actually seeded.
+      # bootstrap.sh's own credentials for the accounts it actually seeded
+      # (per-student passwords from the seed, dojo_secret.py).
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
@@ -284,10 +317,9 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # Set only when another proxy terminates TLS in front of the lab.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
-      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
-      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
-      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
+      # The proxy in front of GATEWAY_LISTEN, as the gateway sees it (CIDR,
+      # space-separated): the login limit then keys on the real client address.
+      - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
       # Shared secret the Caddyfile sends as X-Gateway-Token on every block
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).
@@ -296,8 +328,8 @@ services:
     # names (e.g. http://localhost:8080 -> :8080 inside the container), and
     # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-80}:${GATEWAY_HTTP_PORT:-80}"
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-443}:${GATEWAY_HTTPS_PORT:-443}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-8443}:${GATEWAY_HTTPS_PORT:-8443}"
     volumes:
       # The workshop's extension routes, rendered from its extensions.json
       # by run.sh before every start; gateway/Caddyfile imports them.
@@ -306,6 +338,7 @@ services:
       - public
       - workshop_lab
       - web_lab
+      - terminal_ingress
     restart: unless-stopped
     # Backstop, same reasoning as git-server's above -- Caddy proxying 30
     # concurrent sessions is still lightweight, this is just a ceiling.
@@ -321,6 +354,18 @@ networks:
     internal: true
   web_lab:
     internal: true
+  # The gateway's only path to the students' IDE and terminal ports
+  # (9000-9899) (remediation T2.2a, FIND-04): web-terminal drops them on
+  # every other interface, so a CI job, runner or module service on
+  # workshop_lab can't reach a workspace that skips Caddy's auth-check.
+  # Only gateway and web-terminal join it; run.sh refuses a module or
+  # workshop fragment that mentions it. Fixed subnet so entrypoint.sh can
+  # find the interface; TERMINAL_INGRESS_SUBNET overrides a clash.
+  terminal_ingress:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${TERMINAL_INGRESS_SUBNET:-172.30.9.0/24}
   # Isolates the one-shot bootstrap service (only ever calls git-server) so
   # it has no network path to allocator or web-terminal at all -- those two
   # stay on workshop_lab only. See the bootstrap/git-server service blocks

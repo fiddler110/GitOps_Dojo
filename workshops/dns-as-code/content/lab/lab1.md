@@ -17,7 +17,7 @@ git log --oneline
 
 - `dnsconfig.js` is the whole zone, as code. The `D("studentXX.dojo.test", ...)` block (with your username) lists every record in it. `A("www", "203.0.113.10")` means "`www.studentXX.dojo.test` has the address `203.0.113.10`": names inside the block are relative to the zone, and `@` means the zone itself.
 - The `SOA` and `NAMESERVER` lines are bookkeeping every zone needs. Leave them alone.
-- `creds.json` tells `dnscontrol` where the PowerDNS API is and which key to use.
+- `creds.json` tells `dnscontrol` where the PowerDNS API is and which key to use: `$DNS_API_KEY`, your own key, which your terminal sets for you. It changes only your zone, so the file itself holds no secret.
 - It's a git repo with one commit and no remote: your history stays on your machine.
 
 `203.0.113.0/24` is IETF-reserved "documentation" address space (RFC 5737), so none of these addresses can ever be real.

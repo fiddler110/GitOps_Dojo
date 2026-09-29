@@ -1,0 +1,152 @@
+# Overlay for dojo-introduction, layered on top of engine/docker-compose.yml
+# and the openbao, runner-pool, dojo-cloud and dns-ui modules (MODULES in
+# workshop.env) by engine/run.sh. Relative paths resolve against engine/, not
+# this folder.
+#
+# This pack brings up every capability at once, so it reuses the other
+# workshops' service sources instead of copying them (a build context or a
+# bind mount points at workshops/<name>/compose/...):
+#   - dns-server (PowerDNS) + dns-seed, from cert-autorenewal: the zone
+#     certs.dojo.test with a record per student. Reads by dns-ui's viewer.
+#   - step-ca + demo-app, from cert-autorenewal: the ACME CA and the vhost
+#     host, so `step`, certbot and acme.sh have something to talk to.
+#   - the vault's namespaces, student policy and CI trust, from the
+#     vault-fundamentals hooks (10-tenancy.sh, 20-ci.sh); its app-host/app-db
+#     (labs 11-13) are left out.
+#   - the other four workshops' slides, served under /slides/w/<name>/.
+#   - dns-api, from the dns-gate module: the only way from a terminal to the
+#     PowerDNS API, so `dnscontrol push` works in each account's own
+#     <user>.dojo.test zone (~/lab/my-zone, from dns-as-code's 90-my-zone.sh
+#     hook), with that account's own key. The shared
+#     dojo.test zone is refused for everyone: it is a CI-only zone with no
+#     CI repo (workshop.env), and this pack has no branch protection.
+
+services:
+  # PowerDNS, map-form networks because dns-ui adds dns_admin_net to it.
+  # Pinned address: step-ca's entrypoint points its resolver at it.
+  dns-server:
+    image: docker.io/powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
+    container_name: workshop_powerdns
+    # `:-` not `:?`: ./run.sh stop reads this file without workshop.env.
+    environment:
+      - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-}
+    cap_add:
+      - NET_BIND_SERVICE
+    networks:
+      workshop_lab:
+        ipv4_address: 172.30.0.10
+    restart: unless-stopped
+
+  dns-seed:
+    build:
+      context: ../workshops/cert-autorenewal/compose/dns-seed
+    container_name: workshop_dns_seed
+    depends_on:
+      - dns-server
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - CERT_LAB_ZONE=certs.dojo.test
+      - POWERDNS_API_KEY=${POWERDNS_API_KEY:-}
+      - DEMO_APP_IP=172.30.0.20
+    networks:
+      - workshop_lab
+    restart: "no"
+
+  # From the dns-gate module (MODULES in workshop.env).
+  dns-api:
+    depends_on:
+      - dns-server
+
+  step-ca:
+    build:
+      context: ../workshops/cert-autorenewal/compose/step-ca
+    container_name: workshop_step_ca
+    environment:
+      - DNS_SERVER_IP=172.30.0.10
+    volumes:
+      - step_ca_data:/home/step
+      - step_ca_root_pub:/pub
+    networks:
+      - workshop_lab
+    restart: unless-stopped
+
+  demo-app:
+    build:
+      context: ../workshops/cert-autorenewal/compose/demo-app
+    container_name: workshop_cert_demo_app
+    volumes:
+      - cert_lab_webroot:/srv/webroot
+    networks:
+      workshop_lab:
+        ipv4_address: 172.30.0.20
+    restart: unless-stopped
+
+  # The vault's per-student set-up: hooks the openbao module sources on every
+  # start, mounted one file at a time from vault-fundamentals so there is one copy.
+  openbao-setup:
+    volumes:
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/10-tenancy.sh:/etc/openbao-setup.d/10-tenancy.sh:ro
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/20-ci.sh:/etc/openbao-setup.d/20-ci.sh:ro
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/student.hcl:/etc/openbao-setup.d/student.hcl:ro
+      # The paths those hooks may write (the provisioner) and a student reset may touch.
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/provisioner.hcl:/etc/openbao-setup.d/provisioner.hcl:ro
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/reset.hcl:/etc/openbao-setup.d/reset.hcl:ro
+
+  # CI jobs (runner-pool) can log in to OpenBao over runner_net.
+  openbao:
+    networks:
+      - runner_net
+
+  runner-pool:
+    build:
+      args:
+        JOB_TOOLS: "bao"
+
+  # The slide hub links to each workshop's own index.md. Each pack's slides go
+  # under /slides/w/<name>/, and the shared assets over its assets/ folder, as
+  # the engine does for the running workshop. The lab copies (lab/*.md.txt) are
+  # made for every pack by engine/run.sh.
+  presentation:
+    volumes:
+      - ../workshops/git-fundamentals/content/slides:/home/marp/app/w/git-fundamentals:ro
+      - ../workshops/assets:/home/marp/app/w/git-fundamentals/assets:ro
+      - ../workshops/dns-as-code/content/slides:/home/marp/app/w/dns-as-code:ro
+      - ../workshops/assets:/home/marp/app/w/dns-as-code/assets:ro
+      - ../workshops/cert-autorenewal/content/slides:/home/marp/app/w/cert-autorenewal:ro
+      - ../workshops/assets:/home/marp/app/w/cert-autorenewal/assets:ro
+      - ../workshops/tofu-basics/content/slides:/home/marp/app/w/tofu-basics:ro
+      - ../workshops/assets:/home/marp/app/w/tofu-basics/assets:ro
+      - ../workshops/vault-fundamentals/content/slides:/home/marp/app/w/vault-fundamentals:ro
+      - ../workshops/assets:/home/marp/app/w/vault-fundamentals/assets:ro
+
+  # Image: compose/terminal/, built and selected by engine/run.sh.
+  web-terminal:
+    depends_on:
+      - dns-server
+      - step-ca
+      - demo-app
+    volumes:
+      - cert_lab_webroot:/srv/webroot
+      # Each account's ~/lab/my-zone (dnscontrol config for <user>.dojo.test) and
+      # the record-types doc it copies in, both from dns-as-code.
+      - ../workshops/dns-as-code/compose/terminal/start.d/90-my-zone.sh:/etc/dojo/start.d/90-my-zone.sh:ro
+      - ../workshops/dns-as-code/content/sample-repo/docs:/opt/dojo/dns-docs:ro
+      # Public root cert only, never the CA's private keys.
+      - step_ca_root_pub:/opt/step-ca-root:ro
+      # Starts cron and makes each account's webroot folder (cert-autorenewal's hook).
+      - ../workshops/cert-autorenewal/compose/terminal/start.d/90-cert-autorenewal.sh:/etc/dojo/start.d/90-cert-autorenewal.sh:ro
+
+volumes:
+  step_ca_data:
+  step_ca_root_pub:
+  cert_lab_webroot:
+
+# Adds the subnet so dns-server and demo-app can hold stable addresses
+# (the base file leaves workshop_lab to auto-assign).
+networks:
+  workshop_lab:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

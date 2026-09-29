@@ -4,7 +4,7 @@
 # (./run.sh, a thin forwarder to this file) or from engine/ -- same thing.
 #
 # Usage:
-#   ./run.sh setup [--default] [--force]  # create engine/.env (scripts/env-setup.sh)
+#   ./run.sh setup [--default] [--force]  # create engine/.env (scripts/env-setup.sh; --rotate-class: new class password)
 #   ./run.sh capacity --students N [...]  # size the terminal limits (scripts/capacity-calc.sh)
 #   ./run.sh <workshop-name>              # e.g. ./run.sh dns-as-code
 #   ./run.sh <workshop-name> --test       # also spin up demo/test bot students (3)
@@ -88,7 +88,7 @@ usage() {
 Usage: ./run.sh <command | workshop-name> [options]
 
 Commands:
-  <workshop-name> [--test [N]] [--env NAME] [--dry-run]
+  <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]
                                 build and start a workshop; --test also starts
                                 demo bot students (3 by default, or N, max 35:
                                 testuser1-3 are expert/intermediate/novice, any
@@ -96,11 +96,14 @@ Commands:
                                 --env NAME loads engine/.env.NAME on top of
                                 engine/.env (e.g. another address or port);
                                 --dry-run only previews what would be rebuilt
-                                and started
+                                and started; default passwords are refused
+                                unless PUBLIC_BASE_URL and LAB_HOST_IP are
+                                loopback (--allow-default-passwords overrides)
   list                          show available workshops
   modules                       show available modules (../modules/) and which
                                 workshops use them (MODULES= in workshop.env)
-  setup [--default] [--force]   create engine/.env
+  setup [--default] [--force]   create engine/.env (--rotate-class: new class
+                                password only)
   capacity --students N [...]   size the terminal resource limits for this machine
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
                                 --dry-run lists what would be removed instead
@@ -117,24 +120,137 @@ EOF
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   c_green="$(printf '\033[32m')"; c_yellow="$(printf '\033[33m')"
   c_red="$(printf '\033[31m')"; c_off="$(printf '\033[0m')"
+  c_cyan="$(printf '\033[1;36m')"; c_dim="$(printf '\033[2m')"
 else
-  c_green=""; c_yellow=""; c_red=""; c_off=""
+  c_green=""; c_yellow=""; c_red=""; c_off=""; c_cyan=""; c_dim=""
 fi
+# A phase heading: bold cyan, so the steps stand out from build and compose output.
+say_step() { printf '%s==> %s%s\n' "$c_cyan" "$*" "$c_off"; }
 say_ok() { printf '  %s%s%s\n' "$c_green" "$*" "$c_off"; }
 say_changed() { printf '  %s%s%s\n' "$c_yellow" "$*" "$c_off"; }
 say_bad() { printf '  %s%s%s\n' "$c_red" "$*" "$c_off"; }
 
+# Elapsed time as m:ss, for the progress lines below.
+fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
+
+# The same information as progress_watch as one block that redraws in place (a
+# terminal only; compose's own output goes to a log so it can't scramble it).
+# table_draw prints the block once, over the previous one; table_loop repeats it.
+table_draw() {
+  td_lines=0; [ ! -s "$tbl_state" ] || td_lines="$(cat "$tbl_state")"
+  td_rows="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '
+    { st = $2; s = "running"
+      if (st ~ /\(unhealthy\)/) s = "unhealthy"
+      else if (st ~ /\(healthy\)/) s = "healthy"
+      else if (st ~ /health: starting|\(starting\)/) s = "starting"
+      else if (st ~ /^Exited \(0\)/) s = "done"
+      else if (st ~ /^Exited/) s = "FAILED"
+      else if (st ~ /^(Created|Initialized)/) s = "waiting"
+      print $1 "|" s }' | sort)"
+  td_total="$(printf '%s\n' "$td_rows" | grep -c . || true)"
+  td_ready="$(printf '%s\n' "$td_rows" | grep -c '|\(healthy\|running\|done\)$' || true)"
+  td_vols="$(vol_ls -q 2>/dev/null | grep -c '^engine_' || true)"
+  td_now="$(date +%s)"
+  td_max="$(stty size 2>/dev/null | cut -d' ' -f1)"; [ "${td_max:-0}" -gt 0 ] 2>/dev/null || td_max=30
+  out="$(printf '  %s%s%s   %s%s of %s ready%s   volumes: %s\n' "$c_dim" "$(fmt_elapsed $((td_now - up_start)))" "$c_off" "$c_cyan" "$td_ready" "$td_total" "$c_off" "$td_vols")"
+  # Too many rows for the window: show only what isn't ready yet.
+  if [ "$td_total" -gt $((td_max - 5)) ]; then
+    td_show="$(printf '%s\n' "$td_rows" | grep -v '|\(healthy\|running\|done\)$')"
+  else
+    td_show="$td_rows"
+  fi
+  if [ -n "$td_show" ]; then
+    out="${out}
+$(printf '%s\n' "$td_show" | awk -F'|' -v g="$c_green" -v y="$c_yellow" -v r="$c_red" -v o="$c_off" '
+      { col = y
+        if ($2 == "healthy" || $2 == "running" || $2 == "done") col = g
+        else if ($2 == "unhealthy" || $2 == "FAILED") col = r
+        mark = (col == g) ? "+" : ((col == r) ? "x" : "~")
+        printf "  %s%s %-36s %s%s\n", col, mark, $1, $2, o }')"
+  fi
+  waiting="$(printf '%s\n' "$td_rows" | awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s", sep, $1; sep = ", " }')"
+  [ -z "$waiting" ] || out="${out}
+  ${c_yellow}waiting on: ${waiting}${c_off}"
+  # Erase and reprint in one go, after the slow docker calls above, so the block never sits blank.
+  [ "$td_lines" -eq 0 ] || printf '\033[%dA' "$td_lines"
+  printf '%s\n' "$out" | awk '{ printf "%s\033[K\n", $0 }'
+  [ "$td_lines" -le "$(printf '%s\n' "$out" | wc -l)" ] || printf '\033[J'
+  printf '%s\n' "$(printf '%s\n' "$out" | wc -l)" > "$tbl_state"
+}
+table_loop() {
+  while :; do table_draw; sleep 1; done
+}
+
+# `compose up -d` can return while containers are still starting (health checks
+# take longer than compose waits). Keep the progress display running until none
+# is starting any more, or STARTUP_WAIT seconds (default 300) have passed.
+not_ready_list() {
+  ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '$2 ~ /^Created|^Initialized|\(unhealthy\)|health: starting|\(starting\)|^Exited \([1-9]/ { printf "%s%s (%s)", sep, $1, $2; sep = ", " }'
+}
+wait_until_ready() {
+  wr_end=$(($(date +%s) + ${STARTUP_WAIT:-300}))
+  while [ -n "$(not_ready_list)" ] && [ "$(date +%s)" -lt "$wr_end" ]; do sleep 2; done
+}
+
+# `compose up -d` prints little while it waits on a container, so a slow start
+# looks hung. This runs beside it and prints one line whenever a workshop_*
+# container changes state (created, starting, healthy, exited), and every 30 s
+# a list of what is still not ready, so you can see which one is holding things up.
+progress_watch() {
+  pw_start="$(date +%s)"; pw_prev="$(mktemp)"; pw_cur="$(mktemp)"; pw_quiet=0
+  while :; do
+    ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '
+      { st = $2; s = "running"
+        if (st ~ /\(unhealthy\)/) s = "unhealthy"
+        else if (st ~ /\(healthy\)/) s = "healthy"
+        else if (st ~ /health: starting|\(starting\)/) s = "starting"
+        else if (st ~ /^Exited \(0\)/) s = "done"
+        else if (st ~ /^Exited/) s = "FAILED (" st ")"
+        else if (st ~ /^(Created|Initialized)/) s = "waiting to start"
+        print $1 "|" s }' | sort > "$pw_cur"
+    changed="$(awk -F'|' -v pf="$pw_prev" 'BEGIN { while ((getline l < pf) > 0) { split(l, a, "|"); p[a[1]] = a[2] } } p[$1] != $2 { printf "%s: %s\n", $1, $2 }' "$pw_cur")"
+    now="$(date +%s)"
+    if [ -n "$changed" ]; then
+      pw_quiet=0
+      printf '%s\n' "$changed" | while IFS= read -r line; do
+        case "$line" in
+          *": healthy"|*": running"|*": done") col="$c_green" ;;
+          *FAILED*|*unhealthy*) col="$c_red" ;;
+          *) col="$c_yellow" ;;
+        esac
+        printf '  %s[%s]%s %s%s%s\n' "$c_dim" "$(fmt_elapsed $((now - pw_start)))" "$c_off" "$col" "$line" "$c_off"
+      done
+    else
+      pw_quiet=$((pw_quiet + 5))
+      if [ "$pw_quiet" -ge 30 ]; then
+        pw_quiet=0
+        waiting="$(awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s (%s)", sep, $1, $2; sep = ", " }' "$pw_cur")"
+        [ -z "$waiting" ] || printf '  %s[%s]%s %sstill waiting on: %s%s\n' "$c_dim" "$(fmt_elapsed $((now - pw_start)))" "$c_off" "$c_yellow" "$waiting" "$c_off"
+      fi
+    fi
+    cp "$pw_cur" "$pw_prev"
+    sleep 5
+  done
+}
+
+# Listed in learning-path order: WORKSHOP_ORDER= in workshop.env (0 = showcase,
+# 1.. = the path); workshops without one come last, alphabetically.
 list_workshops() {
-  echo "Available workshops:"
+  echo "Available workshops (in learning-path order):"
   for d in ../workshops/*/; do
     name="$(basename "$d")"
     [ -f "${d}workshop.env" ] || continue
+    order="$(sed -n 's/^WORKSHOP_ORDER=//p' "${d}workshop.env" | head -1 | sed 's/[[:space:]]*#.*//' | tr -d '"')"
+    case "$order" in '' | *[!0-9]*) order=99 ;; esac
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
     case "$name" in
       setup | capacity | stop | teardown | help | list | modules)
         title="(unreachable: '${name}' is also a command, rename the folder)" ;;
     esac
-    printf '  %-20s %s\n' "$name" "${title:-}"
+    printf '%02d\t%s\t%s\n' "$order" "$name" "${title:-}"
+  done | sort -t "$(printf '\t')" -k1,1n -k2,2 | while IFS="$(printf '\t')" read -r order name title; do
+    if [ "$order" = 99 ]; then n=' '; else n="${order#0}"; n="${n:-0}"; fi
+    printf '  %s  %-20s %s\n' "$n" "$name" "$title"
   done
 }
 
@@ -204,13 +320,14 @@ shift
 case "$workshop" in
   *[!a-z0-9-]* | -*)
     echo "'${workshop}' is not a workshop name (lowercase letters, digits and '-')." >&2
-    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
+    echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]" >&2
     echo "Run './run.sh list' to see available workshops." >&2
     exit 1 ;;
 esac
 test_mode=0
 test_count=""
 env_name=""
+allow_default_passwords=0
 while [ "$#" -gt 0 ]; do
   arg="$1"
   shift
@@ -243,12 +360,13 @@ while [ "$#" -gt 0 ]; do
           exit 1 ;;
       esac ;;
     --dry-run) ;; # already picked up above
+    --allow-default-passwords) allow_default_passwords=1 ;;
     -h | --help)
       usage
       exit 0 ;;
     *)
       echo "Unrecognized argument: ${arg}" >&2
-      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run]" >&2
+      echo "Usage: ./run.sh <workshop-name> [--test [N]] [--env NAME] [--dry-run] [--allow-default-passwords]" >&2
       exit 1 ;;
   esac
 done
@@ -339,8 +457,8 @@ listen_url="${GATEWAY_LISTEN:-$PUBLIC_BASE_URL}"
 url_scheme="${listen_url%%://*}"
 url_hostport="${listen_url#*://}"; url_hostport="${url_hostport%%/*}"
 case "$url_scheme" in
-  https) gateway_port="${GATEWAY_HTTPS_PORT:-443}"; url_port=443 ;;
-  *)     gateway_port="${GATEWAY_HTTP_PORT:-80}";   url_port=80 ;;
+  https) gateway_port="${GATEWAY_HTTPS_PORT:-8443}"; url_port=443 ;;
+  *)     gateway_port="${GATEWAY_HTTP_PORT:-8080}"; url_port=80 ;;
 esac
 case "$url_hostport" in *\]) ;; *:*) url_port="${url_hostport##*:}" ;; esac
 if [ "$url_port" != "$gateway_port" ]; then
@@ -348,6 +466,63 @@ if [ "$url_port" != "$gateway_port" ]; then
   echo "         is published on ${gateway_port}. Links the lab prints won't load; set" >&2
   echo "         PUBLIC_BASE_URL=${url_scheme}://${url_hostport%:*}:${gateway_port} in engine/.env." >&2
 fi
+
+# Default passwords (FIND-01): `setup --default`'s values and .env.example's
+# placeholder are public, so they are only allowed when nothing but this
+# machine can reach the gateway: a loopback PUBLIC_BASE_URL host and a loopback
+# LAB_HOST_IP. Checked after .env.<name> and the modules, so --env wins.
+public_host="${PUBLIC_BASE_URL#*://}"; public_host="${public_host%%/*}"
+case "$public_host" in
+  \[*\]*) public_host="${public_host%%\]*}"; public_host="${public_host#\[}" ;;
+  *) public_host="${public_host%:*}" ;;
+esac
+case "$public_host:${LAB_HOST_IP:-}" in
+  localhost:127.0.0.1 | 127.0.0.1:127.0.0.1 | ::1:127.0.0.1 | localhost:::1 | ::1:::1) local_only=1 ;;
+  *) local_only=0 ;;
+esac
+default_passwords=""
+# Without STUDENT_PASSWORD_SEED the shared STUDENT_PASSWORD is every
+# student's Forgejo password, so it is checked instead of the seed.
+if [ -n "${STUDENT_PASSWORD_SEED:-}" ]; then student_secret="STUDENT_PASSWORD_SEED:${STUDENT_PASSWORD_SEED}"
+else student_secret="STUDENT_PASSWORD:${STUDENT_PASSWORD:-student123}"; fi
+for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "$student_secret" \
+  "FACILITATOR_PASSWORD:${FACILITATOR_PASSWORD:-}" "FORGEJO_ADMIN_PASSWORD:${FORGEJO_ADMIN_PASSWORD:-}"; do
+  case "${pair#*:}" in
+    change-me | student | student123 | admin) default_passwords="${default_passwords} ${pair%%:*}" ;;
+  esac
+done
+if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
+  if [ "$allow_default_passwords" = "1" ] || [ "${ALLOW_DEFAULT_PASSWORDS:-0}" = "1" ]; then
+    echo "WARNING: default passwords in use (${default_passwords# }) on ${PUBLIC_BASE_URL}," >&2
+    echo "         reachable beyond this machine (--allow-default-passwords / ALLOW_DEFAULT_PASSWORDS=1)." >&2
+  else
+    echo "Refusing to start: default passwords (${default_passwords# }) with PUBLIC_BASE_URL=${PUBLIC_BASE_URL}" >&2
+    echo "and LAB_HOST_IP=${LAB_HOST_IP:-<unset>}, i.e. reachable beyond this machine. Anyone who has seen" >&2
+    echo "'./run.sh setup --default' can sign in. Generate real ones with './run.sh setup --force'" >&2
+    echo "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass" >&2
+    echo "--allow-default-passwords (or ALLOW_DEFAULT_PASSWORDS=1 in .env.<name>) to start anyway." >&2
+    exit 1
+  fi
+fi
+
+# An engine/.env from before per-student passwords (remediation T2.1b).
+if [ -z "${STUDENT_PASSWORD_SEED:-}" ]; then
+  echo "WARNING: no STUDENT_PASSWORD_SEED in engine/.env: every student's Forgejo password is the" >&2
+  echo "         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run './run.sh setup'." >&2
+fi
+
+# Plain HTTP off this machine (FIND-08): the class login, cookies and every
+# keystroke in the terminal cross the network in the clear. A warning, not a
+# refusal: a trusted LAN may be an accepted choice. Behind a TLS proxy
+# (GATEWAY_LISTEN) PUBLIC_BASE_URL is https and this stays quiet.
+case "${PUBLIC_BASE_URL%%://*}:$public_host" in
+  http:localhost | http:127.0.0.1 | http:::1 | https:*) ;;
+  *)
+    echo "WARNING: PUBLIC_BASE_URL=${PUBLIC_BASE_URL} is plain HTTP beyond this machine: passwords," >&2
+    echo "         cookies and terminal input travel unencrypted. For a class, use HTTPS: a real" >&2
+    echo "         name, or a TLS proxy in front (engine/README.md, \"LAN class over HTTPS\")." >&2
+    ;;
+esac
 
 if [ "$dry_run" = "1" ]; then
   echo "DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/)."
@@ -391,6 +566,8 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
   compose() { docker compose "$@"; }
   inspect() { docker inspect "$@"; }
   images() { docker images "$@"; }
+  ps_all() { docker ps -a "$@"; }
+  vol_ls() { docker volume ls "$@"; }
   rmi() { docker rmi "$@"; }
   # One-shot helper containers write into engine/ (render_extensions);
   # rootful docker would leave those files owned by root without --user.
@@ -401,6 +578,8 @@ else
   compose() { podman-compose "$@"; }
   inspect() { podman inspect "$@"; }
   images() { podman images "$@"; }
+  ps_all() { podman ps -a "$@"; }
+  vol_ls() { podman volume ls "$@"; }
   rmi() { podman rmi "$@"; }
   # Rootless podman maps the container's root to the calling user already;
   # --user <uid> here would map to a subordinate uid that can't write engine/.
@@ -592,8 +771,10 @@ build_if_changed() {
     would_build="${would_build} ${image} "
     return 0
   fi
-  say_changed "${image}: changed, building..."
+  say_changed "${image}: changed, building (this can take a few minutes)..."
+  bstart="$(date +%s)"
   track_superseded build "$@" --label "dojo.src-hash=${new_hash}" -t "$image" "$context"
+  say_ok "${image}: built in $(fmt_elapsed $(($(date +%s) - bstart)))"
 }
 
 # Same idea as build_if_changed, for a workshop overlay's own build
@@ -662,9 +843,9 @@ if [ -n "$corp_ca_bundle" ] && [ -f "$corp_ca_bundle" ]; then
 fi
 
 if [ "$dry_run" = "1" ]; then
-  echo "Checking images (dry run)..."
+  say_step "Checking images (dry run)"
 else
-  echo "Checking images..."
+  say_step "Checking images"
 fi
 # A dry run builds nothing, so it can't see that a rebuilt base makes the
 # workshop terminal (FROM base) stale too; build_if_changed records what it
@@ -734,6 +915,17 @@ for f in $extra_files; do
   compose_args="$compose_args -f $f"
 done
 
+# terminal_ingress is the gateway's only path to the students' IDE and
+# terminal ports (remediation T2.2a). A module or workshop service that
+# joined it would get that path too, so no fragment may mention it.
+for f in $extra_files; do
+  if grep -n 'terminal_ingress\|web-terminal-ingress' "$f" >&2; then
+    echo "Refusing to start: $f joins terminal_ingress, the gateway's private path to the" >&2
+    echo "students' IDE and terminal ports. Use workshop_lab (see workshops/README.md)." >&2
+    exit 1
+  fi
+done
+
 # Any other build: blocks the modules and the overlay add beyond web-terminal
 # (already handled above) -- e.g. forgejo-runner, cert-autorenewal's
 # dns-seed/step-ca/demo-app -- only rebuild when one of those directories
@@ -786,12 +978,22 @@ if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
   echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
 else
   # shellcheck disable=SC2086
-  if ! run_once --network none $ext_env_args -v "$PWD/${gen_dir}:/gen" \
+  # GATEWAY_TOKEN (by name, never on the command line) derives each
+  # identity/facilitator upstream's own X-Gateway-Token (FIND-16).
+  if ! run_once --network none $ext_env_args -e GATEWAY_TOKEN -v "$PWD/${gen_dir}:/gen" \
       -v "$PWD/allocator/render_extensions.py:/render_extensions.py:ro" gitopsdojo/allocator:local \
       python3 -B /render_extensions.py --in /gen/in --out /gen --services "$ext_services"; then
     echo "The workshop's extensions.json was rejected (see above); nothing was started." >&2
     exit 1
   fi
+fi
+# Each routed upstream's own gateway token, GATEWAY_TOKEN_<SERVICE>, for the
+# compose fragments to pass in as that service's GATEWAY_TOKEN (FIND-16).
+if [ -f "${gen_dir}/upstream-tokens.env" ]; then
+  set -a
+  # shellcheck disable=SC1090,SC1091
+  . "./${gen_dir}/upstream-tokens.env"
+  set +a
 fi
 
 # Record which module and overlay files this run used (in .last-overlay,
@@ -802,7 +1004,7 @@ fi
 # ordering or clean up their volumes.
 if [ "$dry_run" = "1" ]; then
   echo
-  echo "Checking the Compose config..."
+  say_step "Checking the Compose config"
   # shellcheck disable=SC2086
   if compose $compose_args config >/dev/null 2>&1; then
     say_ok "valid"
@@ -810,7 +1012,23 @@ if [ "$dry_run" = "1" ]; then
     say_bad "invalid: run 'compose ${compose_args} config' to see why"
   fi
   echo
+  say_step "Checking image pins"
+  # Every external FROM / image: needs a digest (FIND-18). Whole repo, so a
+  # dry run of any workshop also catches a module or workshop it doesn't use.
+  pins_ok=1
+  if pins_out="$(sh scripts/check-pins.sh 2>&1)"; then
+    say_ok "every external image pinned by digest"
+  else
+    pins_ok=0
+    printf '%s\n' "$pins_out" | sed '$d' | sed '$d' | while IFS= read -r line; do say_bad "$line"; done
+    say_bad "not pinned: add @sha256:<digest> (see scripts/check-pins.sh)"
+  fi
+  echo
   echo "Would run: compose ${compose_args} up -d"
+  if [ "$pins_ok" = "0" ]; then
+    echo "Dry run complete: nothing was built or started, but unpinned images were found." >&2
+    exit 1
+  fi
   echo "Dry run complete: nothing was built or started."
   exit 0
 fi
@@ -819,14 +1037,57 @@ fi
 printf '%s\n' $extra_files > .last-overlay
 
 sync_lab_docs "$WORKSHOP_CONTENT_DIR"
+# A workshop that shows other workshops' slides (dojo-introduction) needs their
+# lab copies too; they are cheap and git-ignored, so make them for every pack.
+for other_content in ../workshops/*/content; do
+  [ "$other_content" = "$WORKSHOP_CONTENT_DIR" ] || sync_lab_docs "$other_content"
+done
 
-echo "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})..."
+say_step "Starting workshop '${workshop}' (${WORKSHOP_NAME:-$workshop})"
 # No --build: every image Compose references was already brought up to
 # date (or confirmed unchanged) above, either by build_if_changed (for the
 # fixed-tag images) or compose_overlay_build_if_changed (for the rest of
 # this workshop's overlay, if any).
-# shellcheck disable=SC2086
-compose $compose_args up -d
+say_step "Creating networks and volumes, then starting containers in dependency order"
+echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
+up_start="$(date +%s)"
+up_rc=0
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  # A terminal: one table that redraws in place. Compose's own output goes to a log.
+  up_log="$(mktemp "${TMPDIR:-/tmp}/dojo-up.XXXXXX")"
+  tbl_state="$(mktemp)"; echo 0 > "$tbl_state"
+  echo "Compose output is in ${up_log}"
+  printf '\033[?25l'
+  table_loop &
+  watch_pid=$!
+  trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT INT TERM
+  # shellcheck disable=SC2086
+  compose $compose_args up -d > "$up_log" 2>&1 || up_rc=$?
+  [ "$up_rc" != 0 ] || wait_until_ready
+  kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+  table_draw
+  printf '\033[?25h'
+  trap - EXIT INT TERM
+  rm -f "$tbl_state"
+  if [ "$up_rc" != 0 ]; then
+    say_bad "compose failed (exit ${up_rc}); the last lines of its output:"
+    tail -n 20 "$up_log"
+  fi
+else
+  echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
+  progress_watch &
+  watch_pid=$!
+  trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
+  # shellcheck disable=SC2086
+  compose $compose_args up -d || up_rc=$?
+  [ "$up_rc" != 0 ] || wait_until_ready
+  kill "$watch_pid" 2>/dev/null; wait "$watch_pid" 2>/dev/null || true
+  trap - EXIT INT TERM
+fi
+say_ok "Compose finished in $(fmt_elapsed $(($(date +%s) - up_start)))"
+not_ready="$(not_ready_list)"
+[ -z "$not_ready" ] || say_changed "not ready yet: ${not_ready}"
+[ "$up_rc" = 0 ] || exit "$up_rc"
 
 # Containers now run on the freshly built images, so the ones those builds
 # displaced are no longer pinned.

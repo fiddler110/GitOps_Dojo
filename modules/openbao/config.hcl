@@ -1,6 +1,6 @@
-# OpenBao server for the whole class (workshops/vault-fundamentals/PLAN.md §5.1). Plain HTTP on
+# OpenBao server for the whole class (docs/archive/VAULT-FUNDAMENTALS-PLAN.md §5.1). Plain HTTP on
 # workshop_lab only: nothing outside the stack reaches this port, and the
-# gateway fronts /ui/ and /v1/ for browsers (PLAN.md §5.4).
+# gateway fronts /ui/ and /v1/ for browsers (VAULT-FUNDAMENTALS-PLAN.md §5.4).
 ui            = true
 disable_mlock = true
 
@@ -17,7 +17,7 @@ listener "tcp" {
 api_addr     = "http://openbao:8200"
 cluster_addr = "http://openbao:8201"
 
-# Audit (PLAN.md §3 principle 6, labs 4 and 12). OpenBao (2.6 and later) refuses to
+# Audit (VAULT-FUNDAMENTALS-PLAN.md §3 principle 6, labs 4 and 12). OpenBao (2.6 and later) refuses to
 # enable audit devices through the API; they are declared here instead.
 #
 # openbao-audit reads the file as OpenBao's own uid (compose.yml).

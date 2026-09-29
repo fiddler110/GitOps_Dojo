@@ -7,24 +7,24 @@
 #   (plain HTTP, any Host) while PUBLIC_BASE_URL stays the https address browsers use.
 #   gateway/entrypoint.sh defaults GATEWAY_LISTEN to PUBLIC_BASE_URL.
 #
-# /slides/*  -> Marp, open, no auth (read-only presentation content)
-# /admin/* -> its OWN basic_auth checked BEFORE the shared gate below,
-#   using ONLY the facilitator credential -- a student who only knows the
-#   shared credential cannot get in here (HTTP Basic Auth carries exactly
-#   one Authorization header per request, so a request can't satisfy two
-#   independent basic_auth challenges at once; this block is the stricter,
-#   exclusive gate for /admin/*).
-# everything else (/, /git/*, /ide/*, /term/*) -> the shared basic auth,
-# which accepts EITHER the shared student credential OR the facilitator's
-# own -- the facilitator only ever needs one credential (theirs) to reach
-# anything, never the shared one, since /admin routes them to their own
-# IDE/terminal/Forgejo/slides links, all of which still live behind this
-# shared gate. Both basic_auth blocks use Caddy's same default realm (this
-# Caddy version has no Caddyfile way to change it) -- which works in our
-# favor here: a browser that already authenticated as the facilitator on
-# either block transparently reuses that cached credential on the other
-# too, instead of prompting twice. Past the shared gate:
+# Signing in: /login is the front door, a page served by the allocator
+# (allocator/login/). A correct username and password sets a signed
+# `dojo_login` cookie; every other request is first checked against it with
+# a forward_auth call to the allocator's /session-check (snippet
+# session_gate below). No cookie: a page load is redirected to /login, a poll
+# or API call gets 401. The account in the cookie is copied to the request as
+# X-Session-User and sent upstream as X-Auth-User, which is what basic_auth's
+# user id used to be.
+#
+# /admin/* -> session_gate with role=facilitator: only the facilitator's own
+#   login gets in; the class login is refused with a 403.
+# everything else (/, /slides/*, /git/*, /ide/*, /term/*) -> session_gate for
+# either account. Past that gate:
 #   - / is the allocator's name-entry + tool-picker flow (see engine/allocator/)
+#   - /ide/*, /term/* and /admin/watch/* reach web-terminal as
+#     web-terminal-ingress: its alias on the terminal_ingress network,
+#     the only network its IDE/terminal ports accept (remediation T2.2a;
+#     see docker-compose.yml and web-terminal/entrypoint.sh).
 #   - /ide/* and /term/* are gated a second time by an auth-check call
 #     (forward_auth's own pattern, written out longhand so a still-starting
 #     workspace can get its own response -- see the @ide/@term blocks
@@ -37,18 +37,79 @@
 # Signing into Forgejo is a separate, deliberate step with each student's
 # own credentials, same as before.
 
+{
+	# See entrypoint.sh: the public host, for clients that send no SNI.
+	default_sni {$GATEWAY_DEFAULT_SNI}
+	# Behind another proxy (engine/.env.home) every request arrives from the
+	# proxy's address. GATEWAY_TRUSTED_PROXIES names that proxy (CIDR list) so
+	# the address the allocator's login limit keys on is the real browser's
+	# (from X-Forwarded-For),
+	# read right to left so a client can't prepend a fake one. Only that
+	# proxy: trusting all private ranges would let a LAN student spoof the
+	# header and dodge the limit. Unset (the default): nothing is trusted and
+	# {client_ip} is the connecting address.
+	servers {
+		trusted_proxies static {$GATEWAY_TRUSTED_PROXIES}
+		trusted_proxies_strict
+	}
+}
+
+# Every call to the allocator (remediation T3.4, FIND-07). It serves one
+# request at a time, so a stuck call must fail fast instead of queueing the
+# whole class behind it: a dial that takes over 3 s or a reply that hasn't
+# started within 10 s is a 502. Imported into each allocator block below and
+# into the rendered extension gates (allocator/render_extensions.py).
+(allocator_timeouts) {
+	transport http {
+		dial_timeout 3s
+		response_header_timeout 10s
+	}
+}
+
+# The sign-in check in front of everything except /login. Argument: who may
+# pass, "any" (either login) or "facilitator". Written to be imported inside
+# a handle block, before the routes it protects.
+(session_gate) {
+	forward_auth allocator:8080 {
+		import allocator_timeouts
+		uri /session-check?role={args[0]}
+		header_up X-Gateway-Token {$GATEWAY_TOKEN}
+		copy_headers X-Session-User
+	}
+}
+
 {$GATEWAY_LISTEN} {
-	@slides path /slides*
-	handle @slides {
-		uri strip_prefix /slides
-		reverse_proxy presentation:8080
+	# Access log on stdout, JSON (remediation T1.4, FIND-13). user_id is the
+	# account that signed in. Caddy redacts the Authorization and
+	# Cookie headers by default; never set log_credentials here.
+	log {
+		output stdout
+		format json
+	}
+
+	# HSTS whenever browsers use https (remediation T1.3, FIND-08), including
+	# behind a TLS proxy (GATEWAY_LISTEN plain HTTP): the proxy passes the
+	# header on. One day covers a workshop without pinning a reused host to
+	# https for months. {$PUBLIC_BASE_URL} is substituted when the config loads.
+	@public_https expression `"{$PUBLIC_BASE_URL}".startsWith("https://")`
+	header @public_https Strict-Transport-Security "max-age=86400"
+
+	# The front door. Open to everyone: the allocator itself checks the
+	# password (and limits wrong guesses per address, see server.py).
+	@login path /login /login/* /logout
+	handle @login {
+		reverse_proxy allocator:8080 {
+			import allocator_timeouts
+			header_up X-Gateway-Token {$GATEWAY_TOKEN}
+		}
 	}
 
 	@admin path /admin*
 	handle @admin {
-		basic_auth {
-			{$FACILITATOR_USERNAME} {$FACILITATOR_PASSWORD_HASH}
-		}
+		# route keeps the written order: the sign-in check runs before any
+		# nested handle below (Caddy would otherwise sort handle first).
+		route {
+		import session_gate facilitator
 
 		# Read-only live view of one student's terminal, e.g.
 		# /admin/watch/student07 -- proxied straight to that student's
@@ -59,27 +120,38 @@
 		@watch path_regexp watch ^/admin/watch/([a-zA-Z0-9]+)(/.*)?$
 		handle @watch {
 			forward_auth allocator:8080 {
+				import allocator_timeouts
 				uri /auth-check-watch?student={re.watch.1}
-				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Auth-User {http.request.header.X-Session-User}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 				copy_headers X-Upstream-Port
 			}
 			uri strip_prefix /admin/watch/{re.watch.1}
-			reverse_proxy web-terminal:{http.request.header.X-Upstream-Port}
+			reverse_proxy web-terminal-ingress:{http.request.header.X-Upstream-Port}
 		}
 
 		handle {
 			reverse_proxy allocator:8080 {
-				header_up X-Auth-User {http.auth.user.id}
+				import allocator_timeouts
+				header_up X-Auth-User {http.request.header.X-Session-User}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}
+		}
 		}
 	}
 
 	handle {
-		basic_auth {
-			{$TTYD_USERNAME} {$TTYD_PASSWORD_HASH}
-			{$FACILITATOR_USERNAME} {$FACILITATOR_PASSWORD_HASH}
+		route {
+		import session_gate any
+
+		# Marp decks, cheat sheets and the lab reader's copies of the labs.
+		# Behind the class login (remediation T1.2, FIND-02): lab text can
+		# hold workshop details. The /admin Slides tab passes too, since the
+		# facilitator credential is accepted here.
+		@slides path /slides*
+		handle @slides {
+			uri strip_prefix /slides
+			reverse_proxy presentation:8080
 		}
 
 		@git path /git*
@@ -105,15 +177,18 @@
 		@ide path /ide*
 		handle @ide {
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				method GET
 				rewrite /auth-check?tool=ide
-				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Auth-User {http.request.header.X-Session-User}
+				# Logged by the allocator's auth-check line (T1.4).
+				header_up X-Forwarded-Uri {http.request.orig_uri}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 
 				@ide_ready status 200
 				handle_response @ide_ready {
 					uri strip_prefix /ide
-					reverse_proxy web-terminal:{rp.header.X-Upstream-Port}
+					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port}
 				}
 
 				@starting status 202
@@ -129,15 +204,18 @@
 		@term path /term*
 		handle @term {
 			reverse_proxy allocator:8080 {
+				import allocator_timeouts
 				method GET
 				rewrite /auth-check?tool=term
-				header_up X-Auth-User {http.auth.user.id}
+				header_up X-Auth-User {http.request.header.X-Session-User}
+				# Logged by the allocator's auth-check line (T1.4).
+				header_up X-Forwarded-Uri {http.request.orig_uri}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 
 				@term_ready status 200
 				handle_response @term_ready {
 					uri strip_prefix /term
-					reverse_proxy web-terminal:{rp.header.X-Upstream-Port}
+					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port}
 				}
 
 				@starting status 202
@@ -160,15 +238,17 @@
 			# header_up (no +/- prefix) REPLACES this header rather than
 			# appending to it, so a client can't just send its own
 			# X-Auth-User to spoof an identity -- Caddy always overwrites
-			# it with whichever account actually passed basic_auth above.
+			# it with whichever account the session cookie proves.
 			# X-Gateway-Token, added the same way, is the allocator-side
 			# proof that this request actually came through Caddy (see
 			# allocator/server.py's gateway_authorized()) -- a plain client
 			# has no way to set it either, for the same reason.
 			reverse_proxy allocator:8080 {
-				header_up X-Auth-User {http.auth.user.id}
+				import allocator_timeouts
+				header_up X-Auth-User {http.request.header.X-Session-User}
 				header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			}
+		}
 		}
 	}
 }

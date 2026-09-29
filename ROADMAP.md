@@ -1,93 +1,131 @@
 # Roadmap
 
-Every piece of open work in one place. Each line is a summary; the linked plan holds the steps, decisions and
-verify lines, and stays the source of truth for them. When a task is done, tick it in its plan (with the commit
-SHA) and update or remove its line here.
+The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md). The old per-feature plans
+(design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
+update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-09-28 · Working branch: `feat/vault-fundamentals` (`main` is behind it with nothing of its own)
+Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` after PR #3, 3a59106)
 
-| Plan                                                                                                   | What it covers                                                     | Status                                  |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0 T0.1-T0.4 run, T0.5 open             |
-| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done (T5.6 in 7684f07)            |
-| [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
-| [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
-| [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md)                                       | tofu-basics (merged, PR #1)                                        | Only manual checks open                 |
+| Section | What it holds |
+|---|---|
+| [Now](#now) | Merge, plus checks that need a real run |
+| [Next](#next) | Student reset; remediation leftovers |
+| [Manual checks](#manual-checks-the-user-in-a-browser) | Browser passes only the user can do |
+| [Later](#later) | Follow-ups and known limits |
+| [Housekeeping](#housekeeping) | Repo hygiene |
 
 ## Now
 
-1. **Remediation T0.5: close P0.** Results of T0.1-T0.4 are in the plan (734ed33): FIND-03 open (`su` works, homes
-   `0755`), FIND-04 can be downgraded (app refused, runner can't resolve `web-terminal`), FIND-05 confirmed (a
-   same-repo PR runs its own workflow; ID-token URL broken under `/git/`), app-db leak refused (no T3.5). Still open:
-   does Forgejo 16 run `pull_request_target`? (the test run sat "waiting"; needs a dns-as-code stack). It settles
-   Q-A for T3.1. Then write-up and a §8 entry; **ask the user before P1.** Reset R0 can run on that stack.
-2. **Merge `feat/vault-fundamentals` → `main`**, now that T5.6 is done (brings a24d0e7, the `run.sh --env` fix for
-   workshops with modules, and ca89792 `/forgejo-login?next=`).
-3. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load, with a 404 and a VS Code
-   "unknown error" in the console (not traced). Sizing for 20-35 students is extrapolated from 10 bots.
+| # | Item | Detail | Status |
+|---|---|---|---|
+| 1 | **Merge `feat/remediation` to `main`** | Open a PR (ask before pushing). Remediation P0-P6 are built, live-tested locally and committed; see RELEASES "Unreleased". | Ready |
+| 2c | **Facilitator VS Code tab "unknown error"** | Seen under load (a retry fixed it; the 404 is code-server's optional `vsda` files, harmless). Not reproduced at 10 bots. Recheck at the first 20+ student run with the `/auth-check` logging from remediation T1.4. Sizing for 20-35 students is extrapolated from 10 bots. | Needs 20+ run |
 
-## Order agreed with the student-reset plan (2026-09-28)
+## Next
 
-1. Remediation P0 (+ reset R0 on the same stack) → 2. remediation P1 → 3. **reset R1.1**: `provision-account.sh`
-   extracted from `entrypoint.sh`, no behaviour change (engine, ask) → 4. **remediation T2.1** built inside that
-   script → 5. the rest of the remediation, where **T5.3** also mints a narrow **reset token** for a resident
-   `openbao-reset` service → 6. reset R1.2 onwards.
+### Student reset (facilitator resets one student's whole environment)
 
-Decisions: remediation D15/D16, reset R9/R10. D11 stays: no long-lived provisioner token, and the unseal key never
-leaves `openbao-setup`.
+Design: `docs/archive/STUDENT-RESET-PLAN.md` (read §4 design, §4.4 hook contract, §6 security). Rule: **ask before
+editing any `engine/` file**, and before moving between phases.
 
-## Next: security remediation (P1-P3)
+**Decisions set so far**
 
-Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Important Tier 2 finding left open.
+| ID | Decision |
+|---|---|
+| R2 | One student goes back to how they were at stack start; others never notice |
+| R3 | The engine orchestrates and resets engine-owned state (terminal home, Forgejo); modules and workshops reset their own state through hooks they declare |
+| R4 | A reset keeps the seat |
+| R5 | Idempotent and re-runnable |
+| R6 | Shared state is not rolled back (a reset may remove what the student owns inside it) |
+| R7 | Facilitator-only, per student, typed confirmation |
+| R8 | One worker thread in the allocator |
+| R9 | OpenBao reset uses a narrow reset token held only in memory by a new resident `openbao-reset` service (minted in remediation T5.3's root window; not the unseal key, not the provisioner token) |
+| R10 | `provision-account.sh` first (done), then hardening inside it (done), then the rest |
+| D11 | Stays: no long-lived provisioner token |
 
-| Task | Finding              | What                                                                                                                                   | Scope                       |
-| ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| T1.1 | FIND-01 Important    | Refuse default passwords off localhost; generated secrets; gateway rate limit (`caddy-ratelimit`)                                      | engine, approved            |
-| T1.2 | FIND-02 Low          | All of `/slides` behind the class gate (Playwright checks then need credentials)                                                       | engine, approved            |
-| T1.3 | FIND-08 Moderate     | Warn on plain HTTP off localhost, HSTS, LAN-over-HTTPS recipe                                                                          | engine, approved            |
-| T1.4 | FIND-13 Low          | One structured log line per identity / control-plane decision                                                                          | engine, approved            |
-| T1.5 | FIND-18 Low          | Pin every image by digest, `check-pins.sh` in `--dry-run`                                                                              | all, approved               |
-| R1.1 | (reset plan)         | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1                                                     | engine, **ask**             |
-| T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved            |
-| T2.2 | FIND-04 Important    | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist                                                    | engine, approved + workshop |
-| T2.3 | FIND-10 Moderate     | Secrets off the command line in labs; PID-namespace spike                                                                              | workshop; engine part ask   |
-| T3.1 | FIND-05 Important    | dns-api trusts Actions OIDC tokens, not IP; PR model (Q-A); dns-as-code on `runner-pool`                                               | workshop + module           |
-| T3.2 | FIND-11 Moderate     | Per-student DNS API keys                                                                                                               | workshop                    |
-| T3.3 | FIND-09 Moderate     | step-ca secrets and a name policy                                                                                                      | workshop                    |
-| T3.4 | FIND-07 Moderate     | `/assign` rate limit, allocator timeouts                                                                                               | engine, **ask**             |
-| T3.5 | app-db               | `REVOKE CONNECT ... FROM PUBLIC` (only if P0 shows the leak)                                                                           | workshop                    |
+**Phases**
 
-## Later
+| Phase | Scope | Tasks |
+|---|---|---|
+| **R0 spikes** | Throwaway, no engine edits kept | R0.1 list every student-owned file after doing all labs of one workshop · R0.2 Forgejo purge and recreate by hand via the admin API, record what survives · R0.3 manual reset of one vault-fundamentals student (namespace delete plus tenancy hooks) and rerun labs · R0.4 time each step (target under 30 s) |
+| **R1 engine core** | Engine reset machinery | R1.1 done (7172d9b) · R1.2 `account.d`/`reset.d` hook runner and `POST /reset/<user>` in `workspace-control.py` · R1.3 Forgejo teardown and re-provision (per Q6) · R1.4 allocator `POST /admin/reset/<sid>` with worker thread, fence and `reset` in the sessions API · R1.5 Roster UI (Reset item, confirm dialog, progress, Retry) · R1.6 tests in `engine/allocator/tests/` (auth, fence, idempotency, bot reset) and a live check |
+| **R2 hook contract** | How hooks are declared and called | `resets` in `render_extensions.py` (with tests) · `RESET_TOKEN` in `env-setup.sh` and compose · the allocator calls service hooks with a per-hook timeout and results |
+| **R3 adoption** | Modules and workshops reset their own state | `dojo-cloud` (reset endpoint on cloud-api, reuse `_purge`; live check on tofu-basics) · `openbao` plus vault tenancy/CI/platform via `openbao-reset` (R9) · `runner-pool` and `forgejo-runner` · vault `app-host` and `app-db` · dns-ui, dns-as-code, cert-autorenewal per Q3 (move any per-account `start.d` work to `account.d`) |
+| **R4 docs and live pass** | Documentation and verification | `engine/README.md` "Facilitator operations" · `workshops/README.md` hook contract · module READMEs · per workshop: break a student on purpose, reset, redo the first labs as them while a second student carries on |
 
-- **Remediation P4-P6:** drop caps / `no-new-privileges` for runner-pool and app-host (T4.1), allocator pages to
-  static scripts + CSP + `textContent` (T4.2, engine ask), rate limits and shared pools (T4.3), Tier 3 defence in
-  depth (T5.1-T5.4: DinD socket, `.env` `0600` and per-upstream gateway tokens, OpenBao provisioner token revoked
-  after setup, accepted plaintext to OpenBao/Postgres), then an incremental `/threat-model-analyst` run (T6.1).
-- **Student reset** (R0-R4): R0 (live risk checks) can run on the P0 stack. R1.1 comes before remediation T2.1
-  (below); R1.2 onwards after it; R3.2 (OpenBao) after remediation T5.3. Its §8 questions Q1 and Q3-Q7 are still
-  open.
-- **vault-fundamentals follow-ups** (PLAN §13): policy as code (OpenTofu `vault` provider or `bao policy write` in
-  CI), OpenBao PKI for `cert-autorenewal`, mirroring a pinned set of actions into Forgejo. Lab 11 doesn't yet show
-  a restart logging in again (lab 10 ends on that promise).
-- **tofu-basics follow-ups** (PLAN T10.x): `dojo` CLI, CI `plan` on pull requests, more resources, a remote state
-  backend. Stretch labs 11-12 (T6.4) only if wanted.
+**Open questions for the user**
+
+| ID | Question |
+|---|---|
+| Q1 | Also offer "reset and release" (wipe, then free the seat)? |
+| Q3 | Shared DNS zone: record who owns which record (naming convention or CI commit author) so reset can remove them, or out of scope? |
+| Q4 | code-server keeps UI state in the browser: accept it, or have the reset page clear that origin's storage? |
+| Q5 | What exactly to remove from the shared org repo (close the student's open PRs, delete their branches and comments; leave merged history alone)? |
+| Q6 | Forgejo re-provision: a single-user function in `bootstrap.sh` (one source of truth, needs the bootstrap image reachable at runtime) or two API calls from the allocator? |
+| Q7 | May a student ask for a reset from their own page (facilitator approves), or facilitator only? |
+
+### Remediation leftovers (none Critical or Important)
+
+| Item | Type | Detail |
+|---|---|---|
+| FIND-11 | Partial | PowerDNS keys are still derived from the shared token |
+| FIND-17 | Partial | The single unseal share stays on the setup volume (accepted, D9) |
+| FIND-15 | Accepted, no work | dojo-cloud socket `0660 root:cloud`; privileged DinD stays |
+| FIND-19 | Accepted, no work | Plaintext to OpenBao and Postgres, documented |
+| Not exercised in P4/P5 | Untested | 300 app-db connections · the app-host shim on 443 (base URL was plain `http://localhost:8080`) · vault **second start** without `stop` (hooks re-run) · a real-browser "Release unused" · vault pool, audit and browser areas after the e2e split (CLI passes were fine) |
+| `lab_12` flake | Investigate | Flaked once ("revoked: the login is gone"), passed on retry; probably a revoke vs `DROP ROLE` race, unconfirmed. Re-run it a few times |
+| Not re-run after P4 | Untested | dns-as-code, dojo-introduction and git-fundamentals (scope cut by the user; they passed before P4). cert-autorenewal `--test 1` passed after the lab 4/5 cron fix |
+| `dojo-introduction` and the cert lab | Decision | Its seed has no `~/lab/sample-repo`, so a student following the cert lab misses `vhost-http.conf.template`. Decide whether that workshop is meant to cover the cert lab |
+| Caddy log redaction | Verify | Confirm on the pinned Caddy version that `Authorization`, `Cookie` and `Set-Cookie` are redacted in access logs unless `log_credentials` is on (expected for 2.5+) |
 
 ## Manual checks (the user, in a browser)
 
-- **vault-fundamentals:** the P4 browser pass (My App card, `/admin` Apps tab, labs 9-13 in the reader, Part 6
-  slides) and a person walking labs 7-9 in the UI.
-- **Modules (MODULES-PLAN T3.4):** the per-workshop browser checklist in its §7.
-- **tofu-basics T9.4** (human dry-run with 3-5 people) and **T9.9** (browser pass over labs 4-10 and the portal).
-  Steps: [`workshops/tofu-basics/TEST-PLAN.md`](workshops/tofu-basics/TEST-PLAN.md).
-- **This weekend's UI changes:** the `/admin` sidebar at desktop width and under 700 px, and Mermaid diagrams in
-  the lab reader, light and dark.
+### Modules browser pass (was MODULES-PLAN T3.4)
+
+For each workshop: `./run.sh stop`, `./run.sh <workshop>`, open the base URL as a student and in a private window as
+the facilitator.
+
+**Common checks**
+
+| Area | Expect |
+|---|---|
+| Student landing page | Cards each open (VS Code, Terminal, Forgejo, Slides plus the workshop's own) |
+| `/admin` | Roster, VS Code, Terminal, Forgejo and Slides plus the workshop's tab, each loading in its iframe |
+| Status strip | Forgejo, Terminals and Slides Ready plus the workshop's own |
+| Terminal | `whoami` gives `studentNN`; the workshop's tools run |
+| Teardown | `./run.sh stop` finishes cleanly |
+
+**Per workshop**
+
+| Workshop | Check |
+|---|---|
+| git-fundamentals | Lab 1, clone, branch, push, open a PR |
+| dns-as-code | `dnscontrol version`; push a branch and open a PR; Actions shows **DNS Preview** green; merge and **DNS Apply** goes green; `dig` shows the record |
+| cert-autorenewal | **Demo Site** card and tab; after lab 2 the student's card shows `studentNN.certs.dojo.test` and the facilitator's tab shows their own site (`admin.certs.dojo.test`) |
+| tofu-basics | **Dojo Cloud** card and tab; the portal opens on the student's subscription; the facilitator's tab shows the progress view; after a Track B `apply` the resource shows in both |
+
+### Other manual checks
+
+| Check | What to do |
+|---|---|
+| **tofu-basics T9.9** (browser pass) | Labs 0-3 on a rebuilt image (including HCL highlighting in code-server) and labs 4-10 with the portal clicked, not called through the API: Add tag, Save tags, Delete dialog, Browse (to the deployed `dojo/hello` site), Quota tile, Refresh now, and the attention tile reading `code: message` (25a7176, offline-tested only). Facilitator: `/admin` Slides and Dojo Cloud tabs render in their iframes; Terminal, VS Code and Forgejo tabs still fine |
+| **tofu-basics T9.4** (human dry-run, 3-5 people) | Run them through Track A only or A + B (about 103 min for both by the lab README's estimates). Note every point of confusion, time the walkthrough against the slide deck's talk timings (guesses so far), then fix labs, slides and README. `workshops/tofu-basics/FACILITATOR.md` says the first real class doubles as this dry run |
+| **vault-fundamentals** | A person walking labs 7-9 in the UI (the tests make the UI's secret steps with the same API calls), the Runners panel's look beyond screenshots, and "Release unused" in a real browser. The rest of the P4/P5 browser pass was done by the user 2026-09-29 |
+| **UI changes, weekend of 2026-09-26** | The `/admin` sidebar at desktop width and under 700 px, and Mermaid diagrams in the lab reader, light and dark |
+
+## Later
+
+| Area | Items |
+|---|---|
+| **vault-fundamentals follow-ups** | Policy as code (namespace policies in a git repo, changed by PR and applied by CI with drift shown when someone edits in the UI; OpenTofu `vault` provider building on tofu-basics, or `bao policy write` in CI; a lab or its own workshop) · OpenBao PKI for `cert-autorenewal` · mirror a small pinned set of actions (checkout, a vault-login action) into Forgejo at setup so labs can show `uses:` as companies do · lab 11 should show a restart logging in again (lab 10 ends on that promise) |
+| **tofu-basics follow-ups** | `dojo` CLI (`login`, `group list`, `container list/show/logs`) · CI `plan` on pull requests via Forgejo Actions (needs runner network design like dns-as-code's `runner_net`) · more Azure-shaped resources (virtual network, storage account) if the ARM facade extends cheaply · remote state backend simulation · stretch labs 11-12 only if wanted |
+| **tofu-basics known limits** | Only one container per group and only `dojo/hello:*` images (by design) · LRO (`Azure-AsyncOperation`) not implemented · arm64 untested (checksums pinned per arch, only amd64 built) · 20+ students out of scope (15 is this box's ceiling) · **T9.8 deferred:** re-test isolation on real Docker before any non-podman delivery (the privileged-DinD risk is materially higher there); this machine has no Docker |
+| **Not verified since `f977209`** (code-server memory cut) | tofu-basics `tests/e2e.sh` on the new web-terminal image · `./run.sh capacity` printing "Left out N" for a closed tab (dry-run only) |
 
 ## Housekeeping
 
-- `handouts/*.pptx` are committed binaries of 30-36 MB, and every deck change adds a full copy to git history.
-  Consider Git LFS or publishing them as release assets instead.
-- `handouts/build-presentations.sh` hashes all of `workshops/assets/` as a deck input, so a lab-reader-only change
-  re-exports every deck (new ~15-36 MB blobs with identical slides). Narrow `shared=` to what Marp reads (the
-  themes, not `lab-reader.*` or `vendor/`).
-- `AGENTS.md` is a committed copy of the git-ignored `CLAUDE.md` and will drift from it. Pick one: keep only
-  `AGENTS.md`, or make one a symlink to the other.
+| Item | Detail |
+|---|---|
+| Large handout binaries | `handouts/*.pptx` are committed binaries of 30-36 MB, and every deck change adds a full copy to git history. Consider Git LFS or publishing them as release assets instead |
+| Deck rebuild trigger too broad | `handouts/build-presentations.sh` hashes all of `workshops/assets/` as a deck input, so a lab-reader-only change re-exports every deck (new 15-36 MB blobs with identical slides). Narrow `shared=` to what Marp reads (the themes, not `lab-reader.*` or `vendor/`) |
+| Stale plan references | Many code comments and READMEs cite plan sections (`PLAN.md §5.5`, `MODULES-PLAN.md §4.2`, `engine/student-reset.md`). The files now live in `docs/archive/` under new names (`TOFU-BASICS-PLAN.md`, `VAULT-FUNDAMENTALS-PLAN.md`, `MODULES-PLAN.md`, `STUDENT-RESET-PLAN.md`, `REMEDIATION-PLAN.md`). Comments in `engine/` were left alone (engine edits need approval); reword them when next touched |

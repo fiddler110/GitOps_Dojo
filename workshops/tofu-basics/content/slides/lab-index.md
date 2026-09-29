@@ -29,8 +29,8 @@ footer: '[&larr; Hub](index.md)'
 <p class="setup-label">Every lab works in your fork of the starter repo (Lab 0). Make it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
 
 ```sh
-curl -u "$USER" -H "Content-Type: application/json" -d '{}' \
-  http://git-server:3000/api/v1/repos/iac-team/tofu-basics/forks   # asks for your Forgejo password
+curl --netrc -H "Content-Type: application/json" -d '{}' \
+  http://git-server:3000/api/v1/repos/iac-team/tofu-basics/forks   # signs in with your token
 cd ~/lab && git clone http://git-server:3000/$USER/tofu-basics.git
 ```
 

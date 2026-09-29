@@ -6,6 +6,15 @@
 # public root cert to a volume web-terminal can read (never the private
 # keys under $STEPPATH/secrets), then runs step-ca in the foreground.
 #
+# Passwords (remediation T3.3, FIND-09): the CA's key password is random,
+# made at first start and kept only in its own volume (secrets/, mode 600).
+# The `admin` JWK provisioner gets a second random password that is thrown
+# away after init: nothing in the labs uses it, and step-ca hands every
+# client that provisioner's encrypted key, so a known password would let
+# anyone mint any certificate. The CA signs only names matching
+# ACME_ALLOWED_DNS (default *.certs.dojo.test: one label under the zone)
+# plus its own server names, step-ca and localhost.
+#
 # Runs as root only for the resolv.conf line below, then drops to the
 # unprivileged `step` user (via su-exec) for everything else, including
 # serving — same effective privilege as the upstream image's own `USER
@@ -14,7 +23,7 @@ set -eu
 
 export STEPPATH="${STEPPATH:-/home/step}"
 export PASSWORD_FILE="${STEPPATH}/secrets/password"
-export STEP_CA_PASSWORD="${STEP_CA_PASSWORD:-workshop-not-a-secret}"
+export ACME_ALLOWED_DNS="${ACME_ALLOWED_DNS:-*.certs.dojo.test}"
 
 # step-ca validates ACME challenges (http-01 and dns-01) by looking up the
 # target hostname itself, and needs to resolve names in the private
@@ -33,10 +42,15 @@ chown step:step /pub
 
 su-exec step sh -c '
 set -eu
+umask 077
 mkdir -p "${STEPPATH}/secrets"
-printf "%s" "${STEP_CA_PASSWORD}" > "${PASSWORD_FILE}"
+if [ ! -s "${PASSWORD_FILE}" ]; then
+  head -c 32 /dev/urandom | base64 | tr -d "\n=" > "${PASSWORD_FILE}"
+fi
 
 if [ ! -f "${STEPPATH}/config/ca.json" ]; then
+  prov_pw="$(mktemp)"
+  head -c 32 /dev/urandom | base64 | tr -d "\n=" > "${prov_pw}"
   step ca init \
     --name "GitOps Dojo Lab CA" \
     --dns "step-ca" \
@@ -44,9 +58,10 @@ if [ ! -f "${STEPPATH}/config/ca.json" ]; then
     --address ":9443" \
     --provisioner "admin" \
     --password-file "${PASSWORD_FILE}" \
-    --provisioner-password-file "${PASSWORD_FILE}" \
+    --provisioner-password-file "${prov_pw}" \
     --deployment-type standalone \
     --acme
+  rm -f "${prov_pw}"
 
   # Short-lived certs are the point of this workshop: a 5-10 minute
   # lifetime makes automated renewal (Lab 4) something students actually
@@ -68,6 +83,17 @@ if [ "$(jq -r .address "${STEPPATH}/config/ca.json")" != ":9443" ]; then
   jq ".address = \":9443\"" "${STEPPATH}/config/ca.json" > "${STEPPATH}/config/ca.json.tmp"
   mv "${STEPPATH}/config/ca.json.tmp" "${STEPPATH}/config/ca.json"
 fi
+
+# Only names under the lab zone, set on every start (so a ca.json from an
+# older run gets it too). Self-hosted step-ca reads a policy only at the
+# authority level (one on a provisioner is ignored); an ACME order for any
+# other name is refused at new-order. Names of other students are kept out
+# by per-student DNS keys for dns-01 (the dns-gate module).
+jq --arg dns "${ACME_ALLOWED_DNS}" \
+  ".authority.policy = {x509: {allow: {dns: [\$dns, \"step-ca\", \"localhost\"]}}}
+   | del(.authority.provisioners[].policy)" \
+  "${STEPPATH}/config/ca.json" > "${STEPPATH}/config/ca.json.tmp"
+mv "${STEPPATH}/config/ca.json.tmp" "${STEPPATH}/config/ca.json"
 
 mkdir -p /pub
 cp "${STEPPATH}/certs/root_ca.crt" /pub/root_ca.crt

@@ -14,18 +14,31 @@
 # does ourselves, once a round, the same PowerDNS PATCH dns-seed already does
 # for studentNN -- ASSUMPTION TO VERIFY LIVE.
 
+# -- helper: this bot's own dns-api key ------------------------------------
+# The dns-gate module's start.d hook writes it after bot-runner.sh has
+# started (so it isn't in this shell's environment yet): read it from the
+# file at the start of every step until it's there.
+dns_key_env() {
+  if [ -z "${DNS_API_KEY:-}" ] && [ -r "$HOME/.config/dojo/dns-api-key" ]; then
+    DNS_API_KEY="$(cat "$HOME/.config/dojo/dns-api-key")"
+    export DNS_API_KEY
+  fi
+}
+
 step_bot_ensure_dns() {
+  dns_key_env
   local me host
   me="$(whoami)"
   host="${me}.certs.dojo.test"
   narrate "(bot setup) dns-seed only seeds studentNN A records, not $me -- adding my own"
-  # DEMO_APP_IP and the zone/API key are the literal values compose/dns-seed's
-  # seed.sh and lab5.md's own PATCH example use -- see
-  # workshops/cert-autorenewal/compose/docker-compose.override.yml.
-  run_cmd "curl -s -o /dev/null -w 'dns A record: HTTP %{http_code}\\n' -H 'X-API-Key: workshop-not-a-secret' -H 'Content-Type: application/json' -X PATCH 'http://dns-server:8081/api/v1/servers/localhost/zones/certs.dojo.test.' -d '{\"rrsets\":[{\"name\":\"${host}.\",\"type\":\"A\",\"ttl\":60,\"changetype\":\"REPLACE\",\"records\":[{\"content\":\"172.30.0.20\",\"disabled\":false}]}]}'"
+  # DEMO_APP_IP and the zone are the literal values compose/dns-seed's
+  # seed.sh and lab5.md's own PATCH example use; $DNS_API_KEY is the bot's own
+  # key (the dns-gate module), which may change names under its own host.
+  run_cmd "curl -s -o /dev/null -w 'dns A record: HTTP %{http_code}\\n' -H \"X-API-Key: \$DNS_API_KEY\" -H 'Content-Type: application/json' -X PATCH 'http://dns-api:8081/api/v1/servers/localhost/zones/certs.dojo.test.' -d '{\"rrsets\":[{\"name\":\"${host}.\",\"type\":\"A\",\"ttl\":60,\"changetype\":\"REPLACE\",\"records\":[{\"content\":\"172.30.0.20\",\"disabled\":false}]}]}'"
 }
 
 step_lab1_trust_ca() {
+  dns_key_env
   local fp
   narrate "Lab 1 -- trust step-ca's root cert"
   run_cmd "ls -l /opt/step-ca-root/root_ca.crt"
@@ -38,6 +51,7 @@ step_lab1_trust_ca() {
 }
 
 step_lab2_issue_and_install() {
+  dns_key_env
   local me host demo_ip
   me="$(whoami)"
   host="${me}.certs.dojo.test"
@@ -70,16 +84,18 @@ step_lab2_issue_and_install() {
 }
 
 step_lab3_acmesh() {
+  dns_key_env
   local me host
   me="$(whoami)"
   host="${me}.certs.dojo.test"
   narrate "Lab 3 (optional) -- same task with acme.sh, for comparison"
   run_cmd "acme.sh --issue --webroot \"/srv/webroot/${me}/html\" -d \"$host\" --server https://step-ca:9443/acme/acme/directory --ca-bundle /opt/step-ca-root/root_ca.crt --cert-home ~/acmesh-lab3 --accountemail \"${me}@example.com\""
   orient
-  run_cmd "openssl x509 -in ~/acmesh-lab3/${host}/${host}.cer -noout -dates -subject -issuer"
+  run_cmd "openssl x509 -in ~/acmesh-lab3/${host}_ecc/${host}.cer -noout -dates -subject -issuer"
 }
 
 step_lab4_renew() {
+  dns_key_env
   local me host script demo_ip
   me="$(whoami)"
   host="${me}.certs.dojo.test"
@@ -127,12 +143,18 @@ SCRIPT
 }
 
 step_lab5_dns01() {
+  dns_key_env
   local me host hookdir
   me="$(whoami)"
   host="${me}.certs.dojo.test"
   hookdir="$HOME/dns01-hooks"
   narrate "Lab 5 (optional capstone) -- prove control via dns-01 instead of http-01"
   mkdir -p "$hookdir"
+
+  # Lab 4's every-minute cron job runs `certbot renew` on the same ~/certbot
+  # work dir, so it would hold certbot's lock (and renew this lineage) while
+  # this step runs. lab5.md tells students to remove it first; so does the bot.
+  run_cmd "(crontab -l 2>/dev/null | grep -v 'renew-and-reload.sh') | crontab -"
 
   # lab5.md has a human paste the TXT value into a second pane. Standing in
   # for that: --manual-auth-hook/--manual-cleanup-hook run the exact same
@@ -141,16 +163,16 @@ step_lab5_dns01() {
   cat > "$hookdir/auth.sh" <<'HOOK'
 #!/bin/sh
 set -eu
-curl -s -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
-  -X PATCH "http://dns-server:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
+curl -s -H "X-API-Key: $DNS_API_KEY" -H "Content-Type: application/json" \
+  -X PATCH "http://dns-api:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
   -d "{\"rrsets\":[{\"name\":\"_acme-challenge.${CERTBOT_DOMAIN}.\",\"type\":\"TXT\",\"ttl\":60,\"changetype\":\"REPLACE\",\"records\":[{\"content\":\"\\\"${CERTBOT_VALIDATION}\\\"\",\"disabled\":false}]}]}" >/dev/null
 sleep 2
 HOOK
   cat > "$hookdir/cleanup.sh" <<'HOOK'
 #!/bin/sh
 set -eu
-curl -s -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
-  -X PATCH "http://dns-server:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
+curl -s -H "X-API-Key: $DNS_API_KEY" -H "Content-Type: application/json" \
+  -X PATCH "http://dns-api:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
   -d "{\"rrsets\":[{\"name\":\"_acme-challenge.${CERTBOT_DOMAIN}.\",\"type\":\"TXT\",\"changetype\":\"DELETE\"}]}" >/dev/null
 HOOK
   chmod +x "$hookdir/auth.sh" "$hookdir/cleanup.sh"
@@ -162,6 +184,9 @@ HOOK
 
   run_cmd "openssl x509 -in ~/certbot/config/live/${me}-dns01/fullchain.pem -noout -dates -subject"
   run_cmd "dig @dns-server _acme-challenge.${host} TXT +short"
+
+  # step-ca's name policy allows only *.certs.dojo.test, so this must be refused.
+  run_cmd "REQUESTS_CA_BUNDLE=/opt/step-ca-root/root_ca.crt certbot certonly --webroot -w \"/srv/webroot/${me}/html\" --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs --cert-name ${me}-offzone -d \"${me}.example.test\" --server https://step-ca:9443/acme/acme/directory --agree-tos --non-interactive --email \"${me}@example.com\" && echo 'UNEXPECTED: off-zone name was issued' || echo 'off-zone name refused, as expected'"
 }
 
 # cert-flavored look-around commands, in place of bot-runner.sh's git-status
@@ -196,6 +221,7 @@ orient() {
 # renewing unwatched. Clear it each wrap; step_lab4_renew installs it fresh
 # next round it runs, so nothing piles up across rounds either way.
 step_wrap_round() {
+  dns_key_env
   narrate "round $ROUND done -- clearing this round's cron entry before the break"
   run_cmd "(crontab -l 2>/dev/null | grep -v 'renew-and-reload.sh') | crontab -"
   narrate "taking a short break before round $((ROUND + 1))"

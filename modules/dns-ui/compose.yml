@@ -59,7 +59,7 @@ services:
       - PATH_PREFIX=/dns-admin
       # The wrapper answers only requests carrying this token (set by the
       # gateway) and logs in only the facilitator named here.
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_DNS_ADMIN:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       # One facilitator: the base image's default of 4 workers filled 256m.
       - GUNICORN_WORKERS=${DNS_ADMIN_WORKERS:-2}

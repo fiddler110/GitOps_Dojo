@@ -68,8 +68,8 @@ Labs 6 and 7 work in your namespace (`students/<you>`); lab 6 reuses lab 4's `te
 | **8** | fork the repo; a repository secret, masking, and who can really read it     | ~15 min |
 | **9** | CI reads the vault: AppRole first, then the job's own OIDC token, no secret | ~20 min |
 
-Your workflows run on **single-use runners**: each takes one job and is thrown away. Pushing asks for your
-**Forgejo password** (on your landing page); lab 8 sets git to remember it, in memory, for an hour.
+Your workflows run on **single-use runners**: each takes one job and is thrown away. git and `curl --netrc`
+sign in with the Forgejo token your terminal came with: no password to type.
 
 ---
 

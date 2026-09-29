@@ -1,6 +1,6 @@
 """Dojo Cloud's "Azure Policy": rules every request is checked against.
 
-Each rule is a teaching moment (PLAN.md §6.3). A violation becomes an
+Each rule is a teaching moment (TOFU-BASICS-PLAN.md §6.3). A violation becomes an
 ARM-shaped error the student has to read and fix in their HCL. Pure functions,
 no I/O, so they are unit-tested in test_policy.py.
 """

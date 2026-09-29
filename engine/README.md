@@ -59,7 +59,7 @@ graph TB
     GW -->|"/admin/watch/studentNN  (own auth +<br/>forward_auth → allocator, keyed by student)"| WT
     GW -->|"/ide/*, /term/*  (shared auth +<br/>forward_auth → allocator)"| WT
     GW -->|"/git/*  (shared auth,<br/>Authorization header stripped)"| GS
-    GW -->|"/slides/*  (open)"| PR
+    GW -->|"/slides/*  (shared auth)"| PR
     AL -.->|"POST /start, /stop<br/>GET /status (internal only)"| WT
     WT -->|"git clone / push<br/>git-server:3000, direct"| GS
     BS -->|"provisions admin,<br/>org, repo, students"| GS
@@ -72,6 +72,27 @@ inside a student's shell, `git-server:3000` is reachable but
 `presentation:8080` is not (deliberately; slides are a browser-only
 concern). `gateway` is the one service that joins every network, since it
 has to reach every backend and also be the thing with a published port.
+It reaches the students' IDE and terminal ports (9000-9899) over a network of
+their own, `terminal_ingress` (only `gateway` and `web-terminal`, subnet
+`TERMINAL_INGRESS_SUBNET`, default `172.30.9.0/24`), dialling the alias
+`web-terminal-ingress`. `web-terminal/entrypoint.sh` drops those ports on
+every other interface (`DOJO_INGRESS`), so a CI job or module service on
+`workshop_lab` can't skip Caddy's auth-check by dialling
+`web-terminal:9001` (remediation T2.2a, FIND-04); `run.sh` refuses a
+fragment that joins `terminal_ingress`.
+Inside `web-terminal`, each student's IDE and terminal run in a PID namespace
+of their own (a user namespace mapping only their uid, kept alive by one
+holder process per student and joined with `nsenter`; see
+`workspace-control.py`), so `ps` shows a student only their own processes
+and never a classmate's command-line arguments (remediation T2.3b, FIND-10).
+The facilitator and demo bots stay outside; `su`, `sudo` and `ping` don't
+work inside.
+Every student-side process also runs under `prlimit --nproc=$TERMINAL_NPROC_LIMIT`
+(default 1024, below the container-wide pids cap so one bomb cannot exhaust it, 0 = off). Threads count, so it only ever stops a fork bomb, and
+each student has their own uid, so one student's bomb can't eat a classmate's
+allowance. There is deliberately no address-space cap (it breaks
+node/code-server) and no per-user memory cap: that needs per-user cgroups, so
+`mem_limit` stays one shared pool (residual).
 `allocator` holds no persistent state (in-memory only, same ephemeral
 design as everything else) and never touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.
@@ -86,11 +107,14 @@ sequenceDiagram
     participant WT as web-terminal
     participant GS as git-server
 
-    S->>GW: GET / (no credentials)
-    GW-->>S: 401 + WWW-Authenticate
-    S->>GW: GET / (Basic: TTYD_USERNAME/PASSWORD)
-    GW->>AL: proxy /
-    AL-->>S: name-entry form (browser now caches the shared credential for this origin)
+    S->>GW: GET / (no session cookie)
+    GW-->>S: 303 to /login
+    S->>GW: POST /login (TTYD_USERNAME/PASSWORD)
+    GW->>AL: proxy /login
+    AL-->>S: 303 back to / + dojo_login cookie
+    S->>GW: GET / (cookie)
+    GW->>AL: /session-check, then proxy /
+    AL-->>S: name-entry form
 
     S->>AL: POST /assign (name)
     AL-->>S: 303 + Set-Cookie (first free studentNN slot claimed, atomically)
@@ -105,7 +129,7 @@ sequenceDiagram
 
     S->>GW: GET /forgejo-login (cookie attached, opened in a new tab)
     GW->>AL: proxy /forgejo-login
-    AL->>GS: POST /user/login (studentNN / STUDENT_PASSWORD — server-side, no CSRF token needed)
+    AL->>GS: POST /user/login (studentNN / own derived password — server-side, no CSRF token needed)
     GS-->>AL: Set-Cookie: session=... (Forgejo's own login)
     AL-->>S: 303 + Set-Cookie (relayed verbatim) → /git/<org>/<repo>
 
@@ -163,32 +187,33 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 
 | Path            | Goes to        | Auth                                                              |
 | ---------------- | --------------- | -------------------------------------------------------------------- |
-| `/slides/*`      | `presentation`  | None — open, read-only content                                    |
-| `/`              | `allocator`     | Shared gate (`TTYD_USERNAME`/`TTYD_PASSWORD` **or** `FACILITATOR_USERNAME`/`PASSWORD`) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
+| `/`              | `allocator`     | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
 | `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
-| `/admin/*`       | `allocator`     | Its own `basic_auth` using only `FACILITATOR_USERNAME`/`PASSWORD` — checked *before* the shared gate below, so a student credential alone can't reach it. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
+| `/admin/*`       | `allocator`     | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
 | `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
 | `/<name>`, `/<name>/*` | whatever a workshop or module declares (e.g. `/cloud` → `cloud-api`, `/demo` → `demo-app`) | Shared gate, then one of three fixed gates. For `identity`/`facilitator`, `forward_auth` to `allocator`'s `/auth-check?route=<id>`, and Caddy itself sets `X-Auth-User` and `X-Gateway-Token` for the upstream. Only exists while that workshop runs (see [Workshop extensions](#workshop-extensions-extensionsjson)) |
 
-The shared gate is one Caddy `basic_auth` block covering everything except
-`/slides/*`, and it accepts **either** the shared student credential or the
-facilitator's own — so a facilitator only ever needs to remember one
-credential (theirs) to reach anything in the stack, including `/ide`,
-`/term`, and `/git`, all of which still sit behind this same gate after
-`/admin` routes them there. Both `basic_auth` blocks use Caddy's same
-default realm (this Caddy version has no Caddyfile option to change it),
-which works in our favor: a browser that's already authenticated as the
-facilitator on either block transparently reuses that cached credential on
-the other too, rather than prompting twice.
+Sign-in is the allocator's `/login` page (`allocator/login/`), not a browser
+popup. A correct username and password (the class login, or the
+facilitator's) sets a signed `dojo_login` cookie, good for 12 hours. It is
+derived from `GATEWAY_TOKEN` and both passwords, so changing either password
+signs everyone out. Caddy's `session_gate` snippet then calls the allocator's
+`/session-check` on every other request: no cookie sends a page load to
+`/login?next=<page>` and answers anything else with 401; `/admin/*` asks for
+the facilitator account and answers the class login with 403. Wrong guesses
+are limited in the allocator (30 a minute per client address, then 429); a
+correct password is never refused, so a class behind one NAT address can
+still sign in. `/logout` clears the cookie. The login page shows
+`WORKSHOP_NAME` and `WORKSHOP_DESCRIPTION` from `workshop.env`.
 
-Whichever basic_auth account actually matched is forwarded to `allocator`
-on every request as `X-Auth-User` (`header_up {http.auth.user.id}` in
-`gateway/Caddyfile` — this always *overwrites* any client-supplied header
-of the same name, so it can't be spoofed). `allocator/server.py` trusts
-this to recognize the facilitator immediately, on the very first request —
-typing the facilitator credential once, anywhere, is enough; there's no
-separate login step and no dependency on a cookie existing yet. This is
+Whichever account the cookie proves is forwarded to `allocator` on every
+request as `X-Auth-User` (Caddy copies the check's `X-Session-User` and
+sends it with `header_up`, which always *overwrites* any client-supplied
+header of the same name, so it can't be spoofed). `allocator/server.py`
+trusts this to recognize the facilitator immediately, on the very first
+request — no dependency on the slot cookie existing yet. This is
 also what stops a facilitator from ever being accidentally assigned a
 student slot: entering the facilitator credential at `/` renders their own
 page instead of the name-entry form. Reaching `/ide` or `/term` is a
@@ -201,7 +226,7 @@ straight back to `/`.
 — it links to `/forgejo-login`, which resolves the browser's identity
 exactly like `/ide`/`/term` do, then has `allocator` POST Forgejo's own
 login form itself, server-side, over the internal network (`studentNN` +
-`STUDENT_PASSWORD` for a student, `FORGEJO_ADMIN_USER` +
+that student's own password for a student, `FORGEJO_ADMIN_USER` +
 `FORGEJO_ADMIN_PASSWORD` for the facilitator — matching whatever
 `bootstrap.sh` actually seeded those accounts with), then relays Forgejo's
 own `Set-Cookie` response straight onto the browser and redirects into the
@@ -212,16 +237,28 @@ have shell access on `web-terminal`, the same internal network Forgejo
 sits on, so trusting any header-based identity from that network would let
 a student forge one for another account). A student can only ever land in
 their own resolved identity's Forgejo account through this route, the same
-guarantee `/auth-check` already relies on for `/ide`/`/term`. Separately,
-note that `bootstrap.sh` gives every `studentNN` Forgejo account the *same*
-`STUDENT_PASSWORD` (matching their shared Linux/ttyd password) — a student
-who knows another student's account name could already sign into that
-account manually on Forgejo's own login form; this route doesn't change
-that, since it only ever authenticates the caller as their own resolved
-identity. Forgejo's
+guarantee `/auth-check` already relies on for `/ide`/`/term`. Forgejo's
 login form needs no CSRF token to POST (verified against the running
 instance), which is what makes this possible without `allocator` holding a
 live Forgejo session of its own.
+
+**Student credentials** (remediation T2.1, FIND-03). Each student's Forgejo
+password is derived, not stored: `base32(HMAC-SHA256(STUDENT_PASSWORD_SEED,
+"forgejo:" + user))[:16]`, computed the same way by `bootstrap.sh` (creates
+the account, `git-server/dojo-secret.sh`), the allocator (SSO) and the
+terminal (`dojo_secret.py`; `allocator/tests/test_dojo_secret.py` keeps the
+three in step). Knowing one student's password tells you nothing about
+another's. Students never type it: at start the terminal mints each student a
+Forgejo token (`dojo-git`: `write:repository`, `write:issue`, `read:user`)
+with it and writes `~/.git-credentials` (git's `store` helper) and `~/.netrc`
+(the labs' `curl --netrc`), both `0600` (`web-terminal/forgejo-token.py`,
+idempotent: a working token is kept). Student Linux passwords are locked
+(only root's `su -` gets in, so no student can `su` to another) and homes
+are `0700`. The per-account steps live in `web-terminal/provision-account.sh`,
+which a student reset reruns. The Roster's **Password** button shows one
+student's Forgejo password for the desk (logged as
+`forgejo-password-shown`). Without a seed (an old `engine/.env`), every
+student's password is `STUDENT_PASSWORD` and `run.sh` warns.
 
 Git operations (`clone`/`push`) never go through the gateway or this SSO
 route at all — students run them from inside the terminal, straight to
@@ -255,7 +292,15 @@ this is how the engine uses it.
   `forward_auth` (wrapped in `route {}`, since Caddy would otherwise sort
   `request_header` after `forward_auth`), always strips `Authorization`, and for
   `identity`/`facilitator` replaces `X-Auth-User` and `X-Gateway-Token` with
-  what the allocator vouched for. Caddy re-sorts path-matched `handle` blocks,
+  what the allocator vouched for. The token each upstream gets is its own,
+  `HMAC-SHA256(GATEWAY_TOKEN, "dojo-gateway-token/v1/<service>")`, never the
+  shared `GATEWAY_TOKEN` (which only the allocator and engine blocks use), so
+  one upstream's token is refused by every other. The renderer also writes
+  `.generated/upstream-tokens.env` (`GATEWAY_TOKEN_<SERVICE>=...`, mode 0600),
+  which `run.sh` exports before `compose up`; the upstream's fragment passes it
+  in as `GATEWAY_TOKEN=${GATEWAY_TOKEN_<SERVICE>:-}`. The snippet holds those
+  tokens, so it is owned by the gateway's `nobody`, mode 0440 (0644 when the
+  renderer can't chown, under Docker). Caddy re-sorts path-matched `handle` blocks,
   so correct routing relies on the renderer's no-overlap rule, not on order.
 - **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
   go on the landing page after the built-in ones, tabs into `/admin` after the
@@ -300,18 +345,34 @@ Everything is driven from `run.sh`, which lives in the repo root (and in
 ./run.sh setup --default
 ```
 
-`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below, showing its
-current default in `[brackets]` (Enter accepts it) and auto-generating a
-strong random value for passwords/tokens on a bare Enter. It also offers to
+`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below with a
+short explanation, showing its current value in `[brackets]` (Enter accepts it). When
+`engine/.env` already exists, its values are the defaults and settings the script doesn't ask
+about are carried over; a password that is still a public default (`change-me`, `student`,
+`student123`, `admin`) is replaced by a generated one on a bare Enter, while a real one is kept
+(type `new` to generate). The file is built as `.env.new` and moved into place at the end, so
+Ctrl-C leaves `.env` as it was; the old one is kept as `.env.previous`. It also offers to
 run `capacity-calc.sh` for you to size `WEB_TERMINAL_MEM_LIMIT`/
 `WEB_TERMINAL_PIDS_LIMIT`/`CODE_SERVER_MAX_HEAP_MB` to this machine. Prefer
 this path for a real workshop, since it gives every session unique
 credentials. `--default` skips all of that and fills in fixed, easy values
 instead (`student`/`student123`/`admin`/`admin` — see the script's header
 for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
-`GATEWAY_TOKEN`) are still randomly generated even in `--default` mode,
-since nobody ever types those. Either way it still tries to auto-size the
+`GATEWAY_TOKEN`) and `FORGEJO_ADMIN_PASSWORD` (the facilitator reaches Forgejo
+through SSO) are still randomly generated even in `--default` mode, since
+nobody ever types those. `engine/.env` (and `.env.previous`) is written
+mode 0600: it holds every master secret. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
+
+**Default passwords stay on this machine.** `./run.sh <workshop>` refuses to
+start when any of `TTYD_PASSWORD`, `STUDENT_PASSWORD_SEED` (or `STUDENT_PASSWORD`
+without a seed), `FACILITATOR_PASSWORD` or
+`FORGEJO_ADMIN_PASSWORD` is a `--default` value or `.env.example`'s `change-me`,
+unless both `PUBLIC_BASE_URL`'s host and `LAB_HOST_IP` are loopback (checked
+after `--env NAME` is loaded). Run `./run.sh setup` for real values, or pass
+`--allow-default-passwords` to start anyway with a warning.
+`./run.sh setup --rotate-class` changes only the shared class password
+(`TTYD_PASSWORD`) in the existing `.env`; restart the workshop to apply it.
 
 `./run.sh setup --force` skips the "`.env` already exists" prompt. Prefer to
 do it by hand instead? `cp .env.example .env` and edit directly — same
@@ -327,9 +388,9 @@ services) is selected separately, by name, via `./run.sh` below.
 | `WORKSHOP_NAME`                                    | Name shown in the terminal welcome message                     |
 | `PUBLIC_BASE_URL`                                  | What students type into their browser. See **Deployment scenarios** below |
 | `LAB_HOST_IP`                                      | Interface the gateway binds to on this machine — see below     |
-| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 80/443)               |
+| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 8080/8443: rootless podman can't bind below 1024) |
 | `TTYD_USERNAME`, `TTYD_PASSWORD`                   | Shared gate in front of the terminal and Forgejo browsing       |
-| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD` | Linux terminal accounts *and* matching Forgejo accounts (1-99) |
+| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD_SEED` | Linux terminal accounts *and* matching Forgejo accounts (1-99); each Forgejo password is derived from the seed (see **Student credentials**) |
 | `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`     | Facilitator's Linux login, sudo-capable                        |
 | `FORGEJO_ADMIN_USER`, `FORGEJO_ADMIN_PASSWORD`, `FORGEJO_ADMIN_EMAIL` | Forgejo admin created by `bootstrap` (avoid the reserved name `admin`) |
 | `FORGEJO_ORG`, `FORGEJO_REPO`                      | Where the seeded sample repo lives                              |
@@ -339,12 +400,14 @@ every session. `.env` is gitignored.
 
 ### Deployment scenarios
 
-**Local laptop (default):**
+**Local machine (default):**
 ```
-PUBLIC_BASE_URL=http://localhost
+PUBLIC_BASE_URL=http://localhost:8080
 LAB_HOST_IP=127.0.0.1
+GATEWAY_HTTP_PORT=8080
 ```
-Plain HTTP, no TLS, reachable only from this machine.
+Plain HTTP, no TLS, reachable only from this machine. The port in
+`PUBLIC_BASE_URL` must match `GATEWAY_HTTP_PORT` (`run.sh` warns otherwise).
 
 **Azure VM, internal workshop:** bind the gateway to all interfaces and let
 Azure's free per-public-IP DNS label give you a real hostname — Caddy then
@@ -379,6 +442,30 @@ LAB_HOST_IP=0.0.0.0
 ```
 and on the proxy, `dojo.example.com { reverse_proxy <this-host>:8080 }`. Scope a
 firewall rule so only the proxy can reach port 8080.
+Also set `GATEWAY_TRUSTED_PROXIES` to the proxy's address as the gateway sees it
+(a CIDR such as `10.0.0.2/32`), so the login rate limit counts each browser
+separately instead of the proxy as one client. Name only the proxy, never a
+whole private range: anyone the gateway trusts can set `X-Forwarded-For`.
+
+**LAN class over HTTPS.** Over plain `http://` the class login, session cookies and
+every keystroke in the terminal cross the room's network in the clear, and
+`run.sh` warns when `PUBLIC_BASE_URL` is `http://` with a host other than
+localhost. Two ways to avoid it:
+
+- **A real name** (best): a DNS name that resolves to this machine on the LAN,
+  with a certificate from a proxy you already run (the recipe above; this is
+  what `--env home` does) or from Let's Encrypt on a public address.
+- **Caddy's own CA**, no name needed: `PUBLIC_BASE_URL=https://<lan-ip>:8443`
+  (keep `GATEWAY_HTTPS_PORT=8443`, `LAB_HOST_IP=0.0.0.0`). Caddy issues the
+  certificate from its local CA automatically for an IP address. Browsers
+  warn until they trust that CA's root; hand it out with
+  `podman cp workshop_gateway:/data/caddy/pki/authorities/local/root.crt .`.
+  The gateway's data doesn't survive `./run.sh stop`, so each run has a new
+  root to hand out.
+
+When `PUBLIC_BASE_URL` is `https://`, the gateway sends
+`Strict-Transport-Security: max-age=86400`, behind a proxy too, so a browser
+that has visited once won't fall back to plain HTTP for a day.
 
 ## Start
 
@@ -449,12 +536,9 @@ assigned the next free `${STUDENT_PREFIX}NN` account — no second password
 to type, no picking their own account. They land straight in code-server
 (or ttyd, their choice) as that account. Their Open Forgejo link SSOs them
 straight into their matching Forgejo account with no login prompt (see
-**Forgejo SSO** above); `STUDENT_PASSWORD` is only something they'd need to
-type themselves for a `git clone`/`push` from inside the terminal, and
-the landing page they see after that shows it to them as their **Forgejo
-password** (`no-store`, HTML-escaped, and only ever their own account's
-secret, never the shared gate or facilitator credentials), so labs can
-send students there instead of quoting a value that depends on your `.env`.
+**Forgejo SSO** above), and git in their terminal is already signed in with
+their own token (**Student credentials** above), so they never type a
+Forgejo password.
 `/slides` is reachable from the same address too. The facilitator sees every
 assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
@@ -605,6 +689,32 @@ immediately kills that student's code-server/ttyd process and frees the
 account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
+
+**Release unused.** The button above the Roster grid frees, in one click,
+every slot that was taken over 2 minutes ago and has no VS Code or terminal
+process running (someone who opened the landing page and wandered off). It asks
+for confirmation, then lists the accounts it freed (`POST /admin/release-unused`,
+facilitator only, audit-logged as `release` with result `released-unused`).
+Use it when the class is full but seats are held by people who never started.
+
+**Slot-assignment rate limit.** New slots go out through a token bucket:
+`ASSIGN_BURST` at once (default 10), then `ASSIGN_PER_MINUTE` (default 20), set
+in `engine/.env`. A class of 30 is in within about a minute. A browser that
+already holds a slot, the facilitator and the `--test` demo bots are never
+limited. A visitor over the limit gets a "try again in N seconds" page (HTTP 429
+with a `Retry-After` header). This stops one client from draining every free slot by
+posting to `/assign` without a cookie; it is not a join code.
+
+**Allocator timeouts.** The allocator serves each connection in its own thread
+(`ThreadingHTTPServer`), so an idle or slow client ties up only its own thread
+and never delays `/auth-check` for the rest of the class. Slot claims stay
+atomic under one lock, and no lock is held across a call to web-terminal or
+Forgejo (the locking rules are at the top of `allocator/server.py`). Each
+client socket times out after 3 s, calls to web-terminal's control API and
+Forgejo after 3 s, and the gateway gives every allocator call a 3 s dial
+timeout and a 10 s response-header timeout (the `allocator_timeouts` snippet in
+`gateway/Caddyfile`, also imported into the rendered extension gates). A slow
+allocator therefore shows as a 502 after at most 10 s, not a hung page.
 
 **Service status strip.** The bottom of the `/admin` sidebar (a row under the tabs on a narrow screen) shows one chip per service —
 a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —
@@ -831,7 +941,9 @@ or the public internet.
 hostname actually resolves to the VM's public IP already, and that the NSG
 allows inbound 80/443 from the internet (Let's Encrypt's HTTP-01 challenge
 needs to reach the gateway on port 80 to issue the cert, even though the
-final result is served on 443):
+final result is served on 443). The defaults publish 8080/8443, so on a VM set
+`GATEWAY_HTTP_PORT=80` and `GATEWAY_HTTPS_PORT=443` (Docker or rootful podman),
+or map 80/443 to them:
 
 ```sh
 docker compose logs gateway

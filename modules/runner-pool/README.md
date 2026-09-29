@@ -3,7 +3,7 @@
 Single-use Forgejo Actions runners for every repo, autoscaled, with a Runners panel in `/admin`.
 
 Add it with `MODULES="runner-pool"` in a `workshop.env`. Built for `vault-fundamentals`, whose plan
-(`workshops/vault-fundamentals/PLAN.md` §6) has the design. Each runner takes **one job** and is then deleted with
+(`docs/archive/VAULT-FUNDAMENTALS-PLAN.md` §6) has the design. Each runner takes **one job** and is then deleted with
 everything the job left behind, so no job (a student's own or anyone else's) ever finds another's files or processes:
 the way GitHub's Actions Runner Controller works. Don't list it together with `forgejo-runner` (a long-lived runner
 for one repo): both turn on Actions and define `runner_net`.
@@ -26,7 +26,7 @@ cross-site form can't send and a cross-site `fetch` can't send without a CORS pr
 served from the loop's snapshot, never with a Forgejo call of their own.
 
 **Why a process pool and not containers:** the stack has no container-engine socket anywhere, and this keeps it that
-way. The pool is one unprivileged container with rootless podman's default capabilities. Its weak point is that runners
+way. The pool is one container that drops every capability except the six its supervisor uses (CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL) and sets `no-new-privileges`; the ID-token shim keeps only NET_BIND_SERVICE. Podman's default seccomp profile still applies. Its weak point is that runners
 running at the same moment share a kernel and a filesystem; users, namespaces and umask keep them apart, and each is
 thrown away after one job. Hosts that block unprivileged user namespaces (e.g. Ubuntu 24.04's AppArmor
 `kernel.apparmor_restrict_unprivileged_userns=1`) stop the runners from starting: they turn red on the panel.
@@ -52,3 +52,18 @@ services:
 
 Jobs use `runs-on: host`. The runners serve every repo on the instance, so students can run workflows in their own
 forks.
+
+## Controller credentials (FIND-16, T5.2c/d)
+
+`runner-token-init` is a one-shot service that signs in once with the Forgejo admin login and writes a
+`write:admin` token (`runner-controller`) to the `runner_controller_token` volume; `runner-controller` mounts it
+read-only and no longer gets `FORGEJO_ADMIN_PASSWORD` (it re-reads the file on every call, and shows "waiting"
+until it exists). A leaked controller environment now yields a revocable token, not the admin login.
+The token is still admin-scoped: Forgejo's runner endpoints accept no narrower scope.
+
+Compose `secrets:` under podman-compose (evaluated from docs and existing behaviour only, not run here):
+1. podman-compose supports file-based `secrets:` (bind-mounted at `/run/secrets/<name>`) but not `environment:`
+   secrets, and support for `mode`/`uid`/`gid` varies by version.
+2. That needs a host file holding the value, i.e. another plaintext copy beside `engine/.env`, and `./run.sh stop`
+   would have to delete it; the named volume above is wiped with the rest.
+3. Not adopted: revisit if the engine gains a secrets directory. Needs a live check on this machine's version.

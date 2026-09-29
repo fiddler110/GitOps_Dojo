@@ -17,7 +17,7 @@ Play the colleague with a dashboard. This `curl` calls the PowerDNS API directly
 
 ```sh
 curl -s -X PATCH \
-  -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
+  -H "X-API-Key: $DNS_API_KEY" -H "Content-Type: application/json" \
   "http://dns-api:8081/api/v1/servers/localhost/zones/$USER.dojo.test." \
   -d '{"rrsets":[{"name":"hotfix.'"$USER"'.dojo.test.","type":"A","ttl":300,"changetype":"REPLACE","records":[{"content":"203.0.113.99","disabled":false}]}]}'
 dig @dns-server hotfix.$USER.dojo.test A +short

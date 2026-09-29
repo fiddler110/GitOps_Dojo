@@ -80,11 +80,9 @@ it's a real background job, not instant.
 ## No secrets of its own
 
 Nothing here needs a secret beyond what's already in the repo:
-`dnscontrol` reads the PowerDNS API URL and key from `creds.json` (a lab
-key: your terminal can read `dojo.test` but only CI may change it), and
-the Forgejo commands reuse your git login. `.env` is optional and
+`dnscontrol` reads the PowerDNS API URL from `creds.json` and the key from
+the environment (`"apiKey": "$DNS_API_KEY"`): in your terminal that is your
+own key, which can read `dojo.test` but not change it; in CI it is the job's
+Forgejo-signed ID token, which changes `dojo.test` only on a push to `main`.
+The Forgejo commands reuse your git login. `.env` is optional and
 git-ignored; the `pre-commit` hook refuses to commit it.
-
-In a real repo `creds.json` would reference environment variables
-(`"apiKey": "$PDNS_API_KEY"`) and the write key would live only in CI's
-secrets. Same script, same commands.

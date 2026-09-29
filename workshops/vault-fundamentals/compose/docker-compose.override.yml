@@ -3,7 +3,7 @@
 # paths resolve against engine/, not this folder.
 #
 # The workshop's own OpenBao set-up runs as hooks in the module's
-# openbao-setup (PLAN.md S29): it sources every /etc/openbao-setup.d/*.sh on
+# openbao-setup (VAULT-FUNDAMENTALS-PLAN.md S29): it sources every /etc/openbao-setup.d/*.sh on
 # each start with the provisioner token, after the module's own set-up.
 #
 # CI jobs (runner-pool) run bao and sops, the terminal's own binaries, and
@@ -40,14 +40,32 @@ services:
         TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_app_host
     # Root inside the container: it makes the slot users and runs each app as
-    # its own. Rootless podman's default capabilities, no extra ones.
+    # its own. NET_ADMIN for the slots' egress allowlist (apphost.py's
+    # isolate_slots, remediation T2.2b), used only at start: start.sh runs the
+    # allowlist, then setpriv drops NET_ADMIN and SETPCAP (the latter is just
+    # what drops) before the platform starts. The rest is what useradd, su
+    # and the slots' files need (T4.1). Podman's default seccomp profile
+    # applies and is not pinned here.
     user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+      - KILL
+      - NET_ADMIN
+      - SETPCAP
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_APP_HOST:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - DEPLOY_REPO=${FORGEJO_REPO:-vault-fundamentals}
@@ -83,12 +101,16 @@ services:
     container_name: workshop_app_db
     # Starts as root: /bootstrap is the postgres user's to write (init.sh),
     # then the image's entrypoint drops to that user.
-    entrypoint: ["sh", "-c", "chown postgres /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres"]
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # Per-database connection tripwire for init.sh (0 = unlimited); the
+      # server-wide max_connections above it is APP_DB_MAX_CONNECTIONS.
+      - APP_DB_CONN_LIMIT=${APP_DB_CONN_LIMIT:-20}
+      - APP_DB_MAX_CONNECTIONS=${APP_DB_MAX_CONNECTIONS:-300}
     volumes:
       - ../workshops/vault-fundamentals/compose/app-db/init.sh:/docker-entrypoint-initdb.d/10-students.sh:ro
       - app_db_data:/var/lib/postgresql/data
