@@ -366,7 +366,7 @@ def start_workspace(tool, username):
             # Inside the student's PID namespace, like the IDE (whose VS Code
             # terminals start tmux there too), so the tmux server lives there.
             cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
-                   "-c", f"exec {nproc_prefix(username)}{ns}tmux new-session -A -s {TMUX_SESSION}"]
+                   "-c", f"exec {nproc_prefix(username)}{ns}tmux new-session -A -s {TMUX_SESSION} -c \"$HOME/lab\""]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audit("workspace-start", account=username, tool=tool, port=port)
