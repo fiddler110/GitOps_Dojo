@@ -712,3 +712,11 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   wrong/shared 401). User checked tofu browser (admin Dojo Cloud green, student card, Forgejo SSO, slides). Landing page
   shows the student's own password again (efda7c4, user request). Not run: vault second start, vault pool/audit/browser
   areas after the split (user's browser pass), PowerDNS keys still derived from the shared token. Next: P6 (ask first).
+- **2026-09-29, later.** Vault browser pass by the user: landing page password, Forgejo SSO, all `/admin` tabs, Runners,
+  Audit, Apps, lab reader and slides fine; OpenBao SSO "auth token expired" in the user's browser only (headless
+  `sso_browser.py` passes; closed by the user). CLI on the fresh stack: unit, tenancy, cli_login, setup_tokens, pool,
+  audit, labs 2/5/8/10 pass. **Found and fixed:** `./run.sh` hung on the runner controller (`podman wait
+  --condition=running` on the exited one-shot `runner-token-init`); the controller now depends on
+  `service_completed_successfully` (8387736), next start 16/16 healthy. Also lab 10 diagram as Mermaid (7c44a3b),
+  `GATEWAY_TRUSTED_PROXIES=10.0.0.2/32` in `.env.home` (unverified until a home run), and `run.sh`/`stop` status tables
+  (engine, user request; 45c4365..6722f53). Still open: vault second start. Next: P6 (ask first).

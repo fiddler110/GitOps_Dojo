@@ -6,76 +6,56 @@ SHA) and update or remove its line here.
 
 Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` after PR #3, 3a59106; the merged feature branches are deleted)
 
-| Plan                                                                                                   | What it covers                                                     | Status                                  |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P5 done; P6 next (ask first)        |
-| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)              |
-| [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | Planned, decisions "proposed"           |
-| [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open       |
-| [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md)                                       | tofu-basics (merged, PR #1)                                        | Only manual checks open                 |
+| Plan                                                                                                   | What it covers                                                     | Status                                                |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P5 done and committed; P6 (T6.1) next, ask first   |
+| [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)                            |
+| [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | R1.1 done (7172d9b); rest planned, decisions "proposed" |
+| [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open                     |
+| [`workshops/tofu-basics/PLAN.md`](workshops/tofu-basics/PLAN.md)                                       | tofu-basics (merged, PR #1)                                        | Only manual checks open                               |
 
 ## Now
 
-1. **Remediation P3 built, P4 scoped** (2026-09-29). Order set by the user: **do the work first, test everything at
-   the end** in one combined pass (T4.5 in the remediation plan).
-   1. **Docs and content, done and uncommitted:** `engine/README.md` and `modules/forgejo-runner/README.md` (T3.6),
-      the cert-autorenewal lab-5 cron fix (`bots/steps.sh`, `lab/lab5.md`). Review, then commit.
-   2. **P4 work, built 2026-09-29 (uncommitted, untested live):** ([`P4-SCOPING.md`](threat-model-20260926-154208/P4-SCOPING.md); design rule D17: every limit is a
-      tripwire with an env knob, nothing reduces what students can do): T4.1 caps on runner-pool, its shim and
-      app-host (incl. dojo-introduction) → T4.3a-c OpenBao quota, app-db per-database limit, per-identity buckets
-      → T4.2 allocator CSP (engine, ask) → T4.3d terminal `nproc` (engine, ask) → T4.4 docs. D18 confirmed; engine edits done.
-   3. **Then T4.5, the combined live pass** (locally, one stack at a time, `podman ps` first): the vault-fundamentals
-      stack (T3.4 rest, `e2e.sh`, P4 checks; running now), then a single `./run.sh cert-autorenewal --test 1` (cron
-      fix + off-zone refusal). dns-as-code, dojo-introduction and git-fundamentals are not re-run (user, 2026-09-29):
-      they passed before P4 and the P4 changes to them are covered by the vault stack and offline checks.
-      Then tick T3.6 and P4, and ask before P5.
-   Q-A confirmed: (A). Set `GATEWAY_TRUSTED_PROXIES` in `.env.home` on the next home run.
-2. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
-   "unknown error"). Not reproduced locally at 10 bots (2026-09-28: 12 loads, 6 of them concurrent cold starts, all
-   fine). The 404 is code-server's optional `vsda` files, on every load and harmless. The "unknown error" is
-   unexplained; recheck at the first 20+ student run, with the `/auth-check` logging added in remediation T1.4.
-   Sizing for 20-35 students is extrapolated from 10 bots.
-
-## Order agreed with the student-reset plan (2026-09-28)
-
-1. Remediation P0 (+ reset R0 on the same stack) → 2. remediation P1 → 3. **reset R1.1**: `provision-account.sh`
-   extracted from `entrypoint.sh`, no behaviour change (engine, ask) → 4. **remediation T2.1** built inside that
-   script → 5. the rest of the remediation, where **T5.3** also mints a narrow **reset token** for a resident
-   `openbao-reset` service → 6. reset R1.2 onwards.
-
-Decisions: remediation D15/D16, reset R9/R10. D11 stays: no long-lived provisioner token, and the unseal key never
-leaves `openbao-setup`.
-
-## Next: security remediation (P1-P3)
-
-Goal: overall rating **Elevated → Moderate**, no Tier 1 and no Critical/Important Tier 2 finding left open.
-
-| Task | Finding              | What                                                                                                                                   | Scope                       |
-| ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| R1.1 | (reset plan)         | Move per-account setup to `provision-account.sh`, no behaviour change; before T2.1                                                     | engine, **ask**             |
-| T2.1 | FIND-03 **Critical** | Lock student Linux passwords, per-student Forgejo password (HMAC seed) and token, homes `0700`, rewrite labs that mention the password | engine, approved            |
-| T2.2 | FIND-04 Important    | `terminal_ingress` network + `INPUT` rules for IDE ports; app-host egress allowlist                                                    | engine, approved + workshop |
-| T2.3 | FIND-10 Moderate     | Secrets off the command line in labs; PID-namespace spike                                                                              | workshop; engine part ask   |
-| T3.1 | FIND-05 Important    | dns-api trusts Actions OIDC tokens, not IP; PR model (Q-A); dns-as-code on `runner-pool`                                               | workshop + module           |
-| T3.2 | FIND-11 Moderate     | Per-student DNS API keys                                                                                                               | workshop                    |
-| T3.3 | FIND-09 Moderate     | step-ca secrets and a name policy                                                                                                      | workshop                    |
-| T3.4 | FIND-07 Moderate     | `/assign` rate limit, allocator timeouts                                                                                               | engine, **ask**             |
-| T3.5 | app-db               | `REVOKE CONNECT ... FROM PUBLIC` (only if P0 shows the leak)                                                                           | workshop                    |
+1. **Remediation P6 (T6.1):** run `/threat-model-analyst` in incremental mode with the 2026-09-26 report as the
+   baseline; record Fixed / Partial / Accepted per finding. Goal: overall rating **Elevated → Moderate**, no Tier 1
+   and no Critical/Important Tier 2 finding open. **Ask the user before starting.** P0-P5 are built, live-tested
+   locally and committed (last code: 8387736; also lab 10 diagram as Mermaid, 7c44a3b). The landing page shows the student's own
+   Forgejo password again (efda7c4, user request; reverses the T2.1c line).
+   **run.sh progress (2026-09-29, user request):** `run.sh` shows a live status table while the stack starts and `stop`
+   shows one while it comes down (terminal only; compose output goes to a log; plain lines when piped or `NO_COLOR`).
+   45c4365, 5988594, f7e6e0e, 7b844cd, 6722f53. Drawing tested against live containers only; the first real start/stop
+   is the test (a flicker fix, 6722f53, is untested in a real terminal).
+2. **Known gaps from P4/P5 testing** (details in the remediation plan §8):
+   - **Closed 2026-09-29:** OpenBao SSO "auth token expired" (user's browser only; `sso_browser.py` passes headless,
+     put down to a stale `localStorage` token, closed by the user). The runner controller left `Created` after
+     `./run.sh vault-fundamentals`: `podman-compose` waited for the one-shot `runner-token-init` to be *running*,
+     it had already exited, so `up` hung. Fixed by `service_completed_successfully` (8387736); the next fresh start
+     came up 16 of 16 healthy, no `ADMIN_PASSWORD` in the controller.
+   - Passed on the vault stack, CLI: unit, tenancy, cli_login, setup_tokens, pool, audit, labs 2/5/8/10.
+   - Not exercised: 300 app-db connections, the app-host shim on 443, vault second start (no `stop`; hooks re-run), vault pool/audit/browser
+     areas after the e2e split, and a real-browser "Release unused".
+   - `lab_12` failed once ("revoked: the login is gone") and passed on retry, probably a revoke vs `DROP ROLE` race,
+     unconfirmed.
+   - PowerDNS keys are still derived from the shared token.
+   - dns-as-code, dojo-introduction and git-fundamentals were not re-run after P4 (scope cut by the user).
+3. **Home run:** `GATEWAY_TRUSTED_PROXIES=10.0.0.2/32` is set in `.env.home` (2026-09-29, git-ignored). Unverified: on the next `--env home` run, check the gateway log shows client IPs from the proxy's `X-Forwarded-For` (not `10.0.0.2` for everyone); if podman NATs the source, use the address the log shows.
+4. **Small T5.6 follow-up:** the facilitator's VS Code tab needed a retry under load (a 404 and a VS Code
+   "unknown error"). Not reproduced locally at 10 bots (2026-09-28). The 404 is code-server's optional `vsda` files,
+   harmless. The "unknown error" is unexplained; recheck at the first 20+ student run, with the `/auth-check`
+   logging from remediation T1.4. Sizing for 20-35 students is extrapolated from 10 bots.
 
 ## Later
 
-- **Remediation P4-P6:** drop caps / `no-new-privileges` for runner-pool and app-host (T4.1), allocator pages to
-  static scripts + CSP + `textContent` (T4.2, engine ask), rate limits and shared pools (T4.3), Tier 3 defence in
-  depth (T5.1-T5.4: DinD socket, `.env` `0600` and per-upstream gateway tokens, OpenBao provisioner token revoked
-  after setup, accepted plaintext to OpenBao/Postgres), then an incremental `/threat-model-analyst` run (T6.1).
-- **Student reset** (R0-R4): R0 (live risk checks) can run on the P0 stack. R1.1 comes before remediation T2.1
-  (below); R1.2 onwards after it; R3.2 (OpenBao) after remediation T5.3. Its §8 questions Q1 and Q3-Q7 are still
-  open.
+- **Student reset** (R0-R4): R1.1 (`provision-account.sh`) is done. R1.2 onwards can start; R3.2 (OpenBao) needs the
+  reset token from remediation T5.3, which stays in `openbao-setup` until then. R0 (live risk checks) is not done.
+  Its §8 questions Q1 and Q3-Q7 are still open. Decisions: reset R9/R10, remediation D15/D16; D11 stays (no
+  long-lived provisioner token, the unseal key never leaves `openbao-setup`).
 - **vault-fundamentals follow-ups** (PLAN §13): policy as code (OpenTofu `vault` provider or `bao policy write` in
   CI), OpenBao PKI for `cert-autorenewal`, mirroring a pinned set of actions into Forgejo. Lab 11 doesn't yet show
   a restart logging in again (lab 10 ends on that promise).
 - **tofu-basics follow-ups** (PLAN T10.x): `dojo` CLI, CI `plan` on pull requests, more resources, a remote state
   backend. Stretch labs 11-12 (T6.4) only if wanted.
+- **Merge `feat/remediation` to `main`** after P6 (open a PR; not pushed yet, push only when asked).
 
 ## Manual checks (the user, in a browser)
 
