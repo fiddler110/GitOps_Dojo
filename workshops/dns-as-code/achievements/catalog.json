@@ -1,0 +1,32 @@
+{
+  "workshop": "dns-as-code",
+  "title": "DNS as Code",
+  "intro": "**Where challenges run.** In the student's own zone, `{user}.dojo.test` (Lab 1: own repo, own API key, nobody else's config touches it), never in the shared `dojo.test` zone or its repo. Labs 3-6 are the shared-zone practice; the challenges are not. Triggers here: `shell:`, `forgejo:`, `dns:` (dns-gate / PowerDNS audit lines), `verify:` (end state).",
+  "challenges_intro": "All in the student's own zone `{user}.dojo.test`; verified with `resource_state` against that zone only. A student's\nzone is created in Lab 1, and the service seeds the challenge's files when it is opened, in the same repo. Nothing here\ntouches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no challenge needs a second person.",
+  "labs": [
+    {
+      "id": "lab1",
+      "title": "your own zone"
+    },
+    {
+      "id": "lab2",
+      "title": "drift and undoing"
+    },
+    {
+      "id": "lab3",
+      "title": "the change process on a shared zone"
+    },
+    {
+      "id": "lab4",
+      "title": "`dnsctl.py`"
+    },
+    {
+      "id": "lab5",
+      "title": "history and rollback"
+    },
+    {
+      "id": "lab6",
+      "title": "conflicts in `dnsconfig.js`"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c1",
+  "title": "Tag Team",
+  "after": "after Lab 5 or 6; needs 1 free container group",
+  "space": "the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`",
+  "goal": "Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL.",
+  "verify_text": "`resource_state`: one `challenge=c1` container running, policy-compliant, with `{user}` in its site name; an `output` named `url` in the challenge state.",
+  "isolation": "the site name has `{user}`, so the class-wide unique DNS label can't clash.",
+  "hints": [
+    "Copy your first site, and remember what the policy asked for.",
+    "Tags, region, size, and a new name."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c2",
+  "title": "Quota Whisperer",
+  "after": "after Lab 9; needs 1 free container group",
+  "space": "the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`",
+  "goal": "Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.",
+  "seed": "a starter `main.tf` in `~/challenges/c2` with a `for_each` over 5 names, each already prefixed with the student's username.",
+  "verify_text": "`resource_state`: at least one `challenge=c2` site running, no `QuotaExceeded` in the last apply, and a `plan` in the challenge folder that is clean. The count never needs to be exact, since the free quota depends on what the student still has from the labs.",
+  "hints": [
+    "The error tells you the limit.",
+    "The list feeding `for_each` is what decides how many."
+  ]
+}

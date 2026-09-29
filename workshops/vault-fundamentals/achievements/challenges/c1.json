@@ -1,0 +1,14 @@
+{
+  "id": "c1",
+  "title": "The Shared Secret",
+  "after": "after Lab 4 or 5",
+  "space": "the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot",
+  "goal": "Give a teammate's app read access to one of your secrets without giving it access to anything else in your namespace.",
+  "seed": "in the student's namespace, a teammate identity `buddy-{user}` with no policy, and two secrets at `challenge/one` and `challenge/two` in a KV mount the seed creates there.",
+  "verify_text": "in `students/{user}`: `policy_attached` for `buddy-{user}`, allows read of exactly one path, denied on the other.",
+  "isolation": "namespace-scoped; the shared `secret/` mount is not touched.",
+  "hints": [
+    "A policy, then attach it.",
+    "The path in the policy is the whole permission."
+  ]
+}

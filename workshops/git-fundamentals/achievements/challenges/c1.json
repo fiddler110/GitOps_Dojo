@@ -1,0 +1,15 @@
+{
+  "id": "c1",
+  "title": "The Hotfix",
+  "after": "after Lab 1 or 2",
+  "space": "the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone",
+  "goal": "Production has a typo in `roster/team.yaml`. Ship a fix without touching `main` directly. Prove it with a pull request.",
+  "constraints": "in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`; the change sets Alice's role to `{role_for_user}` (a per-student value from a fixed silly list, e.g. \"Chief Snack Officer\") so an answer can't be copied.",
+  "verify_text": "forgejo `branch_exists`, `pr_open` or `pr_merged`, `pr_files == [roster/team.yaml]`, `file_contains` on the branch. No direct push to `main` (checked from the repo's own history).",
+  "answer": "the command list.",
+  "isolation": "own repo, own branch, no merge into a shared `main`. Nothing needs a facilitator.",
+  "hints": [
+    "Everything you need is in Lab 1. What do you do before you edit anything?",
+    "Branch, edit the one line, commit, push, open the PR from Forgejo."
+  ]
+}

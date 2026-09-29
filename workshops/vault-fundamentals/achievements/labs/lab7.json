@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "v7-key",
+      "title": "Key in the Vault",
+      "joke": "A key that never leaves the vault.",
+      "core": true,
+      "when": "bao: transit key created",
+      "match": {}
+    },
+    {
+      "id": "v7-encrypt",
+      "title": "Encrypted Config",
+      "joke": "A file only the key can read.",
+      "core": true,
+      "when": "shell: `sops -e` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "v7-rotate",
+      "title": "Key Rotation",
+      "joke": "A new key version, old data still works.",
+      "core": true,
+      "when": "bao: transit rotate; shell: `sops updatekeys`",
+      "match": {}
+    }
+  ]
+}

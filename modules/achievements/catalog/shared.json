@@ -1,0 +1,61 @@
+{
+  "cheats": [
+    {
+      "id": "cheat-forged",
+      "title": "Nice Try, Hackerman",
+      "joke": "You posted an achievement by hand. The service checked. It said no.",
+      "points": -1,
+      "when": "the achievements service rejects a forged or unsigned event from this student",
+      "match": {}
+    },
+    {
+      "id": "cheat-client",
+      "title": "Trust Issues",
+      "joke": "You edited the check tool. It noticed.",
+      "points": -1,
+      "when": "the hash of `dojo-check` sent with a check does not match the shipped one",
+      "match": {}
+    },
+    {
+      "id": "cheat-identity",
+      "title": "Identity Crisis",
+      "joke": "You are not who you said you were.",
+      "points": -1,
+      "when": "a request carries another student's identity headers (gateway/service token mismatch)",
+      "match": {}
+    },
+    {
+      "id": "cheat-masher",
+      "title": "Button Masher",
+      "joke": "The check button is not a slot machine.",
+      "points": 0,
+      "when": "the rate limit on `dojo-check` is hit",
+      "match": {}
+    },
+    {
+      "id": "cheat-bump",
+      "title": "Oops, You Bumped Into Your Neighbour",
+      "joke": "Wrong desk. Happens to everyone.",
+      "points": 0,
+      "when": "a refused request into another student's space (first time, looks accidental)",
+      "match": {}
+    },
+    {
+      "id": "cheat-curious",
+      "title": "Curiosity Killed the Cat",
+      "joke": "Twice is not an accident.",
+      "points": 0,
+      "when": "repeated or deliberate refused requests into another student's space",
+      "match": {}
+    },
+    {
+      "id": "cheat-persistent",
+      "title": "Persistent, Aren't You",
+      "joke": "The answer is still no.",
+      "points": -1,
+      "when": "keeps going after Curiosity Killed the Cat",
+      "match": {}
+    }
+  ],
+  "unlocks": []
+}

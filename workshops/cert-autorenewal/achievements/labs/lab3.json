@@ -1,0 +1,20 @@
+{
+  "milestones": [
+    {
+      "id": "c3-issue",
+      "title": "Same Job, Different Tool",
+      "joke": "acme.sh did it in one line.",
+      "core": true,
+      "when": "ca: second certificate issued to the same student",
+      "match": {}
+    },
+    {
+      "id": "c3-read",
+      "title": "Reading the Tea Leaves",
+      "joke": "You read the tool's output.",
+      "core": true,
+      "when": "shell: `acme.sh --list` or `--info`",
+      "match": {}
+    }
+  ]
+}

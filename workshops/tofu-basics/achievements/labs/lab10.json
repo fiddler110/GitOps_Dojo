@@ -1,0 +1,20 @@
+{
+  "milestones": [
+    {
+      "id": "t10-destroy",
+      "title": "Leave No Trace",
+      "joke": "Destroyed and verified.",
+      "core": true,
+      "when": "shell: `tofu destroy` (exit 0); verify: `resource_state` empty",
+      "match": {}
+    },
+    {
+      "id": "t10-commit",
+      "title": "Committed",
+      "joke": "Your work is saved in git.",
+      "core": true,
+      "when": "forgejo: push from the student's fork after the destroy",
+      "match": {}
+    }
+  ]
+}

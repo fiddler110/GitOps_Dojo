@@ -1,0 +1,64 @@
+{
+  "workshop": "vault-fundamentals",
+  "title": "Vault Fundamentals",
+  "intro": "**Where challenges run.** Only inside the student's own namespace `students/{user}`, their own database `app_{user}`, their own fork and their own app slot (one per student, `/srv/apps/{user}`). Nothing writes to the shared `secret/` mount outside `secret/students/{user}/`. Challenges use fresh names (`buddy-{user}`, `c2-app`, `capstone-*`) rather than the labs' roles and policies, so redoing one never breaks another or a lab. Secret *values* are never logged or scored: only paths, counts and states. Triggers here: `shell:`, `bao:` (an OpenBao audit-log event for the student's entity or namespace, read by the audit event adapter), `forgejo:`, `verify:` (`secret_exists`, `policy_attached`, `resource_state`).",
+  "challenges_intro": "",
+  "labs": [
+    {
+      "id": "lab0",
+      "title": "sign in and meet your token"
+    },
+    {
+      "id": "lab1",
+      "title": "leak it"
+    },
+    {
+      "id": "lab2",
+      "title": "`pass` on your own machine"
+    },
+    {
+      "id": "lab3",
+      "title": "the shared vault"
+    },
+    {
+      "id": "lab4",
+      "title": "you are the admin"
+    },
+    {
+      "id": "lab5",
+      "title": "the app reads a secret"
+    },
+    {
+      "id": "lab6",
+      "title": "OpenBao Agent"
+    },
+    {
+      "id": "lab7",
+      "title": "encrypted config in the repo"
+    },
+    {
+      "id": "lab8",
+      "title": "Forgejo Actions secrets"
+    },
+    {
+      "id": "lab9",
+      "title": "CI logs in to OpenBao"
+    },
+    {
+      "id": "lab10",
+      "title": "deploy with a delivered secret ID"
+    },
+    {
+      "id": "lab11",
+      "title": "workload identity"
+    },
+    {
+      "id": "lab12",
+      "title": "dynamic database credentials"
+    },
+    {
+      "id": "lab13",
+      "title": "incident drill"
+    }
+  ]
+}

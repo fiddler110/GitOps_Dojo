@@ -1,0 +1,77 @@
+{
+  "milestones": [
+    {
+      "id": "l1-clone",
+      "title": "Cloned Around",
+      "joke": "You copied the whole repo. Bold. Legal. Fine.",
+      "core": true,
+      "when": "shell: `git clone` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l1-branch",
+      "title": "Branching Out",
+      "joke": "Now you have a place to make mistakes safely.",
+      "core": true,
+      "when": "shell: `git checkout -b` or `git switch -c` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l1-diff",
+      "title": "Read Before You Commit",
+      "joke": "Reviewing your own work. Unheard of.",
+      "core": true,
+      "when": "shell: `git diff` or `git status` after an edit",
+      "match": {}
+    },
+    {
+      "id": "l1-commit",
+      "title": "Commit to the Bit",
+      "joke": "Your first commit. Local only; nobody has seen it yet.",
+      "core": true,
+      "when": "shell: `git commit` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l1-push",
+      "title": "Pushed It Real Good",
+      "joke": "It's on the server now. It's real.",
+      "core": true,
+      "when": "forgejo: push to a non-`main` branch",
+      "match": {}
+    },
+    {
+      "id": "l1-pr",
+      "title": "Pull Request Pending",
+      "joke": "Now you wait, like everyone in software.",
+      "core": true,
+      "when": "forgejo: pull request opened",
+      "match": {}
+    },
+    {
+      "id": "l1-prune",
+      "title": "Tidy Desk",
+      "joke": "Pruned the stale branches. Marie Kondo would nod.",
+      "core": true,
+      "when": "shell: `git fetch --prune` or `git fetch -p`",
+      "match": {}
+    },
+    {
+      "id": "l1-cleanup",
+      "title": "Deleted Without Regrets",
+      "joke": "Safe delete, no drama.",
+      "core": true,
+      "when": "shell: `git branch -d` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l1-merged",
+      "title": "Merged, Baby!",
+      "joke": "Someone approved your work. Frame it.",
+      "core": false,
+      "note": "needs the facilitator to merge",
+      "when": "forgejo: PR merged",
+      "match": {}
+    }
+  ]
+}

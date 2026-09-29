@@ -1,0 +1,14 @@
+{
+  "id": "capstone",
+  "title": "The Wildcard Heist (a friendly one)",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different vhosts (`www` and `api` under your name), and set up renewal that works for both.",
+  "seed": "the wildcard A record above. The two vhosts are created by the student in their own directory. The DNS pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.",
+  "verify_text": "both vhosts serve the same wildcard serial; a renewal entry exists; a forced renewal updates both.",
+  "isolation": "the challenge TXT name is under the student's own parent, so two students issuing at once never overwrite each other's record.",
+  "badge_tier": "capstone",
+  "hints": [
+    "A wildcard only works through DNS.",
+    "One cert file, two vhosts, one reload."
+  ]
+}

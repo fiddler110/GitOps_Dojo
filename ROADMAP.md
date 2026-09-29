@@ -157,7 +157,7 @@ Status: `todo`, `doing`, `done`. Do them in order; the numbers are stable.
 | # | Phase | Scope | Status |
 |---|---|---|---|
 | 0 | Design and catalogs | Design (A0-A23), five catalogs drafted, reviewed, isolation rules applied, committed | done |
-| 1a | Catalog core (no engine) | `modules/achievements/catalog/`: schema, loader, validator, `render_md.py`, the conversion script, unit tests. Convert the five accepted drafts into `workshops/<name>/achievements/` | doing |
+| 1a | Catalog core (no engine) | `modules/achievements/catalog/`: schema, loader, validator, `render_md.py`, the conversion script, unit tests. The five accepted drafts are converted into `workshops/<name>/achievements/` (175 milestone and funny ids preserved, 35 unit tests); `ACHIEVEMENTS.md` is now generated, edit the JSON | done |
 | 1b | Engine: workspace and widgets | `widgets` manifest key, `/workspace` page, portal "Open workspace" button, `run.sh` toggle and catalog warning, docs. Useful with achievements off. **Tell the user before editing `engine/`** | todo |
 | 2 | Module core | Service (stdlib Python on the allocator image, like `openbao-audit`), named volume, event API, identity from the Forgejo token, points and hint math, queue, anonymous names, leaderboard page, `/admin` tab (log, award, reset, reload catalog), landing widget with completion %, toast script for portal, workspace and lab reader | todo |
 | 3 | Event sources | Shell hook (zsh `preexec`/`precmd` in the module's terminal image, exit codes and branch logged), colour echo, Forgejo webhook; git-fundamentals milestones and funny unlocks get their `match` | todo |

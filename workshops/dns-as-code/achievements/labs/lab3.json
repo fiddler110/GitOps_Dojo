@@ -1,0 +1,44 @@
+{
+  "milestones": [
+    {
+      "id": "d3-clone",
+      "title": "Shared Custody",
+      "joke": "Cloned the class's production zone. Nobody panic.",
+      "core": true,
+      "when": "forgejo: clone of `dns-team/dns-as-code`",
+      "match": {}
+    },
+    {
+      "id": "d3-blocked",
+      "title": "Computer Says No",
+      "joke": "You tried the shortcut. It said no.",
+      "core": true,
+      "when": "forgejo: direct push to `main` rejected (also a funny unlock, no double score)",
+      "match": {}
+    },
+    {
+      "id": "d3-pr",
+      "title": "Please Look at This",
+      "joke": "A pull request, as nature intended.",
+      "core": true,
+      "when": "forgejo: PR opened on `dns-team/dns-as-code`",
+      "match": {}
+    },
+    {
+      "id": "d3-review",
+      "title": "Second Pair of Eyes",
+      "joke": "You reviewed someone else's change.",
+      "core": true,
+      "when": "forgejo: review submitted on any PR in `dns-team/dns-as-code` that the student did not open (a neighbour's, or the seeded `dns-bot` PR, which the facilitator's setup opens so nobody is left without one)",
+      "match": {}
+    },
+    {
+      "id": "d3-applied",
+      "title": "CI Did the Thing",
+      "joke": "Merged, and the robot applied it.",
+      "core": true,
+      "when": "forgejo: PR merged; verify: record present in the zone",
+      "match": {}
+    }
+  ]
+}

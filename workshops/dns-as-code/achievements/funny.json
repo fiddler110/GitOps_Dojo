@@ -1,0 +1,39 @@
+{
+  "unlocks": [
+    {
+      "id": "f-dot2",
+      "title": "Dot. Com. Dot.",
+      "joke": "Trailing dot on the wrong record.",
+      "when": "shell: `dnscontrol` errors with a name ending in the zone twice",
+      "match": {}
+    },
+    {
+      "id": "f-ttl",
+      "title": "Time To Live, Laugh, Love",
+      "joke": "TTL of 1. Very confident.",
+      "when": "shell: file diff sets a TTL below 60",
+      "match": {}
+    },
+    {
+      "id": "f-nxdomain",
+      "title": "It's Always DNS",
+      "joke": "NXDOMAIN. Of course it was.",
+      "when": "dns: your lookup for your own name returns NXDOMAIN",
+      "match": {}
+    },
+    {
+      "id": "f-rejected",
+      "title": "Denied at the Gate",
+      "joke": "You tried to change `dojo.test` without CI.",
+      "when": "dns: API refusal for a non-CI write (funny, but see cheating tiers)",
+      "match": {}
+    },
+    {
+      "id": "f-fivepr",
+      "title": "PR Machine",
+      "joke": "Five pull requests. Do you sleep?",
+      "when": "forgejo: 5th PR opened",
+      "match": {}
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v12-role",
+      "title": "A Role, Not a Password",
+      "joke": "What a login may do.",
+      "core": true,
+      "when": "verify: DB role defined in the namespace",
+      "match": {}
+    },
+    {
+      "id": "v12-lease",
+      "title": "Lease Holder",
+      "joke": "A login made just for you.",
+      "core": true,
+      "when": "bao: dynamic credential issued",
+      "match": {}
+    },
+    {
+      "id": "v12-renew",
+      "title": "Renewed",
+      "joke": "Extended the lease.",
+      "core": true,
+      "when": "bao: lease renew",
+      "match": {}
+    },
+    {
+      "id": "v12-revoke",
+      "title": "Revoked",
+      "joke": "Login gone, instantly.",
+      "core": true,
+      "when": "bao: lease revoke; verify: DB login fails",
+      "match": {}
+    }
+  ]
+}

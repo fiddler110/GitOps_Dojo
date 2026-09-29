@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "c1-root",
+      "title": "Root of All Trust",
+      "joke": "You fetched the CA's root certificate.",
+      "core": true,
+      "when": "shell: `curl` or `wget` for the root cert (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "c1-fingerprint",
+      "title": "Fingerprint Frisk",
+      "joke": "Checked the fingerprint, like a suspicious bouncer.",
+      "core": true,
+      "when": "shell: `openssl x509 ... -fingerprint`",
+      "match": {}
+    },
+    {
+      "id": "c1-trust",
+      "title": "Now We Trust You",
+      "joke": "The system trusts the CA. Do not tell your bank.",
+      "core": true,
+      "when": "verify: `curl https://ca...` works with no `-k`",
+      "match": {}
+    },
+    {
+      "id": "c1-tools",
+      "title": "Trust Issues, Resolved",
+      "joke": "certbot and acme.sh trust it too, separately.",
+      "core": true,
+      "when": "verify: both tools' trust config points at the root",
+      "match": {}
+    }
+  ]
+}

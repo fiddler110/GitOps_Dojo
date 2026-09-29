@@ -1,0 +1,13 @@
+{
+  "id": "c1",
+  "title": "The Second Site",
+  "after": "after Lab 2 or 3",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.",
+  "verify_text": "`demo-app` serves a valid chain for that hostname (checked over SNI); the first site's cert serial is unchanged.",
+  "isolation": "a second vhost in the student's own subdirectory; issuance goes through the shared CA, which handles concurrent orders for different names.",
+  "hints": [
+    "Same steps as your first site, new hostname.",
+    "New vhost, new issuance, new install."
+  ]
+}

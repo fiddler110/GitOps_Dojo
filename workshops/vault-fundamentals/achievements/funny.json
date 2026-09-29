@@ -1,0 +1,46 @@
+{
+  "unlocks": [
+    {
+      "id": "f-echo",
+      "title": "Echo Chamber",
+      "joke": "You `echo`ed a secret. To your shell history.",
+      "when": "shell: `echo` or `export` with a `hvs.`-style string",
+      "match": {}
+    },
+    {
+      "id": "f-history",
+      "title": "Hist-Oh-Ry",
+      "joke": "It is in your shell history now.",
+      "when": "shell: `history` after a token was typed",
+      "match": {}
+    },
+    {
+      "id": "f-root",
+      "title": "Root of the Problem",
+      "joke": "You used the root token. Everyone has, once.",
+      "when": "bao: any request with a root-policy token",
+      "match": {}
+    },
+    {
+      "id": "f-typopath",
+      "title": "Wrong Path, Right Attitude",
+      "joke": "No value at that path. Check the mount.",
+      "when": "bao: 404 on a KV path",
+      "match": {}
+    },
+    {
+      "id": "f-seal",
+      "title": "Sealed and Loving It",
+      "joke": "The vault is sealed. This is fine.",
+      "when": "bao: `sealed` response (facilitator action)",
+      "match": {}
+    },
+    {
+      "id": "f-paste",
+      "title": "Paste Bin Energy",
+      "joke": "A secret in the chat. It happens.",
+      "when": "shell: a fake secret string appears in a shared channel (only in lab 13)",
+      "match": {}
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "v2-key",
+      "title": "A Key of Your Own",
+      "joke": "Your own GPG key.",
+      "core": true,
+      "when": "shell: `gpg --gen-key` or `--list-keys` shows a student key",
+      "match": {}
+    },
+    {
+      "id": "v2-store",
+      "title": "Password Store",
+      "joke": "An encrypted store.",
+      "core": true,
+      "when": "shell: `pass init` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "v2-share",
+      "title": "Shared, Then Unshared",
+      "joke": "Shared it and took it back.",
+      "core": true,
+      "when": "shell: `pass` re-encrypt after a recipient change",
+      "match": {}
+    }
+  ]
+}

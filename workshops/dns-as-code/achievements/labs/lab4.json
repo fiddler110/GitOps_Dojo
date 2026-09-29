@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "d4-wizard",
+      "title": "Wizardry",
+      "joke": "Added a record with a wizard. Very Gandalf.",
+      "core": true,
+      "when": "shell: `dnsctl.py add` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "d4-submit",
+      "title": "Submitted",
+      "joke": "Preview, then a PR, in one command.",
+      "core": true,
+      "when": "forgejo: PR opened by `dnsctl.py submit` branch pattern",
+      "match": {}
+    },
+    {
+      "id": "d4-status",
+      "title": "Status Report",
+      "joke": "Checked on your PR from the terminal.",
+      "core": true,
+      "when": "shell: `dnsctl.py status` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "d4-validated",
+      "title": "Trust, Then Verify",
+      "joke": "The record is live and you checked.",
+      "core": true,
+      "when": "shell: `dnsctl.py validate` (exit 0)",
+      "match": {}
+    }
+  ]
+}

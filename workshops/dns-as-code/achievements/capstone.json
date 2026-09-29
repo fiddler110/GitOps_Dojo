@@ -1,0 +1,13 @@
+{
+  "id": "capstone",
+  "title": "The Bad Push",
+  "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
+  "goal": "A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record and dropping the bad one, without rewriting history.",
+  "seed": "the service commits and pushes (applies) one such commit in the student's own repo and zone, with the good and bad record names built from `{user}`. The bad one's address is a per-student value.",
+  "verify_text": "in `{user}.dojo.test`: bad record absent, good record present, all other records unchanged; the repo's history still contains the seed commit (no force-push), plus a new commit that fixes it.",
+  "badge_tier": "capstone",
+  "hints": [
+    "History shows you which commit.",
+    "You can roll back part of a commit by editing, not only by `revert`."
+  ]
+}

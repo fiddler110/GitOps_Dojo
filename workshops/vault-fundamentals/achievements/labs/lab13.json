@@ -1,0 +1,44 @@
+{
+  "milestones": [
+    {
+      "id": "v13-leak",
+      "title": "Playing the Attacker",
+      "joke": "You found the leaked token.",
+      "core": true,
+      "when": "bao: request made with the leaked token",
+      "match": {}
+    },
+    {
+      "id": "v13-audit",
+      "title": "Read the Audit Log",
+      "joke": "What did it do? Now you know.",
+      "core": true,
+      "when": "shell: `jq`/`grep` over the audit log",
+      "match": {}
+    },
+    {
+      "id": "v13-revoke",
+      "title": "Revoke the Tree",
+      "joke": "Killed the token and its children.",
+      "core": true,
+      "when": "bao: revoke with tree scope",
+      "match": {}
+    },
+    {
+      "id": "v13-rotate",
+      "title": "Rotated What It Read",
+      "joke": "New secrets, old ones worthless.",
+      "core": true,
+      "when": "bao: writes to the paths the token read",
+      "match": {}
+    },
+    {
+      "id": "v13-recover",
+      "title": "The App Recovers",
+      "joke": "No manual restart.",
+      "core": true,
+      "when": "verify: app serving with the new secret",
+      "match": {}
+    }
+  ]
+}

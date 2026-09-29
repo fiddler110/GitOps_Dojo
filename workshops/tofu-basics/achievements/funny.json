@@ -1,0 +1,39 @@
+{
+  "unlocks": [
+    {
+      "id": "f-nolock",
+      "title": "Locked Out",
+      "joke": "State lock in the way.",
+      "when": "shell: `tofu` exits with an `Error acquiring the state lock`",
+      "match": {}
+    },
+    {
+      "id": "f-typo",
+      "title": "Fat Fingers",
+      "joke": "A typo in a resource name.",
+      "when": "shell: `tofu validate` exits 1 with `Reference to undeclared`",
+      "match": {}
+    },
+    {
+      "id": "f-yes",
+      "title": "Auto Approve Bravado",
+      "joke": "`-auto-approve` on the first try.",
+      "when": "shell: `tofu apply -auto-approve`",
+      "match": {}
+    },
+    {
+      "id": "f-destroyfirst",
+      "title": "Destroy First",
+      "joke": "Ran `destroy` before anything was created.",
+      "when": "shell: `tofu destroy` on empty state",
+      "match": {}
+    },
+    {
+      "id": "f-statecommit",
+      "title": "State in Git",
+      "joke": "Committed `terraform.tfstate`. Lab 3 warned you.",
+      "when": "forgejo: push containing `terraform.tfstate`",
+      "match": {}
+    }
+  ]
+}

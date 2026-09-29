@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v11-role",
+      "title": "A Role for Your Slot",
+      "joke": "The platform vouches for the app.",
+      "core": true,
+      "when": "verify: role bound to the student's slot",
+      "match": {}
+    },
+    {
+      "id": "v11-deploy",
+      "title": "Deployed With Identity",
+      "joke": "No secret ID at all.",
+      "core": true,
+      "when": "bao: workload login from the app",
+      "match": {}
+    },
+    {
+      "id": "v11-nobread",
+      "title": "The Pipeline Cannot Read",
+      "joke": "Deployed, but never saw the secret.",
+      "core": true,
+      "when": "verify: pipeline identity has no read on the app path",
+      "match": {}
+    },
+    {
+      "id": "v11-rotate",
+      "title": "Rotated, No Deploy",
+      "joke": "New value, same code.",
+      "core": true,
+      "when": "bao: secret rewritten; verify: app serves the new value",
+      "match": {}
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t8-inplace",
+      "title": "Fix It In Place",
+      "joke": "A tag changes without a rebuild.",
+      "core": true,
+      "when": "shell: `tofu apply` with `~` only",
+      "match": {}
+    },
+    {
+      "id": "t8-replace",
+      "title": "Rebuilt from Scratch",
+      "joke": "The message forces a new container.",
+      "core": true,
+      "when": "shell: `tofu apply` with `-/+`",
+      "match": {}
+    },
+    {
+      "id": "t8-forced",
+      "title": "Because I Said So",
+      "joke": "`-replace` on demand.",
+      "core": true,
+      "when": "shell: `tofu apply -replace=`",
+      "match": {}
+    }
+  ]
+}

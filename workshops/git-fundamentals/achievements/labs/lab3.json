@@ -1,0 +1,20 @@
+{
+  "milestones": [
+    {
+      "id": "l3-stash",
+      "title": "Hide the Evidence",
+      "joke": "Sweeping uncommitted work under the rug.",
+      "core": true,
+      "when": "shell: `git stash` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l3-pop",
+      "title": "Back From the Dead",
+      "joke": "Your edit is back. Nobody noticed it was gone.",
+      "core": true,
+      "when": "shell: `git stash pop` or `git stash apply` (exit 0)",
+      "match": {}
+    }
+  ]
+}

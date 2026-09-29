@@ -1,0 +1,15 @@
+{
+  "id": "c2",
+  "title": "The Detective",
+  "after": "after Lab 3 or 4",
+  "space": "the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone",
+  "goal": "Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it.",
+  "seed": "planted commits in `{user}/challenge-repo`; `{target_line}` is picked per student from a list, and the verifier computes the true answer for that repo with `git log -S` / `git blame`. Each student's history has its own hashes, so an answer can't be shared.",
+  "verify_text": "forgejo `file_contains` on `case-{user}` in the student's repo for the right hash and author.",
+  "answer": "the two commands and the expected output shape.",
+  "isolation": "read-only investigation of a private repo, one new branch.",
+  "hints": [
+    "Which command answers 'who changed this line?'",
+    "`git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared."
+  ]
+}

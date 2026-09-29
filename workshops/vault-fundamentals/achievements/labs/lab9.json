@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v9-approle",
+      "title": "The Stored Login",
+      "joke": "The usual way: a login secret in CI.",
+      "core": true,
+      "when": "bao: AppRole login from a CI job",
+      "match": {}
+    },
+    {
+      "id": "v9-jwt",
+      "title": "The Job's Own Identity",
+      "joke": "No stored secret at all.",
+      "core": true,
+      "when": "bao: JWT login from a CI job",
+      "match": {}
+    },
+    {
+      "id": "v9-branch",
+      "title": "Other Branches Refused",
+      "joke": "Only main gets in.",
+      "core": true,
+      "when": "bao: denied login from a non-main branch",
+      "match": {}
+    },
+    {
+      "id": "v9-retire",
+      "title": "Retired the Stored Secret",
+      "joke": "Nothing left to steal.",
+      "core": true,
+      "when": "forgejo: repository secret deleted",
+      "match": {}
+    }
+  ]
+}

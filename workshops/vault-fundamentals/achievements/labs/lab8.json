@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "v8-secret",
+      "title": "Repository Secret",
+      "joke": "A secret in the repository.",
+      "core": true,
+      "when": "forgejo: secret created on the fork",
+      "match": {}
+    },
+    {
+      "id": "v8-masked",
+      "title": "Masking Is Not Protection",
+      "joke": "The log hid it. The job still knew it.",
+      "core": true,
+      "when": "forgejo: workflow run using the secret",
+      "match": {}
+    },
+    {
+      "id": "v8-rotate",
+      "title": "Cleaned Up After",
+      "joke": "Rotated what leaked.",
+      "core": true,
+      "when": "forgejo: secret updated after the run",
+      "match": {}
+    }
+  ]
+}

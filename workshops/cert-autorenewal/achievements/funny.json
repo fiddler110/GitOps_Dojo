@@ -1,0 +1,39 @@
+{
+  "unlocks": [
+    {
+      "id": "f-untrusted",
+      "title": "Trust No One",
+      "joke": "`certificate verify failed`. Correct instinct.",
+      "when": "shell: `curl` exits 60",
+      "match": {}
+    },
+    {
+      "id": "f-ratelimit",
+      "title": "Too Eager",
+      "joke": "Rate-limited. Slow down, tiger.",
+      "when": "ca: `rateLimited` response for the student",
+      "match": {}
+    },
+    {
+      "id": "f-expired",
+      "title": "Expired Milk",
+      "joke": "You looked at an expired certificate.",
+      "when": "shell: `openssl x509 -enddate` shows a past date",
+      "match": {}
+    },
+    {
+      "id": "f-staging",
+      "title": "Practice Makes Perfect",
+      "joke": "Used `--staging` or `--test`. Wise.",
+      "when": "shell: `certbot --dry-run` or `--staging`",
+      "match": {}
+    },
+    {
+      "id": "f-selfsigned",
+      "title": "Self-Signed and Proud",
+      "joke": "You made your own CA. Very independent.",
+      "when": "shell: `openssl req -x509 -newkey`",
+      "match": {}
+    }
+  ]
+}

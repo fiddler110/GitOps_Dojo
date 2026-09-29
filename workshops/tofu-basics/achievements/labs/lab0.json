@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t0-fork",
+      "title": "Forked Over",
+      "joke": "Your own copy of the starter repo.",
+      "core": true,
+      "when": "forgejo: fork created",
+      "match": {}
+    },
+    {
+      "id": "t0-clone",
+      "title": "Cloned Around",
+      "joke": "Now it is on your machine.",
+      "core": true,
+      "when": "shell: `git clone` of the fork",
+      "match": {}
+    },
+    {
+      "id": "t0-tour",
+      "title": "Is It Terraform?",
+      "joke": "It is OpenTofu. Same thing. Mostly.",
+      "core": true,
+      "when": "shell: `tofu version` or `terraform version`",
+      "match": {}
+    }
+  ]
+}

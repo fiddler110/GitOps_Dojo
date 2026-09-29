@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "l2-restore",
+      "title": "The Undo Button",
+      "joke": "Ctrl+Z, but it's git.",
+      "core": true,
+      "when": "shell: `git restore <file>` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l2-unstage",
+      "title": "Never Mind",
+      "joke": "Staged it, regretted it, unstaged it. Growth.",
+      "core": true,
+      "when": "shell: `git restore --staged` or `git reset` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l2-ignore",
+      "title": "Ignorance Is Bliss",
+      "joke": "Some files are better left unseen.",
+      "core": true,
+      "when": "shell: a command that writes `.gitignore`",
+      "match": {}
+    }
+  ]
+}

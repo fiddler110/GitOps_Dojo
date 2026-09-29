@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t9-foreach",
+      "title": "One Block, Many Sites",
+      "joke": "`for_each` made the copies.",
+      "core": true,
+      "when": "verify: 3+ containers from one resource block",
+      "match": {}
+    },
+    {
+      "id": "t9-quota",
+      "title": "Quota Reached",
+      "joke": "You met the limit.",
+      "core": true,
+      "when": "cloud: quota denial for the student",
+      "match": {}
+    },
+    {
+      "id": "t9-fixed",
+      "title": "Code Meets Reality",
+      "joke": "Reduced the code to what fits.",
+      "core": true,
+      "when": "shell: `tofu plan` reports no changes after the quota",
+      "match": {}
+    }
+  ]
+}

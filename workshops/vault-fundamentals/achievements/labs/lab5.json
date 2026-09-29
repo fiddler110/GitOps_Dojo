@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v5-env",
+      "title": "Not in the Code",
+      "joke": "Moved it out of the source.",
+      "core": true,
+      "when": "shell: app run reading from `.env`",
+      "match": {}
+    },
+    {
+      "id": "v5-vault",
+      "title": "The App Asks the Vault",
+      "joke": "No file, no leak.",
+      "core": true,
+      "when": "bao: KV read by the app's token",
+      "match": {}
+    },
+    {
+      "id": "v5-nolog",
+      "title": "Loose Lips",
+      "joke": "Logging the secret? No.",
+      "core": true,
+      "when": "verify: app log does not contain the secret value",
+      "match": {}
+    },
+    {
+      "id": "v5-expired",
+      "title": "Token Expiry",
+      "joke": "Tokens run out. That is the point.",
+      "core": true,
+      "when": "bao: request with an expired token",
+      "match": {}
+    }
+  ]
+}

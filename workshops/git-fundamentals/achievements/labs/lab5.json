@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "l5-conflict",
+      "title": "Conflict Zone",
+      "joke": "Two edits, one line, zero chill.",
+      "core": true,
+      "when": "shell: `git merge` exits non-zero and leaves a conflict",
+      "match": {}
+    },
+    {
+      "id": "l5-resolved",
+      "title": "The Peacemaker",
+      "joke": "You picked a side. Or both. Diplomat.",
+      "core": true,
+      "when": "shell: `git commit` completes a merge (conflict resolved)",
+      "match": {}
+    },
+    {
+      "id": "l5-revert",
+      "title": "Time Traveller",
+      "joke": "Undid a commit the polite way.",
+      "core": true,
+      "when": "shell: `git revert` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "l5-reset",
+      "title": "Nuclear Option",
+      "joke": "Used reset. Hopefully on purpose.",
+      "core": true,
+      "when": "shell: `git reset --hard` (exit 0)",
+      "match": {}
+    }
+  ]
+}

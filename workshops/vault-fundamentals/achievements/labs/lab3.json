@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v3-putget",
+      "title": "Put and Get",
+      "joke": "Secrets in, secrets out.",
+      "core": true,
+      "when": "bao: KV write then read by the student",
+      "match": {}
+    },
+    {
+      "id": "v3-versions",
+      "title": "Version Hoarder",
+      "joke": "Versions kept so you can undo.",
+      "core": true,
+      "when": "bao: read of an older version",
+      "match": {}
+    },
+    {
+      "id": "v3-destroy",
+      "title": "Deleted, Undeleted, Destroyed",
+      "joke": "The three levels of gone.",
+      "core": true,
+      "when": "bao: delete, undelete and destroy events",
+      "match": {}
+    },
+    {
+      "id": "v3-door",
+      "title": "Knocked on a Neighbour's Door",
+      "joke": "Denied. Good.",
+      "core": true,
+      "when": "bao: permission denied on another student's path (also the 0-point funny)",
+      "match": {}
+    }
+  ]
+}

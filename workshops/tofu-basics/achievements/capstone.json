@@ -1,0 +1,13 @@
+{
+  "id": "capstone",
+  "title": "Site Factory",
+  "space": "the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`",
+  "goal": "Build, from scratch, one module-like layout that deploys **two** differently named sites from one `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing running.",
+  "seed": "an empty folder `~/challenges/capstone` (own state) and a Forgejo repo `{user}/site-factory`. All names use `{user}`.",
+  "verify_text": "two `challenge=capstone` containers live at check time 1 (`dojo-check` while up); an output map with two URLs; the second check after `destroy`: `resource_state` for `challenge=capstone` is empty; the code is pushed to `{user}/site-factory`. Two checks, both run by the student.",
+  "badge_tier": "capstone",
+  "hints": [
+    "Lab 9 plus Lab 10, in one go.",
+    "`for_each` gives you `each.key`; outputs can use a `for` expression."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c2",
+  "title": "The Right Lease",
+  "after": "after Lab 12",
+  "space": "the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot",
+  "goal": "The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a **new** role called `c2-app`, and get a credential from it.",
+  "verify_text": "in `students/{user}`: database role `c2-app` has `default_ttl=2m`, `max_ttl=10m`, and a credential was issued from it (lease exists).",
+  "isolation": "each student has their own database `app_{user}` and their own `database/` engine.",
+  "hints": [
+    "TTL and max TTL are separate settings.",
+    "On the role, not on the mount."
+  ]
+}

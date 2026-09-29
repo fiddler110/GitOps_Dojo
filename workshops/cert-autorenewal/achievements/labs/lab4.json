@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "c4-script",
+      "title": "Script Kiddie (Proud)",
+      "joke": "A renewal script that reinstalls too.",
+      "core": true,
+      "when": "verify: script exists, executable, runs with exit 0",
+      "match": {}
+    },
+    {
+      "id": "c4-installs",
+      "title": "It Actually Installs",
+      "joke": "Renewed and reloaded the server.",
+      "core": true,
+      "when": "verify: demo-app serves a cert with a newer serial",
+      "match": {}
+    },
+    {
+      "id": "c4-cron",
+      "title": "Set It and Forget It",
+      "joke": "Wired into cron.",
+      "core": true,
+      "when": "shell: `crontab` shows the renewal entry",
+      "match": {}
+    },
+    {
+      "id": "c4-watch",
+      "title": "Watched a Pot Boil",
+      "joke": "You saw the renewal fire by itself.",
+      "core": true,
+      "when": "verify: renewal ran from cron (log entry not from a shell)",
+      "match": {}
+    }
+  ]
+}

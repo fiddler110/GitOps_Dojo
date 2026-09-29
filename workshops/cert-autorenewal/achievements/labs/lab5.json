@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "c5-start",
+      "title": "Challenge Accepted",
+      "joke": "Started a dns-01 issuance.",
+      "core": true,
+      "when": "ca: dns-01 order created for the student",
+      "match": {}
+    },
+    {
+      "id": "c5-txt",
+      "title": "Prove You Own It",
+      "joke": "TXT record deployed via the DNS pipeline.",
+      "core": true,
+      "when": "dns: `_acme-challenge.{user}` TXT present",
+      "match": {}
+    },
+    {
+      "id": "c5-done",
+      "title": "Wildcard Energy",
+      "joke": "Issued through DNS. No open ports needed.",
+      "core": true,
+      "when": "ca: dns-01 order valid",
+      "match": {}
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "c2",
+  "title": "The Short Fuse",
+  "after": "after Lab 4",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Certificates from this CA only last 5-10 minutes. Make `{user}.certs.dojo.test` renew on its own and stay valid for 20 minutes without you touching it.",
+  "verify_text": "the served serial for the student's hostname changes at least twice within the window, and it never presents an expired cert.",
+  "hints": [
+    "Cron runs at most once a minute.",
+    "`renew` only acts when the cert is close to expiry."
+  ]
+}

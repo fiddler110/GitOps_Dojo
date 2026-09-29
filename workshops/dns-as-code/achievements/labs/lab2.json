@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "d2-drift",
+      "title": "Who Touched My Zone?",
+      "joke": "Someone changed it behind your back. Classic.",
+      "core": true,
+      "when": "shell: `dnscontrol preview` shows a change you did not make",
+      "match": {}
+    },
+    {
+      "id": "d2-fix",
+      "title": "Back to Declared",
+      "joke": "Config is the truth. The zone obeys.",
+      "core": true,
+      "when": "shell: `dnscontrol push` after drift, exit 0",
+      "match": {}
+    },
+    {
+      "id": "d2-revert",
+      "title": "Time Machine",
+      "joke": "Undid a pushed change the polite way.",
+      "core": true,
+      "when": "shell: `git revert` (exit 0) then `dnscontrol push`",
+      "match": {}
+    }
+  ]
+}

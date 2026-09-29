@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v4-ns",
+      "title": "Own Namespace",
+      "joke": "Your own corner of the vault.",
+      "core": true,
+      "when": "bao: first request inside the student's namespace",
+      "match": {}
+    },
+    {
+      "id": "v4-engine",
+      "title": "Engine Enabled",
+      "joke": "A secrets engine of your own.",
+      "core": true,
+      "when": "verify: KV engine mounted in the namespace",
+      "match": {}
+    },
+    {
+      "id": "v4-policy",
+      "title": "Least Privilege",
+      "joke": "A policy that gives only what is needed.",
+      "core": true,
+      "when": "verify: `policy_attached` for the app token",
+      "match": {}
+    },
+    {
+      "id": "v4-revoke",
+      "title": "Revoked It",
+      "joke": "One command, no more token.",
+      "core": true,
+      "when": "bao: token revoke by the student",
+      "match": {}
+    }
+  ]
+}

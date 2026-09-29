@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t7-tag",
+      "title": "Somebody Retagged It",
+      "joke": "Drift noticed by `plan`.",
+      "core": true,
+      "when": "shell: `tofu plan` shows drift after a portal edit",
+      "match": {}
+    },
+    {
+      "id": "t7-delete",
+      "title": "It Vanished",
+      "joke": "The container was deleted behind your back.",
+      "core": true,
+      "when": "cloud: activity log shows a delete by the student in the portal",
+      "match": {}
+    },
+    {
+      "id": "t7-restored",
+      "title": "Back in Business",
+      "joke": "Apply restored the declared state.",
+      "core": true,
+      "when": "shell: `tofu apply` after drift (exit 0)",
+      "match": {}
+    }
+  ]
+}

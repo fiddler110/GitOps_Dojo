@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "v1-leak",
+      "title": "Oops, Committed",
+      "joke": "A secret in git. It happens to everyone.",
+      "core": true,
+      "when": "shell: `git commit` with the lab's fake key staged",
+      "match": {}
+    },
+    {
+      "id": "v1-scan",
+      "title": "Scanner Darkly",
+      "joke": "A scanner found it.",
+      "core": true,
+      "when": "shell: `gitleaks` (exit non-zero, then 0 later)",
+      "match": {}
+    },
+    {
+      "id": "v1-hook",
+      "title": "Pre-Commit Bouncer",
+      "joke": "A hook now stops the next leak.",
+      "core": true,
+      "when": "verify: `.git/hooks/pre-commit` present and blocks the fake key",
+      "match": {}
+    }
+  ]
+}

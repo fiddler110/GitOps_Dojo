@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t5-plan",
+      "title": "Read the Blueprint",
+      "joke": "A plan for a real container.",
+      "core": true,
+      "when": "shell: `tofu plan` in Track B",
+      "match": {}
+    },
+    {
+      "id": "t5-apply",
+      "title": "Hello, World",
+      "joke": "A real container in a real (practice) cloud.",
+      "core": true,
+      "when": "cloud: container created; verify: `resource_state` running",
+      "match": {}
+    },
+    {
+      "id": "t5-site",
+      "title": "It Is on the Internet",
+      "joke": "Opened your own site.",
+      "core": true,
+      "when": "cloud: request served by the student's container",
+      "match": {}
+    }
+  ]
+}

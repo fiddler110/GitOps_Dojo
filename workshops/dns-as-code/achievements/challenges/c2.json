@@ -1,0 +1,12 @@
+{
+  "id": "c2",
+  "title": "The Cutover",
+  "after": "after Lab 5 or 6",
+  "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
+  "goal": "`app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, and the zone must show no other changes.",
+  "verify_text": "`app` A record equals `10.20.0.{n}`; `www` is a CNAME to `app`; a `dnscontrol preview` is clean afterwards; the change is one commit in the student's repo.",
+  "hints": [
+    "One commit, two records.",
+    "An alias is a CNAME; the target ends with a dot."
+  ]
+}

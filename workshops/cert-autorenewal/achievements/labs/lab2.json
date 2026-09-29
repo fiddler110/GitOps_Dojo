@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "c2-vhost",
+      "title": "Port 80 Open for Business",
+      "joke": "Your vhost answers the challenge.",
+      "core": true,
+      "when": "verify: `http://{user}.demo/.well-known/` served",
+      "match": {}
+    },
+    {
+      "id": "c2-issue",
+      "title": "Certified Fresh",
+      "joke": "A real cert, minted by machine.",
+      "core": true,
+      "when": "ca: certificate issued for `{user}.demo`",
+      "match": {}
+    },
+    {
+      "id": "c2-install",
+      "title": "Installed and Padlocked",
+      "joke": "HTTPS on. Green padlock energy.",
+      "core": true,
+      "when": "verify: demo-app serves that certificate",
+      "match": {}
+    },
+    {
+      "id": "c2-verify",
+      "title": "Trust, Verified",
+      "joke": "You checked the chain with your own eyes.",
+      "core": true,
+      "when": "shell: `openssl s_client` or `curl -v https://...`",
+      "match": {}
+    }
+  ]
+}

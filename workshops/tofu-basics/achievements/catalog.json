@@ -1,0 +1,52 @@
+{
+  "workshop": "tofu-basics",
+  "title": "OpenTofu Basics",
+  "intro": "**Both tracks are mandatory:** Track A (labs 0-3) and Track B (labs 4-10) are one workshop, so every lab milestone is core.\n\n**Where challenges run.** Each student has a private Dojo Cloud subscription (\"nobody else can touch yours\"), so resources are already isolated. The two shared things are the **site DNS label** (class-wide unique, pattern `<workload>-<env>-<owner>-<key>`) and, within one student, the **quota of 2 container groups** across all their work. So every site name in a challenge carries `{user}`, verifiers count only the resources tagged with that challenge, and no challenge asks for more than 2 container groups at once. Triggers here: `shell:`, `cloud:` (Dojo Cloud Activity log, an event adapter on the dojo-cloud module), `verify:` (`resource_state`).",
+  "challenges_intro": "Each challenge starts in its own folder (`~/challenges/cN`, seeded when opened, with its own state), so it doesn't\nchange the lab's `main.tf` or state. Everything it creates is tagged `challenge=cN`, and the verifier looks only at\nthose (`resource_state`), so leftover lab resources never fail a check. Quota is shared by the whole subscription, so\neach brief says how many groups it needs. A pass is recorded when checked; destroying it afterwards (or the\ncapstone's clean-up) does not undo it.",
+  "labs": [
+    {
+      "id": "lab0",
+      "title": "repo and tour"
+    },
+    {
+      "id": "lab1",
+      "title": "first run"
+    },
+    {
+      "id": "lab2",
+      "title": "change and read the plan"
+    },
+    {
+      "id": "lab3",
+      "title": "tear it down"
+    },
+    {
+      "id": "lab4",
+      "title": "meet Dojo Cloud"
+    },
+    {
+      "id": "lab5",
+      "title": "deploy hello"
+    },
+    {
+      "id": "lab6",
+      "title": "policy"
+    },
+    {
+      "id": "lab7",
+      "title": "drift"
+    },
+    {
+      "id": "lab8",
+      "title": "change types"
+    },
+    {
+      "id": "lab9",
+      "title": "scale"
+    },
+    {
+      "id": "lab10",
+      "title": "clean up"
+    }
+  ]
+}

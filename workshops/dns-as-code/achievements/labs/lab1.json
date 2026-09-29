@@ -1,0 +1,52 @@
+{
+  "milestones": [
+    {
+      "id": "d1-preview",
+      "title": "Look Before You Leap",
+      "joke": "Previewed before pushing. Adults do that.",
+      "core": true,
+      "when": "shell: `dnscontrol preview` (exit 0)",
+      "match": {}
+    },
+    {
+      "id": "d1-push",
+      "title": "Live on the Wire",
+      "joke": "Your zone exists. Somewhere a resolver blinked.",
+      "core": true,
+      "when": "shell: `dnscontrol push` (exit 0); dns: zone created",
+      "match": {}
+    },
+    {
+      "id": "d1-add",
+      "title": "Record Collector",
+      "joke": "More records than a 90s teenager.",
+      "core": true,
+      "when": "verify: `resource_state` zone has 3+ records",
+      "match": {}
+    },
+    {
+      "id": "d1-change",
+      "title": "Changed My Mind",
+      "joke": "TTLs are a suggestion, apparently.",
+      "core": true,
+      "when": "verify: a record differs from its first pushed value",
+      "match": {}
+    },
+    {
+      "id": "d1-remove",
+      "title": "Gone, Not Forgotten",
+      "joke": "Removed a record by deleting one line.",
+      "core": true,
+      "when": "dns: record deleted after a push",
+      "match": {}
+    },
+    {
+      "id": "d1-dot",
+      "title": "The Trailing Dot",
+      "joke": "One character. Whole different hostname.",
+      "core": true,
+      "when": "shell: `dnscontrol preview` output shows the doubled zone name",
+      "match": {}
+    }
+  ]
+}

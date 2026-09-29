@@ -1,0 +1,14 @@
+{
+  "id": "capstone",
+  "title": "Zero Standing Secrets",
+  "space": "the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot",
+  "goal": "Give your app slot a new app with no secret stored anywhere in git, CI or on disk: identity from the platform, its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no deploy.",
+  "seed": "a starter `capstone/` folder in the student's fork, and empty names to use: policy `capstone-app`, role `capstone-app`, KV path `capstone/`. There is **one** slot per student, so the capstone reuses the student's own slot (`/srv/apps/{user}`): deploying it replaces the app the labs left running there. The brief says so.",
+  "verify_text": "in `students/{user}` only: workload login (no AppRole, no CI secret) for the role `capstone-app`; policy narrow (only `capstone/` and the DB creds path); one dynamic credential issued from `database/creds/`; the static secret rotated while the app kept running, with no deploy event in between (from the student's audit entries); no secret in the student's fork history (scanner passes).",
+  "isolation": "namespace, database, fork and slot are all the student's own. It is safe for the whole class to run it at once. If the facilitator wants a slot other than the lab's, that is a new `app-host` feature (not needed for this).",
+  "badge_tier": "capstone",
+  "hints": [
+    "Labs 9, 11 and 12 combined.",
+    "Rotation is a write, not a deploy."
+  ]
+}

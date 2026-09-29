@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "d6-conflict",
+      "title": "Same Line, Different Idea",
+      "joke": "Two edits, one line.",
+      "core": true,
+      "when": "shell: `git merge` or `git pull --rebase` exits non-zero with a conflict in `dnsconfig.js`",
+      "match": {}
+    },
+    {
+      "id": "d6-resolved",
+      "title": "Diplomat",
+      "joke": "Both records kept. Peace in our time.",
+      "core": true,
+      "when": "shell: commit completes a merge; verify: no `<<<<<<<` in `dnsconfig.js`",
+      "match": {}
+    },
+    {
+      "id": "d6-preview",
+      "title": "Preview First, Always",
+      "joke": "Previewed the merge result before pushing.",
+      "core": true,
+      "when": "shell: `dnscontrol preview` after a merge commit",
+      "match": {}
+    }
+  ]
+}

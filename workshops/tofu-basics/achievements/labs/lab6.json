@@ -1,0 +1,28 @@
+{
+  "milestones": [
+    {
+      "id": "t6-tag",
+      "title": "Untagged and Rejected",
+      "joke": "The cloud wants tags.",
+      "core": true,
+      "when": "cloud: policy denial for a missing tag",
+      "match": {}
+    },
+    {
+      "id": "t6-region",
+      "title": "Wrong Neighbourhood",
+      "joke": "Region not allowed.",
+      "core": true,
+      "when": "cloud: policy denial for the region",
+      "match": {}
+    },
+    {
+      "id": "t6-size",
+      "title": "Too Big to Ship",
+      "joke": "Over the size limit.",
+      "core": true,
+      "when": "cloud: policy denial for the size",
+      "match": {}
+    }
+  ]
+}

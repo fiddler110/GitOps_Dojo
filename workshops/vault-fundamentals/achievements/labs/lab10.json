@@ -1,0 +1,36 @@
+{
+  "milestones": [
+    {
+      "id": "v10-strict",
+      "title": "Strict Role",
+      "joke": "The app's role is locked down.",
+      "core": true,
+      "when": "verify: `policy_attached` with a narrow role",
+      "match": {}
+    },
+    {
+      "id": "v10-wrap",
+      "title": "Wrapped Delivery",
+      "joke": "A secret ID only the app can open.",
+      "core": true,
+      "when": "bao: response-wrapped secret ID created and unwrapped once",
+      "match": {}
+    },
+    {
+      "id": "v10-deploy",
+      "title": "Delivered and Deployed",
+      "joke": "Pipeline delivers, app logs in.",
+      "core": true,
+      "when": "bao: app login with the delivered ID",
+      "match": {}
+    },
+    {
+      "id": "v10-branch",
+      "title": "A Branch Gets Nothing",
+      "joke": "A feature branch cannot deploy.",
+      "core": true,
+      "when": "bao: denied delivery from a non-main branch",
+      "match": {}
+    }
+  ]
+}
