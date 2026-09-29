@@ -9,14 +9,28 @@ one workshop can use live in [`../modules/`](../modules/).
 
 ## Available workshops
 
-| Workshop | What it teaches | Modules | Run it |
-| -------- | ---------------- | ------- | ------ |
-| [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
-| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
-| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
-| [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
-| [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
-| [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
+| # | Workshop | What it teaches | Modules | Run it |
+| - | -------- | ---------------- | ------- | ------ |
+| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
+| 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
+| 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
+| 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
+| 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
+| 5 | [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
+
+### Learning path
+
+The numbers are the order to teach them in. `0` is the showcase for facilitators and visitors, not a course.
+`1` to `5` build on each other; a later workshop assumes the earlier ones' ideas, not their files.
+
+| # | Workshop | Builds on |
+| - | -------- | --------- |
+| 0 | `dojo-introduction` | Nothing. A tour of the platform and every workshop; no student learning goals. |
+| 1 | `git-fundamentals` | Nothing. Clone, branch, commit, push, pull request, undo, stash, history, conflicts. |
+| 2 | `dns-as-code` | 1: the same git flow, now with CI. First look at declarative config, preview vs apply, drift, and a pull request that runs a pipeline. |
+| 3 | `cert-autorenewal` | 2 (lightly): its dns-01 capstone drives the PowerDNS API that `dnscontrol` wraps in workshop 2. Otherwise stands alone: ACME, `certbot`, `acme.sh`, renewal automation. |
+| 4 | `tofu-basics` | 1 for the git steps, and 2 for the ideas of declarative config, plan before apply and drift, taken further with state, `for_each`, policy and quotas on a real provider. |
+| 5 | `vault-fundamentals` | 1 (stated prerequisite). Also leans on 2's pull request and CI pipeline ideas for the Forgejo Actions labs; the longest and most advanced course. |
 
 `./run.sh list` prints this same list from each workshop's `workshop.env`;
 `./run.sh modules` lists the modules and which workshops use them.
@@ -76,6 +90,7 @@ want the same thing, make it a module instead.
 3. Write `workshop.env`:
    ```sh
    WORKSHOP_NAME=<display name>
+   WORKSHOP_ORDER=<n>    # place in the learning path (0 = showcase); ./run.sh list sorts by it
    WORKSHOP_CONTENT_DIR=../workshops/<name>/content
    FORGEJO_ORG=<org name>
    FORGEJO_REPO=<repo name>
