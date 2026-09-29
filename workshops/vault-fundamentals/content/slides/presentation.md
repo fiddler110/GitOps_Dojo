@@ -1772,13 +1772,10 @@ table { font-size: 21px; }
 
 ## What today's vault cuts short
 
-- **One unseal key, kept next to the vault**, so it unseals itself after a restart. At work: auto-unseal from a
-  cloud KMS or HSM, or key shares split between several people
-- **No root or admin token kept.** Each start makes a temporary root from that key, sets the class up with a
-  short-lived token, and revokes both
+- **One unseal key, kept next to the vault**, so it unseals itself after a restart. At work: auto-unseal from a cloud KMS or HSM, or key shares split between several people
+- **No root or admin token kept.** Each start makes a temporary root from that key, sets the class up with a short-lived token, and revokes both
 - **Plain HTTP inside the lab network**, to the vault and to the database. At work: TLS on every hop
-- **Token accessors in clear** in the audit log, so `bao-audit` and the Audit tab can match your requests.
-  Tokens and secrets stay hashed
+- **Token accessors in clear** in the audit log, so `bao-audit` and the Audit tab can match your requests. Tokens and secrets stay hashed
 
 ---
 
