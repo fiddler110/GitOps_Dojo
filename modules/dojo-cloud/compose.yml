@@ -15,7 +15,7 @@
 # route to the internet or to any student, publishes no ports to the host, has
 # no listener except a unix socket shared with cloud-api, and the only thing that
 # ever talks to it is cloud-api's fixed-template executor. Students never speak
-# Docker. See workshops/tofu-basics/PLAN.md §7.
+# Docker. See docs/archive/TOFU-BASICS-PLAN.md §7.
 #
 # Start-up is deliberately NOT chained on health: each service only waits for the
 # previous one to have started (service_started), so the lab and the terminals

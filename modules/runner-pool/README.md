@@ -3,7 +3,7 @@
 Single-use Forgejo Actions runners for every repo, autoscaled, with a Runners panel in `/admin`.
 
 Add it with `MODULES="runner-pool"` in a `workshop.env`. Built for `vault-fundamentals`, whose plan
-(`workshops/vault-fundamentals/PLAN.md` §6) has the design. Each runner takes **one job** and is then deleted with
+(`docs/archive/VAULT-FUNDAMENTALS-PLAN.md` §6) has the design. Each runner takes **one job** and is then deleted with
 everything the job left behind, so no job (a student's own or anyone else's) ever finds another's files or processes:
 the way GitHub's Actions Runner Controller works. Don't list it together with `forgejo-runner` (a long-lived runner
 for one repo): both turn on Actions and define `runner_net`.

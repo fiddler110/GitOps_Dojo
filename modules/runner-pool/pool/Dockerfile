@@ -1,4 +1,4 @@
-# The runner pool (vault-fundamentals PLAN.md §6.2 A): the upstream runner,
+# The runner pool (VAULT-FUNDAMENTALS-PLAN.md §6.2 A): the upstream runner,
 # what the supervisor needs to give each runner its own user and namespaces,
 # and the tools jobs call. Jobs run in this container (the `host` label), so a
 # workflow can only use what is installed here.

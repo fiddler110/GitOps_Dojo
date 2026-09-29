@@ -1,5 +1,5 @@
 # dojo-cloud's link in the terminal build chain (engine/run.sh sets BASE to
-# the image below this one; see engine/MODULES-PLAN.md §4.2).
+# the image below this one; see docs/archive/MODULES-PLAN.md §4.2).
 #
 # Dojo Cloud client side: a root-owned credential broker (SO_PEERCRED tells it
 # which student is asking, so each gets only their own ARM_* values), the

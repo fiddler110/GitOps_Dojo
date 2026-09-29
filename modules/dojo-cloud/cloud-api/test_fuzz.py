@@ -1,4 +1,4 @@
-"""Fuzz and abuse tests for the Dojo Cloud control plane (PLAN.md T9.2). Offline: the REAL request
+"""Fuzz and abuse tests for the Dojo Cloud control plane (TOFU-BASICS-PLAN.md T9.2). Offline: the REAL request
 handler (`server.Handler`, real `App`, real policy, real portal) is served on 127.0.0.1 and hit with
 thousands of hostile raw requests, over a FAKE cloud-host that records every call and checks it
 against the allow-list. Run from this directory:

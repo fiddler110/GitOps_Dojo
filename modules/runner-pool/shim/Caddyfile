@@ -1,4 +1,4 @@
-# ID-token shim for the runner-pool module (vault-fundamentals PLAN.md S24,
+# ID-token shim for the runner-pool module (VAULT-FUNDAMENTALS-PLAN.md S24,
 # S28). Runs inside the pool's network namespace and answers for
 # PUBLIC_BASE_URL there, so a job's calls to Forgejo's public URLs (the
 # Actions ID token, `git clone $GITHUB_SERVER_URL/...`) reach git-server

@@ -2,7 +2,7 @@
 """Dojo Cloud control plane ("cloud-api").
 
 Speaks just enough Azure Resource Manager for the real `azurerm` provider
-(PLAN.md §5.5): a metadata document, an OAuth client-credentials token
+(TOFU-BASICS-PLAN.md §5.5): a metadata document, an OAuth client-credentials token
 endpoint, and resource groups + container groups. Requests are authenticated
 (token -> student), authorised (path subscription must be the caller's), checked
 against policy, and executed on cloud-host by a fixed template. Also serves
@@ -184,7 +184,7 @@ class App:
     # One implementation, so policy, activity log and executor behave identically
     # whoever asks. `via` ("portal") is appended to the logged operation name.
     # The executor is called with the state lock released: the group is reserved (State.pending) under the lock,
-    # Docker is called, then the result is recorded under the lock again and the reservation released (PLAN.md 5.8).
+    # Docker is called, then the result is recorded under the lock again and the reservation released (TOFU-BASICS-PLAN.md 5.8).
     @staticmethod
     def op_name(base, via):
         return f"{base} ({via})" if via else base
@@ -476,7 +476,7 @@ class Handler(BaseHTTPRequestHandler):
                 "loginEndpoint": f"{LOGIN}/",
                 "audiences": [f"{MGMT}/"],
                 # azurerm treats anything other than AAD + "common" as Azure Stack
-                # and refuses it (PLAN.md §5.5).
+                # and refuses it (TOFU-BASICS-PLAN.md §5.5).
                 "tenant": "common",
                 "identityProvider": "AAD",
             },
@@ -756,7 +756,7 @@ class Handler(BaseHTTPRequestHandler):
         return 200, self.cg_view(sub, rec)
 
     def put_container_group(self, sub, owner, user, rg, cg, rid, key, body):
-        """Reserve, then Docker, then commit (PLAN.md 5.8): State.lock covers the decision and the record, never a
+        """Reserve, then Docker, then commit (TOFU-BASICS-PLAN.md 5.8): State.lock covers the decision and the record, never a
         Docker call. Meanwhile the reservation (State.pending) keeps the key, port, DNS label and quota slot ours."""
         st = APP.state
         with st.lock:  # phase 1: decide and reserve

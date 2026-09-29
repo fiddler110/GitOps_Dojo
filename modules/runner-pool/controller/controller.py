@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """runner-controller: registers single-use runners, scales them, and serves
-the Runners panel (vault-fundamentals PLAN.md §6.3, §6.4).
+the Runners panel (VAULT-FUNDAMENTALS-PLAN.md §6.3, §6.4).
 
 Every few seconds it reads Forgejo's runner list and waiting jobs (admin
 API) and the pool supervisor's /spool/state.json, then:

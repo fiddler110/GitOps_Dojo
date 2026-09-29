@@ -346,7 +346,7 @@ class Writes(Base):
 
 
 class Progress(Base):
-    """Facilitator class progress board (PLAN.md 5.6a)."""
+    """Facilitator class progress board (TOFU-BASICS-PLAN.md 5.6a)."""
     URL = "/cloud/api/admin/progress"
 
     def setUp(self):

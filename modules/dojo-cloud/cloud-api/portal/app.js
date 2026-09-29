@@ -141,7 +141,7 @@
     };
   }
 
-  // Class progress board (PLAN.md 5.6a). Stage names are validated against STAGES, never used as-is.
+  // Class progress board (TOFU-BASICS-PLAN.md 5.6a). Stage names are validated against STAGES, never used as-is.
   const STAGES = {
     attention:  { label: 'Needs attention', summary: 'needs attention', pill: 'pill-err', rank: 0 },
     inProgress: { label: 'In progress', summary: 'in progress', pill: 'pill-warn', rank: 1 },
@@ -741,7 +741,7 @@
     ],
   });
 
-  // ---- class progress board (facilitator only; PLAN.md 5.6a) ----
+  // ---- class progress board (facilitator only; TOFU-BASICS-PLAN.md 5.6a) ----
   const PROGRESS_SORTS = [['roster', 'Roster order'], ['attention', 'Needs attention first'], ['recent', 'Most recently active']];
   const MAX_TILE_CGS = 6;
   const FLASH_MS = 2500;

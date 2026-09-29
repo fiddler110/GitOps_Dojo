@@ -1,4 +1,4 @@
-"""Lock narrowing (PLAN.md 5.8): no Docker call is made while State.lock is held, and the reservations
+"""Lock narrowing (TOFU-BASICS-PLAN.md 5.8): no Docker call is made while State.lock is held, and the reservations
 (State.pending / State.deleting_rgs) keep concurrent writes from stepping on each other.
 
 Real HTTP server, fake executor. Ordering is made deterministic with Events, Barriers and queues: the fake

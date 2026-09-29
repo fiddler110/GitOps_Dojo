@@ -3,7 +3,7 @@
 One OpenBao server for the class, its web UI on the landing page and in `/admin`, and the `bao` CLI in every terminal.
 
 Add it with `MODULES="openbao"` in a `workshop.env`. Built for `vault-fundamentals`; its plan
-(`workshops/vault-fundamentals/PLAN.md`) has the design.
+(`docs/archive/VAULT-FUNDAMENTALS-PLAN.md`) has the design.
 
 | Part | What it does |
 |---|---|
@@ -78,7 +78,7 @@ Handing it to a resident `openbao-reset` service is the reset plan's R3.2.
 
 ## Accepted risks
 
-Decided with the threat-model remediation (`threat-model-20260926-154208/REMEDIATION-PLAN.md`, D9), and told to the
+Decided with the threat-model remediation (`docs/archive/REMEDIATION-PLAN.md`, D9), and told to the
 class in vault-fundamentals (slide "What today's vault cuts short"):
 
 - **One unseal key share, on `openbao_setup`** (FIND-17). The vault unseals itself after a restart. Whoever can read
