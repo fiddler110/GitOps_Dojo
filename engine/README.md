@@ -692,9 +692,13 @@ limited. A visitor over the limit gets a "try again in N seconds" page (HTTP 429
 with a `Retry-After` header). This stops one client from draining every free slot by
 posting to `/assign` without a cookie; it is not a join code.
 
-**Allocator timeouts.** The allocator serves one request at a time, so a stuck
-call must fail fast rather than queue the whole class behind it. Its Docker
-socket timeout is 3 s, and the gateway gives every allocator call a 3 s dial
+**Allocator timeouts.** The allocator serves each connection in its own thread
+(`ThreadingHTTPServer`), so an idle or slow client ties up only its own thread
+and never delays `/auth-check` for the rest of the class. Slot claims stay
+atomic under one lock, and no lock is held across a call to web-terminal or
+Forgejo (the locking rules are at the top of `allocator/server.py`). Each
+client socket times out after 3 s, calls to web-terminal's control API and
+Forgejo after 3 s, and the gateway gives every allocator call a 3 s dial
 timeout and a 10 s response-header timeout (the `allocator_timeouts` snippet in
 `gateway/Caddyfile`, also imported into the rendered extension gates). A slow
 allocator therefore shows as a 502 after at most 10 s, not a hung page.

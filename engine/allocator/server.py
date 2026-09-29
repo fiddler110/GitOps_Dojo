@@ -1,25 +1,35 @@
 #!/usr/bin/env python3
 """Student self-service login + facilitator dashboard for the workshop engine.
 
-Single-threaded on purpose (http.server.HTTPServer, not ThreadingHTTPServer):
-the "find the first free studentNN slot and claim it" critical section below
-is one plain synchronous function with no I/O in the middle, so two
-concurrent /assign requests physically cannot claim the same slot -- the
-single accept loop means they can't interleave. No lock, no DB transaction.
+One thread per connection (http.server.ThreadingHTTPServer, remediation
+T3.4). It used to be single-threaded so that slot claiming needed no lock,
+but then one idle or slow client stalled /auth-check -- and with it every
+student's VS Code and terminal -- for the whole 3 s socket timeout, once per
+idle connection. Now an idle socket only times out in its own thread.
+
+Locking rules (keep them when touching shared state):
+- `_state_lock` guards `slots` and `token_index`. Claiming a slot
+  (claim_slot) finds the first free studentNN and writes it in one critical
+  section, so two concurrent /assign requests can never get the same slot.
+- Never hold a lock across I/O: no control_request, forgejo_login_request,
+  probe or socket write inside one. Handlers copy what they need under the
+  lock (slot_snapshot, held_slots), release it, then do the I/O.
+- A release first records the slot's token, stops the workspace without the
+  lock, then clears the slot only if the token is unchanged, so a slow
+  release never frees a slot someone else has claimed in the meantime.
+- AssignLimit, audit() and audit_check() each have their own small lock.
 
 All state is in-memory and reset on container restart, matching this
 project's ephemeral-by-design stack (see engine/docker-compose.yml).
 
-There is exactly one other thread: a background daemon that probes the
+Besides the request threads there is one background daemon that probes the
 lab's services (Forgejo, terminals, slides, plus whatever a workshop lists
 in STATUS_CHECKS) every few seconds for the facilitator's status strip
-(/admin/api/status). It does not weaken the guarantee above, because it
-never touches `slots`, `token_index` or anything else a request handler
-mutates: its only output is one status snapshot that it replaces wholesale
-(a single reference assignment, atomic in CPython), and request handlers
-only ever read that snapshot. All upstream I/O for status happens in that
-thread; no request handler waits on a probe, so a hung service can slow the
-probe thread down but never /assign, /auth-check or the roster.
+(/admin/api/status). It never touches `slots`, `token_index` or anything
+else a request handler mutates: its only output is one status snapshot that
+it replaces wholesale (a single reference assignment, atomic in CPython),
+and request handlers only ever read that snapshot. All upstream I/O for
+status happens in that thread; no request handler waits on a probe.
 """
 import base64
 import datetime
@@ -67,6 +77,9 @@ WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "Workshop Lab")
 FACILITATOR_USERNAME = os.environ.get("FACILITATOR_USERNAME", "root")
 
 
+_audit_lock = threading.Lock()
+
+
 def audit(event, **fields):
     """One JSON line on stdout per identity or control-plane decision
     (remediation T1.4, FIND-13): who, what, on which target, with what
@@ -75,20 +88,25 @@ def audit(event, **fields):
     rec = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds"),
            "event": event}
     rec.update(fields)
-    print(json.dumps(rec, separators=(",", ":")), flush=True)
+    line = json.dumps(rec, separators=(",", ":"))
+    with _audit_lock:  # one whole line at a time from concurrent handlers
+        print(line, flush=True)
 
 
 # /auth-check runs once per request VS Code or ttyd makes (every asset), so
 # logging each 200 would flood the log. Log every non-200, and a 200 only
 # when it's the first for that (event, account, tool) or follows a non-200.
 _last_check = {}
+_last_check_lock = threading.Lock()
 
 
 def audit_check(event, account, tool, status, **fields):
     key = (event, account, tool)
-    if status != 200 or _last_check.get(key) != 200:
+    with _last_check_lock:
+        log = status != 200 or _last_check.get(key) != 200
+        _last_check[key] = status
+    if log:
         audit(event, account=account, tool=tool, result=status, **fields)
-    _last_check[key] = status
 
 
 # The class login, only for the Slides status check (probe_slides).
@@ -179,6 +197,8 @@ BOT_IDS = [f"{BOT_PREFIX}{n}" for n in range(1, BOT_COUNT + 1)]
 # studentId -> {name, ip, token, tool, assigned_at}
 slots = {sid: {"name": None, "ip": None, "token": None, "tool": None, "assigned_at": None} for sid in STUDENT_IDS}
 token_index = {}  # token -> studentId
+# Guards slots and token_index (see the locking rules at the top).
+_state_lock = threading.Lock()
 
 
 def _env_int(name, default):
@@ -194,15 +214,20 @@ class AssignLimit:
     assignments (a cookie-less POST /assign that would take a slot), so a
     class arriving together gets in within a minute or so while a script
     can't empty every slot in one go. The facilitator, bots, returning
-    browsers and /auth-check never touch it. In memory, and no lock needed:
-    this server handles one request at a time."""
+    browsers and /auth-check never touch it. In memory, behind its own lock
+    (requests run in parallel threads)."""
 
     def __init__(self, burst, per_minute, clock=time.monotonic):
         self.burst, self.rate, self.clock = float(burst), per_minute / 60.0, clock
         self.tokens, self.last = float(burst), clock()
+        self.lock = threading.Lock()
 
     def take(self):
         """0 if a slot may go out now, else seconds until one may."""
+        with self.lock:
+            return self._take()
+
+    def _take(self):
         now = self.clock()
         self.tokens = min(self.burst, self.tokens + (now - self.last) * self.rate)
         self.last = now
@@ -218,16 +243,52 @@ ASSIGN_LIMIT = AssignLimit(_env_int("ASSIGN_BURST", 10), _env_int("ASSIGN_PER_MI
 UNUSED_AFTER_SECONDS = 120
 
 
-def release_slot(sid, result="released"):
-    """Stop a student's workspace and free their slot. Returns the name that held it."""
+def release_slot(sid, result="released", token=None):
+    """Stop a student's workspace and free their slot. Returns the name that
+    held it, or None if the slot was already free or has changed hands.
+    `token` is the holder the caller decided to release (default: whoever
+    holds it now); the stop runs without the lock, and the slot is cleared
+    only if that same holder still has it."""
+    with _state_lock:
+        if token is None:
+            token = slots[sid]["token"]
+        if token is None or slots[sid]["token"] != token:
+            return None
     control_request("POST", f"/stop/{sid}")
-    old_token = slots[sid]["token"]
-    if old_token in token_index:
-        del token_index[old_token]
-    name = slots[sid]["name"]
+    with _state_lock:
+        if slots[sid]["token"] != token:
+            return None  # someone else released it while we were stopping
+        token_index.pop(token, None)
+        name = slots[sid]["name"]
+        slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
     audit("release", target=sid, name=name, result=result)
-    slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
     return name
+
+
+def claim_slot(name, ip):
+    """Give the first free studentNN to `name`: (sid, token), or (None, None)
+    when the lab is full. One critical section, so no two callers can get
+    the same slot."""
+    token = secrets.token_urlsafe(32)
+    with _state_lock:
+        sid = find_free_slot()
+        if sid is None:
+            return None, None
+        slots[sid].update(name=name, ip=ip, token=token, assigned_at=time.time())
+        token_index[token] = sid
+    return sid, token
+
+
+def slot_snapshot(sid):
+    """A copy of one slot, taken under the lock."""
+    with _state_lock:
+        return dict(slots[sid])
+
+
+def held_slots():
+    """{sid: copy of slot} for every held student slot, in roster order."""
+    with _state_lock:
+        return {sid: dict(slots[sid]) for sid in STUDENT_IDS if slots[sid]["name"] is not None}
 
 
 def student_number(student_id):
@@ -261,6 +322,7 @@ def watch_port(sid):
 
 
 def find_free_slot():
+    """Caller holds _state_lock (claim_slot)."""
     for sid in STUDENT_IDS:
         if slots[sid]["name"] is None:
             return sid
@@ -1034,16 +1096,12 @@ NO_STORE_HEADERS = [("Cache-Control", "no-store"), ("Pragma", "no-cache")]
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "AllocatorHTTP/1.0"
-    # This server is single-threaded by design (see module docstring) --
-    # every request blocks every other request/connection for its duration,
-    # including the accept loop itself. Without a socket timeout, one client
-    # that opens a connection and then sends bytes slowly (or not at all)
-    # would stall the entire workshop's assignment/auth-check traffic
-    # indefinitely. 10s is generous for any legitimate request this process
-    # ever serves (all local, in-memory, no upstream I/O except the
-    # best-effort control_request/forgejo_login_request calls, which have
-    # their own shorter CONTROL_TIMEOUT). 3 s (remediation T3.4, was 10):
-    # a stalled client holds everyone up for at most that long per read.
+    # Per-connection socket timeout. Each connection has its own thread
+    # (AllocatorServer), so a client that connects and then sends slowly or
+    # not at all only holds its own thread, for at most this long per read,
+    # and never delays anyone else. 3 s is plenty for any legitimate request
+    # (all local; control_request/forgejo_login_request have their own
+    # CONTROL_TIMEOUT).
     timeout = 3
 
     def log_message(self, fmt, *args):
@@ -1121,9 +1179,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         token = self.get_cookie()
         if token is None:
             return None, None
-        sid = token_index.get(token)
-        if sid is not None and slots[sid]["token"] == token and slots[sid]["name"] is not None:
-            return sid, sid
+        with _state_lock:
+            sid = token_index.get(token)
+            if sid is not None and slots[sid]["token"] == token and slots[sid]["name"] is not None:
+                return sid, sid
         return None, None
 
     def client_ip(self):
@@ -1191,7 +1250,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         narrow single-column layout is tuned for the two short forms
         (name entry, "lab full"), not a set of tool choices that benefits
         from room to show what each one actually does."""
-        slot = slots[sid]
+        slot = slot_snapshot(sid)
         tools = [
             {
                 "href": "/ide/", "label": "VS Code", "icon": ICON_CODE, "primary": True,
@@ -1559,7 +1618,7 @@ EXT_PANELS_PLACEHOLDER</main>
 
         # A demo bot has no "held slot" concept -- see BOT_IDS above -- it's
         # always watchable as long as --test provisioned it.
-        if sid not in BOT_IDS and (sid not in slots or slots[sid]["name"] is None):
+        if sid not in BOT_IDS and (sid not in slots or slot_snapshot(sid)["name"] is None):
             audit_check("watch", username, sid, 404)
             self.send_response(404)  # not a currently held slot
             self.end_headers()
@@ -1602,8 +1661,8 @@ EXT_PANELS_PLACEHOLDER</main>
         self.send_json({"studentId": sid, "password": forgejo_password(sid)}, headers=NO_STORE_HEADERS)
 
     def handle_sessions_api(self):
-        held = [sid for sid in STUDENT_IDS if slots[sid]["name"] is not None]
-        all_ids = held + BOT_IDS
+        held = held_slots()  # copies; the status call below runs without the lock
+        all_ids = list(held) + BOT_IDS
         status = {}
         if all_ids:
             body = control_request("GET", "/status?users=" + ",".join(all_ids))
@@ -1613,8 +1672,7 @@ EXT_PANELS_PLACEHOLDER</main>
                 except json.JSONDecodeError:
                     status = {}
         rows = []
-        for sid in held:
-            slot = slots[sid]
+        for sid, slot in held.items():
             s = status.get(sid) or {}
             rows.append({
                 "studentId": sid,
@@ -1718,15 +1776,12 @@ EXT_PANELS_PLACEHOLDER</main>
                            headers=[("Retry-After", str(wait))] + NO_STORE_HEADERS)
             return
 
-        sid = find_free_slot()
+        sid, token = claim_slot(name, self.client_ip())
         if sid is None:
             audit("assign", name=name, ip=self.client_ip(), result="full")
             self.send_html(self.render_full())
             return
 
-        token = secrets.token_urlsafe(32)
-        slots[sid].update(name=name, ip=self.client_ip(), token=token, assigned_at=time.time())
-        token_index[token] = sid
         audit("assign", account=sid, name=name, ip=self.client_ip(), result="assigned")
 
         cookie = f"{COOKIE_NAME}={token}; HttpOnly; Path=/; SameSite=Lax"
@@ -1763,8 +1818,10 @@ EXT_PANELS_PLACEHOLDER</main>
         taken at least UNUSED_AFTER_SECONDS ago with no IDE or terminal
         running, e.g. slots a script grabbed. One status call for all."""
         now = time.time()
-        held = [sid for sid in STUDENT_IDS
-                if slots[sid]["name"] is not None and now - (slots[sid]["assigned_at"] or now) >= UNUSED_AFTER_SECONDS]
+        # sid -> the token holding it now: a slot released and re-claimed
+        # while the status call below runs is left alone (release_slot).
+        held = {sid: slot["token"] for sid, slot in held_slots().items()
+                if now - (slot["assigned_at"] or now) >= UNUSED_AFTER_SECONDS}
         status = {}
         if held:
             body = control_request("GET", "/status?users=" + ",".join(held))
@@ -1777,17 +1834,28 @@ EXT_PANELS_PLACEHOLDER</main>
                 self.send_json({"error": "workspace status unavailable"}, status=503)
                 return
         released = []
-        for sid in held:
+        for sid, token in held.items():
             s = status.get(sid) or {}
             if not s.get("active") and not s.get("watchable"):
-                release_slot(sid, result="released-unused")
-                released.append(sid)
+                if release_slot(sid, result="released-unused", token=token) is not None:
+                    released.append(sid)
         self.send_json({"released": released})
+
+
+class AllocatorServer(http.server.ThreadingHTTPServer):
+    """One daemon thread per connection, so a slow or idle client only ties
+    up its own thread (for at most Handler.timeout) and never the class."""
+    daemon_threads = True
+    request_queue_size = 128  # a whole class arriving at once (default 5)
+
+
+def make_server(addr):
+    return AllocatorServer(addr, Handler)
 
 
 def main():
     threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
-    server = http.server.HTTPServer(("0.0.0.0", 8080), Handler)
+    server = make_server(("0.0.0.0", 8080))
     server.serve_forever()
 
 
