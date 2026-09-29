@@ -38,7 +38,7 @@
 #      build: blocks the workshop's own overlay adds (e.g. dns-as-code's
 #      forgejo-runner) go through the same change detection, one directory
 #      hash per workshop (see compose_overlay_build_if_changed below).
-#   4. Runs `docker compose -f docker-compose.yml [-f <overlay>] up -d`
+#   4. Runs `podman-compose` (or `docker compose`) `-f docker-compose.yml [-f <overlay>] up -d`
 #      (no --build — step 3 already brought every image Compose references
 #      up to date).
 #
@@ -558,22 +558,10 @@ if [ "$test_mode" = "1" ]; then
 fi
 
 
-# Prefer docker if it's actually present and working; fall back to podman
-# otherwise (same detection teardown.sh uses, so both scripts agree on which
-# engine is in play).
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  build() { docker build "$@"; }
-  compose() { docker compose "$@"; }
-  inspect() { docker inspect "$@"; }
-  images() { docker images "$@"; }
-  ps_all() { docker ps -a "$@"; }
-  vol_ls() { docker volume ls "$@"; }
-  rmi() { docker rmi "$@"; }
-  # One-shot helper containers write into engine/ (render_extensions);
-  # rootful docker would leave those files owned by root without --user.
-  run_once() { docker run --rm --user "$(id -u):$(id -g)" "$@"; }
-  build_salt=""
-else
+# Prefer podman (rootless, no root daemon) when it and podman-compose are
+# installed; fall back to docker otherwise. teardown.sh and capacity-calc.sh
+# use the same detection, so all three agree on which engine is in play.
+if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
   build() { podman build "$@"; }
   compose() { podman-compose "$@"; }
   inspect() { podman inspect "$@"; }
@@ -593,6 +581,18 @@ else
   # Mixed into hash_dir so images an earlier run cached in OCI format are
   # rebuilt once, instead of being reported "source unchanged" forever.
   build_salt="podman-build-format-docker"
+else
+  build() { docker build "$@"; }
+  compose() { docker compose "$@"; }
+  inspect() { docker inspect "$@"; }
+  images() { docker images "$@"; }
+  ps_all() { docker ps -a "$@"; }
+  vol_ls() { docker volume ls "$@"; }
+  rmi() { docker rmi "$@"; }
+  # One-shot helper containers write into engine/ (render_extensions);
+  # rootful docker would leave those files owned by root without --user.
+  run_once() { docker run --rm --user "$(id -u):$(id -g)" "$@"; }
+  build_salt=""
 fi
 
 sha256_cmd() {

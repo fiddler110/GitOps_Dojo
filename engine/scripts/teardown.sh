@@ -44,10 +44,10 @@ done
 cd "$(dirname "$0")/.."
 
 compose() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
-  else
+  if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
     podman-compose "$@"
+  else
+    docker compose "$@"
   fi
 }
 
@@ -111,10 +111,10 @@ if [ "$dry_run" = "1" ]; then
 fi
 
 # Same container CLI as compose() above, for the status table.
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  cli=docker
-else
+if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
   cli=podman
+else
+  cli=docker
 fi
 c_green="$(printf '\033[32m')"; c_yellow="$(printf '\033[33m')"; c_red="$(printf '\033[31m')"
 c_off="$(printf '\033[0m')"; c_cyan="$(printf '\033[1;36m')"; c_dim="$(printf '\033[2m')"

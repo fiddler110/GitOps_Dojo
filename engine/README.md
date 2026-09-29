@@ -619,7 +619,8 @@ sits only on the internal-only `workshop_lab` network (see
 `docker-compose.yml`), with no route to the internet at all once the
 stack is up.
 
-**Facilitator ops below use plain `docker compose ...` commands.** If the
+**Facilitator ops below use plain `docker compose ...` commands** (on podman, read them as `podman-compose ...`,
+which `run.sh` prefers when it is installed). If the
 running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
 plus one `-f` per file listed in `.last-overlay` to those commands too, and
 set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:

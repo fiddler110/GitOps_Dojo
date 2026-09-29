@@ -92,10 +92,10 @@ if [ -z "$STUDENTS" ]; then
 fi
 
 runtime() {
-  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    docker "$@"
-  else
+  if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
     podman "$@"
+  else
+    docker "$@"
   fi
 }
 
