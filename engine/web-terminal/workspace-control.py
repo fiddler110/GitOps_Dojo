@@ -119,6 +119,28 @@ CODE_SERVER_NODE_FLAGS = (
     f"--max-old-space-size={CODE_SERVER_MAX_HEAP_MB} --max-semi-space-size=2 --optimize-for-size"
 )
 
+# A tripwire against a fork bomb, not a budget: RLIMIT_NPROC per student uid
+# (each student has their own uid), applied with prlimit to everything that
+# starts as the student. Threads count against it, hence the high default:
+# code-server, language servers, builds and test suites must never notice.
+# 0 turns it off. Residual: no per-user memory cap (that needs per-user
+# cgroups; the container's mem_limit stays one shared pool).
+TERMINAL_NPROC_LIMIT = os.environ.get("TERMINAL_NPROC_LIMIT", "1024")
+if not (TERMINAL_NPROC_LIMIT.isascii() and TERMINAL_NPROC_LIMIT.isdigit()):
+    # Interpolated into a shell command below.
+    raise SystemExit(f"TERMINAL_NPROC_LIMIT must be a whole number (0 = off), got {TERMINAL_NPROC_LIMIT!r}")
+TERMINAL_NPROC_LIMIT = int(TERMINAL_NPROC_LIMIT)
+
+
+def nproc_prefix(username):
+    """`prlimit --nproc=N -- ` for a student's own commands, or "" (knob off,
+    the facilitator or a demo bot). Goes outermost, before any `nsenter`, so
+    the limit rides down (rlimits survive exec) to the process the student
+    actually runs; the root-side helpers are never wrapped."""
+    if TERMINAL_NPROC_LIMIT <= 0 or not uses_pid_namespace(username):
+        return ""
+    return f"prlimit --nproc={TERMINAL_NPROC_LIMIT} -- "
+
 
 def _seconds_env(name, default, floor=None):
     """Non-negative integer seconds from the environment. Interpolated into
@@ -278,7 +300,7 @@ def ensure_holder(username):
         return held[2]
     proc = subprocess.Popen(
         ["su", "-", username, "-c",
-         "exec unshare -U --map-current-user -p -f --mount-proc --kill-child sleep infinity"],
+         f"exec {nproc_prefix(username)}unshare -U --map-current-user -p -f --mount-proc --kill-child sleep infinity"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(50):
         for unshare_pid in _children(proc.pid):
@@ -327,7 +349,7 @@ def start_workspace(tool, username):
             cmd = [
                 "su", "-", username, "-c",
                 f"export MALLOC_ARENA_MAX=2; "
-                f"exec {ns}/usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
+                f"exec {nproc_prefix(username)}{ns}/usr/lib/code-server/lib/node {CODE_SERVER_NODE_FLAGS} /usr/lib/code-server "
                 f"--bind-addr 0.0.0.0:{port} --auth none "
                 f"--disable-telemetry --disable-update-check --disable-workspace-trust "
                 f"{code_server_lifecycle_flags()} "
@@ -344,7 +366,7 @@ def start_workspace(tool, username):
             # Inside the student's PID namespace, like the IDE (whose VS Code
             # terminals start tmux there too), so the tmux server lives there.
             cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
-                   "-c", f"exec {ns}tmux new-session -A -s {TMUX_SESSION}"]
+                   "-c", f"exec {nproc_prefix(username)}{ns}tmux new-session -A -s {TMUX_SESSION}"]
 
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audit("workspace-start", account=username, tool=tool, port=port)
@@ -550,6 +572,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     threading.Thread(target=reap_children, daemon=True).start()
+    print(f"per-student process limit (RLIMIT_NPROC): "
+          f"{TERMINAL_NPROC_LIMIT or 'off'}", flush=True)
     server = http.server.ThreadingHTTPServer(("0.0.0.0", 7682), Handler)
     server.serve_forever()
 

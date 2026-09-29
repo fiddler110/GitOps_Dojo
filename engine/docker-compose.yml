@@ -171,6 +171,9 @@ services:
       # workspace-control.py. A safety net under mem_limit below, not a
       # replacement for it.
       - CODE_SERVER_MAX_HEAP_MB=${CODE_SERVER_MAX_HEAP_MB:-384}
+      # Per-student process limit, a fork-bomb tripwire (0 = off); see
+      # workspace-control.py.
+      - TERMINAL_NPROC_LIMIT=${TERMINAL_NPROC_LIMIT:-1024}
       # How long a code-server lingers once its browser tab closes -- see
       # workspace-control.py. Frees memory from students who have left
       # (break, end of class) without touching anyone still connected.

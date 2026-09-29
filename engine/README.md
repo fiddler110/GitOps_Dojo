@@ -87,6 +87,12 @@ holder process per student and joined with `nsenter`; see
 and never a classmate's command-line arguments (remediation T2.3b, FIND-10).
 The facilitator and demo bots stay outside; `su`, `sudo` and `ping` don't
 work inside.
+Every student-side process also runs under `prlimit --nproc=$TERMINAL_NPROC_LIMIT`
+(default 1024, below the container-wide pids cap so one bomb cannot exhaust it, 0 = off). Threads count, so it only ever stops a fork bomb, and
+each student has their own uid, so one student's bomb can't eat a classmate's
+allowance. There is deliberately no address-space cap (it breaks
+node/code-server) and no per-user memory cap: that needs per-user cgroups, so
+`mem_limit` stays one shared pool (residual).
 `allocator` holds no persistent state (in-memory only, same ephemeral
 design as everything else) and never touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.
@@ -670,6 +676,28 @@ immediately kills that student's code-server/ttyd process and frees the
 account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
+
+**Release unused.** The button above the Roster grid frees, in one click,
+every slot that was taken over 2 minutes ago and has no VS Code or terminal
+process running (someone who opened the landing page and wandered off). It asks
+for confirmation, then lists the accounts it freed (`POST /admin/release-unused`,
+facilitator only, audit-logged as `release` with result `released-unused`).
+Use it when the class is full but seats are held by people who never started.
+
+**Slot-assignment rate limit.** New slots go out through a token bucket:
+`ASSIGN_BURST` at once (default 10), then `ASSIGN_PER_MINUTE` (default 20), set
+in `engine/.env`. A class of 30 is in within about a minute. A browser that
+already holds a slot, the facilitator and the `--test` demo bots are never
+limited. A visitor over the limit gets a "try again in N seconds" page (HTTP 429
+with a `Retry-After` header). This stops one client from draining every free slot by
+posting to `/assign` without a cookie; it is not a join code.
+
+**Allocator timeouts.** The allocator serves one request at a time, so a stuck
+call must fail fast rather than queue the whole class behind it. Its Docker
+socket timeout is 3 s, and the gateway gives every allocator call a 3 s dial
+timeout and a 10 s response-header timeout (the `allocator_timeouts` snippet in
+`gateway/Caddyfile`, also imported into the rendered extension gates). A slow
+allocator therefore shows as a 502 after at most 10 s, not a hung page.
 
 **Service status strip.** The bottom of the `/admin` sidebar (a row under the tabs on a narrow screen) shows one chip per service —
 a coloured dot, the name, and a word (**Ready** / **Starting** / **Down**) —

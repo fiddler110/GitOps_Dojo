@@ -23,6 +23,7 @@ probe thread down but never /assign, /auth-check or the roster.
 """
 import base64
 import datetime
+import hashlib
 import hmac
 import html
 import http.client
@@ -554,28 +555,475 @@ ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="cur
              '<polyline points="7 7 17 7 17 17"></polyline></svg>'
 
 
+# -- page assets (remediation T4.2, FIND-14) ------------------------------
+# Every allocator page is served under a strict Content-Security-Policy (see
+# CSP below): no inline script, no style attributes. The facilitator page's
+# script and stylesheet are served from memory at /admin/admin.js and
+# /admin/admin.css (behind the same facilitator gate as /admin). The student
+# pages keep one inline <style> each, allowed by its sha256 hash, computed
+# here from the exact text so the header can't drift from the page.
+LANDING_CSS = """
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          max-width: 30rem; margin: 8vh auto; padding: 0 1.25rem; color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .sub { opacity: 0.7; margin-bottom: 2rem; }
+  input[type=text] { width: 100%; padding: 0.6rem 0.8rem; font-size: 1rem; border-radius: 0.5rem;
+          border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 1rem; }
+  button, .btn { display: inline-block; padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 0.5rem;
+          border: none; background: #2563eb; color: white; cursor: pointer; text-decoration: none;
+          margin-right: 0.5rem; margin-bottom: 0.5rem; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .btn.secondary { background: #6b7280; }
+  .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .badge { background: #1e2352; color: #c7d2fe; } }
+"""
+
+CONFIRM_CSS = """
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  .hero { text-align: center; margin-bottom: 2rem; }
+  .hero-badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
+          margin-bottom: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .hero-badge { background: #1e2352; color: #c7d2fe; } }
+  .hero h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
+  .hero .sub { opacity: 0.7; margin: 0; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  @media (max-width: 30rem) { .cards { grid-template-columns: 1fr; } }
+  .card { display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
+          border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
+          transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+  @media (prefers-color-scheme: dark) { .card { border-color: #333; background: #1f1f1f; } }
+  .card:hover, .card:focus-visible { border-color: #2563eb; transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15); }
+  .card.primary { grid-column: 1 / -1; border-color: #2563eb; background: #eff6ff; }
+  @media (prefers-color-scheme: dark) { .card.primary { background: #172554; } }
+  .card-icon { flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; background: #eef2ff;
+          color: #2563eb; display: flex; align-items: center; justify-content: center; }
+  @media (prefers-color-scheme: dark) { .card-icon { background: #1e2352; } }
+  .card.primary .card-icon { background: #2563eb; color: #fff; }
+  .card-icon svg { width: 1.25rem; height: 1.25rem; }
+  .card-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+  .card-title { font-weight: 600; font-size: 0.98rem; }
+  .card-desc { font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }
+  .card-arrow { flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }
+  .card:hover .card-arrow, .card:focus-visible .card-arrow { opacity: 0.7; }
+  .secret { margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e2e2;
+          background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+  @media (prefers-color-scheme: dark) { .secret { border-color: #333; background: #1f1f1f; } }
+  .secret-label { font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em; }
+  .secret code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #eef2ff;
+          color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }
+  @media (prefers-color-scheme: dark) { .secret code { background: #1e2352; color: #c7d2fe; } }
+  .secret-hint code { font-size: 0.75rem; padding: 0.05rem 0.3rem; }
+  .secret-table { border-collapse: collapse; margin: 0.15rem 0; }
+  .secret-table th, .secret-table td { padding: 0.35rem 0.75rem; border-bottom: 1px solid #e2e2e2; }
+  @media (prefers-color-scheme: dark) { .secret-table th, .secret-table td { border-color: #333; } }
+  .secret-table tr:last-child th, .secret-table tr:last-child td { border-bottom: none; }
+  .secret-table th { text-align: right; font-weight: 500; font-size: 0.85rem; opacity: 0.7; }
+  .secret-table td { text-align: left; }
+  .secret-value { font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }
+  .secret-hint { font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }
+  .footnote { margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }
+"""
+
+ADMIN_CSS = """
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          margin: 0; height: 100vh; display: flex; overflow: hidden;
+          color: #1a1a1a; background: #fafafa; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
+  #side { flex: none; width: 13.5rem; display: flex; flex-direction: column; gap: 1.1rem;
+           padding: 1.1rem 0.75rem; overflow-y: auto; border-right: 1px solid #ddd; background: #f3f3f3; }
+  @media (prefers-color-scheme: dark) { #side { border-right-color: #333; background: #121212; } }
+  #main { flex: 1; min-width: 0; overflow: auto; padding: 0.75rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 0.15rem; }
+  .sub { opacity: 0.7; }
+  #bar .sub { margin: 0.25rem 0 0; font-size: 0.9rem; }
+  #status { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: auto; }
+  #status.stale { opacity: 0.45; }
+  .svc { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
+          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; max-width: 100%; cursor: default; }
+  @media (prefers-color-scheme: dark) { .svc { border-color: #333; background: #1f1f1f; } }
+  .svc-dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }
+  .svc.green .svc-dot { background: #16a34a; }
+  .svc.yellow .svc-dot { background: #d97706; }
+  .svc.red .svc-dot { background: #dc2626; }
+  @media (prefers-color-scheme: dark) {
+    .svc.green .svc-dot { background: #22c55e; }
+    .svc.yellow .svc-dot { background: #f59e0b; }
+    .svc.red .svc-dot { background: #f87171; }
+  }
+  .svc-name { font-weight: 600; }
+  .svc-word { opacity: 0.75; }
+  .svc.yellow .svc-word, .svc.red .svc-word { opacity: 1; font-weight: 600; }
+  .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
+          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) { .badge { background: #1e2352; color: #c7d2fe; } }
+  button { font: inherit; }
+  .tabs { display: flex; flex-direction: column; gap: 0.15rem; }
+  .tab { padding: 0.55rem 0.8rem; font-size: 0.95rem; border: none; background: none; cursor: pointer; text-align: left;
+          color: inherit; opacity: 0.65; border-left: 3px solid transparent; border-radius: 0 0.35rem 0.35rem 0; }
+  .tab:hover { opacity: 0.9; background: rgba(127, 127, 127, 0.12); }
+  .tab.active { opacity: 1; border-left-color: #2563eb; background: rgba(37, 99, 235, 0.1); font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel iframe { display: block; width: 100%; height: calc(100vh - 1.5rem); min-height: 400px; border: 0; border-radius: 0.5rem; }
+  @media (max-width: 700px) {
+    body { flex-direction: column; height: auto; overflow: visible; }
+    #side { width: auto; border-right: none; border-bottom: 1px solid #ddd; }
+    .tabs { flex-direction: row; flex-wrap: wrap; }
+    #status { flex-direction: row; flex-wrap: wrap; margin-top: 0; }
+    #main { overflow: visible; }
+  }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+  .tile { border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
+           display: flex; flex-direction: column; height: 280px; }
+  .tile-head { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.3rem 0.6rem 0.4rem;
+                font-size: 0.8rem; background: #111; color: #ccc; flex-shrink: 0; }
+  .tile-title { display: flex; align-items: center; justify-content: space-between; }
+  .tile-label { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .tile-reload { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }
+  .tile-reload:hover { color: #fff; }
+  .tile-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }
+  .tile-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-status { white-space: nowrap; }
+  .tile-status.st-on { color: #16a34a; }
+  .tile-status.st-off { color: #dc2626; }
+  .tile-release, .tile-pw-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-pw { margin-left: auto; font-size: 0.72rem; user-select: all; }
+  .tile-pw:empty { display: none; }
+  .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release { margin-left: auto; }
+  .tile-release:hover, .tile-pw-btn:hover { background: #7c8494; }
+  .tile-release:disabled { opacity: 0.6; cursor: default; }
+  #roster-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+  #release-unused { padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
+    background: #64748b; color: #fff; cursor: pointer; }
+  #release-unused:hover { background: #7c8494; }
+  #release-unused:disabled { opacity: 0.6; cursor: default; }
+  /* The iframe is laid out at a fixed, generous pixel size (see
+     FRAME_W/H below), then CSS-transformed to fill whatever size the
+     tile wrapper actually is, enlarged or not -- see that comment and
+     updateScale's for why. */
+  .tile-frame-wrap { position: relative; flex: 1; overflow: hidden; background: #000; }
+  .tile-waiting { position: absolute; inset: 0; display: flex; align-items: center;
+          justify-content: center; text-align: center; padding: 1rem;
+          font-size: 0.78rem; color: #888; }
+  .tile.watching .tile-waiting { display: none; }
+  .tile iframe { position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
+          background: #000; transform-origin: top left; }
+  #grid.has-enlarged .tile { display: none; }
+  #grid.has-enlarged .tile.enlarged { display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }
+"""
+
+ADMIN_JS = """
+// -- tabs ---------------------------------------------------------------
+const tabs = Array.from(document.querySelectorAll('.tab'));
+const panels = {};
+document.querySelectorAll('.panel').forEach(p => { panels[p.id.slice('panel-'.length)] = p; });
+
+function activateTab(name) {
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  Object.entries(panels).forEach(([key, el]) => el.classList.toggle('active', key === name));
+  const frame = panels[name] && panels[name].querySelector('iframe[data-src]');
+  if (frame) { frame.src = frame.dataset.src; frame.removeAttribute('data-src'); }
+}
+tabs.forEach(t => t.onclick = () => activateTab(t.dataset.tab));
+
+// -- roster grid ------------------------------------------------------
+const grid = document.getElementById('grid');
+const tiles = {};
+let enlarged = null;
+
+// The watch iframe is laid out at one fixed, generous pixel size -- not
+// the tile's actual (usually much smaller) visible size -- then shrunk
+// (or, enlarged, grown) to fit with a CSS transform (see updateScale).
+// xterm.js inside sizes its terminal from that *unscaled* layout box, so
+// tmux always sees a client at least as big as most real single-terminal
+// panes; a client smaller than the real pane is what makes tmux clip to
+// that corner instead of reflowing (see tmux.conf's window-size comment).
+//
+// This view is read-only and just for a facilitator's at-a-glance check,
+// not a pixel-perfect mirror, so it deliberately does NOT track each
+// student's actual pane size to match it exactly -- an earlier version
+// did, but a session nobody else ever attaches to (every demo bot, always
+// -- see tmux.conf) has nothing real to anchor that size against, so this
+// page's own size guess fed back into itself every 5s poll and grew
+// without bound. One fixed reference size, comfortably bigger than almost
+// any single terminal pane, sidesteps that whole problem.
+//
+// A smaller per-tile-only reference (more legible text, less content
+// visible) was tried and reverted -- shrinking a small tile's *content*,
+// not just its text, isn't the tradeoff wanted here; a small tile should
+// show as much of the real pane as an enlarged one does, just smaller.
+const FRAME_W = 1120;
+const FRAME_H = 800;
+
+function initFrameSize(frame) {
+  frame.dataset.w = FRAME_W;
+  frame.dataset.h = FRAME_H;
+  frame.style.width = FRAME_W + 'px';
+  frame.style.height = FRAME_H + 'px';
+}
+
+// A floor on how far a tile will shrink the frame to fit -- without one,
+// a tile still mid-layout (0 width/height for a tick after being added)
+// or an unusually large real pane would render text at an illegibly tiny
+// scale. Below this floor .tile-frame-wrap's overflow: hidden just crops
+// to whatever corner fits, same as tmux would show a too-small client
+// anyway (see above) -- a legible fraction beats all of it unreadable.
+const MIN_SCALE = 0.3;
+
+function updateScale(wrap) {
+  const frame = wrap.querySelector('iframe');
+  if (!frame || !frame.dataset.w) return;
+  const rect = wrap.getBoundingClientRect();
+  const scale = Math.min(rect.width / frame.dataset.w, rect.height / frame.dataset.h);
+  frame.style.transform = `scale(${Math.max(scale, MIN_SCALE)})`;
+}
+
+const frameObserver = new ResizeObserver(entries => {
+  for (const entry of entries) updateScale(entry.target);
+});
+
+// Builds one element; any text goes in via textContent (student names and
+// the like are data, never markup).
+function make(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function setStatus(el, active) {
+  el.textContent = active ? '\\u25CF active' : '\\u25CF inactive';
+  el.classList.toggle('st-on', !!active);
+  el.classList.toggle('st-off', !active);
+}
+
+// Connects a tile's iframe to its watch endpoint the first time the
+// student becomes watchable (see updateRoster) -- a no-op if already
+// connected, so it's safe to call on every poll.
+function activateWatch(tile, sid) {
+  const frame = tile.querySelector('iframe');
+  if (frame.src) return;
+  frame.src = '/admin/watch/' + encodeURIComponent(sid) + '/';
+  tile.classList.add('watching');
+}
+
+function reloadTile(sid) {
+  const frame = tiles[sid].querySelector('iframe');
+  if (!frame.src) return;  // not watchable yet -- nothing to reload
+  const src = frame.src;
+  frame.src = 'about:blank';
+  frame.src = src;
+}
+
+function releaseTile(sid, btn) {
+  btn.disabled = true;
+  fetch('/admin/release/' + encodeURIComponent(sid), {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(refresh);
+}
+
+// Roster "Release unused": free every slot taken a while ago whose student
+// never started VS Code or a terminal (e.g. slots a script grabbed).
+function releaseUnused(btn, out) {
+  if (!confirm('Release every slot taken over 2 minutes ago with no VS Code or terminal running?')) return;
+  btn.disabled = true;
+  fetch('/admin/release-unused', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.released.length ? 'Released: ' + d.released.join(', ') : 'Nothing to release'; })
+    .catch(() => { out.textContent = 'Release failed'; })
+    .finally(() => { btn.disabled = false; refresh(); });
+}
+document.getElementById('release-unused').onclick = (e) =>
+  releaseUnused(e.currentTarget, document.getElementById('release-unused-out'));
+
+// Roster "Password": fetch one student's Forgejo password on demand and show
+// it in the tile (textContent only); a second click hides it again.
+function togglePassword(sid, btn, out) {
+  if (out.textContent) { out.textContent = ''; btn.textContent = 'Password'; return; }
+  fetch('/admin/api/forgejo-password/' + encodeURIComponent(sid), {
+    headers: { 'X-Requested-With': 'dojo-admin' },
+  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { out.textContent = d.password; btn.textContent = 'Hide'; })
+    .catch(() => { out.textContent = 'unavailable'; });
+}
+
+function toggleEnlarge(sid) {
+  if (enlarged === sid) { closeEnlarge(); return; }
+  if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
+  tiles[sid].classList.add('enlarged');
+  grid.classList.add('has-enlarged');
+  enlarged = sid;
+}
+
+function closeEnlarge() {
+  if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
+  grid.classList.remove('has-enlarged');
+  enlarged = null;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEnlarge(); });
+
+function buildTile(r) {
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  const head = document.createElement('div');
+  head.className = 'tile-head';
+  const title = make('div', 'tile-title');
+  const label = make('span', 'tile-label', String(r.studentId) + ' \\u2014 ' + String(r.name));
+  const reload = make('button', 'tile-reload', '\\u21BB');
+  reload.title = 'Reload (follow current terminal)';
+  title.append(label, reload);
+  const meta = make('div', 'tile-meta');
+  const status = make('span', 'tile-status');
+  setStatus(status, r.active);
+  const pw = make('code', 'tile-pw');
+  const pwBtn = make('button', 'tile-pw-btn', 'Password');
+  const release = make('button', 'tile-release', 'Release');
+  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release);
+  head.append(title, meta);
+  label.onclick = () => toggleEnlarge(r.studentId);
+  reload.onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
+  release.onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
+  // Bots sign in with BOT_PASSWORD, not a derived one: no button.
+  if (r.ip === 'bot') pwBtn.remove();
+  else pwBtn.onclick = (e) => { e.stopPropagation(); togglePassword(r.studentId, e.currentTarget, pw); };
+  const wrap = document.createElement('div');
+  wrap.className = 'tile-frame-wrap';
+  const waiting = document.createElement('div');
+  waiting.className = 'tile-waiting';
+  waiting.textContent = 'Waiting for a terminal session to watch…';
+  const frame = document.createElement('iframe');
+  frame.loading = 'lazy';
+  wrap.appendChild(waiting);
+  wrap.appendChild(frame);
+  initFrameSize(frame);
+  tile.appendChild(head);
+  tile.appendChild(wrap);
+  frameObserver.observe(wrap);
+  if (r.watchable) activateWatch(tile, r.studentId);
+  return tile;
+}
+
+function updateRoster(rows) {
+  const seen = new Set();
+  for (const r of rows) {
+    seen.add(r.studentId);
+    if (tiles[r.studentId]) {
+      setStatus(tiles[r.studentId].querySelector('.tile-status'), r.active);
+      if (r.watchable) activateWatch(tiles[r.studentId], r.studentId);
+      continue;
+    }
+    const tile = buildTile(r);
+    grid.appendChild(tile);
+    tiles[r.studentId] = tile;
+  }
+  for (const sid of Object.keys(tiles)) {
+    if (seen.has(sid)) continue;
+    frameObserver.unobserve(tiles[sid].querySelector('.tile-frame-wrap'));
+    tiles[sid].remove();
+    delete tiles[sid];
+    if (enlarged === sid) enlarged = null;
+  }
+  document.getElementById('empty').style.display = rows.length ? 'none' : 'block';
+}
+
+// -- service status strip ---------------------------------------------
+// One chip per service: coloured dot + name + a word, so colour is never
+// the only signal. Chips are updated in place (never rebuilt) and all text
+// goes in via textContent/title -- names and details are data.
+const statusEl = document.getElementById('status');
+const svcChips = [];
+const STATE_WORD = { green: 'Ready', yellow: 'Starting', red: 'Down' };
+
+function buildChip() {
+  const el = document.createElement('span');
+  const dot = document.createElement('span');
+  dot.className = 'svc-dot';
+  dot.setAttribute('aria-hidden', 'true');
+  const name = document.createElement('span');
+  name.className = 'svc-name';
+  const word = document.createElement('span');
+  word.className = 'svc-word';
+  el.append(dot, name, word);
+  return el;
+}
+
+function updateStatus(data) {
+  const services = Array.isArray(data.services) ? data.services : [];
+  services.forEach((s, i) => {
+    if (!svcChips[i]) {
+      svcChips[i] = buildChip();
+      statusEl.appendChild(svcChips[i]);
+    }
+    const el = svcChips[i];
+    const state = STATE_WORD[s.state] ? s.state : 'red';
+    el.className = 'svc ' + state;
+    el.querySelector('.svc-name').textContent = String(s.name);
+    el.querySelector('.svc-word').textContent = STATE_WORD[state];
+    el.title = s.detail ? String(s.name) + ': ' + String(s.detail) : String(s.name) + ': ' + STATE_WORD[state];
+  });
+  while (svcChips.length > services.length) svcChips.pop().remove();
+  statusEl.classList.remove('stale');
+}
+
+async function refreshStatus() {
+  try {
+    updateStatus(await (await fetch('/admin/api/status')).json());
+  } catch {
+    statusEl.classList.add('stale');  // keep the last known chips, greyed out
+  }
+}
+
+async function refresh() {
+  refreshStatus();
+  let rows;
+  try {
+    rows = await (await fetch('/admin/api/sessions')).json();
+  } catch {
+    return;  // transient fetch failure -- try again next poll, don't tear down tiles
+  }
+  updateRoster(rows);
+}
+refresh();
+setInterval(refresh, 5000);
+"""
+
+
+def _style_hash(text):
+    return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
+
+
+CSP = ("default-src 'self'; script-src 'self'; "
+       f"style-src 'self' {_style_hash(LANDING_CSS)} {_style_hash(CONFIRM_CSS)}; "
+       "img-src 'self' data:; object-src 'none'; base-uri 'none'; "
+       "form-action 'self'; frame-ancestors 'self'")
+
+ADMIN_ASSETS = {
+    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS),
+    "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
+}
+
+
 def page(title, body):
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          max-width: 30rem; margin: 8vh auto; padding: 0 1.25rem; color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  h1 {{ font-size: 1.4rem; margin-bottom: 0.25rem; }}
-  .sub {{ opacity: 0.7; margin-bottom: 2rem; }}
-  input[type=text] {{ width: 100%; padding: 0.6rem 0.8rem; font-size: 1rem; border-radius: 0.5rem;
-          border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 1rem; }}
-  button, .btn {{ display: inline-block; padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 0.5rem;
-          border: none; background: #2563eb; color: white; cursor: pointer; text-decoration: none;
-          margin-right: 0.5rem; margin-bottom: 0.5rem; }}
-  button:disabled {{ opacity: 0.6; cursor: default; }}
-  .btn.secondary {{ background: #6b7280; }}
-  .badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
-          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
-</style></head>
+<style>{LANDING_CSS}</style></head>
 <body>{body}</body></html>"""
 
 
@@ -607,8 +1055,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Content-Security-Policy", CSP)
         for k, v in (headers or {}):
             self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def send_asset(self, content_type, body):
+        encoded = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(encoded)
 
@@ -705,7 +1164,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = f"""
 <h1>{html.escape(WORKSHOP_NAME)}</h1>
 <p class="sub">Enter your name to get started.</p>
-<form method="post" action="/assign" onsubmit="this.querySelector('button').disabled=true">
+<form method="post" action="/assign">
   <input type="text" name="name" placeholder="Your name" required autofocus maxlength="60">
   <button type="submit">Join workshop</button>
 </form>"""
@@ -790,57 +1249,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  .hero {{ text-align: center; margin-bottom: 2rem; }}
-  .hero-badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
-          padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
-          margin-bottom: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .hero-badge {{ background: #1e2352; color: #c7d2fe; }} }}
-  .hero h1 {{ font-size: 1.6rem; margin: 0 0 0.4rem; }}
-  .hero .sub {{ opacity: 0.7; margin: 0; }}
-  .cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }}
-  @media (max-width: 30rem) {{ .cards {{ grid-template-columns: 1fr; }} }}
-  .card {{ display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
-          border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
-          transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }}
-  @media (prefers-color-scheme: dark) {{ .card {{ border-color: #333; background: #1f1f1f; }} }}
-  .card:hover, .card:focus-visible {{ border-color: #2563eb; transform: translateY(-1px);
-          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15); }}
-  .card.primary {{ grid-column: 1 / -1; border-color: #2563eb; background: #eff6ff; }}
-  @media (prefers-color-scheme: dark) {{ .card.primary {{ background: #172554; }} }}
-  .card-icon {{ flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; background: #eef2ff;
-          color: #2563eb; display: flex; align-items: center; justify-content: center; }}
-  @media (prefers-color-scheme: dark) {{ .card-icon {{ background: #1e2352; }} }}
-  .card.primary .card-icon {{ background: #2563eb; color: #fff; }}
-  .card-icon svg {{ width: 1.25rem; height: 1.25rem; }}
-  .card-text {{ display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }}
-  .card-title {{ font-weight: 600; font-size: 0.98rem; }}
-  .card-desc {{ font-size: 0.82rem; opacity: 0.65; line-height: 1.3; }}
-  .card-arrow {{ flex-shrink: 0; opacity: 0.35; width: 1rem; height: 1rem; }}
-  .card:hover .card-arrow, .card:focus-visible .card-arrow {{ opacity: 0.7; }}
-  .secret {{ margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e2e2;
-          background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }}
-  @media (prefers-color-scheme: dark) {{ .secret {{ border-color: #333; background: #1f1f1f; }} }}
-  .secret-label {{ font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em; }}
-  .secret code {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #eef2ff;
-          color: #3730a3; border-radius: 0.4rem; padding: 0.1rem 0.5rem; }}
-  @media (prefers-color-scheme: dark) {{ .secret code {{ background: #1e2352; color: #c7d2fe; }} }}
-  .secret-hint code {{ font-size: 0.75rem; padding: 0.05rem 0.3rem; }}
-  .secret-table {{ border-collapse: collapse; margin: 0.15rem 0; }}
-  .secret-table th, .secret-table td {{ padding: 0.35rem 0.75rem; border-bottom: 1px solid #e2e2e2; }}
-  @media (prefers-color-scheme: dark) {{ .secret-table th, .secret-table td {{ border-color: #333; }} }}
-  .secret-table tr:last-child th, .secret-table tr:last-child td {{ border-bottom: none; }}
-  .secret-table th {{ text-align: right; font-weight: 500; font-size: 0.85rem; opacity: 0.7; }}
-  .secret-table td {{ text-align: left; }}
-  .secret-value {{ font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }}
-  .secret-hint {{ font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }}
-  .footnote {{ margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }}
-</style></head>
+<style>{CONFIRM_CSS}</style></head>
 <body>{body}</body></html>"""
 
     def render_facilitator_workspace(self):
@@ -913,279 +1322,7 @@ EXT_TABS_PLACEHOLDER  </div>
 <div class="panel" id="panel-forgejo"><iframe data-src="/forgejo-login"></iframe></div>
 <div class="panel" id="panel-slides"><iframe data-src="/slides/"></iframe></div>
 EXT_PANELS_PLACEHOLDER</main>
-<script>
-// -- tabs ---------------------------------------------------------------
-const tabs = Array.from(document.querySelectorAll('.tab'));
-const panels = {};
-document.querySelectorAll('.panel').forEach(p => { panels[p.id.slice('panel-'.length)] = p; });
-
-function activateTab(name) {
-  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-  Object.entries(panels).forEach(([key, el]) => el.classList.toggle('active', key === name));
-  const frame = panels[name] && panels[name].querySelector('iframe[data-src]');
-  if (frame) { frame.src = frame.dataset.src; frame.removeAttribute('data-src'); }
-}
-tabs.forEach(t => t.onclick = () => activateTab(t.dataset.tab));
-
-// -- roster grid ------------------------------------------------------
-const grid = document.getElementById('grid');
-const tiles = {};
-let enlarged = null;
-
-// The watch iframe is laid out at one fixed, generous pixel size -- not
-// the tile's actual (usually much smaller) visible size -- then shrunk
-// (or, enlarged, grown) to fit with a CSS transform (see updateScale).
-// xterm.js inside sizes its terminal from that *unscaled* layout box, so
-// tmux always sees a client at least as big as most real single-terminal
-// panes; a client smaller than the real pane is what makes tmux clip to
-// that corner instead of reflowing (see tmux.conf's window-size comment).
-//
-// This view is read-only and just for a facilitator's at-a-glance check,
-// not a pixel-perfect mirror, so it deliberately does NOT track each
-// student's actual pane size to match it exactly -- an earlier version
-// did, but a session nobody else ever attaches to (every demo bot, always
-// -- see tmux.conf) has nothing real to anchor that size against, so this
-// page's own size guess fed back into itself every 5s poll and grew
-// without bound. One fixed reference size, comfortably bigger than almost
-// any single terminal pane, sidesteps that whole problem.
-//
-// A smaller per-tile-only reference (more legible text, less content
-// visible) was tried and reverted -- shrinking a small tile's *content*,
-// not just its text, isn't the tradeoff wanted here; a small tile should
-// show as much of the real pane as an enlarged one does, just smaller.
-const FRAME_W = 1120;
-const FRAME_H = 800;
-
-function initFrameSize(frame) {
-  frame.dataset.w = FRAME_W;
-  frame.dataset.h = FRAME_H;
-  frame.style.width = FRAME_W + 'px';
-  frame.style.height = FRAME_H + 'px';
-}
-
-// A floor on how far a tile will shrink the frame to fit -- without one,
-// a tile still mid-layout (0 width/height for a tick after being added)
-// or an unusually large real pane would render text at an illegibly tiny
-// scale. Below this floor .tile-frame-wrap's overflow: hidden just crops
-// to whatever corner fits, same as tmux would show a too-small client
-// anyway (see above) -- a legible fraction beats all of it unreadable.
-const MIN_SCALE = 0.3;
-
-function updateScale(wrap) {
-  const frame = wrap.querySelector('iframe');
-  if (!frame || !frame.dataset.w) return;
-  const rect = wrap.getBoundingClientRect();
-  const scale = Math.min(rect.width / frame.dataset.w, rect.height / frame.dataset.h);
-  frame.style.transform = `scale(${Math.max(scale, MIN_SCALE)})`;
-}
-
-const frameObserver = new ResizeObserver(entries => {
-  for (const entry of entries) updateScale(entry.target);
-});
-
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function statusHtml(active) {
-  return active
-    ? '<span style="color:#16a34a">&#9679; active</span>'
-    : '<span style="color:#dc2626">&#9679; inactive</span>';
-}
-
-// Connects a tile's iframe to its watch endpoint the first time the
-// student becomes watchable (see updateRoster) -- a no-op if already
-// connected, so it's safe to call on every poll.
-function activateWatch(tile, sid) {
-  const frame = tile.querySelector('iframe');
-  if (frame.src) return;
-  frame.src = '/admin/watch/' + encodeURIComponent(sid) + '/';
-  tile.classList.add('watching');
-}
-
-function reloadTile(sid) {
-  const frame = tiles[sid].querySelector('iframe');
-  if (!frame.src) return;  // not watchable yet -- nothing to reload
-  const src = frame.src;
-  frame.src = 'about:blank';
-  frame.src = src;
-}
-
-function releaseTile(sid, btn) {
-  btn.disabled = true;
-  fetch('/admin/release/' + encodeURIComponent(sid), {
-    method: 'POST',
-    headers: { 'X-Requested-With': 'dojo-admin' },
-  }).then(refresh);
-}
-
-// Roster "Release unused": free every slot taken a while ago whose student
-// never started VS Code or a terminal (e.g. slots a script grabbed).
-function releaseUnused(btn, out) {
-  if (!confirm('Release every slot taken over 2 minutes ago with no VS Code or terminal running?')) return;
-  btn.disabled = true;
-  fetch('/admin/release-unused', {
-    method: 'POST',
-    headers: { 'X-Requested-With': 'dojo-admin' },
-  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(d => { out.textContent = d.released.length ? 'Released: ' + d.released.join(', ') : 'Nothing to release'; })
-    .catch(() => { out.textContent = 'Release failed'; })
-    .finally(() => { btn.disabled = false; refresh(); });
-}
-document.getElementById('release-unused').onclick = (e) =>
-  releaseUnused(e.currentTarget, document.getElementById('release-unused-out'));
-
-// Roster "Password": fetch one student's Forgejo password on demand and show
-// it in the tile (textContent only); a second click hides it again.
-function togglePassword(sid, btn, out) {
-  if (out.textContent) { out.textContent = ''; btn.textContent = 'Password'; return; }
-  fetch('/admin/api/forgejo-password/' + encodeURIComponent(sid), {
-    headers: { 'X-Requested-With': 'dojo-admin' },
-  }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(d => { out.textContent = d.password; btn.textContent = 'Hide'; })
-    .catch(() => { out.textContent = 'unavailable'; });
-}
-
-function toggleEnlarge(sid) {
-  if (enlarged === sid) { closeEnlarge(); return; }
-  if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
-  tiles[sid].classList.add('enlarged');
-  grid.classList.add('has-enlarged');
-  enlarged = sid;
-}
-
-function closeEnlarge() {
-  if (enlarged && tiles[enlarged]) tiles[enlarged].classList.remove('enlarged');
-  grid.classList.remove('has-enlarged');
-  enlarged = null;
-}
-
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEnlarge(); });
-
-function buildTile(r) {
-  const tile = document.createElement('div');
-  tile.className = 'tile';
-  const head = document.createElement('div');
-  head.className = 'tile-head';
-  head.innerHTML = `
-    <div class="tile-title">
-      <span class="tile-label">${escapeHtml(r.studentId)} &mdash; ${escapeHtml(r.name)}</span>
-      <button class="tile-reload" title="Reload (follow current terminal)">&#8635;</button>
-    </div>
-    <div class="tile-meta">
-      <span class="tile-ip">${escapeHtml(r.ip)}</span>
-      <span class="tile-status">${statusHtml(r.active)}</span>
-      <code class="tile-pw"></code>
-      <button class="tile-pw-btn">Password</button>
-      <button class="tile-release">Release</button>
-    </div>`;
-  head.querySelector('.tile-label').onclick = () => toggleEnlarge(r.studentId);
-  head.querySelector('.tile-reload').onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
-  head.querySelector('.tile-release').onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
-  const pwBtn = head.querySelector('.tile-pw-btn');
-  // Bots sign in with BOT_PASSWORD, not a derived one: no button.
-  if (r.ip === 'bot') pwBtn.remove();
-  else pwBtn.onclick = (e) => { e.stopPropagation(); togglePassword(r.studentId, e.currentTarget, head.querySelector('.tile-pw')); };
-  const wrap = document.createElement('div');
-  wrap.className = 'tile-frame-wrap';
-  const waiting = document.createElement('div');
-  waiting.className = 'tile-waiting';
-  waiting.textContent = 'Waiting for a terminal session to watch…';
-  const frame = document.createElement('iframe');
-  frame.loading = 'lazy';
-  wrap.appendChild(waiting);
-  wrap.appendChild(frame);
-  initFrameSize(frame);
-  tile.appendChild(head);
-  tile.appendChild(wrap);
-  frameObserver.observe(wrap);
-  if (r.watchable) activateWatch(tile, r.studentId);
-  return tile;
-}
-
-function updateRoster(rows) {
-  const seen = new Set();
-  for (const r of rows) {
-    seen.add(r.studentId);
-    if (tiles[r.studentId]) {
-      tiles[r.studentId].querySelector('.tile-status').innerHTML = statusHtml(r.active);
-      if (r.watchable) activateWatch(tiles[r.studentId], r.studentId);
-      continue;
-    }
-    const tile = buildTile(r);
-    grid.appendChild(tile);
-    tiles[r.studentId] = tile;
-  }
-  for (const sid of Object.keys(tiles)) {
-    if (seen.has(sid)) continue;
-    frameObserver.unobserve(tiles[sid].querySelector('.tile-frame-wrap'));
-    tiles[sid].remove();
-    delete tiles[sid];
-    if (enlarged === sid) enlarged = null;
-  }
-  document.getElementById('empty').style.display = rows.length ? 'none' : 'block';
-}
-
-// -- service status strip ---------------------------------------------
-// One chip per service: coloured dot + name + a word, so colour is never
-// the only signal. Chips are updated in place (never rebuilt) and all text
-// goes in via textContent/title -- names and details are data.
-const statusEl = document.getElementById('status');
-const svcChips = [];
-const STATE_WORD = { green: 'Ready', yellow: 'Starting', red: 'Down' };
-
-function buildChip() {
-  const el = document.createElement('span');
-  const dot = document.createElement('span');
-  dot.className = 'svc-dot';
-  dot.setAttribute('aria-hidden', 'true');
-  const name = document.createElement('span');
-  name.className = 'svc-name';
-  const word = document.createElement('span');
-  word.className = 'svc-word';
-  el.append(dot, name, word);
-  return el;
-}
-
-function updateStatus(data) {
-  const services = Array.isArray(data.services) ? data.services : [];
-  services.forEach((s, i) => {
-    if (!svcChips[i]) {
-      svcChips[i] = buildChip();
-      statusEl.appendChild(svcChips[i]);
-    }
-    const el = svcChips[i];
-    const state = STATE_WORD[s.state] ? s.state : 'red';
-    el.className = 'svc ' + state;
-    el.querySelector('.svc-name').textContent = String(s.name);
-    el.querySelector('.svc-word').textContent = STATE_WORD[state];
-    el.title = s.detail ? String(s.name) + ': ' + String(s.detail) : String(s.name) + ': ' + STATE_WORD[state];
-  });
-  while (svcChips.length > services.length) svcChips.pop().remove();
-  statusEl.classList.remove('stale');
-}
-
-async function refreshStatus() {
-  try {
-    updateStatus(await (await fetch('/admin/api/status')).json());
-  } catch {
-    statusEl.classList.add('stale');  // keep the last known chips, greyed out
-  }
-}
-
-async function refresh() {
-  refreshStatus();
-  let rows;
-  try {
-    rows = await (await fetch('/admin/api/sessions')).json();
-  } catch {
-    return;  // transient fetch failure -- try again next poll, don't tear down tiles
-  }
-  updateRoster(rows);
-}
-refresh();
-setInterval(refresh, 5000);
-</script>"""
+<script src="/admin/admin.js"></script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
         # The facilitator gets every tool a student has: every tab a workshop
         # or module declares next to its cards (extensions.json).
@@ -1203,94 +1340,8 @@ setInterval(refresh, 5000);
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)} — Facilitator</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          margin: 0; height: 100vh; display: flex; overflow: hidden;
-          color: #1a1a1a; background: #fafafa; }}
-  @media (prefers-color-scheme: dark) {{ body {{ color: #eee; background: #171717; }} }}
-  #side {{ flex: none; width: 13.5rem; display: flex; flex-direction: column; gap: 1.1rem;
-           padding: 1.1rem 0.75rem; overflow-y: auto; border-right: 1px solid #ddd; background: #f3f3f3; }}
-  @media (prefers-color-scheme: dark) {{ #side {{ border-right-color: #333; background: #121212; }} }}
-  #main {{ flex: 1; min-width: 0; overflow: auto; padding: 0.75rem; }}
-  h1 {{ font-size: 1.3rem; margin: 0 0 0.15rem; }}
-  .sub {{ opacity: 0.7; }}
-  #bar .sub {{ margin: 0.25rem 0 0; font-size: 0.9rem; }}
-  #status {{ display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: auto; }}
-  #status.stale {{ opacity: 0.45; }}
-  .svc {{ display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px;
-          border: 1px solid #ddd; background: #fff; font-size: 0.8rem; max-width: 100%; cursor: default; }}
-  @media (prefers-color-scheme: dark) {{ .svc {{ border-color: #333; background: #1f1f1f; }} }}
-  .svc-dot {{ width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; background: #6b7280; }}
-  .svc.green .svc-dot {{ background: #16a34a; }}
-  .svc.yellow .svc-dot {{ background: #d97706; }}
-  .svc.red .svc-dot {{ background: #dc2626; }}
-  @media (prefers-color-scheme: dark) {{
-    .svc.green .svc-dot {{ background: #22c55e; }}
-    .svc.yellow .svc-dot {{ background: #f59e0b; }}
-    .svc.red .svc-dot {{ background: #f87171; }}
-  }}
-  .svc-name {{ font-weight: 600; }}
-  .svc-word {{ opacity: 0.75; }}
-  .svc.yellow .svc-word, .svc.red .svc-word {{ opacity: 1; font-weight: 600; }}
-  .badge {{ display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
-          padding: 0.15rem 0.7rem; font-weight: 600; font-size: 0.9rem; }}
-  @media (prefers-color-scheme: dark) {{ .badge {{ background: #1e2352; color: #c7d2fe; }} }}
-  button {{ font: inherit; }}
-  .tabs {{ display: flex; flex-direction: column; gap: 0.15rem; }}
-  .tab {{ padding: 0.55rem 0.8rem; font-size: 0.95rem; border: none; background: none; cursor: pointer; text-align: left;
-          color: inherit; opacity: 0.65; border-left: 3px solid transparent; border-radius: 0 0.35rem 0.35rem 0; }}
-  .tab:hover {{ opacity: 0.9; background: rgba(127, 127, 127, 0.12); }}
-  .tab.active {{ opacity: 1; border-left-color: #2563eb; background: rgba(37, 99, 235, 0.1); font-weight: 600; }}
-  .panel {{ display: none; }}
-  .panel.active {{ display: block; }}
-  .panel iframe {{ display: block; width: 100%; height: calc(100vh - 1.5rem); min-height: 400px; border: 0; border-radius: 0.5rem; }}
-  @media (max-width: 700px) {{
-    body {{ flex-direction: column; height: auto; overflow: visible; }}
-    #side {{ width: auto; border-right: none; border-bottom: 1px solid #ddd; }}
-    .tabs {{ flex-direction: row; flex-wrap: wrap; }}
-    #status {{ flex-direction: row; flex-wrap: wrap; margin-top: 0; }}
-    #main {{ overflow: visible; }}
-  }}
-  #grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }}
-  .tile {{ border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
-           display: flex; flex-direction: column; height: 280px; }}
-  .tile-head {{ display: flex; flex-direction: column; gap: 0.2rem; padding: 0.3rem 0.6rem 0.4rem;
-                font-size: 0.8rem; background: #111; color: #ccc; flex-shrink: 0; }}
-  .tile-title {{ display: flex; align-items: center; justify-content: space-between; }}
-  .tile-label {{ cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }}
-  .tile-reload {{ background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }}
-  .tile-reload:hover {{ color: #fff; }}
-  .tile-meta {{ display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }}
-  .tile-ip {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-  .tile-status {{ white-space: nowrap; }}
-  .tile-release, .tile-pw-btn {{ padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
-          border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }}
-  .tile-pw {{ margin-left: auto; font-size: 0.72rem; user-select: all; }}
-  .tile-pw:empty {{ display: none; }}
-  .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release {{ margin-left: auto; }}
-  .tile-release:hover, .tile-pw-btn:hover {{ background: #7c8494; }}
-  .tile-release:disabled {{ opacity: 0.6; cursor: default; }}
-  #roster-bar {{ display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }}
-  #release-unused {{ padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
-    background: #64748b; color: #fff; cursor: pointer; }}
-  #release-unused:hover {{ background: #7c8494; }}
-  #release-unused:disabled {{ opacity: 0.6; cursor: default; }}
-  /* The iframe is laid out at a fixed, generous pixel size (see
-     FRAME_W/H below), then CSS-transformed to fill whatever size the
-     tile wrapper actually is, enlarged or not -- see that comment and
-     updateScale's for why. */
-  .tile-frame-wrap {{ position: relative; flex: 1; overflow: hidden; background: #000; }}
-  .tile-waiting {{ position: absolute; inset: 0; display: flex; align-items: center;
-          justify-content: center; text-align: center; padding: 1rem;
-          font-size: 0.78rem; color: #888; }}
-  .tile.watching .tile-waiting {{ display: none; }}
-  .tile iframe {{ position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
-          background: #000; transform-origin: top left; }}
-  #grid.has-enlarged .tile {{ display: none; }}
-  #grid.has-enlarged .tile.enlarged {{ display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }}
-</style></head>
+<link rel="stylesheet" href="/admin/admin.css">
+</head>
 <body>{body}</body></html>"""
 
     # -- GET routes ----------------------------------------------------
@@ -1368,6 +1419,12 @@ setInterval(refresh, 5000);
             # basic_auth (see gateway/Caddyfile's @admin block) already
             # passed -- no separate cookie/login step needed.
             self.send_html(self.render_facilitator_workspace())
+            return
+
+        if path in ADMIN_ASSETS:
+            # The /admin page's own script and stylesheet (see ADMIN_JS):
+            # same facilitator gate as /admin itself.
+            self.send_asset(*ADMIN_ASSETS[path])
             return
 
         if path == "/admin/api/sessions":
