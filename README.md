@@ -121,6 +121,22 @@ in the browser.
   one script per lab, a runner-pool and audit check, browser checks and a
   demo-bot load run ([`workshops/vault-fundamentals/tests/`](workshops/vault-fundamentals/tests/)).
 
+## What you need on the host
+
+The facilitator's machine needs a container engine, git and openssl. Students need only a browser.
+**Podman** (with `podman-compose`) is the recommended engine; **Docker** with the Compose plugin also works.
+`run.sh` is bash and the containers are Linux, so:
+
+| Host | What to use |
+|---|---|
+| Ubuntu / Debian / Fedora | `./setup.sh` |
+| Windows | `.\setup.ps1` in PowerShell: sets up WSL2 + Ubuntu, clones the repo inside it, then runs `setup.sh` there |
+| macOS | `./setup.sh` (Homebrew; podman needs `podman machine`, or use Docker Desktop). Not yet tested on a Mac. |
+
+`./setup.sh` detects the OS, asks you to confirm, shows what is missing and asks before installing anything
+(`--check` only reports). `./run.sh` uses podman whenever `podman` and `podman-compose` are installed (rootless, no root daemon, so a
+container escape lands on an unprivileged user) and falls back to Docker otherwise.
+
 ## Who it's for
 
 Engineering and IT operations teams: people who use git every day, and people

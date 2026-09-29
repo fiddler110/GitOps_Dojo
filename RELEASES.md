@@ -7,6 +7,13 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Unreleased: `feat/achievements` (not yet merged to `main`)
+
+**Host setup and podman-first.** `setup.sh` (Linux, WSL, macOS) and `setup.ps1` (Windows, bootstraps WSL2 Ubuntu
+then runs `setup.sh`) check what the host lacks, show the install commands and run them only on a yes. `run.sh`,
+`teardown.sh` and `capacity-calc.sh` now prefer podman (rootless, safer) over docker when both are installed;
+docker remains the fallback. Checked locally on podman (`setup.sh --check`, syntax); macOS and the docker path untested.
+
 ## Unreleased: `feat/front-door` (not yet merged to `main`)
 
 **Front door.** The browser Basic Auth popup is replaced by a styled `/login` page (logo, dark/light, workshop name and
