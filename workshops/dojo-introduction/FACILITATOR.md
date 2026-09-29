@@ -49,8 +49,7 @@ Say this before someone asks:
 
 - **No Apps tab or My App card.** vault-fundamentals' `app-host` and `app-db` (labs 11-13: deploying from CI with a
   platform identity, and dynamic database logins) are left out. Run `./run.sh vault-fundamentals` to show them.
-- **No shared `dojo.test` zone, CI preview or protected `main`.** dns-as-code's review flow needs `forgejo-runner`, which can't
-  run beside the runner pool. Each student's own `<user>.dojo.test` zone works. Run `./run.sh dns-as-code` for the review flow.
+- **No shared `dojo.test` zone, CI preview or protected `main`.** dns-as-code's review flow isn't set up here. Each student's own `<user>.dojo.test` zone works. Run `./run.sh dns-as-code` for the review flow.
 - **No labs to finish.** The tour is a set of commands. The real labs are in the library, one workshop at a time.
 
 ## If something is off

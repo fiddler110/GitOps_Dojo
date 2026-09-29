@@ -70,7 +70,7 @@ in the browser.
   See [Security boundaries](#security-boundaries).
 - **Workshops are plug-ins.** A workshop is a folder under `workshops/`: a
   `workshop.env`, its content and, only if it needs them, reusable modules
-  (`MODULES="forgejo-runner"`), a Compose overlay, extra terminal tools and an
+  (`MODULES="runner-pool dns-gate"`), a Compose overlay, extra terminal tools and an
   `extensions.json` that declares its landing cards, `/admin` tabs and routes.
   The engine is never edited to add a workshop. See [`workshops/README.md`](workshops/README.md).
 - **Demo bots.** `--test [N]` adds up to 35 simulated students (expert,
@@ -136,15 +136,17 @@ automation instead of being made by hand.
 │   ├── MODULES-PLAN.md       # Design and history of extensions and modules
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
 ├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
-│   ├── forgejo-runner/       # Forgejo Actions runner (dns-as-code)
+│   ├── dns-gate/             # dns-api: PowerDNS API gate, per-account keys, CI by ID token (dns-as-code, cert-autorenewal)
+│   ├── dns-ui/               # DNS Zones page and the facilitator's DNS Admin (dns-as-code, cert-autorenewal)
 │   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
+│   ├── forgejo-runner/       # One long-lived Actions runner for one repo (no workshop uses it now)
 │   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
-│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals)
+│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals, dns-as-code)
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
-│   ├── dns-as-code/          # + PowerDNS; uses the forgejo-runner module
+│   ├── dns-as-code/          # + PowerDNS; runner-pool, dns-ui and dns-gate modules
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
 │   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; PLAN.md, FACILITATOR.md, TEST-PLAN.md, tests/
 │   └── vault-fundamentals/   # In progress; openbao + runner-pool modules, app-host and app-db; PLAN.md, tests/
@@ -288,8 +290,8 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | Workshop | Modules | Extra services | Extra networks | Terminal image adds | Data leaves the terminal to |
 | -------- | ------- | -------------- | -------------- | ------------------- | --------------------------- |
 | `git-fundamentals` | — | none | none | nothing (base image) | Forgejo only |
-| `dns-as-code` | `forgejo-runner` | `dns-server`; `runner-setup`, `forgejo-runner` (module) | `runner_net` (module) | `dnscontrol`, `dig`, `python3` | Forgejo, PowerDNS |
-| `cert-autorenewal` | — | `dns-server`, `dns-seed`, `step-ca`, `demo-app` | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq` | step-ca, PowerDNS, shared webroot volume |
+| `dns-as-code` | `runner-pool`, `dns-ui`, `dns-gate` | `dns-server`, `dns-gates`; `runner-pool`, `runner-pool-shim`, `runner-controller`, `zone-viewer`, `dns-admin`, `dns-api` (modules) | `runner_net` (module) | `dnscontrol`, `dig`, `python3`; own DNS key (module) | Forgejo, `dns-api` |
+| `cert-autorenewal` | `dns-ui`, `dns-gate` | `dns-server`, `dns-seed`, `step-ca`, `demo-app`; `zone-viewer`, `dns-admin`, `dns-api` (modules) | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq`; own DNS key (module) | step-ca, `dns-api`, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 | `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
 
@@ -341,11 +343,14 @@ from the terminal to `git-server:3000`, and only the browser UI is proxied.
 
 ### `dns-as-code` — Forgejo Actions runner + PowerDNS
 
-**Infrastructure and connectivity.** Adds a PowerDNS authoritative server
-and a CI runner. The runner executes student-authored workflow steps
-directly on its own filesystem (no sandbox, no `docker.sock`), so it lives
-on its own `runner_net` and can reach only `git-server` and `dns-server` —
-never `allocator` or `web-terminal`.
+**Infrastructure and connectivity.** Adds a PowerDNS authoritative server,
+the `dns-gate` module's `dns-api` in front of its API, and single-use CI
+runners from the `runner-pool` module. Jobs run student-authored steps as
+processes in the pool (no `docker.sock`), each on a fresh runner that is
+deleted afterwards; the pool lives on its own `runner_net` and reaches only
+`git-server`, `dns-api` and `dns-server` — never `allocator` or
+`web-terminal`. PowerDNS's own API key is derived in `workshop.env` and
+reaches only `dns-api` and the `dns-ui` module.
 
 ```mermaid
 graph TB
@@ -353,47 +358,46 @@ graph TB
     GW -->|"/git"| GS
 
     subgraph lab["workshop_lab - internal"]
-        WT["web-terminal<br/>dnscontrol, dig"]
+        WT["web-terminal<br/>dnscontrol, dig<br/>own key in $DNS_API_KEY"]
         GS["git-server (Forgejo)<br/>Actions enabled<br/>also on runner_net"]
+        API["dns-api (dns-gate)<br/>checks the key or ID token<br/>also on runner_net"]
         DNS["dns-server (PowerDNS)<br/>:53 DNS, :8081 API<br/>also on runner_net"]
     end
 
     subgraph rn["runner_net - internal"]
-        RS["runner-setup<br/>one-shot"]
-        RN["forgejo-runner<br/>host label, runs CI in place"]
+        RP["runner-pool<br/>single-use runners, host label"]
+        SH["runner-pool-shim<br/>public URL, ID-token path"]
     end
 
-    RC[("dns_runner_config<br/>volume")]
-    FD[("forgejo_data<br/>volume")]
-
     WT -->|"git clone / push"| GS
-    WT -->|"dnscontrol preview / push, :8081"| DNS
+    WT -->|"dnscontrol preview / push, own zone only"| API
     WT -->|"dig @dns-server, :53"| DNS
-    RN -->|"poll for jobs, clone, post status"| GS
-    RN -->|"dnscontrol preview / push, :8081"| DNS
-    RS -->|"registers the runner with the forgejo CLI"| FD
-    RS -->|"writes config.yaml"| RC
-    RC -.->|"read-only"| RN
+    API -->|"PowerDNS key, :8081"| DNS
+    RP -->|"poll for jobs, clone, post status"| GS
+    RP -->|"ID token request"| SH
+    SH --> GS
+    RP -->|"dnscontrol preview (read key) / push (ID token)"| API
 
     classDef addon fill:#10b9812e,stroke:#10b981,stroke-width:2px
     classDef core fill:#3b82f62e,stroke:#3b82f6,stroke-width:2px
     classDef gw fill:#8b5cf62e,stroke:#8b5cf6,stroke-width:2px
     classDef person fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
     classDef priv fill:#ef44442e,stroke:#ef4444,stroke-width:2px
-    classDef store fill:#06b6d42e,stroke:#06b6d4,stroke-width:2px
-    class DNS,RS addon
+    class DNS,API,SH addon
     class WT,GS core
     class GW gw
     class Browser person
-    class RN priv
-    class RC,FD store
+    class RP priv
     style lab fill:#3b82f60f,stroke:#3b82f6,stroke-width:1px,stroke-dasharray:5 4
     style rn fill:#ef44440f,stroke:#ef4444,stroke-width:1px,stroke-dasharray:5 4
 ```
 
 **Dataflow.** One change travels the whole loop: local preview, PR, CI
 preview, merge, CI apply, verify. The record only goes live when CI pushes
-it after the merge — not when the student pushes their branch.
+it after the merge — not when the student pushes their branch. `dns-api`
+lets the apply job change `dojo.test` only because Forgejo signed its ID
+token for a push to `main` of the class repo; a PR's job, a feature branch
+or a fork gets `403` whatever its workflow says.
 
 ```mermaid
 sequenceDiagram
@@ -402,34 +406,37 @@ sequenceDiagram
     participant GS as git-server (Forgejo)
     end
     box rgba(16,185,129,0.1) dns-as-code adds
-    participant RN as forgejo-runner
+    participant RN as runner-pool
+    participant API as dns-api
     participant DNS as dns-server (PowerDNS)
     end
 
     rect rgba(59,130,246,0.16)
     Note over S,DNS: Pull request - preview only
-    S->>DNS: dnscontrol preview (reads zone via :8081, changes nothing)
+    S->>API: dnscontrol preview (own key, reads dojo.test)
     S->>GS: git push branch, open pull request
-    GS-->>RN: pull_request event, job queued (runner polls)
-    RN->>GS: clone PR head over runner_net
-    RN->>DNS: dnscontrol preview (:8081)
+    GS-->>RN: pull_request event, a fresh runner takes the job
+    RN->>GS: clone main, merge the PR head
+    RN->>API: dnscontrol preview (read key)
     RN->>GS: comment the diff on the PR, set "DNS Preview" status
     end
 
     rect rgba(16,185,129,0.16)
     Note over S,DNS: Merge - CI applies the change
-    S->>GS: merge the PR to main
-    GS-->>RN: push to main, job queued
-    RN->>GS: clone main
-    RN->>DNS: dnscontrol push (:8081), the record goes live
+    S->>GS: merge the PR to main (review + passing preview)
+    GS-->>RN: push to main, a fresh runner takes the job
+    RN->>GS: clone main, ask for an ID token (audience dns-api)
+    RN->>API: dnscontrol push with the token
+    API->>DNS: checked: class repo, main, push - forwarded
     RN->>GS: set "DNS Apply" status
     S->>DNS: dig @dns-server name A +short (:53), verify
     end
 ```
 
 Zone data lives only in the PowerDNS container's own filesystem, so it
-resets on every teardown. Credentials for the API (`creds.json`) are in the
-seeded repo and are workshop-only, not secrets.
+resets on every teardown. `creds.json` in the seeded repo names no secret:
+`"apiKey": "$DNS_API_KEY"`, each account's own key in its terminal and the
+job's ID token in CI.
 
 ---
 
@@ -724,7 +731,7 @@ graph TB
             BS["bootstrap<br/>one-shot provisioning"]
         end
         subgraph rn["runner_net"]
-            RN["forgejo-runner<br/>runs student-written CI"]
+            RN["runner-pool<br/>single-use runners, student-written CI"]
         end
         subgraph cn["cloud_net"]
             HOST["cloud-host<br/>privileged docker-in-docker"]
@@ -740,7 +747,7 @@ graph TB
     WT -->|"lab traffic"| GS
     WT -->|"lab traffic"| SVC
     GS ---|"bootstrap's only door"| BS
-    GS ---|"runner's doors:<br/>Forgejo and PowerDNS"| RN
+    GS ---|"runners' doors: Forgejo,<br/>dns-api, OpenBao, app-host"| RN
     SVC ---|" "| RN
     SVC -->|"cloud-api's fixed templates only"| HOST
     WT -.-x|"no route"| OUT
@@ -927,8 +934,7 @@ blocked by network isolation or never routed.
 | ------------- | :----------: | :------------: | :----------: | :--------------------: | :---------: | :----------: | :------: |
 | Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
 | `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
-| `forgejo-runner` (dns-as-code) | ✓ | — | ✓ | — | — | — | — |
-| `runner-pool` (vault-fundamentals; also `openbao`, `app-host`) | ✓ | — | — | — | — | — | — |
+| `runner-pool` (dns-as-code: also `dns-api`; vault-fundamentals: also `openbao`, `app-host`) | ✓ | — | dns-as-code | — | — | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
 | `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |

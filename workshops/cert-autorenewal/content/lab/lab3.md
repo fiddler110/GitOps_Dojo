@@ -47,8 +47,11 @@ summarizing it. Look for:
   validate it.
 - The final certificate download once validation succeeds.
 
+acme.sh makes an ECC key by default and keeps that certificate in a folder
+named after the host with `_ecc` on the end:
+
 ```sh
-openssl x509 -in ~/acmesh-lab3/${host}/${host}.cer -noout -dates -subject -issuer
+openssl x509 -in ~/acmesh-lab3/${host}_ecc/${host}.cer -noout -dates -subject -issuer
 ```
 
 Compare `-issuer` against the certbot-issued certificate from Lab 2 — same

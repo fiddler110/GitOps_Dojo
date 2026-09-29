@@ -1,0 +1,46 @@
+# dns-gate module, layered on top of engine/docker-compose.yml by
+# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+# Relative paths resolve against engine/, not this folder.
+#
+# Needs the workshop to run PowerDNS as service `dns-server` with its API on
+# :8081 and the key in POWERDNS_API_KEY (derived in workshop.env, never
+# given to students). dns-api is the only way to that API for terminals and
+# CI; the workshop's overlay adds `depends_on: [dns-server]` and, if CI
+# writes, `runner_net`.
+#
+#   terminals --workshop_lab--> dns-api --> dns-server:8081 (upstream key)
+#   CI jobs ----runner_net----> dns-api       (CI-only zones, with an ID token)
+
+services:
+  dns-api:
+    build:
+      context: ../modules/dns-gate/gate
+    image: gitopsdojo/dns-api:local
+    container_name: workshop_dns_api
+    init: true
+    # `:-` not `:?`: ./run.sh stop reads this file with engine/.env only.
+    environment:
+      - PDNS_API_URL=http://dns-server:8081
+      - PDNS_UPSTREAM_KEY=${POWERDNS_API_KEY:-}
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - DNS_GATE_READ_KEY=${DNS_GATE_READ_KEY:-workshop-not-a-secret}
+      - DNS_GATE_USER_PARENTS=${DNS_GATE_USER_PARENTS:-dojo.test}
+      - DNS_GATE_SHARED_ZONES=${DNS_GATE_SHARED_ZONES:-}
+      - DNS_GATE_CI_ZONES=${DNS_GATE_CI_ZONES:-}
+      - DNS_GATE_CI_REPO=${DNS_GATE_CI_REPO:-}
+    networks:
+      - workshop_lab
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    pids_limit: 64
+    mem_limit: 64m
+    restart: unless-stopped
+
+  web-terminal:
+    depends_on:
+      - dns-api

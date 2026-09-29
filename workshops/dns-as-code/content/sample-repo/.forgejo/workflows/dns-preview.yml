@@ -1,6 +1,6 @@
-# Runs on this lab's own Forgejo Actions runner (see
-# workshops/dns-as-code/compose/runner/ in the workshop authoring repo -
-# not part of this lab repo itself). No `uses: actions/checkout@...` here
+# Runs on this lab's single-use Forgejo Actions runners (the runner-pool
+# module in the workshop authoring repo - not part of this lab repo
+# itself): each job gets a fresh runner. No `uses: actions/checkout@...` here
 # on purpose: this instance's actions network is internal-only, so nothing
 # outside this repo's own git-server is reachable - checkout is a plain
 # `git clone` against it instead.
@@ -18,6 +18,11 @@ on:
 jobs:
   preview:
     runs-on: host
+    # The lab's read-only key: a preview only reads. Nothing a PR changes in
+    # this file can write DNS: the dns-api gate lets only DNS Apply's token
+    # (a push to main of this repo) change dojo.test.
+    env:
+      DNS_API_KEY: workshop-not-a-secret
     steps:
       - name: Merge the PR into main (locally)
         run: |

@@ -168,8 +168,8 @@ flowchart LR
 | Workshop | Teaches | Brings |
 | -------- | ------- | ------ |
 | **Git Fundamentals** | clone, branch, commit, PR, undo, merge | Forgejo |
-| **DNS as Code** | DNS in git with dnscontrol, review, CI preview | `forgejo-runner`, `dns-ui` |
-| **Certificate Autorenewal** | ACME: step-ca, certbot, acme.sh | `dns-ui` |
+| **DNS as Code** | DNS in git with dnscontrol, review, CI preview | `runner-pool`, `dns-ui`, `dns-gate` |
+| **Certificate Autorenewal** | ACME: step-ca, certbot, acme.sh | `dns-ui`, `dns-gate` |
 | **OpenTofu Basics** | init / plan / apply / destroy | `dojo-cloud` |
 | **Vault Fundamentals** | secrets out of code, git and pipelines | `openbao`, `runner-pool` |
 

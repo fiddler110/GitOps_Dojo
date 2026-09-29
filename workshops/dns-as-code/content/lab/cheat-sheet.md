@@ -53,7 +53,7 @@ edit dnsconfig.js → preview → branch/commit/push → PR → CI preview → s
 
 Full walkthroughs: [lab1.md](lab1.md) (your zone) and [lab3.md](lab3.md) (the shared zone).
 
-**The gates on the shared zone.** `dnscontrol push` to `dojo.test` from your terminal fails with `403 ... only CI changes it`: the lab's PowerDNS API accepts changes to `dojo.test` only from the CI runner. `git push` to `main` fails too: `main` is protected, so changes arrive only as reviewed pull requests.
+**The gates on the shared zone.** `dnscontrol push` to `dojo.test` from your terminal fails with `403 ... only CI changes it`: the lab's PowerDNS API accepts changes to `dojo.test` only with a Forgejo-signed ID token from a job running for a push to `main` (DNS Apply). `git push` to `main` fails too: `main` is protected, so changes arrive only as reviewed pull requests.
 
 ---
 

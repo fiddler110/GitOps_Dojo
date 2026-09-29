@@ -278,9 +278,13 @@ def load_creds() -> tuple[dict | None, str | None]:
     entry = creds.get(CREDKEY)
     if not isinstance(entry, dict):
         return None, f'creds.json has no "{CREDKEY}" entry (dnsconfig.js looks it up by that name).'
+    # dnscontrol reads a value that starts with "$" from that environment
+    # variable (creds.json has "apiKey": "$DNS_API_KEY"); do the same.
+    entry = {k: os.environ.get(v[1:], "") if isinstance(v, str) and v.startswith("$") else v
+             for k, v in entry.items()}
     missing = [k for k in CREDS_REQUIRED_KEYS if not entry.get(k)]
     if missing:
-        return None, f'creds.json\'s "{CREDKEY}" entry is missing {", ".join(missing)}.'
+        return None, f'creds.json\'s "{CREDKEY}" entry is missing {", ".join(missing)} (or its $VARIABLE is empty).'
     return entry, None
 
 

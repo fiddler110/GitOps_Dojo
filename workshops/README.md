@@ -12,8 +12,8 @@ one workshop can use live in [`../modules/`](../modules/).
 | Workshop | What it teaches | Modules | Run it |
 | -------- | ---------------- | ------- | ------ |
 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
-| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `forgejo-runner` | `./run.sh dns-as-code` |
-| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | — | `./run.sh cert-autorenewal` |
+| [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
+| [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
 | [`vault-fundamentals/`](vault-fundamentals/) | *(in progress)* Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
@@ -227,5 +227,7 @@ Rules for `compose.yml`:
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
 
-Existing modules: [`forgejo-runner`](../modules/forgejo-runner/), [`dojo-cloud`](../modules/dojo-cloud/),
-[`openbao`](../modules/openbao/) and [`runner-pool`](../modules/runner-pool/).
+Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
+[`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and
+[`forgejo-runner`](../modules/forgejo-runner/) (a long-lived runner for one repo; no workshop uses it since
+dns-as-code moved to `runner-pool`).

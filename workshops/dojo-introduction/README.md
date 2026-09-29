@@ -24,7 +24,7 @@ is not a lab: nothing has to be completed. Every capability is running at once.
 
 ## How it is put together
 
-- `MODULES="openbao runner-pool dojo-cloud dns-ui"`. `forgejo-runner` is not listed: it can't run beside `runner-pool`.
+- `MODULES="openbao runner-pool dojo-cloud dns-ui dns-gate"`. `forgejo-runner` is not listed: it can't run beside `runner-pool`.
 - `compose/docker-compose.override.yml` reuses the other packs' sources (cert-autorenewal's PowerDNS seed, step-ca
   and demo site; vault-fundamentals' namespace and CI hooks, mounted file by file) and mounts each workshop's
   `content/slides` under the presentation service at `/slides/w/<name>/`.
@@ -36,9 +36,8 @@ is not a lab: nothing has to be completed. Every capability is running at once.
 ## Left out on purpose
 
 - vault-fundamentals' `app-host` and `app-db` (labs 11-13): no **Apps** tab or **My App** card, and no dynamic database logins.
-- dns-as-code's shared `dojo.test` zone, its CI preview and branch protection (they need `forgejo-runner`, which can't run
-  beside `runner-pool`). `dns-api` is here with an empty `CI_HOSTS`, so `dojo.test` itself is refused for everyone and only
-  each account's own zone is writable.
+- dns-as-code's shared `dojo.test` zone, its CI preview and branch protection. `dns-api` (the `dns-gate` module) is here
+  with no CI repo, so `dojo.test` itself is refused for everyone; each account's own key writes only its own zone.
 
 Their slides and labs are in the library; to run those flows, start that workshop.
 

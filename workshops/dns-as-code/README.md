@@ -8,7 +8,7 @@ muscle memory, applied to a `dnsconfig.js` file instead of a roster.
 Adapted from a real internal `dns-as-code-template` pattern (dnscontrol +
 Cloudflare, with GitHub Actions CI) — trimmed down for a self-contained
 lab: PowerDNS instead of a real DNS provider, Forgejo Actions instead of
-GitHub Actions (see `compose/runner/`), no GitHub-specific tooling
+GitHub Actions (the `runner-pool` module), no GitHub-specific tooling
 (`dnsctl_lib/forgejo.py` stands in for the GitHub CLI). See
 [dnscontrol.org](https://docs.dnscontrol.org/) for the underlying tool's
 full docs.
@@ -24,10 +24,11 @@ cp .env.example .env    # first time only — account/secret settings, skip if a
 This workshop's `workshop.env` points `run.sh` at a
 [Compose overlay](compose/docker-compose.override.yml) that adds a
 PowerDNS container (`dns-server`), swaps in a terminal image with
-`dnscontrol` + `dig` preinstalled, turns on Forgejo Actions on the shared
-git-server (additive env var, doesn't affect other workshops sharing the
-engine), and adds a Forgejo Actions runner (`compose/runner/`) so the
-sample repo's `.forgejo/workflows/` actually execute — everything else
+`dnscontrol` + `dig` preinstalled, and lists three modules
+(`MODULES` in `workshop.env`): `runner-pool` turns on Forgejo Actions with
+single-use runners so the sample repo's `.forgejo/workflows/` actually
+execute, `dns-ui` adds the DNS Zones page, and `dns-gate` puts the `dns-api`
+gate in front of PowerDNS (see **Who may change what** below) — everything else
 (gateway, Forgejo itself, slides, account provisioning) is the same
 shared engine [git-fundamentals](../git-fundamentals/) uses. See
 [`workshops/README.md`](../README.md) for how that selection mechanism
@@ -42,12 +43,31 @@ required:
 
 Only touch [`compose/`](compose/) if you need different tooling in the
 terminal, a different backend than PowerDNS, or to change the CI
-pipeline's runner itself — see the comments in
-[`compose/docker-compose.override.yml`](compose/docker-compose.override.yml),
-[`compose/terminal/Dockerfile`](compose/terminal/Dockerfile), and
-[`compose/runner/`](compose/runner/) first. The workflow files themselves
+pipeline's job tools (`JOB_TOOLS` in the overlay) — see the comments in
+[`compose/docker-compose.override.yml`](compose/docker-compose.override.yml) and
+[`compose/terminal/Dockerfile`](compose/terminal/Dockerfile) first. The workflow files themselves
 live in `content/sample-repo/.forgejo/workflows/`, alongside the rest of
 the seeded repo content.
+
+## Who may change what
+
+The `dns-gate` module's `dns-api` is the only way to the PowerDNS API
+(PowerDNS's own key is derived in `workshop.env` and never reaches a
+terminal or a job). `X-API-Key` carries one of:
+
+- **Each account's own key** (`$DNS_API_KEY`, written `0600` to
+  `~/.config/dojo/dns-api-key` at start): changes only that account's
+  `<user>.dojo.test`. `creds.json` says `"apiKey": "$DNS_API_KEY"`, so the
+  shared repo holds no secret.
+- **The job's Forgejo Actions ID token** (`dns-apply.yml`,
+  `enable-openid-connect: true`): changes `dojo.test` only when Forgejo
+  signed it for a push to `main` of `dns-team/dns-as-code`. A PR that edits
+  a workflow, a feature branch or a fork gets `403`, whatever it runs.
+- **The read key** `workshop-not-a-secret` (the preview job): reads only.
+
+Branch protection on `main` (`compose/gates/protect-main.sh`: the DNS
+Preview check and one approval) keeps an edited workflow from reaching
+`main` unreviewed.
 
 ## What's intentionally simplified vs. a production setup
 
@@ -59,12 +79,12 @@ the seeded repo content.
   has two workflows: `dns-preview.yml` (runs `dnscontrol preview` on every
   PR, posts the diff as a comment, sets a "DNS Preview" commit status) and
   `dns-apply.yml` (runs `dnscontrol push` on merge to `main`, sets a "DNS
-  Apply" status). `compose/runner/` builds and registers the Actions
-  runner these execute on — see `compose/runner/Dockerfile` and
-  `register.sh`. The runner executes job steps directly in its own
-  container (a `host` label, not the Docker executor), so no
-  `docker.sock` is mounted anywhere in this stack; that's also why
-  `dnscontrol`/`git`/`curl`/`jq` are preinstalled in that image rather than
+  Apply" status). They run on the `runner-pool` module's single-use
+  runners: each job gets a fresh runner that is deleted afterwards, so no
+  job finds another's files. Jobs run as processes in the pool container
+  (a `host` label, not the Docker executor), so no `docker.sock` is mounted
+  anywhere in this stack; that's also why `dnscontrol` (copied from the
+  terminal image) and `git`/`curl`/`jq` are preinstalled there rather than
   pulled per-job. Both workflows do their own `git clone` instead of
   `uses: actions/checkout@...`, since this instance's Actions network is
   internal-only (no reachable actions registry).
@@ -100,9 +120,10 @@ the seeded repo content.
   `dnscontrol push` + `dig @dns-server` actually work end to end in your
   environment, and specifically confirm the CI path: open a test PR,
   confirm `dns-preview.yml` posts a comment and sets a status, merge it,
-  confirm `dns-apply.yml` runs and the record goes live. `docker compose
-  logs forgejo-runner` and `docker compose logs runner-setup` are the
-  first places to look if it doesn't.
+  confirm `dns-apply.yml` runs and the record goes live. The Runners tab
+  in `/admin`, `podman logs workshop_runner_pool` and
+  `podman logs workshop_dns_api` (one line per refused or allowed zone
+  change) are the first places to look if it doesn't.
 - Reuses the git workflow from Session 1 — don't re-teach branching/PRs
   from scratch, just point back to it.
 - Keep the talk light on new git mechanics; the new material is

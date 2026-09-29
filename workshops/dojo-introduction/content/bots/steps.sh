@@ -26,6 +26,11 @@ step_tour_vault() {
 }
 
 step_tour_dns() {
+  # The dns-gate hook writes this bot's key after bot-runner.sh has started.
+  if [ -z "${DNS_API_KEY:-}" ] && [ -r "$HOME/.config/dojo/dns-api-key" ]; then
+    DNS_API_KEY="$(cat "$HOME/.config/dojo/dns-api-key")"
+    export DNS_API_KEY
+  fi
   narrate "Tour 4 -- DNS as code: my own zone, previewed then pushed"
   cd "$HOME/lab/my-zone" || return 1
   run_cmd "dnscontrol preview 2>&1 | tail -3"

@@ -12,6 +12,11 @@ on:
 jobs:
   apply:
     runs-on: host
+    # Lets the job ask Forgejo for a signed ID token that says which repo,
+    # branch and event it runs for. That token is the job's only DNS
+    # credential: the dns-api gate changes dojo.test only for a push to main
+    # of this repo, so no branch, PR or fork can write the shared zone.
+    enable-openid-connect: true
     steps:
       - name: Checkout main
         run: |
@@ -25,6 +30,9 @@ jobs:
         id: push
         run: |
           set +e
+          DNS_API_KEY=$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=dns-api" | jq -r .value)
+          export DNS_API_KEY
           (cd repo && dnscontrol push) >apply-output.txt 2>&1
           echo "status=$?" >>"$GITHUB_OUTPUT"
           cat apply-output.txt

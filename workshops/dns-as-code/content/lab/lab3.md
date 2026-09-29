@@ -4,7 +4,7 @@
 
 | Rule | Enforced by |
 | --- | --- |
-| Only CI changes `dojo.test` | The lab's PowerDNS API refuses changes to `dojo.test` from anywhere but the CI runner. |
+| Only CI changes `dojo.test` | The lab's PowerDNS API changes `dojo.test` only for a job that proves, with a token Forgejo signed, that it runs for a push to `main` of this repo. |
 | `main` only changes through a reviewed pull request | Branch protection on `main`: no direct pushes; the **DNS Preview** check must pass and one person other than the author must approve. |
 
 ---
@@ -132,7 +132,7 @@ That's the real point of code review for DNS: a second person reads the diff *an
 
 Once your PR has a green DNS Preview check and an approval, click **Merge** (Create merge commit).
 
-The merge to `main` starts the **DNS Apply** job, which runs `dnscontrol push` from the CI runner, the one place allowed to change `dojo.test`. Watch it in the repo's **Actions** tab, then check:
+The merge to `main` starts the **DNS Apply** job, the one thing allowed to change `dojo.test`. It holds no stored password: it asks Forgejo for a short-lived **ID token**, signed by Forgejo, that says *this job runs for a push to `main` of `dns-team/dns-as-code`*, and hands that to the PowerDNS API as its key. The API checks the signature and those three facts, so a job on another branch, a pull request or a fork gets `403`, even if it edits the workflow file. Watch it in the repo's **Actions** tab, then check:
 
 ```sh
 dig @dns-server $USER-app.dojo.test A +short

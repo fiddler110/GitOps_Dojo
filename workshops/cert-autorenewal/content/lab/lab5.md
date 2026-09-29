@@ -64,15 +64,20 @@ in the next step.
 ## 2. Deploy the TXT record
 
 This `PATCH` call is PowerDNS's own REST API for editing a zone — the same
-zone `dns-as-code` manages through `dnscontrol` instead of raw HTTP.
+API `dns-as-code` drives through `dnscontrol` instead of raw HTTP. It goes
+through `dns-api`, a gate in front of PowerDNS, with `$DNS_API_KEY`: your
+own key, set by your terminal. The whole class shares `certs.dojo.test`,
+but your key only changes names under your own (`studentXX.certs.dojo.test`),
+so nobody else can answer a dns-01 challenge for your name, or you for theirs.
+
 `changetype: REPLACE` sets (or overwrites) the `_acme-challenge` TXT
 record to exactly the value in `records`, which is what lets `step-ca`
 find it when it looks the name up in the next step. In your other pane,
 using the exact value certbot printed:
 
 ```sh
-curl -s -H "X-API-Key: workshop-not-a-secret" -H "Content-Type: application/json" \
-  -X PATCH "http://dns-server:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
+curl -s -H "X-API-Key: $DNS_API_KEY" -H "Content-Type: application/json" \
+  -X PATCH "http://dns-api:8081/api/v1/servers/localhost/zones/certs.dojo.test." \
   -d '{
     "rrsets": [{
       "name": "_acme-challenge.'"${host}"'.",
