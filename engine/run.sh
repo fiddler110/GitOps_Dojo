@@ -138,7 +138,6 @@ fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
 # table_draw prints the block once, over the previous one; table_loop repeats it.
 table_draw() {
   td_lines=0; [ ! -s "$tbl_state" ] || td_lines="$(cat "$tbl_state")"
-  [ "$td_lines" -eq 0 ] || printf '\033[%dA\033[J' "$td_lines"
   td_rows="$(ps_all --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null | awk -F'|' '
     { st = $2; s = "running"
       if (st ~ /\(unhealthy\)/) s = "unhealthy"
@@ -172,7 +171,10 @@ $(printf '%s\n' "$td_show" | awk -F'|' -v g="$c_green" -v y="$c_yellow" -v r="$c
   waiting="$(printf '%s\n' "$td_rows" | awk -F'|' '$2 != "healthy" && $2 != "running" && $2 != "done" { printf "%s%s", sep, $1; sep = ", " }')"
   [ -z "$waiting" ] || out="${out}
   ${c_yellow}waiting on: ${waiting}${c_off}"
-  printf '%s\n' "$out"
+  # Erase and reprint in one go, after the slow docker calls above, so the block never sits blank.
+  [ "$td_lines" -eq 0 ] || printf '\033[%dA' "$td_lines"
+  printf '%s\n' "$out" | awk '{ printf "%s\033[K\n", $0 }'
+  [ "$td_lines" -le "$(printf '%s\n' "$out" | wc -l)" ] || printf '\033[J'
   printf '%s\n' "$(printf '%s\n' "$out" | wc -l)" > "$tbl_state"
 }
 table_loop() {

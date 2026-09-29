@@ -124,7 +124,6 @@ fmt_elapsed() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
 # and every volume, going from "up" to "removed". Terminal only.
 td_draw() {
   n=0; [ ! -s "$td_state" ] || n="$(cat "$td_state")"
-  [ "$n" -eq 0 ] || printf '\033[%dA\033[J' "$n"
   now_c="$($cli ps -a --filter name=workshop_ --format '{{.Names}}|{{.Status}}' 2>/dev/null)"
   vols_left="$($cli volume ls -q 2>/dev/null | grep -c '^engine_' || true)"
   rows="$(for c in $td_containers; do
@@ -141,7 +140,10 @@ td_draw() {
 $(printf '%s\n' "$shown" | awk -F'|' -v g="$c_green" -v y="$c_yellow" -v o="$c_off" '
     { col = ($2 == "removed") ? g : y; mark = ($2 == "removed") ? "+" : "~"
       printf "  %s%s %-36s %s%s\n", col, mark, $1, $2, o }')"
-  printf '%s\n' "$out"
+  # Erase and reprint in one go, after the slow container calls above, so the block never sits blank.
+  [ "$n" -eq 0 ] || printf '\033[%dA' "$n"
+  printf '%s\n' "$out" | awk '{ printf "%s\033[K\n", $0 }'
+  [ "$n" -le "$(printf '%s\n' "$out" | wc -l)" ] || printf '\033[J'
   printf '%s\n' "$(printf '%s\n' "$out" | wc -l)" > "$td_state"
 }
 
