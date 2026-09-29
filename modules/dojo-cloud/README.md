@@ -34,3 +34,14 @@ CloudAPI keeps a token bucket per student for ARM calls (never keyed by source I
 `python3 -B -m unittest test_ratelimit`.
 
 Used by: `tofu-basics`.
+
+## Docker socket and DinD (FIND-15, T5.1)
+
+The socket `/run/cloud/docker.sock` is `0660 root:cloud` (gid 1900, `cloud-host/entrypoint.sh`); `cloud-api` joins
+the group with `group_add`. The `cloud_run` volume is mounted only by `cloud-api` and `cloud-host`, so the socket
+has no "other" access. Check: `podman exec workshop_cloud_host stat -c '%a %G' /run/cloud/docker.sock` prints
+`660 cloud`.
+
+`cloud-host` stays a privileged Docker-in-Docker daemon. Rootless DinD / podman-in-container was **not adopted**
+(accepted residual risk, decision D9): the box is what limits it (`internal: true` network, no published port,
+the socket shared with `cloud-api` alone, fixed-template executor) and a rootless variant was not spiked on WSL2.

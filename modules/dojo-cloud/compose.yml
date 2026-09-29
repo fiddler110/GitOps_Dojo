@@ -37,6 +37,8 @@ services:
       # ANONYMOUS volume. `down --volumes` (./run.sh stop) leaves anonymous volumes behind, one per start,
       # so name it: then stop removes it like every other volume.
       - cloud_docker:/var/lib/docker
+    environment:
+      - CLOUD_GID=1900
     networks:
       - cloud_net
     healthcheck:
@@ -77,6 +79,9 @@ services:
       - cloud_pki:/pki
       - cloud_secrets:/secrets
       - cloud_data:/data
+    # The docker.sock is 0660 root:cloud (cloud-host/entrypoint.sh, gid 1900): CloudAPI is the only member.
+    group_add:
+      - "1900"
     networks:
       cloud_net:
       workshop_lab:
