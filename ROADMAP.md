@@ -8,7 +8,7 @@ Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` afte
 
 | Plan                                                                                                   | What it covers                                                     | Status                                                |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------- |
-| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P5 done and committed; P6 (T6.1) next, ask first   |
+| [`threat-model-20260926-154208/REMEDIATION-PLAN.md`](threat-model-20260926-154208/REMEDIATION-PLAN.md) | Fixes for the 19 threat-model findings (report in the same folder) | P0-P6 done; P6 was a validation pass, outstanding items in plan §8   |
 | [`workshops/vault-fundamentals/PLAN.md`](workshops/vault-fundamentals/PLAN.md)                         | The vault-fundamentals workshop                                    | P0-P5 done, merged (PR #3)                            |
 | [`engine/student-reset.md`](engine/student-reset.md)                                                   | Facilitator reset of one student's whole environment               | R1.1 done (7172d9b); rest planned, decisions "proposed" |
 | [`engine/MODULES-PLAN.md`](engine/MODULES-PLAN.md)                                                     | Workshop modules and extensions (merged, PR #2)                    | Only the user's browser pass open                     |
@@ -16,9 +16,9 @@ Last updated: 2026-09-29 · Working branch: `feat/remediation` (from `main` afte
 
 ## Now
 
-1. **Remediation P6 (T6.1):** run `/threat-model-analyst` in incremental mode with the 2026-09-26 report as the
-   baseline; record Fixed / Partial / Accepted per finding. Goal: overall rating **Elevated → Moderate**, no Tier 1
-   and no Critical/Important Tier 2 finding open. **Ask the user before starting.** P0-P5 are built, live-tested
+1. **Remediation P6 (T6.1) done 2026-09-29 as a validation pass (no new threat model, user decision):** 15 Fixed,
+   2 Partial (FIND-11, FIND-17), 2 Accepted (FIND-15, FIND-19); nothing Tier 1 or Critical/Important open. Details
+   and the outstanding list are in the plan §8. Next: merge `feat/remediation` (ask first). P0-P5 are built, live-tested
    locally and committed (last code: 8387736; also lab 10 diagram as Mermaid, 7c44a3b). The landing page shows the student's own
    Forgejo password again (efda7c4, user request; reverses the T2.1c line).
    **run.sh progress (2026-09-29, user request):** `run.sh` shows a live status table while the stack starts and `stop`

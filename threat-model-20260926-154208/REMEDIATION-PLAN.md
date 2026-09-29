@@ -11,7 +11,7 @@
 | Report | `threat-model-20260926-154208/` (0-assessment, 0.1-architecture, 1-threatmodel + DFDs, 2-stride-analysis, 3-findings, threat-inventory.json), analysed at `6ca99bd` on `feat/vault-fundamentals` |
 | Scope | 19 findings (FIND-01..19) covering 101 threats: 75 Open, 26 Mitigated. Every Open threat maps to a finding (report §Threat Coverage Verification) |
 | Goal | Overall rating **Elevated → Moderate**: close the student-to-student crossings (FIND-03, 04, 05) and the edge exposure (FIND-01, 02), then defence in depth |
-| Overall status | **P0-P2 done. P3 built (T3.1-T3.4, de09a30 + 3056674, 2026-09-28); its remaining live tests are listed under T3.6. Open: T3.6.** |
+| Overall status | **P0-P6 done (P6 = validation only, 2026-09-29). Outstanding items are listed in §8, T6.1.** |
 | Working branch | `feat/remediation` (from `main` after PR #3, 2026-09-28; D12) |
 | Last updated | 2026-09-28 (T0.5: P0 closed; open items also listed in `/ROADMAP.md`) |
 
@@ -486,7 +486,7 @@ scoping (files with line numbers, what could break, verify steps, token estimate
 
 ### P6 — Incremental threat model
 
-- [ ] **T6.1** Run `/threat-model-analyst` in incremental mode with this report as the baseline; record Fixed /
+- [x] **T6.1** *(replaced by a validation pass, §8 2026-09-29)* Run `/threat-model-analyst` in incremental mode with this report as the baseline; record Fixed /
       Partial / Accepted per finding and the P0 results as overrides.
       *Verify:* the new report exists and shows the rating; no Critical or Important Tier 2 finding remains open.
 
@@ -503,15 +503,15 @@ scoping (files with line numbers, what could break, verify steps, token estimate
 | T2.1 | FIND-03 | **Critical** | ENGINE | Done 17fcb1a |
 | T2.2 | FIND-04 | Important | ENGINE+WS | Done 47e477e |
 | T2.3 | FIND-10 | Moderate | WS (+ENGINE, ask) | Done 9074e7f, 1caf9d3 |
-| T3.1 | FIND-05 | Important | WS+MODULE | Built de09a30; live tests left (T3.6) |
-| T3.2 | FIND-11 | Moderate | WS | Not started |
-| T3.3 | FIND-09 | Moderate | WS | Not started |
-| T3.4 | FIND-07 | Moderate | ENGINE, ask | Not started |
-| T4.1 | FIND-06 | Moderate | MODULE+WS | Not started |
-| T4.2 | FIND-14 | Low | ENGINE, ask | Not started |
-| T4.3 | FIND-12 | Low | mixed | Not started |
+| T3.1 | FIND-05 | Important | WS+MODULE | Done de09a30; live tests passed 2026-09-29 (T3.6/T4.5) |
+| T3.2 | FIND-11 | Moderate | WS | Done de09a30 (PowerDNS keys still derived from the shared token: partial) |
+| T3.3 | FIND-09 | Moderate | WS | Done de09a30 |
+| T3.4 | FIND-07 | Moderate | ENGINE, ask | Done 3056674, f20e260 |
+| T4.1 | FIND-06 | Moderate | MODULE+WS | Done eb6b700 |
+| T4.2 | FIND-14 | Low | ENGINE, ask | Done a2d7363 |
+| T4.3 | FIND-12 | Low | mixed | Done a2d7363, eb6b700, 54c8924 |
 | T5.1-T5.4 | FIND-15/16/17/19 | Imp/Mod/Mod/Low | mixed | Built + live-tested locally 2026-09-29; vault browser pass and second start open |
-| T6.1 | Incremental report | — | — | Not started |
+| T6.1 | Validation (no new threat model, user decision 2026-09-29) | — | — | Done, see §8 |
 
 **Expected after P1-P3:** no Tier 1 findings and no Critical or Important Tier 2 findings; overall **Moderate**, the
 rest tracked as defence in depth or accepted risk (D9).
@@ -720,3 +720,21 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
   `service_completed_successfully` (8387736), next start 16/16 healthy. Also lab 10 diagram as Mermaid (7c44a3b),
   `GATEWAY_TRUSTED_PROXIES=10.0.0.2/32` in `.env.home` (unverified until a home run), and `run.sh`/`stop` status tables
   (engine, user request; 45c4365..6722f53). Still open: vault second start. Next: P6 (ask first).
+
+- **2026-09-29, T6.1 validation (user: no new threat model, just check what is outstanding).** Method: commit per
+  finding, an `rg` check of each fix in the tree, and the T3.6/T4.5 local live passes. No new live run.
+  **Fixed (15):** FIND-01 (default-password refusal, Caddy rate limit), 02 (`/slides` behind the login), 03
+  (per-student passwords, locked Linux accounts), 04 (ports only via gateway), 05 (dns-gate, ID-token writes),
+  06 (caps dropped, `no-new-privileges`), 07 (threaded allocator, assignment rate limit), 08 (HTTP warning, HSTS),
+  09 (locked-down step-ca), 10 (PID namespace per student), 12 (pids/nproc limits, OpenBao quota), 13 (JSON audit
+  log), 14 (strict CSP), 16 (per-upstream tokens, `engine/.env` mode 600), 18 (external images pinned by digest;
+  only locally built `:local` images are untagged by digest).
+  **Partial (2):** FIND-11 (per-account DNS keys, but PowerDNS keys are still derived from the shared token),
+  FIND-17 (no live token on the setup volume, but the single unseal share stays; D9).
+  **Accepted (2):** FIND-15 (socket 0660 root:cloud; privileged DinD stays, D9), FIND-19 (plaintext to
+  OpenBao/Postgres, documented).
+  **Outstanding, none Critical/Important:** vault second start (hooks re-run) untested; 300 app-db connections, the
+  app-host shim on 443 and a real-browser "Release unused" not exercised; `lab_12` flaked once (revoke vs
+  `DROP ROLE`, unconfirmed); `GATEWAY_TRUSTED_PROXIES` unchecked on a home run; facilitator VS Code "unknown error"
+  unexplained; dns-as-code, dojo-introduction and git-fundamentals not re-run after P4. No Tier 1 finding and no
+  Critical/Important Tier 2 finding is open. Rating **Elevated -> Moderate** by this validation, not a re-scored model.
