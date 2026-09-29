@@ -16,12 +16,20 @@ This is the talk's **option 2** for secret zero. Option 3, one secret ID kept in
 8. Look at the running app, and at the audit trail.
 9. See a branch refused, and what a restart without a deploy costs.
 
-```text
- pipeline (deliver-main)          vault                        app-host, your slot
- "a secret ID for app, wrapped" → makes one, puts it in a box
- ships the box with the app ────────────────────────────────→  Agent opens the box (once)
-                                  logs the app in  ←──────────  logs in, deletes the file
-                                  team/app  ──────────────────→ Agent renders the secrets
+```mermaid
+sequenceDiagram
+  participant Pipe as Pipeline (deliver-main)
+  participant Vault as OpenBao
+  participant Agent as Agent, on app-host
+  participant App
+  Pipe->>Vault: a secret ID for app, wrapped
+  Vault-->>Pipe: a single-use box (wrapped)
+  Pipe->>Agent: ships the box with the app
+  Agent->>Vault: opens the box (once), logs the app in
+  Vault-->>Agent: a token
+  Agent->>Agent: deletes the file
+  Agent->>Vault: reads team/app
+  Agent->>App: renders the secrets
 ```
 
 ---
