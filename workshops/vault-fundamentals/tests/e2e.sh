@@ -52,6 +52,7 @@ while [ $# -gt 0 ]; do
 done
 
 set -a; . engine/.env; [ -z "${DOJO_ENV:-}" ] || . "engine/.env.$DOJO_ENV"; set +a
+[ ! -r engine/.generated/upstream-tokens.env ] || { set -a; . engine/.generated/upstream-tokens.env; set +a; }  # per-upstream tokens (FIND-16)
 podman container exists workshop_terminal 2>/dev/null || { echo "the stack isn't up (./run.sh vault-fundamentals)" >&2; exit 2; }
 OUT="$(mktemp -d "${TMPDIR:-/tmp}/vf-e2e.XXXXXX")"
 echo "run directory: $OUT"
@@ -93,7 +94,7 @@ unit() {
 }
 
 audit() {
-  local bad=0 base=http://openbao-audit:8080 gw=(-H "X-Gateway-Token: $GATEWAY_TOKEN")
+  local bad=0 base=http://openbao-audit:8080 gw=(-H "X-Gateway-Token: $GATEWAY_TOKEN_OPENBAO_AUDIT")
   [ "$(code "$base/api/entries")" = 403 ] && say ok "no gateway token: 403" || say no "no gateway token"
   [ "$(code "${gw[@]}" -H 'X-Auth-User: student01' "$base/api/entries")" = 403 ] \
     && say ok "a student with the token: 403" || say no "a student with the token"
@@ -124,7 +125,7 @@ bots() {
   local bad=0 i b log
   if [ "${bots:-0}" -lt 1 ]; then echo "  no bots in this run (./run.sh vault-fundamentals --test N); nothing to check"; return 0; fi
   local slots
-  slots="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
+  slots="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_APP_HOST" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
   for i in $(seq 1 "$bots"); do
     b="$bot_prefix$i"
     term su - "$b" -c 'openbao-login --quiet && BAO_NAMESPACE=students/$USER bao secrets list >/dev/null' 2>/dev/null \
@@ -165,8 +166,8 @@ load() {
       | awk -F, -v t="$now" '{ split($2, m, " / "); v=m[1]; u=v; gsub(/[0-9.]/, "", u); gsub(/[^0-9.]/, "", v);
           mib = (u ~ /^G/) ? v * 1024 : (u ~ /^k/) ? v / 1024 : (u ~ /^M/) ? v : v / 1048576;
           c=$3; gsub(/%/, "", c); printf "%s,%s,%.1f,%s\n", t, $1, mib, c }' >> "$OUT/stats.csv"
-    st="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://runner-controller:8080/api/state)"
-    ap="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
+    st="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_RUNNER_CONTROLLER" -H "X-Auth-User: $FACILITATOR_USERNAME" http://runner-controller:8080/api/state)"
+    ap="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_APP_HOST" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
     python3 -B -c '
 import json, sys
 t, st, ap = sys.argv[1], sys.argv[2], sys.argv[3]
