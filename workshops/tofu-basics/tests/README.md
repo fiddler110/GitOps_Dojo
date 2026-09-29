@@ -21,7 +21,7 @@ workshops/tofu-basics/tests/load.sh --students 15 --wave-size 5   # M4 as redefi
 ```
 
 **Stop and do not scale up if:** free memory on the host drops below about 1.5 GB, the report shows `oom_kill` or a container restart,
-any step fails, `apply` p95 is over 120 s, or the portal p95 is over 2 s. Say so in PLAN.md with the largest N that passed.
+any step fails, `apply` p95 is over 120 s, or the portal p95 is over 2 s. Say so in `RELEASES.md` with the largest N that passed.
 Each run leaves its report in `$TMPDIR/tofu-basics-load.*/report.txt`. If a run dies, `tests/load.sh --cleanup-only --students 15` empties the clouds.
 Both scripts refuse to start (and touch nothing) if a student's subscription is not empty; `--purge-first` is the way to override that.
 

@@ -5,7 +5,7 @@ speaker notes carry the talking points. This guide is the practical part: before
 what to do when something breaks.
 
 **Honest status:** nobody has run this with a room yet. The lab commands were run live one student at a
-time; a 30-student class, and the timings below that aren't the labs' own estimates, are untested (`PLAN.md`
+time; a 30-student class, and the timings below that aren't the labs' own estimates, are untested (TOFU-BASICS-PLAN.md
 T9.3, T9.4). Do the rehearsal below.
 
 ## The session at a glance (about 2¼ hours)
@@ -108,7 +108,7 @@ that changes nothing); `plan` and reading still work.
   Say so before Lab 5 or half the room will interrupt.
 - **Have Lab 5 applied in two or three waves rather than all at once.** Reason, not measurement: a deploy
   holds a control-plane lock for about 3 s while Docker creates the container, so 30 simultaneous applies
-  queue behind each other (`PLAN.md` T9.7). If a tile stays *In progress* for more than a couple of
+  queue behind each other (TOFU-BASICS-PLAN.md T9.7). If a tile stays *In progress* for more than a couple of
   minutes, that is the first thing to suspect. Watch the first class and tell us what you saw.
 - Check in at about 15 minutes into Track A. Lab 2 is where `~` and `-/+` first appear together.
 
@@ -169,6 +169,6 @@ student has already edited is never overwritten (`engine/README.md`, "Update wor
   all state. Nothing is kept. Verified live, including after a hard kill of `cloud-host`: no containers, volumes,
   networks or stray processes left behind.
 - If you learned something (a lab step that confused people, a timing that was wrong, a failure not in the
-  table above), write it into `PLAN.md` §16 and fix the lab. The first real class is also the dry run
-  (`PLAN.md` T9.4): note where people got stuck, how long each block really took, and whether the 30-student
+  table above), write it into `ROADMAP.md` (Manual checks) and fix the lab. The first real class is also the dry run
+  (TOFU-BASICS-PLAN.md T9.4): note where people got stuck, how long each block really took, and whether the 30-student
   apply behaved.

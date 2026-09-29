@@ -1,4 +1,4 @@
-# vault-fundamentals setup hook: lab 9 starts half-configured (PLAN.md S19).
+# vault-fundamentals setup hook: lab 9 starts half-configured (VAULT-FUNDAMENTALS-PLAN.md S19).
 # Sourced by the openbao module's setup.sh on every start with the provisioner
 # token; safe to re-run. In each student's namespace, the JWT auth method
 # `jwt-ci` trusts Forgejo Actions: its signing keys (fetched from git-server

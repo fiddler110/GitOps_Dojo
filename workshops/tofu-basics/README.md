@@ -15,7 +15,7 @@ cd engine && ./run.sh tofu-basics
 
 **Running it as the facilitator? Read [`FACILITATOR.md`](FACILITATOR.md)**: pre-flight checklist,
 run-of-show, what to watch during the session, and how to fix the common failures. This file is the
-technical reference. Design, decisions, task list and progress log: [`PLAN.md`](PLAN.md).
+technical reference. Design and decisions (archived, frozen): [`TOFU-BASICS-PLAN.md`](../../docs/archive/TOFU-BASICS-PLAN.md).
 
 ## Running it
 
@@ -43,11 +43,11 @@ cd engine
 | `compose/terminal/` | Student terminal image: OpenTofu, `terraform` symlink, offline provider mirror |
 | `modules/dojo-cloud/` (repo root) | Dojo Cloud: `cloud-api` (ARM-style API, policy, executor, portal SPA, unit tests), `cloud-host` (Docker-in-Docker host plus the `dojo/hello` image), the terminal's credential broker, and the card, `/admin` tab, `/cloud` route and status check (`extensions.json`) |
 | `FACILITATOR.md` | Facilitator guide |
-| `PLAN.md` | Design, decisions, task list, session log |
+| `docs/archive/TOFU-BASICS-PLAN.md` | Design, decisions, task list, session log (frozen; open work is in the root `ROADMAP.md`) |
 
 There are no engine settings for this workshop: the landing-page card, `/cloud` route, the facilitator's
 **Dojo Cloud** tab in `/admin` and the status-strip entry all come from `modules/dojo-cloud/extensions.json`
-(see `engine/MODULES-PLAN.md`). Two engine
+(see `docs/archive/MODULES-PLAN.md`). Two engine
 features are on for every workshop: each student's git is signed in to Forgejo with their own token, and `/admin`
 shows the status strip. See `engine/README.md`.
 
@@ -86,7 +86,7 @@ key, so **a shell opened before that needs a new terminal tab** (Lab 4 says so).
 `cloud-host`: with `cloud-api` up and the host down, a new shell has them and `apply` is what waits.
 
 The Azure vocabulary students see (tenant, subscription, resource group, container group, resource ID,
-tags, policy, quota, activity log, `ARM_*` variables) is described in `PLAN.md` §6. "Dojo Cloud" is
+tags, policy, quota, activity log, `ARM_*` variables) is described in TOFU-BASICS-PLAN.md §6. "Dojo Cloud" is
 Azure-*inspired*: no Microsoft names, logos or artwork, and the portal footer says it is not affiliated
 with Microsoft.
 
@@ -121,12 +121,12 @@ Everything a student can deploy is bounded by `modules/dojo-cloud/cloud-api/poli
 
 ## Security model, in short
 
-Assume 30 curious students who each have a shell. Full table in `PLAN.md` §7.
+Assume 30 curious students who each have a shell. Full table in TOFU-BASICS-PLAN.md §7.
 
 - **Students never speak Docker.** They speak ARM to `cloud-api`, which builds the container from a fixed
   template: allow-listed image, memory/CPU/pids caps, all capabilities dropped, `no-new-privileges`, no
   mounts, no host networking, and `--icc=false` so containers should not reach each other. The template
-  is unit-tested; the network isolation has not been probed live yet (`PLAN.md` T9.8).
+  is unit-tested; the network isolation has not been probed live yet (TOFU-BASICS-PLAN.md T9.8).
 - **`cloud-host` is unreachable except through `cloud-api`:** an `internal: true` network (no internet), no
   published ports, no TCP listener (the unauthenticated `tcp://…:2375` listener that `docker:dind` opens is
   removed at build time, and the build fails if that stops working), a unix socket on a volume shared only
@@ -139,7 +139,7 @@ Assume 30 curious students who each have a shell. Full table in `PLAN.md` §7.
 - **Accepted risk:** `cloud-host` is a privileged container. It is boxed in as above, and no student-controlled
   path reaches the Docker API, but a privileged container is still a privileged container. It has been
   tested only under **rootless podman**, where "privileged" is weaker than under Docker. Re-review under
-  Docker before delivering there (`PLAN.md` T9.8).
+  Docker before delivering there (TOFU-BASICS-PLAN.md T9.8).
 
 ## Resetting things
 
@@ -175,7 +175,7 @@ deploy, a policy fix and edit, then a destroy.
   portal shows a container as `Unknown` once the host has been unreachable for 10 s.
 - **Not load-tested.** Never run with 30 students applying at once. `cloud-api` holds one lock across the
   Docker calls in an apply, which stalled the portal about 3.3 s per deploy in a single-student measurement
-  (`PLAN.md` T9.7). See `FACILITATOR.md` for how to run Lab 5 with that in mind.
+  (TOFU-BASICS-PLAN.md T9.7). See `FACILITATOR.md` for how to run Lab 5 with that in mind.
 - **Not dry-run with people**, and the portal and Labs 4-10 have had no real-browser pass by a human (T9.4, T9.9).
 - One container per group, `dojo/hello` images only, port 80 only, by design.
 - Error messages say `tofu` even when a student typed `terraform`; that is expected (Lab 0 says so).

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """app-host: the deployment target of labs 11-13, a small "platform".
 
-One slot per student (PLAN.md §5.6, P4). Each slot is its own Linux user with
+One slot per student (VAULT-FUNDAMENTALS-PLAN.md §5.6, P4). Each slot is its own Linux user with
 the student's name; its app runs as that user in its own user + PID
 namespace, with prlimit caps (the runner pool's pattern, T0.8), so one slot
 can't see or signal another's processes or read its files.

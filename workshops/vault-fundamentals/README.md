@@ -3,7 +3,7 @@
 How to use a vault well: get secrets out of code, git, pipelines and servers, and replace long-lived secrets with
 identity and short-lived credentials. Fourteen labs (0-13, about 3½ hours) on a real OpenBao, after a talk
 (`content/slides/presentation.md`). Prerequisite: `git-fundamentals`. The design, decisions and history are in
-[`PLAN.md`](PLAN.md).
+[`VAULT-FUNDAMENTALS-PLAN.md`](../../docs/archive/VAULT-FUNDAMENTALS-PLAN.md).
 
 ## Running it
 
@@ -34,7 +34,7 @@ and their panel are `modules/runner-pool/`.
 
 ## Security shortcuts (accepted)
 
-Decided in the threat-model remediation (`threat-model-20260926-154208/REMEDIATION-PLAN.md`, D9, D11), and stated
+Decided in the threat-model remediation (`docs/archive/REMEDIATION-PLAN.md`, D9, D11), and stated
 to the class on the slide "What today's vault cuts short":
 
 - **One unseal key share**, on the `openbao_setup` volume, so the vault unseals itself after a restart. Whoever has
