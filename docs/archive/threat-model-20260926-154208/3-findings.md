@@ -355,7 +355,7 @@ All students share one container and PID namespace, and `/proc` is not mounted w
 
 **Prerequisite basis:** Any student shell in the shared web-terminal container (Authenticated User).
 
-- `engine/web-terminal/entrypoint.sh`: no `hidepid` remount; the vault-fundamentals `PLAN.md` notes that rootless podman cannot remount `/proc` with `hidepid`.
+- `engine/web-terminal/entrypoint.sh`: no `hidepid` remount; the vault-fundamentals plan (`docs/archive/VAULT-FUNDAMENTALS-PLAN.md`) notes that rootless podman cannot remount `/proc` with `hidepid`.
 - `workshops/vault-fundamentals/content/lab/*.md`: `bao kv put` with inline secret values.
 
 #### Remediation

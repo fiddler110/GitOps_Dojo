@@ -381,7 +381,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
 
 **Design rule (D17): every limit is a tripwire, not a budget; nothing may reduce what a workshop can do.** Full
 scoping (files with line numbers, what could break, verify steps, token estimates) is in
-[`P4-SCOPING.md`](P4-SCOPING.md). Worth knowing before you start:
+[`REMEDIATION-P4-SCOPING.md`](REMEDIATION-P4-SCOPING.md). Worth knowing before you start:
 
 - `dojo-introduction` has NO app-host (its overlay leaves it out; scoping was wrong), only runner-pool applies to T4.1; it does use `openbao`, `dns-gate`, `dojo-cloud`): T4.1 and T4.3a-c must
   cover it, not just vault-fundamentals.
@@ -682,7 +682,7 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
 ### 2026-09-29 — P3 live tests, P4 scoped, plan reordered
 - Live (locally, one stack at a time, Sonnet sub-agents): dns-as-code, dojo-introduction and git-fundamentals pass;
   cert-autorenewal lab 5 hit a cron/lock collision (fixed in content, re-test pending). T3.6 docs drafted.
-- P4 scoped read-only by an Opus sub-agent: [`P4-SCOPING.md`](P4-SCOPING.md). Design rule D17 and proposed answers
+- P4 scoped read-only by an Opus sub-agent: [`REMEDIATION-P4-SCOPING.md`](REMEDIATION-P4-SCOPING.md). Design rule D17 and proposed answers
   D18 recorded (confirmed by the user the same day).
 - Order changed by the user: do the P3/P4 work first, one combined test pass (T4.5) at the end.
 - P4 built (four agents in parallel, no stack started, nothing committed): T4.1 caps on runner-pool, its shim and

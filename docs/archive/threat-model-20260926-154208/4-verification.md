@@ -1,7 +1,7 @@
 # Remediation verification (T6.1), 2026-09-29
 
 Baseline: `3-findings.md` (2026-09-26, rating Elevated). Method: commit per finding, an `rg` check of the fix in the
-tree, and the local live passes recorded in `REMEDIATION-PLAN.md` (T3.6, T4.5, T5.x). Not a new threat model, and no
+tree, and the local live passes recorded in `docs/archive/REMEDIATION-PLAN.md` (T3.6, T4.5, T5.x). Not a new threat model, and no
 new live run.
 
 | Finding | Sev | Verdict | Evidence |
