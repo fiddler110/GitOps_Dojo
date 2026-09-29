@@ -1410,7 +1410,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
   </table>
   <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
-<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost. <a href="/logout">Sign out</a></p>"""
+<p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>
+<p class="footnote"><a href="/logout">Sign out</a></p>"""
 
         return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1461,7 +1462,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <nav id="side">
   <div id="bar">
     <h1>Facilitator</h1>
-    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span> &middot; <a href="/logout" target="_top">Sign out</a></p>
+    <p class="sub">Signed in as <span class="badge">FACILITATOR_USERNAME_PLACEHOLDER</span></p>
+    <p class="sub"><a href="/logout" target="_top">Sign out</a></p>
   </div>
   <div class="tabs" role="tablist" aria-orientation="vertical">
   <button class="tab active" data-tab="roster">Roster</button>
