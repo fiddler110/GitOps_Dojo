@@ -286,7 +286,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          scoped token (`write:repository`, `read:user`) per student through the Forgejo API with the derived
          password, and writes `~/.git-credentials` (`0600`, owned by the student) plus
          `credential.helper store` in the student's git config. Idempotent across restarts (reuse or re-create by
-         token name). The landing page stops showing a password.
+         token name). The landing page stopped showing a password; **reversed 2026-09-29 (user): it shows the student's own per-student password again** (`server.py`, own identity only).
       d. **Facilitator:** Roster gets a per-student "show Forgejo password" action (for the desk), so the
          facilitator still reaches everything.
       e. **Homes `0700`** after `chown` (skip if T0.1 showed it). Check the watch tiles (tmux as that user) and the
@@ -307,7 +307,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
          pattern): slot uids reach only `openbao:8200`, `app-db:5432` and DNS. `NET_ADMIN` only at start (T4.1).
       *Verify:* T0.2 repeated: curl from an AppHost slot and from a dns-as-code runner job to `web-terminal:9001`
       times out; student IDE and terminal, `/admin` VS Code/Terminal tabs and watch tiles work (Playwright);
-      `tests/labs_11_13.sh` and `tests/lab_10.sh` pass.
+      `tests/lab_11.sh` to `lab_13.sh` and `tests/lab_10.sh` pass.
 - [x] **T2.3** *(a: 9074e7f; b: 1caf9d3, spike 38bbfaa)* (FIND-10, T2, Moderate) [WORKSHOP] + **[ENGINE, ask]** Command lines in `/proc`.
       a. **Labs now:** labs that put secrets on the command line use stdin or `@file` (`bao kv put ... key=-`,
          `curl -H @hdr`), taught as a lesson ("why argv leaks"), vault-fundamentals first.
@@ -360,7 +360,7 @@ before any `stop`. Results go into this section and into §8; the P6 report reco
       *Verify:* 40 cookie-less `/assign` POSTs grant at most the burst; with 5 idle sockets `/auth-check` stays
       under 1 s; `--test 20` bots still get slots.
 - [x] **T3.5** *(not needed: T0.4 was refused)* *(only if T0.4 connects)* [WORKSHOP] `REVOKE CONNECT ON DATABASE ... FROM PUBLIC` in app-db init.
-      *Verify:* student01's role can't `\c` student02's database; `tests/labs_11_13.sh` passes.
+      *Verify:* student01's role can't `\c` student02's database; `tests/lab_11.sh` to `lab_13.sh` passes.
 - [x] **T3.6** P3 docs, §8 entry. *(2026-09-29: tests 2-4 below PASSED locally, test 1 partial and fixed, test 5 and
       the re-run moved to T4.5; the docs are drafted, uncommitted: `engine/README.md`, `modules/forgejo-runner/README.md`.)*
       **Live tests still to run** (each locally; `podman ps` first, one stack at a time):
@@ -405,7 +405,7 @@ scoping (files with line numbers, what could break, verify steps, token estimate
          --bounding-set -net_admin` or `capsh`).
       c. State the seccomp profile (podman default) explicitly.
       *Verify:* `podman inspect` shows the dropped caps and `NoNewPrivileges`; `modules/runner-pool/tests/pool.sh`,
-      `tests/labs_8_9.sh`, `tests/lab_10.sh`, `tests/labs_11_13.sh` pass.
+      `tests/lab_8.sh`, `lab_9.sh`, `tests/lab_10.sh`, `lab_11.sh`, `lab_12.sh`, `lab_13.sh` pass.
 - [x] **T4.2** *(built 2026-09-29, uncommitted; live checks: T4.5 item 7)* (FIND-14, T2, Low) **[ENGINE, ask]** Allocator pages: landing and `/admin` scripts to static files,
       roster fields with `textContent` (delete `escapeHtml` + `innerHTML`),
       `Content-Security-Policy: default-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'none'`.
@@ -439,7 +439,7 @@ scoping (files with line numbers, what could break, verify steps, token estimate
          unused** button (API check on the vault stack; a real browser is the user's manual pass); vault-fundamentals
          `tests/e2e.sh` and `pw.py`/`p4_browser.py` (`checks.sh` and `p2_browser.py` don't exist).
       6. P4 checks: `podman inspect` caps and `NoNewPrivileges` for `runner-pool`, `runner-pool-shim` and `app-host`;
-         `modules/runner-pool/tests/pool.sh`, `tests/labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`; CSP headers and no
+         `modules/runner-pool/tests/pool.sh`, `tests/lab_8.sh`, `lab_9.sh`, `lab_10.sh`, `lab_11.sh` to `lab_13.sh`; CSP headers and no
          violations on `/` and `/admin` (Playwright), `/admin` iframes frame, roster updates live; a 1000-request
          loop from one student is throttled while another's `dnscontrol push` and `tofu apply` succeed; a fork bomb
          in one terminal leaves another student's terminal and IDE responsive; `--test 20` bots still finish.
@@ -697,7 +697,7 @@ Tested in the terminal image with the stack's capabilities (rootless podman, `NE
 - Left: T4.4 docs (module READMEs done by the agents), then the T4.5 combined live pass, then commit.
 - **2026-09-29, T4.5 done (locally).** vault-fundamentals stack: OpenBao root-namespace quota `students-student01`
   (`path=students/student01/`, 200 rps) throttles: student01 553x200 + 447x429 in 1000 requests, student02 30x200 and
-  no 429. `tests/e2e.sh` all areas pass (unit, tenancy, cli_login, lab_2, labs_5_7, labs_8_9, lab_10, labs_11_13,
+  no 429. `tests/e2e.sh` all areas pass (unit, tenancy, cli_login, lab_2, lab_5 ... lab_13,
   pool, audit, browser incl. `p4_browser.py`/`p5_browser.py`). `/auth-check` 1.5-4 ms with 5 idle sockets (allocator
   threading fix). 30 parallel `/assign`: no duplicates, no 5xx, 20 hit the rate limit (`ASSIGN_BURST=10`); Release
   frees a slot. app-db 71 MB of 537 MB at idle. Not exercised: 300 app-db connections, shim on 443 (base URL was

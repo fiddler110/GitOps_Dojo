@@ -1300,8 +1300,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
   <span class="secret-label">Your Forgejo account</span>
   <table class="secret-table">
     <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
+    <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(forgejo_password(sid))}</code></td></tr>
   </table>
-  <span class="secret-hint">No password to type: git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
+  <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>"""
 
