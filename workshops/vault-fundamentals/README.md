@@ -32,11 +32,26 @@ pool, Auto / Manual, − / +) and **Apps** (every app-host slot and its log).
 The vault itself (`openbao`, SSO, CLI login, `openbao-audit` and the Audit tab) is `modules/openbao/`; the runners
 and their panel are `modules/runner-pool/`.
 
+## Security shortcuts (accepted)
+
+Decided in the threat-model remediation (`threat-model-20260926-154208/REMEDIATION-PLAN.md`, D9, D11), and stated
+to the class on the slide "What today's vault cuts short":
+
+- **One unseal key share**, on the `openbao_setup` volume, so the vault unseals itself after a restart. Whoever has
+  that volume (host access) can unseal it and make a root token. Production uses auto-unseal (a KMS or HSM) or shares
+  held by several people. No root or provisioner token is kept: each start makes a temporary root from the key,
+  provisions with a short-lived token and revokes both (`modules/openbao/README.md`).
+- **Plain HTTP on the lab networks** to OpenBao and to `app-db` (FIND-19): secrets cross `workshop_lab` and
+  `runner_net` unencrypted. Only the stack's own containers are on them.
+- **`hmac_accessor = false`** in the audit device (`modules/openbao/config.hcl`): the Audit tab and `bao-audit`
+  filter by token accessor. An accessor can look up or revoke a token only with a policy that allows it, and tokens
+  and secret values stay hashed in the log.
+
 ## Tests
 
 With the stack up, from the repo root, `bash workshops/vault-fundamentals/tests/e2e.sh` runs everything in order
 and prints one line per area (`--list` says what each proves, `--only` / `--skip` pick areas):
-unit tests, `tenancy.sh`, `cli_login.sh`, `lab_2.sh`, `labs_5_7.sh`, `labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`, `pool.sh`, the Audit tab's
+unit tests, `tenancy.sh`, `cli_login.sh`, `setup_tokens.sh`, `lab_2.sh`, `labs_5_7.sh`, `labs_8_9.sh`, `lab_10.sh`, `labs_11_13.sh`, `pool.sh`, the Audit tab's
 API, the demo bots, and the browser checks (`sso_browser.py`, `p4_browser.py`, `p5_browser.py` in Playwright's
 image). `--load MIN` also watches a `--test` class of bots for `MIN` minutes and writes `stats.csv`, `queue.csv` and
 `report.txt` (peak memory and CPU per container, runner queue, apps running). Each lab script resets its own

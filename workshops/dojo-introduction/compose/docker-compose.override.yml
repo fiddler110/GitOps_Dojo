@@ -90,6 +90,9 @@ services:
       - ../workshops/vault-fundamentals/compose/openbao-setup.d/10-tenancy.sh:/etc/openbao-setup.d/10-tenancy.sh:ro
       - ../workshops/vault-fundamentals/compose/openbao-setup.d/20-ci.sh:/etc/openbao-setup.d/20-ci.sh:ro
       - ../workshops/vault-fundamentals/compose/openbao-setup.d/student.hcl:/etc/openbao-setup.d/student.hcl:ro
+      # The paths those hooks may write (the provisioner) and a student reset may touch.
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/provisioner.hcl:/etc/openbao-setup.d/provisioner.hcl:ro
+      - ../workshops/vault-fundamentals/compose/openbao-setup.d/reset.hcl:/etc/openbao-setup.d/reset.hcl:ro
 
   # CI jobs (runner-pool) can log in to OpenBao over runner_net.
   openbao:

@@ -20,11 +20,12 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT" || exit 2
 T=workshops/vault-fundamentals/tests
 
-AREAS=(unit tenancy cli_login lab_2 labs_5_7 labs_8_9 lab_10 labs_11_13 pool audit bots browser load)
+AREAS=(unit tenancy cli_login setup_tokens lab_2 labs_5_7 labs_8_9 lab_10 labs_11_13 pool audit bots browser load)
 declare -A DESC=(
   [unit]="unit tests without the stack: openbao-audit, app-host, runner-controller"
   [tenancy]="labs 0-4: the shared secret/ and each namespace are private (tenancy.sh)"
   [cli_login]="the terminal's CLI login signs in as the right entity (modules/openbao/tests/cli_login.sh)"
+  [setup_tokens]="openbao-setup keeps no live token; the reset token reaches students/ only (modules/openbao/tests/setup_tokens.sh)"
   [lab_2]="lab 2: pass, a GPG key, sharing and taking back (lab_2.sh)"
   [labs_5_7]="labs 5-7: the SDK, the Agent, sops + transit, as one student"
   [labs_8_9]="labs 8-9: Actions secrets and masking, AppRole, the job's OIDC identity, a branch refused"
@@ -214,6 +215,7 @@ EOF
 area unit       unit
 area tenancy    sh "$T/tenancy.sh"
 area cli_login  sh modules/openbao/tests/cli_login.sh
+area setup_tokens sh modules/openbao/tests/setup_tokens.sh
 area lab_2      sh "$T/lab_2.sh" "$student"
 area labs_5_7   sh "$T/labs_5_7.sh" "$student"
 area labs_8_9   sh "$T/labs_8_9.sh" "$student"
