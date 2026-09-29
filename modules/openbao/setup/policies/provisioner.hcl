@@ -43,7 +43,6 @@ path "identity/*" { capabilities = ["create", "read", "update", "delete", "list"
 # Per-namespace rate-limit quotas (a workshop's tenancy hook, OPENBAO_NAMESPACE_RATE).
 path "sys/quotas/rate-limit/*" { capabilities = ["create", "read", "update", "delete", "list"] }
 path "sys/quotas/rate-limit"   { capabilities = ["list"] }
-path "students/+/sys/quotas/rate-limit/*" { capabilities = ["create", "read", "update", "delete", "list"] }
 
 path "sys/config/ui/headers/*" { capabilities = ["create", "read", "update", "delete", "sudo"] }
 

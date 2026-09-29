@@ -29,10 +29,11 @@ for s in $(class_users); do
   BAO_NAMESPACE=students bao namespace lookup "$s" >/dev/null 2>&1 \
     || BAO_NAMESPACE=students retry 10 bao namespace create "$s" >/dev/null
   # Tripwire against a runaway loop in one namespace (OPENBAO_NAMESPACE_RATE,
-  # module.env; 0 = none). A quota made inside a namespace covers only it. A
-  # write replaces, so a re-run is harmless.
+  # module.env; 0 = none). Quotas can only be written from the root namespace,
+  # which scopes each one to a namespace with `path`. A write replaces, so a
+  # re-run is harmless.
   if [ "${OPENBAO_NAMESPACE_RATE:-200}" -gt 0 ]; then
-    BAO_NAMESPACE="students/$s" retry 10 bao write sys/quotas/rate-limit/namespace \
+    retry 10 bao write "sys/quotas/rate-limit/students-$s" path="students/$s/" \
       rate="${OPENBAO_NAMESPACE_RATE:-200}" interval=1s >/dev/null \
       || { log "tenancy: could not set $s's rate limit"; exit 1; }
   fi

@@ -46,4 +46,4 @@ login`. A shell opened before OpenBao was ready has no token: run `openbao-login
 A workshop whose tenancy hook makes per-student namespaces (vault-fundamentals) also puts a `sys/quotas/rate-limit`
 quota in each one. It is a tripwire against a runaway loop, not a budget: `OPENBAO_NAMESPACE_RATE` (module.env) is
 requests per second per namespace, default `200`, `0` = no quota. One student's loop gets 429s; the rest of the class
-is untouched. The provisioner policy grants `sys/quotas/rate-limit/*` (root and `students/+/`) for this.
+is untouched. The provisioner policy grants `sys/quotas/rate-limit/*` (from the root namespace, each quota scoped to a student namespace with `path`) for this.
