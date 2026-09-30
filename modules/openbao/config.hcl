@@ -7,6 +7,8 @@ disable_mlock = true
 storage "raft" {
   path    = "/openbao/file"
   node_id = "openbao-1"
+  # One node, so nothing to wait for: the default (5) makes a first start sit ~8 s before it elects itself leader.
+  performance_multiplier = 1
 }
 
 listener "tcp" {
