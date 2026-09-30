@@ -43,8 +43,8 @@ def landing(extensions=None, sid="student01", name="Ada"):
 class WorkspacePage(unittest.TestCase):
     def test_engine_tabs_in_order(self):
         page = workspace()
-        self.assertEqual(re.findall(r'data-tab="([a-z0-9-]+)"', page), ["labs", "ide", "term", "forgejo", "slides"])
-        for label in ("Labs", "VS Code", "Terminal", "Forgejo", "Slides"):
+        self.assertEqual(re.findall(r'data-tab="([a-z0-9-]+)"', page), ["ide", "term", "forgejo", "slides", "labs"])
+        for label in ("VS Code", "Terminal", "Forgejo", "Slides", "Labs"):
             self.assertIn(f">{label}</button>", page)
 
     def test_card_tabs_follow_the_engine_tabs(self):
@@ -53,11 +53,18 @@ class WorkspacePage(unittest.TestCase):
         self.assertIn('data-src="/demo/"', page)
         self.assertIn(">Demo Site</button>", page)
 
+    def test_labs_sit_under_slides_and_widgets_get_a_tab_before_cards(self):
+        page = workspace(ext(cards=[CARD], widgets=[WIDGET]))
+        self.assertIn('class="tab indent" data-tab="labs"', page)
+        self.assertEqual(re.findall(r'data-tab="([a-z0-9-]+)"', page),
+                         ["ide", "term", "forgejo", "slides", "labs", "achievements", "demo"][:5] + [WIDGET["id"], "demo"])
+        self.assertIn(f'data-src="{WIDGET["src"]}"', page)
+
     def test_first_tab_is_active_and_frames_load_lazily(self):
         page = workspace()
         self.assertEqual(len(re.findall(r'class="tab active"', page)), 1)
         self.assertEqual(len(re.findall(r'class="panel active"', page)), 1)
-        self.assertIn('class="tab active" data-tab="labs"', page)
+        self.assertIn('class="tab active" data-tab="ide"', page)
         # Every iframe waits for its tab's first click: none has a live src.
         self.assertNotRegex(page, r"<iframe[^>]* src=")
         self.assertEqual(page.count("<iframe"), page.count("data-src="))
@@ -78,6 +85,7 @@ class WorkspacePage(unittest.TestCase):
         self.assertIn(">student07<", page)
         self.assertIn('href="/" data-mode="split"', page)
         self.assertIn('href="/logout"', page)
+        self.assertIn('href="/?split"', page)
 
     def test_labels_and_ids_are_escaped(self):
         page = workspace(ext(cards=[dict(CARD, label='<img src=x onerror=alert(1)>')]))
@@ -149,10 +157,10 @@ class LandingPage(unittest.TestCase):
         self.assertNotIn('class="widgets"', landing())
         self.assertNotIn("<iframe", landing())
 
-    def test_widget_is_a_framed_same_origin_page_above_the_cards(self):
+    def test_widget_is_a_framed_same_origin_page_below_the_cards(self):
         page = landing(ext(widgets=[WIDGET]))
         self.assertIn('<iframe class="widget widget-medium" src="/achievements/widget/" title="score"></iframe>', page)
-        self.assertLess(page.index("<iframe"), page.index('class="cards"'))
+        self.assertGreater(page.index("<iframe"), page.index('class="cards"'))
 
     def test_widget_sizes_have_css_classes(self):
         for size in ("small", "medium", "large"):

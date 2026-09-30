@@ -758,13 +758,14 @@ CONFIRM_CSS = """
           max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }
   @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
   .hero { text-align: center; margin-bottom: 2rem; }
+  .signout { position: absolute; top: 0.9rem; right: 1.25rem; font-size: 0.85rem; }
   .hero-badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
           padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
           margin-bottom: 0.9rem; }
   @media (prefers-color-scheme: dark) { .hero-badge { background: #1e2352; color: #c7d2fe; } }
   .hero h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
   .hero .sub { opacity: 0.7; margin: 0; }
-  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1.25rem; }
   @media (max-width: 30rem) { .cards { grid-template-columns: 1fr; } }
   .card { display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
           border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
@@ -802,7 +803,7 @@ CONFIRM_CSS = """
   .secret-hint { font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }
   .footnote { margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }
   .card.wide { grid-column: 1 / -1; }
-  .widgets { margin-bottom: 0.75rem; }
+  .widgets { margin-top: 1.25rem; }
   .widget { display: block; width: 100%; border: 0; margin: 0 0 0.75rem; background: transparent; }
   .widget-small { height: 7rem; }
   .widget-medium { height: 14rem; }
@@ -1197,7 +1198,17 @@ CSP = ("default-src 'self'; script-src 'self'; "
 # Student workspace (/workspace): the same shell CSS and tab code as /admin,
 # plus a small script that remembers split or workspace mode in this browser.
 # Served behind the ordinary session gate (any login), like the pages.
-WORKSPACE_CSS = SHELL_CSS
+WORKSPACE_CSS = SHELL_CSS + """
+  .tab.indent { margin-left: 1rem; font-size: 0.88rem; }
+  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #topbar { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 1.1rem;
+             padding: 0.4rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #ddd; background: #f3f3f3; }
+  @media (prefers-color-scheme: dark) { #topbar { border-bottom-color: #333; background: #121212; } }
+  #topbar .who { margin-right: auto; opacity: 0.7; }
+  #content #main { flex: 1; }
+  .panel iframe { height: calc(100vh - 3.6rem); }
+  @media (max-width: 700px) { #content { display: block; } .panel iframe { height: calc(100vh - 1.5rem); } }
+"""
 WORKSPACE_JS = TABS_JS + """
 // Open the first tab (its iframe loads now; the rest load on first click).
 if (tabs.length) { activateTab(tabs[0].dataset.tab); }
@@ -1475,15 +1486,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         )
 
         body = f"""
+<a class="signout" href="/logout">Sign out</a>
 <div class="hero">
   <span class="hero-badge">{html.escape(sid)}</span>
   <h1>You're in, {html.escape(slot['name'])}</h1>
   <p class="sub">Pick a tool to get started -- each opens in a new tab -- or open the workspace to keep everything on one page.</p>
-</div>
-{widgets}
-<div class="cards">
-{workspace_card}
-{cards}
 </div>
 <div class="secret">
   <span class="secret-label">Your Forgejo account</span>
@@ -1493,8 +1500,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
   </table>
   <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
+<div class="cards">
+{workspace_card}
+{cards}
+</div>
+{widgets}
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>
-<p class="footnote"><a href="/logout">Sign out</a></p>"""
+"""
 
         return f"""<!doctype html>
 <html data-page="landing"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1517,20 +1529,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         Split mode (the landing page and its separate tabs) stays as it is:
         the "Split mode" link and the landing page's "Open workspace" card
         each remember the choice in this browser (see WORKSPACE_MODE_JS)."""
+        # VS Code, Terminal, Forgejo, Slides (the labs sit under it), then a tab per
+        # widget (its full page) and per card. The first tab opens at load.
         tabs = [
-            ("labs", "Labs", "/slides/labs.md"),
-            ("ide", "VS Code", "/ide/"),
-            ("term", "Terminal", "/term/"),
-            ("forgejo", "Forgejo", "/forgejo-login"),
-            ("slides", "Slides", "/slides/"),
-        ] + [(c["id"], c["label"], c["href"]) for c in EXTENSIONS["cards"]]
+            ("ide", "VS Code", "/ide/", False),
+            ("term", "Terminal", "/term/", False),
+            ("forgejo", "Forgejo", "/forgejo-login", False),
+            ("slides", "Slides", "/slides/", False),
+            ("labs", "Labs", "/slides/labs.md", True),
+        ] + [(w["id"], w["id"].replace("-", " ").title(), w["src"], False) for w in EXTENSIONS["widgets"]] \
+          + [(c["id"], c["label"], c["href"], False) for c in EXTENSIONS["cards"]]
         buttons = "".join(
-            f'  <button class="tab{" active" if i == 0 else ""}" data-tab="{html.escape(tid)}">{html.escape(label)}</button>\n'
-            for i, (tid, label, _) in enumerate(tabs))
+            f'  <button class="tab{" indent" if sub else ""}{" active" if i == 0 else ""}" data-tab="{html.escape(tid)}">{html.escape(label)}</button>\n'
+            for i, (tid, label, _, sub) in enumerate(tabs))
         panels = "".join(
             f'<div class="panel{" active" if i == 0 else ""}" id="panel-{html.escape(tid)}">'
             f'<iframe data-src="{html.escape(src)}" title="{html.escape(label)}"></iframe></div>\n'
-            for i, (tid, label, src) in enumerate(tabs))
+            for i, (tid, label, src, _) in enumerate(tabs))
         return f"""<!doctype html>
 <html data-page="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
@@ -1543,13 +1558,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
   <div id="bar">
     <h1>Workspace</h1>
     <p class="sub"><span class="badge">{html.escape(sid)}</span></p>
-    <p class="sub"><a href="/" data-mode="split" target="_top">Split mode</a> · <a href="/logout" target="_top">Sign out</a></p>
+    <p class="sub"><a href="/" data-mode="split" target="_top">Split mode</a></p>
   </div>
   <div class="tabs" role="tablist" aria-orientation="vertical">
 {buttons}  </div>
 </nav>
+<div id="content">
+<div id="topbar">
+  <span class="who">{html.escape(sid)}</span>
+  <a href="/?split" target="_top">Home</a>
+  <a href="/logout" target="_top">Sign out</a>
+</div>
 <main id="main">
 {panels}</main>
+</div>
 <script src="/workspace/workspace.js"></script>
 </body></html>"""
 

@@ -36,7 +36,7 @@ reviews arrive as `X-Forgejo-Event: pull_request_approved` (now read from `X-For
 
 | Not done | Why it is open | Phase |
 |---|---|---|
-| Rest of the phase 3 live checks | The zsh hook in a real browser terminal, and the seven items the bots never trigger: see "Phase 3 live checks" below | 3 |
+| Rest of the phase 3 live checks | Checked by hand 2026-09-30 in a real terminal: `f-wrongdir f-main f-amend f-detached l1-cleanup f-force f-rejected` all fire and toast (`f-rejected` on a real rejected push, exit 1, in Moments with a toast). Still open: the hook with a prompt framework, see "Phase 3 live checks" below | 3 |
 | Phase 4 live test; the capstone | c1, c2, `dojo-check ID` and `dojo-challenge start/reset` are built and unit-tested against a fake Forgejo, not run on a real stack; the capstone has no seed or verify yet (validator warns) | 4 |
 | Toasts inside VS Code and Forgejo | Need a code-server extension and a Forgejo `extra_head` template | 8 |
 | Certificate, badge PNG, export-name dialog | Not started | 6 |
@@ -77,7 +77,8 @@ board move) before any other workshop is touched. Suggested order:
   f-nothing` (the bots' deliberate forgotten `git add`). `l1-merged` needed a facilitator merge (done by API; most bot
   PRs conflict on the roster). Not fired, because the bots never do it: `l1-cleanup` (bots delete with `-D`),
   `f-wrongdir`, `f-main`, `f-detached`, `f-amend`, `f-force`, `f-rejected` (the bots' failing `git push` exits 128,
-  not 1). These still need a manual check in a real terminal.
+  not 1). Checked by hand afterwards (2026-09-30, `student01` in the browser terminal): all seven fire, with toasts
+  and Moments rows. The bots' 128 was the missing push destination, not a rejection.
 - Still unchecked: the zsh hook in the real terminal image through ttyd/tmux (tested only in a plain zsh with a fake
   `dojo-check`), and with a prompt framework. Bot quirk seen: round 1's `git reset --hard HEAD~1` fails with
   "unknown revision" in `bot-runner.sh` (engine; round 2 succeeded).
@@ -85,6 +86,14 @@ board move) before any other workshop is touched. Suggested order:
   `f-nothing` is `git commit` exit 1 (also an aborted editor); `f-rejected` is `git push` exit 1 (no output is seen);
   `f-wrongdir` is a git command exit 128 outside a work tree; `l2-ignore` needs a shell redirect or `git add .gitignore`
   (an edit in VS Code alone doesn't fire); `git log -1` in Lab 1 already unlocks `l4-log`.
+
+- **Known limits of the shell hook (accepted for now):** a command is matched on the line as typed, and the exit code
+  is the last command's. So a line of chained commands (`a; git push; echo $?`, or a pasted lab block on one line)
+  is matched on its first word and reports only the last exit code: `git push` inside a chain can miss `f-rejected`,
+  `f-nothing` and any other exit-code match. Pasted multi-line blocks run line by line and are fine. Also: the hook
+  sends the text of every command to the service (kept nowhere, only matched), and a student can post their own
+  shell events by hand, which earns only what typing the command would. Fix if it matters: split chains on
+  `;`, `&&` and `||` in the matcher and treat the exit code as unknown for all but the last part.
 
 **Decisions waiting on you:** A25 is decided (`{user}/challenge-repo` under each student's account, one repo for
 every challenge; built that way in phase 4). A26 (does Sensei seed the `dns-bot` PR) before phase 7. A24 is only needed in phase 9.
