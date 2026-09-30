@@ -99,7 +99,7 @@ def render(catalog):
         out.append("")
         out.extend(_milestone_table(lab["milestones"]))
         out.append("")
-    out.append("## Funny unlocks (5 points, any time)")
+    out.append("## Funny unlocks (0 points, any time; shown in the student's Moments table)")
     out.append("")
     out.extend(_funny_table(catalog["funny"]))
     out.append("")
@@ -130,15 +130,14 @@ def render(catalog):
     chs = [c for c in catalog["challenges"] if not c.get("retired")]
     core_pts = sum(cat.points_of(m, "milestone") for m in core)
     all_ms_pts = sum(cat.points_of(m, "milestone") for m in ms)
-    funny_pts = sum(cat.points_of(f, "funny") for f in funny)
     ch_pts = sum(cat.points_of(c, "challenge") for c in chs)
     cap_pts = cat.points_of(cap, "capstone")
     out.append("## Totals (computed)")
     out.append("")
     out.append(f"{len(core)} core milestones ({core_pts} points) of {len(ms)} milestones ({all_ms_pts}) · "
-               f"{len(funny)} funny unlocks (up to {funny_pts}) · {len(chs)} challenges ({ch_pts}) · "
+               f"{len(funny)} funny unlocks (0 points each) · {len(chs)} challenges ({ch_pts}) · "
                f"capstone {cap_pts} · plus first blood and class-clear bonuses. "
-               f"Everything: {all_ms_pts + funny_pts + ch_pts + cap_pts} points.")
+               f"Everything: {all_ms_pts + ch_pts + cap_pts} points.")
     return "\n".join(out) + "\n"
 
 

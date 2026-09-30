@@ -20,7 +20,7 @@ import os
 import re
 
 KINDS = ("milestone", "funny", "challenge", "capstone")
-DEFAULT_POINTS = {"milestone": 10, "funny": 5, "challenge": 100, "capstone": 300}
+DEFAULT_POINTS = {"milestone": 10, "funny": 0, "challenge": 100, "capstone": 300}
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 LAB_RE = re.compile(r"^lab[0-9]+$")
@@ -87,6 +87,9 @@ def _check_item(item, kind, where, ids, problems, warnings, sources):
     pts = item.get("points")
     if pts is not None and (not isinstance(pts, int) or isinstance(pts, bool) or pts > 1000 or pts < -100):
         problems.append(f"{where}: points must be a whole number from -100 to 1000")
+    if kind == "funny" and isinstance(pts, int) and not isinstance(pts, bool) and pts > 0:
+        # Funny unlocks (and the shared cheating tiers) never add to a score: they call you out.
+        problems.append(f"{where}: funny unlocks are worth 0 points, or a penalty for cheating, never a bonus")
     if "core" in item and kind != "milestone":
         problems.append(f"{where}: 'core' only applies to milestones")
     if kind == "milestone" and not isinstance(item.get("core"), bool):

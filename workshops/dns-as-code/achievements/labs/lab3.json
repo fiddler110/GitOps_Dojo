@@ -13,7 +13,7 @@
       "title": "Computer Says No",
       "joke": "You tried the shortcut. It said no.",
       "core": true,
-      "when": "forgejo: direct push to `main` rejected (also a funny unlock, no double score)",
+      "when": "forgejo: direct push to `main` rejected (the same event also shows as a funny moment, which scores nothing)",
       "match": {}
     },
     {

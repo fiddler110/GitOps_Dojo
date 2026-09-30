@@ -23,7 +23,7 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
 ```
 
 - **Item** (a milestone or a funny unlock): `id`, `title`, `joke`, `when` (text for humans), `core` (milestones only),
-  optional `points` (else the kind's default: milestone 10, funny 5, challenge 100, capstone 300), optional `note`,
+  optional `points` (else the kind's default: milestone 10, funny 0, challenge 100, capstone 300), optional `note`,
   `retired`, and `match`, the structured trigger (`{"source": "shell", "cmd": "git commit", "exit": 0}`).
   An empty `match` is allowed for now and produces a warning: the item is listed but never fires.
 - **Challenge and capstone:** `id` (`c1`, `c2`, ..., or `capstone`), `title`, `after`, `space` (the student's own space,

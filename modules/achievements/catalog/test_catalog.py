@@ -39,7 +39,7 @@ class Workshop:
         self.base = os.path.join(self.dir, "achievements")
         self.write("catalog.json", {"workshop": name, "title": "Demo", "labs": [{"id": "lab1", "title": "One"}]})
         self.write("labs/lab1.json", {"milestones": [item("m1"), item("m2"), item("m3", core=False)]})
-        self.write("funny.json", {"unlocks": [item("f1", core=None, points=5)]})
+        self.write("funny.json", {"unlocks": [item("f1", core=None)]})
         self.write("challenges/c1.json", challenge())
         self.write("capstone.json", challenge("capstone", badge_tier="capstone"))
         # A shared catalog of its own, so these tests don't depend on the real one's warnings.
@@ -187,6 +187,39 @@ class Invalid(unittest.TestCase):
 
     def test_known_verbs_accept(self):
         self.assertEqual(self.w.problems(known_verbs={"branch_exists"}), [])
+
+
+class FunnyUnlocks(unittest.TestCase):
+    """Funny unlocks are worth 0: they call you out but never help the score."""
+
+    def setUp(self):
+        self.w = Workshop()
+        self.addCleanup(self.w.cleanup)
+
+    def test_default_is_zero(self):
+        self.assertEqual(cat.DEFAULT_POINTS["funny"], 0)
+        c, _ = self.w.load()
+        self.assertEqual(cat.points_of(c["funny"][0], "funny"), 0)
+
+    def test_a_bonus_is_refused(self):
+        self.w.write("funny.json", {"unlocks": [item("f1", core=None, points=5)]})
+        self.assertTrue(any("never a bonus" in p for p in self.w.problems()))
+
+    def test_a_penalty_is_allowed(self):
+        self.w.write("funny.json", {"unlocks": [item("f1", core=None, points=-1)]})
+        self.assertEqual(self.w.problems(), [])
+
+    def test_totals_count_no_funny_points(self):
+        c, _ = self.w.load()
+        text = render_md.render(c)
+        self.assertIn("1 funny unlocks (0 points each)", text)
+        self.assertIn("Everything:", text)
+
+    def test_real_catalogs_have_no_positive_funny(self):
+        for d in render_md.workshop_dirs():
+            c, _ = cat.load(d, SHARED)
+            for f in c["funny"] + c["shared"]["cheats"] + c["shared"]["unlocks"]:
+                self.assertLessEqual(cat.points_of(f, "funny"), 0, f["id"])
 
 
 class Warnings(unittest.TestCase):
