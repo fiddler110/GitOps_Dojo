@@ -88,13 +88,13 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+      # Making the slot users and their egress rules takes ~25s before the
+      # platform listens; without this the check can fail three times first.
+      start_period: 60s
     restart: unless-stopped
 
   # Postgres for lab 12. compose/app-db/init.sh makes a database per student
   # on the first start. The superuser's password is random and thrown away:
-      # Making the slot users and their egress rules takes ~25s before the
-      # platform listens; without this the check can fail three times first.
-      start_period: 60s
   # set-up runs over the local socket, and nothing else needs it.
   app-db:
     # 17.11, pinned by its multi-arch index digest (amd64
@@ -130,6 +130,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+      # The first start makes a database per student before it listens (seen unhealthy at ~70s).
+      start_period: 60s
     restart: unless-stopped
 
 volumes:

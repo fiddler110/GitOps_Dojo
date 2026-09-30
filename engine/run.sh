@@ -633,6 +633,10 @@ sync_lab_docs() {
   lab_dst="${content_dir}/slides/lab"
   [ -d "$lab_src" ] || return 0
   mkdir -p "$lab_dst"
+  # On WSL2 the Windows folders (/mnt/c/...) are on PATH, and podman searches PATH for every OCI
+  # runtime it knows, each miss crossing into Windows: ~1.2 s per podman call instead of ~0.06 s,
+  # and run.sh makes dozens. Nothing podman needs lives there.
+  case ":$PATH:" in *:/mnt/*) PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd:)"; export PATH ;; esac
   # Drop generated copies whose source was renamed or deleted since the
   # last run, before regenerating what's actually there now.
   for existing in "$lab_dst"/*.md.txt; do
