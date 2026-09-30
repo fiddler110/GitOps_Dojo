@@ -374,12 +374,13 @@ class TokenHttpTests(unittest.TestCase):
             self.assertEqual(st, 200, doc)
             self.assertEqual((doc["repo"], doc["created"]), ("dan/challenge-repo", True))
             self.assertEqual(doc["clone_url"], "http://git-server:3000/dan/challenge-repo.git")
-            role = server.runner.values(server.store.ledger.index["c1"]["item"], "dan")["role_for_user"]
+            vals = server.runner.values(server.store.ledger.index["c1"]["item"], "dan")
+            role = vals["role"]
             self.assertIn(role, doc["constraints"])
             self.assertNotIn("{", doc["constraints"])
             st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})
             self.assertEqual((st, doc["passed"]), (200, False))
-            roster = fj.file("dan/challenge-repo", "main", "roster/team.yaml").replace("Sofware Enginer", role)
+            roster = fj.file("dan/challenge-repo", "main", "roster/team.yaml").replace(vals["role_typo"], role)
             fj.commit("dan/challenge-repo", "hotfix-dan", {"roster/team.yaml": roster}, "dan", start="main")
             fj.open_pr("dan/challenge-repo", "hotfix-dan", "main", "hotfix: role")
             st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})

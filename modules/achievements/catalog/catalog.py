@@ -247,6 +247,11 @@ def _check_seed_plan(ch, where, seeds_dir, problems, warnings):
             problems.append(f"seeds/{name}: 'values' maps a name to a non-empty list of strings")
             vals = {}
         values = set(vals)
+        linked = plan.get("linked", [])
+        if not isinstance(linked, list) or not all(
+                isinstance(g, list) and len(g) > 1 and all(isinstance(k, str) and k in vals for k in g)
+                and len({len(vals[k]) for k in g}) == 1 for g in linked):
+            problems.append(f"seeds/{name}: 'linked' lists groups of values names whose lists are the same length")
         if not isinstance(plan.get("commits"), list) or not plan["commits"]:
             problems.append(f"seeds/{name}: 'commits' must be a non-empty list")
         else:

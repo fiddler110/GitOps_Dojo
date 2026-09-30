@@ -4,6 +4,8 @@
 #   role: [Role]
 
 - name: Alice Engineer
-  role: Sofware Enginer
+  role: Software Engineer
 - name: Bob Operator
   role: IT Operations
+- name: {user}
+  role: {role_typo}

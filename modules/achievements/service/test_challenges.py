@@ -57,14 +57,21 @@ class Base(unittest.TestCase):
         return self.runner.values(challenge(cid), user)
 
     # the student's side of c1 and c2
-    def solve_c1(self, user, title="hotfix: Alice's role", role=None, extra=None):
+    def solve_c1(self, user, title="hotfix: my role", role=None, extra=None):
         repo = REPO.format(user)
         roster = self.fj.file(repo, "main", "roster/team.yaml")
-        role = role or self.vals(user)["role_for_user"]
-        files = {"roster/team.yaml": roster.replace("role: Sofware Enginer", f"role: {role}")}
+        vals = self.vals(user)
+        role = role or vals["role"]
+        mine = f"- name: {user}\n  role: {vals['role_typo']}"
+        self.assertIn(mine, roster)
+        files = {"roster/team.yaml": roster.replace(mine, f"- name: {user}\n  role: {role}")}
         files.update(extra or {})
         self.fj.commit(repo, f"hotfix-{user}", files, user, start="main")
         return self.fj.open_pr(repo, f"hotfix-{user}", "main", title)
+
+    def other_role(self, user):
+        mine = self.vals(user)["role"]
+        return next(r for r in self.runner.plan(challenge("c1"))["values"]["role"] if r != mine)
 
     def culprit(self, user):
         repo = self.fj.repos[REPO.format(user)]
@@ -89,8 +96,16 @@ class Plugins(Base):
 
     def test_values_are_stable_and_per_student(self):
         self.assertEqual(self.vals("amy"), self.vals("amy"))
-        roles = {self.vals(u)["role_for_user"] for u in ("amy", "ben", "cat", "dan", "eve", "fay")}
+        roles = {self.vals(u)["role"] for u in ("amy", "ben", "cat", "dan", "eve", "fay")}
         self.assertGreater(len(roles), 1)
+
+    def test_linked_values_stay_a_pair(self):
+        plan = self.runner.plan(challenge("c1"))
+        pairs = dict(zip(plan["values"]["role"], plan["values"]["role_typo"]))
+        for u in ("amy", "ben", "cat", "dan", "eve", "fay", "gus", "hal"):
+            v = self.vals(u)
+            self.assertEqual(pairs[v["role"]], v["role_typo"], u)
+            self.assertNotEqual(v["role"], v["role_typo"])
 
     def test_regex_values_are_escaped(self):
         args = challenges.fill_args({"regex": "role: {v}", "text": "{v}"}, {"v": "a.b"})
@@ -109,7 +124,9 @@ class Seeding(Base):
         repo = self.fj.repos["amy/challenge-repo"]
         self.assertEqual(len(repo["commits"]), 7)
         self.assertIn("amy", self.fj.file("amy/challenge-repo", "main", "README.md"))
-        self.assertIn("Sofware Enginer", self.fj.file("amy/challenge-repo", "main", "roster/team.yaml"))
+        roster = self.fj.file("amy/challenge-repo", "main", "roster/team.yaml")
+        self.assertIn(f"- name: amy\n  role: {self.vals('amy')['role_typo']}\n", roster)
+        self.assertNotIn(self.vals("amy")["role"], roster)
         self.assertIn(self.vals("amy", "c2")["target_line"], self.fj.file("amy/challenge-repo", "main", "config/settings.yaml"))
         self.assertEqual(self.store.seeds["amy"]["challenge-repo.json"]["resets"], 0)
 
@@ -194,6 +211,7 @@ class C1Hotfix(Base):
         cases = [
             dict(title="fix Alice"),                                   # no hotfix: prefix
             dict(role="Chief Typo Officer"),                           # not this student's value
+            dict(role=self.other_role("amy")),                         # a neighbour's right role
             dict(extra={"README.md": "changed too\n"}),                # touches another file
         ]
         for i, kw in enumerate(cases):
@@ -204,7 +222,7 @@ class C1Hotfix(Base):
             self.assertTrue(r["message"])
         self.assertEqual(self.store.ledger.score("amy"), 0)
         self.assertNotIn("c1", self.store.ledger.unlocked_ids("amy"))
-        self.assertEqual(len([c for c in self.store.checks if not c["passed"]]), 3)
+        self.assertEqual(len([c for c in self.store.checks if not c["passed"]]), 4)
         # and a right answer afterwards still gets full points
         self.start("amy", action="reset")
         self.solve_c1("amy")

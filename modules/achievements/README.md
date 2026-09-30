@@ -1,10 +1,12 @@
 # achievements module
 
-Optional leaderboard, "achievement unlocked" toasts, end-of-lab challenges and a certificate over a workshop's labs (in progress: only the catalog core exists so far).
+Optional leaderboard, "achievement unlocked" toasts, end-of-lab challenges and a certificate over a workshop's labs.
 
-**Status.** Phase 1a of the plan in `ROADMAP.md` ("Achievements"): the catalog loader, validator and markdown generator.
-There is no service, compose file or manifest yet, so no workshop lists this module and `MODULES="achievements"` does
-nothing. The runtime comes in phase 2.
+**Status.** In progress; see "Achievements" in `ROADMAP.md`. Built: the catalog (loader, validator, markdown
+generator, editor), the service with its event API, points, hints and `/admin` tab, the shell and Forgejo event
+sources, and challenges (phase 4: `dojo-check`, `dojo-challenge start/reset`, the Forgejo verifiers and seed builder,
+with git-fundamentals c1 and c2 specified). Not built yet: the capstone's seed and verbs, cheat tiers, the certificate,
+Sensei and the VS Code/Forgejo toast surfaces. Only git-fundamentals has `match` rules and challenge verifiers so far.
 
 ## The catalog
 
@@ -112,7 +114,8 @@ A module that owns a backend declares its checks in `achievements/verifiers.json
 each checks, the Python file with `VERBS` and `BUILDERS`); this module ships the Forgejo/git ones
 (`achievements/forgejo.py`). `service/challenges.py` loads them (plus any folder in
 `ACHIEVEMENTS_PLUGIN_DIRS`), fills `{user}` and the per-student values of the challenge's
-`seed_plan` (`workshops/<name>/achievements/seeds/`, each value picked by a hash of the user name),
+`seed_plan` (`workshops/<name>/achievements/seeds/`, each value picked by a hash of the user name;
+keys grouped in the plan's `linked` share one pick, e.g. a role and its misspelling),
 refuses any assertion or seed whose `repo` isn't `{user}/...`, and runs them with the service's
 own Forgejo admin login (no login: `dojo-check ID` answers 501). A pass is recorded once, never
 undone, and scores the usual points minus hints; a wrong answer costs nothing (only the masher

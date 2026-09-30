@@ -123,13 +123,13 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 - **Points:** 100
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
-- **Goal shown to the student:** Production has a typo in `roster/team.yaml`. Ship a fix without touching `main` directly. Prove it with a pull request.
-- **Constraints:** in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`; the change sets Alice's role to `{role_for_user}` (a per-student value from a fixed silly list, e.g. "Chief Snack Officer") so an answer can't be copied.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); Alice's role on its `main` has the typo, and `{role_for_user}` is picked per student.
-- **Verify:** forgejo `pr_exists` (from `hotfix-{user}` into `main`, open or merged, title starts `hotfix:`), `pr_files == [roster/team.yaml]`, `pr_file_contains` Alice's new role at the PR's head, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).
+- **Goal shown to the student:** Production has a typo in `roster/team.yaml`: your own role, on the `name: {user}` entry, is misspelled. Ship a fix without touching `main` directly. Prove it with a pull request.
+- **Constraints:** in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`; your entry's role goes from `{role_typo}` to `{role}`. Each student's role and typo are picked per student, so an answer can't be copied.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); its roster lists the student as `name: {user}` with a per-student role spelled wrong (`role`/`role_typo`, a linked pair).
+- **Verify:** forgejo `pr_exists` (from `hotfix-{user}` into `main`, open or merged, title starts `hotfix:`), `pr_files == [roster/team.yaml]`, `pr_file_contains` the student's entry with the right role and no longer the typo at the PR's head, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).
 - **Hint 1:** Everything you need is in Lab 1. What do you do before you edit anything?
-- **Hint 2:** Branch, edit the one line, commit, push, open the PR from Forgejo.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` set Alice's role to `{role_for_user}`; `git commit -am "hotfix: fix Alice's role"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title starting `hotfix:`; then `dojo-check c1`.
+- **Hint 2:** Find your own name in `roster/team.yaml`. Branch, fix that one line, commit, push, open the PR from Forgejo.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` change your role (under `name: {user}`) from `{role_typo}` to `{role}`; `git commit -am "hotfix: fix my role"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title starting `hotfix:`; then `dojo-check c1`.
 - **Collision check:** own repo, own branch, no merge into a shared `main`. Nothing needs a facilitator.
 
 ### C2: The Detective (after Lab 3 or 4)

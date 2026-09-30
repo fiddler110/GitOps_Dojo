@@ -8,6 +8,8 @@ service's own backend login. No state and no locks here: store.py records the ou
 Per-student values come from the challenge's seed plan (`seed_plan`, a file in the
 workshop's achievements/seeds/): each key in its "values" picks one entry by a hash of the
 user name, so the same student always gets the same value and neighbours mostly differ.
+Keys listed together in the plan's "linked" (e.g. [["role", "role_typo"]]) share one pick, so a
+right spelling and its per-student typo stay a pair.
 """
 
 import base64
@@ -126,8 +128,14 @@ class Runner:
     def values(self, ch, user):
         vals = {"user": user}
         plan = self.plan(ch)
-        for key, options in ((plan or {}).get("values") or {}).items():
-            vals[key] = pick(user, key, options)
+        options = (plan or {}).get("values") or {}
+        index = {}
+        for group in (plan or {}).get("linked") or []:
+            i = pick(user, group[0], range(len(options[group[0]])))
+            for key in group:
+                index[key] = i
+        for key, opts in options.items():
+            vals[key] = opts[index[key]] if key in index else pick(user, key, opts)
         return vals
 
     def render(self, ch, user, text):
