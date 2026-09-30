@@ -67,3 +67,14 @@ Hackerman") only to a caller the gateway identified, never to the user named in 
 Tests: `python3 -B -m unittest test_service test_server` from `service/`.
 `static/toast.js` shows toasts on any same-origin page (`<script src="/achievements/toast.js"
 data-surface="portal">`); loading it on engine pages is open question A31 in ROADMAP.md.
+
+## The terminal (`terminal/`)
+
+`dojo-check` (status, `hint ID`, `reveal ID`, `ID`) is one stdlib script with no answers in it.
+It sends the student's own Forgejo token (from `~/.git-credentials`), which the service confirms
+with Forgejo, plus its own sha256: the service hashes the same file, so an edited copy costs -1
+("cheat-client") and a mutating call without the shipped client is refused the same way.
+Identity headers next to a token that belong to someone else cost -1 ("cheat-identity").
+A prompt hook in `/etc/zsh/zshrc` runs `dojo-check --echo` at most every 5 s and prints new
+unlocks in colour once; the echo never marks an unlock delivered, so the browser still toasts it.
+`dojo-check ID` answers 501 until the challenge verifiers exist.

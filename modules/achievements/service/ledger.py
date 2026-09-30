@@ -352,11 +352,14 @@ class Ledger:
     def pending(self, user):
         return [t for t in self.users.get(user, {}).get("toasts", []) if not t["delivered"]]
 
-    def claim(self, user, surface, now):
+    def claim(self, user, surface, now, after=0):
         """Toasts a surface should show now. Shown once: the first toast-capable surface to
         ask takes them. The terminal echo asks with surface='terminal' and marks nothing
-        (A13). More than COLLAPSE_OVER queued collapse into a single summary toast."""
+        (A13); it passes the last `seq` it printed as `after`, so a prompt never echoes the same
+        unlock twice. More than COLLAPSE_OVER queued collapse into a single summary toast."""
         queue = self.pending(user)
+        if surface == "terminal":
+            queue = [t for t in queue if t["seq"] > after]
         if not queue:
             return []
         if surface != "terminal":
@@ -365,5 +368,6 @@ class Ledger:
         if len(queue) > COLLAPSE_OVER:
             return [{"kind": "summary", "title": f"You unlocked {len(queue)} achievements",
                      "joke": "See them all on the landing page.", "count": len(queue),
-                     "points": sum(t["points"] for t in queue), "ms": TOAST_MS["default"], "link": "/"}]
+                     "points": sum(t["points"] for t in queue), "ms": TOAST_MS["default"], "link": "/",
+                     "seq": max(t["seq"] for t in queue)}]
         return [dict(t) for t in queue]

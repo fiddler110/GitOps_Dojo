@@ -127,12 +127,27 @@ class Store:
             self._save()
             return rows
 
-    def toasts(self, user, surface):
+    def toasts(self, user, surface, after=0):
         with self.lock:
             self._student(user)
-            out = self.ledger.claim(user, surface, self.clock())
+            out = self.ledger.claim(user, surface, self.clock(), after)
             self._save()
             return out
+
+    # -- cheats seen at the door ---------------------------------------------------------
+    def tamper(self, user):
+        """The caller's client is not the one we shipped (an edited dojo-check, or their own)."""
+        with self.lock:
+            self._student(user)
+            self._cheat(user, "cheat-client", self.clock())
+            self._save()
+
+    def spoof(self, user):
+        """`user` (identified by their own Forgejo token) sent someone else's identity headers."""
+        with self.lock:
+            self._student(user)
+            self._cheat(user, "cheat-identity", self.clock())
+            self._save()
 
     # -- events ------------------------------------------------------------------------
     def _award(self, user, item_id, now):

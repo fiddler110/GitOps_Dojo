@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
 import catalog  # noqa: E402  (server puts ../catalog on the path)
 import guards  # noqa: E402
 import ledger as lg  # noqa: E402
+import identity  # noqa: E402
 import server  # noqa: E402
 from store import Denied, Store  # noqa: E402
 
@@ -183,6 +184,132 @@ class StoreTests(unittest.TestCase):
         self.s.event(None, self.ev("a", "l1-clone"))
         self.s.reload(load())
         self.assertEqual(self.s.me("a")["score"], 10)
+
+
+class ResolverTests(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+        self.clock = Clock()
+        self.r = identity.Resolver(self.fetch, self.clock)
+
+    def fetch(self, token):
+        self.calls.append(token)
+        return {"good1": "alice"}.get(token)
+
+    def test_token_parsing(self):
+        t = identity.Resolver.token_of
+        self.assertEqual(t("token abc123"), "abc123")
+        self.assertEqual(t("Bearer abc123"), "abc123")
+        for bad in (None, "", "token", "Basic abc", "token a b", "token ../x", "token " + "a" * 300):
+            self.assertIsNone(t(bad), bad)
+
+    def test_resolves_and_caches(self):
+        self.assertEqual(self.r.resolve("token good1"), "alice")
+        self.assertEqual(self.r.resolve("token good1"), "alice")
+        self.assertEqual(self.calls, ["good1"])
+        self.clock.t += 61
+        self.r.resolve("token good1")
+        self.assertEqual(len(self.calls), 2)
+
+    def test_unknown_token_is_cached_briefly(self):
+        self.assertIsNone(self.r.resolve("token nope"))
+        self.assertIsNone(self.r.resolve("token nope"))
+        self.assertEqual(len(self.calls), 1)
+        self.clock.t += 11
+        self.r.resolve("token nope")
+        self.assertEqual(len(self.calls), 2)
+
+    def test_malformed_never_calls_forgejo(self):
+        self.r.resolve("nonsense")
+        self.assertEqual(self.calls, [])
+
+
+class TokenHttpTests(unittest.TestCase):
+    """The terminal's way in: its own Forgejo token, plus the client hash."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        server.store = Store(load(), lg.Config(), cls.dir, TOKEN, facilitator="boss")
+        server.resolver = identity.Resolver(lambda t: {"tokA": "amy", "tokB": "ben", "tokC": "cat", "tokD": "dan"}.get(t))
+        server.CLIENT_HASH = "h" * 64
+        cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.port = cls.srv.server_address[1]
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        server.resolver = None
+        server.CLIENT_HASH = ""
+        shutil.rmtree(cls.dir)
+
+    def call(self, method, path, token=None, client="h" * 64, body=None, extra=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.port)
+        h = dict(extra or {})
+        if token:
+            h["Authorization"] = "token " + token
+        if client:
+            h["X-Dojo-Client"] = client
+        c.request(method, path, body=json.dumps(body).encode() if body is not None else None, headers=h)
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r.status, json.loads(raw)
+
+    def cheats(self, user):
+        return {i for i in server.store.ledger.unlocked_ids(user) if i.startswith("cheat")}
+
+    def test_token_identifies_the_student(self):
+        st, doc = self.call("GET", "/api/me", token="tokA")
+        self.assertEqual((st, doc["user"]), (200, "amy"))
+
+    def test_unknown_token_is_anonymous(self):
+        self.assertEqual(self.call("GET", "/api/me", token="bogus")[0], 403)
+        self.assertEqual(self.call("GET", "/api/me")[0], 403)
+
+    def test_hint_with_the_shipped_client(self):
+        st, doc = self.call("POST", "/api/hint", token="tokA", body={"challenge": "c1"})
+        self.assertEqual((st, doc["n"]), (200, 1))
+
+    def test_edited_client_is_charged_and_refused(self):
+        st, _ = self.call("POST", "/api/hint", token="tokB", client="f" * 64, body={"challenge": "c1"})
+        self.assertEqual(st, 403)
+        self.assertEqual(self.cheats("ben"), {"cheat-client"})
+        self.assertEqual(server.store.ledger.hints_used("ben", "c1"), 0)
+
+    def test_no_client_on_a_mutating_call_counts_as_your_own_client(self):
+        st, _ = self.call("POST", "/api/hint", token="tokC", client=None, body={"challenge": "c1"})
+        self.assertEqual(st, 403)
+        self.assertEqual(self.cheats("cat"), {"cheat-client"})
+
+    def test_reading_without_a_client_is_fine(self):
+        self.assertEqual(self.call("GET", "/api/me", token="tokD", client=None)[0], 200)
+        self.assertEqual(self.cheats("dan"), set())
+
+    def test_someone_elses_identity_header_is_a_cheat(self):
+        self.call("GET", "/api/me", token="tokA", extra={"X-Auth-User": "ben"})
+        self.assertIn("cheat-identity", server.store.ledger.unlocked_ids("amy"))
+        self.assertNotIn("cheat-identity", server.store.ledger.unlocked_ids("ben"))
+
+    def test_terminal_toasts_echo_once_and_stay_queued(self):
+        server.store.ledger.unlock("eve", "f-main", 5)
+        server.resolver.fetch = lambda t: {"tokE": "eve"}.get(t)
+        st, doc = self.call("GET", "/api/toasts?surface=terminal&after=0", token="tokE")
+        self.assertEqual(len(doc["toasts"]), 1)
+        seq = doc["toasts"][0]["seq"]
+        self.assertEqual(self.call("GET", f"/api/toasts?surface=terminal&after={seq}", token="tokE")[1]["toasts"], [])
+        # the echo did not deliver it: the browser still gets its toast
+        self.assertEqual(len(server.store.ledger.pending("eve")), 1)
+
+    def test_check_is_not_built_yet(self):
+        self.assertEqual(self.call("POST", "/api/check", token="tokA", body={"challenge": "c1"})[0], 501)
+
+    def test_forged_event_by_token_is_charged_to_the_token_owner(self):
+        st, _ = self.call("POST", "/api/event", token="tokA",
+                          body={"user": "amy", "event": "l1-clone", "ts": 1, "nonce": "q", "sig": "no"})
+        self.assertEqual(st, 403)
+        self.assertIn("cheat-forged", server.store.ledger.unlocked_ids("amy"))
 
 
 class HttpTests(unittest.TestCase):

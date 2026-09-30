@@ -8,7 +8,9 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   GET  /api/board         the whole class (anonymous names when ACHIEVEMENTS_ANONYMOUS=1)
   GET  /api/toasts?surface=NAME   toasts to show now (each shown once; surface=terminal keeps them)
   POST /api/event         a signed event {user, event, ts, nonce, sig}
-  POST /api/hint, /api/reveal   {challenge}
+  POST /api/hint, /api/reveal   {challenge};  POST /api/check {challenge} (not built yet: 501)
+  The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
+  token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
 GET /healthz.
@@ -29,6 +31,7 @@ import urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
 import catalog as cat  # noqa: E402
+import identity  # noqa: E402
 import ledger as lg  # noqa: E402
 from store import Denied, Store  # noqa: E402
 
@@ -50,7 +53,12 @@ ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js")
 ADMIN_PAGES = {"/": "admin.html"}
 ADMIN_ASSETS = ("admin.js", "style.css")
 
+CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
+FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
+
 store = None
+resolver = None
+CLIENT_HASH = ""
 
 
 def log(msg):
@@ -64,6 +72,16 @@ def load_catalog():
     for w in warnings[:5]:
         log(f"catalog warning: {w}")
     return catalog
+
+
+def client_hash():
+    """sha256 of the dojo-check client baked into the terminal image (the same file)."""
+    import hashlib
+    try:
+        with open(CLIENT_FILE, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return ""
 
 
 def make_store():
@@ -104,12 +122,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ctype += "; charset=utf-8"
         self._send(200, body, ctype)
 
-    def _caller(self):
-        """The identified user, or None when the gateway token is missing or wrong."""
+    def _gateway_user(self):
+        """The user the gateway identified, or None when its token is missing or wrong."""
         given = self.headers.get("X-Gateway-Token") or ""
         if not GATEWAY_TOKEN or not hmac.compare_digest(given.encode(), GATEWAY_TOKEN.encode()):
             return None
         return self.headers.get("X-Auth-User") or None
+
+    def _caller(self, mutating=False):
+        """The identified user, or None. Two ways in: the gateway's headers (the browser), or
+        the student's own Forgejo token (the terminal, `dojo-check`), which Forgejo vouches for.
+
+        A token caller must use the client we shipped: a wrong hash costs -1 and refuses the
+        request, and so does no hash on a request that changes something. Identity headers
+        without the gateway token, next to a token, are someone else's name worn like a hat."""
+        user = self._gateway_user()
+        if user:
+            return user
+        user = resolver.resolve(self.headers.get("Authorization")) if resolver else None
+        if not user:
+            return None
+        if self.headers.get("X-Auth-User") and self.headers.get("X-Auth-User") != user:
+            store.spoof(user)
+        sent = self.headers.get("X-Dojo-Client")
+        if (sent is not None or mutating) and (not CLIENT_HASH or sent != CLIENT_HASH):
+            store.tamper(user)
+            raise Denied(403, "unrecognised client")
+        return user
 
     def _body(self):
         try:
@@ -159,7 +198,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, {"rows": store.board(self._need(caller))})
         if path == "/api/toasts":
             surface = (query.get("surface") or ["page"])[0][:20]
-            return self._json(200, {"toasts": store.toasts(self._need(caller), surface)})
+            try:
+                after = int((query.get("after") or ["0"])[0])
+            except ValueError:
+                after = 0
+            return self._json(200, {"toasts": store.toasts(self._need(caller), surface, after)})
         self._json(404, {"error": "not found"})
 
     @staticmethod
@@ -172,7 +215,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         if path.startswith(ADMIN_PREFIX + "/"):
             return self._admin_post(path[len(ADMIN_PREFIX):])
-        caller = self._caller()
+        caller = self._caller(mutating=path in ("/api/hint", "/api/reveal", "/api/check"))
         body = self._body()
         if path == "/api/event":
             return self._json(200, store.event(caller, body))
@@ -182,11 +225,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 raise Denied(400, "challenge is required")
             user = self._need(caller)
             return self._json(200, store.hint(user, cid) if path == "/api/hint" else store.reveal(user, cid))
+        if path == "/api/check":
+            self._need(caller)
+            raise Denied(501, "checking arrives with the challenge verifiers")
         self._json(404, {"error": "not found"})
 
     # -- facilitator -------------------------------------------------------------------
     def _facilitator(self):
-        if self._caller() != FACILITATOR:
+        if self._gateway_user() != FACILITATOR:
             raise Denied(403, "facilitator only")
 
     def _admin_get(self, path):
@@ -219,8 +265,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    global store
+    global store, resolver, CLIENT_HASH
     store = make_store()
+    resolver = identity.Resolver(identity.forgejo_fetch(FORGEJO_URL))
+    CLIENT_HASH = client_hash()
     port = int(os.environ.get("PORT", "8080"))
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))

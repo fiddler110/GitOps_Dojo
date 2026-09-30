@@ -4,6 +4,9 @@
 // applied through the CSSOM, so it works under a page's strict CSP with no stylesheet.
 (function () {
   'use strict';
+  // A page framed by another page of this site (a workspace tab, the landing widget) leaves
+  // the toasts to the top page, so one unlock is never shown twice or clipped in a frame.
+  try { if (window.top !== window && window.top.location.origin === window.location.origin) { return; } } catch (e) { return; }
   var me = document.currentScript;
   var surface = (me && me.getAttribute('data-surface')) || 'page';
   var base = me ? me.src.replace(/toast\.js.*$/, '') : '/achievements/';
