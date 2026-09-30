@@ -87,12 +87,13 @@ def build_index(catalog, config):
     """id -> {kind, item, points, cheat} for everything a student can unlock right now.
 
     Retired items are left out: they can't be earned any more, while unlocks already
-    recorded keep the points they scored.
+    recorded keep the points they scored. Switched-off items (`"enabled": false`) are left
+    out too, and the Ledger also hides what was already earned from them.
     """
     idx = {}
 
     def add(item, kind, cheat=False):
-        if item.get("retired"):
+        if not cat.is_active(item):
             return
         pts = item.get("points")
         if pts is None:
@@ -119,6 +120,9 @@ class Ledger:
         self.catalog = catalog
         self.config = config or Config()
         self.index = build_index(catalog, self.config)
+        # Switched-off ids: unlocks, bonuses and toasts recorded for them stay in the state (so
+        # switching the item back on restores them) but count for nothing and are never shown.
+        self.disabled = cat.disabled_ids(catalog)
         s = state or {}
         self.users = s.get("users", {})
         self.first_blood = s.get("first_blood", {})       # challenge id -> user
@@ -279,10 +283,11 @@ class Ledger:
         return removed is not None
 
     # -- reading -----------------------------------------------------------------------
-    @staticmethod
-    def _score_of(u):
-        total = sum(x["points"] for x in u["unlocked"].values())
-        total += sum(b["points"] for b in u["bonuses"]) + sum(a["points"] for a in u["adjust"])
+    def _score_of(self, u):
+        off = self.disabled
+        total = sum(x["points"] for i, x in u["unlocked"].items() if i not in off)
+        total += sum(b["points"] for b in u["bonuses"] if b.get("id") not in off)
+        total += sum(a["points"] for a in u["adjust"])
         return max(0, total)
 
     def score(self, user):
@@ -290,8 +295,9 @@ class Ledger:
         return self._score_of(u) if u else 0
 
     def _last_change(self, u):
-        times = [x["at"] for x in u["unlocked"].values() if x["points"]]
-        times += [b["at"] for b in u["bonuses"]] + [a["at"] for a in u["adjust"]]
+        off = self.disabled
+        times = [x["at"] for i, x in u["unlocked"].items() if x["points"] and i not in off]
+        times += [b["at"] for b in u["bonuses"] if b.get("id") not in off] + [a["at"] for a in u["adjust"]]
         return max(times) if times else 0
 
     def leaderboard(self):
@@ -307,7 +313,12 @@ class Ledger:
         return out
 
     def unlocked_ids(self, user):
-        return set(self.users.get(user, {}).get("unlocked", {}))
+        """What the student has unlocked, switched-off items left out."""
+        return set(self.users.get(user, {}).get("unlocked", {})) - self.disabled
+
+    def visible_unlocked(self, user):
+        """{id: unlock record} without the switched-off items."""
+        return {i: x for i, x in self.users.get(user, {}).get("unlocked", {}).items() if i not in self.disabled}
 
     def completion(self, user):
         """(done, total, percent, complete) over the core milestones."""
@@ -318,7 +329,8 @@ class Ledger:
         u = self.users.get(user)
         if not u:
             return []
-        rows = [dict(id=i, **x) for i, x in u["unlocked"].items() if not x["cheat"] and x["kind"] != "funny"]
+        rows = [dict(id=i, **x) for i, x in self.visible_unlocked(user).items()
+                if not x["cheat"] and x["kind"] != "funny"]
         rows.sort(key=lambda r: -r["at"])
         return [dict(r, title=self.index_title(r["id"])) for r in rows[:n]]
 
@@ -329,7 +341,7 @@ class Ledger:
         if not u:
             return []
         out = []
-        for iid, x in sorted(u["unlocked"].items(), key=lambda kv: kv[1]["at"]):
+        for iid, x in sorted(self.visible_unlocked(user).items(), key=lambda kv: kv[1]["at"]):
             if x["kind"] == "funny" and not x["cheat"]:
                 item = self._find(iid)
                 out.append({"id": iid, "title": item.get("title", iid), "joke": item.get("joke", ""),
@@ -350,7 +362,8 @@ class Ledger:
 
     # -- toast queue -------------------------------------------------------------------
     def pending(self, user):
-        return [t for t in self.users.get(user, {}).get("toasts", []) if not t["delivered"]]
+        return [t for t in self.users.get(user, {}).get("toasts", [])
+                if not t["delivered"] and t.get("id") not in self.disabled]
 
     def claim(self, user, surface, now, after=0):
         """Toasts a surface should show now. Shown once: the first toast-capable surface to

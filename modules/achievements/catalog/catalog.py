@@ -28,10 +28,10 @@ CHALLENGE_RE = re.compile(r"^c[0-9]+$")
 
 # Fields each JSON object may carry. Anything else is an error, so a typo is caught
 # instead of silently ignored.
-ITEM_FIELDS = {"id", "title", "joke", "points", "core", "when", "match", "note", "retired"}
+ITEM_FIELDS = {"id", "title", "joke", "points", "core", "when", "match", "note", "retired", "enabled"}
 CHALLENGE_FIELDS = {
     "id", "title", "after", "space", "goal", "constraints", "seed", "verify_text", "verify",
-    "hints", "answer", "isolation", "facilitator", "points", "badge_tier", "retired",
+    "hints", "answer", "isolation", "facilitator", "points", "badge_tier", "retired", "enabled",
 }
 CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge", "require_match"}
 LAB_FIELDS = {"id", "title"}
@@ -139,6 +139,32 @@ def _read(path, problems):
     return None
 
 
+def is_enabled(item):
+    """`enabled` defaults to true. An item switched off (`"enabled": false`, the catalog editor's
+    toggle) is hidden and inert: it never fires, students never see it, and it counts toward
+    neither completion nor any score, including points already earned from it. Unlike
+    `retired`, which keeps earned points, switching it back on restores everything."""
+    return not isinstance(item, dict) or item.get("enabled", True) is not False
+
+
+def is_active(item):
+    """Can be earned right now: enabled and not retired."""
+    return is_enabled(item) and not item.get("retired")
+
+
+def disabled_ids(catalog):
+    """Ids of every item switched off, across labs, funny, shared, challenges and capstone."""
+    items = [m for lab in catalog["labs"] for m in lab["milestones"]] + list(catalog["funny"])
+    items += list(catalog["shared"].get("cheats", [])) + list(catalog["shared"].get("unlocks", []))
+    items += list(catalog["challenges"]) + ([catalog["capstone"]] if catalog.get("capstone") else [])
+    return {i["id"] for i in items if isinstance(i, dict) and not is_enabled(i)}
+
+
+def _check_enabled(obj, where, problems):
+    if "enabled" in obj and not isinstance(obj["enabled"], bool):
+        problems.append(f"{where}: 'enabled' must be true or false")
+
+
 def points_of(item, kind):
     """An item's points: its own value, else the kind's default."""
     value = item.get("points")
@@ -160,6 +186,7 @@ def _check_item(item, kind, where, ids, problems, warnings, sources, require_mat
         problems.append(f"{where}: id '{iid}' must be lowercase letters, digits and '-'")
         return
     where = f"{where} {iid}"
+    _check_enabled(item, where, problems)
     if iid in ids:
         problems.append(f"{where}: duplicate id (also in {ids[iid]})")
     ids[iid] = where
@@ -178,7 +205,7 @@ def _check_item(item, kind, where, ids, problems, warnings, sources, require_mat
         problems.append(f"{where}: milestones need 'core' (true or false)")
     match = item.get("match")
     if match is None or match == {}:
-        if item.get("retired"):
+        if item.get("retired") or not is_enabled(item):
             return
         if require_match:
             # The workshop opted in (catalog.json "require_match"): every item must be able to fire.
@@ -202,6 +229,7 @@ def _check_challenge(ch, kind, where, ids, problems, warnings):
         problems.append(f"{where}: id '{cid}' must be {'capstone' if kind == 'capstone' else 'c1, c2, ...'}")
         return
     where = f"{where} {cid}"
+    _check_enabled(ch, where, problems)
     if cid in ids:
         problems.append(f"{where}: duplicate id (also in {ids[cid]})")
     ids[cid] = where
@@ -356,8 +384,8 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
 
 
 def milestones(catalog):
-    """Every milestone in lab order, retired ones excluded."""
-    return [m for lab in catalog["labs"] for m in lab["milestones"] if not m.get("retired")]
+    """Every milestone in lab order, retired and switched-off ones excluded."""
+    return [m for lab in catalog["labs"] for m in lab["milestones"] if is_active(m)]
 
 
 def core_milestones(catalog):

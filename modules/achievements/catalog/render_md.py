@@ -28,6 +28,13 @@ def _read(name):
         return fh.read().rstrip("\n")
 
 
+OFF = " (off)"   # marks an item switched off with "enabled": false (hidden and inert)
+
+
+def _id_cell(m):
+    return m["id"] + ("" if cat.is_enabled(m) else OFF)
+
+
 def _core_cell(m):
     if m["core"]:
         return "yes"
@@ -40,7 +47,7 @@ def _milestone_table(items):
         if m.get("retired"):
             continue
         rows.append("| {} | {} | \"{}\" | {} | {} | {} |".format(
-            m["id"], _cell(m["title"]), _cell(m["joke"]), cat.points_of(m, "milestone"),
+            _id_cell(m), _cell(m["title"]), _cell(m["joke"]), cat.points_of(m, "milestone"),
             _core_cell(m), _cell(m["when"])))
     return rows
 
@@ -51,14 +58,15 @@ def _funny_table(items):
         if m.get("retired"):
             continue
         rows.append("| {} | {} | \"{}\" | {} | {} |".format(
-            m["id"], _cell(m["title"]), _cell(m["joke"]), cat.points_of(m, "funny"), _cell(m["when"])))
+            _id_cell(m), _cell(m["title"]), _cell(m["joke"]), cat.points_of(m, "funny"), _cell(m["when"])))
     return rows
 
 
 def _challenge_block(ch, level):
     head = "#" * level
     after = f" ({ch['after']})" if ch.get("after") else ""
-    out = [f"{head} {ch['id'].upper()}: {ch['title']}{after}", ""]
+    off = "" if cat.is_enabled(ch) else OFF
+    out = [f"{head} {ch['id'].upper()}: {ch['title']}{after}{off}", ""]
     out.append(f"- **Points:** {cat.points_of(ch, 'capstone' if ch['id'] == 'capstone' else 'challenge')}")
     out.append(f"- **Where it runs:** {ch['space']}")
     out.append(f"- **Goal shown to the student:** {ch['goal']}")
@@ -120,24 +128,31 @@ def render(catalog):
         out.extend(_challenge_block(ch, 3))
         out.append("")
     cap = catalog["capstone"]
-    out.append(f"## Capstone ({cat.points_of(cap, 'capstone')} points, optional): {cap['title']}")
+    cap_off = "" if cat.is_enabled(cap) else OFF
+    out.append(f"## Capstone ({cat.points_of(cap, 'capstone')} points, optional): {cap['title']}{cap_off}")
     out.append("")
     out.extend(_challenge_block(cap, 3)[2:])
     out.append("")
     core = cat.core_milestones(catalog)
     ms = cat.milestones(catalog)
-    funny = [f for f in catalog["funny"] if not f.get("retired")]
-    chs = [c for c in catalog["challenges"] if not c.get("retired")]
+    funny = [f for f in catalog["funny"] if cat.is_active(f)]
+    chs = [c for c in catalog["challenges"] if cat.is_active(c)]
     core_pts = sum(cat.points_of(m, "milestone") for m in core)
     all_ms_pts = sum(cat.points_of(m, "milestone") for m in ms)
     ch_pts = sum(cat.points_of(c, "challenge") for c in chs)
-    cap_pts = cat.points_of(cap, "capstone")
+    cap_pts = cat.points_of(cap, "capstone") if cat.is_active(cap) else 0
     out.append("## Totals (computed)")
     out.append("")
     out.append(f"{len(core)} core milestones ({core_pts} points) of {len(ms)} milestones ({all_ms_pts}) · "
                f"{len(funny)} funny unlocks (0 points each) · {len(chs)} challenges ({ch_pts}) · "
                f"capstone {cap_pts} · plus first blood and class-clear bonuses. "
                f"Everything: {all_ms_pts + ch_pts + cap_pts} points.")
+    shared = {i["id"] for i in catalog["shared"].get("cheats", []) + catalog["shared"].get("unlocks", [])}
+    off = len(cat.disabled_ids(catalog) - shared)   # shared items are not listed in this file
+    if off:
+        out.append("")
+        out.append(f"{off} item(s) marked (off) are switched off (`\"enabled\": false`): hidden from students, never "
+                   "fire, and left out of these totals and of completion.")
     return "\n".join(out) + "\n"
 
 

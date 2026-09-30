@@ -228,6 +228,19 @@ class StoreTests(unittest.TestCase):
         self.s.shell("a", {"cmd": "git init", "exit": 0})
         self.assertIn("l1-clone", self.s.ledger.unlocked_ids("a"))
 
+    def test_switched_off_items_are_hidden_from_student_views(self):
+        self.s.shell("a", {"cmd": "git clone x", "exit": 0})
+        c = load()
+        c["labs"][0]["milestones"][0]["enabled"] = False     # l1-clone
+        c["challenges"][0]["enabled"] = False
+        self.s.reload(c)
+        me = self.s.me("a")
+        self.assertEqual(me["score"], 0)
+        self.assertNotIn("l1-clone", [r["id"] for r in me["recent"]])
+        self.assertNotIn(c["challenges"][0]["id"], [r["id"] for r in me["challenges"]])
+        self.assertEqual(self.s.admin_state()["students"][0]["unlocks"], 0)
+        self.assertEqual(self.s.shell("a", {"cmd": "git clone y", "exit": 0}), {"unlocked": 0})
+
 
 class ResolverTests(unittest.TestCase):
     def setUp(self):

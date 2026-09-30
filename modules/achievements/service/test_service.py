@@ -1,5 +1,6 @@
 """Unit tests for the ledger, anonymous names and event guards. No containers."""
 
+import copy
 import os
 import sys
 import unittest
@@ -76,6 +77,49 @@ class Unlocking(unittest.TestCase):
             for lab in CATALOG["labs"]:
                 for m in lab["milestones"]:
                     m.pop("retired", None)
+
+
+class Enabled(unittest.TestCase):
+    """A switched-off item is inert and hidden, and its earned points stop counting until it is back on."""
+
+    def ledger_with_off(self, state, *ids):
+        c = copy.deepcopy(CATALOG)
+        for group in [lab["milestones"] for lab in c["labs"]] + [c["funny"], c["challenges"], [c["capstone"]]]:
+            for it in group:
+                if it["id"] in ids:
+                    it["enabled"] = False
+        return lg.Ledger(c, lg.Config(), state)
+
+    def test_off_cannot_be_earned_and_hides_what_was(self):
+        L = fresh()
+        L.unlock("a", "l1-clone", 1)
+        L.unlock("a", "l1-commit", 2)
+        L.unlock("a", "f-wrongdir", 3)
+        L2 = self.ledger_with_off(copy.deepcopy(L.to_dict()), "l1-clone", "f-wrongdir")
+        self.assertEqual(L2.score("a"), 10)                       # unlike retired: points gone
+        self.assertNotIn("l1-clone", L2.unlocked_ids("a"))
+        self.assertEqual([r["id"] for r in L2.recent("a")], ["l1-commit"])
+        self.assertEqual(L2.moments("a"), [])
+        self.assertNotIn("l1-clone", [t["id"] for t in L2.pending("a")])
+        with self.assertRaises(lg.UnknownItem):
+            L2.unlock("b", "l1-clone", 4)
+        done, total, _, _ = L2.completion("a")
+        self.assertEqual(total, len(cat.core_milestones(CATALOG)) - 1)
+        self.assertEqual(done, 1)
+        # Back on: everything returns, nothing is awarded twice.
+        L3 = lg.Ledger(CATALOG, lg.Config(), L2.to_dict())
+        self.assertEqual(L3.score("a"), 20)
+        self.assertIsNone(L3.unlock("a", "l1-clone", 5))
+
+    def test_off_challenge_drops_its_bonuses(self):
+        L = fresh()
+        L.register("b")
+        L.clear("a", "c1", 1)
+        self.assertEqual(L.score("a"), 125)                       # clear plus first blood
+        L2 = self.ledger_with_off(copy.deepcopy(L.to_dict()), "c1")
+        self.assertEqual(L2.score("a"), 0)
+        with self.assertRaises(lg.UnknownItem):
+            L2.clear("b", "c1", 2)
 
 
 class Challenges(unittest.TestCase):

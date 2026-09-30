@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievement Catalog Editor</title>
+<link rel="stylesheet" href="/editor.css">
+<script src="/editor.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <h1>Achievement catalog</h1>
+  <input id="search" type="search" placeholder="Search id, title, joke, when, goal..." aria-label="Search">
+  <select id="workshop" aria-label="Workshop"><option value="">All workshops</option></select>
+  <select id="state" aria-label="Show">
+    <option value="">All rows</option>
+    <option value="on">On only</option>
+    <option value="off">Off only</option>
+    <option value="changed">Changed only</option>
+  </select>
+  <span id="status" class="dim"></span>
+  <button id="discard" type="button" class="plain">Discard</button>
+  <button id="reload" type="button" class="plain">Reload</button>
+  <button id="save" type="button">Save</button>
+</header>
+<div id="errors" class="errors hidden" role="alert"></div>
+<div id="notice" class="notice hidden" role="status"></div>
+<main id="main"><p class="dim">Loading...</p></main>
+</body>
+</html>

@@ -14,6 +14,7 @@ import guards
 import ledger as lg
 import matcher
 import names
+from ledger import cat
 
 STATE_FILE = "state.json"
 
@@ -116,7 +117,7 @@ class Store:
     def _challenge_rows(self, user):
         rows = []
         for ch in self.catalog["challenges"] + ([self.catalog["capstone"]] if self.catalog.get("capstone") else []):
-            if ch.get("retired"):
+            if not cat.is_active(ch):
                 continue
             cid = ch["id"]
             done = cid in self.ledger.unlocked_ids(user)
@@ -279,9 +280,9 @@ class Store:
                 done, total, pct, complete = L.completion(u)
                 students.append({"user": u, "name": self.names.name_for(u), "score": row["score"],
                                  "rank": row["rank"], "percent": pct, "complete": complete,
-                                 "unlocks": len(L.users[u]["unlocked"]),
+                                 "unlocks": len(L.visible_unlocked(u)),
                                  "moments": [m["title"] for m in L.moments(u)],
-                                 "cheats": [i for i, x in L.users[u]["unlocked"].items() if x["cheat"]]})
+                                 "cheats": [i for i, x in L.visible_unlocked(u).items() if x["cheat"]]})
             return {"students": students, "log": L.log[-100:], "forged": self.forged[-50:],
                     "anonymous": self.anonymous}
 

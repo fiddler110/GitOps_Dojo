@@ -363,6 +363,55 @@ class Render(unittest.TestCase):
         self.assertIn("2 core milestones (30 points)", render_md.render(c))
 
 
+class Enabled(unittest.TestCase):
+    """`"enabled": false`: hidden and inert, out of completion and totals; ids stay."""
+
+    def setUp(self):
+        self.w = Workshop()
+        self.addCleanup(self.w.cleanup)
+
+    def test_default_is_on(self):
+        c, _ = self.w.load()
+        self.assertTrue(cat.is_enabled(c["labs"][0]["milestones"][0]))
+        self.assertEqual(cat.disabled_ids(c), set())
+
+    def test_off_items_leave_milestones_and_completion(self):
+        self.w.write("labs/lab1.json", {"milestones": [item("m1"), item("m2", enabled=False), item("m3")]})
+        c, _ = self.w.load()
+        self.assertEqual([m["id"] for m in cat.milestones(c)], ["m1", "m3"])
+        self.assertEqual(cat.completion(c, {"m1", "m2"}, 80)[:2], (1, 2))
+        self.assertEqual(cat.disabled_ids(c), {"m2"})
+
+    def test_off_must_be_a_bool_on_items_and_challenges(self):
+        self.w.write("labs/lab1.json", {"milestones": [item("m1", enabled="no")]})
+        self.w.write("challenges/c1.json", challenge(enabled=0))
+        problems = self.w.problems()
+        self.assertTrue(any("m1: 'enabled' must be true or false" in p for p in problems), problems)
+        self.assertTrue(any("c1: 'enabled' must be true or false" in p for p in problems), problems)
+
+    def test_off_item_needs_no_match_even_with_require_match(self):
+        meta = self.w.read("catalog.json")
+        meta["require_match"] = True
+        self.w.write("catalog.json", meta)
+        self.w.write("labs/lab1.json", {"milestones": [item("m1"), item("m2", enabled=False, match={})]})
+        self.assertEqual(self.w.problems(), [])
+
+    def test_ids_stay_unique_when_off(self):
+        self.w.write("labs/lab1.json", {"milestones": [item("m1"), item("m1", enabled=False)]})
+        self.assertTrue(any("duplicate id" in p for p in self.w.problems()))
+
+    def test_render_marks_off_and_drops_it_from_totals(self):
+        self.w.write("labs/lab1.json", {"milestones": [item("m1"), item("m2", enabled=False)]})
+        self.w.write("challenges/c1.json", challenge(enabled=False))
+        c, _ = self.w.load()
+        text = render_md.render(c)
+        self.assertIn("| m2 (off) |", text)
+        self.assertIn("### C1: T (off)", text)
+        self.assertIn("1 core milestones (10 points) of 1 milestones", text)
+        self.assertIn("0 challenges (0)", text)
+        self.assertIn("2 item(s) marked (off)", text)
+
+
 class RealCatalogs(unittest.TestCase):
     """The committed catalogs: they load, follow the rules and match their generated markdown."""
 

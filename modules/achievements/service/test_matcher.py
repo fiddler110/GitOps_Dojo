@@ -169,5 +169,16 @@ class RecordedSequences(unittest.TestCase):
         self.assertEqual(funny - ledger.unlocked_ids("amy"), set())
 
 
+
+class Enabled(unittest.TestCase):
+    def test_off_items_never_fire(self):
+        c = load()
+        on = mt.Matcher(lg.build_index(c, lg.Config()))
+        self.assertIn("l1-clone", on.match(shell("git clone http://x/r.git")))
+        c["labs"][0]["milestones"][0]["enabled"] = False
+        self.assertEqual(c["labs"][0]["milestones"][0]["id"], "l1-clone")
+        off = mt.Matcher(lg.build_index(c, lg.Config()))
+        self.assertNotIn("l1-clone", off.match(shell("git clone http://x/r.git")))
+
 if __name__ == "__main__":
     unittest.main()

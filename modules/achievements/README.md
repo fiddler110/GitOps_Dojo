@@ -24,7 +24,7 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
 
 - **Item** (a milestone or a funny unlock): `id`, `title`, `joke`, `when` (text for humans), `core` (milestones only),
   optional `points` (else the kind's default: milestone 10, funny 0, challenge 100, capstone 300), optional `note`,
-  `retired`, and `match`, the structured trigger (`{"source": "shell", "cmd": "git commit", "exit": 0}`).
+  `retired`, `enabled`, and `match`, the structured trigger (`{"source": "shell", "cmd": "git commit", "exit": 0}`).
   An empty `match` produces a warning (the item is listed but never fires), or an error in a workshop whose
   `catalog.json` sets `"require_match": true` (git-fundamentals does).
 - **`match` fields** (full list in `catalog/catalog.py`, matched by `service/matcher.py`). `shell`: `cmd` (the
@@ -40,6 +40,9 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
   facilitator step is truly required), and `badge_tier: "capstone"` on the capstone.
 - **Ids are forever.** Never rename or reuse one that a class may have earned. Retire it with `"retired": true`: it
   keeps its points for anyone who earned it and disappears for new classes.
+- **On and off.** `"enabled": false` (any item, challenge or capstone; absent means on) switches an item off: it never
+  fires, students never see it, and it counts toward neither completion nor any score, including points already
+  earned from it (unlike `retired`). Switching it back on restores those unlocks. `ACHIEVEMENTS.md` marks it `(off)`.
 - **The isolation rules** ("Rules for challenges and capstones" in every generated `ACHIEVEMENTS.md`, source
   `catalog/rules.md`) are enforced where they can be: a challenge without a per-student `space`, or with a `verify`
   assertion that never mentions `{user}`, is an error.
@@ -55,7 +58,19 @@ Run from `modules/achievements/catalog/` (stdlib only, no stack needed):
 | `python3 -B render_md.py workshops/<name>` | One workshop |
 | `python3 -B -m unittest test_catalog` | The unit tests |
 
-To change an achievement: edit its JSON, run `render_md.py --all`, commit both.
+To change an achievement: edit its JSON, run `render_md.py --all`, commit both. Or use the editor below.
+
+## The catalog editor (`editor/`)
+
+`modules/achievements/edit.sh <workshop|all>` starts a local page (stdlib Python, `127.0.0.1` only, `PORT=8099` by
+default, no stack or network) with every item of that workshop plus `shared.json` in one table, grouped by workshop
+and lab: an on/off switch per row, per-workshop **All on / All off**, search and a filter (on, off, changed).
+Title, joke, when, points, core, and a challenge's goal, hints and answer are editable; `id` and `match` are read-only.
+Edits stay in the page (changed rows highlighted, a warning before leaving) until **Save**, which checks every edit,
+runs the catalog validator over the result (refusing the lot with its error list), writes only the changed JSON files
+in the house format (2-space indent, key order kept, so the diff is just the edited lines) and regenerates
+`ACHIEVEMENTS.md`. A file changed on disk since the page loaded is refused: **Reload**. Tests:
+`python3 -B -m unittest test_editor` from `editor/` (they work on a temporary copy).
 
 ## Service logic (`service/`)
 
