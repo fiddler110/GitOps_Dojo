@@ -70,4 +70,4 @@ _run_sh_complete() {
 # Bash can't register a pattern, so list the relative forms you'd actually
 # type: from the repo root (./run.sh, ./engine/run.sh) or from engine/
 # (./run.sh, ../run.sh).
-complete -F _run_sh_complete run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh
+complete -F _run_sh_complete run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh dojo

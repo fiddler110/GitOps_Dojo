@@ -82,5 +82,6 @@ _run_sh() {
 }
 
 # The relative forms you'd actually type: from the repo root (./run.sh,
-# ./engine/run.sh) or from engine/ (./run.sh, ../run.sh).
-compdef _run_sh run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh
+# ./engine/run.sh) or from engine/ (./run.sh, ../run.sh), and `dojo`, the
+# function `./run.sh alias-setup` adds.
+compdef _run_sh run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh dojo
