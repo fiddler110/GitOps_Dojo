@@ -38,6 +38,11 @@ class LoadTests(unittest.TestCase):
         self.addCleanup(os.unlink, f.name)
         return rx.load_manifest(f.name)
 
+    def test_widget_fields(self):
+        for item in ({"id": "w"}, {"id": "w", "src": "/a/", "height": "9999px"}):  # src required; no raw values
+            with self.subTest(item=item), self.assertRaises(rx.ManifestError):
+                self.load(manifest(widgets=[item]))
+
     def test_bad_json(self):
         with self.assertRaisesRegex(rx.ManifestError, "not valid JSON"):
             self.load(None, raw="{nope")
@@ -152,6 +157,33 @@ class CardTabStatusTests(unittest.TestCase):
         _, warnings = run_merge(manifest(cards=[self.card()],
                                          admin_tabs=[{"id": "cloud", "label": "Dojo Cloud", "src": "/cloud/#/p"}]))
         self.assertEqual(warnings, [])
+
+    def test_workspace_path_is_reserved(self):
+        for path in ("/workspace", "/workspace-x"):
+            with self.subTest(path=path), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(routes=[route(path=path)]))
+
+    def test_widget(self):
+        merged, _ = run_merge(manifest(widgets=[{"id": "score", "src": "/achievements/widget/"}]))
+        self.assertEqual(merged["widgets"], [{"source": "00-test.json", "id": "score",
+                                              "src": "/achievements/widget/", "size": "small"}])
+        merged, _ = run_merge(manifest(widgets=[{"id": "score", "src": "/a/", "size": "large"}]))
+        self.assertEqual(merged["widgets"][0]["size"], "large")
+
+    def test_widget_checks(self):
+        bad = [
+            {"id": "w", "src": "https://evil.example/"},   # not same-origin
+            {"id": "w", "src": "//evil.example/"},         # scheme-relative
+            {"id": "w", "src": "/a/", "size": "huge"},     # not a fixed size
+            {"id": "Bad Id", "src": "/a/"},
+        ]
+        for w in bad:
+            with self.subTest(w=w), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(widgets=[w]))
+
+    def test_duplicate_widget_id(self):
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(widgets=[{"id": "w", "src": "/a/"}, {"id": "w", "src": "/b/"}]))
 
     def test_status_checks(self):
         out, _ = run_merge(manifest(status_checks=[{"label": "Cloud", "url": "http://cloud-api:8080/readyz"}]))

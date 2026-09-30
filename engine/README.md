@@ -189,6 +189,7 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | ---------------- | --------------- | -------------------------------------------------------------------- |
 | `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
 | `/`              | `allocator`     | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/workspace`, `/workspace/*` | `allocator` | Shared gate. The student's tabbed workspace (Labs, VS Code, Terminal, Forgejo, Slides and one tab per landing card, each an iframe loaded on first click) and its three static assets. A facilitator gets a redirect to `/admin`, a browser with no slot one to `/`. The landing page's "Open workspace" card remembers the choice (`localStorage` key `dojo-mode`), and `/` then goes straight to the workspace unless the URL has `?split`. |
 | `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
@@ -271,7 +272,7 @@ don't remove that when editing it.
 
 ### Workshop extensions (`extensions.json`)
 
-A workshop or module adds landing cards, `/admin` tabs, routes and status
+A workshop or module adds landing cards, `/admin` tabs, landing widgets, routes and status
 checks with an `extensions.json`, not by editing the engine. The format, the
 gates and the rules are in [`workshops/README.md`](../workshops/README.md#front-door-extensionsjson);
 this is how the engine uses it.
@@ -303,13 +304,19 @@ this is how the engine uses it.
   renderer can't chown, under Docker). Caddy re-sorts path-matched `handle` blocks,
   so correct routing relies on the renderer's no-overlap rule, not on order.
 - **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
-  go on the landing page after the built-in ones, tabs into `/admin` after the
-  built-in ones, status checks into the status strip. `/auth-check?route=<id>`
+  go on the landing page after the built-in ones (and become tabs in the student
+  `/workspace`), tabs into `/admin` after the built-in ones, widgets are framed
+  above the landing cards, status checks into the status strip. `/auth-check?route=<id>`
   looks the route up: `303` to `/` without a session, `403` for a student on a
   `facilitator` route, `404` for an unknown or `shared` route, and otherwise
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
+- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` makes `run.sh` add the
+  `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
+  (warning and no module when it doesn't). The catalog is validated first, in the allocator image
+  (`modules/achievements/catalog/validate.py`, workshop folder mounted read-only); an error
+  stops the start like a bad manifest. Unset or `0` loads nothing.
 - **Legacy.** `STATUS_CHECKS` (`Label=URL;...` on the allocator) still adds
   status-strip entries; new work uses `status_checks` in the manifest.
 

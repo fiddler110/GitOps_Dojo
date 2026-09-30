@@ -51,7 +51,7 @@ VERSION = 1
 # an extension path merely *starting with* one of these would be shadowed.
 # The allocator-only paths are exact, but the allocator is the catch-all,
 # so an extension route there would hijack it.
-ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term")
+ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/workspace")
 ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch")
 
 # Built-in /admin tab ids (allocator/server.py render_facilitator_workspace).
@@ -61,6 +61,10 @@ ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")
 ICONS = ("code", "terminal", "git", "slides", "rocket", "cloud", "key", "dns")
 
 GATES = ("shared", "identity", "facilitator")
+
+# A widget is a same-origin page framed at the top of the student's landing page. Its height
+# is one of these fixed sizes (a class in the allocator's stylesheet), never a raw value.
+WIDGET_SIZES = ("small", "medium", "large")
 
 ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
 PATH_RE = re.compile(r"^/[a-z][a-z0-9-]{0,40}$")
@@ -85,6 +89,7 @@ TOKEN_CONTEXT = "dojo-gateway-token/v1/"
 KINDS = {
     "cards": {"required": ("id", "label", "href", "icon"), "optional": ("desc",)},
     "admin_tabs": {"required": ("id", "label", "src"), "optional": ()},
+    "widgets": {"required": ("id", "src"), "optional": ("size",)},
     "routes": {"required": ("id", "path", "upstream", "gate"), "optional": ("strip_prefix", "host")},
     "status_checks": {"required": ("label", "url"), "optional": ()},
 }
@@ -193,6 +198,13 @@ def merge(manifests, services):
                 elif kind == "admin_tabs":
                     entry["label"] = check_text(item["label"], "label", where)
                     entry["src"] = check_local_url(item["src"], "src", where)
+
+                elif kind == "widgets":
+                    entry["src"] = check_local_url(item["src"], "src", where)
+                    size = item.get("size", "small")
+                    if size not in WIDGET_SIZES:
+                        raise ManifestError(f"{where}: size must be one of {', '.join(WIDGET_SIZES)}, got {size!r}")
+                    entry["size"] = size
 
                 elif kind == "routes":
                     path = item["path"]

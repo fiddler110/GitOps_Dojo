@@ -255,7 +255,7 @@ EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extens
 
 
 def load_extensions(path=EXTENSIONS_FILE):
-    empty = {"cards": [], "admin_tabs": [], "routes": [], "status_checks": []}
+    empty = {"cards": [], "admin_tabs": [], "widgets": [], "routes": [], "status_checks": []}
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -716,6 +716,8 @@ ICON_KEY = _SVG.format('<circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21
 ICON_DNS = _SVG.format('<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line>'
                         '<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>')
 # Names an extensions.json card may use (render_extensions.py ICONS).
+ICON_LAYOUT = _SVG.format('<rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+                         '<line x1="9" y1="3" x2="9" y2="21"></line><line x1="9" y1="9" x2="21" y2="9"></line>')
 ICONS_BY_NAME = {"code": ICON_CODE, "terminal": ICON_TERMINAL, "git": ICON_GIT, "slides": ICON_SLIDES,
                  "rocket": ICON_ROCKET, "cloud": ICON_CLOUD, "key": ICON_KEY, "dns": ICON_DNS}
 ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
@@ -799,9 +801,15 @@ CONFIRM_CSS = """
   .secret-value { font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }
   .secret-hint { font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }
   .footnote { margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }
+  .card.wide { grid-column: 1 / -1; }
+  .widgets { margin-bottom: 0.75rem; }
+  .widget { display: block; width: 100%; border: 0; margin: 0 0 0.75rem; background: transparent; }
+  .widget-small { height: 7rem; }
+  .widget-medium { height: 14rem; }
+  .widget-large { height: 24rem; }
 """
 
-ADMIN_CSS = """
+SHELL_CSS = """
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -851,6 +859,9 @@ ADMIN_CSS = """
     #status { flex-direction: row; flex-wrap: wrap; margin-top: 0; }
     #main { overflow: visible; }
   }
+"""
+
+ADMIN_CSS = SHELL_CSS + """
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
   .tile { border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
            display: flex; flex-direction: column; height: 280px; }
@@ -892,7 +903,7 @@ ADMIN_CSS = """
   #grid.has-enlarged .tile.enlarged { display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }
 """
 
-ADMIN_JS = """
+TABS_JS = """
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
 const panels = {};
@@ -905,7 +916,9 @@ function activateTab(name) {
   if (frame) { frame.src = frame.dataset.src; frame.removeAttribute('data-src'); }
 }
 tabs.forEach(t => t.onclick = () => activateTab(t.dataset.tab));
+"""
 
+ADMIN_JS = TABS_JS + """
 // -- roster grid ------------------------------------------------------
 const grid = document.getElementById('grid');
 const tiles = {};
@@ -1181,6 +1194,40 @@ CSP = ("default-src 'self'; script-src 'self'; "
        "img-src 'self' data:; object-src 'none'; base-uri 'none'; "
        "form-action 'self'; frame-ancestors 'self'")
 
+# Student workspace (/workspace): the same shell CSS and tab code as /admin,
+# plus a small script that remembers split or workspace mode in this browser.
+# Served behind the ordinary session gate (any login), like the pages.
+WORKSPACE_CSS = SHELL_CSS
+WORKSPACE_JS = TABS_JS + """
+// Open the first tab (its iframe loads now; the rest load on first click).
+if (tabs.length) { activateTab(tabs[0].dataset.tab); }
+"""
+WORKSPACE_MODE_JS = """
+// Remember, per browser, whether this student prefers the tabbed workspace or the
+// separate pages ("split mode", which keeps Chrome's split screen usable).
+(function () {
+  var KEY = 'dojo-mode';
+  function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function set(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  var page = document.documentElement.dataset.page;
+  // The landing page goes straight to the workspace for anyone who chose it, unless they
+  // just came back on purpose (?split).
+  if (page === 'landing' && get() === 'workspace' && !/[?&]split(&|$)/.test(location.search)) {
+    location.replace('/workspace');
+    return;
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-mode]') : null;
+    if (el) { set(el.dataset.mode); }
+  });
+})();
+"""
+WORKSPACE_ASSETS = {
+    "/workspace/workspace.css": ("text/css; charset=utf-8", WORKSPACE_CSS),
+    "/workspace/workspace.js": ("text/javascript; charset=utf-8", WORKSPACE_JS),
+    "/workspace/mode.js": ("text/javascript; charset=utf-8", WORKSPACE_MODE_JS),
+}
+
 ADMIN_ASSETS = {
     "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS),
     "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
@@ -1381,6 +1428,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "icon": ICONS_BY_NAME.get(card["icon"], ICON_ARROW),
             })
 
+        workspace_card = f"""<a class="card wide" href="/workspace" data-mode="workspace">
+  <span class="card-icon">{ICON_LAYOUT}</span>
+  <span class="card-text">
+    <span class="card-title">Open workspace</span>
+    <span class="card-desc">Everything on one page: the labs, VS Code, terminal, Forgejo and slides as tabs.</span>
+  </span>
+  {ICON_ARROW}
+</a>"""
+        widgets = "\n".join(
+            f'<iframe class="widget widget-{html.escape(w["size"])}" src="{html.escape(w["src"])}" '
+            f'title="{html.escape(w["id"])}"></iframe>'
+            for w in EXTENSIONS["widgets"]
+        )
+        if widgets:
+            widgets = f'<div class="widgets">\n{widgets}\n</div>'
+
         cards = "\n".join(
             f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
   <span class="card-icon">{t['icon']}</span>
@@ -1397,9 +1460,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <div class="hero">
   <span class="hero-badge">{html.escape(sid)}</span>
   <h1>You're in, {html.escape(slot['name'])}</h1>
-  <p class="sub">Pick a tool to get started -- each one opens in a new tab.</p>
+  <p class="sub">Pick a tool to get started -- each opens in a new tab -- or open the workspace to keep everything on one page.</p>
 </div>
+{widgets}
 <div class="cards">
+{workspace_card}
 {cards}
 </div>
 <div class="secret">
@@ -1414,10 +1479,59 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <p class="footnote"><a href="/logout">Sign out</a></p>"""
 
         return f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html data-page="landing"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
+<script src="/workspace/mode.js"></script>
 <style>{CONFIRM_CSS}</style></head>
 <body>{body}</body></html>"""
+
+    def render_workspace(self, sid):
+        """The student's tabbed workspace at /workspace: the lab reader, VS
+        Code, terminal, Forgejo and slides, plus a tab for each landing card
+        a workshop or module declares, all as iframes on one page (the
+        student's counterpart of /admin, sharing its layout and tab code).
+        Nothing new for Caddy to authorize: each iframe is the same
+        session-gated route the landing page's cards open in a new tab, and
+        it is set lazily on that tab's first click so opening the workspace
+        doesn't start a VS Code or terminal the student may not use.
+
+        Split mode (the landing page and its separate tabs) stays as it is:
+        the "Split mode" link and the landing page's "Open workspace" card
+        each remember the choice in this browser (see WORKSPACE_MODE_JS)."""
+        tabs = [
+            ("labs", "Labs", "/slides/labs.md"),
+            ("ide", "VS Code", "/ide/"),
+            ("term", "Terminal", "/term/"),
+            ("forgejo", "Forgejo", "/forgejo-login"),
+            ("slides", "Slides", "/slides/"),
+        ] + [(c["id"], c["label"], c["href"]) for c in EXTENSIONS["cards"]]
+        buttons = "".join(
+            f'  <button class="tab{" active" if i == 0 else ""}" data-tab="{html.escape(tid)}">{html.escape(label)}</button>\n'
+            for i, (tid, label, _) in enumerate(tabs))
+        panels = "".join(
+            f'<div class="panel{" active" if i == 0 else ""}" id="panel-{html.escape(tid)}">'
+            f'<iframe data-src="{html.escape(src)}" title="{html.escape(label)}"></iframe></div>\n'
+            for i, (tid, label, src) in enumerate(tabs))
+        return f"""<!doctype html>
+<html data-page="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(WORKSHOP_NAME)}</title>
+<script src="/workspace/mode.js"></script>
+<link rel="stylesheet" href="/workspace/workspace.css">
+</head>
+<body>
+<nav id="side">
+  <div id="bar">
+    <h1>Workspace</h1>
+    <p class="sub"><span class="badge">{html.escape(sid)}</span></p>
+    <p class="sub"><a href="/" data-mode="split" target="_top">Split mode</a> · <a href="/logout" target="_top">Sign out</a></p>
+  </div>
+  <div class="tabs" role="tablist" aria-orientation="vertical">
+{buttons}  </div>
+</nav>
+<main id="main">
+{panels}</main>
+<script src="/workspace/workspace.js"></script>
+</body></html>"""
 
     def render_facilitator_workspace(self):
         """The facilitator's one-stop page at /admin: a roster of live
@@ -1567,6 +1681,21 @@ EXT_PANELS_PLACEHOLDER</main>
                 self.send_html(self.render_confirmation(sid), headers=NO_STORE_HEADERS)
             else:
                 self.send_html(self.render_name_form())
+            return
+
+        if path in WORKSPACE_ASSETS:
+            self.send_asset(*WORKSPACE_ASSETS[path])
+            return
+
+        if path in ("/workspace", "/workspace/"):
+            username, sid = self.resolve_identity()
+            if username == FACILITATOR_USERNAME:
+                # The facilitator's workspace is /admin.
+                self.redirect("/admin")
+            elif sid is None:
+                self.redirect("/")
+            else:
+                self.send_html(self.render_workspace(sid), headers=NO_STORE_HEADERS)
             return
 
         if path == "/forgejo-login":

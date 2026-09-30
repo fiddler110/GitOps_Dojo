@@ -417,6 +417,21 @@ set +a
 # (defaults, sourced before workshop.env is re-read so the workshop wins),
 # compose.yml, terminal/Dockerfile, extensions.json.
 modules="${MODULES:-}"
+# Achievements (ROADMAP.md, "Achievements"): ACHIEVEMENTS_ENABLED=1 in engine/.env adds the
+# achievements module to any workshop that has a catalog (workshops/<name>/achievements/).
+# Off (the default), nothing about it is loaded.
+achievements_on=0
+if [ "${ACHIEVEMENTS_ENABLED:-0}" = "1" ]; then
+  if [ ! -f "${workshop_dir}/achievements/catalog.json" ]; then
+    echo "WARNING: ACHIEVEMENTS_ENABLED=1 but ${workshop} has no achievements/catalog.json; running without achievements." >&2
+  else
+    achievements_on=1
+    case " ${modules} " in
+      *" achievements "*) ;;
+      *) modules="${modules:+${modules} }achievements" ;;
+    esac
+  fi
+fi
 for m in $modules; do
   case "$m" in
     *[!a-z0-9-]* | -*)
@@ -976,6 +991,12 @@ fi
 # only its Python.
 if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
   echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
+elif [ "$achievements_on" = "1" ] && ! run_once --network none \
+    -v "$PWD/../modules/achievements/catalog:/catalog:ro" \
+    -v "$PWD/${workshop_dir}/achievements:/w/${workshop}/achievements:ro" gitopsdojo/allocator:local \
+    python3 -B /catalog/validate.py "/w/${workshop}"; then
+  echo "The workshop's achievements catalog was rejected (see above); nothing was started." >&2
+  exit 1
 else
   # shellcheck disable=SC2086
   # GATEWAY_TOKEN (by name, never on the command line) derives each

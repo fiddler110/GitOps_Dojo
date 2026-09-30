@@ -156,7 +156,7 @@ or the gateway.
 ## Front door: `extensions.json`
 
 A workshop or module declares its landing cards, facilitator `/admin` tabs,
-gateway routes and status checks in an `extensions.json`. The engine checks
+landing-page widgets, gateway routes and status checks in an `extensions.json`. The engine checks
 it and renders it through fixed templates; a manifest never supplies raw
 Caddy config or HTML. `cert-autorenewal/extensions.json`:
 
@@ -181,8 +181,15 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 |---|---|
 | `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns` |
 | `admin_tabs` | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page |
+| `widgets` | `id`, `src` (same-origin), `size` (`small`, `medium` or `large`, default `small`); a page framed at the top of the student's landing page, above the cards. It is a page you also serve through a `routes` entry, so it has its own gate and identity |
 | `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
 | `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
+
+**Student workspace.** Every student can open `/workspace`, the tabbed version of the landing page: Labs, VS Code,
+Terminal, Forgejo and Slides, then one tab per `cards` entry (framing that card's `href`). A card therefore needs no
+extra manifest field to appear there, but its page must allow being framed by the same origin (the `/admin` tab for
+the same card already needs that). Its `/` counterpart, *split mode*, is unchanged; a student's choice is remembered in
+their browser.
 
 **Gates** pick who gets through a route:
 
