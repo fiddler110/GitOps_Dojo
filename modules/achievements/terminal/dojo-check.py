@@ -6,6 +6,8 @@
   dojo-check reveal ID       the answer, once both hints are used (scores 0)
   dojo-check ID              check a challenge, e.g. dojo-check c1
   dojo-check --echo          print new unlocks in colour (the prompt hook calls this)
+  dojo-check --shell         send one finished command to the service (the prompt hook
+                             calls this in the background, with DOJO_SH_* in its environment)
 
 This file holds no answers and no checks: the achievements service holds the catalog and does
 the checking. It proves who you are with your own Forgejo token (the one in ~/.git-credentials,
@@ -102,6 +104,24 @@ def echo():
     return 0
 
 
+def shell():
+    """Report one command line (from the prompt hook's DOJO_SH_* variables). Silent."""
+    env = os.environ
+    cmd = env.get("DOJO_SH_CMD", "")
+    try:
+        code = int(env.get("DOJO_SH_EXIT", ""))
+    except ValueError:
+        return 0
+    if not cmd.strip():
+        return 0
+    body = {"cmd": cmd[:1000], "exit": code,
+            "branch": env.get("DOJO_SH_BRANCH", ""), "branch_before": env.get("DOJO_SH_BRANCH_BEFORE", ""),
+            "in_repo": env.get("DOJO_SH_IN_REPO") == "1", "merging": env.get("DOJO_SH_MERGING") == "1",
+            "merging_after": env.get("DOJO_SH_MERGING_AFTER") == "1"}
+    call("POST", "/api/shell", body, timeout=3)
+    return 0
+
+
 def status():
     code, me = call("GET", "/api/me")
     if code != 200:
@@ -123,6 +143,8 @@ def fail(code, doc):
 def main(argv):
     if argv[:1] == ["--echo"]:
         return echo()
+    if argv[:1] == ["--shell"]:
+        return shell()
     if not argv or argv == ["status"]:
         return status()
     if argv[0] in ("hint", "reveal") and len(argv) == 2:

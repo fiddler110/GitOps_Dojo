@@ -6,7 +6,11 @@
       "joke": "You copied the whole repo. Bold. Legal. Fine.",
       "core": true,
       "when": "shell: `git clone` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git clone",
+        "exit": 0
+      }
     },
     {
       "id": "l1-branch",
@@ -14,7 +18,29 @@
       "joke": "Now you have a place to make mistakes safely.",
       "core": true,
       "when": "shell: `git checkout -b` or `git switch -c` (exit 0)",
-      "match": {}
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "git checkout",
+            "flags": [
+              "-b",
+              "-B"
+            ],
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "git switch",
+            "flags": [
+              "-c",
+              "-C",
+              "--create"
+            ],
+            "exit": 0
+          }
+        ]
+      }
     },
     {
       "id": "l1-diff",
@@ -22,7 +48,15 @@
       "joke": "Reviewing your own work. Unheard of.",
       "core": true,
       "when": "shell: `git diff` or `git status` after an edit",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "git diff",
+          "git status"
+        ],
+        "exit": 0,
+        "in_repo": true
+      }
     },
     {
       "id": "l1-commit",
@@ -30,7 +64,11 @@
       "joke": "Your first commit. Local only; nobody has seen it yet.",
       "core": true,
       "when": "shell: `git commit` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "exit": 0
+      }
     },
     {
       "id": "l1-push",
@@ -38,7 +76,11 @@
       "joke": "It's on the server now. It's real.",
       "core": true,
       "when": "forgejo: push to a non-`main` branch",
-      "match": {}
+      "match": {
+        "source": "forgejo",
+        "event": "push",
+        "branch_not": "main"
+      }
     },
     {
       "id": "l1-pr",
@@ -46,7 +88,11 @@
       "joke": "Now you wait, like everyone in software.",
       "core": true,
       "when": "forgejo: pull request opened",
-      "match": {}
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened"
+      }
     },
     {
       "id": "l1-prune",
@@ -54,7 +100,27 @@
       "joke": "Pruned the stale branches. Marie Kondo would nod.",
       "core": true,
       "when": "shell: `git fetch --prune` or `git fetch -p`",
-      "match": {}
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "git fetch",
+              "git pull"
+            ],
+            "flags": [
+              "--prune",
+              "-p"
+            ],
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "git remote prune",
+            "exit": 0
+          }
+        ]
+      }
     },
     {
       "id": "l1-cleanup",
@@ -62,7 +128,20 @@
       "joke": "Safe delete, no drama.",
       "core": true,
       "when": "shell: `git branch -d` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git branch",
+        "flags": [
+          "-d",
+          "--delete"
+        ],
+        "flags_none": [
+          "-D",
+          "-f",
+          "--force"
+        ],
+        "exit": 0
+      }
     },
     {
       "id": "l1-merged",
@@ -71,7 +150,11 @@
       "core": false,
       "note": "needs the facilitator to merge",
       "when": "forgejo: PR merged",
-      "match": {}
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged"
+      }
     }
   ]
 }

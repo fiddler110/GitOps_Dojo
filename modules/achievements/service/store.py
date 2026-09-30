@@ -12,6 +12,7 @@ import time
 
 import guards
 import ledger as lg
+import matcher
 import names
 
 STATE_FILE = "state.json"
@@ -28,7 +29,7 @@ class Denied(Exception):
 
 class Store:
     def __init__(self, catalog, config, data_dir, secret, anonymous=True, facilitator="facilitator",
-                 clock=time.time, rate=(20, 10)):
+                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=()):
         self.lock = threading.Lock()
         self.data_dir = data_dir
         self.anonymous = anonymous
@@ -42,6 +43,12 @@ class Store:
         self.name_seed = self.names.seed
         self.verifier = guards.Verifier(secret)
         self.limiter = guards.RateLimiter(*rate)
+        # Shell events: a pasted block of lab commands is a burst, not a cheat, so going over
+        # this limit only drops events (no masher). The masher stays on dojo-check's own calls.
+        self.shell_limiter = guards.RateLimiter(*shell_rate)
+        self.matcher = matcher.Matcher(self.ledger.index)
+        # Forgejo accounts that are never students (the Forgejo admin), besides the facilitator.
+        self.ignore = {u for u in ignore if u}
         self.forged = state.get("forged", [])       # unattributed forged events (logged only)
         self._save()
 
@@ -201,6 +208,41 @@ class Store:
         self._save()
         raise Denied(403, "rejected")
 
+    # -- activity: shell hook and Forgejo webhook -----------------------------------------
+    def _matched(self, user, event, now):
+        """Unlock whatever this normalised event fires. Returns the new ids."""
+        got = []
+        for iid in self.matcher.match(event):
+            if self.ledger.unlock(user, iid, now) is not None:
+                got.append(iid)
+        return got
+
+    def shell(self, user, body):
+        """One command line from the student's prompt hook. The text is matched, never kept."""
+        event = matcher.shell_event(body)
+        if event is None:
+            raise Denied(400, "expected {cmd, exit}")
+        now = self.clock()
+        with self.lock:
+            self._student(user)
+            if not self.shell_limiter.hit(user, now):
+                raise Denied(429, "slow down")
+            got = self._matched(user, event, now)
+            if got:
+                self._save()
+            return {"unlocked": len(got)}
+
+    def forgejo(self, event):
+        """One normalised Forgejo webhook event (already verified by the caller)."""
+        user = event.get("user") if event else None
+        if not user or user == self.facilitator or user in self.ignore:
+            return {"unlocked": 0}
+        with self.lock:
+            self._student(user)
+            got = self._matched(user, event, self.clock())
+            self._save()
+            return {"unlocked": len(got)}
+
     def hint(self, user, cid):
         with self.lock:
             self._student(user)
@@ -264,4 +306,5 @@ class Store:
             self.catalog = catalog
             state = self.ledger.to_dict()
             self.ledger = lg.Ledger(catalog, self.config, state)
+            self.matcher = matcher.Matcher(self.ledger.index)
             self._save()

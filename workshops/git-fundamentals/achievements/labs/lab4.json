@@ -6,7 +6,11 @@
       "joke": "Reading the group chat of the repo.",
       "core": true,
       "when": "shell: `git log` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git log",
+        "exit": 0
+      }
     },
     {
       "id": "l4-show",
@@ -14,7 +18,11 @@
       "joke": "One commit, every detail.",
       "core": true,
       "when": "shell: `git show` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git show",
+        "exit": 0
+      }
     },
     {
       "id": "l4-blame",
@@ -22,7 +30,11 @@
       "joke": "Someone wrote this line. Now you know who.",
       "core": true,
       "when": "shell: `git blame` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git blame",
+        "exit": 0
+      }
     },
     {
       "id": "l4-compare",
@@ -30,7 +42,15 @@
       "joke": "Two branches walk into a diff.",
       "core": true,
       "when": "shell: `git diff <a>..<b>` or `git log <a>..<b>`",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "git diff",
+          "git log"
+        ],
+        "regex": "\\S\\.\\.\\.?\\S",
+        "exit": 0
+      }
     }
   ]
 }

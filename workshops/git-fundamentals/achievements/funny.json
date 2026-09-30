@@ -5,49 +5,99 @@
       "title": "Lost in Translation",
       "joke": "fatal: not a git repository. Check your `pwd`.",
       "when": "shell: any `git` command exits 128 with \"not a git repository\"",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "regex": "^git (?!(clone|init|config|help|version|--version|--help)\\b)",
+        "exit": 128,
+        "in_repo": false
+      }
     },
     {
       "id": "f-nothing",
       "title": "Empty Handed",
       "joke": "Nothing to commit. Existential.",
       "when": "shell: `git commit` exits 1 with nothing staged",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "flags_none": [
+          "--amend"
+        ],
+        "exit": 1,
+        "merging": false
+      }
     },
     {
       "id": "f-main",
       "title": "Living Dangerously",
       "joke": "You committed straight to `main`. The facilitator saw that.",
       "when": "shell: `git commit` (exit 0) while on `main`",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "exit": 0,
+        "branch": [
+          "main",
+          "master"
+        ]
+      }
     },
     {
       "id": "f-detached",
       "title": "Off With Your Head",
       "joke": "Detached HEAD. You're fine. Probably.",
       "when": "shell: `git checkout <hash>` or `--detach`",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "git checkout",
+          "git switch"
+        ],
+        "exit": 0,
+        "branch": "HEAD",
+        "branch_before_not": "HEAD"
+      }
     },
     {
       "id": "f-amend",
       "title": "Amend and Pretend",
       "joke": "Rewrote your last commit like it never happened.",
       "when": "shell: `git commit --amend` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "flags": [
+          "--amend"
+        ],
+        "exit": 0
+      }
     },
     {
       "id": "f-force",
       "title": "With Great Power",
       "joke": "You tried `--force`. Growth opportunity.",
       "when": "shell: `git push --force` (or `-f`), any exit",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git push",
+        "flags": [
+          "--force",
+          "-f",
+          "--force-with-lease",
+          "--force-if-includes"
+        ]
+      }
     },
     {
       "id": "f-rejected",
       "title": "Rejected!",
       "joke": "The server said no. It's not personal.",
       "when": "shell: `git push` exits non-zero, \"rejected\"",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git push",
+        "exit": 1
+      }
     }
   ]
 }

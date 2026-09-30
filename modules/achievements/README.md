@@ -25,7 +25,15 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
 - **Item** (a milestone or a funny unlock): `id`, `title`, `joke`, `when` (text for humans), `core` (milestones only),
   optional `points` (else the kind's default: milestone 10, funny 0, challenge 100, capstone 300), optional `note`,
   `retired`, and `match`, the structured trigger (`{"source": "shell", "cmd": "git commit", "exit": 0}`).
-  An empty `match` is allowed for now and produces a warning: the item is listed but never fires.
+  An empty `match` produces a warning (the item is listed but never fires), or an error in a workshop whose
+  `catalog.json` sets `"require_match": true` (git-fundamentals does).
+- **`match` fields** (full list in `catalog/catalog.py`, matched by `service/matcher.py`). `shell`: `cmd` (the
+  command's first words, a string or a list), `flags` / `flags_none`, `regex` (on the command segment, redirects
+  kept), `exit` (a code, a list, `"nonzero"` or `"any"`), `branch` / `branch_before` (`"HEAD"` when detached),
+  `in_repo`, `merging`, `merging_after`. `forgejo`: `event` (push, create, delete, pull_request,
+  pull_request_review), `action` (opened, merged, approved, ...), `ref_type`, `branch`, `tag`, `repo` (`{user}`
+  allowed). `branch_not` and similar negate. `{"any": [...]}` fires on any one. `{"source": "service"}` marks
+  items the service fires itself (the cheating tiers).
 - **Challenge and capstone:** `id` (`c1`, `c2`, ..., or `capstone`), `title`, `after`, `space` (the student's own space,
   must contain `{user}`), `goal`, `seed`, `verify_text`, `verify` (structured assertions, each mentioning `{user}`),
   exactly two `hints`, `answer`, `isolation` (how it avoids other students), `facilitator` (true only when a
@@ -78,3 +86,19 @@ Identity headers next to a token that belong to someone else cost -1 ("cheat-ide
 A prompt hook in `/etc/zsh/zshrc` runs `dojo-check --echo` at most every 5 s and prints new
 unlocks in colour once; the echo never marks an unlock delivered, so the browser still toasts it.
 `dojo-check ID` answers 501 until the challenge verifiers exist.
+
+**Shell events.** `dojo-achievements.zsh` (sourced from `/etc/zsh/zshrc`) records each command in `preexec` and, in
+`precmd`, sends it with its exit status, the branch before and after, and whether a merge was in progress before and
+after, through `dojo-check --shell` (`POST /api/shell`), in the background so the prompt never waits. The fields go in
+that process's environment, not its arguments, so `ps` doesn't show them to other students. Every command is sent;
+the service matches it against the catalog and keeps none of the text. `/api/shell` accepts only the terminal (Forgejo
+token plus the shipped client); a burst over 40 commands in 10 s is dropped without the masher penalty (a pasted lab
+block is not cheating). A student can still post their own shell events by hand: that only earns what typing the
+command would.
+
+**Forgejo events.** At start the service registers a Forgejo system webhook (admin API, as `FORGEJO_ADMIN_USER`,
+retried until Forgejo is up) pointing at `http://achievements:8080/api/forgejo`, with a secret derived from its gateway
+token. Deliveries without a valid `X-Forgejo-Signature` are refused. `compose.yml` adds `achievements` to git-server's
+`[webhook] ALLOWED_HOST_LIST`. The credited user is the pusher, the PR author (a merge by the facilitator credits the
+author) or the reviewer; the facilitator and the Forgejo admin never score. Tests: `test_matcher` replays recorded lab
+sequences (`service/testdata/`).

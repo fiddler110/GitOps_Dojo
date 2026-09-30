@@ -9,6 +9,9 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   GET  /api/toasts?surface=NAME   toasts to show now (each shown once; surface=terminal keeps them)
   POST /api/event         a signed event {user, event, ts, nonce, sig}
   POST /api/hint, /api/reveal   {challenge};  POST /api/check {challenge} (not built yet: 501)
+  POST /api/shell         one command line from the prompt hook {cmd, exit, branch, ...}:
+                          terminal only (Forgejo token plus client hash); matched, never kept
+  POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
@@ -33,12 +36,15 @@ sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
 import catalog as cat  # noqa: E402
 import identity  # noqa: E402
 import ledger as lg  # noqa: E402
+import matcher  # noqa: E402
+import webhook  # noqa: E402
 from store import Denied, Store  # noqa: E402
 
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
 ADMIN_PREFIX = "/achievements-admin"
 MAX_BODY = 8192
+MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
@@ -55,6 +61,8 @@ ADMIN_ASSETS = ("admin.js", "style.css")
 
 CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
 FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgejo")
+WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
 
 store = None
 resolver = None
@@ -90,7 +98,7 @@ def make_store():
     return Store(catalog, lg.Config.from_env(env), env.get("DATA_DIR", "/data"),
                  secret=GATEWAY_TOKEN or os.urandom(16).hex(),
                  anonymous=env.get("ACHIEVEMENTS_ANONYMOUS", "1") not in ("0", "false", "no", ""),
-                 facilitator=FACILITATOR)
+                 facilitator=FACILITATOR, ignore=(env.get("FORGEJO_ADMIN_USER"),))
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -165,6 +173,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise Denied(400, "expected an object")
         return doc
 
+    def _webhook(self):
+        """A Forgejo delivery: signature first, then normalise and match."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if not 0 <= n <= MAX_WEBHOOK_BODY:
+            raise Denied(413, "body too large")
+        raw = self.rfile.read(n)
+        if not webhook.verify(WEBHOOK_SECRET, raw, self.headers):
+            log("forgejo webhook: bad signature, refused")
+            raise Denied(403, "bad signature")
+        try:
+            payload = json.loads(raw or b"{}")
+        except ValueError:
+            raise Denied(400, "not JSON")
+        event = matcher.forgejo_event(webhook.event_kind(self.headers), payload)
+        return self._json(200, store.forgejo(event) if event else {"ignored": True})
+
     def _run(self, fn):
         try:
             fn()
@@ -215,6 +242,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         if path.startswith(ADMIN_PREFIX + "/"):
             return self._admin_post(path[len(ADMIN_PREFIX):])
+        if path == "/api/forgejo":
+            return self._webhook()
+        if path == "/api/shell":
+            # The terminal only: its Forgejo token, and the shipped client (a wrong one is -1).
+            user = self._caller(mutating=True) if not self._gateway_user() else None
+            if not user:
+                raise Denied(403, "shell events come from the lab terminal")
+            return self._json(200, store.shell(user, self._body()))
         caller = self._caller(mutating=path in ("/api/hint", "/api/reveal", "/api/check"))
         body = self._body()
         if path == "/api/event":
@@ -269,6 +304,12 @@ def main():
     store = make_store()
     resolver = identity.Resolver(identity.forgejo_fetch(FORGEJO_URL))
     CLIENT_HASH = client_hash()
+    admin, password = os.environ.get("FORGEJO_ADMIN_USER"), os.environ.get("FORGEJO_ADMIN_PASSWORD")
+    if WEBHOOK_SECRET and admin and password:
+        webhook.register_in_background(webhook.forgejo_api(FORGEJO_URL, admin, password),
+                                       WEBHOOK_URL, WEBHOOK_SECRET, log)
+    else:
+        log("forgejo webhook: no gateway token or Forgejo admin login; Forgejo events will not score")
     port = int(os.environ.get("PORT", "8080"))
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))

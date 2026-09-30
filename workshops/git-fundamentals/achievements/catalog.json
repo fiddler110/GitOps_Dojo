@@ -24,5 +24,6 @@
       "id": "lab5",
       "title": "merge conflicts and undoing a change"
     }
-  ]
+  ],
+  "require_match": true
 }

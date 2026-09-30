@@ -20,6 +20,7 @@ import guards  # noqa: E402
 import ledger as lg  # noqa: E402
 import identity  # noqa: E402
 import server  # noqa: E402
+import webhook  # noqa: E402
 from store import Denied, Store  # noqa: E402
 
 WORKSHOP = os.path.join(HERE, "..", "..", "..", "workshops", "git-fundamentals")
@@ -185,6 +186,48 @@ class StoreTests(unittest.TestCase):
         self.s.reload(load())
         self.assertEqual(self.s.me("a")["score"], 10)
 
+    # -- activity ----------------------------------------------------------------------
+    def test_shell_event_unlocks_once(self):
+        self.assertEqual(self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0}), {"unlocked": 1})
+        self.assertEqual(self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0}), {"unlocked": 0})
+        self.assertEqual(self.s.me("a")["score"], 10)
+        with self.assertRaises(Denied):
+            self.s.shell("a", {"cmd": "git clone"})
+
+    def test_shell_burst_is_dropped_without_the_masher(self):
+        self.mk(shell_rate=(3, 10))
+        for _ in range(3):
+            self.s.shell("a", {"cmd": "ls", "exit": 0})
+        with self.assertRaises(Denied) as cm:
+            self.s.shell("a", {"cmd": "git clone x", "exit": 0})
+        self.assertEqual(cm.exception.code, 429)
+        self.assertEqual(self.s.ledger.unlocked_ids("a"), set())
+
+    def test_shell_is_for_students_only(self):
+        with self.assertRaises(Denied):
+            self.s.shell("boss", {"cmd": "git clone x", "exit": 0})
+
+    def test_forgejo_event_credits_the_user_and_skips_staff(self):
+        self.mk(ignore=("forge-admin",))
+        pr = lambda who: {"source": "forgejo", "event": "pull_request", "action": "opened", "user": who,
+                          "actor": who, "repo": "r/r", "branch": "main", "tag": None, "ref_type": None}
+        self.assertEqual(self.s.forgejo(pr("a")), {"unlocked": 1})
+        self.assertIn("l1-pr", self.s.ledger.unlocked_ids("a"))
+        for staff in ("boss", "forge-admin", None):
+            self.assertEqual(self.s.forgejo(pr(staff)), {"unlocked": 0})
+        self.assertEqual(set(self.s.ledger.users), {"a"})
+
+    def test_reload_rebuilds_the_matcher(self):
+        c = load()
+        for m in c["labs"][0]["milestones"]:
+            if m["id"] == "l1-clone":
+                m["match"] = {"source": "shell", "cmd": "git init", "exit": 0}
+        self.s.reload(c)
+        self.s.shell("a", {"cmd": "git clone x", "exit": 0})
+        self.assertNotIn("l1-clone", self.s.ledger.unlocked_ids("a"))
+        self.s.shell("a", {"cmd": "git init", "exit": 0})
+        self.assertIn("l1-clone", self.s.ledger.unlocked_ids("a"))
+
 
 class ResolverTests(unittest.TestCase):
     def setUp(self):
@@ -305,6 +348,25 @@ class TokenHttpTests(unittest.TestCase):
     def test_check_is_not_built_yet(self):
         self.assertEqual(self.call("POST", "/api/check", token="tokA", body={"challenge": "c1"})[0], 501)
 
+    def test_shell_event_from_the_terminal(self):
+        server.resolver.fetch = lambda t: {"tokF": "fay"}.get(t)
+        st, doc = self.call("POST", "/api/shell", token="tokF", body={"cmd": "git stash", "exit": 0})
+        self.assertEqual((st, doc), (200, {"unlocked": 1}))
+        self.assertIn("l3-stash", server.store.ledger.unlocked_ids("fay"))
+
+    def test_shell_event_needs_the_shipped_client(self):
+        server.resolver.fetch = lambda t: {"tokG": "gus"}.get(t)
+        st, _ = self.call("POST", "/api/shell", token="tokG", client=None, body={"cmd": "git stash", "exit": 0})
+        self.assertEqual(st, 403)
+        self.assertEqual(server.store.ledger.unlocked_ids("gus"), {"cheat-client"})
+
+    def test_shell_event_needs_a_token(self):
+        self.assertEqual(self.call("POST", "/api/shell", body={"cmd": "git stash", "exit": 0})[0], 403)
+        st, _ = self.call("POST", "/api/shell", body={"cmd": "git stash", "exit": 0},
+                          extra={"X-Auth-User": "hal", "X-Gateway-Token": TOKEN})
+        self.assertEqual(st, 403)       # the browser can't post shell events
+        self.assertNotIn("hal", server.store.ledger.users)
+
     def test_forged_event_by_token_is_charged_to_the_token_owner(self):
         st, _ = self.call("POST", "/api/event", token="tokA",
                           body={"user": "amy", "event": "l1-clone", "ts": 1, "nonce": "q", "sig": "no"})
@@ -418,6 +480,89 @@ class HttpTests(unittest.TestCase):
     def test_unknown_paths(self):
         self.assertEqual(self.call("GET", "/nope")[0], 404)
         self.assertEqual(self.call("POST", "/nope", user="a", body={})[0], 404)
+
+
+class WebhookTests(unittest.TestCase):
+    """POST /api/forgejo (signature, normalising, crediting) and the hook's registration."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        server.store = Store(load(), lg.Config(), cls.dir, TOKEN, facilitator="boss")
+        cls.secret = webhook.secret_from(TOKEN)
+        server.WEBHOOK_SECRET = cls.secret
+        cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.port = cls.srv.server_address[1]
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        shutil.rmtree(cls.dir)
+
+    def post(self, kind, payload, sig=None, header="X-Forgejo-Signature"):
+        raw = json.dumps(payload).encode()
+        c = http.client.HTTPConnection("127.0.0.1", self.port)
+        h = {"X-Forgejo-Event": kind, "Content-Type": "application/json"}
+        h[header] = webhook.signature(self.secret, raw) if sig is None else sig
+        c.request("POST", "/api/forgejo", body=raw, headers=h)
+        r = c.getresponse()
+        doc = json.loads(r.read())
+        c.close()
+        return r.status, doc
+
+    PR = {"action": "opened", "sender": {"login": "ivy"}, "repository": {"full_name": "training/x"},
+          "pull_request": {"user": {"login": "ivy"}, "merged": False, "base": {"ref": "main"}}}
+
+    def test_signed_delivery_scores(self):
+        self.assertEqual(self.post("pull_request", self.PR), (200, {"unlocked": 1}))
+        self.assertIn("l1-pr", server.store.ledger.unlocked_ids("ivy"))
+
+    def test_gitea_signature_header_also_works(self):
+        pr = json.loads(json.dumps(self.PR))
+        pr["sender"]["login"] = pr["pull_request"]["user"]["login"] = "jon"
+        self.assertEqual(self.post("pull_request", pr, header="X-Gitea-Signature")[0], 200)
+
+    def test_bad_or_missing_signature_is_refused(self):
+        pr = json.loads(json.dumps(self.PR))
+        pr["sender"]["login"] = pr["pull_request"]["user"]["login"] = "kim"
+        self.assertEqual(self.post("pull_request", pr, sig="0" * 64)[0], 403)
+        self.assertEqual(self.post("pull_request", pr, sig="")[0], 403)
+        self.assertNotIn("kim", server.store.ledger.users)
+
+    def test_unknown_event_is_ignored(self):
+        self.assertEqual(self.post("issues", {"sender": {"login": "ivy"}}), (200, {"ignored": True}))
+
+    def test_secret_is_stable_per_token(self):
+        self.assertEqual(webhook.secret_from("abc"), webhook.secret_from("abc"))
+        self.assertNotEqual(webhook.secret_from("abc"), webhook.secret_from("abd"))
+        self.assertIsNone(webhook.secret_from(""))
+        self.assertFalse(webhook.verify(None, b"{}", {"X-Forgejo-Signature": "x"}))
+
+    def test_ensure_replaces_our_hook_and_keeps_others(self):
+        calls = []
+        hooks = [{"id": 1, "config": {"url": "http://achievements:8080/api/forgejo"}},
+                 {"id": 2, "config": {"url": "http://elsewhere/"}}]
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            if method == "GET":
+                return 200, hooks
+            return (201, {}) if method == "POST" else (204, None)
+        self.assertTrue(webhook.ensure(api, "http://achievements:8080/api/forgejo", "s3"))
+        self.assertEqual([(m, p) for m, p, _ in calls],
+                         [("GET", "/admin/hooks?limit=50"), ("DELETE", "/admin/hooks/1"), ("POST", "/admin/hooks")])
+        body = calls[-1][2]
+        self.assertEqual((body["config"]["secret"], body["type"], body["active"]), ("s3", "forgejo", True))
+        self.assertIn("pull_request_review", body["events"])
+
+    def test_register_retries_until_forgejo_answers(self):
+        answers = iter([(0, None), (401, None), (200, []), (201, {})])
+        logs = []
+        t = webhook.register_in_background(lambda *a, **k: next(answers), "u", "s", logs.append,
+                                           sleep=lambda s: None, tries=5)
+        t.join(2)
+        self.assertEqual(logs, ["forgejo webhook registered -> u"])
 
 
 if __name__ == "__main__":

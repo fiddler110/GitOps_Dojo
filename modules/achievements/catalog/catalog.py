@@ -33,9 +33,91 @@ CHALLENGE_FIELDS = {
     "id", "title", "after", "space", "goal", "constraints", "seed", "verify_text", "verify",
     "hints", "answer", "isolation", "facilitator", "points", "badge_tier", "retired",
 }
-CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge"}
+CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge", "require_match"}
 LAB_FIELDS = {"id", "title"}
-MATCH_SOURCES = ("shell", "forgejo", "dns", "ca", "cloud", "bao", "verify", "lab")
+# `service` means the service fires the item itself (the cheating tiers).
+MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "verify", "lab")
+
+# The structured trigger (`match`) for the sources the service matches itself
+# (service/matcher.py). Other sources are checked for `source` only until their adapter exists.
+#   shell: one command line the student ran in their terminal, as the prompt hook reports it.
+#     cmd          "git commit" or a list: a segment of the line starts with these words
+#     flags        at least one of these flags is given; flags_none: none of them is
+#     regex        searched in the segment ("git diff main..x", redirects kept: "echo x >> .gitignore")
+#     exit         0, a list of codes, "nonzero" or "any" (default "any"): the line's exit status
+#     branch       branch after the command ("HEAD" when detached); branch_before, before it
+#     in_repo      the shell was inside a git work tree before the command
+#     merging      a merge was in progress before the command; merging_after, after it
+#   forgejo: one webhook event, credited to `user` (the pusher, the PR author, the reviewer).
+#     event        push | create | delete | pull_request | pull_request_review
+#     action       pull_request: opened, merged, closed, reopened, ...; review: approved, rejected, comment
+#     ref_type     create/delete: branch or tag;  branch, tag;  repo "owner/name" ({user} allowed)
+#   Any field `x_not` (where listed) is true when the event's x is present and differs.
+#   {"any": [match, ...]} fires when one of the listed matches does.
+MATCH_FIELDS = {
+    "shell": {"cmd", "flags", "flags_none", "regex", "exit", "branch", "branch_not", "branch_before",
+              "branch_before_not", "in_repo", "merging", "merging_after"},
+    "forgejo": {"event", "action", "ref_type", "branch", "branch_not", "tag", "repo", "repo_not"},
+}
+FORGEJO_EVENTS = ("push", "create", "delete", "pull_request", "pull_request_review")
+
+
+def _strs(value):
+    """A string or a non-empty list of strings."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    return isinstance(value, list) and bool(value) and all(isinstance(v, str) and v.strip() for v in value)
+
+
+def check_match(match, where):
+    """(problems, sources) for one item's `match`. Empty problems means the matcher can use it."""
+    problems, sources = [], set()
+    if not isinstance(match, dict):
+        return [f"{where}: 'match' must be an object"], sources
+    if "any" in match:
+        if set(match) != {"any"} or not isinstance(match["any"], list) or not match["any"]:
+            return [f"{where}: 'any' must be the only key and a non-empty list of matches"], sources
+        for i, sub in enumerate(match["any"], 1):
+            p, s = check_match(sub, f"{where} any[{i}]")
+            if isinstance(sub, dict) and "any" in sub:
+                p.append(f"{where} any[{i}]: 'any' can't be nested")
+            problems += p
+            sources |= s
+        return problems, sources
+    source = match.get("source")
+    if source not in MATCH_SOURCES:
+        return [f"{where}: match.source must be one of {', '.join(MATCH_SOURCES)}"], sources
+    sources.add(source)
+    allowed = MATCH_FIELDS.get(source)
+    if allowed is None:
+        return problems, sources
+    for key in sorted(set(match) - allowed - {"source"}):
+        problems.append(f"{where}: match field '{key}' is not known for source {source}")
+    if len(match) == 1:
+        problems.append(f"{where}: match needs at least one field besides 'source'")
+    for key in ("cmd", "flags", "flags_none", "branch", "branch_not", "branch_before", "branch_before_not",
+                "action", "ref_type", "tag", "repo", "repo_not"):
+        if key in match and not _strs(match[key]):
+            problems.append(f"{where}: match.{key} must be a string or a list of strings")
+    for key in ("in_repo", "merging", "merging_after"):
+        if key in match and not isinstance(match[key], bool):
+            problems.append(f"{where}: match.{key} must be true or false")
+    if "exit" in match:
+        e = match["exit"]
+        ok = e in ("nonzero", "any") or (isinstance(e, int) and not isinstance(e, bool)) or (
+            isinstance(e, list) and e and all(isinstance(x, int) and not isinstance(x, bool) for x in e))
+        if not ok:
+            problems.append(f"{where}: match.exit must be a code, a list of codes, 'nonzero' or 'any'")
+    if "regex" in match:
+        try:
+            re.compile(match["regex"])
+        except (re.error, TypeError) as exc:
+            problems.append(f"{where}: match.regex does not compile ({exc})")
+    if source == "forgejo":
+        events = match.get("event")
+        if not _strs(events) or any(e not in FORGEJO_EVENTS for e in ([events] if isinstance(events, str) else events)):
+            problems.append(f"{where}: match.event must be one of {', '.join(FORGEJO_EVENTS)}")
+    return problems, sources
 
 
 class CatalogError(Exception):
@@ -68,7 +150,7 @@ def _check_fields(obj, allowed, where, problems):
         problems.append(f"{where}: unknown field '{key}'")
 
 
-def _check_item(item, kind, where, ids, problems, warnings, sources):
+def _check_item(item, kind, where, ids, problems, warnings, sources, require_match=False):
     if not isinstance(item, dict):
         problems.append(f"{where}: not an object")
         return
@@ -96,13 +178,17 @@ def _check_item(item, kind, where, ids, problems, warnings, sources):
         problems.append(f"{where}: milestones need 'core' (true or false)")
     match = item.get("match")
     if match is None or match == {}:
-        if not item.get("retired"):
+        if item.get("retired"):
+            return
+        if require_match:
+            # The workshop opted in (catalog.json "require_match"): every item must be able to fire.
+            problems.append(f"{where}: no 'match' (this workshop sets require_match)")
+        else:
             warnings.append(f"{where}: no 'match' yet, so it never fires")
         return
-    if not isinstance(match, dict) or match.get("source") not in MATCH_SOURCES:
-        problems.append(f"{where}: match.source must be one of {', '.join(MATCH_SOURCES)}")
-    else:
-        sources.add(match["source"])
+    p, s = check_match(match, where)
+    problems += p
+    sources |= s
 
 
 def _check_challenge(ch, kind, where, ids, problems, warnings):
@@ -175,6 +261,10 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
     for field in ("workshop", "title"):
         if not isinstance(meta.get(field), str) or not meta[field].strip():
             problems.append(f"catalog.json: '{field}' is required")
+    require = meta.get("require_match", False)
+    if not isinstance(require, bool):
+        problems.append("catalog.json: 'require_match' must be true or false")
+        require = False
     if check_name and meta.get("workshop") and meta["workshop"] != os.path.basename(os.path.normpath(workshop_dir)):
         problems.append("catalog.json: 'workshop' must match the workshop's folder name")
 
@@ -186,7 +276,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
     _check_fields(shared, {"cheats", "unlocks"}, "shared.json", problems)
     for kind_key in ("cheats", "unlocks"):
         for item in shared.get(kind_key, []):
-            _check_item(item, "funny", f"shared.json {kind_key}", ids, problems, warnings, sources)
+            _check_item(item, "funny", f"shared.json {kind_key}", ids, problems, warnings, sources, require)
 
     labs = []
     seen_labs = set()
@@ -208,7 +298,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
             _check_fields(data, {"milestones"}, f"labs/{lid}.json", problems)
             milestones = data.get("milestones", [])
             for item in milestones:
-                _check_item(item, "milestone", f"labs/{lid}.json", ids, problems, warnings, sources)
+                _check_item(item, "milestone", f"labs/{lid}.json", ids, problems, warnings, sources, require)
         labs.append({"id": lid, "title": lab.get("title", ""), "milestones": milestones})
     # A lab file nobody lists is almost certainly a forgotten catalog.json entry.
     labs_dir = os.path.join(base, "labs")
@@ -223,7 +313,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
         _check_fields(fdata, {"unlocks"}, "funny.json", problems)
         funny = fdata.get("unlocks", [])
         for item in funny:
-            _check_item(item, "funny", "funny.json", ids, problems, warnings, sources)
+            _check_item(item, "funny", "funny.json", ids, problems, warnings, sources, require)
 
     challenges = []
     cdir = os.path.join(base, "challenges")
@@ -261,6 +351,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
         "capstone": capstone,
         "shared": shared,
         "sources": sorted(sources),
+        "require_match": require,
     }, warnings
 
 

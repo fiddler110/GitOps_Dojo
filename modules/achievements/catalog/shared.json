@@ -6,7 +6,9 @@
       "joke": "You posted an achievement by hand. The service checked. It said no.",
       "points": -1,
       "when": "the achievements service rejects a forged or unsigned event from this student",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-client",
@@ -14,7 +16,9 @@
       "joke": "You edited the check tool. It noticed.",
       "points": -1,
       "when": "the hash of `dojo-check` sent with a check does not match the shipped one",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-identity",
@@ -22,7 +26,9 @@
       "joke": "You are not who you said you were.",
       "points": -1,
       "when": "a request carries another student's identity headers (gateway/service token mismatch)",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-masher",
@@ -30,7 +36,9 @@
       "joke": "The check button is not a slot machine.",
       "points": 0,
       "when": "the rate limit on `dojo-check` is hit",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-bump",
@@ -38,7 +46,9 @@
       "joke": "Wrong desk. Happens to everyone.",
       "points": 0,
       "when": "a refused request into another student's space (first time, looks accidental)",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-curious",
@@ -46,7 +56,9 @@
       "joke": "Twice is not an accident.",
       "points": 0,
       "when": "repeated or deliberate refused requests into another student's space",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     },
     {
       "id": "cheat-persistent",
@@ -54,7 +66,9 @@
       "joke": "The answer is still no.",
       "points": -1,
       "when": "keeps going after Curiosity Killed the Cat",
-      "match": {}
+      "match": {
+        "source": "service"
+      }
     }
   ],
   "unlocks": []

@@ -6,7 +6,12 @@
       "joke": "Two edits, one line, zero chill.",
       "core": true,
       "when": "shell: `git merge` exits non-zero and leaves a conflict",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git merge",
+        "exit": "nonzero",
+        "merging_after": true
+      }
     },
     {
       "id": "l5-resolved",
@@ -14,7 +19,26 @@
       "joke": "You picked a side. Or both. Diplomat.",
       "core": true,
       "when": "shell: `git commit` completes a merge (conflict resolved)",
-      "match": {}
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "git commit",
+            "exit": 0,
+            "merging": true,
+            "merging_after": false
+          },
+          {
+            "source": "shell",
+            "cmd": "git merge",
+            "flags": [
+              "--continue"
+            ],
+            "exit": 0,
+            "merging": true
+          }
+        ]
+      }
     },
     {
       "id": "l5-revert",
@@ -22,7 +46,15 @@
       "joke": "Undid a commit the polite way.",
       "core": true,
       "when": "shell: `git revert` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git revert",
+        "flags_none": [
+          "--abort",
+          "--quit"
+        ],
+        "exit": 0
+      }
     },
     {
       "id": "l5-reset",
@@ -30,7 +62,14 @@
       "joke": "Used reset. Hopefully on purpose.",
       "core": true,
       "when": "shell: `git reset --hard` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "git reset",
+        "flags": [
+          "--hard"
+        ],
+        "exit": 0
+      }
     }
   ]
 }

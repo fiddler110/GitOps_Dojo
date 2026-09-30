@@ -26,12 +26,15 @@ service (points, hints, bonuses, cheats, Moments, leaderboard, facilitator tab),
 and lab reader, the terminal colour echo, `dojo-check status|hint|reveal` with Forgejo-token identity and a client-hash
 check. 90 module tests, 88 allocator tests and the catalog tests pass.
 
-**What does not work yet: nothing sends real events.** Every milestone so far was posted by hand with a signed event
-(`/achievements/api/event`). So a student doing a lab scores nothing until phase 3. Also missing:
+**Phase 3 parts 1-3 are built for git-fundamentals (2026-09-30), unit-tested only, NOT run on a live stack.** The shell
+hook, `POST /api/shell`, the self-registering Forgejo system webhook (`POST /api/forgejo`), the matcher and every
+git-fundamentals `match` exist; 122 service tests (17 matcher tests replay recorded lab sequences) and 46 catalog tests
+pass, and a `--dry-run` with achievements on validates the compose config. Until the live run (step 4 below) nobody
+has seen a real shell event or webhook delivery arrive. Also missing:
 
 | Not done | Why it is open | Phase |
 |---|---|---|
-| Real milestone events (shell hook, Forgejo webhook) | No adapter exists; every `match` in the catalog is empty (41 warnings at start) | 3 |
+| Live check of the phase 3 event sources | Built and unit-tested, never run: see step 4 and "Phase 3 live checks" below | 3 |
 | `dojo-check ID` (checking a challenge) and `dojo-challenge start/reset` | Returns 501 "checking arrives with the challenge verifiers"; no verifiers or seed builders | 4 |
 | Toasts inside VS Code and Forgejo | Need a code-server extension and a Forgejo `extra_head` template | 8 |
 | Certificate, badge PNG, export-name dialog | Not started | 6 |
@@ -40,20 +43,34 @@ check. 90 module tests, 88 allocator tests and the catalog tests pass.
 | Other four workshops' `match` items, verifiers and seeds | Catalogs are written; nothing wired | 9 |
 | Moments table in the certificate summary and the class-sized concurrency run | Depend on phases 6 and 4 | 6, 9 |
 
-**Do this next: phase 3 for git-fundamentals only, then phase 4 for it.** Reason: it is the one pack whose catalog is
+**Do this next: the phase 3 live test (step 4) for git-fundamentals, then phase 4 for it.** Steps 1-3 are built. Reason: it is the one pack whose catalog is
 fully drafted, and it makes the whole thing demonstrable end to end (do Lab 1 in the terminal, watch toasts and the
 board move) before any other workshop is touched. Suggested order:
 
-1. **Shell hook.** In `modules/achievements/terminal/`, add a zsh `preexec`/`precmd` hook that records each command,
+1. **Shell hook (built).** In `modules/achievements/terminal/`, add a zsh `preexec`/`precmd` hook that records each command,
    its exit code and the current branch, and sends it (through `dojo-check`, so it carries the Forgejo token and client
    hash) to a new `POST /api/shell` on the service. Keep it non-blocking and rate-limited (the masher cheat exists).
-2. **Forgejo webhook.** A system webhook to the service for push, branch, PR opened and merged, review and tag, with
+2. **Forgejo webhook (built).** A system webhook to the service for push, branch, PR opened and merged, review and tag, with
    the username. The service must verify the webhook (shared secret) since the lab network can reach it.
-3. **Matching.** Turn each git-fundamentals item's `match` from empty into a structured trigger, add the matcher to
+3. **Matching (built).** Turn each git-fundamentals item's `match` from empty into a structured trigger, add the matcher to
    the service (source `shell` or `forgejo`, plus fields), and make the validator refuse an empty `match` for a
    workshop that opts in. Unit-test the matcher against recorded event sequences before any live run.
 4. **Live test with `--test` bots:** the bots run the labs, so assert on the leaderboard API that their milestones
    unlock and the funny ones fire. Then phase 4 (verifier runner, `dojo-challenge start/reset`, first two challenges).
+
+**Phase 3 live checks (what the unit tests could not prove)**
+- The webhook registers: the log says `forgejo webhook registered`; `POST /api/v1/admin/hooks` on Forgejo 16 makes a
+  *system* hook (all repos) and `FORGEJO__webhook__ALLOWED_HOST_LIST=achievements` lets it deliver (if not, try
+  `private`). Payload shapes (`pusher.login`, `pull_request.merged`, `X-Forgejo-Event: pull_request_review_approved`)
+  are from the Gitea/Forgejo docs, not recorded from this Forgejo.
+- The zsh hook in the real terminal image: tested locally in a plain zsh with a fake `dojo-check` (exit codes, branch,
+  merge state, detached HEAD come through), not in the image or through ttyd/tmux, and not with a prompt framework.
+- The `--test` bots run commands through `bot-runner.sh`, probably not an interactive zsh, so they may send no shell
+  events: the bots may need to source the hook (or post `/api/shell` themselves) for step 4.
+- Matches that are approximations: `l1-diff` fires on any `git diff`/`git status` in a repo (no "after an edit");
+  `f-nothing` is `git commit` exit 1 (also an aborted editor); `f-rejected` is `git push` exit 1 (no output is seen);
+  `f-wrongdir` is a git command exit 128 outside a work tree; `l2-ignore` needs a shell redirect or `git add .gitignore`
+  (an edit in VS Code alone doesn't fire); `git log -1` in Lab 1 already unlocks `l4-log`.
 
 **Decisions waiting on you before phase 4:** A25 (challenge repo under each student's account, assumed, or a class
 org), and A26 (does Sensei seed the `dns-bot` PR) before phase 7. A24 is only needed in phase 9.
@@ -221,7 +238,7 @@ Status: `todo`, `doing`, `done`. Do them in order; the numbers are stable.
 | 1a | Catalog core (no engine) | `modules/achievements/catalog/`: schema, loader, validator, `render_md.py`, the conversion script, unit tests. The five accepted drafts are converted into `workshops/<name>/achievements/` (175 milestone and funny ids preserved, 35 unit tests); `ACHIEVEMENTS.md` is now generated, edit the JSON | done |
 | 1b | Engine: workspace and widgets | `widgets` manifest key, `/workspace` page, portal "Open workspace" button, `run.sh` toggle and catalog warning, docs. Useful with achievements off. Built 2026-09-30 (engine edits approved by the user): `render_extensions.py` `widgets` key and reserved `/workspace`, `server.py` `/workspace` page with its assets and the landing "Open workspace" card, `run.sh` `ACHIEVEMENTS_ENABLED` toggle with catalog validation (`modules/achievements/catalog/validate.py`), `.env.example`, both READMEs; 81 allocator unit tests pass. Live on git-fundamentals (locally): HTTP and redirects, the five tabs with lazy iframes, remembered workspace and split mode (also with blocked storage), no CSP violations on first load, the 600 px stacked layout and `/admin` all pass. Not exercised: a real `widgets` entry (arrives with phase 2's landing widget) | done |
 | 2 | Module core | Service (stdlib Python on the allocator image, like `openbao-audit`), named volume, event API, identity from the Forgejo token, points and hint math, queue, anonymous names, leaderboard page, `/admin` tab (log, award, reset, reload catalog), landing widget with completion % and the private Moments table (A30), toast script for portal, workspace and lab reader. **2a done (pure logic, `modules/achievements/service/`: `ledger.py` points, hints, bonuses, cheats, Moments, toast queue, leaderboard; `names.py`; `guards.py` event signing and rate limit; 50 unit tests; every unlock kind toasts, funny and cheats included).** **2b done (2026-09-29, locally):** `service/server.py` and `store.py` (module `compose.yml`, `extensions.json` with card, `/admin` tab, `widgets` entry and two routes, named volume `achievements_data`, persisted state), signed event API, hint/reveal API, `/api/me`, leaderboard page, landing widget with Moments, facilitator tab (award, reset, reload catalog), `toast.js`; 76 module unit tests; live on git-fundamentals through the gateway: identity, widget, moments, toasts, board, admin tab, forged events charged only to an identified caller. **2c done (2026-09-29, locally, engine edits approved):** the generic `scripts` manifest key (A31) and its loader `/workspace/extra.js`, included by the landing page, `/workspace`, slides (`engine.js`) and the lab reader; toasts verified on the portal, workspace shell, a slide page and the lab reader (a framed page leaves them to the top page, and the widget frame resizes to its content); the terminal colour echo (`dojo-check --echo` from a prompt hook, once per unlock, never marks it delivered); `dojo-check` (status, hint, reveal) authenticated by the student's own Forgejo token confirmed with Forgejo, with a client-hash check (edited client -1, someone else's identity headers -1); the point and switch variables in `engine/.env.example`. Still to do in later phases: toasts in VS Code and Forgejo, `dojo-check ID` verifiers | in progress |
-| 3 | Event sources | Shell hook (zsh `preexec`/`precmd` in the module's terminal image, exit codes and branch logged; the colour echo is already built in 2c), Forgejo webhook; git-fundamentals milestones and funny unlocks get their `match` | todo |
+| 3 | Event sources | Shell hook (zsh `preexec`/`precmd` in the module's terminal image, exit codes and branch logged; the colour echo is already built in 2c), Forgejo webhook; git-fundamentals milestones and funny unlocks get their `match`. **Built 2026-09-30, unit-tested, not live:** `terminal/dojo-achievements.zsh` + `dojo-check --shell` -> `POST /api/shell` (token + client hash, 40/10 s burst limit without the masher); `service/webhook.py` (HMAC check, self-registration via the admin API, allow-list in `compose.yml`) -> `POST /api/forgejo`; `service/matcher.py` (shell segments, flags, regex, exit, branch and merge state; Forgejo normalisation crediting pusher, PR author, reviewer); the `match` schema check in `catalog.py`, `require_match` opt-in (git-fundamentals on, cheats marked `{"source": "service"}`); all 29 git-fundamentals items matched. Left: the live `--test` run (step 4 in Up next) | doing |
 | 4 | Challenges | `dojo-check`, `dojo-challenge start/reset`, verifier runner, seed builders, hints and forfeit, first blood, class-clear | todo |
 | 5 | Cheat tiers and names | A7 ladder, anonymous names, negative scores in red | todo |
 | 6 | Certificate | `/certificate`, badge PNG, export name dialog | todo |

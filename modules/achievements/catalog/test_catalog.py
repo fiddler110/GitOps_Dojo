@@ -237,6 +237,68 @@ class Warnings(unittest.TestCase):
         self.assertIn("no structured 'verify'", text)
 
 
+class MatchSchema(unittest.TestCase):
+    """The structured `match` trigger and the require_match opt-in."""
+
+    def setUp(self):
+        self.w = Workshop()
+        self.addCleanup(self.w.cleanup)
+
+    def probs(self, match):
+        return cat.check_match(match, "x")[0]
+
+    def test_good_matches(self):
+        for m in ({"source": "shell", "cmd": ["git commit"], "exit": 0, "flags": ["--amend"]},
+                  {"source": "shell", "regex": r"\.gitignore", "exit": "nonzero", "in_repo": True},
+                  {"source": "forgejo", "event": "pull_request", "action": "merged", "repo": "{user}/r"},
+                  {"source": "service"},
+                  {"any": [{"source": "shell", "cmd": "git stash"}, {"source": "forgejo", "event": "push"}]}):
+            self.assertEqual(self.probs(m), [], m)
+
+    def test_bad_matches(self):
+        cases = [({"source": "shell", "command": "x"}, "not known"),
+                 ({"source": "shell"}, "at least one field"),
+                 ({"source": "shell", "cmd": "x", "exit": "maybe"}, "match.exit"),
+                 ({"source": "shell", "regex": "(", "exit": 0}, "does not compile"),
+                 ({"source": "shell", "cmd": "x", "merging": "yes"}, "true or false"),
+                 ({"source": "shell", "cmd": []}, "string or a list"),
+                 ({"source": "forgejo", "action": "opened"}, "match.event"),
+                 ({"source": "forgejo", "event": "issue"}, "match.event"),
+                 ({"any": []}, "non-empty list"),
+                 ({"any": [{"any": [{"source": "service"}]}]}, "nested"),
+                 ([], "must be an object")]
+        for m, text in cases:
+            self.assertTrue(any(text in p for p in self.probs(m)), (m, self.probs(m)))
+
+    def test_bad_match_stops_the_load(self):
+        self.w.write("labs/lab1.json", {"milestones": [item("m1", match={"source": "shell", "cmd": "x", "exit": "?"})]})
+        self.assertTrue(any("match.exit" in p for p in self.w.problems()))
+
+    def test_require_match_turns_the_warning_into_an_error(self):
+        self.w.write("funny.json", {"unlocks": [item("f1", core=None, match={})]})
+        self.assertEqual(self.w.problems(), [])
+        meta = self.w.read("catalog.json")
+        meta["require_match"] = True
+        self.w.write("catalog.json", meta)
+        self.assertTrue(any("f1: no 'match'" in p for p in self.w.problems()))
+
+    def test_require_match_spares_retired_items_and_must_be_a_bool(self):
+        meta = self.w.read("catalog.json")
+        meta["require_match"] = True
+        self.w.write("catalog.json", meta)
+        self.w.write("labs/lab1.json", {"milestones": [item("m1"), item("m2", retired=True, match={})]})
+        self.assertEqual(self.w.problems(), [])
+        meta["require_match"] = "yes"
+        self.w.write("catalog.json", meta)
+        self.assertTrue(any("require_match" in p for p in self.w.problems()))
+
+    def test_git_fundamentals_opts_in(self):
+        c, warnings = cat.load(os.path.join(HERE, "..", "..", "..", "workshops", "git-fundamentals"), SHARED)
+        self.assertTrue(c["require_match"])
+        self.assertFalse([w for w in warnings if "match" in w])
+        self.assertEqual(set(c["sources"]), {"shell", "forgejo", "service"})
+
+
 class Completion(unittest.TestCase):
     def setUp(self):
         self.w = Workshop()

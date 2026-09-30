@@ -6,7 +6,11 @@
       "joke": "Sweeping uncommitted work under the rug.",
       "core": true,
       "when": "shell: `git stash` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "regex": "^git stash( (push|save)\\b| -| *$)",
+        "exit": 0
+      }
     },
     {
       "id": "l3-pop",
@@ -14,7 +18,14 @@
       "joke": "Your edit is back. Nobody noticed it was gone.",
       "core": true,
       "when": "shell: `git stash pop` or `git stash apply` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "git stash pop",
+          "git stash apply"
+        ],
+        "exit": 0
+      }
     }
   ]
 }
