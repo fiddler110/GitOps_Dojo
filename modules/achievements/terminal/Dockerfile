@@ -8,9 +8,11 @@ FROM ${BASE}
 
 COPY dojo-check.py /usr/local/bin/dojo-check
 COPY dojo-achievements.zsh /etc/zsh/dojo-achievements.zsh
+# The --test bots' version of the hook (bot-runner.sh sources /etc/dojo/bot.d/*.sh).
+COPY dojo-achievements-bot.sh /etc/dojo/bot.d/50-achievements.sh
 RUN set -eux; \
     chmod 0755 /usr/local/bin/dojo-check; \
-    chmod 0644 /etc/zsh/dojo-achievements.zsh; \
+    chmod 0644 /etc/zsh/dojo-achievements.zsh /etc/dojo/bot.d/50-achievements.sh; \
     printf '%s\n' \
       '' \
       '# achievements module: shell events and the unlock echo (never blocks the prompt)' \

@@ -65,8 +65,11 @@ board move) before any other workshop is touched. Suggested order:
   are from the Gitea/Forgejo docs, not recorded from this Forgejo.
 - The zsh hook in the real terminal image: tested locally in a plain zsh with a fake `dojo-check` (exit codes, branch,
   merge state, detached HEAD come through), not in the image or through ttyd/tmux, and not with a prompt framework.
-- The `--test` bots run commands through `bot-runner.sh`, probably not an interactive zsh, so they may send no shell
-  events: the bots may need to source the hook (or post `/api/shell` themselves) for step 4.
+- The `--test` bots send shell events too: `bot-runner.sh` sources `/etc/dojo/bot.d/*.sh` and calls `bot_cmd_pre`/
+  `bot_cmd_post` around each command; the module ships `terminal/dojo-achievements-bot.sh` there, which sends the same
+  `DOJO_SH_*` fields through `dojo-check --shell` and makes the bot a `dojo-git` token from its own password
+  (`forgejo-token.py` can't: a bot's password isn't the derived one). Tested only in a plain bash with a fake
+  `dojo-check`; the token creation, image build and a real `/api/shell` round trip are unchecked until step 4.
 - Matches that are approximations: `l1-diff` fires on any `git diff`/`git status` in a repo (no "after an edit");
   `f-nothing` is `git commit` exit 1 (also an aborted editor); `f-rejected` is `git push` exit 1 (no output is seen);
   `f-wrongdir` is a git command exit 128 outside a work tree; `l2-ignore` needs a shell redirect or `git add .gitignore`
