@@ -77,6 +77,35 @@ class_users() {
 
 # status_field NAME: a boolean from `bao status` ("true"/"false"), empty if
 # the server doesn't answer.
+# par_each CMD [ARGS...]: run `CMD [ARGS...] USER` for every class user, up to
+# SETUP_JOBS (default 8) at a time, and fail if any run failed. Each run is its
+# own subshell, so it may `export BAO_NAMESPACE` or `exit 1` without touching
+# the others. The per-user work is mostly the server making namespaces and
+# mounts, which overlaps well.
+par_each() {
+  _pe_fail=0; _pe_n=0; _pe_pids=
+  for _pe_u in $(class_users); do
+    "$@" "$_pe_u" &
+    _pe_pids="$_pe_pids $!"; _pe_n=$((_pe_n + 1))
+    if [ "$_pe_n" -ge "${SETUP_JOBS:-8}" ]; then
+      for _pe_p in $_pe_pids; do wait "$_pe_p" || _pe_fail=1; done
+      _pe_pids=; _pe_n=0
+    fi
+  done
+  for _pe_p in $_pe_pids; do wait "$_pe_p" || _pe_fail=1; done
+  return "$_pe_fail"
+}
+
+# enable_once ARGS...: `bao auth enable ARGS` or `bao secrets enable ARGS`,
+# where a path that is already mounted counts as done. One call instead of a
+# list, a grep and an enable.
+enable_once() {
+  _eo_out="$(bao "$@" 2>&1)" && return 0
+  case "$_eo_out" in *"already in use"*) return 0 ;; esac
+  printf '%s\n' "$_eo_out" >&2
+  return 1
+}
+
 status_field() {
   bao status -format=json 2>/dev/null | sed -n "s/^ *\"$1\": *\([a-z]*\),*$/\1/p"
 }
@@ -94,17 +123,31 @@ json_string() {
 }
 
 # generate_root: print a new root token, made from the unseal key (one share,
-# so one step). Cancels any attempt an earlier start left half-way.
+# so one step). Cancels any attempt an earlier start left half-way. It talks to
+# the legacy sys/generate-root/* paths through `bao write`: the `bao operator
+# generate-root` CLI uses sys/generate-root-token/*, which OpenBao 2.7 refuses
+# unauthenticated whatever the listener's disable_unauthed_generate_root_endpoints says,
+# and this runs with no token.
 generate_root() {
-  bao operator generate-root -cancel >/dev/null 2>&1 || true
-  _gr_otp="$(bao operator generate-root -generate-otp)" || return 1
-  _gr_nonce="$(bao operator generate-root -init -otp="$_gr_otp" -format=json | json_string nonce)"
-  [ -n "$_gr_nonce" ] || return 1
-  _gr_out="$(bao operator generate-root -nonce="$_gr_nonce" -format=json "$(cat "$state/unseal-key")")" || return 1
+  bao delete sys/generate-root/attempt >/dev/null 2>&1 || true
+  _gr_init="$(bao write -format=json -f sys/generate-root/attempt)" || return 1
+  _gr_otp="$(printf '%s\n' "$_gr_init" | json_string otp)"
+  _gr_nonce="$(printf '%s\n' "$_gr_init" | json_string nonce)"
+  [ -n "$_gr_otp" ] && [ -n "$_gr_nonce" ] || return 1
+  _gr_out="$(bao write -format=json sys/generate-root/update nonce="$_gr_nonce" key="$(cat "$state/unseal-key")")" || return 1
   _gr_enc="$(printf '%s\n' "$_gr_out" | json_string encoded_token)"
   [ -n "$_gr_enc" ] || _gr_enc="$(printf '%s\n' "$_gr_out" | json_string encoded_root_token)"
   [ -n "$_gr_enc" ] || return 1
-  bao operator generate-root -decode="$_gr_enc" -otp="$_gr_otp" | tr -d ' \r\n'
+  # Decode by hand (`-decode` asks the server for its status first): the token is the
+  # base64 of the root token XORed byte by byte with the OTP.
+  while [ $(( ${#_gr_enc} % 4 )) -ne 0 ]; do _gr_enc="${_gr_enc}="; done
+  _gr_i=0
+  for _gr_b in $(printf '%s' "$_gr_enc" | base64 -d | od -An -v -tu1); do
+    _gr_c="$(printf '%s' "$_gr_otp" | cut -c$((_gr_i + 1)))"
+    _gr_k="$(printf '%d' "'$_gr_c")"
+    printf "\\$(printf '%03o' $((_gr_b ^ _gr_k)))"
+    _gr_i=$((_gr_i + 1))
+  done
 }
 
 # accessor_of TOKEN: the token's accessor.

@@ -76,7 +76,7 @@ Run these one at a time, and watch the TTL:
 ```bash
 bao lease lookup "$LEASE"      # ttl counting down from 5 minutes
 bao lease renew "$LEASE"       # back to 5 minutes, up to max_ttl (30 minutes)
-bao lease revoke "$LEASE"      # the vault runs the revocation SQL now
+bao lease revoke -sync "$LEASE"      # the vault runs the revocation SQL now, and waits for it
 psql -h app-db -U "$DB_USER" -d app_$USER -c "SELECT 1"   # the login is gone
 ```
 

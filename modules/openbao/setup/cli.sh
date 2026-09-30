@@ -24,8 +24,7 @@ cli_alias() {
   bao write identity/entity-alias name="$2" mount_accessor="$jwt_accessor" \
     canonical_id="$(bao read -field=id identity/entity/name/"$1")" >/dev/null
 }
-for s in $(class_users); do
-  cli_alias "$s" "$s"
-done
+cli_alias_same() { cli_alias "$1" "$1"; }
+par_each cli_alias_same || { log "cli: could not make every student's jwt alias"; exit 1; }
 cli_alias facilitator "$FACILITATOR_USERNAME"
 log "cli: jwt login for $STUDENT_COUNT students, ${BOT_COUNT:-0} bots and the facilitator ($FACILITATOR_USERNAME)"

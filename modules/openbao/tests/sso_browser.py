@@ -55,11 +55,19 @@ def report(auth, asked, policy):
     print("  Forgejo's Authorize page:", "shown" if asked else "skipped")
 
 
+def login_ctx(b, user, password, **kw):
+    """A browser context signed in through the class login form (the gateway no longer takes basic auth)."""
+    ctx = b.new_context(**kw)
+    r = ctx.request.post("/login", form={"username": user, "password": password, "next": "/"}, max_redirects=0)
+    assert r.status == 303, f"login as {user} failed: {r.status}"
+    return ctx
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
 
     print("== student: the Vault card")
-    ctx = b.new_context(http_credentials={"username": gu, "password": gp}, base_url=U)
+    ctx = login_ctx(b, gu, gp, base_url=U)
     pg = ctx.new_page()
     pg.goto("/"); pg.fill("input[name=name]", "SSO Test Student"); pg.click("form button")
     pg.wait_for_load_state()
@@ -76,7 +84,7 @@ with sync_playwright() as p:
     ctx.close()
 
     print("== facilitator: the /admin Vault tab")
-    ctx = b.new_context(http_credentials={"username": fu, "password": fp}, base_url=U)
+    ctx = login_ctx(b, fu, fp, base_url=U)
     pg = ctx.new_page()
     pg.goto("/admin"); pg.click("button.tab[data-tab=vault]")
     pg.wait_for_timeout(3000)

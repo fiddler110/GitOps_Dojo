@@ -11,18 +11,18 @@
 
 platform=http://app-host:8080
 
-for s in $(class_users); do
+# platform_one NAME: the student's two mounts. Each run is its own subshell.
+platform_one() {
+  s="$1"
   export BAO_NAMESPACE="students/$s"
 
-  bao auth list -format=json 2>/dev/null | grep -q '"jwt-platform/"' \
-    || retry 10 bao auth enable -path=jwt-platform -description="app-host platform identity (lab 11)" jwt >/dev/null
+  retry 10 enable_once auth enable -path=jwt-platform -description="app-host platform identity (lab 11)" jwt
   # OpenBao fetches the keys when this is written: wait for app-host.
   retry 120 bao write auth/jwt-platform/config jwks_url="$platform/.well-known/jwks.json" \
     bound_issuer="$platform" >/dev/null 2>&1 \
     || { log "platform: app-host's keys never answered for $s"; exit 1; }
 
-  bao secrets list -format=json 2>/dev/null | grep -q '"database/"' \
-    || retry 10 bao secrets enable -path=database -description="app-db logins made on demand (lab 12)" database >/dev/null
+  retry 10 enable_once secrets enable -path=database -description="app-db logins made on demand (lab 12)" database
   if ! bao read database/config/app-db >/dev/null 2>&1; then
     retry 120 test -s "/app-db/$s" || { log "platform: no first password from app-db for $s"; exit 1; }
     # OpenBao logs in to check the connection when this is written: wait for
@@ -34,6 +34,6 @@ for s in $(class_users); do
       || { log "platform: could not connect the vault to app_$s"; exit 1; }
     retry 10 bao write -f database/rotate-root/app-db >/dev/null
   fi
-  unset BAO_NAMESPACE
-done
+}
+par_each platform_one || exit 1
 log "platform: auth/jwt-platform and database/ in $(class_users | wc -l) namespaces"

@@ -12,6 +12,12 @@ storage "raft" {
 listener "tcp" {
   address     = "0.0.0.0:8200"
   tls_disable = true
+  # setup/setup.sh makes its temporary root token from the unseal key on every start after the first
+  # (`bao operator generate-root`). OpenBao 2.5.3+ refuses those endpoints unauthenticated by default, and
+  # with no token to hand (the setup volume keeps none, FIND-17) a restart of openbao-setup could never
+  # get one: every restart failed with 403. Accepted: the endpoint needs the unseal key, which is on the
+  # setup volume only, and this is a class lab.
+  disable_unauthed_generate_root_endpoints = false
 }
 
 api_addr     = "http://openbao:8200"

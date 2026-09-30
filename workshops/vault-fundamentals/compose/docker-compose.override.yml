@@ -92,6 +92,9 @@ services:
 
   # Postgres for lab 12. compose/app-db/init.sh makes a database per student
   # on the first start. The superuser's password is random and thrown away:
+      # Making the slot users and their egress rules takes ~25s before the
+      # platform listens; without this the check can fail three times first.
+      start_period: 60s
   # set-up runs over the local socket, and nothing else needs it.
   app-db:
     # 17.11, pinned by its multi-arch index digest (amd64
@@ -100,8 +103,12 @@ services:
     image: docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     container_name: workshop_app_db
     # Starts as root: /bootstrap is the postgres user's to write (init.sh),
-    # then the image's entrypoint drops to that user.
-    entrypoint: ["sh", "-c", "chown postgres /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
+    # then the image's entrypoint drops to that user. Mode 1777 as well as the chown: podman chowns a
+    # new named volume to the first container that starts with it (openbao-setup mounts this one read-only),
+    # which on a slow start came after this chown and before init.sh wrote, so the write was denied and the
+    # first-start init (which never runs twice) left /bootstrap empty. A chown can't undo a mode. Only
+    # app-db and openbao-setup mount this volume.
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}

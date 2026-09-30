@@ -34,11 +34,19 @@ def audit_frame(pg):
     return next((f for f in pg.frames if "/vault-audit/" in f.url), None)
 
 
+def login_ctx(b, user, password, **kw):
+    """A browser context signed in through the class login form (the gateway no longer takes basic auth)."""
+    ctx = b.new_context(**kw)
+    r = ctx.request.post("/login", form={"username": user, "password": password, "next": "/"}, max_redirects=0)
+    assert r.status == 303, f"login as {user} failed: {r.status}"
+    return ctx
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
 
     print("== student: no way into the Audit tab")
-    ctx = b.new_context(http_credentials={"username": gu, "password": gp}, base_url=U)
+    ctx = login_ctx(b, gu, gp, base_url=U)
     # The gateway sends someone without the facilitator's login back to the landing page (303).
     r = ctx.request.get("/vault-audit/api/entries", max_redirects=0)
     check(r.status in (303, 401, 403), f"a student gets {r.status} from /vault-audit/, not the entries")
@@ -46,7 +54,7 @@ with sync_playwright() as p:
 
     for width in (1400, 390):
         print(f"== facilitator: the /admin Audit tab at {width} px")
-        ctx = b.new_context(http_credentials={"username": fu, "password": fp}, base_url=U,
+        ctx = login_ctx(b, fu, fp, base_url=U,
                             viewport={"width": width, "height": 900})
         pg = ctx.new_page()
         errors = []
@@ -91,7 +99,7 @@ with sync_playwright() as p:
         ctx.close()
 
     print("== the wrap-up slides within 16:9")
-    ctx = b.new_context(http_credentials={"username": fu, "password": fp}, base_url=U,
+    ctx = login_ctx(b, fu, fp, base_url=U,
                         viewport={"width": 1400, "height": 900})
     pg = ctx.new_page()
     pg.goto("/slides/presentation.md#1")

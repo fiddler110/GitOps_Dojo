@@ -30,11 +30,19 @@ def watch_console(page, errors):
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
 
 
+def login_ctx(b, user, password, **kw):
+    """A browser context signed in through the class login form (the gateway no longer takes basic auth)."""
+    ctx = b.new_context(**kw)
+    r = ctx.request.post("/login", form={"username": user, "password": password, "next": "/"}, max_redirects=0)
+    assert r.status == 303, f"login as {user} failed: {r.status}"
+    return ctx
+
+
 with sync_playwright() as p:
     b = p.chromium.launch()
 
     print("== student: the My App card")
-    ctx = b.new_context(http_credentials={"username": gu, "password": gp}, base_url=U,
+    ctx = login_ctx(b, gu, gp, base_url=U,
                         viewport={"width": 390, "height": 800})
     pg = ctx.new_page()
     errors = []
@@ -58,7 +66,7 @@ with sync_playwright() as p:
     ctx.close()
 
     print("== facilitator: the /admin Apps tab")
-    ctx = b.new_context(http_credentials={"username": fu, "password": fp}, base_url=U,
+    ctx = login_ctx(b, fu, fp, base_url=U,
                         viewport={"width": 1400, "height": 900})
     pg = ctx.new_page()
     errors = []

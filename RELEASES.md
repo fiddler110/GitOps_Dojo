@@ -9,6 +9,8 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## Unreleased: `feat/achievements` (not yet merged to `main`)
 
+**vault-fundamentals setup and lab 12 (2026-09-30, locally).** `openbao-setup` hooks run per student in parallel (`par_each`, `enable_once`): a fresh start reaches `ready` in about 63 s and a restart in about 15 s (was about 24 s). The `lab_12` flake was real: `bao lease revoke` only queues the revoke, so the login still worked for a moment; the lab now says `-sync`. Full e2e (no pool, bots on) passes, and the three browser scripts log in through the class form.
+
 **Achievements phase 3 and 4 for git-fundamentals (2026-09-30, locally).** Shell hook and Forgejo system webhook feed a
 matcher; all 29 items have a `match`, and the hand-checked funny items fire. Challenges: `dojo-check ID`,
 `dojo-challenge start/reset`, verifier plug-ins and a per-student seed in `{user}/challenge-repo`; c1, c2 and the capstone
