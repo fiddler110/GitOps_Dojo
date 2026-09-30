@@ -113,9 +113,11 @@ token plus the shipped client); a burst over 40 commands in 10 s is dropped with
 block is not cheating). A student can still post their own shell events by hand: that only earns what typing the
 command would.
 
-**Forgejo events.** At start the service registers a Forgejo system webhook (admin API, as `FORGEJO_ADMIN_USER`,
-retried until Forgejo is up) pointing at `http://achievements:8080/api/forgejo`, with a secret derived from its gateway
+**Forgejo events.** At start the service registers a Forgejo system webhook (as `FORGEJO_ADMIN_USER`, retried
+until Forgejo is up; it lists and removes old ones through the admin API but creates the hook through the admin web
+form, because Forgejo 16's `POST /api/v1/admin/hooks` only makes a *default* hook, copied into repos created later) pointing at `http://achievements:8080/api/forgejo`, with a secret derived from its gateway
 token. Deliveries without a valid `X-Forgejo-Signature` are refused. `compose.yml` adds `achievements` to git-server's
 `[webhook] ALLOWED_HOST_LIST`. The credited user is the pusher, the PR author (a merge by the facilitator credits the
 author) or the reviewer; the facilitator and the Forgejo admin never score. Tests: `test_matcher` replays recorded lab
-sequences (`service/testdata/`).
+sequences and real Forgejo 16 deliveries (`service/testdata/`; a review arrives as `X-Forgejo-Event:
+pull_request_approved` with `X-Forgejo-Event-Type: pull_request_review_approved`).

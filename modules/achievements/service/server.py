@@ -307,6 +307,7 @@ def main():
     admin, password = os.environ.get("FORGEJO_ADMIN_USER"), os.environ.get("FORGEJO_ADMIN_PASSWORD")
     if WEBHOOK_SECRET and admin and password:
         webhook.register_in_background(webhook.forgejo_api(FORGEJO_URL, admin, password),
+                                       webhook.forgejo_web_create(FORGEJO_URL, admin, password),
                                        WEBHOOK_URL, WEBHOOK_SECRET, log)
     else:
         log("forgejo webhook: no gateway token or Forgejo admin login; Forgejo events will not score")

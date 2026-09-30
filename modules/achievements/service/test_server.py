@@ -561,18 +561,31 @@ class WebhookTests(unittest.TestCase):
             calls.append((method, path, body))
             if method == "GET":
                 return 200, hooks
-            return (201, {}) if method == "POST" else (204, None)
-        self.assertTrue(webhook.ensure(api, "http://achievements:8080/api/forgejo", "s3"))
+            if method == "DELETE":
+                hooks[:] = [h for h in hooks if f"/{h['id']}" != path[-2:]]
+            return 204, None
+
+        def create(url, secret):
+            calls.append(("CREATE", url, secret))
+            hooks.append({"id": 3, "config": {"url": url}})
+            return True
+        self.assertTrue(webhook.ensure(api, create, "http://achievements:8080/api/forgejo", "s3"))
         self.assertEqual([(m, p) for m, p, _ in calls],
-                         [("GET", "/admin/hooks?limit=50"), ("DELETE", "/admin/hooks/1"), ("POST", "/admin/hooks")])
-        body = calls[-1][2]
-        self.assertEqual((body["config"]["secret"], body["type"], body["active"]), ("s3", "forgejo", True))
-        self.assertIn("pull_request_review", body["events"])
+                         [("GET", "/admin/hooks?limit=50"), ("DELETE", "/admin/hooks/1"),
+                          ("CREATE", "http://achievements:8080/api/forgejo"), ("GET", "/admin/hooks?limit=50")])
+        self.assertEqual(calls[2][2], "s3")
+        self.assertEqual([h["id"] for h in hooks], [2, 3])
+
+    def test_ensure_fails_when_the_hook_is_not_a_system_hook(self):
+        # the create "worked" but the hook doesn't show in the system list (e.g. a default hook)
+        api = lambda method, path, body=None: (200, []) if method == "GET" else (204, None)
+        self.assertFalse(webhook.ensure(api, lambda u, s: True, "u", "s"))
+        self.assertFalse(webhook.ensure(api, lambda u, s: False, "u", "s"))
 
     def test_register_retries_until_forgejo_answers(self):
-        answers = iter([(0, None), (401, None), (200, []), (201, {})])
+        answers = iter([(0, None), (401, None), (200, []), (200, [{"id": 1, "config": {"url": "u"}}])])
         logs = []
-        t = webhook.register_in_background(lambda *a, **k: next(answers), "u", "s", logs.append,
+        t = webhook.register_in_background(lambda *a, **k: next(answers), lambda u, s: True, "u", "s", logs.append,
                                            sleep=lambda s: None, tries=5)
         t.join(2)
         self.assertEqual(logs, ["forgejo webhook registered -> u"])

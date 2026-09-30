@@ -181,6 +181,10 @@ def _login(obj):
     return None
 
 
+REVIEW_ALIASES = {"pull_request_approved": "pull_request_review_approved",
+                  "pull_request_rejected": "pull_request_review_rejected"}
+
+
 def forgejo_event(kind, payload):
     """Normalise one webhook delivery. `kind` is the X-Forgejo-Event (or X-Gitea-Event) header.
 
@@ -189,6 +193,8 @@ def forgejo_event(kind, payload):
     merge by the facilitator still credits the author), the reviewer."""
     if not isinstance(payload, dict) or not isinstance(kind, str):
         return None
+    # Forgejo 16's X-Forgejo-Event for a review (X-Forgejo-Event-Type has the long form).
+    kind = REVIEW_ALIASES.get(kind, kind)
     repo = payload.get("repository") if isinstance(payload.get("repository"), dict) else {}
     ev = {"source": "forgejo", "event": None, "action": None, "user": None, "actor": _login(payload.get("sender")),
           "repo": repo.get("full_name") if isinstance(repo.get("full_name"), str) else None,

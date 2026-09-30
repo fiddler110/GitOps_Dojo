@@ -113,6 +113,30 @@ class ForgejoEvents(unittest.TestCase):
                                                                "pull_request": {"user": {"login": "amy"}}})
         self.assertEqual((ev["event"], ev["action"], ev["user"]), ("pull_request_review", "rejected", "ben"))
 
+    def test_recorded_forgejo16_deliveries(self):
+        """Real deliveries from Forgejo 16.0.4 (testdata/forgejo16-deliveries.json), headers as sent."""
+        import webhook
+        with open(os.path.join(HERE, "testdata", "forgejo16-deliveries.json")) as f:
+            rec = json.load(f)["deliveries"]
+        got = []
+        for d in rec:
+            ev = mt.forgejo_event(webhook.event_kind(d["headers"]), d["payload"])
+            got.append((ev["event"], ev["action"], ev["user"], ev["branch"]) if ev else None)
+        self.assertEqual(got, [
+            ("create", None, "workshop-admin", "main"),
+            ("push", None, "workshop-admin", "main"),
+            ("pull_request", "opened", "testuser1", "main"),
+            ("pull_request_review", "approved", "workshop-admin", None),
+            ("pull_request", "merged", "testuser1", "main"),
+            ("pull_request_review", "rejected", "workshop-admin", None),
+        ])
+        # The short X-Forgejo-Event alone (no -Type header) still reads as a review.
+        ev = mt.forgejo_event(rec[3]["headers"]["X-Forgejo-Event"], rec[3]["payload"])
+        self.assertEqual((ev["event"], ev["action"]), ("pull_request_review", "approved"))
+        m = mt.Matcher(lg.Ledger(load(), lg.Config()).index)
+        self.assertEqual(m.match(mt.forgejo_event("pull_request", rec[2]["payload"])), ["l1-pr"])
+        self.assertEqual(m.match(mt.forgejo_event("pull_request", rec[4]["payload"])), ["l1-merged"])
+
     def test_unknown_or_anonymous_events_are_dropped(self):
         self.assertIsNone(mt.forgejo_event("issues", {"sender": {"login": "amy"}}))
         self.assertIsNone(mt.forgejo_event("push", {"ref": "refs/heads/x"}))
