@@ -255,7 +255,7 @@ EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extens
 
 
 def load_extensions(path=EXTENSIONS_FILE):
-    empty = {"cards": [], "admin_tabs": [], "widgets": [], "routes": [], "status_checks": []}
+    empty = {"cards": [], "admin_tabs": [], "widgets": [], "scripts": [], "routes": [], "status_checks": []}
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -1222,7 +1222,25 @@ WORKSPACE_MODE_JS = """
   });
 })();
 """
+# Manifest `scripts`: one loader every student page includes (landing, /workspace, slides, lab
+# reader) as <script src="/workspace/extra.js" data-surface="NAME">. It adds each same-origin
+# script the run's modules asked for, passing the surface name along. Empty when there are none.
+def build_extra_js(scripts):
+    return """(function () {
+  var me = document.currentScript, surface = me && me.getAttribute('data-surface');
+  %s.forEach(function (src) {
+    var s = document.createElement('script');
+    s.src = src;
+    if (surface) { s.setAttribute('data-surface', surface); }
+    document.head.appendChild(s);
+  });
+})();
+""" % json.dumps([x["src"] for x in scripts])
+
+
+EXTRA_JS = build_extra_js(EXTENSIONS["scripts"])
 WORKSPACE_ASSETS = {
+    "/workspace/extra.js": ("text/javascript; charset=utf-8", EXTRA_JS),
     "/workspace/workspace.css": ("text/css; charset=utf-8", WORKSPACE_CSS),
     "/workspace/workspace.js": ("text/javascript; charset=utf-8", WORKSPACE_JS),
     "/workspace/mode.js": ("text/javascript; charset=utf-8", WORKSPACE_MODE_JS),
@@ -1482,6 +1500,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <html data-page="landing"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
 <script src="/workspace/mode.js"></script>
+<script src="/workspace/extra.js" data-surface="portal"></script>
 <style>{CONFIRM_CSS}</style></head>
 <body>{body}</body></html>"""
 
@@ -1516,6 +1535,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 <html data-page="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
 <script src="/workspace/mode.js"></script>
+<script src="/workspace/extra.js" data-surface="workspace"></script>
 <link rel="stylesheet" href="/workspace/workspace.css">
 </head>
 <body>

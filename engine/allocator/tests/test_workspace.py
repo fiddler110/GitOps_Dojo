@@ -23,7 +23,7 @@ WIDGET = {"id": "score", "src": "/achievements/widget/", "size": "medium"}
 
 
 def ext(**over):
-    base = {"cards": [], "admin_tabs": [], "widgets": [], "routes": [], "status_checks": []}
+    base = {"cards": [], "admin_tabs": [], "widgets": [], "scripts": [], "routes": [], "status_checks": []}
     base.update(over)
     return base
 
@@ -86,7 +86,7 @@ class WorkspacePage(unittest.TestCase):
 
     def test_scripts_and_styles_are_served(self):
         self.assertEqual(set(server.WORKSPACE_ASSETS), {"/workspace/workspace.css", "/workspace/workspace.js",
-                                                        "/workspace/mode.js"})
+                                                        "/workspace/mode.js", "/workspace/extra.js"})
         page = workspace()
         for path in server.WORKSPACE_ASSETS:
             if not path.endswith("workspace.css"):
@@ -183,5 +183,28 @@ class LoadExtensions(unittest.TestCase):
         self.assertEqual(server.load_extensions(f.name)["widgets"], [WIDGET])
 
 
+class ExtraScripts(unittest.TestCase):
+    def test_pages_include_the_loader_with_their_surface(self):
+        self.assertIn('<script src="/workspace/extra.js" data-surface="portal"></script>', landing())
+        self.assertIn('<script src="/workspace/extra.js" data-surface="workspace"></script>', workspace())
+
+    def test_loader_lists_only_the_manifest_scripts(self):
+        self.assertIn("[].forEach", server.build_extra_js([]))
+        js = server.build_extra_js([{"src": "/achievements/toast.js"}, {"src": "/x/y.js"}])
+        self.assertIn('["/achievements/toast.js", "/x/y.js"].forEach', js)
+
+    def test_loader_passes_the_surface_on(self):
+        self.assertIn("setAttribute('data-surface', surface)", server.build_extra_js([]))
+
+    def test_loader_is_served(self):
+        ctype, body = server.WORKSPACE_ASSETS["/workspace/extra.js"]
+        self.assertTrue(ctype.startswith("text/javascript"))
+        self.assertIn("document.currentScript", body)
+
+    def test_default_is_no_scripts(self):
+        self.assertEqual(server.load_extensions(os.path.join(HERE, "nope.json"))["scripts"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
+

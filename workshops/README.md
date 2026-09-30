@@ -182,6 +182,7 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 | `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns` |
 | `admin_tabs` | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page |
 | `widgets` | `id`, `src` (same-origin), `size` (`small`, `medium` or `large`, default `small`); a page framed at the top of the student's landing page, above the cards. It is a page you also serve through a `routes` entry, so it has its own gate and identity |
+| `scripts` | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it |
 | `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
 | `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
 

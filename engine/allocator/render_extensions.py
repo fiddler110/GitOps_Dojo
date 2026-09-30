@@ -90,6 +90,7 @@ KINDS = {
     "cards": {"required": ("id", "label", "href", "icon"), "optional": ("desc",)},
     "admin_tabs": {"required": ("id", "label", "src"), "optional": ()},
     "widgets": {"required": ("id", "src"), "optional": ("size",)},
+    "scripts": {"required": ("id", "src"), "optional": ()},
     "routes": {"required": ("id", "path", "upstream", "gate"), "optional": ("strip_prefix", "host")},
     "status_checks": {"required": ("label", "url"), "optional": ()},
 }
@@ -197,6 +198,9 @@ def merge(manifests, services):
 
                 elif kind == "admin_tabs":
                     entry["label"] = check_text(item["label"], "label", where)
+                    entry["src"] = check_local_url(item["src"], "src", where)
+
+                elif kind == "scripts":
                     entry["src"] = check_local_url(item["src"], "src", where)
 
                 elif kind == "widgets":

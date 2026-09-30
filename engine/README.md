@@ -306,7 +306,8 @@ this is how the engine uses it.
 - **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
   go on the landing page after the built-in ones (and become tabs in the student
   `/workspace`), tabs into `/admin` after the built-in ones, widgets are framed
-  above the landing cards, status checks into the status strip. `/auth-check?route=<id>`
+  above the landing cards, `scripts` are loaded by every student page (landing, `/workspace`, slides, lab
+  reader) through `/workspace/extra.js`, status checks into the status strip. `/auth-check?route=<id>`
   looks the route up: `303` to `/` without a session, `403` for a student on a
   `facilitator` route, `404` for an unknown or `shared` route, and otherwise
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).

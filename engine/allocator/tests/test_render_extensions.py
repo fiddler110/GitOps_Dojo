@@ -185,6 +185,18 @@ class CardTabStatusTests(unittest.TestCase):
         with self.assertRaises(rx.ManifestError):
             run_merge(manifest(widgets=[{"id": "w", "src": "/a/"}, {"id": "w", "src": "/b/"}]))
 
+    def test_scripts(self):
+        merged, _ = run_merge(manifest(scripts=[{"id": "toasts", "src": "/achievements/toast.js"}]))
+        self.assertEqual(merged["scripts"], [{"source": "00-test.json", "id": "toasts", "src": "/achievements/toast.js"}])
+
+    def test_script_checks(self):
+        for bad in ({"id": "s", "src": "https://evil.example/x.js"}, {"id": "s", "src": "//evil.example/x.js"},
+                    {"id": "S s", "src": "/a.js"}):
+            with self.subTest(bad=bad), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(scripts=[bad]))
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(scripts=[{"id": "s", "src": "/a.js"}, {"id": "s", "src": "/b.js"}]))
+
     def test_status_checks(self):
         out, _ = run_merge(manifest(status_checks=[{"label": "Cloud", "url": "http://cloud-api:8080/readyz"}]))
         self.assertEqual(out["status_checks"][0]["url"], "http://cloud-api:8080/readyz")
