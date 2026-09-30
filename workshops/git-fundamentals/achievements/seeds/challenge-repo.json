@@ -1,0 +1,33 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-repo",
+  "description": "{user}'s own challenge repo (Git Fundamentals)",
+  "private": false,
+  "values": {
+    "role_for_user": ["Chief Snack Officer", "Head of Vibes", "Keeper of the Coffee", "Senior Meme Analyst",
+                      "Director of Rubber Ducks", "Vice President of Naps", "Principal Plant Waterer",
+                      "Lead Whiteboard Artist"],
+    "target_line": ["deploy_on_friday: true", "coffee_budget: unlimited", "code_review: optional",
+                    "tests_required: false", "pager_owner: nobody", "meetings_per_day: 11",
+                    "logging_level: whisper", "backup_schedule: never"],
+    "culprit": ["Mallory Mischief", "Trent Tinkerton", "Eve Sneakwell", "Oscar Override", "Peggy Patchwork",
+                "Victor Vandal", "Sybil Shortcut", "Chuck Cowboy"]
+  },
+  "commits": [
+    {"author": "Alice Engineer", "days_ago": 30, "message": "Start the team repo",
+     "files": [{"path": "README.md", "from": "challenge-repo/README.md"},
+               {"path": "roster/team.yaml", "from": "challenge-repo/roster/team.yaml"}]},
+    {"author": "Bob Operator", "days_ago": 25, "message": "Add team settings",
+     "files": [{"path": "config/settings.yaml", "from": "challenge-repo/config/settings.yaml"}]},
+    {"author": "Alice Engineer", "days_ago": 20, "message": "Retry flaky deploys three times",
+     "files": [{"path": "config/settings.yaml", "append": "retries: 3"}]},
+    {"author": "{culprit}", "days_ago": 14, "message": "Tidy up settings",
+     "files": [{"path": "config/settings.yaml", "append": "{target_line}"}]},
+    {"author": "Bob Operator", "days_ago": 9, "message": "Give deploys more time",
+     "files": [{"path": "config/settings.yaml", "append": "timeout_seconds: 30"}]},
+    {"author": "Bob Operator", "days_ago": 5, "message": "Add Carol to the roster",
+     "files": [{"path": "roster/team.yaml", "append": "- name: Carol Tester\n  role: Quality Assurance"}]},
+    {"author": "Alice Engineer", "days_ago": 2, "message": "Name an owner for the settings",
+     "files": [{"path": "config/settings.yaml", "append": "owner: alice.engineer"}]}
+  ]
+}

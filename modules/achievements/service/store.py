@@ -51,6 +51,11 @@ class Store:
         # Forgejo accounts that are never students (the Forgejo admin), besides the facilitator.
         self.ignore = {u for u in ignore if u}
         self.forged = state.get("forged", [])       # unattributed forged events (logged only)
+        # Challenge spaces: user -> seed plan -> {repo, commits, at, resets}; and the log of
+        # check runs the facilitator sees (A9).
+        self.seeds = state.get("seeds", {})
+        self.checks = state.get("checks", [])
+        self.busy = set()                           # users whose seed is being built right now
         self._save()
 
     # -- persistence -------------------------------------------------------------------
@@ -70,7 +75,8 @@ class Store:
         if not path:
             return
         doc = {"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
-               "name_seed": self.name_seed, "forged": self.forged[-200:]}
+               "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
+               "checks": self.checks[-500:]}
         tmp = path + ".tmp"
         os.makedirs(self.data_dir, exist_ok=True)
         with open(tmp, "w") as f:
@@ -270,6 +276,73 @@ class Store:
             self._save()
             return {"answer": self.ledger.index[cid]["item"].get("answer", ""), "scores": 0 if allowed else None}
 
+    # -- challenges: checking and seeding (the runner does the backend I/O, never under the lock)
+    def _active_challenge(self, cid):
+        entry = self.ledger.index.get(cid) if isinstance(cid, str) else None
+        if not entry or entry["kind"] not in ("challenge", "capstone"):
+            raise Denied(404, "unknown challenge")
+        return entry["item"]
+
+    def _seed_of(self, user, ch):
+        return (self.seeds.get(user) or {}).get(ch.get("seed_plan") or "", {})
+
+    def check(self, user, cid, runner, unavailable=()):
+        """Run a challenge's verifiers for this student. A pass is recorded once and never
+        undone; a wrong answer costs nothing (the masher limit still applies)."""
+        now = self.clock()
+        with self.lock:
+            self._student(user)
+            self._throttle(user, now)
+            ch = self._active_challenge(cid)
+            if cid in self.ledger.unlocked_ids(user):
+                return {"passed": True, "already": True, "points": None,
+                        "message": "already cleared; points are earned once"}
+            seed = dict(self._seed_of(user, ch))
+        try:
+            res = runner.verify(ch, user, seed)
+        except unavailable as exc:
+            raise Denied(503, f"couldn't check right now ({exc}); try again in a moment")
+        with self.lock:
+            pts = self.ledger.clear(user, cid, self.clock()) if res["passed"] else None
+            self.checks.append({"user": user, "id": cid, "at": now, "passed": res["passed"],
+                                "hints": self.ledger.hints_used(user, cid), "points": pts})
+            self._save()
+        return {"passed": res["passed"], "already": pts is None and res["passed"], "points": pts,
+                "message": res["message"]}
+
+    def challenge_space(self, user, cid, action, runner, unavailable=()):
+        """Start (create if missing) or reset (delete and re-create) the student's challenge
+        space. Hints used and points earned are untouched: a reset never refunds or re-pays."""
+        if action not in ("start", "reset"):
+            raise Denied(400, "action is start or reset")
+        with self.lock:
+            self._student(user)
+            self._throttle(user, self.clock())
+            ch = self._active_challenge(cid)
+            if not ch.get("seed_plan"):
+                raise Denied(501, f"{cid} has no seed yet")
+            if user in self.busy:
+                raise Denied(409, "already building your challenge repo; wait a moment")
+            self.busy.add(user)
+        try:
+            try:
+                res = runner.seed(ch, user, reset=action == "reset")
+            except unavailable as exc:
+                raise Denied(503, f"couldn't build the challenge repo ({exc}); try again")
+            with self.lock:
+                mine = self.seeds.setdefault(user, {})
+                old = mine.get(res["plan"], {})
+                if res["created"]:
+                    mine[res["plan"]] = {"repo": res["repo"], "commits": res["commits"], "at": self.clock(),
+                                         "resets": old.get("resets", -1) + 1}
+                self._save()
+            return {"repo": res["repo"], "created": res["created"],
+                    "done": cid in self.ledger.unlocked_ids(user),
+                    "hints": self.ledger.hints_used(user, cid)}
+        finally:
+            with self.lock:
+                self.busy.discard(user)
+
     # -- facilitator -------------------------------------------------------------------
     def admin_state(self):
         with self.lock:
@@ -284,6 +357,7 @@ class Store:
                                  "moments": [m["title"] for m in L.moments(u)],
                                  "cheats": [i for i, x in L.visible_unlocked(u).items() if x["cheat"]]})
             return {"students": students, "log": L.log[-100:], "forged": self.forged[-50:],
+                    "checks": self.checks[-100:],
                     "anonymous": self.anonymous}
 
     def admin_award(self, user, points, reason):

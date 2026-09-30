@@ -189,6 +189,49 @@ class Invalid(unittest.TestCase):
         self.assertEqual(self.w.problems(known_verbs={"branch_exists"}), [])
 
 
+class SeedPlans(unittest.TestCase):
+    """A challenge's seed plan (A18) and the per-student values its text and verify may use."""
+
+    PLAN = {"builder": "forgejo-repo", "repo": "{user}/challenge-repo", "values": {"role": ["a", "b"]},
+            "commits": [{"message": "m", "files": [{"path": "x", "from": "tree/x"}]}]}
+
+    def setUp(self):
+        self.w = Workshop()
+        self.addCleanup(self.w.cleanup)
+        os.makedirs(os.path.join(self.w.base, "seeds", "tree"))
+        with open(os.path.join(self.w.base, "seeds", "tree", "x"), "w") as fh:
+            fh.write("x\n")
+        self.w.write("seeds/plan.json", self.PLAN)
+
+    def use(self, plan=None, **extra):
+        if plan is not None:
+            self.w.write("seeds/plan.json", plan)
+        self.w.write("challenges/c1.json", challenge(**dict({"seed_plan": "plan.json"}, **extra)))
+        return self.w.problems()
+
+    def test_good_plan_and_values(self):
+        self.assertEqual(self.use(goal="be {role}"), [])
+
+    def test_unknown_placeholder(self):
+        self.assertTrue(any("{colour} not in seeds/plan.json" in p for p in self.use(goal="be {colour}")))
+
+    def test_placeholder_without_a_plan_is_a_warning(self):
+        self.w.write("challenges/c1.json", challenge(goal="find {n}"))
+        _, warnings = self.w.load()
+        self.assertTrue(any("no seed_plan" in w for w in warnings))
+
+    def test_plan_must_write_the_students_space(self):
+        self.assertTrue(any("student's own" in p for p in self.use(dict(self.PLAN, repo="training/shared"))))
+
+    def test_missing_plan_and_missing_seed_file(self):
+        os.remove(os.path.join(self.w.base, "seeds", "tree", "x"))
+        self.assertTrue(any("tree/x" in p for p in self.use()))
+        self.assertTrue(any("missing" in p for p in self.use(seed_plan="nope.json")))
+
+    def test_plan_name_is_a_plain_file(self):
+        self.assertTrue(any("file name" in p for p in self.use(seed_plan="../catalog.json")))
+
+
 class FunnyUnlocks(unittest.TestCase):
     """Funny unlocks are worth 0: they call you out but never help the score."""
 

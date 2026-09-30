@@ -358,8 +358,43 @@ class TokenHttpTests(unittest.TestCase):
         # the echo did not deliver it: the browser still gets its toast
         self.assertEqual(len(server.store.ledger.pending("eve")), 1)
 
-    def test_check_is_not_built_yet(self):
+    def test_check_without_a_runner_is_501(self):
+        self.assertIsNone(server.runner)
         self.assertEqual(self.call("POST", "/api/check", token="tokA", body={"challenge": "c1"})[0], 501)
+
+    def test_challenge_start_and_check_end_to_end(self):
+        """dojo-challenge start, then dojo-check, over HTTP against the fake Forgejo."""
+        import challenges
+        from fake_forgejo import FakeForgejo
+        fj = FakeForgejo(["dan"])
+        plugins = challenges.load_plugins(server.PLUGIN_DIRS)
+        server.runner = challenges.Runner(plugins, os.path.join(WORKSHOP, "achievements", "seeds"), fj, lambda: 1.79e9)
+        try:
+            st, doc = self.call("POST", "/api/challenge", token="tokD", body={"challenge": "c1", "action": "start"})
+            self.assertEqual(st, 200, doc)
+            self.assertEqual((doc["repo"], doc["created"]), ("dan/challenge-repo", True))
+            self.assertEqual(doc["clone_url"], "http://git-server:3000/dan/challenge-repo.git")
+            role = server.runner.values(server.store.ledger.index["c1"]["item"], "dan")["role_for_user"]
+            self.assertIn(role, doc["constraints"])
+            self.assertNotIn("{", doc["constraints"])
+            st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})
+            self.assertEqual((st, doc["passed"]), (200, False))
+            roster = fj.file("dan/challenge-repo", "main", "roster/team.yaml").replace("Sofware Enginer", role)
+            fj.commit("dan/challenge-repo", "hotfix-dan", {"roster/team.yaml": roster}, "dan", start="main")
+            fj.open_pr("dan/challenge-repo", "hotfix-dan", "main", "hotfix: role")
+            st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})
+            self.assertEqual((st, doc["passed"], doc["points"]), (200, True, 100))
+            # the answer is rendered for the student once revealed (c2 here)
+            self.call("POST", "/api/hint", token="tokD", body={"challenge": "c2"})
+            self.call("POST", "/api/hint", token="tokD", body={"challenge": "c2"})
+            st, doc = self.call("POST", "/api/reveal", token="tokD", body={"challenge": "c2"})
+            self.assertIn("case-dan", doc["answer"])
+            # the check and the seed routes need the shipped client like hint does
+            st, _ = self.call("POST", "/api/challenge", token="tokC", client=None,
+                              body={"challenge": "c1", "action": "reset"})
+            self.assertEqual(st, 403)
+        finally:
+            server.runner = None
 
     def test_shell_event_from_the_terminal(self):
         server.resolver.fetch = lambda t: {"tokF": "fay"}.get(t)

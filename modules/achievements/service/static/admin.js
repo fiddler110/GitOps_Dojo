@@ -29,6 +29,14 @@
       tr.appendChild(cell(e.action + ' ' + e.user + (e.points !== undefined ? ' ' + e.points : '') + (e.reason ? ' (' + e.reason + ')' : '')));
       $('log').appendChild(tr);
     });
+    clear($('checks'));
+    (d.checks || []).slice().reverse().forEach(function (c) {
+      var tr = document.createElement('tr');
+      [new Date(c.at * 1000).toLocaleTimeString(), c.user, c.id, c.passed ? 'pass' : 'not yet',
+        c.hints + ' hint' + (c.hints === 1 ? '' : 's'), c.points === null || c.points === undefined ? '' : '+' + c.points]
+        .forEach(function (v) { tr.appendChild(cell(v)); });
+      $('checks').appendChild(tr);
+    });
   }
   function load() {
     fetch('api/state', { credentials: 'same-origin', cache: 'no-store' })

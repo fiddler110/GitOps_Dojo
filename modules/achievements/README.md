@@ -102,7 +102,25 @@ with Forgejo, plus its own sha256: the service hashes the same file, so an edite
 Identity headers next to a token that belong to someone else cost -1 ("cheat-identity").
 A prompt hook in `/etc/zsh/zshrc` runs `dojo-check --echo` at most every 5 s and prints new
 unlocks in colour once; the echo never marks an unlock delivered, so the browser still toasts it.
-`dojo-check ID` answers 501 until the challenge verifiers exist.
+`dojo-check ID` asks the service to check a challenge; `dojo-challenge start|reset ID` (a link to
+the same file, so the hash matches) builds the student's own challenge repo and clones it into
+`~/lab`.
+
+## Challenges: verifiers and seed builders (`achievements/`, `service/challenges.py`)
+
+A module that owns a backend declares its checks in `achievements/verifiers.json` (verb names, what
+each checks, the Python file with `VERBS` and `BUILDERS`); this module ships the Forgejo/git ones
+(`achievements/forgejo.py`). `service/challenges.py` loads them (plus any folder in
+`ACHIEVEMENTS_PLUGIN_DIRS`), fills `{user}` and the per-student values of the challenge's
+`seed_plan` (`workshops/<name>/achievements/seeds/`, each value picked by a hash of the user name),
+refuses any assertion or seed whose `repo` isn't `{user}/...`, and runs them with the service's
+own Forgejo admin login (no login: `dojo-check ID` answers 501). A pass is recorded once, never
+undone, and scores the usual points minus hints; a wrong answer costs nothing (only the masher
+limit applies); Forgejo being down is "try again" (503), not a wrong answer. `POST /api/challenge`
+`{challenge, action: start|reset}` builds the repo (start leaves an existing one alone, reset
+deletes and re-creates it; hints and points are untouched) and returns the goal with the
+student's values filled in. Check runs are logged for the facilitator (`/api/state` `checks`).
+Tests: `service/test_challenges.py` against the in-memory `service/fake_forgejo.py`.
 
 **Shell events.** `dojo-achievements.zsh` (sourced from `/etc/zsh/zshrc`) records each command in `preexec` and, in
 `precmd`, sends it with its exit status, the branch before and after, and whether a merge was in progress before and

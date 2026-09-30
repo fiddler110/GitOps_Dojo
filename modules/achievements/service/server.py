@@ -8,7 +8,9 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   GET  /api/board         the whole class (anonymous names when ACHIEVEMENTS_ANONYMOUS=1)
   GET  /api/toasts?surface=NAME   toasts to show now (each shown once; surface=terminal keeps them)
   POST /api/event         a signed event {user, event, ts, nonce, sig}
-  POST /api/hint, /api/reveal   {challenge};  POST /api/check {challenge} (not built yet: 501)
+  POST /api/hint, /api/reveal   {challenge};  POST /api/check {challenge} runs its verifiers
+  POST /api/challenge     {challenge, action: start|reset}: build (or re-build) the student's
+                          own challenge space from the seed plan (dojo-challenge, a lab button)
   POST /api/shell         one command line from the prompt hook {cmd, exit, branch, ...}:
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
@@ -29,11 +31,13 @@ import mimetypes
 import os
 import signal
 import sys
+import time
 import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
 import catalog as cat  # noqa: E402
+import challenges  # noqa: E402
 import identity  # noqa: E402
 import ledger as lg  # noqa: E402
 import matcher  # noqa: E402
@@ -61,11 +65,19 @@ ADMIN_ASSETS = ("admin.js", "style.css")
 
 CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
 FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
+# What a student's terminal clones from (the same Forgejo, by the name the terminal uses).
+PUBLIC_FORGEJO = os.environ.get("FORGEJO_CLONE_BASE", "http://git-server:3000").rstrip("/")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgejo")
 WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
 
+# Verifier and seed-builder plug-ins (A22): this module's own (Forgejo/git), plus any listed
+# in ACHIEVEMENTS_PLUGIN_DIRS (colon-separated folders holding a verifiers.json).
+PLUGIN_DIRS = [os.path.join(HERE, "..", "achievements")] + \
+    [d for d in os.environ.get("ACHIEVEMENTS_PLUGIN_DIRS", "").split(":") if d]
+
 store = None
 resolver = None
+runner = None       # challenges.Runner, or None when there is no Forgejo admin login
 CLIENT_HASH = ""
 
 
@@ -250,7 +262,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not user:
                 raise Denied(403, "shell events come from the lab terminal")
             return self._json(200, store.shell(user, self._body()))
-        caller = self._caller(mutating=path in ("/api/hint", "/api/reveal", "/api/check"))
+        caller = self._caller(mutating=path in ("/api/hint", "/api/reveal", "/api/check", "/api/challenge"))
         body = self._body()
         if path == "/api/event":
             return self._json(200, store.event(caller, body))
@@ -259,11 +271,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not isinstance(cid, str):
                 raise Denied(400, "challenge is required")
             user = self._need(caller)
-            return self._json(200, store.hint(user, cid) if path == "/api/hint" else store.reveal(user, cid))
-        if path == "/api/check":
-            self._need(caller)
-            raise Denied(501, "checking arrives with the challenge verifiers")
+            doc = store.hint(user, cid) if path == "/api/hint" else store.reveal(user, cid)
+            key = "text" if path == "/api/hint" else "answer"
+            if runner and doc.get(key):
+                doc[key] = self._render(user, cid, doc[key])
+            return self._json(200, doc)
+        if path in ("/api/check", "/api/challenge"):
+            user = self._need(caller)
+            cid = body.get("challenge")
+            if not isinstance(cid, str):
+                raise Denied(400, "challenge is required")
+            if runner is None:
+                raise Denied(501, "challenge checking needs the service's Forgejo login, which isn't set")
+            try:
+                if path == "/api/check":
+                    return self._json(200, store.check(user, cid, runner, runner.errors()))
+                doc = store.challenge_space(user, cid, body.get("action"), runner, runner.errors())
+            except challenges.NotCheckable as exc:
+                raise Denied(501, str(exc))
+            ch = store.ledger.index[cid]["item"]
+            doc.update(title=ch["title"], goal=runner.render(ch, user, ch.get("goal")),
+                       constraints=runner.render(ch, user, ch.get("constraints")),
+                       clone_url=f"{PUBLIC_FORGEJO}/{doc['repo']}.git")
+            return self._json(200, doc)
         self._json(404, {"error": "not found"})
+
+    @staticmethod
+    def _render(user, cid, text):
+        entry = store.ledger.index.get(cid)
+        try:
+            return runner.render(entry["item"], user, text) if entry else text
+        except challenges.NotCheckable:
+            return text
 
     # -- facilitator -------------------------------------------------------------------
     def _facilitator(self):
@@ -299,12 +338,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True})
 
 
+def make_runner(admin, password):
+    """The challenge runner, or None without a Forgejo admin login (checks then answer 501)."""
+    plugins = challenges.load_plugins(PLUGIN_DIRS)
+    for p in plugins["problems"]:
+        log(f"verifier plug-in problem: {p}")
+    if not (admin and password):
+        log("challenges: no Forgejo admin login; dojo-check ID and dojo-challenge are off")
+        return None
+    seeds = os.path.join(os.environ.get("WORKSHOP_DIR", "/opt/workshop"), "achievements", "seeds")
+    r = challenges.Runner(plugins, seeds, challenges.forgejo_http(FORGEJO_URL, admin, password), time.time)
+    for cid, verb in r.unknown_verbs(store.catalog):
+        log(f"challenge {cid}: verifier verb '{verb}' isn't provided by any plug-in; it can't be checked")
+    log(f"challenges: {len(plugins['verbs'])} verifier verbs, {len(plugins['builders'])} seed builders "
+        f"({', '.join(plugins['backends']) or 'none'})")
+    return r
+
+
 def main():
-    global store, resolver, CLIENT_HASH
+    global store, resolver, runner, CLIENT_HASH
     store = make_store()
     resolver = identity.Resolver(identity.forgejo_fetch(FORGEJO_URL))
     CLIENT_HASH = client_hash()
     admin, password = os.environ.get("FORGEJO_ADMIN_USER"), os.environ.get("FORGEJO_ADMIN_PASSWORD")
+    runner = make_runner(admin, password)
     if WEBHOOK_SECRET and admin and password:
         webhook.register_in_background(webhook.forgejo_api(FORGEJO_URL, admin, password),
                                        webhook.forgejo_web_create(FORGEJO_URL, admin, password),

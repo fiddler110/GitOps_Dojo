@@ -125,10 +125,11 @@ seeded fork owned by that student, with the challenge's planted branches and com
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
 - **Goal shown to the student:** Production has a typo in `roster/team.yaml`. Ship a fix without touching `main` directly. Prove it with a pull request.
 - **Constraints:** in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`; the change sets Alice's role to `{role_for_user}` (a per-student value from a fixed silly list, e.g. "Chief Snack Officer") so an answer can't be copied.
-- **Verify:** forgejo `branch_exists`, `pr_open` or `pr_merged`, `pr_files == [roster/team.yaml]`, `file_contains` on the branch. No direct push to `main` (checked from the repo's own history).
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); Alice's role on its `main` has the typo, and `{role_for_user}` is picked per student.
+- **Verify:** forgejo `pr_exists` (from `hotfix-{user}` into `main`, open or merged, title starts `hotfix:`), `pr_files == [roster/team.yaml]`, `pr_file_contains` Alice's new role at the PR's head, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).
 - **Hint 1:** Everything you need is in Lab 1. What do you do before you edit anything?
 - **Hint 2:** Branch, edit the one line, commit, push, open the PR from Forgejo.
-- **Answer:** the command list.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` set Alice's role to `{role_for_user}`; `git commit -am "hotfix: fix Alice's role"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title starting `hotfix:`; then `dojo-check c1`.
 - **Collision check:** own repo, own branch, no merge into a shared `main`. Nothing needs a facilitator.
 
 ### C2: The Detective (after Lab 3 or 4)
@@ -136,11 +137,11 @@ seeded fork owned by that student, with the challenge's planted branches and com
 - **Points:** 100
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
 - **Goal shown to the student:** Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it.
-- **Seed:** planted commits in `{user}/challenge-repo`; `{target_line}` is picked per student from a list, and the verifier computes the true answer for that repo with `git log -S` / `git blame`. Each student's history has its own hashes, so an answer can't be shared.
-- **Verify:** forgejo `file_contains` on `case-{user}` in the student's repo for the right hash and author.
+- **Seed:** planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo-challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.
+- **Verify:** forgejo `branch_exists` `case-{user}`, then `answer_names_commit`: the service finds the oldest commit on `main` whose diff adds `{target_line}` to `config/settings.yaml` and checks that `answer.txt` on `case-{user}` holds its short hash (7+ characters) and its author.
 - **Hint 1:** Which command answers 'who changed this line?'
 - **Hint 2:** `git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared.
-- **Answer:** the two commands and the expected output shape.
+- **Answer:** In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo-check c2`.
 - **Collision check:** read-only investigation of a private repo, one new branch.
 
 ## Capstone (300 points, optional): The Great Merge

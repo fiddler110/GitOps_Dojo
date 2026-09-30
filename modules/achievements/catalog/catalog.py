@@ -32,7 +32,11 @@ ITEM_FIELDS = {"id", "title", "joke", "points", "core", "when", "match", "note",
 CHALLENGE_FIELDS = {
     "id", "title", "after", "space", "goal", "constraints", "seed", "verify_text", "verify",
     "hints", "answer", "isolation", "facilitator", "points", "badge_tier", "retired", "enabled",
+    "seed_plan",
 }
+# A challenge's text and verify may use {user} and the per-student values its seed plan
+# (achievements/seeds/<seed_plan>) lists under "values".
+PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge", "require_match"}
 LAB_FIELDS = {"id", "title"}
 # `service` means the service fires the item itself (the cheating tiers).
@@ -218,7 +222,52 @@ def _check_item(item, kind, where, ids, problems, warnings, sources, require_mat
     sources |= s
 
 
-def _check_challenge(ch, kind, where, ids, problems, warnings):
+def _check_seed_plan(ch, where, seeds_dir, problems, warnings):
+    """The seed plan exists and names a builder and a {user} space; every placeholder the
+    challenge uses is {user} or one of the plan's values."""
+    name = ch.get("seed_plan")
+    values = set()
+    if name is not None:
+        if not isinstance(name, str) or not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.json$", name):
+            problems.append(f"{where}: 'seed_plan' must be a .json file name in achievements/seeds/")
+            return
+        plan = _read(os.path.join(seeds_dir, name), problems) if seeds_dir else None
+        if plan is None:
+            return      # no seeds folder given, or _read reported it
+        if not isinstance(plan, dict):
+            problems.append(f"{where}: seed plan seeds/{name} must be a JSON object")
+            return
+        if not isinstance(plan.get("builder"), str):
+            problems.append(f"seeds/{name}: 'builder' is required")
+        if not isinstance(plan.get("repo"), str) or not plan["repo"].startswith("{user}/"):
+            problems.append(f"seeds/{name}: 'repo' must be the student's own, '{{user}}/...'")
+        vals = plan.get("values", {})
+        if not isinstance(vals, dict) or not all(
+                isinstance(v, list) and v and all(isinstance(x, str) for x in v) for v in vals.values()):
+            problems.append(f"seeds/{name}: 'values' maps a name to a non-empty list of strings")
+            vals = {}
+        values = set(vals)
+        if not isinstance(plan.get("commits"), list) or not plan["commits"]:
+            problems.append(f"seeds/{name}: 'commits' must be a non-empty list")
+        else:
+            for i, c in enumerate(plan["commits"], 1):
+                for f in (c.get("files") or []) if isinstance(c, dict) else []:
+                    src = f.get("from") if isinstance(f, dict) else None
+                    if src and seeds_dir and not os.path.isfile(os.path.join(seeds_dir, src)):
+                        problems.append(f"seeds/{name}: commit {i} copies {src}, which isn't in seeds/")
+    used = set()
+    for field in ("goal", "constraints", "answer"):
+        if isinstance(ch.get(field), str):
+            used |= set(PLACEHOLDER_RE.findall(ch[field]))
+    used |= set(PLACEHOLDER_RE.findall(json.dumps(ch.get("verify") or [])))
+    unknown = sorted(used - values - {"user"})
+    if unknown and name is not None:
+        problems.append(f"{where}: {', '.join('{' + u + '}' for u in unknown)} not in seeds/{name} values")
+    elif unknown:
+        warnings.append(f"{where}: uses {', '.join('{' + u + '}' for u in unknown)} but has no seed_plan to fill it")
+
+
+def _check_challenge(ch, kind, where, ids, problems, warnings, seeds_dir=None):
     if not isinstance(ch, dict):
         problems.append(f"{where}: not an object")
         return
@@ -263,6 +312,7 @@ def _check_challenge(ch, kind, where, ids, problems, warnings):
                     problems.append(f"{where}: verify[{i}] needs a 'verb'")
                 elif "{user}" not in json.dumps(a):
                     problems.append(f"{where}: verify[{i}] never mentions {{user}}, so it reads shared state")
+    _check_seed_plan(ch, where, seeds_dir, problems, warnings)
     if kind == "capstone" and ch.get("badge_tier") != "capstone":
         problems.append(f"{where}: capstone needs badge_tier 'capstone'")
 
@@ -351,13 +401,15 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
                 continue
             ch = _read(os.path.join(cdir, name), problems)
             if ch is not None:
-                _check_challenge(ch, "challenge", f"challenges/{name}", ids, problems, warnings)
+                _check_challenge(ch, "challenge", f"challenges/{name}", ids, problems, warnings,
+                                 os.path.join(base, "seeds"))
                 if isinstance(ch, dict) and ch.get("id") and ch["id"] != name[:-5]:
                     problems.append(f"challenges/{name}: id must match the file name")
                 challenges.append(ch)
     capstone = _read(os.path.join(base, "capstone.json"), problems)
     if capstone is not None:
-        _check_challenge(capstone, "capstone", "capstone.json", ids, problems, warnings)
+        _check_challenge(capstone, "capstone", "capstone.json", ids, problems, warnings,
+                         os.path.join(base, "seeds"))
 
     if known_verbs is not None:
         for ch in challenges + ([capstone] if isinstance(capstone, dict) else []):
