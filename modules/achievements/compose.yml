@@ -1,0 +1,46 @@
+# achievements module: the class score service (service/server.py), added by engine/run.sh when
+# ACHIEVEMENTS_ENABLED=1 and the workshop has achievements/catalog.json. Relative paths resolve
+# against engine/, not this folder.
+
+services:
+  achievements:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_achievements
+    entrypoint: ["python3", "-B", "/opt/achievements/service/server.py"]
+    environment:
+      # Identity headers count only with this token (derived per upstream by run.sh).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_ACHIEVEMENTS:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - WORKSHOP_DIR=/opt/workshop
+      - DATA_DIR=/data
+      - ACHIEVEMENTS_ANONYMOUS=${ACHIEVEMENTS_ANONYMOUS:-1}
+      - ACHIEVEMENTS_HINT_PERCENT=${ACHIEVEMENTS_HINT_PERCENT:-25}
+      - ACHIEVEMENTS_FIRST_BLOOD=${ACHIEVEMENTS_FIRST_BLOOD:-1}
+      - ACHIEVEMENTS_CLASS_CLEAR=${ACHIEVEMENTS_CLASS_CLEAR:-1}
+      - ACHIEVEMENTS_CHEAT_PENALTY=${ACHIEVEMENTS_CHEAT_PENALTY:-1}
+      - ACHIEVEMENTS_COMPLETION_PERCENT=${ACHIEVEMENTS_COMPLETION_PERCENT:-80}
+      - ACHIEVEMENTS_MILESTONE_POINTS=${ACHIEVEMENTS_MILESTONE_POINTS:-10}
+      - ACHIEVEMENTS_FUNNY_POINTS=${ACHIEVEMENTS_FUNNY_POINTS:-0}
+      - ACHIEVEMENTS_CHALLENGE_POINTS=${ACHIEVEMENTS_CHALLENGE_POINTS:-100}
+      - ACHIEVEMENTS_CAPSTONE_POINTS=${ACHIEVEMENTS_CAPSTONE_POINTS:-300}
+    volumes:
+      - ../modules/achievements:/opt/achievements:ro
+      # The workshop's achievements/ folder (it sits beside content/).
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/../achievements:/opt/workshop/achievements:ro
+      - achievements_data:/data
+    # The image's own user can't write a fresh volume under podman: run as a fixed uid.
+    user: "0:0"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: ${ACHIEVEMENTS_MEM_LIMIT:-128m}
+    restart: unless-stopped
+
+volumes:
+  achievements_data:

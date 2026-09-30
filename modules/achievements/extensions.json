@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "achievements", "label": "Leaderboard", "desc": "Your score, the class board and your achievements.",
+      "href": "/achievements/", "icon": "rocket" }
+  ],
+  "admin_tabs": [
+    { "id": "achievements", "label": "Achievements", "src": "/achievements-admin/" }
+  ],
+  "widgets": [
+    { "id": "achievements", "src": "/achievements/widget", "size": "large" }
+  ],
+  "routes": [
+    { "id": "achievements", "path": "/achievements", "upstream": "achievements:8080", "gate": "identity",
+      "strip_prefix": true },
+    { "id": "achievements-admin", "path": "/achievements-admin", "upstream": "achievements:8080",
+      "gate": "facilitator" }
+  ],
+  "status_checks": [
+    { "label": "Achievements", "url": "http://achievements:8080/healthz" }
+  ]
+}

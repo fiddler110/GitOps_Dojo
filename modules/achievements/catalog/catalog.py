@@ -153,12 +153,13 @@ def _check_challenge(ch, kind, where, ids, problems, warnings):
         problems.append(f"{where}: capstone needs badge_tier 'capstone'")
 
 
-def load(workshop_dir, shared_path=None, known_verbs=None):
+def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
     """Load and validate one workshop's catalog.
 
     Returns (catalog, warnings). Raises CatalogError on any error. `known_verbs`, when
     given, is the set of verifier verbs the run's modules provide; a challenge that uses
-    another verb is an error.
+    another verb is an error. `check_name=False` skips the folder-name check, for a service
+    that mounts the workshop under a fixed path.
     """
     base = os.path.join(workshop_dir, "achievements")
     problems, warnings = [], []
@@ -174,7 +175,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None):
     for field in ("workshop", "title"):
         if not isinstance(meta.get(field), str) or not meta[field].strip():
             problems.append(f"catalog.json: '{field}' is required")
-    if meta.get("workshop") and meta["workshop"] != os.path.basename(os.path.normpath(workshop_dir)):
+    if check_name and meta.get("workshop") and meta["workshop"] != os.path.basename(os.path.normpath(workshop_dir)):
         problems.append("catalog.json: 'workshop' must match the workshop's folder name")
 
     shared = {"cheats": [], "unlocks": []}

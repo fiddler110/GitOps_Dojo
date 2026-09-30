@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Achievements</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="banner" class="banner hidden">Workshop complete! Your certificate is ready.</div>
+<div class="card">
+  <div class="row"><span class="big" id="score">0</span><span class="dim">points</span>
+    <span class="dim" id="rank"></span><a href="./" target="_top" id="board-link">Leaderboard</a></div>
+  <div class="dim" id="who"></div>
+  <div class="bar"><div class="fill" id="fill"></div></div>
+  <div class="dim" id="completion"></div>
+</div>
+<div class="card hidden" id="recent-card"><h2>Recent unlocks</h2><table><tbody id="recent"></tbody></table></div>
+<div class="card hidden" id="moments-card"><h2>Moments</h2>
+  <div class="dim">What you did to earn them. Worth nothing, and only you can see this.</div>
+  <table><thead><tr><th>Moment</th><th>What happened</th><th>When</th></tr></thead><tbody id="moments"></tbody></table></div>
+<script src="widget.js"></script>
+</body>
+</html>

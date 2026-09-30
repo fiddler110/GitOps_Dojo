@@ -55,3 +55,15 @@ Pure Python, tested without containers: `python3 -B -m unittest test_service` fr
 `ledger.py` holds scoring, hints, bonuses, cheats, the Moments table and the toast queue;
 `names.py` the anonymous board names; `guards.py` event signing, replay protection and the
 button-masher rate limit. Every unlock kind toasts, funny and cheating ones included.
+
+## The service (`service/server.py`)
+
+Runs on the allocator image (stdlib Python), added by `run.sh` when `ACHIEVEMENTS_ENABLED=1`.
+`store.py` wraps the ledger with one lock and writes `state.json` to the `achievements_data`
+volume after every change. Routes: student pages and API under `/achievements` (identity
+gate), the facilitator tab under `/achievements-admin`. An event is `{user, event, ts, nonce,
+sig}` signed with the service's gateway token; a forged one is charged (-1, "Nice Try,
+Hackerman") only to a caller the gateway identified, never to the user named in the body.
+Tests: `python3 -B -m unittest test_service test_server` from `service/`.
+`static/toast.js` shows toasts on any same-origin page (`<script src="/achievements/toast.js"
+data-surface="portal">`); loading it on engine pages is open question A31 in ROADMAP.md.
