@@ -111,6 +111,18 @@ class Enabled(unittest.TestCase):
         self.assertEqual(L3.score("a"), 20)
         self.assertIsNone(L3.unlock("a", "l1-clone", 5))
 
+    def test_queued_toast_for_off_item_is_dropped_not_held(self):
+        L = fresh()
+        L.unlock("a", "l1-clone", 1)
+        L.unlock("a", "l1-commit", 2)
+        L2 = self.ledger_with_off(copy.deepcopy(L.to_dict()), "l1-clone")
+        self.assertEqual([t["id"] for t in L2.claim("a", "portal", 3)], ["l1-commit"])
+        # Back on: the unlock is on the list again, but its toast stays dropped.
+        L3 = lg.Ledger(CATALOG, lg.Config(), L2.to_dict())
+        self.assertIn("l1-clone", L3.unlocked_ids("a"))
+        self.assertEqual(L3.pending("a"), [])
+        self.assertEqual(L3.claim("a", "terminal", 4), [])
+
     def test_off_challenge_drops_its_bonuses(self):
         L = fresh()
         L.register("b")

@@ -129,6 +129,16 @@ class Ledger:
         self.class_cleared = s.get("class_cleared", [])   # challenge ids
         self.log = s.get("log", [])                       # facilitator awards and resets
         self._seq = s.get("seq", 0)
+        # A queued (undelivered) toast for a switched-off item is dropped, not held: marked
+        # delivered with "dropped" set, so switching the item back on restores the unlock on the
+        # landing page list (the permanent record, A13) without a stale pop-up for something
+        # earned long ago. This runs on every load and catalog reload; `pending` also hides
+        # any toast for an off item queued in between (e.g. a facilitator award).
+        for u in self.users.values():
+            for t in u.get("toasts", []):
+                if not t["delivered"] and t.get("id") in self.disabled:
+                    t["delivered"] = True
+                    t["dropped"] = True
 
     # -- persistence -------------------------------------------------------------------
     def to_dict(self):

@@ -42,7 +42,9 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
   keeps its points for anyone who earned it and disappears for new classes.
 - **On and off.** `"enabled": false` (any item, challenge or capstone; absent means on) switches an item off: it never
   fires, students never see it, and it counts toward neither completion nor any score, including points already
-  earned from it (unlike `retired`). Switching it back on restores those unlocks. `ACHIEVEMENTS.md` marks it `(off)`.
+  earned from it (unlike `retired`). Switching it back on restores those unlocks. A toast still queued for it when it
+  is switched off is dropped (never shown, even after it is switched back on); the landing page list is the record.
+  `ACHIEVEMENTS.md` marks it `(off)`.
 - **The isolation rules** ("Rules for challenges and capstones" in every generated `ACHIEVEMENTS.md`, source
   `catalog/rules.md`) are enforced where they can be: a challenge without a per-student `space`, or with a `verify`
   assertion that never mentions `{user}`, is an error.
@@ -64,7 +66,7 @@ To change an achievement: edit its JSON, run `render_md.py --all`, commit both. 
 
 `modules/achievements/edit.sh <workshop|all>` starts a local page (stdlib Python, `127.0.0.1` only, `PORT=8099` by
 default, no stack or network) with every item of that workshop plus `shared.json` in one table, grouped by workshop
-and lab: an on/off switch per row, per-workshop **All on / All off**, search and a filter (on, off, changed).
+and lab: an on/off switch per row, per-workshop **All on / All off** (only the rows the current search and filter show), search and a filter (on, off, changed).
 Title, joke, when, points, core, and a challenge's goal, hints and answer are editable; `id` and `match` are read-only.
 Edits stay in the page (changed rows highlighted, a warning before leaving) until **Save**, which checks every edit,
 runs the catalog validator over the result (refusing the lot with its error list), writes only the changed JSON files

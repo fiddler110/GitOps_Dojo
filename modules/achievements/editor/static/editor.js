@@ -177,6 +177,7 @@ function render(data) {
     const on = el("button", "small plain", "All on");
     const off = el("button", "small plain", "All off");
     on.type = off.type = "button";
+    on.title = off.title = "Only the rows the current search and filter show";
     on.addEventListener("click", () => bulk(w.name, true));
     off.addEventListener("click", () => bulk(w.name, false));
     h2.append(on, off);
@@ -212,8 +213,11 @@ function render(data) {
   applyFilter();
 }
 
+// All on / All off touch only the rows the current filter and search show in that workshop.
 function bulk(ws, value) {
-  for (const r of rows) if (r.ws === ws) { r.cur.enabled = value; refreshRow(r); }
+  for (const r of rows) {
+    if (r.ws === ws && !r.tr.classList.contains("hidden")) { r.cur.enabled = value; refreshRow(r); }
+  }
   refreshStatus();
   applyFilter();
 }
