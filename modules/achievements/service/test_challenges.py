@@ -25,6 +25,8 @@ STUDENTS = ("amy", "ben", "cat", "dan")
 
 
 def challenge(cid):
+    if cid == "capstone":
+        return CATALOG["capstone"]
     return next(c for c in CATALOG["challenges"] if c["id"] == cid)
 
 
@@ -122,7 +124,7 @@ class Seeding(Base):
         res = self.start("amy")
         self.assertEqual((res["repo"], res["created"]), ("amy/challenge-repo", True))
         repo = self.fj.repos["amy/challenge-repo"]
-        self.assertEqual(len(repo["commits"]), 7)
+        self.assertEqual(len(repo["commits"]), 11)
         self.assertIn("amy", self.fj.file("amy/challenge-repo", "main", "README.md"))
         roster = self.fj.file("amy/challenge-repo", "main", "roster/team.yaml")
         self.assertIn(f"- name: amy\n  role: {self.vals('amy')['role_typo']}\n", roster)
@@ -143,7 +145,7 @@ class Seeding(Base):
         for i in range(3):
             self.assertTrue(self.start("amy", action="reset")["created"])
         repo = self.fj.repos["amy/challenge-repo"]
-        self.assertEqual(set(repo["branches"]), {"main"})         # the student's branch is gone
+        self.assertEqual(set(repo["branches"]), {"main", "feature-a", "feature-b"})   # the student's branch is gone
         self.assertEqual(repo["pulls"], [])
         self.assertEqual(self.store.seeds["amy"]["challenge-repo.json"]["resets"], 3)
 
@@ -323,6 +325,134 @@ class C2Detective(Base):
         self.assertTrue(self.check("amy", "c2")["passed"])
 
 
+class Capstone(Base):
+    """The Great Merge: two conflicting feature branches and a bad commit, per student."""
+    BAD = "Make deploys faster"
+
+    def setUp(self):
+        super().setUp()
+        self.start("amy", "capstone")
+
+    def bad_sha(self, user="amy"):
+        repo = self.fj.repos[REPO.format(user)]
+        return next(s for s, c in repo["commits"].items() if c["message"] == self.BAD)
+
+    def solve(self, user="amy", keep=("a", "b"), markers=False, revert="both", drop_bad=False,
+              pr=True, merge=True, settings=None):
+        """The student's side: merge-{user} off main, merge feature-a and feature-b (conflict
+        resolved by hand), revert the bad commit, PR into main and merge it."""
+        repo, v = REPO.format(user), self.vals(user, "capstone")
+        branch = f"merge-{user}"
+        base = self.fj.file(repo, "main", "CHANGELOG.md")
+        self.fj.commit(repo, branch, {"CHANGELOG.md": base + f"- {v['feature_a']}\n"}, user, start="main",
+                       message="Merge branch 'feature-a'", merge="feature-a")
+        lines = "".join(f"- {v['feature_' + k]}\n" for k in keep)
+        if markers:
+            lines = f"<<<<<<< HEAD\n- {v['feature_a']}\n=======\n- {v['feature_b']}\n>>>>>>> feature-b\n"
+        fb = self.fj.file(repo, "feature-b", "config/settings.yaml")
+        files = {"CHANGELOG.md": base + lines}
+        if drop_bad:        # took feature-b's line by hand, without its commits
+            self.fj.commit(repo, branch, files, user, message="Add feature-b's line")
+        else:
+            files["config/settings.yaml"] = fb
+            self.fj.commit(repo, branch, files, user, message="Merge branch 'feature-b'", merge="feature-b")
+        if revert:
+            sha = self.bad_sha(user)
+            msg = {"both": f'Revert "{self.BAD}"\n\nThis reverts commit {sha}.',
+                   "subject": f'Revert "{self.BAD}"', "body": f"Undo the timeout\n\nThis reverts commit {sha[:9]}.",
+                   "edit": "Put the timeout back"}[revert]
+            fixed = settings or fb.replace("timeout_seconds: 0", "timeout_seconds: 30")
+            self.fj.commit(repo, branch, {"config/settings.yaml": fixed}, user, message=msg)
+        if pr:
+            n = self.fj.open_pr(repo, branch, "main", "The great merge")
+            if merge:
+                self.fj.merge_pr(repo, n, user)
+
+    def test_seed_has_the_conflict_and_the_bad_commit(self):
+        repo, v = "amy/challenge-repo", self.vals("amy", "capstone")
+        self.assertIn("timeout_seconds: 30", self.fj.file(repo, "main", "config/settings.yaml"))
+        self.assertIn("timeout_seconds: 0", self.fj.file(repo, "feature-b", "config/settings.yaml"))
+        self.assertTrue(self.fj.file(repo, "feature-a", "CHANGELOG.md").endswith(f"- {v['feature_a']}\n"))
+        self.assertTrue(self.fj.file(repo, "feature-b", "CHANGELOG.md").endswith(f"- {v['feature_b']}\n"))
+        self.assertNotIn(v["feature_a"], self.fj.file(repo, "main", "CHANGELOG.md"))
+        r = self.fj.repos[repo]
+        self.assertNotIn(self.bad_sha(), self.fj._log(r, r["branches"]["main"]))
+        self.assertIn(self.bad_sha(), self.fj._log(r, r["branches"]["feature-b"]))
+
+    def test_values_are_per_student(self):
+        a = self.vals("amy", "capstone")
+        self.assertNotEqual(a["feature_a"], a["feature_b"])
+        self.assertIn(a["feature_a"], self.runner.render(CATALOG["capstone"], "amy", CATALOG["capstone"]["answer"]))
+        picks = {tuple(self.vals(u, "capstone")[k] for k in ("feature_a", "feature_b")) for u in STUDENTS}
+        self.assertGreater(len(picks), 1)
+
+    def test_pass_pays_300_and_first_blood(self):
+        self.solve()
+        r = self.check("amy", "capstone")
+        self.assertTrue(r["passed"], r)
+        self.assertEqual(r["points"], 300)
+        self.assertEqual(self.store.ledger.score("amy"), 350)
+
+    def test_either_revert_message_counts(self):
+        for style in ("subject", "body"):
+            with self.subTest(style=style):
+                self.start("amy", "capstone", "reset")
+                self.solve(revert=style)
+                self.assertTrue(self.runner.verify(CATALOG["capstone"], "amy")["passed"])
+
+    def test_wrong_answers(self):
+        cases = [
+            ({"pr": False}, "pull request"),
+            ({"merge": False}, "merged pull request"),
+            ({"markers": True}, "CHANGELOG.md"),
+            ({"keep": ("a",)}, "CHANGELOG.md"),
+            ({"revert": None}, self.BAD),
+            ({"revert": "edit"}, "still in effect"),
+            ({"drop_bad": True, "revert": None}, "history"),
+            ({"settings": "timeout_seconds: 5\n"}, "settings.yaml"),
+        ]
+        for kw, want in cases:
+            with self.subTest(kw=kw):
+                self.start("amy", "capstone", "reset")
+                self.solve(**kw)
+                r = self.check("amy", "capstone")
+                self.assertFalse(r["passed"], r)
+                self.assertIn(want, r["message"])
+        self.assertEqual(self.store.ledger.score("amy"), 0)
+
+    def test_direct_push_to_main_fails(self):
+        self.solve()
+        self.fj.commit("amy/challenge-repo", "main", {"notes.txt": "x"}, "amy")
+        self.assertIn("pull request", self.check("amy", "capstone")["message"])
+
+    def test_neighbours_lines_do_not_pass(self):
+        self.start("ben", "capstone")
+        a, b = self.vals("amy", "capstone"), self.vals("ben", "capstone")
+        if (a["feature_a"], a["feature_b"]) == (b["feature_a"], b["feature_b"]):
+            self.skipTest("same picks")
+        self.solve("ben")
+        repo = "amy/challenge-repo"
+        self.fj.commit(repo, "copy", {"CHANGELOG.md": self.fj.file("ben/challenge-repo", "main", "CHANGELOG.md")},
+                       "amy", start="main")
+        self.fj.merge_pr(repo, self.fj.open_pr(repo, "copy", "main", "copied"), "amy")
+        self.assertFalse(self.check("amy", "capstone")["passed"])
+
+    def test_c1_and_c2_still_pass_after_the_capstone(self):
+        self.solve()
+        self.assertTrue(self.check("amy", "capstone")["passed"])
+        self.fj.merge_pr("amy/challenge-repo", self.solve_c1("amy"), "amy")
+        self.assertTrue(self.check("amy", "c1")["passed"])
+        self.solve_c2("amy")
+        self.assertTrue(self.check("amy", "c2")["passed"])
+
+    def test_reset_brings_the_branches_back(self):
+        self.solve()
+        self.start("amy", "capstone", "reset")
+        repo = self.fj.repos["amy/challenge-repo"]
+        self.assertEqual(sorted(repo["branches"]), ["feature-a", "feature-b", "main"])
+        self.assertIn("timeout_seconds: 30", self.fj.file("amy/challenge-repo", "main", "config/settings.yaml"))
+
+
 class ClassWide(Base):
     def test_class_clear_and_concurrent_checks(self):
         for u in STUDENTS:
@@ -345,6 +475,11 @@ class ClassWide(Base):
             self.assertEqual(self.store.ledger.score(u), 100 + bonus + 10)
 
     def test_no_seed_plan_and_no_verify(self):
+        item = self.store.ledger.index["capstone"]["item"]
+        saved = dict(item)
+        self.addCleanup(item.update, saved)
+        item.pop("verify")
+        item.pop("seed_plan")
         with self.assertRaises(challenges.NotCheckable):
             self.check("amy", "capstone")
         with self.assertRaises(Denied) as cm:

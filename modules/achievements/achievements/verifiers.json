@@ -5,8 +5,8 @@
   "verbs": {
     "repo_exists": {"args": ["repo"], "does": "the repo exists"},
     "branch_exists": {"args": ["repo", "branch"], "does": "the branch exists"},
-    "pr_exists": {"args": ["repo", "head", "base?", "state?", "title_prefix?"],
-                  "does": "a pull request from head into base (default main); state open, merged or open_or_merged (default); title starts with title_prefix (case-insensitive)"},
+    "pr_exists": {"args": ["repo", "head?", "base?", "state?", "title_prefix?"],
+                  "does": "a pull request from head (any branch when left out) into base (default main); state open, merged or open_or_merged (default); title starts with title_prefix (case-insensitive)"},
     "pr_files": {"args": ["repo", "head", "base?", "files"], "does": "that pull request changes exactly these files"},
     "pr_file_contains": {"args": ["repo", "head", "base?", "path", "text|regex", "absent?"],
                          "does": "the file at the pull request's head commit contains the text or matches the regex (multiline); absent: true inverts"},
@@ -15,7 +15,9 @@
     "no_direct_push": {"args": ["repo", "branch"],
                        "does": "every commit on the branch came from the seed or through a merged pull request into it"},
     "answer_names_commit": {"args": ["repo", "ref", "path", "search"],
-                            "does": "the file names the short hash (7+ hex characters) and the author of the oldest commit on search.branch whose diff adds a line equal to search.text in search.path"}
+                            "does": "the file names the short hash (7+ hex characters) and the author of the oldest commit on search.branch whose diff adds a line equal to search.text in search.path"},
+    "commit_reverted": {"args": ["repo", "branch?", "message"],
+                        "does": "the commit whose subject is message is in the branch's history (default main) and a later commit there reverts it (git revert's 'This reverts commit <sha>' or subject 'Revert \"<message>\"')"}
   },
   "builders": {
     "forgejo-repo": {"does": "creates {user}/NAME under the student's own account (the student owns it, so has write access) and plays the plan's commits and branches into it through the Forgejo API; reset deletes and re-creates it"}

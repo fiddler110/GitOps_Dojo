@@ -86,7 +86,11 @@ want the same thing, make it a module instead.
    frontmatter/style block for visual consistency), `content/lab/README.md`
    (seeded into every student's `~/lab`), and `content/sample-repo/`
    (seeded into Forgejo by the `bootstrap` service — same mechanism for
-   every workshop, nothing to configure).
+   every workshop, nothing to configure). A lab with an achievements
+   challenge can end that section with `<!-- dojo-challenge: c1 -->` (or
+   `capstone`): the lab reader turns it into Start/Reset buttons when the
+   `achievements` module is on, and shows nothing otherwise (see
+   `modules/achievements/README.md`).
 3. Write `workshop.env`:
    ```sh
    WORKSHOP_NAME=<display name>

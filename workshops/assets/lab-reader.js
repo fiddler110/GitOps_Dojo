@@ -113,9 +113,135 @@
       .catch(function () {});
   }
 
-  function render(markdownSource, file) {
+  // Challenge buttons. A lab ends a challenge's section with a marker line
+  //   <!-- dojo-challenge: c1 -->        (or: capstone)
+  // which an editor or Forgejo hides, and markdown-it (html: false) would print as
+  // text. It becomes a token paragraph before rendering and a Start/Reset box after,
+  // shown only to a student when the achievements module is on (/achievements/api/me
+  // answers with JSON listing that challenge); otherwise the token is just removed.
+  var CHALLENGE_MARKER = /^[ \t]*<!--[ \t]*dojo-challenge:[ \t]*(c[1-9][0-9]*|capstone)[ \t]*-->[ \t]*$/gm;
+  var CHALLENGE_TOKEN = /^DOJOCHALLENGE([a-z0-9]+)$/;
+
+  function markChallenges(source) {
+    return source.replace(CHALLENGE_MARKER, function (_, id) { return '\nDOJOCHALLENGE' + id + '\n'; });
+  }
+
+  function challengeSlots(container) {
+    var slots = [];
+    var paras = container.querySelectorAll('p');
+    for (var i = 0; i < paras.length; i++) {
+      var m = CHALLENGE_TOKEN.exec(paras[i].textContent.trim());
+      if (!m) continue;
+      var slot = document.createElement('div');
+      slot.className = 'lab-challenge';
+      slot.hidden = true;
+      slot.setAttribute('data-challenge', m[1]);
+      paras[i].parentNode.replaceChild(slot, paras[i]);
+      slots.push(slot);
+    }
+    return slots;
+  }
+
+  function challengeCall(id, action) {
+    return fetch('/achievements/api/challenge', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge: id, action: action })
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (doc) {
+        if (!res.ok) throw new Error((doc && doc.error) || ('HTTP ' + res.status));
+        return doc;
+      });
+    });
+  }
+
+  function fillChallenge(slot, row) {
+    var id = row.id;
+    var title = document.createElement('p');
+    title.className = 'lab-challenge-title';
+    title.textContent = (id === 'capstone' ? 'Capstone' : 'Challenge ' + id) + ': ' + row.title +
+      (row.done ? ' (cleared)' : '');
+    var start = document.createElement('button');
+    start.type = 'button';
+    start.className = 'lab-challenge-start';
+    start.textContent = 'Start challenge';
+    var reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'lab-challenge-reset';
+    reset.textContent = 'Reset';
+    var status = document.createElement('p');
+    status.className = 'lab-challenge-status';
+    status.setAttribute('role', 'status');
+    var goal = document.createElement('p');
+    goal.className = 'lab-challenge-goal';
+    goal.hidden = true;
+
+    function run(action) {
+      if (action === 'reset' && !window.confirm('Delete your challenge repo and build a fresh one? ' +
+          'Points and hints already used stay as they are.')) return;
+      start.disabled = reset.disabled = true;
+      status.textContent = action === 'reset' ? 'Rebuilding your repo…' : 'Building your repo…';
+      challengeCall(id, action)
+        .then(function (doc) {
+          var repo = typeof doc.repo === 'string' ? doc.repo : 'your repo';
+          status.textContent = (action === 'reset' ? 'Rebuilt ' : (doc.created ? 'Built ' : 'Ready: ')) + repo +
+            '. In the terminal: ' + (action === 'reset' ? 'rm -rf ~/lab/challenge-repo && ' : '') +
+            'dojo-challenge start ' + id + ' (clones it into ~/lab), then dojo-check ' + id + ' when done.';
+          status.className = 'lab-challenge-status ok';
+          if (typeof doc.goal === 'string' && doc.goal) {
+            goal.textContent = 'Goal: ' + doc.goal;
+            goal.hidden = false;
+          }
+        })
+        .catch(function (err) {
+          status.textContent = 'Could not ' + action + ' ' + id + ': ' + err.message;
+          status.className = 'lab-challenge-status error';
+        })
+        .then(function () { start.disabled = reset.disabled = false; });
+    }
+    start.addEventListener('click', function () { run('start'); });
+    reset.addEventListener('click', function () { run('reset'); });
+
+    var buttons = document.createElement('div');
+    buttons.className = 'lab-challenge-buttons';
+    buttons.appendChild(start);
+    buttons.appendChild(reset);
+    slot.appendChild(title);
+    slot.appendChild(buttons);
+    slot.appendChild(status);
+    slot.appendChild(goal);
+    slot.hidden = false;
+  }
+
+  function renderChallenges(slots, isStudent) {
+    if (!slots.length) return;
+    function drop() {
+      slots.forEach(function (slot) { if (slot.parentNode) slot.parentNode.removeChild(slot); });
+    }
+    if (!isStudent) { drop(); return; }
+    fetch('/achievements/api/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (res) {
+        var type = res.headers.get('Content-Type') || '';
+        if (!res.ok || type.indexOf('application/json') !== 0) throw new Error('off');
+        return res.json();
+      })
+      .then(function (me) {
+        var rows = (me && Array.isArray(me.challenges)) ? me.challenges : [];
+        slots.forEach(function (slot) {
+          var id = slot.getAttribute('data-challenge');
+          var row = rows.filter(function (r) { return r && r.id === id && typeof r.title === 'string'; })[0];
+          if (row) fillChallenge(slot, row);
+          else if (slot.parentNode) slot.parentNode.removeChild(slot);
+        });
+      })
+      .catch(drop);
+  }
+
+  function render(markdownSource, file, isStudent) {
     var md = window.markdownit({ html: false, linkify: true, breaks: false, highlight: highlight });
-    contentEl.innerHTML = md.render(markdownSource);
+    contentEl.innerHTML = md.render(markChallenges(markdownSource));
+    renderChallenges(challengeSlots(contentEl), isStudent);
     rewriteLabLinks(contentEl);
     drawMermaid(contentEl);
     var heading = contentEl.querySelector('h1');
@@ -175,7 +301,7 @@
   Promise.all([lab, whoami])
     .then(function (results) {
       var text = results[1] ? results[0].replace(/studentXX/g, results[1]) : results[0];
-      render(text, file);
+      render(text, file, !!results[1]);
       renderPager(file);
     })
     .catch(function (err) {

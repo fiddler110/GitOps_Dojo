@@ -9,6 +9,13 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## Unreleased: `feat/achievements` (not yet merged to `main`)
 
+**Achievements phase 3 and 4 for git-fundamentals (2026-09-30, locally).** Shell hook and Forgejo system webhook feed a
+matcher; all 29 items have a `match`, and the hand-checked funny items fire. Challenges: `dojo-check ID`,
+`dojo-challenge start/reset`, verifier plug-ins and a per-student seed in `{user}/challenge-repo`; c1, c2 and the capstone
+run live with two students (isolation, hints, first blood, class-clear, reset). Lab-page Start/Reset buttons from a
+`<!-- dojo-challenge: ID -->` marker. Catalog editor (`modules/achievements/edit.sh`, `enabled` field). Landing page and
+workspace reordered, with a top bar (Home, Sign out).
+
 **Host setup and podman-first.** `setup.sh` (Linux, WSL, macOS) and `setup.ps1` (Windows, bootstraps WSL2 Ubuntu
 then runs `setup.sh`) check what the host lacks, show the install commands and run them only on a yes. `run.sh`,
 `teardown.sh` and `capacity-calc.sh` now prefer podman (rootless, safer) over docker when both are installed;

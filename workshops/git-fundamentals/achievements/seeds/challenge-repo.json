@@ -13,7 +13,13 @@
                     "tests_required: false", "pager_owner: nobody", "meetings_per_day: 11",
                     "logging_level: whisper", "backup_schedule: never"],
     "culprit": ["Mallory Mischief", "Trent Tinkerton", "Eve Sneakwell", "Oscar Override", "Peggy Patchwork",
-                "Victor Vandal", "Sybil Shortcut", "Chuck Cowboy"]
+                "Victor Vandal", "Sybil Shortcut", "Chuck Cowboy"],
+    "feature_a": ["Dark mode for the dashboard", "Search box on the roster page", "CSV export of the roster",
+                  "Keyboard shortcuts for reviewers", "Weekly digest email", "Team birthdays calendar",
+                  "Status page for deploys", "Standup notes page"],
+    "feature_b": ["Alerts go to the on-call phone", "Retry button on failed deploys", "Audit log for settings changes",
+                  "Two-step login for admins", "Faster roster loading", "Deploy freeze on holidays",
+                  "Owner field on every setting", "Health check before each deploy"]
   },
   "commits": [
     {"author": "Alice Engineer", "days_ago": 30, "message": "Start the team repo",
@@ -29,7 +35,17 @@
      "files": [{"path": "config/settings.yaml", "append": "timeout_seconds: 30"}]},
     {"author": "Bob Operator", "days_ago": 5, "message": "Add Carol to the roster",
      "files": [{"path": "roster/team.yaml", "append": "- name: Carol Tester\n  role: Quality Assurance"}]},
+    {"author": "Bob Operator", "days_ago": 3, "message": "Start a changelog",
+     "files": [{"path": "CHANGELOG.md", "append": "# Changelog\n\n## Next release\n"}]},
     {"author": "Alice Engineer", "days_ago": 2, "message": "Name an owner for the settings",
-     "files": [{"path": "config/settings.yaml", "append": "owner: alice.engineer"}]}
+     "files": [{"path": "config/settings.yaml", "append": "owner: alice.engineer"}]},
+    {"branch": "feature-a", "from": "main", "author": "Alice Engineer", "days_ago": 1,
+     "message": "Changelog: {feature_a}",
+     "files": [{"path": "CHANGELOG.md", "append": "- {feature_a}"}]},
+    {"branch": "feature-b", "from": "main", "author": "Bob Operator", "days_ago": 1,
+     "message": "Changelog: {feature_b}",
+     "files": [{"path": "CHANGELOG.md", "append": "- {feature_b}"}]},
+    {"branch": "feature-b", "author": "{culprit}", "days_ago": 1, "message": "Make deploys faster",
+     "files": [{"path": "config/settings.yaml", "replace": ["timeout_seconds: 30", "timeout_seconds: 0"]}]}
   ]
 }

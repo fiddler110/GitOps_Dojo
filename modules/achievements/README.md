@@ -125,6 +125,13 @@ deletes and re-creates it; hints and points are untouched) and returns the goal 
 student's values filled in. Check runs are logged for the facilitator (`/api/state` `checks`).
 Tests: `service/test_challenges.py` against the in-memory `service/fake_forgejo.py`.
 
+**Lab buttons.** A lab adds a Start/Reset box for a challenge with one marker line, where the
+challenge's section ends: `<!-- dojo-challenge: c1 -->` (or `capstone`). Editors and Forgejo hide
+the comment; the lab reader (`workshops/assets/lab-reader.js`) shows the box only to a student
+when this module is on (`/achievements/api/me` lists that challenge), calls `POST
+/achievements/api/challenge` through the gateway, and tells the student to run `dojo-challenge
+start ID` to clone the repo into `~/lab`. With achievements off, or for the facilitator, nothing shows.
+
 **Shell events.** `dojo-achievements.zsh` (sourced from `/etc/zsh/zshrc`) records each command in `preexec` and, in
 `precmd`, sends it with its exit status, the branch before and after, and whether a merge was in progress before and
 after, through `dojo-check --shell` (`POST /api/shell`), in the background so the prompt never waits. The fields go in

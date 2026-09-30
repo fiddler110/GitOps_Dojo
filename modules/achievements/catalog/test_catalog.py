@@ -467,6 +467,18 @@ class RealCatalogs(unittest.TestCase):
     def test_generated_markdown_is_not_stale(self):
         self.assertEqual(render_md.main(["--all", "--check", "--quiet"]), 0)
 
+    def test_git_fundamentals_is_fully_checkable(self):
+        """Phase 4: c1, c2 and the capstone all have a seed and a structured verify made of
+        the Forgejo plug-in's verbs, and the catalog has no warnings left."""
+        with open(os.path.join(HERE, "..", "achievements", "verifiers.json")) as fh:
+            verbs = set(json.load(fh)["verbs"])
+        c, warnings = cat.load(os.path.join(HERE, "..", "..", "..", "workshops", "git-fundamentals"), SHARED,
+                               known_verbs=verbs)
+        self.assertEqual(warnings, [])
+        for ch in c["challenges"] + [c["capstone"]]:
+            self.assertTrue(ch.get("verify") and ch.get("seed_plan"), ch["id"])
+        self.assertIn("commit_reverted", {a["verb"] for a in c["capstone"]["verify"]})
+
 
 if __name__ == "__main__":
     unittest.main()

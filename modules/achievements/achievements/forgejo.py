@@ -84,12 +84,13 @@ def _pulls(api, repo):
 
 
 def _find_pr(api, a):
-    """The newest pull request that fits a's head, base, state and title_prefix, and why not."""
-    base, state = a.get("base", "main"), a.get("state", "open_or_merged")
+    """The newest pull request that fits a's head (any head when not given), base, state and
+    title_prefix, and why not."""
+    head, base, state = a.get("head"), a.get("base", "main"), a.get("state", "open_or_merged")
     prefix = (a.get("title_prefix") or "").lower()
     near = None
     for pr in sorted(_pulls(api, a["repo"]), key=lambda p: -p.get("number", 0)):
-        if (pr.get("head") or {}).get("ref") != a["head"] or (pr.get("base") or {}).get("ref") != base:
+        if (head and (pr.get("head") or {}).get("ref") != head) or (pr.get("base") or {}).get("ref") != base:
             continue
         merged = bool(pr.get("merged"))
         open_ = pr.get("state") == "open"
@@ -102,7 +103,7 @@ def _find_pr(api, a):
             continue
         return pr, ""
     what = {"open": "open", "merged": "merged"}.get(state, "open or merged")
-    why = f"no {what} pull request from {a['head']} into {base}"
+    why = f"no {what} pull request " + (f"from {head} " if head else "") + f"into {base}"
     return None, why + (f" (found one, but {near})" if near else "")
 
 
@@ -219,6 +220,35 @@ def answer_names_commit(api, a, ctx):
     return True, "case closed"
 
 
+def _subject(c):
+    lines = (((c.get("commit") or {}).get("message")) or "").strip().splitlines()
+    return lines[0].strip() if lines else ""
+
+
+def commit_reverted(api, a, ctx):
+    """The commit whose subject is a['message'] is in the branch's history (kept, not
+    rewritten away) and a later commit there reverts it: git revert's own message, either
+    'This reverts commit <sha>' or the subject 'Revert "<subject>"'."""
+    repo, branch, subject = a["repo"], a.get("branch", "main"), a["message"].strip()
+    commits = _commits(api, repo, branch)
+    if commits is None:
+        return False, f"no branch {branch} in {repo}"
+    revert_subject = f'revert "{subject.lower()}"'
+    bad = [c for c in commits if _subject(c) == subject]
+    if not bad:
+        return False, (f"the commit '{subject}' isn't in {branch}'s history; bring it in, then undo it "
+                       "with a new commit (history is rewritten if it just disappears)")
+    shas = [c["sha"].lower() for c in bad if c.get("sha")]
+    for c in commits:
+        msg = (((c.get("commit") or {}).get("message")) or "").lower()
+        if _subject(c).lower() == revert_subject:
+            return True, "the bad commit is reverted"
+        for m in re.finditer(r"this reverts commit ([0-9a-f]{7,40})", msg):
+            if any(s.startswith(m.group(1)) for s in shas):
+                return True, "the bad commit is reverted"
+    return False, f"'{subject}' is still in effect on {branch}: undo it with a commit that reverts it"
+
+
 VERBS = {
     "repo_exists": repo_exists,
     "branch_exists": branch_exists,
@@ -228,6 +258,7 @@ VERBS = {
     "file_contains": file_contains,
     "no_direct_push": no_direct_push,
     "answer_names_commit": answer_names_commit,
+    "commit_reverted": commit_reverted,
 }
 
 

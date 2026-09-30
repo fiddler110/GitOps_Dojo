@@ -78,3 +78,5 @@ git branch -D lab4-explore
 - `git diff <branch-1>..<branch-2>` — compare two branches directly.
 
 **Next:** [lab5.md](lab5.md) — resolving a merge conflict and safely undoing a shared change.
+
+<!-- dojo-challenge: c2 -->

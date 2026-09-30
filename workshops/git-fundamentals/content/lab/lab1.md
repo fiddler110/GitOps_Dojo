@@ -191,3 +191,5 @@ Before moving on, be ready to show or say:
 - What `git fetch --prune` cleaned up, and why `git branch -d` refuses to delete an unmerged branch.
 
 **Next:** [lab2.md](lab2.md) — reviewing and undoing changes before you commit.
+
+<!-- dojo-challenge: c1 -->

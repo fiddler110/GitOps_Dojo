@@ -148,12 +148,14 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 - **Points:** 300
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
-- **Goal shown to the student:** Two feature branches, `feature-a` and `feature-b`, both edit the same lines. A third commit on one of them broke something. Bring both changes into `main` through a pull request with **both** edits kept, no conflict markers left behind, and the broken commit undone the safe way.
-- **Seed:** the two conflicting branches and the bad commit are created in the student's own `{user}/challenge-repo` (Forgejo user repos, so no branch names need a `{user}` suffix).
-- **Verify:** forgejo `pr_merged` into that repo's `main`; `file_contains` both edits and no `<<<<<<<`; history contains a revert commit for the bad one.
-- **Hint 1:** Merge one, then the other; expect a conflict.
-- **Hint 2:** `git revert` undoes a commit without rewriting history.
-- **Collision check:** the merge lands in a private repo, so it can't conflict with anyone. Fully solo; no facilitator.
+- **Goal shown to the student:** Two feature branches, `feature-a` and `feature-b`, both add their line to the same spot in `CHANGELOG.md`. A later commit on `feature-b`, "Make deploys faster", broke something. Bring both changes into `main` through a pull request with **both** changelog lines kept, no conflict markers left behind, and the broken commit undone the safe way.
+- **Constraints:** in `{user}/challenge-repo`; `main` changes only through a merged pull request (from any branch you like); `CHANGELOG.md` on `main` keeps `- {feature_a}` and `- {feature_b}`; "Make deploys faster" stays in the history and a later commit reverts it, so `config/settings.yaml` is back to `timeout_seconds: 30`.
+- **Seed:** `dojo-challenge start capstone` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (the same repo as c1 and c2; reset re-creates it): `main` has `CHANGELOG.md`, `feature-a` and `feature-b` each add a per-student line (`{feature_a}`, `{feature_b}`) to its end, and `feature-b` then sets `timeout_seconds: 0` in a commit called "Make deploys faster" (Forgejo user repos, so no branch names need a `{user}` suffix).
+- **Verify:** forgejo `pr_exists` (any branch into `main`, merged); `file_contains` both changelog lines on `main` and no conflict marker line (`<<<<<<<`, `=======`, `>>>>>>>`); `commit_reverted`: "Make deploys faster" is in `main`'s history and a later commit reverts it; `file_contains` `timeout_seconds: 30` on `main`; `no_direct_push` on `main`.
+- **Hint 1:** Work on a new branch off `main`, merge `origin/feature-a`, then `origin/feature-b`; expect a conflict in `CHANGELOG.md` and keep both lines (Lab 5, Part A).
+- **Hint 2:** `git revert` undoes a commit without rewriting history: find "Make deploys faster" with `git log --oneline`.
+- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/challenge-repo`, `git switch -c merge-{user}`, `git merge origin/feature-a`, `git merge origin/feature-b`: in `CHANGELOG.md` keep both `- {feature_a}` and `- {feature_b}`, delete the `<<<<<<<`, `=======` and `>>>>>>>` lines, `git add CHANGELOG.md`, `git commit --no-edit`; then `git revert --no-edit <hash of "Make deploys faster">` (from `git log --oneline`), `git push -u origin merge-{user}`; in Forgejo open a pull request from `merge-{user}` into `main` and merge it; then `dojo-check capstone`.
+- **Collision check:** the merge lands in the student's own repo, so it can't conflict with anyone. Fully solo; no facilitator.
 - **Badge tier:** capstone (stars)
 
 ## Totals (computed)

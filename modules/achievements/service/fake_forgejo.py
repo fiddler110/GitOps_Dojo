@@ -179,16 +179,18 @@ class FakeForgejo:
                 "head": {"ref": pr["head"], "sha": self._pr_head(repo, pr)}, "base": {"ref": pr["base"]}}
 
     # -- the student's side ------------------------------------------------------------
-    def commit(self, full, branch, files, who, start=None):
+    def commit(self, full, branch, files, who, start=None, message=None, merge=None):
         """Commit `files` ({path: text}) on `branch` as `who`, creating it from `start`
-        (a branch) when new. Like a commit plus a push."""
+        (a branch) when new. Like a commit plus a push. `merge` (a branch) makes it a local
+        merge commit with that branch's head as its second parent."""
         with self.lock:
             repo = self.repos[full]
             head = repo["branches"].get(branch) or repo["branches"][start or repo["default"]]
             tree = dict(repo["commits"][head]["tree"])
             tree.update(files)
             person = {"name": who, "email": f"{who}@lab.test"}
-            sha = self._new_commit(repo, [head], tree, person, person, f"work by {who}")
+            parents = [head] + ([repo["branches"][merge]] if merge else [])
+            sha = self._new_commit(repo, parents, tree, person, person, message or f"work by {who}")
             repo["branches"][branch] = sha
             return sha
 

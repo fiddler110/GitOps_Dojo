@@ -137,6 +137,14 @@ class Save(Base):
         self.assertEqual(list(doc)[:3], list(json.loads(self.before[rel]))[:3])   # key order kept
         self.assertIn("150", snapshot(self.root)["workshops/git-fundamentals/ACHIEVEMENTS.md"])
 
+    def test_capstone_edit_keeps_its_verify_and_seed(self):
+        rel = f"{GF}/capstone.json"
+        self.save({"file": rel, "id": "capstone", "set": {"hints": ["one", "two"], "points": 250}})
+        doc, old = json.loads(snapshot(self.root)[rel]), json.loads(self.before[rel])
+        self.assertEqual((doc["hints"], doc["points"]), (["one", "two"], 250))
+        self.assertEqual((doc["verify"], doc["seed_plan"]), (old["verify"], old["seed_plan"]))
+        self.assertEqual(self.changed_files(), sorted([rel, "workshops/git-fundamentals/ACHIEVEMENTS.md"]))
+
     def test_catalog_validator_refuses_and_nothing_is_written(self):
         with self.assertRaises(ce.EditError) as e:
             self.save({"file": f"{GF}/labs/lab1.json", "id": "l1-clone", "set": {"title": "ok"}},

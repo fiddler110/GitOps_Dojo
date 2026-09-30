@@ -155,3 +155,5 @@ git branch -D undo-demo
 - **Committed and shared:** `git revert` is safe — it adds a new commit instead of rewriting history.
 
 You've now covered the full loop (Lab 1) plus the most common "something went sideways" tools. That's the everyday git toolkit — see [README.md](README.md) for the quick reference, and don't hesitate to ask the facilitator about anything that came up.
+
+<!-- dojo-challenge: capstone -->

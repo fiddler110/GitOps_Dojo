@@ -152,3 +152,39 @@ body {
 /* ```mermaid diagrams (see drawMermaid in lab-reader.js). */
 .lab-content pre.mermaid { text-align: center; }
 .lab-content pre.mermaid svg { max-width: 100%; height: auto; }
+
+/* Challenge Start/Reset box (lab-reader.js, a "<!-- dojo-challenge: c1 -->" marker). */
+.lab-content .lab-challenge {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  margin: 28px 0;
+  padding: 16px 20px;
+}
+
+.lab-content .lab-challenge-title { font-weight: 700; margin: 0 0 12px; }
+.lab-content .lab-challenge-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.lab-content .lab-challenge button {
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  color: #0b0b0c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+}
+
+.lab-content .lab-challenge button.lab-challenge-reset {
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--text);
+}
+
+.lab-content .lab-challenge button:disabled { cursor: wait; opacity: 0.6; }
+.lab-content .lab-challenge-status { color: var(--muted); margin: 12px 0 0; }
+.lab-content .lab-challenge-status:empty { display: none; }
+.lab-content .lab-challenge-status.ok { color: var(--accent); }
+.lab-content .lab-challenge-status.error { color: #f78c6c; }
+.lab-content .lab-challenge-goal { margin: 8px 0 0; }
