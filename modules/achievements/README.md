@@ -48,3 +48,10 @@ Run from `modules/achievements/catalog/` (stdlib only, no stack needed):
 | `python3 -B -m unittest test_catalog` | The unit tests |
 
 To change an achievement: edit its JSON, run `render_md.py --all`, commit both.
+
+## Service logic (`service/`)
+
+Pure Python, tested without containers: `python3 -B -m unittest test_service` from `service/`.
+`ledger.py` holds scoring, hints, bonuses, cheats, the Moments table and the toast queue;
+`names.py` the anonymous board names; `guards.py` event signing, replay protection and the
+button-masher rate limit. Every unlock kind toasts, funny and cheating ones included.
