@@ -5,8 +5,11 @@
       "title": "Cloud Tourist",
       "joke": "Opened the portal.",
       "core": true,
-      "when": "cloud: first portal request by the student (needs the `cloud` event source, see the report)",
-      "match": {}
+      "when": "cloud: the student's first Dojo Portal API call (the portal page loads its data through it; reported by cloud-api)",
+      "match": {
+        "source": "cloud",
+        "event": "portal_request"
+      }
     },
     {
       "id": "t4-creds",

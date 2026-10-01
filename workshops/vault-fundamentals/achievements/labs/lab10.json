@@ -18,24 +18,42 @@
       "title": "Wrapped Delivery",
       "joke": "A secret ID only the app can open.",
       "core": true,
-      "when": "bao: response-wrapped secret ID created and unwrapped once (not wired: needs `bao` events on `sys/wrapping/*`)",
-      "match": {}
+      "when": "bao: a wrapping token unwrapped (`sys/wrapping/unwrap`), the delivered secret ID opened once",
+      "match": {
+        "source": "bao",
+        "event": "wrapping",
+        "path_prefix": "sys/wrapping/unwrap",
+        "ok": true
+      }
     },
     {
       "id": "v10-deploy",
       "title": "Delivered and Deployed",
       "joke": "Pipeline delivers, app logs in.",
       "core": true,
-      "when": "bao: app login with the delivered secret ID (not wired: needs a `bao` event `login`, method approle, role app)",
-      "match": {}
+      "when": "bao: an AppRole login that got `app-read`, after the strict one-use role of this lab",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "approle",
+        "ok": true,
+        "role": "app-read",
+        "requires": "v10-strict"
+      }
     },
     {
       "id": "v10-branch",
       "title": "A Branch Gets Nothing",
       "joke": "A feature branch cannot deploy.",
       "core": true,
-      "when": "bao: refused delivery from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci, role deliver-main)",
-      "match": {}
+      "when": "bao: a refused `jwt-ci` login after the app was delivered (the branch's delivery job)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": false,
+        "requires": "v10-deploy"
+      }
     }
   ]
 }

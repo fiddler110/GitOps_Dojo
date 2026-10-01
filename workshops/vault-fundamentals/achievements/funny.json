@@ -31,29 +31,45 @@
       "id": "f-root",
       "title": "Root of the Problem",
       "joke": "You used the root token. Everyone has, once.",
-      "when": "bao: any request with a root-policy token (not wired: needs a `bao` audit event carrying the token's policies)",
-      "match": {}
+      "when": "bao: any request made with a token that carries the `root` policy",
+      "match": {
+        "source": "bao",
+        "event": "request",
+        "root": true
+      }
     },
     {
       "id": "f-typopath",
       "title": "Wrong Path, Right Attitude",
       "joke": "No value at that path. Check the mount.",
-      "when": "bao: 404 on a KV path (not wired: exit codes can't tell a missing path from a denied one; needs a `bao` audit event with the response code)",
-      "match": {}
+      "when": "shell: `bao kv get` that printed `No value found at` (a path that isn't there)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao kv get",
+        "out_regex": [
+          "No value found at",
+          "Code: 404"
+        ]
+      }
     },
     {
       "id": "f-seal",
       "title": "Sealed and Loving It",
       "joke": "The vault is sealed. This is fine.",
-      "when": "bao: `sealed` response (facilitator action; not wired: needs the `bao` source or the health check)",
-      "match": {}
+      "when": "shell: a `bao` command that printed that the vault is sealed (a facilitator action)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao",
+        "out_regex": "(Vault|OpenBao) is sealed|Error.*\\bsealed\\b"
+      }
     },
     {
       "id": "f-paste",
       "title": "Paste Bin Energy",
       "joke": "A secret in the chat. It happens.",
-      "when": "shell: a fake secret string in a shared channel (not wired: no channel is observed)",
-      "match": {}
+      "when": "a fake secret string pasted into a shared channel (nothing observes a channel; awarded by hand from /admin)",
+      "match": {},
+      "note": "Left unmatched on purpose: no shared channel is observed, and the shell hook sees no pasted text. The facilitator can award it by hand."
     }
   ]
 }

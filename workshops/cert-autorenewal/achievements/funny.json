@@ -22,8 +22,19 @@
       "id": "f-expired",
       "title": "Expired Milk",
       "joke": "You looked at an expired certificate.",
-      "when": "shell: `openssl x509 -enddate` shows a past date",
-      "match": {}
+      "when": "verify: demo-app serves your hostname a certificate that has expired (a renewal that never ran; the `-enddate` output itself is not read)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_expired",
+            "host": "{user}.certs.dojo.test"
+          }
+        ]
+      }
     },
     {
       "id": "f-staging",

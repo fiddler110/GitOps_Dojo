@@ -4,6 +4,7 @@ Two event sources feed it (the `match` schema is documented in catalog/catalog.p
 
   shell    one command line from the student's prompt hook (`dojo-check --shell`):
            {cmd, exit, branch, branch_before, in_repo, merging, merging_after}
+  cloud, bao, ca   one event a module posts to /api/adapter (see `adapter_event`)
   forgejo  one Forgejo webhook delivery, normalised by `forgejo_event` to
            {event, action, user, actor, repo, branch, tag, ref_type}
 
@@ -16,6 +17,7 @@ import re
 import shlex
 
 MAX_CMD = 2000
+MAX_OUT = 4000      # the tail of what the command printed (see terminal/dojo-achievements.zsh)
 CONTROL = {"&&", "||", ";", "|", "&", "|&", ";;", "(", ")"}
 REDIRECT = re.compile(r"^[0-9]*(>>?|<<?<?|>&|<&|&>>?)$")
 # git options that come before the subcommand and take a value (`git -C dir status`).
@@ -120,7 +122,9 @@ def shell_event(body):
         v = body.get(k)
         return v in (True, 1, "1", "true")
 
-    return {"source": "shell", "cmd": cmd[:MAX_CMD], "exit": code, "branch": text("branch"),
+    out = body.get("out")
+    return {"source": "shell", "cmd": cmd[:MAX_CMD], "exit": code, "out": out[-MAX_OUT:] if isinstance(out, str) else "",
+            "branch": text("branch"),
             "branch_before": text("branch_before"), "in_repo": flag("in_repo"),
             "merging": flag("merging"), "merging_after": flag("merging_after")}
 
@@ -156,6 +160,8 @@ def _shell_match(m, ev, rx):
     for key in ("in_repo", "merging", "merging_after"):
         if key in m and ev.get(key) != m[key]:
             return False
+    if "out_regex" in m and not any(re.search(r, ev.get("out") or "", re.M) for r in _as_list(m["out_regex"])):
+        return False
     cmds = [c.split() for c in _as_list(m["cmd"])] if "cmd" in m else [None]
     for seg in segments(ev["cmd"]):
         words = seg["words"]
@@ -218,6 +224,14 @@ def forgejo_event(kind, payload):
         ev["event"] = kind
         ev["user"] = ev["actor"]
         ref(payload.get("ref"), payload.get("ref_type"))
+    elif kind == "fork":
+        # The delivery names the new repository (`forkee`) and the original (`repo`); the forker
+        # is the sender. `repo` on the event is the new fork, which is the forker's own.
+        forkee = payload.get("forkee") if isinstance(payload.get("forkee"), dict) else {}
+        ev["event"] = "fork"
+        ev["user"] = ev["actor"]
+        name = forkee.get("full_name")
+        ev["repo"] = name if isinstance(name, str) else ev["repo"]
     elif kind == "pull_request":
         pr = payload.get("pull_request") if isinstance(payload.get("pull_request"), dict) else {}
         action = payload.get("action")
@@ -294,12 +308,66 @@ def _dns_match(m, ev):
     return True
 
 
+# -- cloud, bao, ca (posted by the owning module, signed; see server.py /api/adapter) -----------
+ADAPTER_EVENTS = {
+    "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
+              "container_updated", "container_deleted", "container_replaced"),
+    "bao": ("login", "request", "wrapping", "sealed"),
+    "ca": ("rate_limited", "order_failed", "order_issued"),
+}
+ADAPTER_TEXT = ("reason", "mount", "role", "op", "path")
+
+
+def adapter_event(body):
+    """A validated cloud/bao/ca event from a module's signed post, or None.
+
+    {source, event, user, ...} plus the optional fields reason, mount, role, op, path (text),
+    ok, root (true/false) and status (an HTTP code). `user` is the student the module
+    attributed the activity to: the account behind a token, a namespace `students/<user>`."""
+    if not isinstance(body, dict):
+        return None
+    source, event, user = body.get("source"), body.get("event"), body.get("user")
+    if source not in ADAPTER_EVENTS or event not in ADAPTER_EVENTS[source]:
+        return None
+    if not isinstance(user, str) or not user or len(user) > 100:
+        return None
+    ev = {"source": source, "event": event, "user": user}
+    for k in ADAPTER_TEXT:
+        v = body.get(k)
+        ev[k] = v[:200] if isinstance(v, str) and v else None
+    for k in ("ok", "root"):
+        v = body.get(k)
+        ev[k] = v if isinstance(v, bool) else None
+    st = body.get("status")
+    ev["status"] = st if isinstance(st, int) and not isinstance(st, bool) and 100 <= st <= 599 else None
+    return ev
+
+
+def _adapter_match(m, ev):
+    for key in ("event", "reason", "mount", "role"):
+        if not _value_ok(m, ev, key, ev["user"]):
+            return False
+    for key in ("ok", "root"):
+        if key in m and ev.get(key) != m[key]:
+            return False
+    if "op" in m and ev.get("op") not in _as_list(m["op"]):
+        return False
+    if "status" in m and ev.get("status") not in _as_list(m["status"]):
+        return False
+    if "path_prefix" in m:
+        path = ev.get("path") or ""
+        if not any(path.startswith(p.replace("{user}", ev["user"] or "")) for p in _as_list(m["path_prefix"])):
+            return False
+    return True
+
+
 # -- the matcher ---------------------------------------------------------------------------
 class Matcher:
     """The matchable items of one catalog index (ledger.build_index), compiled once."""
 
     def __init__(self, index):
         self.rules = []     # (id, [(match, compiled regex or None)])
+        self.state_rules = []   # (id, match): `verify` milestones, run by the service, not by events
         for iid, entry in index.items():
             if entry["kind"] not in ("milestone", "funny") or entry.get("cheat"):
                 continue
@@ -307,7 +375,9 @@ class Matcher:
             alts = m.get("any") if "any" in m else [m]
             compiled = []
             for a in alts:
-                if isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns"):
+                if isinstance(a, dict) and a.get("source") == "verify":
+                    self.state_rules.append((iid, a))
+                elif isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns", "cloud", "bao", "ca"):
                     compiled.append((a, re.compile(a["regex"]) if "regex" in a else None))
             if compiled:
                 self.rules.append((iid, compiled))
@@ -325,11 +395,28 @@ class Matcher:
                     continue
                 if "requires" in m and not all(r in have for r in _as_list(m["requires"])):
                     continue
+                if "requires_not" in m and any(r in have for r in _as_list(m["requires_not"])):
+                    continue
                 ok = {"shell": lambda: _shell_match(m, event, rx), "forgejo": lambda: _forgejo_match(m, event),
-                      "dns": lambda: _dns_match(m, event)}[event["source"]]()
+                      "dns": lambda: _dns_match(m, event), "cloud": lambda: _adapter_match(m, event),
+                      "bao": lambda: _adapter_match(m, event), "ca": lambda: _adapter_match(m, event)}[event["source"]]()
                 if ok and "count" in m:
                     ok = bump is not None and bump(iid) >= m["count"]
                 if ok:
                     out.append(iid)
                     break
+        return out
+
+    def pending_state(self, have):
+        """[(id, verify assertions)] of the `verify` milestones this student could unlock now:
+        not held yet, with `requires` held and `requires_not` not held."""
+        out = []
+        for iid, m in self.state_rules:
+            if iid in have:
+                continue
+            if "requires" in m and not all(r in have for r in _as_list(m["requires"])):
+                continue
+            if "requires_not" in m and any(r in have for r in _as_list(m["requires_not"])):
+                continue
+            out.append((iid, m["verify"]))
         return out

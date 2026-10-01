@@ -48,14 +48,33 @@ _dojo_bot_token() {
   _dojo_bot_tok_ok=1
 }
 
-bot_cmd_pre() { _dojo_bot_git_state; }
+# "history_size cursor_y" of this tmux pane (the bots run inside one): with it, a line's absolute number
+# is their sum, so the lines a command printed can be read back, as dojo-achievements.zsh does.
+_dojo_bot_pane_pos() { command tmux display-message -p '#{history_size} #{cursor_y}' 2>/dev/null; }
+_dojo_bot_out_from=''
+
+bot_cmd_pre() {
+  _dojo_bot_git_state
+  _dojo_bot_out_from=''
+  [ -n "${TMUX:-}" ] && _dojo_bot_out_from=$(_dojo_bot_pane_pos)
+}
 
 bot_cmd_post() { # <command> <exit code>
   local cmd=$1 rc=$2 in_repo=$_dojo_bot_in_repo merging=$_dojo_bot_merging before=$_dojo_bot_branch
   _dojo_bot_git_state
   [ -n "${cmd//[[:space:]]/}" ] || return 0
   _dojo_bot_token || return 0
-  DOJO_SH_CMD=${cmd:0:2000} DOJO_SH_EXIT=$rc DOJO_SH_IN_REPO=$in_repo DOJO_SH_MERGING=$merging \
+  local out='' a b
+  if [ -n "$_dojo_bot_out_from" ] && [ -n "${TMUX:-}" ]; then
+    read -r -a a <<<"$_dojo_bot_out_from"
+    read -r -a b <<<"$(_dojo_bot_pane_pos)"
+    if [ "${#a[@]}" = 2 ] && [ "${#b[@]}" = 2 ]; then
+      local first=$(( a[0] + a[1] - b[0] )) last=$(( b[1] - 1 ))
+      [ "$last" -ge "$first" ] && out=$(command tmux capture-pane -p -J -S "$first" -E "$last" 2>/dev/null | tail -n 40 | tail -c 4000)
+    fi
+  fi
+  _dojo_bot_out_from=''
+  DOJO_SH_OUT=$out DOJO_SH_CMD=${cmd:0:2000} DOJO_SH_EXIT=$rc DOJO_SH_IN_REPO=$in_repo DOJO_SH_MERGING=$merging \
   DOJO_SH_BRANCH_BEFORE=$before DOJO_SH_BRANCH=$_dojo_bot_branch DOJO_SH_MERGING_AFTER=$_dojo_bot_merging \
     /usr/local/bin/dojo-check --shell </dev/null >/dev/null 2>&1 &
   disown $! 2>/dev/null

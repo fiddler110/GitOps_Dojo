@@ -37,8 +37,17 @@
       "title": "Loose Lips",
       "joke": "Logging the secret? No.",
       "core": true,
-      "when": "verify: app log free of the secret value (not wired: needs a file verb on the student's workspace, `file_lacks`)",
-      "match": {}
+      "when": "shell: `app_vault.py` run again after the debug line was fixed (it prints `loaded config keys:`, not the values)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_vault\\.py\\b",
+        "out_regex": "loaded config keys: \\[",
+        "requires": "v5-vault"
+      }
     },
     {
       "id": "v5-expired",

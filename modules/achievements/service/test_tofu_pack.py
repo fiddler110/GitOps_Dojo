@@ -232,5 +232,75 @@ class Challenges(unittest.TestCase):
                              {"c1": "challenge-c1", "c2": "challenge-c2", "capstone": "site-factory"}[ch["id"]])
 
 
+def cloud(event, user="amy", **kw):
+    return match(mt.adapter_event(dict(source="cloud", event=event, user=user, **kw)))
+
+
+class CloudEvents(unittest.TestCase):
+    """Track B items that fire on what cloud-api reports (modules/dojo-cloud/cloud-api/events.py)."""
+
+    def test_events_fire_their_item(self):
+        self.assertIn("t4-portal", cloud("portal_request"))
+        self.assertIn("t5-site", cloud("site_request"))
+        self.assertIn("t6-tag", cloud("policy_denied", reason="tag"))
+        self.assertIn("t6-region", cloud("policy_denied", reason="region"))
+        self.assertIn("t6-size", cloud("policy_denied", reason="size"))
+        self.assertIn("t7-tag", cloud("container_updated", reason="portal"))
+        self.assertIn("t7-delete", cloud("container_deleted", reason="portal"))
+        self.assertIn("t8-replace", cloud("container_replaced"))
+        self.assertIn("t9-quota", cloud("quota_denied"))
+
+    def test_lookalikes_do_not(self):
+        self.assertNotIn("t6-region", cloud("policy_denied", reason="tag"))
+        self.assertNotIn("t6-tag", cloud("quota_denied"))
+        self.assertNotIn("t7-tag", cloud("container_updated", reason="arm"))      # tofu's PATCH is not the portal
+        self.assertNotIn("t7-delete", cloud("container_deleted", reason="arm"))
+        self.assertNotIn("t8-replace", cloud("container_created"))
+        self.assertNotIn("t9-quota", cloud("policy_denied", reason="size"))
+
+    def test_fork(self):
+        def fork(repo):
+            return match(mt.forgejo_event("fork", {"forkee": {"full_name": repo}, "repo": {"full_name": "iac-team/tofu-basics"},
+                                                   "sender": {"login": "amy"}}))
+        self.assertIn("t0-fork", fork("amy/tofu-basics"))
+        self.assertNotIn("t0-fork", fork("amy/other"))
+
+
+class ShellOutput(unittest.TestCase):
+    """Items read from what the command printed (`out`, from the tmux pane)."""
+
+    APPLY_INPLACE = ("azurerm_container_group.hello: Modifying... [id=/subscriptions/x]\n"
+                     "azurerm_container_group.hello: Modifications complete after 2s\n\nApply complete! 0 added, 1 changed")
+    APPLY_REPLACE = ("azurerm_container_group.hello: Destroying... [id=x]\nazurerm_container_group.hello: Destruction complete after 3s\n"
+                     "azurerm_container_group.hello: Creating...\nazurerm_container_group.hello: Creation complete after 9s")
+    APPLY_EXTRA = ('azurerm_container_group.extra["blue"]: Creation complete after 13s [id=x]\n\nError: QuotaExceeded')
+
+    def test_inplace_vs_replace(self):
+        self.assertIn("t8-inplace", sh("tofu apply", out=self.APPLY_INPLACE))
+        self.assertNotIn("t8-inplace", sh("tofu apply", 1, out=self.APPLY_INPLACE))
+        self.assertNotIn("t8-inplace", sh("tofu apply", out="Apply complete! 1 added"))
+        self.assertIn("t8-replace", sh("terraform apply", out=self.APPLY_REPLACE))
+        self.assertNotIn("t8-replace", sh("terraform apply", out=self.APPLY_INPLACE))
+
+    def test_foreach(self):
+        self.assertIn("t9-foreach", sh("terraform apply", 1, out=self.APPLY_EXTRA))
+        self.assertIn("t9-foreach", sh("terraform state list", out='azurerm_container_group.extra["blue"]\nazurerm_container_group.hello'))
+        self.assertNotIn("t9-foreach", sh("terraform state list", out="azurerm_container_group.hello"))
+        self.assertNotIn("t9-foreach", sh("terraform apply", out="azurerm_container_group.hello: Creation complete"))
+
+    def test_funny(self):
+        self.assertIn("f-nolock", sh("tofu plan", 1, out="Error: Error acquiring the state lock"))
+        self.assertNotIn("f-nolock", sh("tofu plan", 1, out="Error: something else"))
+        self.assertNotIn("f-nolock", sh("echo hi", 0, out="Error acquiring the state lock"))
+        self.assertIn("f-typo", sh("tofu validate", 1, out="Error: Reference to undeclared resource"))
+        self.assertNotIn("f-typo", sh("tofu validate", 0, out="Reference to undeclared"))
+        self.assertNotIn("f-typo", sh("tofu validate", 1, out="Error: Missing required argument"))
+
+    def test_destroy_first(self):
+        self.assertIn("f-destroyfirst", sh("tofu destroy"))
+        self.assertNotIn("f-destroyfirst", sh("tofu destroy", have=["t1-apply"]))
+        self.assertNotIn("f-destroyfirst", sh("tofu plan"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -28,7 +28,7 @@ class FakeForgejo:
         self.bare = os.path.join(root, REPO + ".git")
         os.makedirs(os.path.dirname(self.bare))
         git(root, "init", "-q", "--bare", "-b", "main", self.bare)
-        self.prs, self.comments, self.next = {}, [], 1
+        self.prs, self.comments, self.reviews, self.reviewed, self.next = {}, [], [], [], 1
         self.workclone("main", {"roster/team.yaml": BASE, "README.md": "hi\n"}, "seed", fresh=True)
 
     def workclone(self, branch, files, msg, fresh=False, start="main"):
@@ -72,7 +72,7 @@ class FakeForgejo:
         else:
             head = p["head_sha"]
         return {"number": n, "title": p["title"], "user": p["user"], "state": p["state"], "merged": p["merged"],
-                "draft": False, "merge_base": git(self.bare, "merge-base", "main", head) if p["state"] == "open" else "",
+                "draft": False, "mergeable": p.get("mergeable"), "merge_base": git(self.bare, "merge-base", "main", head) if p["state"] == "open" else "",
                 "base": {"ref": "main"}, "head": {"ref": p["head_ref"], "sha": head, "repo": {"full_name": REPO}}}
 
     def __call__(self, method, path, body=None, raw=False):
@@ -92,6 +92,11 @@ class FakeForgejo:
                 return 200, [{"filename": f} for f in out]
             if rest[1] == "merge":
                 return self.merge(n)
+            if rest[1] == "reviews" and method == "POST":
+                self.reviews.append((n, body["event"]))
+                return 200, {}
+            if rest[1] == "reviews":
+                return 200, [{"user": {"login": u}} for m, u in self.reviewed if m == n]
         if path.startswith(pre + "/raw/"):
             ref, _, file = path[len(pre + "/raw/"):].partition("/")
             text = self.show(ref, file)
@@ -120,6 +125,118 @@ class FakeForgejo:
             return 200, {}
         finally:
             shutil.rmtree(w)
+
+
+DNS = 'D("dojo.test", REG,\n\tA("www", "203.0.113.10"),\n\tA("mail", "203.0.113.20"),\n);\n'
+
+
+class ApproveModeTests(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.fj = FakeForgejo(self.root)
+        self.fj.workclone("main", {"dnsconfig.js": DNS}, "dns", start="main")
+        self.s = bot.Sensei({"repo": REPO, "file": "dnsconfig.js", "mode": "approve", "approve_prefix": "testuser"},
+                            self.fj, "file://" + self.root, sleep=lambda s: None)
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def record(self, name):
+        return {"dnsconfig.js": DNS.replace('\tA("mail"', '\tA("%s", "203.0.113.30"),\n\tA("mail"' % name)}
+
+    def test_a_bots_own_record_is_approved_not_merged(self):
+        n = self.fj.open_pr("testuser1", "add-1", self.record("testuser1-app"))
+        self.assertEqual(self.s.tick(), [n])
+        self.assertEqual(self.fj.reviews, [(n, "APPROVED")])
+        self.assertEqual(self.s.prs[n]["status"], "approved")
+        self.assertEqual(self.fj.prs[n]["state"], "open")
+        self.assertEqual(self.s.tick(), [])  # judged once per head
+
+    def test_a_conflicting_branch_waits_for_main_to_be_merged_in(self):
+        n = self.fj.open_pr("testuser1", "add-1", self.record("testuser1-app"))
+        self.fj.prs[n]["mergeable"] = False
+        self.s.tick()
+        self.assertEqual(self.s.prs[n]["status"], "conflicts")
+        self.assertEqual(self.fj.reviews, [])
+        self.assertEqual(self.s.attention(), 0)  # the student's to fix, not the facilitator's
+        self.fj.prs[n]["mergeable"] = True
+        self.s.tick()
+        self.assertEqual(self.s.prs[n]["status"], "approved")
+
+    def test_someone_elses_record_is_flagged(self):
+        n = self.fj.open_pr("testuser1", "add-1", self.record("testuser2-app"))
+        self.s.tick()
+        self.assertEqual(self.fj.reviews, [])
+        self.assertEqual(self.s.prs[n]["status"], "needs-review")
+
+    def test_sensei_own_pr_is_left_alone(self):
+        self.s.me = "admin"
+        self.fj.open_pr("admin", "dns-bot/add-status", self.record("status"))
+        self.assertEqual(self.s.tick(), [])
+        self.assertEqual(self.s.prs, {})
+
+    def test_a_student_is_approved_once_they_have_reviewed_someone_elses(self):
+        self.s.me = "admin"
+        practice = self.fj.open_pr("admin", "dns-bot/add-status", self.record("status"))
+        mine = self.fj.open_pr("student01", "add-s", self.record("student01-app"))
+        self.s.tick()
+        self.assertEqual(self.s.prs[mine]["status"], "waiting")
+        self.assertEqual(self.fj.reviews, [])
+        self.assertEqual(len([c for c in self.fj.comments if c[0] == mine]), 1)
+        self.s.clock = lambda: 1e9  # past the reviewer cache
+        self.s.tick()  # still nobody has reviewed, and no second comment
+        self.assertEqual(len([c for c in self.fj.comments if c[0] == mine]), 1)
+        self.fj.reviewed.append((practice, "student01"))
+        self.s.clock = lambda: 2e9
+        self.s.tick()
+        self.assertEqual(self.fj.reviews, [(mine, "APPROVED")])
+        self.assertEqual(self.s.prs[mine]["status"], "approved")
+
+    def test_force_approves_at_once_but_never_past_the_rules(self):
+        self.s.me = "admin"
+        good = self.fj.open_pr("student01", "add-a", self.record("student01-app"))
+        r = self.s.student_approve("student01")
+        self.assertEqual(r["result"], "waiting")
+        r = self.s.student_approve("student01", force=True)
+        self.assertEqual((r["ok"], r["result"]), (True, "approved"))
+        self.assertEqual(self.fj.reviews, [(good, "APPROVED")])
+        bad = self.fj.open_pr("student02", "add-b", self.record("student01-app"))
+        r = self.s.student_approve("student02", force=True)
+        self.assertEqual((r["ok"], r["result"]), (False, "needs-review"))
+        self.assertEqual(len(self.fj.reviews), 1)
+
+    def test_approve_after_the_patience_window(self):
+        self.s.me, self.s.patience = "admin", 180
+        now = [1000.0]
+        self.s.clock = lambda: now[0]
+        mine = self.fj.open_pr("student01", "add-a", self.record("student01-app"))
+        self.s.tick()
+        self.assertEqual(self.s.prs[mine]["status"], "waiting")
+        now[0] += 179
+        self.s.tick()
+        self.assertEqual(self.s.prs[mine]["status"], "waiting")
+        now[0] += 2
+        self.s.tick()
+        self.assertEqual(self.s.prs[mine]["status"], "approved")
+
+    def test_review_picks_a_pr_that_is_not_yours_or_a_bots(self):
+        self.s.me = "admin"
+        practice = self.fj.open_pr("admin", "dns-bot/add-status", self.record("status"))
+        self.fj.open_pr("testuser1", "add-t", self.record("testuser1-app"))
+        mine = self.fj.open_pr("student01", "add-a", self.record("student01-app"))
+        other = self.fj.open_pr("student02", "add-b", self.record("student02-app"))
+        self.assertEqual(self.s.student_review("student01")["pr"]["number"], other)  # a student's before the practice PR
+        self.assertEqual(self.s.student_review("student02")["pr"]["number"], mine)
+        self.fj.reviewed.append((other, "student01"))
+        self.assertEqual(self.s.student_review("student01")["pr"]["number"], practice)
+        self.fj.reviewed.append((practice, "student01"))
+        self.assertIsNone(self.s.student_review("student01")["pr"])
+
+    def test_reviewing_your_own_pr_does_not_count(self):
+        mine = self.fj.open_pr("student01", "add-s", self.record("student01-app"))
+        self.fj.reviewed.append((mine, "student01"))
+        self.s.tick()
+        self.assertEqual(self.s.prs[mine]["status"], "waiting")
 
 
 class SenseiTests(unittest.TestCase):

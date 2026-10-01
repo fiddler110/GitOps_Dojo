@@ -5,16 +5,24 @@
       "title": "Somebody Retagged It",
       "joke": "Drift noticed by `plan`.",
       "core": true,
-      "when": "cloud: the container's tags were edited in the portal (needs the `cloud` event source); the `~` in `plan` is not read by the shell hook",
-      "match": {}
+      "when": "cloud: the container's tags were saved from the Dojo Portal (not by the API)",
+      "match": {
+        "source": "cloud",
+        "event": "container_updated",
+        "reason": "portal"
+      }
     },
     {
       "id": "t7-delete",
       "title": "It Vanished",
       "joke": "The container was deleted behind your back.",
       "core": true,
-      "when": "cloud: the container was deleted in the portal (needs the `cloud` event source)",
-      "match": {}
+      "when": "cloud: the container was deleted from the Dojo Portal (not by the API)",
+      "match": {
+        "source": "cloud",
+        "event": "container_deleted",
+        "reason": "portal"
+      }
     },
     {
       "id": "t7-restored",

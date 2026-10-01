@@ -9,7 +9,7 @@ git pull
 git status   # should be clean
 ```
 
-> **Starting here?** This lab rolls back your Lab 3 record, so it needs that pull request merged. `lab-prep 5` clones the repo and opens the pull request; a classmate still has to approve it before you merge it. Safe to run even if you did the earlier labs.
+> **Starting here?** This lab rolls back your Lab 3 record, so it needs that pull request merged. `lab-prep 5` clones the repo and opens the pull request; someone else still has to approve it before you merge it: a neighbour, or Sensei (`sensei approve`, once you have reviewed a pull request that isn't yours: Lab 3 step 6; `sensei approve --force` skips the wait). Safe to run even if you did the earlier labs.
 
 ---
 
@@ -53,7 +53,7 @@ Same lifecycle as every other change so far, approval included: a rollback is a 
 ```sh
 python3 scripts/dnsctl.py status
 python3 scripts/dnsctl.py review <rollback-PR#>
-# a neighbour (or the facilitator) runs: python3 scripts/dnsctl.py approve <rollback-PR#>
+# a neighbour (or the facilitator, or Sensei once you have reviewed someone else's) approves: python3 scripts/dnsctl.py approve <rollback-PR#>
 python3 scripts/dnsctl.py merge <rollback-PR#>
 ```
 

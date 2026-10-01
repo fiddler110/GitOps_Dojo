@@ -5,16 +5,39 @@
       "title": "One Block, Many Sites",
       "joke": "`for_each` made the copies.",
       "core": true,
-      "when": "cloud state: 3+ containers from one resource block (no `match` field reads cloud state; needs a `cloud` event or milestone `verify`)",
-      "match": {}
+      "when": "shell output: `tofu apply` creating `extra[\"...\"]`, or `tofu state list` showing it (the lab's `for_each` block; the quota of 2 groups means one extra survives, so cloud state can't show three)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu apply",
+              "terraform apply"
+            ],
+            "out_regex": "extra\\[\"[^\"]+\"\\]: Creation complete"
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu state list",
+              "terraform state list"
+            ],
+            "exit": 0,
+            "out_regex": "extra\\[\""
+          }
+        ]
+      }
     },
     {
       "id": "t9-quota",
       "title": "Quota Reached",
       "joke": "You met the limit.",
       "core": true,
-      "when": "cloud: quota denial for the student (needs the `cloud` event source)",
-      "match": {}
+      "when": "cloud: a request refused for the quota of 2 container groups (`QuotaExceeded`, reported by cloud-api)",
+      "match": {
+        "source": "cloud",
+        "event": "quota_denied"
+      }
     },
     {
       "id": "t9-fixed",

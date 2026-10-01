@@ -137,6 +137,10 @@ services:
       # Runners panel, since workshop_lab reaches this port directly.
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_OPENBAO_AUDIT:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      # What students do in the vault, posted to the achievements service when that module is in
+      # the run (audit/events.py). No `:?` here: `./run.sh stop` reads only engine/.env.
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
     volumes:
       - ../modules/openbao/audit:/opt/openbao-audit:ro
       - openbao_logs:/logs:ro

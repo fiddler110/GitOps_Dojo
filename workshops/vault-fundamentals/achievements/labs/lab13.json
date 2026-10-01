@@ -5,8 +5,13 @@
       "title": "Playing the Attacker",
       "joke": "You found the leaked token.",
       "core": true,
-      "when": "bao: request made with the leaked token (not wired: the shell hook drops a leading `BAO_TOKEN=...`; needs a `bao` audit event by the leaked token's accessor)",
-      "match": {}
+      "when": "bao: a request made with the leaked `nightly-report` token (seen in the audit log by the token's policy)",
+      "match": {
+        "source": "bao",
+        "event": "request",
+        "role": "nightly-report",
+        "op": "read"
+      }
     },
     {
       "id": "v13-audit",
@@ -54,8 +59,14 @@
       "title": "The App Recovers",
       "joke": "No manual restart.",
       "core": true,
-      "when": "verify: app serving with the new secret (not wired: needs an HTTP verb on `app-host`)",
-      "match": {}
+      "when": "shell: the app's fingerprint read from `app-host` after the secrets were rotated (output shows `fingerprint:`)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "regex": "app-host:8080/",
+        "out_regex": "fingerprint: [0-9a-f]{12}",
+        "requires": "v13-rotate"
+      }
     }
   ]
 }

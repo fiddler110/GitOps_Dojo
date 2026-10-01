@@ -5,8 +5,13 @@
       "title": "Front Door",
       "joke": "Signed in with Forgejo. No password to forget.",
       "core": true,
-      "when": "bao: OIDC login for the student (not wired: needs a `bao` source event `login`, method oidc, from openbao-audit)",
-      "match": {}
+      "when": "bao: an OIDC login for the student (the browser sign-in through Forgejo)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "oidc",
+        "ok": true
+      }
     },
     {
       "id": "v0-token",

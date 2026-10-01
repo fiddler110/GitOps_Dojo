@@ -13,7 +13,7 @@
 #   4-6   the shared repo cloned to ~/lab/dns-as-code (Lab 4 step 1 runs
 #         dnsctl.py setup itself, and no other lab needs it)
 #   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
-#         classmate's approval, so lab-prep opens the pull request and stops.
+#         classmate's (or Sensei's) approval, so lab-prep opens the pull request and stops.
 set -euo pipefail
 
 GIT_SERVER=http://git-server:3000
@@ -98,6 +98,8 @@ open(p, "w").write(s)
       1. python3 scripts/dnsctl.py status          # your PR's number
       2. ask a neighbour (or the facilitator) to run:
            python3 scripts/dnsctl.py approve <PR#>
+         or run `sensei approve --force` and Sensei approves it at once (it
+         checks the change is only your own record)
       3. python3 scripts/dnsctl.py merge <PR#> --wait
     Then run lab-prep 5 again, or go straight to Lab 5.
 EOF

@@ -47,6 +47,14 @@ class DnsPack(unittest.TestCase):
             self.assertNotIn("d4-wizard", sh(pre + " record add x", 1))
         self.assertEqual(sh("echo dnsc status"), [])
 
+    def test_funny_from_output(self):
+        doubled = "+ CREATE www.amy.dojo.test.amy.dojo.test A 10.0.0.1"
+        self.assertIn("f-dot2", sh("dnscontrol preview", 0, out=doubled))
+        self.assertNotIn("f-dot2", sh("dnscontrol preview", 0, out="+ CREATE www.amy.dojo.test A 10.0.0.1"))
+        self.assertNotIn("f-dot2", sh("echo x", 0, out=doubled))
+        self.assertIn("f-nxdomain", sh("dig @dns-server nope.amy.dojo.test", 0, out=";; ->>HEADER<<- status: NXDOMAIN"))
+        self.assertNotIn("f-nxdomain", sh("dig @dns-server x +short", 0, out=""))
+
     def test_git(self):
         self.assertIn("d3-clone", sh("git clone http://git-server:3000/dns-team/dns-as-code.git"))
         self.assertNotIn("d3-clone", sh("git clone http://git-server:3000/other/repo.git"))
@@ -103,7 +111,7 @@ class DnsAdapterEvents(unittest.TestCase):
 
     def test_rollback_pr_merged(self):
         pr = {"action": "closed", "sender": {"login": "amy"}, "repository": {"full_name": R},
-              "pull_request": {"user": {"login": "amy"}, "merged": True, "base": {"ref": "main"}, "head": {"ref": "rollback-abc"}}}
+              "pull_request": {"user": {"login": "amy"}, "merged": True, "base": {"ref": "main"}, "head": {"ref": "dns/revert-abc"}}}
         self.assertIn("d5-gone", fj("pull_request", pr))
         pr["pull_request"]["head"]["ref"] = "add-www"
         self.assertNotIn("d5-gone", fj("pull_request", pr))

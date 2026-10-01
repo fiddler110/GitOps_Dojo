@@ -5,24 +5,42 @@
       "title": "The Stored Login",
       "joke": "The usual way: a login secret in CI.",
       "core": true,
-      "when": "bao: AppRole login from a CI job (not wired: needs a `bao` source event `login`, method approle, entity/alias `ci`)",
-      "match": {}
+      "when": "bao: an AppRole login from a CI job that got `ci-read`",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "approle",
+        "ok": true,
+        "role": "ci-read"
+      }
     },
     {
       "id": "v9-jwt",
       "title": "The Job's Own Identity",
       "joke": "No stored secret at all.",
       "core": true,
-      "when": "bao: JWT login from a CI job (not wired: needs a `bao` source event `login`, mount jwt-ci, role ci-main)",
-      "match": {}
+      "when": "bao: a JWT login on `jwt-ci` that got `ci-read` (the job's own identity)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": true,
+        "role": "ci-read"
+      }
     },
     {
       "id": "v9-branch",
       "title": "Other Branches Refused",
       "joke": "Only main gets in.",
       "core": true,
-      "when": "bao: refused JWT login from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci)",
-      "match": {}
+      "when": "bao: a refused `jwt-ci` login (the job ran on a branch, not `main`), after the first JWT login",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": false,
+        "requires": "v9-jwt"
+      }
     },
     {
       "id": "v9-retire",

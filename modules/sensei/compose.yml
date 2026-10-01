@@ -17,12 +17,22 @@ services:
       - SENSEI_ENABLED=${SENSEI_ENABLED:-1}
       - SENSEI_REPO=${SENSEI_REPO:-}
       - SENSEI_FILE=${SENSEI_FILE:-roster/team.yaml}
+      - SENSEI_PATIENCE_SECONDS=${SENSEI_PATIENCE_SECONDS:-180}
+      - SENSEI_MODE=${SENSEI_MODE:-merge}
+      - SENSEI_APPROVE_PREFIX=${SENSEI_APPROVE_PREFIX:-}
       - SENSEI_SEED=${SENSEI_SEED:-}
+      # The stuck radar and `sensei check` read the achievements service when the workshop runs it.
+      - ACHIEVEMENTS_URL=http://achievements:8080
+      - ACHIEVEMENTS_KEY=${GATEWAY_TOKEN_SENSEI:-}
+      - SENSEI_STUCK_MINUTES=${SENSEI_STUCK_MINUTES:-10}
       - DATA_DIR=/data
+      - WORKSHOP_DIR=/opt/workshop
     volumes:
       - ../modules/sensei:/opt/sensei:ro
       # Reuses the achievements service's Forgejo client (service/challenges.py).
       - ../modules/achievements:/opt/achievements:ro
+      # The workshop folder, read only: the labs Sensei searches (content/lab) and an optional sensei/patterns.json.
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/..:/opt/workshop:ro
       - sensei_data:/data
     user: "0:0"
     cap_drop:

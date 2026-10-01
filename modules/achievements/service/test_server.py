@@ -150,7 +150,7 @@ class StoreTests(unittest.TestCase):
         me = self.s.me("a")
         self.assertEqual([m["id"] for m in me["moments"]], ["f-wrongdir"])
         self.assertEqual(me["completion"]["percent"], 0)
-        self.assertEqual(me["completion"]["needed"], 17)
+        self.assertEqual(me["completion"]["needed"], 18)
         self.assertEqual(me["score"], 0)
 
     def test_state_survives_a_restart(self):
@@ -206,6 +206,34 @@ class StoreTests(unittest.TestCase):
     def test_shell_is_for_students_only(self):
         with self.assertRaises(Denied):
             self.s.shell("boss", {"cmd": "git clone x", "exit": 0})
+
+    def test_activity_counts_failures_and_progress_without_the_command_text(self):
+        self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0})
+        self.clock.t += 120
+        for _ in range(3):
+            self.s.shell("a", {"cmd": "secret-looking command", "exit": 1})
+        self.clock.t += 30
+        a = self.s.activity_snapshot()["a"]
+        self.assertEqual((a["streak"], a["cmds"], a["fails"]), (3, 4, 3))
+        self.assertEqual((a["since_cmd"], a["since_progress"]), (30, 150))
+        self.assertNotIn("secret", repr(self.s.activity_snapshot()))
+        self.s.shell("a", {"cmd": "ls", "exit": 0})
+        self.assertEqual(self.s.activity_snapshot()["a"]["streak"], 0)
+        self.assertNotIn("boss", self.s.activity_snapshot())
+
+    def test_activity_forgets_old_commands(self):
+        self.s.shell("a", {"cmd": "ls", "exit": 1})
+        self.clock.t += 700
+        self.s.shell("a", {"cmd": "ls", "exit": 0})
+        self.assertEqual(self.s.activity_snapshot()["a"]["fails"], 0)
+
+    def test_progress_lists_core_milestones_by_lab(self):
+        self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0})
+        p = self.s.progress("a")
+        rows = [m for lab in p["labs"] for m in lab["milestones"]]
+        self.assertTrue(any(m["done"] for m in rows) and any(not m["done"] for m in rows))
+        self.assertEqual(p["done"], sum(m["done"] for m in rows))
+        self.assertNotIn("challenges", p)
 
     def test_forgejo_event_credits_the_user_and_skips_staff(self):
         self.mk(ignore=("forge-admin",))
@@ -445,6 +473,26 @@ class TokenHttpTests(unittest.TestCase):
             self.assertEqual(post(hmac.new(b"adapt", raw, hashlib.sha256).hexdigest())[0], 403)
         finally:
             server.ADAPTER_SECRET = None
+
+    def test_sensei_reads_need_the_sensei_key(self):
+        server.store.shell("amy", {"cmd": "ls", "exit": 1})
+        try:
+            for path in ("/api/sensei/activity", "/api/sensei/progress?user=amy"):
+                self.assertEqual(self.call("GET", path, client=None)[0], 403)         # key unset: off
+            server.SENSEI_KEY = "sk"
+            for path in ("/api/sensei/activity", "/api/sensei/progress?user=amy"):
+                self.assertEqual(self.call("GET", path, client=None)[0], 403)         # no key
+                self.assertEqual(self.call("GET", path, client=None, extra={"X-Sensei-Key": "bad"})[0], 403)
+                self.assertEqual(self.call("GET", path, token="tokA")[0], 403)        # a student's own token is no key
+            ok = {"X-Sensei-Key": "sk"}
+            st, doc = self.call("GET", "/api/sensei/activity", client=None, extra=ok)
+            self.assertEqual((st, doc["students"]["amy"]["fails"]), (200, 1))
+            st, doc = self.call("GET", "/api/sensei/progress?user=amy", client=None, extra=ok)
+            self.assertEqual(st, 200)
+            self.assertTrue(doc["labs"] and "total" in doc)
+            self.assertEqual(self.call("GET", "/api/sensei/progress", client=None, extra=ok)[0], 400)
+        finally:
+            server.SENSEI_KEY = None
 
     def test_token_identifies_the_student(self):
         st, doc = self.call("GET", "/api/me", token="tokA")

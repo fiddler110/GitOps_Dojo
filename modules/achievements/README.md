@@ -32,10 +32,15 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
 - **`match` fields** (full list in `catalog/catalog.py`, matched by `service/matcher.py`). `shell`: `cmd` (the
   command's first words, a string or a list), `flags` / `flags_none`, `regex` (on the command segment, redirects
   kept), `exit` (a code, a list, `"nonzero"` or `"any"`), `branch` / `branch_before` (`"HEAD"` when detached),
-  `in_repo`, `merging`, `merging_after`. `forgejo`: `event` (push, create, delete, pull_request,
+  `in_repo`, `merging`, `merging_after`, `out_regex` (searched in the last lines the command printed, read from
+  the tmux pane; matched and dropped). `forgejo`: `event` (push, create, delete, fork, pull_request,
   pull_request_review), `action` (opened, merged, approved, ...), `ref_type`, `branch`, `tag`, `repo` (`{user}`
   allowed). `branch_not` and similar negate. `{"any": [...]}` fires on any one. `{"source": "service"}` marks
-  items the service fires itself (the cheating tiers).
+  items the service fires itself (the cheating tiers). Every source takes `requires` / `requires_not` (ids the
+  student must / must not hold) and `count`. `cloud`, `bao`, `ca`: events the owning module posts (see "Adapter
+  events" below). `verify`: a state milestone, `{"source": "verify", "verify": [{"verb": ...}]}`: the service runs
+  those verbs (the same ones challenges use) for each student every `ACHIEVEMENTS_STATE_SECONDS` (default 20) and
+  unlocks it the first time they all pass.
 - **Challenge and capstone:** `id` (`c1`, `c2`, ..., or `capstone`), `title`, `after`, `space` (the student's own space,
   must contain `{user}`), `goal`, `seed`, `verify_text`, `verify` (structured assertions, each mentioning `{user}`),
   exactly two `hints`, `answer`, `isolation` (how it avoids other students), `facilitator` (true only when a
@@ -92,6 +97,9 @@ gate), the facilitator tab under `/achievements-admin`. An event is `{user, even
 sig}` signed with the service's gateway token; a forged one is charged (-1, "Nice Try,
 Hackerman") only to a caller the gateway identified, never to the user named in the body.
 Tests: `python3 -B -m unittest test_service test_server` from `service/`.
+Sensei's two reads (`GET /api/sensei/activity`: per-student command times and failure counts, no command text; and
+`/api/sensei/progress?user=`: a student's core milestones by lab) need the `X-Sensei-Key` header equal to `SENSEI_KEY`
+(compose passes Sensei's gateway token to both); unset, they answer 403.
 `static/toast.js` shows toasts on any same-origin page (`<script src="/achievements/toast.js"
 data-surface="portal">`); loading it on engine pages is open question A31 in ROADMAP.md.
 
@@ -140,6 +148,22 @@ the service matches it against the catalog and keeps none of the text. `/api/she
 token plus the shipped client); a burst over 40 commands in 10 s is dropped without the masher penalty (a pasted lab
 block is not cheating). A student can still post their own shell events by hand: that only earns what typing the
 command would.
+
+**Shell output.** Under tmux (every web and VS Code terminal) the hook also reads back the last 40 lines a command
+printed, from the pane (`#{history_size}` and `#{cursor_y}` before and after the command give its line range), and
+sends the last 4000 characters as `out`, so an item can match an error message with `out_regex`. Like the command
+it is matched and dropped, never stored. A full-screen program (vim, less) or a `clear` leaves nothing to read.
+
+**Adapter events.** A module that owns a backend posts what happened, signed with `ACHIEVEMENTS_ADAPTER_SECRET`
+(HMAC-SHA256 of the raw body, header `X-Adapter-Signature`) to `POST /api/adapter`, best effort and never slowing the
+backend: `dns-gate` (`source: dns`), `cloud-api` (`cloud`), `openbao-audit` (`bao`, the student read from the
+namespace `students/<user>`). The body is `{source, event, user, ...}` with the optional fields `reason`, `mount`,
+`role`, `op`, `path`, `ok`, `root`, `status`; the vocabulary per source is in `catalog/catalog.py`. A body from an
+unknown source or event, or without a user, is ignored.
+
+**State milestones.** `service/store.py` `sweep_state` gives each student's `verify` milestones a turn at most once
+per `ACHIEVEMENTS_STATE_SECONDS` and at most 40 backend checks per pass, outside the lock; a backend that is down
+skips the student until the next pass. Use them where nothing posts an event ("the app serves a new certificate").
 
 **Forgejo events.** At start the service registers a Forgejo system webhook (as `FORGEJO_ADMIN_USER`, retried
 until Forgejo is up; it lists and removes old ones through the admin API but creates the hook through the admin web

@@ -87,8 +87,8 @@ structured `verify` assertion mentions `{user}`.
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | d5-history | DNS Archaeologist | "Read the zone's past like a diary." | 10 | yes | shell: `dnsctl.py history` (or `dnsc history`), exit 0 |
-| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `rollback-*` PR) |
-| d5-gone | Actually Gone | "Confirmed it is really gone." | 10 | yes | forgejo: a `rollback-*` pull request of yours is merged |
+| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `dns/revert-*` PR) |
+| d5-gone | Actually Gone | "Confirmed it is really gone." | 10 | yes | forgejo: a `dns/revert-*` pull request of yours is merged |
 
 ## Lab 6: conflicts in `dnsconfig.js`
 
@@ -102,9 +102,9 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
-| f-dot2 | Dot. Com. Dot. | "Trailing dot on the wrong record." | 0 | shell: `dnscontrol` errors with a name ending in the zone twice |
+| f-dot2 | Dot. Com. Dot. | "Said the domain name twice. Once was plenty." | 0 | shell: a `dnscontrol` command prints a hostname that ends with a zone twice, which is what a record named with the whole hostname (`A("www.studentXX.dojo.test", ...)` instead of `www`) looks like in `preview` (the output is read from the terminal) |
 | f-ttl | Time To Live, Laugh, Love | "TTL of 1. Very confident." | 0 | dns: a push sets a TTL below 60 in your zone |
-| f-nxdomain | It's Always DNS | "NXDOMAIN. Of course it was." | 0 | dns: your lookup for your own name returns NXDOMAIN |
+| f-nxdomain | It's Always DNS | "NXDOMAIN. Of course it was." | 0 | shell: `dig` (without `+short`) prints `status: NXDOMAIN` (the output is read from the terminal) |
 | f-rejected | Denied at the Gate | "You tried to change `dojo.test` without CI." | 0 | dns: the gate refuses a write made with your own key |
 | f-fivepr | PR Machine | "Five pull requests. Do you sleep?" | 0 | forgejo: 5th PR opened |
 
@@ -123,11 +123,11 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol doubles the zone onto it. `{label}` is picked per student.
-- **Verify:** the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the doubled target is gone.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file ("must end with a (.)"). `{label}` is picked per student.
+- **Verify:** the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the bad target is gone.
 - **Hint 1:** Run the tool that shows you what it would change.
 - **Hint 2:** Look at the end of each hostname.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (the `{label}` CNAME shows the zone twice), add the trailing dot: `CNAME("{label}", "www.{user}.dojo.test.")`, `dnscontrol push`, then `dojo-check c1`.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (it refuses the file and names the `{label}` CNAME: the target must end with a dot), add the trailing dot: `CNAME("{label}", "www.{user}.dojo.test.")`, `dnscontrol push`, then `dojo-check c1`.
 - **Collision check:** the student's own repo and their own zone `{user}.dojo.test`, which only their own key can change. The check reads that zone only.
 
 ### C2: The Cutover (after Lab 5 or 6)

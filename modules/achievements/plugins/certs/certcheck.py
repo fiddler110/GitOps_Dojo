@@ -115,4 +115,45 @@ def served_same(api, args, ctx):
     return True, "ok"
 
 
-VERBS = {"served_cert": served_cert, "served_same": served_same}
+_seen = {}      # (user, host, key) -> serials this service has seen served, in order (memory only)
+MAX_SEEN = 5000
+
+
+def served_changed(api, args, ctx):
+    """The host's served certificate has changed: `times` distinct valid serials (default 2) have been seen
+    since this verb first looked at it (per `key`, so two items keep separate baselines). The memory is the
+    service's own, so a restart starts a new baseline."""
+    host = str(args.get("host"))
+    cert, fail = _cert(host, ctx)
+    if fail:
+        return False, fail
+    k = (ctx["user"], host.lower(), str(args.get("key", "")))
+    if k not in _seen and len(_seen) >= MAX_SEEN:
+        _seen.clear()
+    serials = _seen.setdefault(k, [])
+    if cert["serialNumber"] not in serials:
+        serials.append(cert["serialNumber"])
+    want = int(args.get("times", 2))
+    if len(serials) < want:
+        return False, f"{host} is still served the same certificate; it hasn't been renewed since I started watching"
+    return True, "ok"
+
+
+def served_expired(api, args, ctx):
+    """The host is served a certificate that has expired (the handshake fails for that reason)."""
+    host = str(args.get("host"))
+    if not _own(host, ctx):
+        return False, "that check may only read your own hostnames"
+    try:
+        _fetch(host)
+    except ssl.SSLCertVerificationError as e:
+        if "expired" in (getattr(e, "verify_message", "") or str(e)).lower():
+            return True, "ok"
+        return False, f"{host}'s certificate fails for another reason"
+    except ssl.SSLError as e:
+        return False, f"{host} has no HTTPS yet ({e.__class__.__name__})"
+    return False, f"{host} is served a certificate that is still valid"
+
+
+VERBS = {"served_cert": served_cert, "served_same": served_same, "served_changed": served_changed,
+         "served_expired": served_expired}

@@ -25,7 +25,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-EVENTS = ["push", "create", "delete", "pull_request", "pull_request_review"]
+EVENTS = ["push", "create", "delete", "fork", "pull_request", "pull_request_review"]
 
 
 def secret_from(gateway_token):

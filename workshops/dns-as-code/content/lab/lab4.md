@@ -232,7 +232,7 @@ You can't approve your own pull request. main needs one approval from someone el
 ...
 ```
 
-Nothing changed. Swap with a neighbour instead: tell each other your PR numbers (or find theirs with `status`), then review their PR the way you reviewed your own in 4b:
+Nothing changed. Swap with a neighbour instead (or, with nobody free, run `sensei review` for a pull request to review with `review` and `approve` below: once you have reviewed someone else's, Sensei approves yours within a few seconds, or `sensei approve --force` to skip the wait): tell each other your PR numbers (or find theirs with `status`), then review their PR the way you reviewed your own in 4b:
 
 ```sh
 python3 scripts/dnsctl.py review <their-PR#>
@@ -250,7 +250,7 @@ Approved pull request #8
 
 That's the same approval as the **Approve** button in the Forgejo web page, which works too, as in Lab 3. To add a note to the approval, pass `--body "Looks good"`.
 
-Once your neighbour has approved yours, open your PR link from `status` and you'll see their approval on it.
+Once your neighbour (or Sensei) has approved yours, open your PR link from `status` and you'll see their approval on it.
 
 ---
 

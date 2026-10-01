@@ -158,6 +158,8 @@ class Portal:
         user, err = self._identity(headers)
         if err:
             return err
+        if not self._is_fac(user):
+            self.app.events.emit("portal_request", user, every=60)
         head = segs[0].lower() if segs else ""
         try:
             if head == "me" and len(segs) == 1:

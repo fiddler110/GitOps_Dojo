@@ -48,7 +48,7 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v0-ui | Front Door | "Signed in with Forgejo. No password to forget." | 10 | yes | bao: OIDC login for the student (not wired: needs a `bao` source event `login`, method oidc, from openbao-audit) |
+| v0-ui | Front Door | "Signed in with Forgejo. No password to forget." | 10 | yes | bao: an OIDC login for the student (the browser sign-in through Forgejo) |
 | v0-token | Token Holder | "The terminal was already signed in." | 10 | yes | shell: `bao token lookup` (exit 0) |
 | v0-first | First Secret | "Your very first secret." | 10 | yes | shell: `bao kv get` of the welcome secret (exit 0) |
 
@@ -92,7 +92,7 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|---|
 | v5-env | Not in the Code | "Moved it out of the source." | 10 | yes | shell: `python3 app_env.py` (exit 0) |
 | v5-vault | The App Asks the Vault | "No file, no leak." | 10 | yes | shell: `python3 app_vault.py` (exit 0) |
-| v5-nolog | Loose Lips | "Logging the secret? No." | 10 | yes | verify: app log free of the secret value (not wired: needs a file verb on the student's workspace, `file_lacks`) |
+| v5-nolog | Loose Lips | "Logging the secret? No." | 10 | yes | shell: `app_vault.py` run again after the debug line was fixed (it prints `loaded config keys:`, not the values) |
 | v5-expired | Token Expiry | "Tokens run out. That is the point." | 10 | yes | shell: `python3 token_ttl.py` (exit 0) |
 
 ## Lab 6: OpenBao Agent
@@ -115,17 +115,17 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v8-secret | Repository Secret | "A secret in the repository." | 10 | yes | forgejo: secret created on the fork in the browser (not wired: Forgejo sends no event; needs a `repo_secret_exists` verb) |
+| v8-secret | Repository Secret | "A secret in the repository." | 10 | yes | verify: the fork has an Actions secret named `DEMO_API_KEY` (checked in Forgejo every few seconds; Forgejo sends no event) |
 | v8-masked | Masking Is Not Protection | "The log hid it. The job still knew it." | 10 | yes | forgejo: the second push to your fork's main (the workflow that prints the secret again; a later push also counts) |
-| v8-rotate | Cleaned Up After | "Rotated what leaked." | 10 | yes | forgejo: secret updated after the run (not wired: Forgejo sends no event; needs `repo_secret_updated` compared with the run) |
+| v8-rotate | Cleaned Up After | "Rotated what leaked." | 10 | yes | verify: `DEMO_API_KEY` is gone again after the workflow ran twice (removed in Forgejo; checked every few seconds) |
 
 ## Lab 9: CI logs in to OpenBao
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v9-approle | The Stored Login | "The usual way: a login secret in CI." | 10 | yes | bao: AppRole login from a CI job (not wired: needs a `bao` source event `login`, method approle, entity/alias `ci`) |
-| v9-jwt | The Job's Own Identity | "No stored secret at all." | 10 | yes | bao: JWT login from a CI job (not wired: needs a `bao` source event `login`, mount jwt-ci, role ci-main) |
-| v9-branch | Other Branches Refused | "Only main gets in." | 10 | yes | bao: refused JWT login from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci) |
+| v9-approle | The Stored Login | "The usual way: a login secret in CI." | 10 | yes | bao: an AppRole login from a CI job that got `ci-read` |
+| v9-jwt | The Job's Own Identity | "No stored secret at all." | 10 | yes | bao: a JWT login on `jwt-ci` that got `ci-read` (the job's own identity) |
+| v9-branch | Other Branches Refused | "Only main gets in." | 10 | yes | bao: a refused `jwt-ci` login (the job ran on a branch, not `main`), after the first JWT login |
 | v9-retire | Retired the Stored Secret | "Nothing left to steal." | 10 | yes | shell: `curl -X DELETE .../actions/secrets/<name>` (exit 0; curl exits 0 on an HTTP error, so this proves the request, not the deletion) |
 
 ## Lab 10: deploy with a delivered secret ID
@@ -133,17 +133,17 @@ structured `verify` assertion mentions `{user}`.
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | v10-strict | Strict Role | "The app's role is locked down." | 10 | yes | shell: `bao write auth/approle/role/app ... secret_id_num_uses=1` (exit 0) |
-| v10-wrap | Wrapped Delivery | "A secret ID only the app can open." | 10 | yes | bao: response-wrapped secret ID created and unwrapped once (not wired: needs `bao` events on `sys/wrapping/*`) |
-| v10-deploy | Delivered and Deployed | "Pipeline delivers, app logs in." | 10 | yes | bao: app login with the delivered secret ID (not wired: needs a `bao` event `login`, method approle, role app) |
-| v10-branch | A Branch Gets Nothing | "A feature branch cannot deploy." | 10 | yes | bao: refused delivery from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci, role deliver-main) |
+| v10-wrap | Wrapped Delivery | "A secret ID only the app can open." | 10 | yes | bao: a wrapping token unwrapped (`sys/wrapping/unwrap`), the delivered secret ID opened once |
+| v10-deploy | Delivered and Deployed | "Pipeline delivers, app logs in." | 10 | yes | bao: an AppRole login that got `app-read`, after the strict one-use role of this lab |
+| v10-branch | A Branch Gets Nothing | "A feature branch cannot deploy." | 10 | yes | bao: a refused `jwt-ci` login after the app was delivered (the branch's delivery job) |
 
 ## Lab 11: workload identity
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | v11-role | A Role for Your Slot | "The platform vouches for the app." | 10 | yes | shell: `bao write auth/jwt-platform/role/app ...` (exit 0) |
-| v11-deploy | Deployed With Identity | "No secret ID at all." | 10 | yes | bao: workload login from the app (not wired: needs a `bao` event `login`, mount jwt-platform, role app) |
-| v11-nobread | The Pipeline Cannot Read | "Deployed, but never saw the secret." | 10 | yes | verify: the pipeline's role has no read on the app path (not wired: a milestone can't run a verb; the `role_policy_grants` verb of the bao plug-in could check it as a challenge step) |
+| v11-deploy | Deployed With Identity | "No secret ID at all." | 10 | yes | bao: a `jwt-platform` login that got `app-read` (the app's own identity from the platform) |
+| v11-nobread | The Pipeline Cannot Read | "Deployed, but never saw the secret." | 10 | yes | verify: the pipeline's `jwt-ci` role `ci-main` has no read on `team/data/app` (checked after the platform deploy) |
 | v11-rotate | Rotated, No Deploy | "New value, same code." | 10 | yes | shell: `bao kv put` or `patch` on `team/app` (exit 0) after the platform role was written |
 
 ## Lab 12: dynamic database credentials
@@ -159,11 +159,11 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v13-leak | Playing the Attacker | "You found the leaked token." | 10 | yes | bao: request made with the leaked token (not wired: the shell hook drops a leading `BAO_TOKEN=...`; needs a `bao` audit event by the leaked token's accessor) |
+| v13-leak | Playing the Attacker | "You found the leaked token." | 10 | yes | bao: a request made with the leaked `nightly-report` token (seen in the audit log by the token's policy) |
 | v13-audit | Read the Audit Log | "What did it do? Now you know." | 10 | yes | shell: `bao-audit` with the token's accessor (exit 0) |
 | v13-revoke | Revoke the Tree | "Killed the token and its children." | 10 | yes | shell: `bao token revoke -accessor ...` (exit 0); revoking a token revokes its children |
 | v13-rotate | Rotated What It Read | "New secrets, old ones worthless." | 10 | yes | shell: `bao kv put` or `patch` on `team/app` or `team/ci` (exit 0) |
-| v13-recover | The App Recovers | "No manual restart." | 10 | yes | verify: app serving with the new secret (not wired: needs an HTTP verb on `app-host`) |
+| v13-recover | The App Recovers | "No manual restart." | 10 | yes | shell: the app's fingerprint read from `app-host` after the secrets were rotated (output shows `fingerprint:`) |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
@@ -171,10 +171,10 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|
 | f-echo | Echo Chamber | "You `echo`ed a secret. To your shell history." | 0 | shell: `echo`, `printf` or `export` with a token-shaped string (`hvs.`, `sbr.` or `s.` + 20 characters) |
 | f-history | Hist-Oh-Ry | "It is in your shell history now." | 0 | shell: `history` after a token-shaped string was typed |
-| f-root | Root of the Problem | "You used the root token. Everyone has, once." | 0 | bao: any request with a root-policy token (not wired: needs a `bao` audit event carrying the token's policies) |
-| f-typopath | Wrong Path, Right Attitude | "No value at that path. Check the mount." | 0 | bao: 404 on a KV path (not wired: exit codes can't tell a missing path from a denied one; needs a `bao` audit event with the response code) |
-| f-seal | Sealed and Loving It | "The vault is sealed. This is fine." | 0 | bao: `sealed` response (facilitator action; not wired: needs the `bao` source or the health check) |
-| f-paste | Paste Bin Energy | "A secret in the chat. It happens." | 0 | shell: a fake secret string in a shared channel (not wired: no channel is observed) |
+| f-root | Root of the Problem | "You used the root token. Everyone has, once." | 0 | bao: any request made with a token that carries the `root` policy |
+| f-typopath | Wrong Path, Right Attitude | "No value at that path. Check the mount." | 0 | shell: `bao kv get` that printed `No value found at` (a path that isn't there) |
+| f-seal | Sealed and Loving It | "The vault is sealed. This is fine." | 0 | shell: a `bao` command that printed that the vault is sealed (a facilitator action) |
+| f-paste | Paste Bin Energy | "A secret in the chat. It happens." | 0 | a fake secret string pasted into a shared channel (nothing observes a channel; awarded by hand from /admin) |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 

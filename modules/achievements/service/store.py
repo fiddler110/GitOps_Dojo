@@ -18,6 +18,7 @@ import names
 from ledger import cat
 
 STATE_FILE = "state.json"
+ACTIVITY_WINDOW = 600      # seconds of terminal history the stuck radar looks at
 
 # Strikes for poking at a neighbour -> the shared cheat unlocked on reaching it.
 STRIKE_TIERS = ((1, "cheat-bump"), (3, "cheat-curious"), (8, "cheat-persistent"))
@@ -67,6 +68,10 @@ class Store:
         self.seeds = state.get("seeds", {})
         self.checks = state.get("checks", [])
         self.busy = set()                           # users whose seed is being built right now
+        self._state_at = {}                         # user -> when their `verify` milestones last ran
+        # Per-student terminal activity for Sensei's stuck radar: times and exit codes only, never the command
+        # text, and kept in memory (a restart starts it fresh).
+        self.activity = {}
         self._save()
 
     # -- persistence -------------------------------------------------------------------
@@ -283,6 +288,7 @@ class Store:
         now = self.clock()
         with self.lock:
             self._student(user)
+            self._touch(user, event["exit"], now)
             if not self.shell_limiter.hit(user, now):
                 raise Denied(429, "slow down")
             got = self._matched(user, event, now)
@@ -292,6 +298,48 @@ class Store:
             if got:
                 self._save()
             return {"unlocked": len(got)}
+
+    def _touch(self, user, code, now):
+        """Note one command's time and whether it failed (caller holds the lock)."""
+        a = self.activity.setdefault(user, {"first": now, "last": now, "streak": 0, "recent": []})
+        a["last"] = now
+        a["streak"] = a["streak"] + 1 if code != 0 else 0
+        a["recent"] = [(t, f) for t, f in a["recent"] if now - t < ACTIVITY_WINDOW][-199:] + [(now, code != 0)]
+
+    def activity_snapshot(self):
+        """For Sensei's stuck radar: per student, how long since their last command and their last progress,
+        their run of failures, and how many commands and failures in the last ten minutes."""
+        now = self.clock()
+        with self.lock:
+            L, out = self.ledger, {}
+            for user in L.users:
+                if user == self.facilitator or user in self.ignore:
+                    continue
+                a = self.activity.get(user)
+                ats = [x["at"] for x in L.visible_unlocked(user).values()
+                       if not x["cheat"] and x["kind"] != "funny"]
+                done, total, pct, complete = L.completion(user)
+                recent = [f for t, f in a["recent"] if now - t < ACTIVITY_WINDOW] if a else []
+                out[user] = {"since_cmd": int(now - a["last"]) if a else None,
+                             "since_progress": int(now - max(ats)) if ats else None,
+                             "since_first": int(now - a["first"]) if a else None,
+                             "streak": a["streak"] if a else 0, "cmds": len(recent), "fails": sum(recent),
+                             "percent": pct, "complete": complete}
+            return out
+
+    def progress(self, user):
+        """A student's core milestones by lab, done or not, for `sensei check`. Titles and the lab step only:
+        challenges, funny unlocks and cheats stay out."""
+        with self.lock:
+            have = self.ledger.unlocked_ids(user)
+            labs = []
+            for lab in self.catalog["labs"]:
+                rows = [{"id": m["id"], "title": m["title"], "when": m.get("when", ""), "done": m["id"] in have}
+                        for m in lab["milestones"] if cat.is_active(m) and m.get("core")]
+                if rows:
+                    labs.append({"id": lab["id"], "title": lab.get("title", lab["id"]), "milestones": rows})
+            done, total, pct, complete = self.ledger.completion(user)
+            return {"labs": labs, "done": done, "total": total, "percent": pct, "complete": complete}
 
     def forgejo(self, event):
         """One normalised Forgejo webhook event (already verified by the caller)."""
@@ -318,6 +366,43 @@ class Store:
             got = self._matched(user, event, self.clock())
             self._save()
             return {"unlocked": len(got)}
+
+    def sweep_state(self, runner, unavailable=(), gap=20, budget=40):
+        """Run the `verify` milestones (state, not events: "the app serves a new certificate") for
+        every student whose turn it is: at most one pass per student per `gap` seconds, and at most
+        `budget` backend checks per call. The checks run outside the lock; a backend that is down
+        just skips the student until the next pass. Returns how many unlocked."""
+        from challenges import NotCheckable
+        now = self.clock()
+        with self.lock:
+            if not self.matcher.state_rules:
+                return 0
+            todo = []
+            for user in sorted(self.ledger.users, key=lambda u: self._state_at.get(u, 0)):
+                if user == self.facilitator or user in self.ignore or now - self._state_at.get(user, 0) < gap:
+                    continue
+                items = self.matcher.pending_state(self.ledger.unlocked_ids(user))
+                if items:
+                    todo.append((user, items))
+                    self._state_at[user] = now
+        got = 0
+        for user, items in todo:
+            for iid, verify in items:
+                if budget <= 0:
+                    return got
+                budget -= 1
+                try:
+                    res = runner.verify({"id": iid, "verify": verify}, user)
+                except NotCheckable:
+                    continue
+                except unavailable:
+                    break
+                if res["passed"]:
+                    with self.lock:
+                        if self.ledger.unlock(user, iid, self.clock()) is not None:
+                            got += 1
+                            self._save()
+        return got
 
     def probe(self, user, body):
         """A check or challenge request naming another student's space (only a hand-made

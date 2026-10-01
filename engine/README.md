@@ -316,7 +316,8 @@ this is how the engine uses it.
 - **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` makes `run.sh` add the
   `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
   (warning and no module when it doesn't). The catalog is validated first, in the allocator image
-  (`modules/achievements/catalog/validate.py`, workshop folder mounted read-only); an error
+  (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
+  mounted read-only, so a challenge or milestone naming an unknown verifier verb is an error); an error
   stops the start like a bad manifest. Unset or `0` loads nothing.
 - **Legacy.** `STATUS_CHECKS` (`Label=URL;...` on the allocator) still adds
   status-strip entries; new work uses `status_checks` in the manifest.

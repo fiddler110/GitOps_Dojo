@@ -147,8 +147,7 @@
       "id": "l1-merged",
       "title": "Merged, Baby!",
       "joke": "Someone approved your work. Frame it.",
-      "core": false,
-      "note": "needs the facilitator to merge",
+      "core": true,
       "when": "forgejo: PR merged",
       "match": {
         "source": "forgejo",

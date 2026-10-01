@@ -20,12 +20,16 @@ SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared.json")
 
 
 def known_verbs():
-    """Verifier verbs the modules declare (modules/*/achievements/verifiers.json), or None when
-    this script runs without the modules beside it (run.sh mounts only this folder; the service
-    then logs any verb it doesn't have at start)."""
-    modules = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    """Verifier verbs the achievements module declares: its own `achievements/verifiers.json` and
+    every backend plug-in's `plugins/*/verifiers.json` (this script sits in the module's catalog/
+    folder, and run.sh mounts the whole module). None when neither is found."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    modules = os.path.normpath(os.path.join(here, "..", ".."))
+    specs = sorted(glob.glob(os.path.join(modules, "*", "achievements", "verifiers.json")))
+    specs += sorted(glob.glob(os.path.join(here, "..", "achievements", "verifiers.json")))
+    specs += sorted(glob.glob(os.path.join(here, "..", "plugins", "*", "verifiers.json")))
     found = None
-    for spec in sorted(glob.glob(os.path.join(modules, "*", "achievements", "verifiers.json"))):
+    for spec in dict.fromkeys(os.path.normpath(s) for s in specs):
         try:
             with open(spec) as f:
                 verbs = json.load(f).get("verbs", {})

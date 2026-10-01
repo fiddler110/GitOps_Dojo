@@ -41,12 +41,22 @@ CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "bad
 LAB_FIELDS = {"id", "title"}
 # `service` means the service fires the item itself (the cheating tiers).
 MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "verify", "lab")
+# Sources whose events a module posts to /api/adapter, matched on the same few generic fields.
+ADAPTER_SOURCES = ("cloud", "bao", "ca")
+ADAPTER_EVENTS = {
+    "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
+              "container_updated", "container_deleted", "container_replaced"),
+    "bao": ("login", "request", "wrapping", "sealed"),
+    "ca": ("rate_limited", "order_failed", "order_issued"),
+}
 
 # The structured trigger (`match`) for the sources the service matches itself
 # (service/matcher.py). Other sources are checked for `source` only until their adapter exists.
 #   shell: one command line the student ran in their terminal, as the prompt hook reports it.
 #     cmd          "git commit" or a list: a segment of the line starts with these words
 #     flags        at least one of these flags is given; flags_none: none of them is
+#     out_regex    searched (multiline) in the last lines the command printed (read from the tmux pane,
+#                  so only under tmux); a list matches if any does. Matched and dropped, never kept
 #     regex        searched in the segment ("git diff main..x", redirects kept: "echo x >> .gitignore")
 #     exit         0, a list of codes, "nonzero" or "any" (default "any"): the line's exit status
 #     branch       branch after the command ("HEAD" when detached); branch_before, before it
@@ -63,21 +73,39 @@ MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ve
 #     first        zone_patch: true for the first change the gate has seen to that zone
 #     created_min, changed_min, deleted_min   zone_patch: at least this many records added / edited / removed
 #     ttl_below    zone_patch: some record set now has a TTL below this
+#   cloud, bao, ca: one event posted (signed) by the module that owns the backend (dojo-cloud's
+#     cloud-api, openbao-audit, the CA tailer), credited to the student it names. All take `event`.
+#     cloud   event: portal_request | site_request | policy_denied | quota_denied | container_created |
+#             container_updated | container_deleted | container_replaced; reason (policy_denied: tag |
+#             region | size)
+#     bao     event: login | request | wrapping | sealed; mount (the auth mount of a login), role, ok
+#             (false = the request was refused), status (HTTP code), root (the token carried the root
+#             policy), op (read | create | update | delete | list), path_prefix (inside the student's namespace)
+#     ca      event: rate_limited | order_failed | order_issued
+#   verify: a state milestone. Not an event: the service runs these assertions (the same verbs a challenge
+#     uses, `{user}` allowed) for each active student every few seconds and unlocks it the first time they
+#     all pass. `verify` is a list of {verb, ...args}; the student's own space only, like a challenge.
 #   Every source also takes:
 #     requires     an id or list of ids the student must already hold when the event arrives
+#     requires_not an id or list of ids the student must NOT hold yet
 #     count        fire from the Nth matching event of this student on (N >= 2)
 #   Any field `x_not` (where listed) is true when the event's x is present and differs.
 #   {"any": [match, ...]} fires when one of the listed matches does.
 MATCH_FIELDS = {
     "shell": {"cmd", "flags", "flags_none", "regex", "exit", "branch", "branch_not", "branch_before",
-              "branch_before_not", "in_repo", "merging", "merging_after", "requires", "count"},
+              "branch_before_not", "in_repo", "merging", "merging_after", "out_regex", "requires", "requires_not", "count"},
     "forgejo": {"event", "action", "ref_type", "branch", "branch_not", "tag", "repo", "repo_not", "head",
-                "head_prefix", "requires", "count"},
+                "head_prefix", "requires", "requires_not", "count"},
     "dns": {"event", "zone", "first", "created_min", "changed_min", "deleted_min", "ttl_below", "requires",
-            "count"},
+            "requires_not", "count"},
+    "cloud": {"event", "reason", "reason_not", "requires", "requires_not", "count"},
+    "bao": {"event", "mount", "mount_not", "role", "role_not", "ok", "status", "root", "op", "path_prefix",
+            "requires", "requires_not", "count"},
+    "ca": {"event", "reason", "reason_not", "requires", "requires_not", "count"},
+    "verify": {"verify", "requires", "requires_not"},
 }
 DNS_EVENTS = ("zone_patch", "api_refused")
-FORGEJO_EVENTS = ("push", "create", "delete", "pull_request", "pull_request_review")
+FORGEJO_EVENTS = ("push", "create", "delete", "fork", "pull_request", "pull_request_review")
 
 
 def _strs(value):
@@ -114,15 +142,21 @@ def check_match(match, where):
     if len(match) == 1:
         problems.append(f"{where}: match needs at least one field besides 'source'")
     for key in ("cmd", "flags", "flags_none", "branch", "branch_not", "branch_before", "branch_before_not",
-                "action", "ref_type", "tag", "repo", "repo_not", "head", "head_prefix", "requires", "zone"):
+                "action", "ref_type", "tag", "repo", "repo_not", "head", "head_prefix", "requires", "requires_not", "zone", "reason", "reason_not", "mount",
+                "mount_not", "role", "role_not", "op", "path_prefix"):
         if key in match and not _strs(match[key]):
             problems.append(f"{where}: match.{key} must be a string or a list of strings")
     for key in ("created_min", "changed_min", "deleted_min", "ttl_below"):
         if key in match and (not isinstance(match[key], int) or isinstance(match[key], bool) or match[key] < 0):
             problems.append(f"{where}: match.{key} must be a whole number")
-    for key in ("in_repo", "merging", "merging_after", "first"):
+    for key in ("in_repo", "merging", "merging_after", "first", "ok", "root"):
         if key in match and not isinstance(match[key], bool):
             problems.append(f"{where}: match.{key} must be true or false")
+    if "status" in match:
+        st = match["status"]
+        sts = st if isinstance(st, list) else [st]
+        if not sts or not all(isinstance(x, int) and not isinstance(x, bool) and 100 <= x <= 599 for x in sts):
+            problems.append(f"{where}: match.status must be an HTTP code or a list of codes")
     if "count" in match and (not isinstance(match["count"], int) or isinstance(match["count"], bool)
                              or match["count"] < 2):
         problems.append(f"{where}: match.count must be a whole number of 2 or more")
@@ -132,11 +166,14 @@ def check_match(match, where):
             isinstance(e, list) and e and all(isinstance(x, int) and not isinstance(x, bool) for x in e))
         if not ok:
             problems.append(f"{where}: match.exit must be a code, a list of codes, 'nonzero' or 'any'")
-    if "regex" in match:
+    for rkey in ("regex", "out_regex"):
+        if rkey not in match:
+            continue
         try:
-            re.compile(match["regex"])
+            for r in match[rkey] if rkey == "out_regex" and isinstance(match[rkey], list) else [match[rkey]]:
+                re.compile(r)
         except (re.error, TypeError) as exc:
-            problems.append(f"{where}: match.regex does not compile ({exc})")
+            problems.append(f"{where}: match.{rkey} does not compile ({exc})")
     if source == "forgejo":
         events = match.get("event")
         if not _strs(events) or any(e not in FORGEJO_EVENTS for e in ([events] if isinstance(events, str) else events)):
@@ -145,6 +182,16 @@ def check_match(match, where):
         events = match.get("event")
         if not _strs(events) or any(e not in DNS_EVENTS for e in ([events] if isinstance(events, str) else events)):
             problems.append(f"{where}: match.event must be one of {', '.join(DNS_EVENTS)}")
+    if source in ADAPTER_SOURCES:
+        events = match.get("event")
+        if not _strs(events) or any(e not in ADAPTER_EVENTS[source]
+                                    for e in ([events] if isinstance(events, str) else events)):
+            problems.append(f"{where}: match.event must be one of {', '.join(ADAPTER_EVENTS[source])}")
+    if source == "verify":
+        v = match.get("verify")
+        if not isinstance(v, list) or not v or not all(isinstance(a, dict) and isinstance(a.get("verb"), str)
+                                                       for a in v):
+            problems.append(f"{where}: match.verify must be a non-empty list of {{verb, ...}} assertions")
     return problems, sources
 
 
@@ -441,6 +488,13 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
                          os.path.join(base, "seeds"))
 
     if known_verbs is not None:
+        for it in [i for lab in labs for i in lab["milestones"]] + list(funny):
+            m = it.get("match") if isinstance(it, dict) else None
+            for sub in (m.get("any") if isinstance(m, dict) and "any" in m else [m]) if isinstance(m, dict) else []:
+                if isinstance(sub, dict) and sub.get("source") == "verify":
+                    for a in sub.get("verify") or []:
+                        if isinstance(a, dict) and a.get("verb") not in known_verbs:
+                            problems.append(f"{it.get('id')}: unknown verifier verb '{a.get('verb')}'")
         for ch in challenges + ([capstone] if isinstance(capstone, dict) else []):
             for a in (ch.get("verify") or []) if isinstance(ch, dict) else []:
                 if isinstance(a, dict) and a.get("verb") not in known_verbs:

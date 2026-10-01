@@ -25,8 +25,8 @@ module, not in a workshop.
 
 **Every lab is mandatory** (decided). `core` is every lab milestone, so the certificate and the "Workshop complete"
 banner come at 80% of them, and the student's home page shows a running completion percentage. Challenges, the capstone
-and the funny unlocks are optional bonuses and never count toward completion. `l1-merged` stays non-core: it depends on
-someone merging the PR (see the auto-merge item in `ROADMAP.md`).
+and the funny unlocks are optional bonuses and never count toward completion. `l1-merged` counts too: the Sensei bot
+merges the roster PR.
 
 ## Rules for challenges and capstones (apply to every workshop)
 
@@ -61,7 +61,7 @@ structured `verify` assertion mentions `{user}`.
 | l1-pr | Pull Request Pending | "Now you wait, like everyone in software." | 10 | yes | forgejo: pull request opened |
 | l1-prune | Tidy Desk | "Pruned the stale branches. Marie Kondo would nod." | 10 | yes | shell: `git fetch --prune` or `git fetch -p` |
 | l1-cleanup | Deleted Without Regrets | "Safe delete, no drama." | 10 | yes | shell: `git branch -d` (exit 0) |
-| l1-merged | Merged, Baby! | "Someone approved your work. Frame it." | 10 | no (needs the facilitator to merge) | forgejo: PR merged |
+| l1-merged | Merged, Baby! | "Someone approved your work. Frame it." | 10 | yes | forgejo: PR merged |
 
 ## Lab 2: reviewing and undoing before you commit
 
@@ -160,4 +160,4 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 ## Totals (computed)
 
-21 core milestones (210 points) of 22 milestones (220) · 7 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 720 points.
+22 core milestones (220 points) of 22 milestones (220) · 7 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 720 points.

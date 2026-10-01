@@ -5,8 +5,12 @@
       "title": "Forked Over",
       "joke": "Your own copy of the starter repo.",
       "core": true,
-      "when": "forgejo: fork created (needs a `fork` event, see the report)",
-      "match": {}
+      "when": "forgejo: a fork of the starter repo is created under the student's account (the Forgejo `fork` webhook; the lab makes it with the forks API call)",
+      "match": {
+        "source": "forgejo",
+        "event": "fork",
+        "repo": "{user}/tofu-basics"
+      }
     },
     {
       "id": "t0-clone",

@@ -17,8 +17,20 @@
       "title": "It Actually Installs",
       "joke": "Renewed and reloaded the server.",
       "core": true,
-      "when": "verify: demo-app serves a cert with a newer serial",
-      "match": {}
+      "when": "verify: demo-app now serves your hostname a different certificate than the one it served after Lab 2 (the service remembers serials while it runs; a service restart starts a new baseline, and a re-issue in Lab 3 counts)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_changed",
+            "host": "{user}.certs.dojo.test",
+            "key": "installs"
+          }
+        ]
+      }
     },
     {
       "id": "c4-cron",
@@ -41,8 +53,20 @@
       "title": "Watched a Pot Boil",
       "joke": "You saw the renewal fire by itself.",
       "core": true,
-      "when": "verify: renewal ran from cron (log entry not from a shell)",
-      "match": {}
+      "when": "verify: after the cron entry exists, the certificate served for your hostname changes again (renewal by cron or by hand cannot be told apart: the cron log is not read)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c4-cron"
+        ],
+        "verify": [
+          {
+            "verb": "served_changed",
+            "host": "{user}.certs.dojo.test",
+            "key": "watch"
+          }
+        ]
+      }
     }
   ]
 }

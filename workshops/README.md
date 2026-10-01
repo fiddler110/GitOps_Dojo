@@ -157,6 +157,14 @@ Nothing about adding a workshop this way ever requires editing
 `engine/docker-compose.yml`, the base `web-terminal` image, the allocator
 or the gateway.
 
+## Sensei help in your workshop
+
+List the `sensei` module in `MODULES=` (the shipped workshops all do) and students get `sensei ask|why|hand|inbox`.
+`ask` searches your `content/lab/*.md`; `why` explains the last error on screen, with a table it derives from any
+"You see | Cause / fix" table in your labs (the first cell is the backticked message). Add
+`workshops/<name>/sensei/patterns.json` for errors the labs don't tabulate (format in `modules/sensei/README.md`).
+Labs must never hold challenge answers; Sensei skips headings that name a challenge, but that is a backstop.
+
 ## Front door: `extensions.json`
 
 A workshop or module declares its landing cards, facilitator `/admin` tabs,

@@ -239,3 +239,98 @@ class VaultChallenges(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def bao(event, user="amy", **kw):
+    return ids(mt.adapter_event(dict(source="bao", event=event, user=user, **kw)))
+
+
+class VaultAuditItems(unittest.TestCase):
+    """The items fed by openbao-audit events (modules/openbao/audit/events.py) and by command output."""
+
+    def test_logins(self):
+        self.assertIn("v0-ui", bao("login", mount="oidc", ok=True))
+        self.assertNotIn("v0-ui", bao("login", mount="oidc", ok=False))
+        self.assertIn("v9-approle", bao("login", mount="approle", ok=True, role="ci-read"))
+        self.assertNotIn("v9-approle", bao("login", mount="approle", ok=True, role="app-read"))
+        self.assertIn("v9-jwt", bao("login", mount="jwt-ci", ok=True, role="ci-read"))
+        self.assertIn("v11-deploy", bao("login", mount="jwt-platform", ok=True, role="app-read"))
+
+    def test_refused_branch_logins_need_their_lab(self):
+        c = catalog.load(PACK, SHARED)[0]
+        m = mt.Matcher(lg.Ledger(c, lg.Config()).index)
+        ev = mt.adapter_event(dict(source="bao", event="login", user="amy", mount="jwt-ci", ok=False))
+        self.assertEqual(m.match(ev), [])
+        self.assertEqual(m.match(ev, have={"v9-jwt"}), ["v9-branch"])
+        self.assertEqual(m.match(ev, have={"v9-jwt", "v10-deploy"}), ["v9-branch", "v10-branch"])
+
+    def test_strict_approle_login_is_lab10(self):
+        c = catalog.load(PACK, SHARED)[0]
+        m = mt.Matcher(lg.Ledger(c, lg.Config()).index)
+        ev = mt.adapter_event(dict(source="bao", event="login", user="amy", mount="approle", ok=True, role="app-read"))
+        self.assertNotIn("v10-deploy", m.match(ev))
+        self.assertIn("v10-deploy", m.match(ev, have={"v10-strict"}))
+
+    def test_wrapping_root_and_leak(self):
+        self.assertIn("v10-wrap", bao("wrapping", path="sys/wrapping/unwrap", ok=True))
+        self.assertNotIn("v10-wrap", bao("wrapping", path="sys/wrapping/lookup", ok=True))
+        self.assertIn("f-root", bao("request", root=True, op="read", path="sys/policies"))
+        self.assertNotIn("f-root", bao("request", root=False, op="read"))
+        self.assertIn("v13-leak", bao("request", role="nightly-report", op="read", path="team/data/app"))
+        self.assertNotIn("v13-leak", bao("request", role="app-read", op="read"))
+
+    def test_output_items(self):
+        self.assertIn("f-typopath", ids(mt.shell_event(dict(cmd="bao kv get team/ap", exit=2, out="No value found at team/data/ap"))))
+        self.assertNotIn("f-typopath", sh("bao kv get team/app"))
+        self.assertIn("f-seal", ids(mt.shell_event(dict(cmd="bao status", exit=2, out="Error: Vault is sealed"))))
+        m = mt.Matcher(lg.Ledger(catalog.load(PACK, SHARED)[0], lg.Config()).index)
+        fixed = mt.shell_event(dict(cmd="LOG_LEVEL=DEBUG python3 app_vault.py", exit=0,
+                                    out="DEBUG loaded config keys: ['api_key']"))
+        self.assertIn("v5-nolog", m.match(fixed, have={"v5-vault"}))
+        self.assertNotIn("v5-nolog", m.match(mt.shell_event(dict(cmd="LOG_LEVEL=DEBUG python3 app_vault.py", exit=0,
+                                                                 out="DEBUG loaded config: {'api_key': 'x'}")),
+                                             have={"v5-vault"}))
+        self.assertNotIn("v5-nolog", sh("LOG_LEVEL=DEBUG python3 app_vault.py"))
+
+    def test_state_items_are_verify_rules(self):
+        c = catalog.load(PACK, SHARED)[0]
+        m = mt.Matcher(lg.Ledger(c, lg.Config()).index)
+        pending = dict(m.pending_state({"v8-masked", "v11-deploy"}))
+        self.assertIn("v8-secret", pending)
+        self.assertNotIn("v8-rotate", pending)       # needs v8-secret first
+        self.assertEqual(pending["v11-nobread"][0]["verb"], "role_policy_grants")
+        self.assertIn("v8-rotate", dict(m.pending_state({"v8-masked", "v8-secret"})))
+
+    def test_f_paste_is_deliberately_unmatched(self):
+        item = next(i for i in catalog.load(PACK, SHARED)[0]["funny"] if i["id"] == "f-paste")
+        self.assertFalse(item.get("match"))
+        self.assertTrue(item.get("note"))
+
+
+class RepoSecretVerb(unittest.TestCase):
+    def setUp(self):
+        spec = challenges.load_plugins([os.path.join(HERE, "..", "plugins", "secrets")])
+        self.assertEqual(spec["problems"], [])
+        self.fn, self.mod = spec["verbs"]["repo_secret"]
+        self.names = ["DEMO_API_KEY"]
+
+    def api(self, method, path, body=None, raw=False):
+        self.last = path
+        return 200, [{"name": n} for n in self.names]
+
+    def test_exists_and_absent(self):
+        ctx = {"user": "amy"}
+        self.assertTrue(self.fn(self.api, {"repo": "amy/v", "name": "DEMO_API_KEY"}, ctx)[0])
+        self.assertIn("/repos/amy/v/actions/secrets", self.last)
+        self.assertFalse(self.fn(self.api, {"repo": "amy/v", "name": "OTHER"}, ctx)[0])
+        self.assertFalse(self.fn(self.api, {"repo": "amy/v", "name": "DEMO_API_KEY", "absent": True}, ctx)[0])
+        self.names = []
+        self.assertTrue(self.fn(self.api, {"repo": "amy/v", "name": "DEMO_API_KEY", "absent": True}, ctx)[0])
+
+    def test_only_the_students_own_repo(self):
+        self.assertFalse(self.fn(self.api, {"repo": "bob/v", "name": "X"}, {"user": "amy"})[0])
+
+    def test_forgejo_trouble_is_unavailable(self):
+        with self.assertRaises(self.mod.Unavailable):
+            self.fn(lambda *a, **k: (500, None), {"repo": "amy/v", "name": "X"}, {"user": "amy"})
+        self.assertFalse(self.fn(lambda *a, **k: (404, None), {"repo": "amy/v", "name": "X"}, {"user": "amy"})[0])

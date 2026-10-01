@@ -127,7 +127,8 @@ def shell():
     body = {"cmd": cmd[:1000], "exit": code,
             "branch": env.get("DOJO_SH_BRANCH", ""), "branch_before": env.get("DOJO_SH_BRANCH_BEFORE", ""),
             "in_repo": env.get("DOJO_SH_IN_REPO") == "1", "merging": env.get("DOJO_SH_MERGING") == "1",
-            "merging_after": env.get("DOJO_SH_MERGING_AFTER") == "1"}
+            "merging_after": env.get("DOJO_SH_MERGING_AFTER") == "1",
+            "out": env.get("DOJO_SH_OUT", "")[-4000:]}
     call("POST", "/api/shell", body, timeout=3)
     return 0
 

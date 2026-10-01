@@ -51,7 +51,7 @@ structured `verify` assertion mentions `{user}`.
 | c1-root | Root of All Trust | "You fetched the CA's root certificate." | 10 | yes | shell: `step certificate inspect /opt/step-ca-root/root_ca.crt` (or `step certificate ...` on the root file), exit 0 |
 | c1-fingerprint | Fingerprint Frisk | "Checked the fingerprint, like a suspicious bouncer." | 10 | yes | shell: `step certificate fingerprint` or `openssl x509 ... -fingerprint`, exit 0 |
 | c1-trust | Now We Trust You | "The system trusts the CA. Do not tell your bank." | 10 | yes | shell: `step ca bootstrap` exit 0 (the trust step; whether the bootstrap really wrote a usable config is not checked) |
-| c1-tools | Trust Issues, Resolved | "certbot and acme.sh trust it too, separately." | 10 | yes | verify: both tools' trust config points at the root |
+| c1-tools | Trust Issues, Resolved | "certbot and acme.sh trust it too, separately." | 10 | yes | shell: `acme.sh` run with `--ca-bundle` (exit 0) after certbot has issued (which Lab 2 does with `REQUESTS_CA_BUNDLE`); the tools' config files are not read |
 
 ## Lab 2: certbot
 
@@ -59,7 +59,7 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|---|
 | c2-vhost | Port 80 Open for Business | "Your vhost answers the challenge." | 10 | yes | shell: `curl --resolve host:80:IP http://host/` exit 0 (the vhost answers on port 80) |
 | c2-issue | Certified Fresh | "A real cert, minted by machine." | 10 | yes | shell: `certbot certonly` exit 0 (the client reports success; the CA log is not read) |
-| c2-install | Installed and Padlocked | "HTTPS on. Green padlock energy." | 10 | yes | verify: demo-app serves that certificate |
+| c2-install | Installed and Padlocked | "HTTPS on. Green padlock energy." | 10 | yes | verify: after `certbot certonly`, demo-app serves your hostname a valid certificate from the CA (checked over SNI every few seconds) |
 | c2-verify | Trust, Verified | "You checked the chain with your own eyes." | 10 | yes | shell: `openssl s_client` or `curl https://...` against the demo site with `--cacert`/`-v`, exit 0 |
 
 ## Lab 3: acme.sh
@@ -74,9 +74,9 @@ structured `verify` assertion mentions `{user}`.
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | c4-script | Script Kiddie (Proud) | "A renewal script that reinstalls too." | 10 | yes | shell: the renewal script `renew-and-reload.sh` run by hand, exit 0 (existence and the executable bit are not checked separately) |
-| c4-installs | It Actually Installs | "Renewed and reloaded the server." | 10 | yes | verify: demo-app serves a cert with a newer serial |
+| c4-installs | It Actually Installs | "Renewed and reloaded the server." | 10 | yes | verify: demo-app now serves your hostname a different certificate than the one it served after Lab 2 (the service remembers serials while it runs; a service restart starts a new baseline, and a re-issue in Lab 3 counts) |
 | c4-cron | Set It and Forget It | "Wired into cron." | 10 | yes | shell: `crontab -e` (saved, exit 0) or `crontab -l`; the entry itself is not read |
-| c4-watch | Watched a Pot Boil | "You saw the renewal fire by itself." | 10 | yes | verify: renewal ran from cron (log entry not from a shell) |
+| c4-watch | Watched a Pot Boil | "You saw the renewal fire by itself." | 10 | yes | verify: after the cron entry exists, the certificate served for your hostname changes again (renewal by cron or by hand cannot be told apart: the cron log is not read) |
 
 ## Lab 5: the dns-01 challenge
 
@@ -92,7 +92,7 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|
 | f-untrusted | Trust No One | "`certificate verify failed`. Correct instinct." | 0 | shell: `curl` exits 60 (certificate verify failed) |
 | f-ratelimit | Too Eager | "Rate-limited. Slow down, tiger." | 0 | ca: `rateLimited` response for the student |
-| f-expired | Expired Milk | "You looked at an expired certificate." | 0 | shell: `openssl x509 -enddate` shows a past date |
+| f-expired | Expired Milk | "You looked at an expired certificate." | 0 | verify: demo-app serves your hostname a certificate that has expired (a renewal that never ran; the `-enddate` output itself is not read) |
 | f-staging | Practice Makes Perfect | "Used `--staging` or `--test`. Wise." | 0 | shell: `certbot ... --dry-run` or `--staging` (or `--test-cert`) |
 | f-selfsigned | Self-Signed and Proud | "You made your own CA. Very independent." | 0 | shell: `openssl req -x509`, exit 0 |
 

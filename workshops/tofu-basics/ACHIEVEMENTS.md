@@ -50,7 +50,7 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t0-fork | Forked Over | "Your own copy of the starter repo." | 10 | yes | forgejo: fork created (needs a `fork` event, see the report) |
+| t0-fork | Forked Over | "Your own copy of the starter repo." | 10 | yes | forgejo: a fork of the starter repo is created under the student's account (the Forgejo `fork` webhook; the lab makes it with the forks API call) |
 | t0-clone | Cloned Around | "Now it is on your machine." | 10 | yes | shell: `git clone` of the fork `<user>/tofu-basics` (exit 0) |
 | t0-tour | Is It Terraform? | "It is OpenTofu. Same thing. Mostly." | 10 | yes | shell: `tofu version` or `terraform version` (also `-version`, exit 0) |
 
@@ -83,7 +83,7 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t4-portal | Cloud Tourist | "Opened the portal." | 10 | yes | cloud: first portal request by the student (needs the `cloud` event source, see the report) |
+| t4-portal | Cloud Tourist | "Opened the portal." | 10 | yes | cloud: the student's first Dojo Portal API call (the portal page loads its data through it; reported by cloud-api) |
 | t4-creds | Keys to the Kingdom | "Your credentials are in your environment." | 10 | yes | shell: `env`, `printenv`, or `echo`/`grep` naming `ARM_*` (values are never logged) |
 | t4-provider | Provider Installed | "azurerm, but a friendlier universe." | 10 | yes | shell: `tofu init` (exit 0) after the credentials were looked at (Track B; the folder is not read, the earlier milestone tells the tracks apart) |
 
@@ -93,38 +93,38 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|---|
 | t5-plan | Read the Blueprint | "A plan for a real container." | 10 | yes | shell: `tofu plan` (exit 0) after the Track B init |
 | t5-apply | Hello, World | "A real container in a real (practice) cloud." | 10 | yes | shell: `tofu apply` (exit 0) after the Track B init; a successful apply means the container group was created (the cloud is not asked) |
-| t5-site | It Is on the Internet | "Opened your own site." | 10 | yes | cloud: request served by the student's container (needs a `cloud` `site_request` event, see the report) |
+| t5-site | It Is on the Internet | "Opened your own site." | 10 | yes | cloud: a request served by the student's container through the site ingress. The ingress cannot tell who is looking, so the site's owner is credited (a classmate's visit counts) |
 
 ## Lab 6: policy
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t6-tag | Untagged and Rejected | "The cloud wants tags." | 10 | yes | cloud: policy denial for a missing tag (needs the `cloud` event source, see the report) |
-| t6-region | Wrong Neighbourhood | "Region not allowed." | 10 | yes | cloud: policy denial for the region (needs the `cloud` event source) |
-| t6-size | Too Big to Ship | "Over the size limit." | 10 | yes | cloud: policy denial for the size (needs the `cloud` event source) |
+| t6-tag | Untagged and Rejected | "The cloud wants tags." | 10 | yes | cloud: a request refused for a missing required tag (policy `Require tag`, reported by cloud-api) |
+| t6-region | Wrong Neighbourhood | "Region not allowed." | 10 | yes | cloud: a request refused for a region outside `canadacentral`/`canadaeast` (policy `Allowed locations`) |
+| t6-size | Too Big to Ship | "Over the size limit." | 10 | yes | cloud: a request refused for a container size over the limit (`InvalidResourceRequest`) |
 
 ## Lab 7: drift
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t7-tag | Somebody Retagged It | "Drift noticed by `plan`." | 10 | yes | cloud: the container's tags were edited in the portal (needs the `cloud` event source); the `~` in `plan` is not read by the shell hook |
-| t7-delete | It Vanished | "The container was deleted behind your back." | 10 | yes | cloud: the container was deleted in the portal (needs the `cloud` event source) |
+| t7-tag | Somebody Retagged It | "Drift noticed by `plan`." | 10 | yes | cloud: the container's tags were saved from the Dojo Portal (not by the API) |
+| t7-delete | It Vanished | "The container was deleted behind your back." | 10 | yes | cloud: the container was deleted from the Dojo Portal (not by the API) |
 | t7-restored | Back in Business | "Apply restored the declared state." | 10 | yes | shell: `tofu apply` (exit 0) after the portal delete (fires once `t7-delete` is earned, so it waits for the `cloud` event source) |
 
 ## Lab 8: change types
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t8-inplace | Fix It In Place | "A tag changes without a rebuild." | 10 | yes | shell output: `tofu apply` whose plan is `~` only (needs the shell hook to report output, see the report) |
-| t8-replace | Rebuilt from Scratch | "The message forces a new container." | 10 | yes | shell output: `tofu apply` whose plan is `-/+` (needs shell output, or a `cloud` event of a container re-created) |
+| t8-inplace | Fix It In Place | "A tag changes without a rebuild." | 10 | yes | shell output: a successful `tofu apply` whose output shows a resource `Modifying...` (an in-place change). Needs the terminal under tmux, which the browser terminal is |
+| t8-replace | Rebuilt from Scratch | "The message forces a new container." | 10 | yes | shell output: a successful `tofu apply` that prints a destroy then a create; or cloud: the container was deleted and created again (or swapped) by the same student within 2 minutes |
 | t8-forced | Because I Said So | "`-replace` on demand." | 10 | yes | shell: `tofu apply -replace=...` (exit 0) in Track B (after the credentials milestone) |
 
 ## Lab 9: scale
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t9-foreach | One Block, Many Sites | "`for_each` made the copies." | 10 | yes | cloud state: 3+ containers from one resource block (no `match` field reads cloud state; needs a `cloud` event or milestone `verify`) |
-| t9-quota | Quota Reached | "You met the limit." | 10 | yes | cloud: quota denial for the student (needs the `cloud` event source) |
+| t9-foreach | One Block, Many Sites | "`for_each` made the copies." | 10 | yes | shell output: `tofu apply` creating `extra["..."]`, or `tofu state list` showing it (the lab's `for_each` block; the quota of 2 groups means one extra survives, so cloud state can't show three) |
+| t9-quota | Quota Reached | "You met the limit." | 10 | yes | cloud: a request refused for the quota of 2 container groups (`QuotaExceeded`, reported by cloud-api) |
 | t9-fixed | Code Meets Reality | "Reduced the code to what fits." | 10 | yes | shell: `tofu plan` (exit 0) after the quota denial (fires once `t9-quota` is earned, so it waits for the `cloud` event source) |
 
 ## Lab 10: clean up
@@ -138,10 +138,10 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
-| f-nolock | Locked Out | "State lock in the way." | 0 | shell output: a `tofu` line that prints `Error acquiring the state lock` (needs shell output) |
-| f-typo | Fat Fingers | "A typo in a resource name." | 0 | shell output: `tofu validate` exits 1 printing `Reference to undeclared` (needs shell output) |
+| f-nolock | Locked Out | "State lock in the way." | 0 | shell output: a `tofu` command that prints `Error acquiring the state lock` |
+| f-typo | Fat Fingers | "A typo in a resource name." | 0 | shell output: `tofu validate` or `plan` fails printing `Reference to undeclared` |
 | f-yes | Auto Approve Bravado | "`-auto-approve` on the first try." | 0 | shell: `tofu apply -auto-approve` (exit 0); "on the first try" is not checked |
-| f-destroyfirst | Destroy First | "Ran `destroy` before anything was created." | 0 | shell: `tofu destroy` while nothing is held yet (needs a generic `requires_not`, an id NOT yet held) |
+| f-destroyfirst | Destroy First | "Ran `destroy` before anything was created." | 0 | shell: `tofu destroy` before the student has ever run a successful `tofu apply` |
 | f-statecommit | State in Git | "Committed `terraform.tfstate`. Lab 3 warned you." | 0 | shell: a `git add` naming `terraform.tfstate` (exit 0); the push payload's file list is not read |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)

@@ -18,16 +18,36 @@
       "title": "Deployed With Identity",
       "joke": "No secret ID at all.",
       "core": true,
-      "when": "bao: workload login from the app (not wired: needs a `bao` event `login`, mount jwt-platform, role app)",
-      "match": {}
+      "when": "bao: a `jwt-platform` login that got `app-read` (the app's own identity from the platform)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-platform",
+        "ok": true,
+        "role": "app-read"
+      }
     },
     {
       "id": "v11-nobread",
       "title": "The Pipeline Cannot Read",
       "joke": "Deployed, but never saw the secret.",
       "core": true,
-      "when": "verify: the pipeline's role has no read on the app path (not wired: a milestone can't run a verb; the `role_policy_grants` verb of the bao plug-in could check it as a challenge step)",
-      "match": {}
+      "when": "verify: the pipeline's `jwt-ci` role `ci-main` has no read on `team/data/app` (checked after the platform deploy)",
+      "match": {
+        "source": "verify",
+        "requires": "v11-deploy",
+        "verify": [
+          {
+            "verb": "role_policy_grants",
+            "mount": "jwt-ci",
+            "role": "ci-main",
+            "deny": [
+              "team/data/app"
+            ],
+            "student": "{user}"
+          }
+        ]
+      }
     },
     {
       "id": "v11-rotate",

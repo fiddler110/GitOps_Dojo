@@ -52,8 +52,16 @@
       "title": "Trust Issues, Resolved",
       "joke": "certbot and acme.sh trust it too, separately.",
       "core": true,
-      "when": "verify: both tools' trust config points at the root",
-      "match": {}
+      "when": "shell: `acme.sh` run with `--ca-bundle` (exit 0) after certbot has issued (which Lab 2 does with `REQUESTS_CA_BUNDLE`); the tools' config files are not read",
+      "match": {
+        "source": "shell",
+        "cmd": "acme.sh",
+        "flags": "--ca-bundle",
+        "exit": 0,
+        "requires": [
+          "c2-issue"
+        ]
+      }
     }
   ]
 }

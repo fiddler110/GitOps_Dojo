@@ -42,6 +42,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import events  # noqa: E402
+
 LOG_FILE = os.environ.get("AUDIT_FILE", "/logs/audit.log")
 BAO_ADDR = os.environ.get("BAO_ADDR", "http://openbao:8200")
 PER_NAMESPACE = 3000
@@ -62,6 +65,8 @@ STATIC = {"/": ("panel.html", "text/html; charset=utf-8"),
           "/panel.js": ("panel.js", "text/javascript; charset=utf-8"),
           "/panel.css": ("panel.css", "text/css; charset=utf-8")}
 
+reporter = events.Reporter(os.environ.get("ACHIEVEMENTS_ADAPTER_URL", ""),
+                           os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET", ""))
 lock = threading.Lock()
 by_ns = collections.defaultdict(lambda: collections.deque(maxlen=PER_NAMESPACE))
 everything = collections.deque(maxlen=ALL)
@@ -122,6 +127,7 @@ def catch_up():
                 continue
             if entry.get("type") != "response":
                 continue
+            reporter.entry(entry)
             c = compact(entry)
             with lock:
                 everything.append(c)
@@ -265,6 +271,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    catch_up()              # what was logged before we started is history: not reported
+    reporter.live = True
+    reporter.start()
     threading.Thread(target=follow, daemon=True).start()
     server = http.server.ThreadingHTTPServer(("0.0.0.0", 8080), Handler)
     server.daemon_threads = True

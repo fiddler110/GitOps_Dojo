@@ -30,8 +30,19 @@
       "title": "Installed and Padlocked",
       "joke": "HTTPS on. Green padlock energy.",
       "core": true,
-      "when": "verify: demo-app serves that certificate",
-      "match": {}
+      "when": "verify: after `certbot certonly`, demo-app serves your hostname a valid certificate from the CA (checked over SNI every few seconds)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-issue"
+        ],
+        "verify": [
+          {
+            "verb": "served_cert",
+            "host": "{user}.certs.dojo.test"
+          }
+        ]
+      }
     },
     {
       "id": "c2-verify",

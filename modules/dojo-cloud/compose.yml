@@ -72,6 +72,9 @@ services:
       # gateway sets both; students on workshop_lab can reach :8080 directly).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CLOUD_API:-}
       - CLOUD_CHECK_TOKEN=${CLOUD_CHECK_TOKEN:-}
+      # What students did, for the achievements module (off unless it is in this run; no `:?`, see CLAUDE.md).
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
       # Per-student request tripwire (module.env; 0 = off).
       - CLOUD_API_RATE_BURST=${CLOUD_API_RATE_BURST:-200}
       - CLOUD_API_RATE_PER_SEC=${CLOUD_API_RATE_PER_SEC:-20}

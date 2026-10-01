@@ -17,7 +17,7 @@
       "title": "Rewind",
       "joke": "Rolled back through a pull request.",
       "core": true,
-      "when": "shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `rollback-*` PR)",
+      "when": "shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `dns/revert-*` PR)",
       "match": {
         "source": "shell",
         "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+rollback\\b",
@@ -29,12 +29,12 @@
       "title": "Actually Gone",
       "joke": "Confirmed it is really gone.",
       "core": true,
-      "when": "forgejo: a `rollback-*` pull request of yours is merged",
+      "when": "forgejo: a `dns/revert-*` pull request of yours is merged",
       "match": {
         "source": "forgejo",
         "event": "pull_request",
         "action": "merged",
-        "head_prefix": "rollback-"
+        "head_prefix": "dns/revert-"
       }
     }
   ]

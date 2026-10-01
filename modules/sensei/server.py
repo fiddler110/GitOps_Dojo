@@ -5,6 +5,8 @@
   GET  /api/prs        every pull request Sensei has seen: status, reason, minutes stuck
   POST /api/merge      {number}: merge anyway (skips the review; still resolves the roster conflict)
   POST /api/comment    {number, text}
+  GET  /api/radar      who looks stuck (needs the achievements service)
+  POST /api/student/{ask,why,hand,inbox,check,status,review,approve}  the `sensei` command (Forgejo token auth, lab network only)
   POST /api/scan       look now
   POST /api/enabled    {on}: pause or resume the bot
 Identity headers count only with X-Gateway-Token (the route is facilitator-gated at Caddy).
@@ -22,8 +24,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "achievements", "service"))
 import bot  # noqa: E402
+import support  # noqa: E402
 import seed  # noqa: E402
 import challenges  # noqa: E402  (the achievements service's Forgejo client)
+import identity  # noqa: E402  (the same one: a Forgejo token -> the student's login)
 
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
@@ -34,11 +38,29 @@ PAGES = {"/": "admin.html", "/admin.js": "admin.js", "/style.css": "style.css"}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; "
        "form-action 'none'; frame-ancestors 'self'")
 sensei = None
+resolver = None
+index = patterns = desk = None  # support.LabIndex, support.Patterns, support.HelpDesk
+achievements = None             # support.Achievements
+STUCK_MINUTES = int(os.environ.get("SENSEI_STUCK_MINUTES", "10") or 10)
 lock = threading.Lock()
 
 
 def log(msg):
     print(f"[sensei] {msg}", flush=True)
+
+
+def ask(q):
+    """`sensei ask`: the lab sections that best answer q. Nothing found is an honest "no", not a guess."""
+    found = index.search(q) if index else []
+    return {"found": found, "message": "" if found else
+            "I couldn't find that in this workshop's labs. Try other words, or `sensei hand \"...\"` to ask the facilitator."}
+
+
+def why(text):
+    """`sensei why`: the known error nearest the bottom of the terminal output, if any."""
+    m = patterns.match(text) if (patterns and text.strip()) else None
+    return {"match": m, "message": "" if m else
+            "I don't recognise an error in that output. `sensei ask \"...\"` searches the labs, and `sensei hand \"...\"` asks the facilitator."}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -65,9 +87,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ok = GATEWAY_TOKEN and hmac.compare_digest(given, GATEWAY_TOKEN.encode())
         return ok and self.headers.get("X-Auth-User") == FACILITATOR
 
+    def _student(self, action, body):
+        """The `sensei` command in a student's terminal. Identity is the student's own Forgejo token, which
+        Forgejo confirms; this port is only reachable from the lab network, never through the gateway."""
+        user = resolver.resolve(self.headers.get("Authorization")) if resolver else None
+        if not user:
+            return self._json(401, {"error": "no valid Forgejo token"})
+        if action == "ask":
+            return self._json(200, ask(str(body.get("q", ""))[:300]))
+        if action == "why":
+            return self._json(200, why(str(body.get("text", ""))[-6000:]))
+        if action == "hand":
+            text, context = str(body.get("text", "")), str(body.get("context", ""))[-6000:]
+            auto = why(context) if context else {}
+            auto_ask = ask(text) if text else {}
+            req, problem = desk.raise_hand(user, text, context, {"why": auto.get("match"), "ask": auto_ask.get("found", [])[:1]})
+            if not req:
+                return self._json(200, {"ok": False, "message": problem})
+            return self._json(200, {"ok": True, "id": req["id"], "why": auto.get("match"), "ask": auto_ask.get("found", [])[:2]})
+        if action == "inbox":
+            return self._json(200, {"requests": desk.inbox(user)})
+        if action == "check":
+            prog = achievements.progress(user) if achievements else None
+            if not prog:
+                return self._json(200, {"message": "I can't see your progress here: this workshop has no scoreboard "
+                                                   "(or it isn't answering). The labs' checkpoints are your guide."})
+            return self._json(200, support.current_lab(prog))
+        with lock:
+            if action == "status":
+                return self._json(200, sensei.student_status(user))
+            if action == "review":
+                return self._json(200, sensei.student_review(user))
+            if action == "approve":
+                return self._json(200, sensei.student_approve(user, bool(body.get("force"))))
+        self._json(404, {"error": "not found"})
+
     def do_GET(self):
         if self.path == "/healthz":
             return self._json(200, {"ok": True})
+        if self.path == "/api/student/status":
+            return self._student("status", {})
         if not self._facilitator():
             return self._json(403, {"error": "facilitator only"})
         if self.path in PAGES:
@@ -75,14 +134,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(os.path.join(STATIC, name), "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8" if name.endswith("html")
                                   else "text/javascript" if name.endswith(".js") else "text/css")
+        if self.path == "/api/help":
+            return self._json(200, {"requests": desk.snapshot(), "open": desk.open_count()})
+        if self.path == "/api/radar":
+            students = achievements.activity() if achievements else None
+            helping = {r["user"] for r in desk.snapshot() if r["status"] == "open"}
+            return self._json(200, {"available": students is not None, "minutes": STUCK_MINUTES,
+                                    "students": support.stuck(students or {}, helping, STUCK_MINUTES)})
         if self.path == "/api/prs":
             with lock:
                 return self._json(200, {"prs": sensei.snapshot(), "enabled": sensei.enabled, "repo": sensei.repo,
                                      "watching": WATCHING,
-                                     "attention": sensei.attention()})
+                                     "attention": sensei.attention(), "help_open": desk.open_count()})
         self._json(404, {"error": "not found"})
 
     def do_POST(self):
+        if self.path.startswith("/api/student/"):
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(min(n, 16384)) or b"{}")
+            except ValueError:
+                return self._json(400, {"error": "bad json"})
+            return self._student(self.path.rsplit("/", 1)[1], body)
         if not self._facilitator() or self.headers.get("X-Requested-With") != "dojo-admin":
             return self._json(403, {"error": "facilitator only"})
         try:
@@ -99,6 +172,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 sensei.enabled = bool(body.get("on"))
             elif self.path == "/api/merge" and isinstance(number, int):
                 return self._json(200, {"result": sensei.handle(number, force=True)})
+            elif self.path == "/api/help/reply" and isinstance(body.get("id"), int):
+                return self._json(200, {"ok": desk.reply(body["id"], str(body.get("text", "")))})
+            elif self.path == "/api/help/close" and isinstance(body.get("id"), int):
+                return self._json(200, {"ok": desk.close(body["id"])})
             elif self.path == "/api/comment" and isinstance(number, int) and str(body.get("text", "")).strip():
                 return self._json(200, {"ok": sensei.comment(number, str(body["text"])[:2000])})
             else:
@@ -129,10 +206,23 @@ def main():
     if not (admin and password):
         log("no Forgejo admin login: Sensei cannot act")
         sys.exit(1)
-    global WATCHING
+    global WATCHING, resolver, index, patterns, desk, achievements
+    workshop = os.environ.get("WORKSHOP_DIR", "/opt/workshop")
+    lab_dir = os.path.join(workshop, "content", "lab")
+    index = support.LabIndex(lab_dir)
+    patterns = support.Patterns.load(lab_dir, [os.path.join(HERE, "patterns", "shared.json"),
+                                              os.path.join(workshop, "sensei", "patterns.json")])
+    desk = support.HelpDesk(os.path.join(os.environ.get("DATA_DIR", "/data"), "help.json"))
+    log(f"support: {len(index.sections)} lab sections, {len(patterns.items)} error patterns")
+    resolver = identity.Resolver(identity.forgejo_fetch(FORGEJO_URL))
+    achievements = support.Achievements(os.environ.get("ACHIEVEMENTS_URL"), os.environ.get("ACHIEVEMENTS_KEY"))
     cfg = {"repo": os.environ.get("SENSEI_REPO", ""),
            "base": os.environ.get("SENSEI_BASE", "main"),
-           "file": os.environ.get("SENSEI_FILE", "roster/team.yaml")}
+           "file": os.environ.get("SENSEI_FILE", "roster/team.yaml"),
+           "mode": os.environ.get("SENSEI_MODE", "merge"),
+           "approve_prefix": os.environ.get("SENSEI_APPROVE_PREFIX", ""),
+           "self": admin,
+           "patience": int(os.environ.get("SENSEI_PATIENCE_SECONDS", "180"))}
     WATCHING = bool(cfg["repo"])
     sensei = bot.Sensei(cfg, challenges.forgejo_http(FORGEJO_URL, admin, password), FORGEJO_URL,
                         secret=f"{admin}:{password}", state_path=os.path.join(os.environ.get("DATA_DIR", "/data"), "sensei.json"))

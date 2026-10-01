@@ -3,9 +3,13 @@
     {
       "id": "f-dot2",
       "title": "Dot. Com. Dot.",
-      "joke": "Trailing dot on the wrong record.",
-      "when": "shell: `dnscontrol` errors with a name ending in the zone twice",
-      "match": {}
+      "joke": "Said the domain name twice. Once was plenty.",
+      "when": "shell: a `dnscontrol` command prints a hostname that ends with a zone twice, which is what a record named with the whole hostname (`A(\"www.studentXX.dojo.test\", ...)` instead of `www`) looks like in `preview` (the output is read from the terminal)",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol",
+        "out_regex": "([a-z0-9-]+\\.dojo\\.test)\\.\\1\\b"
+      }
     },
     {
       "id": "f-ttl",
@@ -23,8 +27,12 @@
       "id": "f-nxdomain",
       "title": "It's Always DNS",
       "joke": "NXDOMAIN. Of course it was.",
-      "when": "dns: your lookup for your own name returns NXDOMAIN",
-      "match": {}
+      "when": "shell: `dig` (without `+short`) prints `status: NXDOMAIN` (the output is read from the terminal)",
+      "match": {
+        "source": "shell",
+        "cmd": "dig",
+        "out_regex": "status: NXDOMAIN"
+      }
     },
     {
       "id": "f-rejected",

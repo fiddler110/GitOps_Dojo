@@ -161,6 +161,18 @@ dnscontrol preview         # 0 corrections again
 
 `git restore` discards uncommitted edits, so `preview` and `restore` together let you try anything safely: nothing is real until you `push`.
 
+Its cousin is the opposite mistake: a record **name** that already contains the zone. Inside `studentXX.dojo.test`, a name is relative to the zone, so writing the whole hostname gets the zone added a second time:
+
+```js
+	A("www.studentXX.dojo.test", "203.0.113.55"),   // the label should just be "www"
+```
+
+```sh
+dnscontrol preview
+```
+
+The error shows `www.studentXX.dojo.test.studentXX.dojo.test.` and says it repeats the domain. Throw this one away too with `git restore dnsconfig.js`.
+
 ---
 
 ## Checkpoint

@@ -5,8 +5,17 @@
       "title": "Repository Secret",
       "joke": "A secret in the repository.",
       "core": true,
-      "when": "forgejo: secret created on the fork in the browser (not wired: Forgejo sends no event; needs a `repo_secret_exists` verb)",
-      "match": {}
+      "when": "verify: the fork has an Actions secret named `DEMO_API_KEY` (checked in Forgejo every few seconds; Forgejo sends no event)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "repo_secret",
+            "repo": "{user}/vault-fundamentals",
+            "name": "DEMO_API_KEY"
+          }
+        ]
+      }
     },
     {
       "id": "v8-masked",
@@ -27,8 +36,22 @@
       "title": "Cleaned Up After",
       "joke": "Rotated what leaked.",
       "core": true,
-      "when": "forgejo: secret updated after the run (not wired: Forgejo sends no event; needs `repo_secret_updated` compared with the run)",
-      "match": {}
+      "when": "verify: `DEMO_API_KEY` is gone again after the workflow ran twice (removed in Forgejo; checked every few seconds)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "v8-secret",
+          "v8-masked"
+        ],
+        "verify": [
+          {
+            "verb": "repo_secret",
+            "repo": "{user}/vault-fundamentals",
+            "name": "DEMO_API_KEY",
+            "absent": true
+          }
+        ]
+      }
     }
   ]
 }

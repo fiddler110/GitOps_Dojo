@@ -4,15 +4,32 @@
       "id": "f-nolock",
       "title": "Locked Out",
       "joke": "State lock in the way.",
-      "when": "shell output: a `tofu` line that prints `Error acquiring the state lock` (needs shell output)",
-      "match": {}
+      "when": "shell output: a `tofu` command that prints `Error acquiring the state lock`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu",
+          "terraform"
+        ],
+        "out_regex": "Error acquiring the state lock"
+      }
     },
     {
       "id": "f-typo",
       "title": "Fat Fingers",
       "joke": "A typo in a resource name.",
-      "when": "shell output: `tofu validate` exits 1 printing `Reference to undeclared` (needs shell output)",
-      "match": {}
+      "when": "shell output: `tofu validate` or `plan` fails printing `Reference to undeclared`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu validate",
+          "terraform validate",
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": "nonzero",
+        "out_regex": "Reference to undeclared"
+      }
     },
     {
       "id": "f-yes",
@@ -33,8 +50,17 @@
       "id": "f-destroyfirst",
       "title": "Destroy First",
       "joke": "Ran `destroy` before anything was created.",
-      "when": "shell: `tofu destroy` while nothing is held yet (needs a generic `requires_not`, an id NOT yet held)",
-      "match": {}
+      "when": "shell: `tofu destroy` before the student has ever run a successful `tofu apply`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu destroy",
+          "terraform destroy"
+        ],
+        "requires_not": [
+          "t1-apply"
+        ]
+      }
     },
     {
       "id": "f-statecommit",

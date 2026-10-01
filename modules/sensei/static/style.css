@@ -41,3 +41,6 @@ input.narrow { width: 6rem; }
   .frame { min-height: 16cm; }
 }
 .banner a { color: #fff; text-decoration: underline; margin-left: 0.5rem; }
+.help { border-top: 1px solid var(--line); padding: .5rem 0; }
+.help pre { max-height: 14rem; overflow: auto; white-space: pre-wrap; }
+.help input { width: 60%; max-width: 28rem; }

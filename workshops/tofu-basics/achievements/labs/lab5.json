@@ -37,8 +37,11 @@
       "title": "It Is on the Internet",
       "joke": "Opened your own site.",
       "core": true,
-      "when": "cloud: request served by the student's container (needs a `cloud` `site_request` event, see the report)",
-      "match": {}
+      "when": "cloud: a request served by the student's container through the site ingress. The ingress cannot tell who is looking, so the site's owner is credited (a classmate's visit counts)",
+      "match": {
+        "source": "cloud",
+        "event": "site_request"
+      }
     }
   ]
 }

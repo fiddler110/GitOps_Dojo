@@ -33,6 +33,7 @@ import mimetypes
 import os
 import signal
 import sys
+import threading
 import time
 import urllib.parse
 
@@ -73,6 +74,9 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgej
 WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
 # Modules' adapters (dns-gate) post signed events with this; unset means /api/adapter is off.
 ADAPTER_SECRET = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET") or None
+# Sensei's stuck radar and `sensei check` read activity and progress with this key (Sensei's own gateway token,
+# which the compose file passes to both); unset means those two reads are off.
+SENSEI_KEY = os.environ.get("SENSEI_KEY") or None
 
 # Verifier and seed-builder plug-ins (A22): this module's own (Forgejo/git), every plugins/<name>/ folder
 # (a backend's verbs, e.g. plugins/dns), plus any listed
@@ -230,7 +234,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = json.loads(raw or b"{}")
         except ValueError:
             raise Denied(400, "not JSON")
-        event = matcher.dns_event(body) if isinstance(body, dict) and body.get("source") == "dns" else None
+        src = body.get("source") if isinstance(body, dict) else None
+        event = matcher.dns_event(body) if src == "dns" else matcher.adapter_event(body) if src else None
         return self._json(200, store.adapter(event) if event else {"ignored": True})
 
     def _run(self, fn):
@@ -259,6 +264,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._static(PAGES[path])
         if path.lstrip("/") in ASSETS:
             return self._static(path.lstrip("/"))
+        if path in ("/api/sensei/activity", "/api/sensei/progress"):
+            given = self.headers.get("X-Sensei-Key") or ""
+            if not SENSEI_KEY or not hmac.compare_digest(given.encode(), SENSEI_KEY.encode()):
+                raise Denied(403, "sensei only")
+            if path == "/api/sensei/activity":
+                return self._json(200, {"students": store.activity_snapshot()})
+            user = (query.get("user") or [""])[0][:100]
+            if not user or user == FACILITATOR:
+                raise Denied(400, "no such student")
+            return self._json(200, store.progress(user))
         caller = self._caller()
         if path == "/api/me":
             return self._json(200, store.me(self._need(caller)))
@@ -391,6 +406,19 @@ def make_runner(admin, password):
     return r
 
 
+def state_loop():
+    """Every few seconds, give each student's `verify` milestones a turn (Store.sweep_state)."""
+    gap = int(os.environ.get("ACHIEVEMENTS_STATE_SECONDS", "20") or 20)
+    while True:
+        time.sleep(min(5, gap))
+        if runner is None:
+            continue
+        try:
+            store.sweep_state(runner, runner.errors(), gap=gap)
+        except Exception as exc:    # noqa: BLE001 - a bad check must not stop the loop
+            log(f"state sweep: {exc!r}")
+
+
 def main():
     global store, resolver, runner, CLIENT_HASH
     store = make_store()
@@ -404,6 +432,7 @@ def main():
                                        WEBHOOK_URL, WEBHOOK_SECRET, log)
     else:
         log("forgejo webhook: no gateway token or Forgejo admin login; Forgejo events will not score")
+    threading.Thread(target=state_loop, daemon=True).start()
     port = int(os.environ.get("PORT", "8080"))
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
