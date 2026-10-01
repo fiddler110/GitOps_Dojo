@@ -1,7 +1,9 @@
 #!/bin/sh
 # Add a `dojo` shell function to your shell profile, so `dojo <workshop>`,
-# `dojo stop`, etc. work from any directory. Safe to re-run: the function sits
-# between marker lines and is replaced in place, never duplicated.
+# `dojo stop`, etc. work from any directory. On zsh it also loads the tab
+# completion (completions/run.sh.zsh) for both `dojo` and ./run.sh. Safe to
+# re-run: it all sits between marker lines and is replaced in place, never
+# duplicated.
 #
 # Target file: zsh -> ~/.zshrc_aliases if it exists, else ~/.zshrc;
 #              bash (or anything else) -> ~/.bash_aliases if it exists, else ~/.bashrc.
@@ -13,7 +15,7 @@ set -eu
 
 case "${1:-}" in
   -h | --help)
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     exit 0 ;;
   '') ;;
   *)
@@ -30,11 +32,14 @@ fi
 case "$(basename "${SHELL:-}")" in
   zsh)
     if [ -f "$HOME/.zshrc_aliases" ]; then target="$HOME/.zshrc_aliases"; else target="$HOME/.zshrc"; fi
-    rc="$HOME/.zshrc" ;;
+    rc="$HOME/.zshrc"
+    comp="${root}/engine/completions/run.sh.zsh" ;;
   *)
     if [ -f "$HOME/.bash_aliases" ]; then target="$HOME/.bash_aliases"; else target="$HOME/.bashrc"; fi
-    rc="$HOME/.bashrc" ;;
+    rc="$HOME/.bashrc"
+    comp="" ;;      # no bash completion file yet
 esac
+[ -f "$comp" ] || comp=""
 
 begin='# >>> dojo alias (./run.sh alias-setup) >>>'
 end='# <<< dojo alias <<<'
@@ -49,6 +54,24 @@ dojo() {
     fi
 }
 ${end}"
+
+if [ -n "$comp" ]; then
+  # Completion needs compinit before the compdef inside the file runs; load it if the profile hasn't yet.
+  block="${begin}
+dojo() {
+    if [ -x '${root}/run.sh' ]; then
+        '${root}/run.sh' \"\$@\"
+    else
+        echo \"Error: ${root}/run.sh not found (was the repo moved? re-run ./run.sh alias-setup)\" >&2
+        return 1
+    fi
+}
+if [ -f '${comp}' ]; then
+    (( \$+functions[compdef] )) || { autoload -Uz compinit && compinit; }
+    source '${comp}'    # tab completion for dojo and ./run.sh
+fi
+${end}"
+fi
 
 touch "$target"
 if grep -qF "$begin" "$target"; then
@@ -68,6 +91,11 @@ if [ -s "$target" ] && [ -n "$(tail -c1 "$target")" ]; then echo >> "$target"; f
 printf '%s\n' "$block" >> "$target"
 
 echo "${action} the 'dojo' function in ${target} (runs ${root}/run.sh)."
+if [ -n "$comp" ]; then
+  echo "It also loads tab completion for 'dojo' and ./run.sh."
+else
+  echo "Tab completion is zsh only for now; nothing added for ${SHELL:-your shell}."
+fi
 if [ "$target" != "$rc" ]; then
   echo "Note: ${target} only takes effect if ${rc} sources it."
 fi

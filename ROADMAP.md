@@ -30,6 +30,35 @@ bot steps) and the radar (a test user repeating a failing command 5 times shows 
 key from a student terminal. Facilitator-only nudges: Sensei never speaks first at a student's prompt. Not built:
 activity survives only in memory (a restart of the achievements service empties the radar until students type again).
 
+### Next testing, in order (written 2026-10-01; nothing below has run live)
+
+**0. Commit and push first.** About 92 files are uncommitted on `feat/achievements` (Sensei support desk and approve
+mode, the dns-as-code bots and labs, the achievements fixes, the vault/cloud event files); `git add -A` was refused in
+this session, so the user stages and commits. A demo from an uncommitted tree can't be reproduced.
+
+**1. The home demo (`./run.sh <pack> --env home`, https://dojo.macleodtech.ca, VPN only).** Use dns-as-code (the most
+exercised pack) with `ACHIEVEMENTS_ENABLED=1`. Before the guest arrives, do one dry run yourself as `student01`, in
+this order, and stop on the first failure:
+
+1. `./run.sh <pack> --dry-run --env home`, then start it; `podman ps` shows `workshop_sensei` and `workshop_achievements` healthy.
+2. In the terminal: `sensei help`, `sensei ask "how do I undo a push"`, then `git push` to `main` and `sensei why`.
+3. `sensei hand "demo"`: the card appears in the Sensei tab with the screen; reply there; `sensei inbox` shows it.
+4. Run `dnscontrol preview` a few steps, then `sensei check`: your done steps match what the board says.
+5. Repeat one failing command 5 times: the Stuck radar shows you as `failing` within ~10 s (set
+   `SENSEI_STUCK_MINUTES=1` in `workshop.env` if you also want `stalled` quickly).
+6. Lab 3 with `sensei review`, `sensei approve`, `sensei approve --force`, then merge and `dig`.
+7. From the student terminal, `curl http://achievements:8080/api/sensei/activity` must answer 403.
+8. Check the Sensei and Achievements tabs load for the facilitator (iframe framing over the home Caddy), and that
+   toasts still appear through https.
+
+Known soft spots for the demo: the radar and `sensei check` have never run against real traffic; activity is in memory
+(restarting achievements empties the radar); with `--test` bots running, `testuser*` accounts show up in the radar and
+the board. Have `./run.sh stop` ready, it wipes volumes (ask first if anyone else is using the machine).
+
+**2. Then the leftovers below,** in the order already listed: the dns-as-code `--test 3` re-run, cert-autorenewal,
+tofu-basics (also check the added Sensei container against its 15-student ceiling), vault-fundamentals, the
+class-sized run. When the demo dry run passes, move the "Sensei as a support desk" section to `RELEASES.md`.
+
 ### Phase 9 live checks: start here (order matters)
 
 Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it

@@ -120,7 +120,7 @@ Commands:
   setup [--default] [--force]   create engine/.env (--rotate-class: new class
                                 password only)
   capacity --students N [...]   size the terminal resource limits for this machine
-  alias-setup                   add a 'dojo' shell function (runs this run.sh from
+  alias-setup                   add a 'dojo' shell function and zsh tab completion (runs this run.sh from
                                 anywhere) to ~/.zshrc_aliases / ~/.zshrc, or
                                 ~/.bash_aliases / ~/.bashrc for bash
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
