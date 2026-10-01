@@ -4,42 +4,55 @@
       "id": "f-echo",
       "title": "Echo Chamber",
       "joke": "You `echo`ed a secret. To your shell history.",
-      "when": "shell: `echo` or `export` with a `hvs.`-style string",
-      "match": {}
+      "when": "shell: `echo`, `printf` or `export` with a token-shaped string (`hvs.`, `sbr.` or `s.` + 20 characters)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "echo",
+          "printf",
+          "export"
+        ],
+        "regex": "\\b(hvs|sbr)\\.[A-Za-z0-9_-]{10,}|\\bs\\.[A-Za-z0-9]{20,}"
+      }
     },
     {
       "id": "f-history",
       "title": "Hist-Oh-Ry",
       "joke": "It is in your shell history now.",
-      "when": "shell: `history` after a token was typed",
-      "match": {}
+      "when": "shell: `history` after a token-shaped string was typed",
+      "match": {
+        "source": "shell",
+        "cmd": "history",
+        "exit": 0,
+        "requires": "f-echo"
+      }
     },
     {
       "id": "f-root",
       "title": "Root of the Problem",
       "joke": "You used the root token. Everyone has, once.",
-      "when": "bao: any request with a root-policy token",
+      "when": "bao: any request with a root-policy token (not wired: needs a `bao` audit event carrying the token's policies)",
       "match": {}
     },
     {
       "id": "f-typopath",
       "title": "Wrong Path, Right Attitude",
       "joke": "No value at that path. Check the mount.",
-      "when": "bao: 404 on a KV path",
+      "when": "bao: 404 on a KV path (not wired: exit codes can't tell a missing path from a denied one; needs a `bao` audit event with the response code)",
       "match": {}
     },
     {
       "id": "f-seal",
       "title": "Sealed and Loving It",
       "joke": "The vault is sealed. This is fine.",
-      "when": "bao: `sealed` response (facilitator action)",
+      "when": "bao: `sealed` response (facilitator action; not wired: needs the `bao` source or the health check)",
       "match": {}
     },
     {
       "id": "f-paste",
       "title": "Paste Bin Energy",
       "joke": "A secret in the chat. It happens.",
-      "when": "shell: a fake secret string appears in a shared channel (only in lab 13)",
+      "when": "shell: a fake secret string in a shared channel (not wired: no channel is observed)",
       "match": {}
     }
   ]

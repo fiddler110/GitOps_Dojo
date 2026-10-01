@@ -166,6 +166,24 @@ class TrustModel(Base):
 
 
 class Reads(Base):
+    def test_check_token_reads_only_the_callers_own_overview(self):
+        self.env["CLOUD_CHECK_TOKEN"] = "chk"
+        def get(url, user=A, token="chk"):
+            u = urlparse(url)
+            h = {"x-check-token": token, "x-auth-user": user}
+            st, _, data = self.portal.dispatch("GET", u.path, parse_qs(u.query), Headers(h), b"")
+            return st, json.loads(data)
+        st, doc = get("/cloud/api/overview?scope=mine")
+        self.assertEqual(st, 200)
+        self.assertEqual({c["dnsLabel"] for c in doc["containerGroups"]}, {"site-a1", "site-a2"})
+        self.assertEqual(get("/cloud/api/overview?scope=class")[0], 403)
+        self.assertEqual(get("/cloud/api/me")[0], 403)
+        self.assertEqual(get("/cloud/api/overview", token="wrong")[0], 401)
+        self.assertEqual(get("/cloud/api/overview", user="nobody")[0], 401)
+        u = urlparse(self.cg_url(A, "rg-a", "ci-a1", "/stop"))
+        st, _, _ = self.portal.dispatch("POST", u.path, {}, Headers({"x-check-token": "chk", "x-auth-user": A}), b"")
+        self.assertEqual(st, 403)
+
     def test_overview_mine_vs_class(self):
         _, mine = self.jcall("GET", "/cloud/api/overview?scope=mine")
         self.assertEqual({c["name"] for c in mine["containerGroups"]}, {"ci-a1", "ci-a2"})

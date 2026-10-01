@@ -5,32 +5,78 @@
       "title": "Idempotent, Baby",
       "joke": "Applied twice, changed once.",
       "core": true,
-      "when": "shell: second `tofu apply` reports 0 changes",
-      "match": {}
+      "when": "shell: the first `tofu plan` (exit 0) after the first apply; the \"No changes\" text itself is not read, only that the plan ran cleanly on an applied config",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": 0,
+        "requires": "t1-apply"
+      }
     },
     {
       "id": "t2-change",
       "title": "Tilde Time",
       "joke": "An in-place change, read carefully.",
       "core": true,
-      "when": "shell: `tofu plan` shows `~`",
-      "match": {}
+      "when": "shell: the first successful `tofu apply` after the idempotent plan (the edited input applied); the `~` in the plan text is not read",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "requires": "t2-idem"
+      }
     },
     {
       "id": "t2-replace",
       "title": "Out With the Old",
       "joke": "Forced a replacement.",
       "core": true,
-      "when": "shell: `tofu apply -replace=...` or plan `-/+`",
-      "match": {}
+      "when": "shell: `tofu plan -replace=...` or `tofu apply -replace=...` (exit 0)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu plan",
+              "terraform plan"
+            ],
+            "exit": 0,
+            "regex": "\\s-replace[= ]"
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu apply",
+              "terraform apply"
+            ],
+            "exit": 0,
+            "regex": "\\s-replace[= ]"
+          }
+        ]
+      }
     },
     {
       "id": "t2-broke",
       "title": "Broke It On Purpose",
       "joke": "Errors are teachers.",
       "core": true,
-      "when": "shell: `tofu validate` or `plan` exits 1",
-      "match": {}
+      "when": "shell: `tofu validate` or `tofu plan` exits nonzero",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu validate",
+          "terraform validate",
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": "nonzero"
+      }
     }
   ]
 }

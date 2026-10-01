@@ -56,13 +56,27 @@ MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ve
 #     event        push | create | delete | pull_request | pull_request_review
 #     action       pull_request: opened, merged, closed, reopened, ...; review: approved, rejected, comment
 #     ref_type     create/delete: branch or tag;  branch, tag;  repo "owner/name" ({user} allowed)
+#     head         pull_request: the PR's head branch; head_prefix: it starts with this ({user} allowed)
+#   dns: one accepted or refused write to a zone by a student's own key, posted (signed) by the
+#     dns-gate module and credited to that account.
+#     event        zone_patch | api_refused;  zone "name" ({user} allowed)
+#     first        zone_patch: true for the first change the gate has seen to that zone
+#     created_min, changed_min, deleted_min   zone_patch: at least this many records added / edited / removed
+#     ttl_below    zone_patch: some record set now has a TTL below this
+#   Every source also takes:
+#     requires     an id or list of ids the student must already hold when the event arrives
+#     count        fire from the Nth matching event of this student on (N >= 2)
 #   Any field `x_not` (where listed) is true when the event's x is present and differs.
 #   {"any": [match, ...]} fires when one of the listed matches does.
 MATCH_FIELDS = {
     "shell": {"cmd", "flags", "flags_none", "regex", "exit", "branch", "branch_not", "branch_before",
-              "branch_before_not", "in_repo", "merging", "merging_after"},
-    "forgejo": {"event", "action", "ref_type", "branch", "branch_not", "tag", "repo", "repo_not"},
+              "branch_before_not", "in_repo", "merging", "merging_after", "requires", "count"},
+    "forgejo": {"event", "action", "ref_type", "branch", "branch_not", "tag", "repo", "repo_not", "head",
+                "head_prefix", "requires", "count"},
+    "dns": {"event", "zone", "first", "created_min", "changed_min", "deleted_min", "ttl_below", "requires",
+            "count"},
 }
+DNS_EVENTS = ("zone_patch", "api_refused")
 FORGEJO_EVENTS = ("push", "create", "delete", "pull_request", "pull_request_review")
 
 
@@ -100,12 +114,18 @@ def check_match(match, where):
     if len(match) == 1:
         problems.append(f"{where}: match needs at least one field besides 'source'")
     for key in ("cmd", "flags", "flags_none", "branch", "branch_not", "branch_before", "branch_before_not",
-                "action", "ref_type", "tag", "repo", "repo_not"):
+                "action", "ref_type", "tag", "repo", "repo_not", "head", "head_prefix", "requires", "zone"):
         if key in match and not _strs(match[key]):
             problems.append(f"{where}: match.{key} must be a string or a list of strings")
-    for key in ("in_repo", "merging", "merging_after"):
+    for key in ("created_min", "changed_min", "deleted_min", "ttl_below"):
+        if key in match and (not isinstance(match[key], int) or isinstance(match[key], bool) or match[key] < 0):
+            problems.append(f"{where}: match.{key} must be a whole number")
+    for key in ("in_repo", "merging", "merging_after", "first"):
         if key in match and not isinstance(match[key], bool):
             problems.append(f"{where}: match.{key} must be true or false")
+    if "count" in match and (not isinstance(match["count"], int) or isinstance(match["count"], bool)
+                             or match["count"] < 2):
+        problems.append(f"{where}: match.count must be a whole number of 2 or more")
     if "exit" in match:
         e = match["exit"]
         ok = e in ("nonzero", "any") or (isinstance(e, int) and not isinstance(e, bool)) or (
@@ -121,6 +141,10 @@ def check_match(match, where):
         events = match.get("event")
         if not _strs(events) or any(e not in FORGEJO_EVENTS for e in ([events] if isinstance(events, str) else events)):
             problems.append(f"{where}: match.event must be one of {', '.join(FORGEJO_EVENTS)}")
+    if source == "dns":
+        events = match.get("event")
+        if not _strs(events) or any(e not in DNS_EVENTS for e in ([events] if isinstance(events, str) else events)):
+            problems.append(f"{where}: match.event must be one of {', '.join(DNS_EVENTS)}")
     return problems, sources
 
 

@@ -4,8 +4,12 @@
       "id": "f-untrusted",
       "title": "Trust No One",
       "joke": "`certificate verify failed`. Correct instinct.",
-      "when": "shell: `curl` exits 60",
-      "match": {}
+      "when": "shell: `curl` exits 60 (certificate verify failed)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "exit": 60
+      }
     },
     {
       "id": "f-ratelimit",
@@ -25,15 +29,28 @@
       "id": "f-staging",
       "title": "Practice Makes Perfect",
       "joke": "Used `--staging` or `--test`. Wise.",
-      "when": "shell: `certbot --dry-run` or `--staging`",
-      "match": {}
+      "when": "shell: `certbot ... --dry-run` or `--staging` (or `--test-cert`)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot",
+        "flags": [
+          "--dry-run",
+          "--staging",
+          "--test-cert"
+        ]
+      }
     },
     {
       "id": "f-selfsigned",
       "title": "Self-Signed and Proud",
       "joke": "You made your own CA. Very independent.",
-      "when": "shell: `openssl req -x509 -newkey`",
-      "match": {}
+      "when": "shell: `openssl req -x509`, exit 0",
+      "match": {
+        "source": "shell",
+        "cmd": "openssl req",
+        "flags": "-x509",
+        "exit": 0
+      }
     }
   ]
 }

@@ -14,6 +14,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   POST /api/shell         one command line from the prompt hook {cmd, exit, branch, ...}:
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
+  POST /api/adapter       a module's event (dns-gate), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
@@ -24,6 +25,7 @@ Trust: X-Auth-User counts only with X-Gateway-Token. workshop_lab reaches this p
 so a request without the token is anonymous: it may post a signed event (an adapter or
 checker) and nothing else. A forged event is charged only to an identified caller.
 """
+import glob
 import hmac
 import http.server
 import json
@@ -58,8 +60,8 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
 }
-PAGES = {"/": "board.html", "/widget": "widget.html"}
-ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js")
+PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html"}
+ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js")
 ADMIN_PAGES = {"/": "admin.html"}
 ADMIN_ASSETS = ("admin.js", "style.css")
 
@@ -69,10 +71,14 @@ FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
 PUBLIC_FORGEJO = os.environ.get("FORGEJO_CLONE_BASE", "http://git-server:3000").rstrip("/")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgejo")
 WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
+# Modules' adapters (dns-gate) post signed events with this; unset means /api/adapter is off.
+ADAPTER_SECRET = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET") or None
 
-# Verifier and seed-builder plug-ins (A22): this module's own (Forgejo/git), plus any listed
+# Verifier and seed-builder plug-ins (A22): this module's own (Forgejo/git), every plugins/<name>/ folder
+# (a backend's verbs, e.g. plugins/dns), plus any listed
 # in ACHIEVEMENTS_PLUGIN_DIRS (colon-separated folders holding a verifiers.json).
 PLUGIN_DIRS = [os.path.join(HERE, "..", "achievements")] + \
+    sorted(glob.glob(os.path.join(HERE, "..", "plugins", "*"))) + \
     [d for d in os.environ.get("ACHIEVEMENTS_PLUGIN_DIRS", "").split(":") if d]
 
 store = None
@@ -107,10 +113,13 @@ def client_hash():
 def make_store():
     env = os.environ
     catalog = load_catalog()
-    return Store(catalog, lg.Config.from_env(env), env.get("DATA_DIR", "/data"),
+    store = Store(catalog, lg.Config.from_env(env), env.get("DATA_DIR", "/data"),
                  secret=GATEWAY_TOKEN or os.urandom(16).hex(),
                  anonymous=env.get("ACHIEVEMENTS_ANONYMOUS", "1") not in ("0", "false", "no", ""),
                  facilitator=FACILITATOR, ignore=(env.get("FORGEJO_ADMIN_USER"),))
+    store.signature = env.get("ACHIEVEMENTS_SIGNATURE", "")[:80]
+    store.class_date = env.get("ACHIEVEMENTS_CLASS_DATE", "")[:40]
+    return store
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -204,6 +213,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         event = matcher.forgejo_event(webhook.event_kind(self.headers), payload)
         return self._json(200, store.forgejo(event) if event else {"ignored": True})
 
+    def _adapter(self):
+        """A module's signed event (dns-gate): the raw body is HMAC-signed, like the Forgejo webhook."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if not 0 <= n <= MAX_BODY:
+            raise Denied(413, "body too large")
+        raw = self.rfile.read(n)
+        sent = (self.headers.get("X-Adapter-Signature") or "").strip().lower()
+        if not ADAPTER_SECRET or not hmac.compare_digest(webhook.signature(ADAPTER_SECRET, raw).encode(), sent.encode()):
+            log("adapter event: bad signature, refused")
+            raise Denied(403, "bad signature")
+        try:
+            body = json.loads(raw or b"{}")
+        except ValueError:
+            raise Denied(400, "not JSON")
+        event = matcher.dns_event(body) if isinstance(body, dict) and body.get("source") == "dns" else None
+        return self._json(200, store.adapter(event) if event else {"ignored": True})
+
     def _run(self, fn):
         try:
             fn()
@@ -233,6 +262,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         caller = self._caller()
         if path == "/api/me":
             return self._json(200, store.me(self._need(caller)))
+        if path == "/api/certificate":
+            return self._json(200, store.certificate(self._need(caller)))
         if path == "/api/board":
             return self._json(200, {"rows": store.board(self._need(caller))})
         if path == "/api/toasts":
@@ -256,6 +287,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._admin_post(path[len(ADMIN_PREFIX):])
         if path == "/api/forgejo":
             return self._webhook()
+        if path == "/api/adapter":
+            return self._adapter()
         if path == "/api/shell":
             # The terminal only: its Forgejo token, and the shipped client (a wrong one is -1).
             user = self._caller(mutating=True) if not self._gateway_user() else None
@@ -281,6 +314,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cid = body.get("challenge")
             if not isinstance(cid, str):
                 raise Denied(400, "challenge is required")
+            store.probe(user, body)
             if runner is None:
                 raise Denied(501, "challenge checking needs the service's Forgejo login, which isn't set")
             try:
@@ -326,6 +360,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self._body()
         if path == "/api/award":
             store.admin_award(body.get("user"), body.get("points"), body.get("reason", ""))
+        elif path == "/api/complete":
+            store.admin_complete(body.get("user"), body.get("on", True))
         elif path == "/api/reset":
             store.admin_reset(body.get("user"))
         elif path == "/api/reload":

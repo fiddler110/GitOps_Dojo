@@ -5,7 +5,7 @@
       "title": "Cloud Tourist",
       "joke": "Opened the portal.",
       "core": true,
-      "when": "cloud: first portal request by the student",
+      "when": "cloud: first portal request by the student (needs the `cloud` event source, see the report)",
       "match": {}
     },
     {
@@ -13,16 +13,44 @@
       "title": "Keys to the Kingdom",
       "joke": "Your credentials are in your environment.",
       "core": true,
-      "when": "shell: `env` or `echo $ARM_*` (values are never logged)",
-      "match": {}
+      "when": "shell: `env`, `printenv`, or `echo`/`grep` naming `ARM_*` (values are never logged)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "env",
+              "printenv"
+            ],
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "echo",
+              "grep"
+            ],
+            "exit": 0,
+            "regex": "ARM_"
+          }
+        ]
+      }
     },
     {
       "id": "t4-provider",
       "title": "Provider Installed",
       "joke": "azurerm, but a friendlier universe.",
       "core": true,
-      "when": "shell: `tofu init` in the Track B folder (exit 0)",
-      "match": {}
+      "when": "shell: `tofu init` (exit 0) after the credentials were looked at (Track B; the folder is not read, the earlier milestone tells the tracks apart)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu init",
+          "terraform init"
+        ],
+        "exit": 0,
+        "requires": "t4-creds"
+      }
     }
   ]
 }

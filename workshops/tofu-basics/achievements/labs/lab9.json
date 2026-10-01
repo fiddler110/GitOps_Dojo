@@ -5,7 +5,7 @@
       "title": "One Block, Many Sites",
       "joke": "`for_each` made the copies.",
       "core": true,
-      "when": "verify: 3+ containers from one resource block",
+      "when": "cloud state: 3+ containers from one resource block (no `match` field reads cloud state; needs a `cloud` event or milestone `verify`)",
       "match": {}
     },
     {
@@ -13,7 +13,7 @@
       "title": "Quota Reached",
       "joke": "You met the limit.",
       "core": true,
-      "when": "cloud: quota denial for the student",
+      "when": "cloud: quota denial for the student (needs the `cloud` event source)",
       "match": {}
     },
     {
@@ -21,8 +21,16 @@
       "title": "Code Meets Reality",
       "joke": "Reduced the code to what fits.",
       "core": true,
-      "when": "shell: `tofu plan` reports no changes after the quota",
-      "match": {}
+      "when": "shell: `tofu plan` (exit 0) after the quota denial (fires once `t9-quota` is earned, so it waits for the `cloud` event source)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": 0,
+        "requires": "t9-quota"
+      }
     }
   ]
 }

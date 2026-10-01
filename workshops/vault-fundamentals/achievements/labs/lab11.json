@@ -5,15 +5,20 @@
       "title": "A Role for Your Slot",
       "joke": "The platform vouches for the app.",
       "core": true,
-      "when": "verify: role bound to the student's slot",
-      "match": {}
+      "when": "shell: `bao write auth/jwt-platform/role/app ...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "auth/jwt-platform/role/app(\\s|$)",
+        "exit": 0
+      }
     },
     {
       "id": "v11-deploy",
       "title": "Deployed With Identity",
       "joke": "No secret ID at all.",
       "core": true,
-      "when": "bao: workload login from the app",
+      "when": "bao: workload login from the app (not wired: needs a `bao` event `login`, mount jwt-platform, role app)",
       "match": {}
     },
     {
@@ -21,7 +26,7 @@
       "title": "The Pipeline Cannot Read",
       "joke": "Deployed, but never saw the secret.",
       "core": true,
-      "when": "verify: pipeline identity has no read on the app path",
+      "when": "verify: the pipeline's role has no read on the app path (not wired: a milestone can't run a verb; the `role_policy_grants` verb of the bao plug-in could check it as a challenge step)",
       "match": {}
     },
     {
@@ -29,8 +34,17 @@
       "title": "Rotated, No Deploy",
       "joke": "New value, same code.",
       "core": true,
-      "when": "bao: secret rewritten; verify: app serves the new value",
-      "match": {}
+      "when": "shell: `bao kv put` or `patch` on `team/app` (exit 0) after the platform role was written",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv put",
+          "bao kv patch"
+        ],
+        "regex": "\\bteam/app\\b",
+        "exit": 0,
+        "requires": "v11-role"
+      }
     }
   ]
 }

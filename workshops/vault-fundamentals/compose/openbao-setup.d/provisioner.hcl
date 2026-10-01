@@ -27,3 +27,18 @@ path "students/+/sys/mounts"          { capabilities = ["read"] }
 path "students/+/sys/mounts/database" { capabilities = ["create", "read", "update"] }
 path "students/+/database/config/app-db"      { capabilities = ["create", "read", "update"] }
 path "students/+/database/rotate-root/app-db" { capabilities = ["update"] }
+
+# The achievements check token (40-achievements.sh): one read-only policy and a token with a chosen id
+# (derived by the openbao module.env), and nothing else may be minted this way.
+path "sys/policies/acl/check" { capabilities = ["create", "read", "update"] }
+path "auth/token/create" {
+  capabilities = ["create", "update", "sudo"]
+  allowed_parameters = {
+    "id"              = []
+    "policies"        = ["check"]
+    "no_default_policy" = []
+    "no_parent"       = []
+    "ttl"             = []
+    "display_name"    = []
+  }
+}

@@ -5,7 +5,7 @@
       "title": "Front Door",
       "joke": "Signed in with Forgejo. No password to forget.",
       "core": true,
-      "when": "bao: OIDC login for the student",
+      "when": "bao: OIDC login for the student (not wired: needs a `bao` source event `login`, method oidc, from openbao-audit)",
       "match": {}
     },
     {
@@ -14,15 +14,24 @@
       "joke": "The terminal was already signed in.",
       "core": true,
       "when": "shell: `bao token lookup` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "bao token lookup",
+        "exit": 0
+      }
     },
     {
       "id": "v0-first",
       "title": "First Secret",
       "joke": "Your very first secret.",
       "core": true,
-      "when": "verify: `secret_exists` at the lab 0 path",
-      "match": {}
+      "when": "shell: `bao kv get` of the welcome secret (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao kv get",
+        "regex": "students/\\S+/welcome",
+        "exit": 0
+      }
     }
   ]
 }

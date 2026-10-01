@@ -48,133 +48,133 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v0-ui | Front Door | "Signed in with Forgejo. No password to forget." | 10 | yes | bao: OIDC login for the student |
+| v0-ui | Front Door | "Signed in with Forgejo. No password to forget." | 10 | yes | bao: OIDC login for the student (not wired: needs a `bao` source event `login`, method oidc, from openbao-audit) |
 | v0-token | Token Holder | "The terminal was already signed in." | 10 | yes | shell: `bao token lookup` (exit 0) |
-| v0-first | First Secret | "Your very first secret." | 10 | yes | verify: `secret_exists` at the lab 0 path |
+| v0-first | First Secret | "Your very first secret." | 10 | yes | shell: `bao kv get` of the welcome secret (exit 0) |
 
 ## Lab 1: leak it
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v1-leak | Oops, Committed | "A secret in git. It happens to everyone." | 10 | yes | shell: `git commit` with the lab's fake key staged |
-| v1-scan | Scanner Darkly | "A scanner found it." | 10 | yes | shell: `gitleaks` (exit non-zero, then 0 later) |
-| v1-hook | Pre-Commit Bouncer | "A hook now stops the next leak." | 10 | yes | verify: `.git/hooks/pre-commit` present and blocks the fake key |
+| v1-leak | Oops, Committed | "A secret in git. It happens to everyone." | 10 | yes | shell: the lab's first `git commit` inside a repo (exit 0); it can't see the file's content, only that a commit happened |
+| v1-scan | Scanner Darkly | "A scanner found it." | 10 | yes | shell: `gitleaks` exits non-zero, which is how it reports a finding |
+| v1-hook | Pre-Commit Bouncer | "A hook now stops the next leak." | 10 | yes | shell: a `git commit` that fails after a scan found the leak (the hook refusing it; a commit that fails for another reason also counts) |
 
 ## Lab 2: `pass` on your own machine
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v2-key | A Key of Your Own | "Your own GPG key." | 10 | yes | shell: `gpg --gen-key` or `--list-keys` shows a student key |
+| v2-key | A Key of Your Own | "Your own GPG key." | 10 | yes | shell: `gpg --quick-gen-key` (or --gen-key) exits 0 |
 | v2-store | Password Store | "An encrypted store." | 10 | yes | shell: `pass init` (exit 0) |
-| v2-share | Shared, Then Unshared | "Shared it and took it back." | 10 | yes | shell: `pass` re-encrypt after a recipient change |
+| v2-share | Shared, Then Unshared | "Shared it and took it back." | 10 | yes | shell: the second `pass init -p <folder> ...` (share, then re-encrypt back to one recipient; exit 0) |
 
 ## Lab 3: the shared vault
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v3-putget | Put and Get | "Secrets in, secrets out." | 10 | yes | bao: KV write then read by the student |
-| v3-versions | Version Hoarder | "Versions kept so you can undo." | 10 | yes | bao: read of an older version |
-| v3-destroy | Deleted, Undeleted, Destroyed | "The three levels of gone." | 10 | yes | bao: delete, undelete and destroy events |
-| v3-door | Knocked on a Neighbour's Door | "Denied. Good." | 10 | yes | bao: permission denied on another student's path (also the 0-point funny) |
+| v3-putget | Put and Get | "Secrets in, secrets out." | 10 | yes | shell: `bao kv get` of your own `.../db` secret (exit 0), which comes after the put |
+| v3-versions | Version Hoarder | "Versions kept so you can undo." | 10 | yes | shell: `bao kv get -version=N` or `bao kv metadata get` (exit 0) |
+| v3-destroy | Deleted, Undeleted, Destroyed | "The three levels of gone." | 10 | yes | shell: `bao kv destroy` (exit 0), the last of delete, undelete and destroy |
+| v3-door | Knocked on a Neighbour's Door | "Denied. Good." | 10 | yes | shell: `bao kv get` or `list` of another student's `secret/students/<name>/` path fails |
 
 ## Lab 4: you are the admin
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v4-ns | Own Namespace | "Your own corner of the vault." | 10 | yes | bao: first request inside the student's namespace |
-| v4-engine | Engine Enabled | "A secrets engine of your own." | 10 | yes | verify: KV engine mounted in the namespace |
-| v4-policy | Least Privilege | "A policy that gives only what is needed." | 10 | yes | verify: `policy_attached` for the app token |
-| v4-revoke | Revoked It | "One command, no more token." | 10 | yes | bao: token revoke by the student |
+| v4-ns | Own Namespace | "Your own corner of the vault." | 10 | yes | shell: `export BAO_NAMESPACE=students/...` (exit 0) |
+| v4-engine | Engine Enabled | "A secrets engine of your own." | 10 | yes | shell: `bao secrets enable ... kv...` (exit 0) |
+| v4-policy | Least Privilege | "A policy that gives only what is needed." | 10 | yes | shell: `bao policy write app-read ...` (exit 0); it doesn't prove the policy was attached to a token |
+| v4-revoke | Revoked It | "One command, no more token." | 10 | yes | shell: `bao token revoke` (exit 0) |
 
 ## Lab 5: the app reads a secret
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v5-env | Not in the Code | "Moved it out of the source." | 10 | yes | shell: app run reading from `.env` |
-| v5-vault | The App Asks the Vault | "No file, no leak." | 10 | yes | bao: KV read by the app's token |
-| v5-nolog | Loose Lips | "Logging the secret? No." | 10 | yes | verify: app log does not contain the secret value |
-| v5-expired | Token Expiry | "Tokens run out. That is the point." | 10 | yes | bao: request with an expired token |
+| v5-env | Not in the Code | "Moved it out of the source." | 10 | yes | shell: `python3 app_env.py` (exit 0) |
+| v5-vault | The App Asks the Vault | "No file, no leak." | 10 | yes | shell: `python3 app_vault.py` (exit 0) |
+| v5-nolog | Loose Lips | "Logging the secret? No." | 10 | yes | verify: app log free of the secret value (not wired: needs a file verb on the student's workspace, `file_lacks`) |
+| v5-expired | Token Expiry | "Tokens run out. That is the point." | 10 | yes | shell: `python3 token_ttl.py` (exit 0) |
 
 ## Lab 6: OpenBao Agent
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v6-approle | AppRole Assigned | "An identity for the app." | 10 | yes | verify: AppRole exists in the namespace |
-| v6-agent | The Agent Works | "It logs in and keeps the token alive." | 10 | yes | bao: AppRole login from the Agent |
-| v6-rotate | Rotated Live | "No restart. No downtime." | 10 | yes | bao: secret rewritten; verify: app file content changed |
+| v6-approle | AppRole Assigned | "An identity for the app." | 10 | yes | shell: `bao write auth/approle/role/app ...` (exit 0) |
+| v6-agent | The Agent Works | "It logs in and keeps the token alive." | 10 | yes | shell: `bao agent` started (exit 0); it shows the Agent was started, not that its login worked |
+| v6-rotate | Rotated Live | "No restart. No downtime." | 10 | yes | shell: `bao kv put` or `patch` on `team/app` (exit 0) after the Agent was started |
 
 ## Lab 7: encrypted config in the repo
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v7-key | Key in the Vault | "A key that never leaves the vault." | 10 | yes | bao: transit key created |
-| v7-encrypt | Encrypted Config | "A file only the key can read." | 10 | yes | shell: `sops -e` (exit 0) |
-| v7-rotate | Key Rotation | "A new key version, old data still works." | 10 | yes | bao: transit rotate; shell: `sops updatekeys` |
+| v7-key | Key in the Vault | "A key that never leaves the vault." | 10 | yes | shell: `bao write -f transit/keys/<name>` (exit 0) |
+| v7-encrypt | Encrypted Config | "A file only the key can read." | 10 | yes | shell: `sops encrypt` or `sops -e` (exit 0) |
+| v7-rotate | Key Rotation | "A new key version, old data still works." | 10 | yes | shell: `bao write -f transit/keys/<name>/rotate` (exit 0) |
 
 ## Lab 8: Forgejo Actions secrets
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v8-secret | Repository Secret | "A secret in the repository." | 10 | yes | forgejo: secret created on the fork |
-| v8-masked | Masking Is Not Protection | "The log hid it. The job still knew it." | 10 | yes | forgejo: workflow run using the secret |
-| v8-rotate | Cleaned Up After | "Rotated what leaked." | 10 | yes | forgejo: secret updated after the run |
+| v8-secret | Repository Secret | "A secret in the repository." | 10 | yes | forgejo: secret created on the fork in the browser (not wired: Forgejo sends no event; needs a `repo_secret_exists` verb) |
+| v8-masked | Masking Is Not Protection | "The log hid it. The job still knew it." | 10 | yes | forgejo: the second push to your fork's main (the workflow that prints the secret again; a later push also counts) |
+| v8-rotate | Cleaned Up After | "Rotated what leaked." | 10 | yes | forgejo: secret updated after the run (not wired: Forgejo sends no event; needs `repo_secret_updated` compared with the run) |
 
 ## Lab 9: CI logs in to OpenBao
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v9-approle | The Stored Login | "The usual way: a login secret in CI." | 10 | yes | bao: AppRole login from a CI job |
-| v9-jwt | The Job's Own Identity | "No stored secret at all." | 10 | yes | bao: JWT login from a CI job |
-| v9-branch | Other Branches Refused | "Only main gets in." | 10 | yes | bao: denied login from a non-main branch |
-| v9-retire | Retired the Stored Secret | "Nothing left to steal." | 10 | yes | forgejo: repository secret deleted |
+| v9-approle | The Stored Login | "The usual way: a login secret in CI." | 10 | yes | bao: AppRole login from a CI job (not wired: needs a `bao` source event `login`, method approle, entity/alias `ci`) |
+| v9-jwt | The Job's Own Identity | "No stored secret at all." | 10 | yes | bao: JWT login from a CI job (not wired: needs a `bao` source event `login`, mount jwt-ci, role ci-main) |
+| v9-branch | Other Branches Refused | "Only main gets in." | 10 | yes | bao: refused JWT login from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci) |
+| v9-retire | Retired the Stored Secret | "Nothing left to steal." | 10 | yes | shell: `curl -X DELETE .../actions/secrets/<name>` (exit 0; curl exits 0 on an HTTP error, so this proves the request, not the deletion) |
 
 ## Lab 10: deploy with a delivered secret ID
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v10-strict | Strict Role | "The app's role is locked down." | 10 | yes | verify: `policy_attached` with a narrow role |
-| v10-wrap | Wrapped Delivery | "A secret ID only the app can open." | 10 | yes | bao: response-wrapped secret ID created and unwrapped once |
-| v10-deploy | Delivered and Deployed | "Pipeline delivers, app logs in." | 10 | yes | bao: app login with the delivered ID |
-| v10-branch | A Branch Gets Nothing | "A feature branch cannot deploy." | 10 | yes | bao: denied delivery from a non-main branch |
+| v10-strict | Strict Role | "The app's role is locked down." | 10 | yes | shell: `bao write auth/approle/role/app ... secret_id_num_uses=1` (exit 0) |
+| v10-wrap | Wrapped Delivery | "A secret ID only the app can open." | 10 | yes | bao: response-wrapped secret ID created and unwrapped once (not wired: needs `bao` events on `sys/wrapping/*`) |
+| v10-deploy | Delivered and Deployed | "Pipeline delivers, app logs in." | 10 | yes | bao: app login with the delivered secret ID (not wired: needs a `bao` event `login`, method approle, role app) |
+| v10-branch | A Branch Gets Nothing | "A feature branch cannot deploy." | 10 | yes | bao: refused delivery from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci, role deliver-main) |
 
 ## Lab 11: workload identity
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v11-role | A Role for Your Slot | "The platform vouches for the app." | 10 | yes | verify: role bound to the student's slot |
-| v11-deploy | Deployed With Identity | "No secret ID at all." | 10 | yes | bao: workload login from the app |
-| v11-nobread | The Pipeline Cannot Read | "Deployed, but never saw the secret." | 10 | yes | verify: pipeline identity has no read on the app path |
-| v11-rotate | Rotated, No Deploy | "New value, same code." | 10 | yes | bao: secret rewritten; verify: app serves the new value |
+| v11-role | A Role for Your Slot | "The platform vouches for the app." | 10 | yes | shell: `bao write auth/jwt-platform/role/app ...` (exit 0) |
+| v11-deploy | Deployed With Identity | "No secret ID at all." | 10 | yes | bao: workload login from the app (not wired: needs a `bao` event `login`, mount jwt-platform, role app) |
+| v11-nobread | The Pipeline Cannot Read | "Deployed, but never saw the secret." | 10 | yes | verify: the pipeline's role has no read on the app path (not wired: a milestone can't run a verb; the `role_policy_grants` verb of the bao plug-in could check it as a challenge step) |
+| v11-rotate | Rotated, No Deploy | "New value, same code." | 10 | yes | shell: `bao kv put` or `patch` on `team/app` (exit 0) after the platform role was written |
 
 ## Lab 12: dynamic database credentials
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v12-role | A Role, Not a Password | "What a login may do." | 10 | yes | verify: DB role defined in the namespace |
-| v12-lease | Lease Holder | "A login made just for you." | 10 | yes | bao: dynamic credential issued |
-| v12-renew | Renewed | "Extended the lease." | 10 | yes | bao: lease renew |
-| v12-revoke | Revoked | "Login gone, instantly." | 10 | yes | bao: lease revoke; verify: DB login fails |
+| v12-role | A Role, Not a Password | "What a login may do." | 10 | yes | shell: `bao write database/roles/app ...` (exit 0) |
+| v12-lease | Lease Holder | "A login made just for you." | 10 | yes | shell: `bao read database/creds/app` typed on its own, or `bao lease lookup` (exit 0); the lab's own `creds="$(bao read ...)"` form is one quoted word the shell hook can't split, so lookup is the sure trigger |
+| v12-renew | Renewed | "Extended the lease." | 10 | yes | shell: `bao lease renew` (exit 0) |
+| v12-revoke | Revoked | "Login gone, instantly." | 10 | yes | shell: `bao lease revoke` (exit 0); it doesn't check that the DB login failed afterwards |
 
 ## Lab 13: incident drill
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| v13-leak | Playing the Attacker | "You found the leaked token." | 10 | yes | bao: request made with the leaked token |
-| v13-audit | Read the Audit Log | "What did it do? Now you know." | 10 | yes | shell: `jq`/`grep` over the audit log |
-| v13-revoke | Revoke the Tree | "Killed the token and its children." | 10 | yes | bao: revoke with tree scope |
-| v13-rotate | Rotated What It Read | "New secrets, old ones worthless." | 10 | yes | bao: writes to the paths the token read |
-| v13-recover | The App Recovers | "No manual restart." | 10 | yes | verify: app serving with the new secret |
+| v13-leak | Playing the Attacker | "You found the leaked token." | 10 | yes | bao: request made with the leaked token (not wired: the shell hook drops a leading `BAO_TOKEN=...`; needs a `bao` audit event by the leaked token's accessor) |
+| v13-audit | Read the Audit Log | "What did it do? Now you know." | 10 | yes | shell: `bao-audit` with the token's accessor (exit 0) |
+| v13-revoke | Revoke the Tree | "Killed the token and its children." | 10 | yes | shell: `bao token revoke -accessor ...` (exit 0); revoking a token revokes its children |
+| v13-rotate | Rotated What It Read | "New secrets, old ones worthless." | 10 | yes | shell: `bao kv put` or `patch` on `team/app` or `team/ci` (exit 0) |
+| v13-recover | The App Recovers | "No manual restart." | 10 | yes | verify: app serving with the new secret (not wired: needs an HTTP verb on `app-host`) |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
-| f-echo | Echo Chamber | "You `echo`ed a secret. To your shell history." | 0 | shell: `echo` or `export` with a `hvs.`-style string |
-| f-history | Hist-Oh-Ry | "It is in your shell history now." | 0 | shell: `history` after a token was typed |
-| f-root | Root of the Problem | "You used the root token. Everyone has, once." | 0 | bao: any request with a root-policy token |
-| f-typopath | Wrong Path, Right Attitude | "No value at that path. Check the mount." | 0 | bao: 404 on a KV path |
-| f-seal | Sealed and Loving It | "The vault is sealed. This is fine." | 0 | bao: `sealed` response (facilitator action) |
-| f-paste | Paste Bin Energy | "A secret in the chat. It happens." | 0 | shell: a fake secret string appears in a shared channel (only in lab 13) |
+| f-echo | Echo Chamber | "You `echo`ed a secret. To your shell history." | 0 | shell: `echo`, `printf` or `export` with a token-shaped string (`hvs.`, `sbr.` or `s.` + 20 characters) |
+| f-history | Hist-Oh-Ry | "It is in your shell history now." | 0 | shell: `history` after a token-shaped string was typed |
+| f-root | Root of the Problem | "You used the root token. Everyone has, once." | 0 | bao: any request with a root-policy token (not wired: needs a `bao` audit event carrying the token's policies) |
+| f-typopath | Wrong Path, Right Attitude | "No value at that path. Check the mount." | 0 | bao: 404 on a KV path (not wired: exit codes can't tell a missing path from a denied one; needs a `bao` audit event with the response code) |
+| f-seal | Sealed and Loving It | "The vault is sealed. This is fine." | 0 | bao: `sealed` response (facilitator action; not wired: needs the `bao` source or the health check) |
+| f-paste | Paste Bin Energy | "A secret in the chat. It happens." | 0 | shell: a fake secret string in a shared channel (not wired: no channel is observed) |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 
@@ -187,32 +187,36 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 - **Points:** 100
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot
 - **Goal shown to the student:** Give a teammate's app read access to one of your secrets without giving it access to anything else in your namespace.
-- **Seed:** in the student's namespace, a teammate identity `buddy-{user}` with no policy, and two secrets at `challenge/one` and `challenge/two` in a KV mount the seed creates there.
-- **Verify:** in `students/{user}`: `policy_attached` for `buddy-{user}`, allows read of exactly one path, denied on the other.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-secret` (cloned to `~/lab/challenge-secret`) with a brief and `seed.sh`. The student runs `sh seed.sh` with their own token: in `students/{user}` it mounts a KV engine `challenge/` with secrets `challenge/one` and `challenge/two`, and makes the AppRole `buddy-{user}` with no policy. The service writes nothing in OpenBao.
+- **Verify:** in `students/{user}` (read with the read-only bao checker token, policy text and role settings only, never a value): the AppRole `buddy-{user}` has a policy other than `default`, and together its policies allow read of `challenge/data/one` and do not allow read of `challenge/data/two`.
 - **Hint 1:** A policy, then attach it.
 - **Hint 2:** The path in the policy is the whole permission.
-- **Collision check:** namespace-scoped; the shared `secret/` mount is not touched.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-secret`, `sh seed.sh`, `export BAO_NAMESPACE=students/$USER`, `printf 'path "challenge/data/one" {\n  capabilities = ["read"]\n}\n' | bao policy write share-one -`, `bao write auth/approle/role/buddy-$USER token_policies=share-one`, then `dojo-check c1`.
+- **Collision check:** namespace-scoped: the seed script and the check both work only in `students/{user}` (the checker's namespace comes from the student, never from an argument); the shared `secret/` mount is not touched.
 
 ### C2: The Right Lease (after Lab 12)
 
 - **Points:** 100
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot
 - **Goal shown to the student:** The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a **new** role called `c2-app`, and get a credential from it.
-- **Verify:** in `students/{user}`: database role `c2-app` has `default_ttl=2m`, `max_ttl=10m`, and a credential was issued from it (lease exists).
+- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-lease` (cloned to `~/lab/challenge-lease`) with a brief only. The student's own `database/config/app-db` from Lab 12 step 1 is the connection; the student creates `c2-app` and its credential.
+- **Verify:** in `students/{user}`: database role `c2-app` has `default_ttl` 2m and `max_ttl` 10m, and at least one lease exists under `database/creds/c2-app` (lease ids only, never the credential).
 - **Hint 1:** TTL and max TTL are separate settings.
 - **Hint 2:** On the role, not on the mount.
-- **Collision check:** each student has their own database `app_{user}` and their own `database/` engine.
+- **Answer:** `dojo-challenge start c2`, `export BAO_NAMESPACE=students/$USER`, `bao write database/roles/c2-app` as in Lab 12 step 2 (same `db_name` and statements) with `"default_ttl": "2m", "max_ttl": "10m"`, `bao read database/creds/c2-app`, then `dojo-check c2`.
+- **Collision check:** each student has their own database `app_{user}` and their own `database/` engine; the check reads only `students/{user}` (the namespace is derived from the student).
 
 ## Capstone (300 points, optional): Zero Standing Secrets
 
 - **Points:** 300
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot
 - **Goal shown to the student:** Give your app slot a new app with no secret stored anywhere in git, CI or on disk: identity from the platform, its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no deploy.
-- **Seed:** a starter `capstone/` folder in the student's fork, and empty names to use: policy `capstone-app`, role `capstone-app`, KV path `capstone/`. There is **one** slot per student, so the capstone reuses the student's own slot (`/srv/apps/{user}`): deploying it replaces the app the labs left running there. The brief says so.
-- **Verify:** in `students/{user}` only: workload login (no AppRole, no CI secret) for the role `capstone-app`; policy narrow (only `capstone/` and the DB creds path); one dynamic credential issued from `database/creds/`; the static secret rotated while the app kept running, with no deploy event in between (from the student's audit entries); no secret in the student's fork history (scanner passes).
+- **Seed:** `dojo-challenge start capstone` creates `{user}/capstone` (cloned to `~/lab/capstone`) with a brief and a starter `capstone/agent.hcl`; the names to use are policy `capstone-app`, platform role `capstone-app`, database role `capstone-app`, KV mount `capstone/` and secret `capstone/app`. There is **one** slot per student, so the capstone reuses the student's own slot (`/srv/apps/{user}`): deploying it replaces the app the labs left running there. The brief says so.
+- **Verify:** in `students/{user}` (metadata only, never a value): policy `capstone-app` names only paths under `capstone/` and `database/creds/`, allows read of `capstone/data/app` and `database/creds/capstone-app`, and not of `secret/`; the `jwt-platform` role `capstone-app` carries that policy; database role `capstone-app` exists with a credential issued from it; `capstone/app` has been written at least twice (a rotation); `capstone/agent.hcl` in the student's repo holds no `role_id` or `secret_id`. Not checked (no verb yet): that the rotation happened with no deploy in between, and that the scanner passes.
 - **Hint 1:** Labs 9, 11 and 12 combined.
 - **Hint 2:** Rotation is a write, not a deploy.
-- **Collision check:** namespace, database, fork and slot are all the student's own. It is safe for the whole class to run it at once. If the facilitator wants a slot other than the lab's, that is a new `app-host` feature (not needed for this).
+- **Answer:** `dojo-challenge start capstone`, then in `students/$USER`: enable `kv-v2` at `capstone`, write `capstone/app` (twice, the second is the rotation), write policy `capstone-app` (read `capstone/data/app` and `database/creds/capstone-app`), a database role `capstone-app`, the `jwt-platform` role `capstone-app` with `bound_subject=slot:$USER` and `token_policies=capstone-app`, read `database/creds/capstone-app` once, keep `agent.hcl` free of any role or secret id, then `dojo-check capstone`.
+- **Collision check:** namespace, database, fork, repo and slot are all the student's own; the checks read only `students/{user}` and `{user}/capstone`. It is safe for the whole class to run it at once. If the facilitator wants a slot other than the lab's, that is a new `app-host` feature (not needed for this).
 - **Badge tier:** capstone (stars)
 
 ## Totals (computed)

@@ -10,6 +10,7 @@
   function draw(d) {
     var c = d.completion;
     $('score').textContent = d.score;
+    $('score').className = d.score < 0 ? 'big neg' : 'big';
     $('rank').textContent = 'rank ' + d.rank + ' of ' + d.of;
     $('who').textContent = 'You are ' + d.name;
     $('fill').style.width = c.percent + '%';
@@ -18,7 +19,9 @@
     $('banner').className = c.complete ? 'banner' : 'banner hidden';
     $('recent-card').className = d.recent.length ? 'card' : 'card hidden';
     fill($('recent'), d.recent.slice(0, 10), function (tr, r) {
-      tr.appendChild(cell(r.title)); tr.appendChild(cell(r.points > 0 ? '+' + r.points : '', 'dim')); tr.appendChild(cell(when(r.at), 'dim'));
+      var t = cell(r.title); if (r.joke) { var j = document.createElement('div'); j.className = 'joke dim'; j.textContent = r.joke; t.appendChild(j); }
+      if (r.when) { tr.title = r.when; }
+      tr.appendChild(t); tr.appendChild(cell(r.points > 0 ? '+' + r.points : '', 'dim')); tr.appendChild(cell(when(r.at), 'dim'));
     });
     $('moments-card').className = d.moments.length ? 'card' : 'card hidden';
     fill($('moments'), d.moments, function (tr, m) {

@@ -4,36 +4,49 @@
       "id": "f-nolock",
       "title": "Locked Out",
       "joke": "State lock in the way.",
-      "when": "shell: `tofu` exits with an `Error acquiring the state lock`",
+      "when": "shell output: a `tofu` line that prints `Error acquiring the state lock` (needs shell output)",
       "match": {}
     },
     {
       "id": "f-typo",
       "title": "Fat Fingers",
       "joke": "A typo in a resource name.",
-      "when": "shell: `tofu validate` exits 1 with `Reference to undeclared`",
+      "when": "shell output: `tofu validate` exits 1 printing `Reference to undeclared` (needs shell output)",
       "match": {}
     },
     {
       "id": "f-yes",
       "title": "Auto Approve Bravado",
       "joke": "`-auto-approve` on the first try.",
-      "when": "shell: `tofu apply -auto-approve`",
-      "match": {}
+      "when": "shell: `tofu apply -auto-approve` (exit 0); \"on the first try\" is not checked",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "flags": "-auto-approve"
+      }
     },
     {
       "id": "f-destroyfirst",
       "title": "Destroy First",
       "joke": "Ran `destroy` before anything was created.",
-      "when": "shell: `tofu destroy` on empty state",
+      "when": "shell: `tofu destroy` while nothing is held yet (needs a generic `requires_not`, an id NOT yet held)",
       "match": {}
     },
     {
       "id": "f-statecommit",
       "title": "State in Git",
       "joke": "Committed `terraform.tfstate`. Lab 3 warned you.",
-      "when": "forgejo: push containing `terraform.tfstate`",
-      "match": {}
+      "when": "shell: a `git add` naming `terraform.tfstate` (exit 0); the push payload's file list is not read",
+      "match": {
+        "source": "shell",
+        "cmd": "git add",
+        "exit": 0,
+        "regex": "terraform\\.tfstate"
+      }
     }
   ]
 }

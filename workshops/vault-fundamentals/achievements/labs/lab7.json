@@ -5,24 +5,41 @@
       "title": "Key in the Vault",
       "joke": "A key that never leaves the vault.",
       "core": true,
-      "when": "bao: transit key created",
-      "match": {}
+      "when": "shell: `bao write -f transit/keys/<name>` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "transit/keys/[\\w-]+\\s*$",
+        "exit": 0
+      }
     },
     {
       "id": "v7-encrypt",
       "title": "Encrypted Config",
       "joke": "A file only the key can read.",
       "core": true,
-      "when": "shell: `sops -e` (exit 0)",
-      "match": {}
+      "when": "shell: `sops encrypt` or `sops -e` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "sops encrypt",
+          "sops -e"
+        ],
+        "exit": 0
+      }
     },
     {
       "id": "v7-rotate",
       "title": "Key Rotation",
       "joke": "A new key version, old data still works.",
       "core": true,
-      "when": "bao: transit rotate; shell: `sops updatekeys`",
-      "match": {}
+      "when": "shell: `bao write -f transit/keys/<name>/rotate` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "transit/keys/[\\w-]+/rotate\\b",
+        "exit": 0
+      }
     }
   ]
 }

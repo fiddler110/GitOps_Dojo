@@ -4,10 +4,19 @@
   "after": "after Lab 2 or 3",
   "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
   "goal": "Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.",
-  "verify_text": "`demo-app` serves a valid chain for that hostname (checked over SNI); the first site's cert serial is unchanged.",
-  "isolation": "a second vhost in the student's own subdirectory; issuance goes through the shared CA, which handles concurrent orders for different names.",
+  "verify_text": "`demo-app`'s HTTPS listener serves `shop.{user}.certs.dojo.test` (checked over SNI) a certificate that chains to the CA root, matches the name and is not expired, and is not the certificate served for `{user}.certs.dojo.test`. It cannot see whether the first site's serial changed, only that the two sites hold different certificates.",
+  "isolation": "a second vhost in the student's own subdirectory; issuance goes through the shared CA, which handles concurrent orders for different names. The check reads only names under `{user}.certs.dojo.test`.",
   "hints": [
     "Same steps as your first site, new hostname.",
     "New vhost, new issuance, new install."
-  ]
+  ],
+  "seed": "nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (added when the challenge opens) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` has no repo to clone here.",
+  "verify": [
+    {
+      "verb": "served_cert",
+      "host": "shop.{user}.certs.dojo.test",
+      "differs_from": "{user}.certs.dojo.test"
+    }
+  ],
+  "answer": "Make `/srv/webroot/{user}/` serve the `shop` vhost (the same webroot layout as Lab 2), then issue for `shop.{user}.certs.dojo.test` with certbot (Lab 2) or acme.sh (Lab 3), install the certificate where `demo-app` reads it, wait for the reload, and run `dojo-check c1`."
 }

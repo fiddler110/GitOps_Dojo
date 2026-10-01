@@ -1,0 +1,11 @@
+{
+  "backend": "certs",
+  "about": "Reads the certificate a student's own hostname is served with, over TLS with SNI, on the demo app's HTTPS listener (CERTS_TLS_ADDR host:port, CERTS_CA_ROOT root cert file, CERTS_PARENT the shared zone, default certs.dojo.test). A read-only handshake: nothing is written. A host must be the checking student's own ({user}.<parent> or below), refused otherwise. The chain, the hostname and the validity dates are checked against the CA root, as a browser would.",
+  "impl": "certcheck.py",
+  "verbs": {
+    "served_cert": {"args": ["host", "differs_from?", "san?"],
+                    "does": "host is served a certificate that chains to the CA root, matches the name and is not expired; differs_from: the serial differs from the one served for that other own host; san: each listed name is among the certificate's subject alternative names"},
+    "served_same": {"args": ["hosts", "san?"],
+                    "does": "every one of hosts is served a valid certificate and they all carry the same serial; san as above"}
+  }
+}

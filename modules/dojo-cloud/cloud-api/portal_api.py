@@ -137,7 +137,24 @@ class Portal:
             return bool(self.app.state.data.get("settings", {}).get("writeActions", True))
 
     # ---- router --------------------------------------------------------------
+    def _check_read(self, method, segs, query, headers):
+        """The achievements service's read-only credential (X-Check-Token, derived by module.env): it may
+        only GET the caller's own overview, so it can't act as anyone or change anything.
+        -> (user, response) when it applies, else None."""
+        given, expected = headers.get("X-Check-Token") or "", self.env.get("CLOUD_CHECK_TOKEN") or ""
+        if not given or not expected:
+            return None
+        user = headers.get("X-Auth-User") or ""
+        if not hmac.compare_digest(given.encode(), expected.encode()) or user not in self.app.auth.users:
+            return user, _err(401, "Unauthenticated", "The check token or account is not valid.")
+        if method != "GET" or segs != ["overview"] or (query.get("scope") or ["mine"])[0] != "mine":
+            return user, _err(403, "Forbidden", "The check token can only read an account's own overview.")
+        return user, self._overview(user, query)
+
     def _api(self, method, segs, query, headers, body):
+        checked = self._check_read(method, segs, query, headers)
+        if checked:
+            return checked[1]
         user, err = self._identity(headers)
         if err:
             return err

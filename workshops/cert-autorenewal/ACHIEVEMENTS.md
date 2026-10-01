@@ -48,53 +48,53 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| c1-root | Root of All Trust | "You fetched the CA's root certificate." | 10 | yes | shell: `curl` or `wget` for the root cert (exit 0) |
-| c1-fingerprint | Fingerprint Frisk | "Checked the fingerprint, like a suspicious bouncer." | 10 | yes | shell: `openssl x509 ... -fingerprint` |
-| c1-trust | Now We Trust You | "The system trusts the CA. Do not tell your bank." | 10 | yes | verify: `curl https://ca...` works with no `-k` |
+| c1-root | Root of All Trust | "You fetched the CA's root certificate." | 10 | yes | shell: `step certificate inspect /opt/step-ca-root/root_ca.crt` (or `step certificate ...` on the root file), exit 0 |
+| c1-fingerprint | Fingerprint Frisk | "Checked the fingerprint, like a suspicious bouncer." | 10 | yes | shell: `step certificate fingerprint` or `openssl x509 ... -fingerprint`, exit 0 |
+| c1-trust | Now We Trust You | "The system trusts the CA. Do not tell your bank." | 10 | yes | shell: `step ca bootstrap` exit 0 (the trust step; whether the bootstrap really wrote a usable config is not checked) |
 | c1-tools | Trust Issues, Resolved | "certbot and acme.sh trust it too, separately." | 10 | yes | verify: both tools' trust config points at the root |
 
 ## Lab 2: certbot
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| c2-vhost | Port 80 Open for Business | "Your vhost answers the challenge." | 10 | yes | verify: `http://{user}.demo/.well-known/` served |
-| c2-issue | Certified Fresh | "A real cert, minted by machine." | 10 | yes | ca: certificate issued for `{user}.demo` |
+| c2-vhost | Port 80 Open for Business | "Your vhost answers the challenge." | 10 | yes | shell: `curl --resolve host:80:IP http://host/` exit 0 (the vhost answers on port 80) |
+| c2-issue | Certified Fresh | "A real cert, minted by machine." | 10 | yes | shell: `certbot certonly` exit 0 (the client reports success; the CA log is not read) |
 | c2-install | Installed and Padlocked | "HTTPS on. Green padlock energy." | 10 | yes | verify: demo-app serves that certificate |
-| c2-verify | Trust, Verified | "You checked the chain with your own eyes." | 10 | yes | shell: `openssl s_client` or `curl -v https://...` |
+| c2-verify | Trust, Verified | "You checked the chain with your own eyes." | 10 | yes | shell: `openssl s_client` or `curl https://...` against the demo site with `--cacert`/`-v`, exit 0 |
 
 ## Lab 3: acme.sh
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| c3-issue | Same Job, Different Tool | "acme.sh did it in one line." | 10 | yes | ca: second certificate issued to the same student |
+| c3-issue | Same Job, Different Tool | "acme.sh did it in one line." | 10 | yes | shell: `acme.sh --issue` exit 0 (the client reports success; the CA log is not read) |
 | c3-read | Reading the Tea Leaves | "You read the tool's output." | 10 | yes | shell: `acme.sh --list` or `--info` |
 
 ## Lab 4: automate renewal
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| c4-script | Script Kiddie (Proud) | "A renewal script that reinstalls too." | 10 | yes | verify: script exists, executable, runs with exit 0 |
+| c4-script | Script Kiddie (Proud) | "A renewal script that reinstalls too." | 10 | yes | shell: the renewal script `renew-and-reload.sh` run by hand, exit 0 (existence and the executable bit are not checked separately) |
 | c4-installs | It Actually Installs | "Renewed and reloaded the server." | 10 | yes | verify: demo-app serves a cert with a newer serial |
-| c4-cron | Set It and Forget It | "Wired into cron." | 10 | yes | shell: `crontab` shows the renewal entry |
+| c4-cron | Set It and Forget It | "Wired into cron." | 10 | yes | shell: `crontab -e` (saved, exit 0) or `crontab -l`; the entry itself is not read |
 | c4-watch | Watched a Pot Boil | "You saw the renewal fire by itself." | 10 | yes | verify: renewal ran from cron (log entry not from a shell) |
 
 ## Lab 5: the dns-01 challenge
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| c5-start | Challenge Accepted | "Started a dns-01 issuance." | 10 | yes | ca: dns-01 order created for the student |
-| c5-txt | Prove You Own It | "TXT record deployed via the DNS pipeline." | 10 | yes | dns: `_acme-challenge.{user}` TXT present |
-| c5-done | Wildcard Energy | "Issued through DNS. No open ports needed." | 10 | yes | ca: dns-01 order valid |
+| c5-start | Challenge Accepted | "Started a dns-01 issuance." | 10 | yes | shell: `certbot certonly ... dns-01` run (fires when the command ends, however it ends; the CA order is not read) |
+| c5-txt | Prove You Own It | "TXT record deployed via the DNS pipeline." | 10 | yes | dns: the student's own key changed a name in `certs.dojo.test` (the TXT PATCH; which name is not in the event) |
+| c5-done | Wildcard Energy | "Issued through DNS. No open ports needed." | 10 | yes | shell: `certbot certonly ... dns-01` exit 0 (certbot reports the certificate issued) |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
-| f-untrusted | Trust No One | "`certificate verify failed`. Correct instinct." | 0 | shell: `curl` exits 60 |
+| f-untrusted | Trust No One | "`certificate verify failed`. Correct instinct." | 0 | shell: `curl` exits 60 (certificate verify failed) |
 | f-ratelimit | Too Eager | "Rate-limited. Slow down, tiger." | 0 | ca: `rateLimited` response for the student |
 | f-expired | Expired Milk | "You looked at an expired certificate." | 0 | shell: `openssl x509 -enddate` shows a past date |
-| f-staging | Practice Makes Perfect | "Used `--staging` or `--test`. Wise." | 0 | shell: `certbot --dry-run` or `--staging` |
-| f-selfsigned | Self-Signed and Proud | "You made your own CA. Very independent." | 0 | shell: `openssl req -x509 -newkey` |
+| f-staging | Practice Makes Perfect | "Used `--staging` or `--test`. Wise." | 0 | shell: `certbot ... --dry-run` or `--staging` (or `--test-cert`) |
+| f-selfsigned | Self-Signed and Proud | "You made your own CA. Very independent." | 0 | shell: `openssl req -x509`, exit 0 |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 
@@ -111,19 +111,24 @@ vhost directory and the certificate `demo-app` serves for their own hostnames on
 - **Points:** 100
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.
-- **Verify:** `demo-app` serves a valid chain for that hostname (checked over SNI); the first site's cert serial is unchanged.
+- **Seed:** nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (added when the challenge opens) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` has no repo to clone here.
+- **Verify:** `demo-app`'s HTTPS listener serves `shop.{user}.certs.dojo.test` (checked over SNI) a certificate that chains to the CA root, matches the name and is not expired, and is not the certificate served for `{user}.certs.dojo.test`. It cannot see whether the first site's serial changed, only that the two sites hold different certificates.
 - **Hint 1:** Same steps as your first site, new hostname.
 - **Hint 2:** New vhost, new issuance, new install.
-- **Collision check:** a second vhost in the student's own subdirectory; issuance goes through the shared CA, which handles concurrent orders for different names.
+- **Answer:** Make `/srv/webroot/{user}/` serve the `shop` vhost (the same webroot layout as Lab 2), then issue for `shop.{user}.certs.dojo.test` with certbot (Lab 2) or acme.sh (Lab 3), install the certificate where `demo-app` reads it, wait for the reload, and run `dojo-check c1`.
+- **Collision check:** a second vhost in the student's own subdirectory; issuance goes through the shared CA, which handles concurrent orders for different names. The check reads only names under `{user}.certs.dojo.test`.
 
 ### C2: The Short Fuse (after Lab 4)
 
 - **Points:** 100
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Certificates from this CA only last 5-10 minutes. Make `{user}.certs.dojo.test` renew on its own and stay valid for 20 minutes without you touching it.
+- **Seed:** nothing to seed: the student's own hostname and the wildcard A record.
 - **Verify:** the served serial for the student's hostname changes at least twice within the window, and it never presents an expired cert.
 - **Hint 1:** Cron runs at most once a minute.
 - **Hint 2:** `renew` only acts when the cert is close to expiry.
+- **Answer:** Reuse Lab 4's `renew-and-reload.sh` and its cron line for `{user}.certs.dojo.test`, and leave it alone for 20 minutes (the cert must be reissued at least twice). Not checkable by `dojo-check` yet.
+- **Collision check:** the student's own vhost directory and hostname only.
 
 ## Capstone (300 points, optional): The Wildcard Heist (a friendly one)
 
@@ -131,9 +136,10 @@ vhost directory and the certificate `demo-app` serves for their own hostnames on
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different vhosts (`www` and `api` under your name), and set up renewal that works for both.
 - **Seed:** the wildcard A record above. The two vhosts are created by the student in their own directory. The DNS pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.
-- **Verify:** both vhosts serve the same wildcard serial; a renewal entry exists; a forced renewal updates both.
+- **Verify:** `www.{user}.certs.dojo.test` and `api.{user}.certs.dojo.test` are both served, over SNI, a valid certificate that chains to the CA root, that covers `*.{user}.certs.dojo.test`, with the same serial on both. That a renewal entry exists and that a forced renewal updates both are not checked.
 - **Hint 1:** A wildcard only works through DNS.
 - **Hint 2:** One cert file, two vhosts, one reload.
+- **Answer:** Lab 5's dns-01 flow for `*.{user}.certs.dojo.test` (`certbot certonly --manual --preferred-challenges dns-01 -d '*.{user}.certs.dojo.test'`, the TXT record through `dns-api`), install the one certificate for both the `www` and `api` vhosts, reload, wire the renewal script into cron for both, then `dojo-check capstone`.
 - **Collision check:** the challenge TXT name is under the student's own parent, so two students issuing at once never overwrite each other's record.
 - **Badge tier:** capstone (stars)
 

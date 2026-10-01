@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sensei</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card">
+  <h2>Sensei <span class="dim" id="repo"></span></h2>
+  <div class="dim">Reviews each roster pull request and merges the good ones, bringing stale branches up to date.</div>
+  <p><strong id="attn"></strong></p>
+  <p><button id="toggle">Pause</button> <button id="scan">Look now</button> <span id="msg" class="dim"></span></p>
+</div>
+<div class="card">
+  <table><thead><tr><th>#</th><th>Student</th><th>Title</th><th>Status</th><th>Why</th><th>Minutes</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<script src="admin.js"></script>
+</body>
+</html>

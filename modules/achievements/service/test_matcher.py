@@ -206,3 +206,45 @@ class Enabled(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenericFields(unittest.TestCase):
+    """`requires`, `count` and forgejo `head_prefix`/`head` (shared by every pack)."""
+
+    def matcher(self, *matches):
+        index = {f"i{n}": {"kind": "milestone", "item": {"match": m}} for n, m in enumerate(matches)}
+        return mt.Matcher(index)
+
+    def pr(self, head, user="amy"):
+        return mt.forgejo_event("pull_request", {
+            "action": "opened", "sender": {"login": user}, "repository": {"full_name": "o/r"},
+            "pull_request": {"user": {"login": user}, "base": {"ref": "main"}, "head": {"ref": head}}})
+
+    def test_requires_needs_the_other_id_held(self):
+        m = self.matcher({"source": "shell", "cmd": "git push", "requires": "a"})
+        ev = shell("git push")
+        self.assertEqual(m.match(ev), [])
+        self.assertEqual(m.match(ev, {"a"}), ["i0"])
+
+    def test_count_fires_from_the_nth_event(self):
+        m = self.matcher({"source": "forgejo", "event": "pull_request", "action": "opened", "count": 3})
+        seen = {}
+
+        def bump(i):
+            seen[i] = seen.get(i, 0) + 1
+            return seen[i]
+        got = [m.match(self.pr("x"), (), bump) for _ in range(4)]
+        self.assertEqual(got, [[], [], ["i0"], ["i0"]])
+
+    def test_head_prefix_and_head(self):
+        m = self.matcher({"source": "forgejo", "event": "pull_request", "head_prefix": "rollback-"},
+                         {"source": "forgejo", "event": "pull_request", "head": "hotfix-{user}"})
+        self.assertEqual(m.match(self.pr("rollback-x")), ["i0"])
+        self.assertEqual(m.match(self.pr("hotfix-amy")), ["i1"])
+        self.assertEqual(m.match(self.pr("other")), [])
+
+    def test_catalog_accepts_and_rejects(self):
+        ok, _ = catalog.check_match({"source": "shell", "cmd": "x", "requires": ["a"], "count": 2}, "t")
+        self.assertEqual(ok, [])
+        bad, _ = catalog.check_match({"source": "shell", "cmd": "x", "count": 1}, "t")
+        self.assertTrue(bad)

@@ -5,23 +5,39 @@
       "title": "Read the Blueprint",
       "joke": "A plan for a real container.",
       "core": true,
-      "when": "shell: `tofu plan` in Track B",
-      "match": {}
+      "when": "shell: `tofu plan` (exit 0) after the Track B init",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": 0,
+        "requires": "t4-provider"
+      }
     },
     {
       "id": "t5-apply",
       "title": "Hello, World",
       "joke": "A real container in a real (practice) cloud.",
       "core": true,
-      "when": "cloud: container created; verify: `resource_state` running",
-      "match": {}
+      "when": "shell: `tofu apply` (exit 0) after the Track B init; a successful apply means the container group was created (the cloud is not asked)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "requires": "t4-provider"
+      }
     },
     {
       "id": "t5-site",
       "title": "It Is on the Internet",
       "joke": "Opened your own site.",
       "core": true,
-      "when": "cloud: request served by the student's container",
+      "when": "cloud: request served by the student's container (needs a `cloud` `site_request` event, see the report)",
       "match": {}
     }
   ]

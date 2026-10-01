@@ -242,6 +242,115 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.s.shell("a", {"cmd": "git clone y", "exit": 0}), {"unlocked": 0})
 
 
+class PokingTests(unittest.TestCase):
+    """The "poking a neighbour" ladder: 1 strike bumped (0), 3 curious (0), 8 persistent (-1)."""
+    tearDown, mk = StoreTests.tearDown, StoreTests.mk
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.clock = Clock()
+        self.mk()
+        for u in ("student01", "student02", "student10"):
+            self.s.me(u)
+
+    def sh(self, user, cmd):
+        self.clock.t += 1
+        return self.s.shell(user, {"cmd": cmd, "exit": 0})
+
+    def ids(self, user="student01"):
+        return self.s.ledger.unlocked_ids(user)
+
+    def test_ladder_over_shell_commands(self):
+        self.sh("student01", "ls /home/student02")
+        self.assertIn("cheat-bump", self.ids())
+        self.assertNotIn("cheat-curious", self.ids())
+        self.sh("student01", "cat student02/notes")
+        self.assertNotIn("cheat-curious", self.ids())
+        self.sh("student01", "git clone http://forgejo/student02/challenge-repo")
+        self.assertIn("cheat-curious", self.ids())
+        self.assertEqual(self.s.me("student01")["score"], 10)     # only the clone milestone
+        for _ in range(4):
+            self.sh("student01", "ls student02")
+        self.assertNotIn("cheat-persistent", self.ids())
+        self.sh("student01", "ls student02")
+        self.assertIn("cheat-persistent", self.ids())
+        self.assertEqual(self.s.me("student01")["score"], 9)
+        self.sh("student01", "ls student02")      # each tier fires once
+        self.assertEqual(self.s.me("student01")["score"], 9)
+        self.assertEqual(self.ids("student02"), set())
+
+    def test_own_name_and_lookalikes_are_not_pokes(self):
+        for cmd in ("ls /home/student01", "echo student1", "ls student100", "ls my-student02", "git status"):
+            self.sh("student01", cmd)
+        self.assertNotIn("cheat-bump", self.ids())
+        self.sh("student01", "ls /home/student10")
+        self.assertIn("cheat-bump", self.ids())
+
+    def test_forgejo_write_in_a_classmates_repo(self):
+        own = {"source": "forgejo", "event": "push", "user": "student01", "repo": "student01/challenge-repo"}
+        org = dict(own, repo="training/sample-training-repo")
+        self.s.forgejo(own); self.s.forgejo(org)
+        self.assertNotIn("cheat-bump", self.ids())
+        self.s.forgejo(dict(own, repo="student02/challenge-repo"))
+        self.assertIn("cheat-bump", self.ids())
+
+    def test_facilitator_in_a_students_repo_is_fine(self):
+        self.s.forgejo({"source": "forgejo", "event": "push", "user": "boss", "repo": "student02/challenge-repo"})
+        self.assertEqual(self.ids("student02"), set())
+        self.assertEqual(self.s.ledger.users["boss"]["strikes"] if "boss" in self.s.ledger.users else 0, 0)
+
+    def test_check_request_naming_a_neighbour_is_refused(self):
+        self.s.probe("student01", {"challenge": "c1"})            # nothing named: fine
+        self.s.probe("student01", {"challenge": "c1", "user": "student01"})
+        self.assertNotIn("cheat-bump", self.ids())
+        with self.assertRaises(Denied) as e:
+            self.s.probe("student01", {"challenge": "c1", "repo": "student02/challenge-repo"})
+        self.assertEqual(e.exception.code, 403)
+        self.assertIn("cheat-bump", self.ids())
+
+    def test_strikes_survive_a_restart(self):
+        for _ in range(3):
+            self.sh("student01", "ls student02")
+        self.mk()
+        self.assertIn("cheat-curious", self.ids())
+        self.sh("student01", "ls student02")
+        self.assertEqual(self.s.ledger.users["student01"]["strikes"], 4)
+
+
+class CertificateTests(unittest.TestCase):
+    tearDown, mk = StoreTests.tearDown, StoreTests.mk
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.clock = Clock()
+        self.mk()
+
+    def test_not_complete_has_no_tier_and_override_completes(self):
+        self.s.me("a")
+        doc = self.s.certificate("a")
+        self.assertIsNone(doc["tier"])
+        self.assertFalse(doc["completion"]["complete"])
+        self.s.admin_complete("a", True)
+        self.assertEqual(self.s.certificate("a")["tier"], "complete")
+        self.assertTrue(self.s.admin_state()["students"][0]["override"])
+        self.s.admin_complete("a", False)
+        self.assertIsNone(self.s.certificate("a")["tier"])
+        with self.assertRaises(Denied):
+            self.s.admin_complete("nobody", True)
+
+    def test_summary_lists_unlocks_and_cheats_but_not_the_name(self):
+        self.s.signature, self.s.class_date = "Ada", "1 Jan"
+        self.s.me("a")
+        self.s.tamper("a")
+        self.s.event(None, {"user": "a", "event": "l1-clone", "ts": int(self.clock()), "nonce": "n",
+                            "sig": guards.sign("secret", "a", "l1-clone", int(self.clock()), "n")})
+        doc = self.s.certificate("a")
+        self.assertEqual([u["id"] for u in doc["unlocks"]], ["l1-clone"])
+        self.assertEqual(len(doc["cheats"]), 1)
+        self.assertEqual((doc["signature"], doc["class_date"]), ("Ada", "1 Jan"))
+        self.assertNotIn("name", doc)
+
+
 class ResolverTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
@@ -315,6 +424,27 @@ class TokenHttpTests(unittest.TestCase):
 
     def cheats(self, user):
         return {i for i in server.store.ledger.unlocked_ids(user) if i.startswith("cheat")}
+
+    def test_adapter_events_need_the_shared_secret(self):
+        import hashlib
+        import hmac
+        server.ADAPTER_SECRET = "adapt"
+        try:
+            raw = json.dumps({"source": "dns", "event": "api_refused", "user": "amy", "zone": "z"}).encode()
+
+            def post(sig):
+                c = http.client.HTTPConnection("127.0.0.1", self.port)
+                c.request("POST", "/api/adapter", body=raw, headers={"X-Adapter-Signature": sig})
+                r = c.getresponse()
+                out = (r.status, json.loads(r.read()))
+                c.close()
+                return out
+            self.assertEqual(post("0" * 64)[0], 403)
+            self.assertEqual(post(hmac.new(b"adapt", raw, hashlib.sha256).hexdigest()), (200, {"unlocked": 0}))
+            server.ADAPTER_SECRET = None
+            self.assertEqual(post(hmac.new(b"adapt", raw, hashlib.sha256).hexdigest())[0], 403)
+        finally:
+            server.ADAPTER_SECRET = None
 
     def test_token_identifies_the_student(self):
         st, doc = self.call("GET", "/api/me", token="tokA")

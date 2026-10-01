@@ -1,0 +1,74 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-zone",
+  "description": "{user}'s own challenge zone (DNS as Code)",
+  "private": false,
+  "linked": [
+    [
+      "good",
+      "good_octet"
+    ],
+    [
+      "bad",
+      "bad_octet"
+    ]
+  ],
+  "values": {
+    "good": [
+      "api",
+      "docs",
+      "status",
+      "wiki"
+    ],
+    "good_octet": [
+      "21",
+      "22",
+      "23",
+      "24"
+    ],
+    "bad": [
+      "billing",
+      "payments",
+      "login",
+      "admin"
+    ],
+    "bad_octet": [
+      "66",
+      "67",
+      "68",
+      "69"
+    ]
+  },
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 10,
+      "message": "Start the zone",
+      "files": [
+        {
+          "path": "dnsconfig.js",
+          "from": "zone-badpush/dnsconfig.before.js"
+        },
+        {
+          "path": "creds.json",
+          "from": "zone-badpush/creds.json"
+        },
+        {
+          "path": "README.md",
+          "from": "zone-badpush/README.md"
+        }
+      ]
+    },
+    {
+      "author": "Mallory Mischief",
+      "days_ago": 0,
+      "message": "Add {good} and {bad}",
+      "files": [
+        {
+          "path": "dnsconfig.js",
+          "from": "zone-badpush/dnsconfig.after.js"
+        }
+      ]
+    }
+  ]
+}

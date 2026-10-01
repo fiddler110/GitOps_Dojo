@@ -39,6 +39,10 @@ import time
 import urllib.request
 from urllib.parse import unquote, urlsplit
 
+import events
+
+REPORTER = events.Reporter(os.environ.get("ACHIEVEMENTS_ADAPTER_URL", ""),
+                           os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET", ""))
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8081"))
 MAX_BODY = 1024 * 1024
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -328,6 +332,11 @@ KEYS = ForgejoKeys(CFG.jwks_url)
 LIMIT = RateLimit(CFG.rate_burst, CFG.rate_per_sec)
 
 
+def _zone_of(path):
+    m = ZONE_PATH.match(path)
+    return unquote(m.group(1)) if m else ""
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "dojo-dns-api"
     sys_version = ""
@@ -384,6 +393,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         refusal = decide(method, path, body, caller, CFG)
         if refusal:
             self.audit(repr(caller), method, path, 403, refusal)
+            if caller.kind == "user" and method in WRITE_METHODS:
+                REPORTER.refused(caller.name, _zone_of(path))
             return self.send_json(403, refusal)
         if method in WRITE_METHODS:
             self.audit(repr(caller), method, path, "allow")
@@ -398,6 +409,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             conn.close()
         except OSError as e:
             return self.send_json(502, f"PowerDNS unreachable: {e.__class__.__name__}")
+        if caller.kind == "user" and method == "PATCH" and 200 <= resp.status < 300:
+            REPORTER.patched(caller.name, _zone_of(path), body)
         self.send_response(resp.status, resp.reason)
         for k, v in resp.getheaders():
             if k.lower() not in HOP_BY_HOP:

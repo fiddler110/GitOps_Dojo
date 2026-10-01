@@ -5,7 +5,7 @@
       "title": "Playing the Attacker",
       "joke": "You found the leaked token.",
       "core": true,
-      "when": "bao: request made with the leaked token",
+      "when": "bao: request made with the leaked token (not wired: the shell hook drops a leading `BAO_TOKEN=...`; needs a `bao` audit event by the leaked token's accessor)",
       "match": {}
     },
     {
@@ -13,31 +13,48 @@
       "title": "Read the Audit Log",
       "joke": "What did it do? Now you know.",
       "core": true,
-      "when": "shell: `jq`/`grep` over the audit log",
-      "match": {}
+      "when": "shell: `bao-audit` with the token's accessor (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao-audit",
+        "exit": 0
+      }
     },
     {
       "id": "v13-revoke",
       "title": "Revoke the Tree",
       "joke": "Killed the token and its children.",
       "core": true,
-      "when": "bao: revoke with tree scope",
-      "match": {}
+      "when": "shell: `bao token revoke -accessor ...` (exit 0); revoking a token revokes its children",
+      "match": {
+        "source": "shell",
+        "cmd": "bao token revoke",
+        "regex": "\\s-accessor\\b",
+        "exit": 0
+      }
     },
     {
       "id": "v13-rotate",
       "title": "Rotated What It Read",
       "joke": "New secrets, old ones worthless.",
       "core": true,
-      "when": "bao: writes to the paths the token read",
-      "match": {}
+      "when": "shell: `bao kv put` or `patch` on `team/app` or `team/ci` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv put",
+          "bao kv patch"
+        ],
+        "regex": "\\bteam/(app|ci)\\b",
+        "exit": 0
+      }
     },
     {
       "id": "v13-recover",
       "title": "The App Recovers",
       "joke": "No manual restart.",
       "core": true,
-      "when": "verify: app serving with the new secret",
+      "when": "verify: app serving with the new secret (not wired: needs an HTTP verb on `app-host`)",
       "match": {}
     }
   ]

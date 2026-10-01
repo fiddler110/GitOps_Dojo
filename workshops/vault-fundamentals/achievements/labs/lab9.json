@@ -5,7 +5,7 @@
       "title": "The Stored Login",
       "joke": "The usual way: a login secret in CI.",
       "core": true,
-      "when": "bao: AppRole login from a CI job",
+      "when": "bao: AppRole login from a CI job (not wired: needs a `bao` source event `login`, method approle, entity/alias `ci`)",
       "match": {}
     },
     {
@@ -13,7 +13,7 @@
       "title": "The Job's Own Identity",
       "joke": "No stored secret at all.",
       "core": true,
-      "when": "bao: JWT login from a CI job",
+      "when": "bao: JWT login from a CI job (not wired: needs a `bao` source event `login`, mount jwt-ci, role ci-main)",
       "match": {}
     },
     {
@@ -21,7 +21,7 @@
       "title": "Other Branches Refused",
       "joke": "Only main gets in.",
       "core": true,
-      "when": "bao: denied login from a non-main branch",
+      "when": "bao: refused JWT login from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci)",
       "match": {}
     },
     {
@@ -29,8 +29,12 @@
       "title": "Retired the Stored Secret",
       "joke": "Nothing left to steal.",
       "core": true,
-      "when": "forgejo: repository secret deleted",
-      "match": {}
+      "when": "shell: `curl -X DELETE .../actions/secrets/<name>` (exit 0; curl exits 0 on an HTTP error, so this proves the request, not the deletion)",
+      "match": {
+        "source": "shell",
+        "regex": "\\bcurl\\b.*-X\\s*DELETE\\b.*/actions/secrets/",
+        "exit": 0
+      }
     }
   ]
 }

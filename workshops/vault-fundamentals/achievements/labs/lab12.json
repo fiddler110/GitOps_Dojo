@@ -5,32 +5,59 @@
       "title": "A Role, Not a Password",
       "joke": "What a login may do.",
       "core": true,
-      "when": "verify: DB role defined in the namespace",
-      "match": {}
+      "when": "shell: `bao write database/roles/app ...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "database/roles/app(\\s|$)",
+        "exit": 0
+      }
     },
     {
       "id": "v12-lease",
       "title": "Lease Holder",
       "joke": "A login made just for you.",
       "core": true,
-      "when": "bao: dynamic credential issued",
-      "match": {}
+      "when": "shell: `bao read database/creds/app` typed on its own, or `bao lease lookup` (exit 0); the lab's own `creds=\"$(bao read ...)\"` form is one quoted word the shell hook can't split, so lookup is the sure trigger",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "bao read",
+            "regex": "database/creds/app\\b",
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "bao lease lookup",
+            "exit": 0
+          }
+        ]
+      }
     },
     {
       "id": "v12-renew",
       "title": "Renewed",
       "joke": "Extended the lease.",
       "core": true,
-      "when": "bao: lease renew",
-      "match": {}
+      "when": "shell: `bao lease renew` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao lease renew",
+        "exit": 0
+      }
     },
     {
       "id": "v12-revoke",
       "title": "Revoked",
       "joke": "Login gone, instantly.",
       "core": true,
-      "when": "bao: lease revoke; verify: DB login fails",
-      "match": {}
+      "when": "shell: `bao lease revoke` (exit 0); it doesn't check that the DB login failed afterwards",
+      "match": {
+        "source": "shell",
+        "cmd": "bao lease revoke",
+        "exit": 0
+      }
     }
   ]
 }

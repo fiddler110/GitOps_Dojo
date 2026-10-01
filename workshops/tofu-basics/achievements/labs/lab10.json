@@ -5,16 +5,29 @@
       "title": "Leave No Trace",
       "joke": "Destroyed and verified.",
       "core": true,
-      "when": "shell: `tofu destroy` (exit 0); verify: `resource_state` empty",
-      "match": {}
+      "when": "shell: `tofu destroy` (exit 0) in Track B (after the credentials milestone); the empty cloud is not checked",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu destroy",
+          "terraform destroy"
+        ],
+        "exit": 0,
+        "requires": "t4-creds"
+      }
     },
     {
       "id": "t10-commit",
       "title": "Committed",
       "joke": "Your work is saved in git.",
       "core": true,
-      "when": "forgejo: push from the student's fork after the destroy",
-      "match": {}
+      "when": "forgejo: push to the student's fork `<user>/tofu-basics` after the Track B destroy",
+      "match": {
+        "source": "forgejo",
+        "event": "push",
+        "repo": "{user}/tofu-basics",
+        "requires": "t10-destroy"
+      }
     }
   ]
 }

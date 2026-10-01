@@ -5,7 +5,7 @@
       "title": "Fix It In Place",
       "joke": "A tag changes without a rebuild.",
       "core": true,
-      "when": "shell: `tofu apply` with `~` only",
+      "when": "shell output: `tofu apply` whose plan is `~` only (needs the shell hook to report output, see the report)",
       "match": {}
     },
     {
@@ -13,7 +13,7 @@
       "title": "Rebuilt from Scratch",
       "joke": "The message forces a new container.",
       "core": true,
-      "when": "shell: `tofu apply` with `-/+`",
+      "when": "shell output: `tofu apply` whose plan is `-/+` (needs shell output, or a `cloud` event of a container re-created)",
       "match": {}
     },
     {
@@ -21,8 +21,17 @@
       "title": "Because I Said So",
       "joke": "`-replace` on demand.",
       "core": true,
-      "when": "shell: `tofu apply -replace=`",
-      "match": {}
+      "when": "shell: `tofu apply -replace=...` (exit 0) in Track B (after the credentials milestone)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "regex": "\\s-replace[= ]",
+        "requires": "t4-creds"
+      }
     }
   ]
 }

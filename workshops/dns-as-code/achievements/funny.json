@@ -11,8 +11,13 @@
       "id": "f-ttl",
       "title": "Time To Live, Laugh, Love",
       "joke": "TTL of 1. Very confident.",
-      "when": "shell: file diff sets a TTL below 60",
-      "match": {}
+      "when": "dns: a push sets a TTL below 60 in your zone",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "{user}.dojo.test",
+        "ttl_below": 60
+      }
     },
     {
       "id": "f-nxdomain",
@@ -25,15 +30,23 @@
       "id": "f-rejected",
       "title": "Denied at the Gate",
       "joke": "You tried to change `dojo.test` without CI.",
-      "when": "dns: API refusal for a non-CI write (funny, but see cheating tiers)",
-      "match": {}
+      "when": "dns: the gate refuses a write made with your own key",
+      "match": {
+        "source": "dns",
+        "event": "api_refused"
+      }
     },
     {
       "id": "f-fivepr",
       "title": "PR Machine",
       "joke": "Five pull requests. Do you sleep?",
       "when": "forgejo: 5th PR opened",
-      "match": {}
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "count": 5
+      }
     }
   ]
 }

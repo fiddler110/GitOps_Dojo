@@ -95,17 +95,6 @@ in the browser.
 
 ### Beyond the live lab
 
-- **Take-home handouts** ([`handouts/`](handouts/)): the Git Fundamentals and
-  DNS as Code labs adapted for self-paced practice against a student's own
-  GitHub account (and, for DNS, a local PowerDNS stack or a real Cloudflare
-  domain). Every workshop's talk is also there as PowerPoint,
-  `handouts/<workshop>_presentation.pptx` (slides as pictures, speaker notes as
-  text), exported by `./run.sh update-decks` (`handouts/build-presentations.sh`;
-  needs podman and internet). The pre-commit hook in `.githooks/` re-exports any
-  deck a commit changes; enable it once per clone with
-  `git config core.hooksPath .githooks`. The `handouts` check in
-  `.github/workflows/` and `.azure-pipelines/` fails a pull request whose decks
-  are out of date.
 - **Azure DevOps edition** of Git Fundamentals
   ([`workshops/git-fundamentals/delivery-azure-devops/`](workshops/git-fundamentals/delivery-azure-devops/)):
   the same session delivered against Azure Repos, with a facilitator guide,
@@ -186,8 +175,6 @@ automation instead of being made by hand.
 ├── RELEASES.md               # What shipped, newest first
 ├── docs/archive/             # Frozen design plans and decision logs (modules, tofu-basics, vault, remediation, reset)
 ├── threat-model-20260926-154208/  # Threat model report (fix history is in RELEASES.md)
-├── handouts/                 # Take-home versions of the labs, and each talk as .pptx
-├── .githooks/                # pre-commit: re-export changed decks to handouts/
 └── assets/branding/          # Shared branding
 ```
 

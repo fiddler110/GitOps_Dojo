@@ -5,32 +5,63 @@
       "title": "Put and Get",
       "joke": "Secrets in, secrets out.",
       "core": true,
-      "when": "bao: KV write then read by the student",
-      "match": {}
+      "when": "shell: `bao kv get` of your own `.../db` secret (exit 0), which comes after the put",
+      "match": {
+        "source": "shell",
+        "cmd": "bao kv get",
+        "regex": "students/(\\$USER|\\$\\{USER\\}|student\\d+)/db\\b",
+        "exit": 0
+      }
     },
     {
       "id": "v3-versions",
       "title": "Version Hoarder",
       "joke": "Versions kept so you can undo.",
       "core": true,
-      "when": "bao: read of an older version",
-      "match": {}
+      "when": "shell: `bao kv get -version=N` or `bao kv metadata get` (exit 0)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "bao kv get",
+            "regex": "\\s-version[= ]\\d",
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "bao kv metadata get",
+            "exit": 0
+          }
+        ]
+      }
     },
     {
       "id": "v3-destroy",
       "title": "Deleted, Undeleted, Destroyed",
       "joke": "The three levels of gone.",
       "core": true,
-      "when": "bao: delete, undelete and destroy events",
-      "match": {}
+      "when": "shell: `bao kv destroy` (exit 0), the last of delete, undelete and destroy",
+      "match": {
+        "source": "shell",
+        "cmd": "bao kv destroy",
+        "exit": 0
+      }
     },
     {
       "id": "v3-door",
       "title": "Knocked on a Neighbour's Door",
       "joke": "Denied. Good.",
       "core": true,
-      "when": "bao: permission denied on another student's path (also the 0-point funny)",
-      "match": {}
+      "when": "shell: `bao kv get` or `list` of another student's `secret/students/<name>/` path fails",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv get",
+          "bao kv list"
+        ],
+        "regex": "secret/students/(?!\\$)[^/\\s]+/",
+        "exit": "nonzero"
+      }
     }
   ]
 }

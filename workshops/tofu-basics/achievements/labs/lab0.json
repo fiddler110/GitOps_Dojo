@@ -5,7 +5,7 @@
       "title": "Forked Over",
       "joke": "Your own copy of the starter repo.",
       "core": true,
-      "when": "forgejo: fork created",
+      "when": "forgejo: fork created (needs a `fork` event, see the report)",
       "match": {}
     },
     {
@@ -13,16 +13,30 @@
       "title": "Cloned Around",
       "joke": "Now it is on your machine.",
       "core": true,
-      "when": "shell: `git clone` of the fork",
-      "match": {}
+      "when": "shell: `git clone` of the fork `<user>/tofu-basics` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git clone",
+        "exit": 0,
+        "regex": "^git clone\\s.*/tofu-basics"
+      }
     },
     {
       "id": "t0-tour",
       "title": "Is It Terraform?",
       "joke": "It is OpenTofu. Same thing. Mostly.",
       "core": true,
-      "when": "shell: `tofu version` or `terraform version`",
-      "match": {}
+      "when": "shell: `tofu version` or `terraform version` (also `-version`, exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu version",
+          "terraform version",
+          "tofu -version",
+          "terraform -version"
+        ],
+        "exit": 0
+      }
     }
   ]
 }

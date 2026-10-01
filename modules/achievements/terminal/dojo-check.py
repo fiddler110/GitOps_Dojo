@@ -37,7 +37,7 @@ def token():
     try:
         with open(os.path.join(HOME, ".git-credentials")) as f:
             for line in f:
-                line = line.strip()
+                line = line.strip().replace("%3a", ":").replace("%3A", ":")  # git may percent-encode the port
                 if line.startswith("http://") and line.endswith("@" + HOST):
                     return line[len("http://"):-len("@" + HOST)].split(":", 1)[1]
     except (OSError, IndexError):
@@ -71,18 +71,23 @@ def call(method, path, body=None, timeout=10):
 
 
 def paint(t):
-    """One toast as coloured terminal text."""
-    funny = t.get("kind") == "funny"
+    """One toast as a banner: a coloured label block, the title, the joke behind a coloured bar."""
     pts = t.get("points") or 0
+    if t.get("kind") == "summary":
+        label, bg = "ACHIEVEMENTS", "44"
+    elif pts < 0:
+        label, bg = "BUSTED", "41"
+    elif t.get("kind") == "funny":
+        label, bg = "MOMENT", "45"
+    else:
+        label, bg = "ACHIEVEMENT UNLOCKED", "44"
     tag = ("+%d" % pts) if pts > 0 else (str(pts) if pts < 0 else "")
-    colour = "1;35" if funny else "1;36"
-    icon = "\U0001F61C" if funny else "\U0001F3C6"
-    line = "\033[%sm %s %s\033[0m" % (colour, icon, t.get("title", ""))
+    out = "\n\033[1;97;%sm \u2605 %s \033[0m \033[1;97m%s\033[0m" % (bg, label, t.get("title", ""))
     if tag:
-        line += " \033[1;33m%s\033[0m" % tag
+        out += " \033[1;30;43m %s \033[0m" % tag
     if t.get("joke"):
-        line += "\n    \033[2;3m%s\033[0m" % t["joke"]
-    return line
+        out += "\n\033[%sm \033[0m \033[3;37m%s\033[0m" % (bg, t["joke"])
+    return out + "\n"
 
 
 def echo():

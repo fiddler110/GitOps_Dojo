@@ -6,47 +6,75 @@
       "joke": "Previewed before pushing. Adults do that.",
       "core": true,
       "when": "shell: `dnscontrol preview` (exit 0)",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol preview",
+        "exit": 0
+      }
     },
     {
       "id": "d1-push",
       "title": "Live on the Wire",
       "joke": "Your zone exists. Somewhere a resolver blinked.",
       "core": true,
-      "when": "shell: `dnscontrol push` (exit 0); dns: zone created",
-      "match": {}
+      "when": "shell: `dnscontrol push` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol push",
+        "exit": 0
+      }
     },
     {
       "id": "d1-add",
       "title": "Record Collector",
       "joke": "More records than a 90s teenager.",
       "core": true,
-      "when": "verify: `resource_state` zone has 3+ records",
-      "match": {}
+      "when": "dns: your own zone gets a new record after its first push",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "{user}.dojo.test",
+        "first": false,
+        "created_min": 1
+      }
     },
     {
       "id": "d1-change",
       "title": "Changed My Mind",
       "joke": "TTLs are a suggestion, apparently.",
       "core": true,
-      "when": "verify: a record differs from its first pushed value",
-      "match": {}
+      "when": "dns: a push changes a record already in your zone",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "{user}.dojo.test",
+        "changed_min": 1
+      }
     },
     {
       "id": "d1-remove",
       "title": "Gone, Not Forgotten",
       "joke": "Removed a record by deleting one line.",
       "core": true,
-      "when": "dns: record deleted after a push",
-      "match": {}
+      "when": "dns: a push removes a record from your zone",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "{user}.dojo.test",
+        "deleted_min": 1
+      }
     },
     {
       "id": "d1-dot",
       "title": "The Trailing Dot",
       "joke": "One character. Whole different hostname.",
       "core": true,
-      "when": "shell: `dnscontrol preview` output shows the doubled zone name",
-      "match": {}
+      "when": "shell: `dnscontrol preview` fails (the file is refused, e.g. a target without its trailing dot)",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol preview",
+        "exit": "nonzero"
+      }
     }
   ]
 }

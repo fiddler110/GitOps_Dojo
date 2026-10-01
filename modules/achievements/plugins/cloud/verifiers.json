@@ -1,0 +1,9 @@
+{
+  "backend": "cloud",
+  "about": "Reads the checking student's own Dojo Cloud subscription through the portal API of the dojo-cloud module (CLOUD_API_URL, CLOUD_CHECK_TOKEN). Reads only: the service never creates, changes or deletes a cloud resource. The account is always the checking student (the verbs take no user argument), so a check can only see that student's own container groups (overview scope=mine).",
+  "impl": "cloudstate.py",
+  "verbs": {
+    "cloud_containers": {"args": ["tags?", "state?", "name_prefix?", "labels?", "require_tags?", "locations?", "min?", "max?"],
+                         "does": "looks at the student's own container groups that carry every tag in tags and are in state (default Running, `any` for all): each must have a site label starting with name_prefix, be in one of locations and carry every key of require_tags; every one of labels must be among them; how many there are must be within min (default 1) and max (default unlimited). max: 0 with state any is the 'nothing left' check"}
+  }
+}

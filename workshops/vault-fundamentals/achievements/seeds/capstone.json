@@ -1,0 +1,18 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/capstone",
+  "description": "{user}'s own capstone (Vault Fundamentals): zero standing secrets",
+  "private": false,
+  "values": {},
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 3,
+      "message": "Add the brief and a starter Agent config",
+      "files": [
+        {"path": "README.md", "from": "capstone/README.md"},
+        {"path": "capstone/agent.hcl", "from": "capstone/agent.hcl"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "backend": "bao",
+  "about": "Reads a student's own OpenBao namespace `students/<user>` (the namespace is always derived from the checking student, never an argument) with a read-only checker token: BAO_URL (http://openbao:8200) and BAO_CHECK_TOKEN. Reads only, and never a secret value: policy text, role settings, KV metadata and lease id lists. The checker token's policy, written in the root namespace, needs only: read on `students/+/sys/policies/acl/*`, `students/+/auth/+/role/*`, `students/+/database/roles/*`, `students/+/+/metadata/*`; list on `students/+/sys/leases/lookup/database/creds/*`. It must NOT read `+/data/*`, `database/creds/*` or `sys/mounts`. No root token is ever used. Every verb takes `student` (put `{user}` there in a catalog): the check is refused unless it is the student being checked.",
+  "impl": "baostate.py",
+  "verbs": {
+    "policy_grants": {
+      "args": [
+        "policy",
+        "allow?",
+        "deny?",
+        "only?",
+        "student?"
+      ],
+      "does": "the ACL policy exists and grants read on every path in allow, and not on any path in deny (an explicit deny counts; `*` and `+` in the policy's paths are honoured); only: every path the policy names starts with one of these prefixes"
+    },
+    "role_policy_grants": {
+      "args": [
+        "mount",
+        "role",
+        "allow?",
+        "deny?",
+        "student?"
+      ],
+      "does": "the role auth/<mount>/role/<role> exists, has at least one policy other than `default`, and those policies together grant read on every allow path and not on any deny path"
+    },
+    "auth_role": {
+      "args": [
+        "mount",
+        "role",
+        "policies?",
+        "student?"
+      ],
+      "does": "auth/<mount>/role/<role> exists and its token_policies include every one of policies"
+    },
+    "db_role": {
+      "args": [
+        "role",
+        "default_ttl?",
+        "max_ttl?",
+        "student?"
+      ],
+      "does": "database/roles/<role> exists with exactly this default_ttl and max_ttl (seconds, or 2m, 10m, 1h)"
+    },
+    "lease_exists": {
+      "args": [
+        "prefix",
+        "student?"
+      ],
+      "does": "at least one live lease under sys/leases/lookup/<prefix> (for example database/creds/c2-app); lease ids only, never the credential"
+    },
+    "kv_version": {
+      "args": [
+        "mount",
+        "path",
+        "min_version",
+        "student?"
+      ],
+      "does": "the KV v2 secret <mount>/<path> has current_version >= min_version (metadata only, never the value)"
+    }
+  }
+}

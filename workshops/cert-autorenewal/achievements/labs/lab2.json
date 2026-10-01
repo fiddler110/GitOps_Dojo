@@ -5,16 +5,25 @@
       "title": "Port 80 Open for Business",
       "joke": "Your vhost answers the challenge.",
       "core": true,
-      "when": "verify: `http://{user}.demo/.well-known/` served",
-      "match": {}
+      "when": "shell: `curl --resolve host:80:IP http://host/` exit 0 (the vhost answers on port 80)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "regex": "--resolve\\s+\\S+:80:\\S+\\s.*http://",
+        "exit": 0
+      }
     },
     {
       "id": "c2-issue",
       "title": "Certified Fresh",
       "joke": "A real cert, minted by machine.",
       "core": true,
-      "when": "ca: certificate issued for `{user}.demo`",
-      "match": {}
+      "when": "shell: `certbot certonly` exit 0 (the client reports success; the CA log is not read)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot certonly",
+        "exit": 0
+      }
     },
     {
       "id": "c2-install",
@@ -29,8 +38,22 @@
       "title": "Trust, Verified",
       "joke": "You checked the chain with your own eyes.",
       "core": true,
-      "when": "shell: `openssl s_client` or `curl -v https://...`",
-      "match": {}
+      "when": "shell: `openssl s_client` or `curl https://...` against the demo site with `--cacert`/`-v`, exit 0",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "openssl s_client",
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "curl",
+            "regex": "https://.*\\.certs\\.dojo\\.test|--cacert.*https://",
+            "exit": 0
+          }
+        ]
+      }
     }
   ]
 }

@@ -5,15 +5,20 @@
       "title": "Strict Role",
       "joke": "The app's role is locked down.",
       "core": true,
-      "when": "verify: `policy_attached` with a narrow role",
-      "match": {}
+      "when": "shell: `bao write auth/approle/role/app ... secret_id_num_uses=1` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "auth/approle/role/app\\s.*secret_id_num_uses=1",
+        "exit": 0
+      }
     },
     {
       "id": "v10-wrap",
       "title": "Wrapped Delivery",
       "joke": "A secret ID only the app can open.",
       "core": true,
-      "when": "bao: response-wrapped secret ID created and unwrapped once",
+      "when": "bao: response-wrapped secret ID created and unwrapped once (not wired: needs `bao` events on `sys/wrapping/*`)",
       "match": {}
     },
     {
@@ -21,7 +26,7 @@
       "title": "Delivered and Deployed",
       "joke": "Pipeline delivers, app logs in.",
       "core": true,
-      "when": "bao: app login with the delivered ID",
+      "when": "bao: app login with the delivered secret ID (not wired: needs a `bao` event `login`, method approle, role app)",
       "match": {}
     },
     {
@@ -29,7 +34,7 @@
       "title": "A Branch Gets Nothing",
       "joke": "A feature branch cannot deploy.",
       "core": true,
-      "when": "bao: denied delivery from a non-main branch",
+      "when": "bao: refused delivery from a non-main branch (not wired: needs a `bao` event `login` with error, mount jwt-ci, role deliver-main)",
       "match": {}
     }
   ]

@@ -7,6 +7,7 @@ HTTP in here: server.py is a thin layer, and tests drive this directly.
 
 import json
 import os
+import re
 import threading
 import time
 
@@ -17,6 +18,14 @@ import names
 from ledger import cat
 
 STATE_FILE = "state.json"
+
+# Strikes for poking at a neighbour -> the shared cheat unlocked on reaching it.
+STRIKE_TIERS = ((1, "cheat-bump"), (3, "cheat-curious"), (8, "cheat-persistent"))
+
+
+def name_in(name, text):
+    """`name` as a whole word in `text` (student1 is not in student10, nor in my-student1)."""
+    return re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", text) is not None
 
 
 class Denied(Exception):
@@ -35,6 +44,8 @@ class Store:
         self.data_dir = data_dir
         self.anonymous = anonymous
         self.facilitator = facilitator
+        self.signature = ""        # facilitator name under the signature line (blank line if empty)
+        self.class_date = ""       # printed date; blank means the day it is printed
         self.clock = clock
         self.config = config
         self.catalog = catalog
@@ -93,6 +104,20 @@ class Store:
     def _label(self, user):
         return self.names.name_for(user) if self.anonymous else user
 
+    def _strike(self, user, now, n=1):
+        """One "poked a neighbour" strike (caller holds the lock). The count is per student, over
+        the whole class, and never resets; crossing a tier unlocks it (0, 0, then -1)."""
+        u = self.ledger._user(user)
+        before = u.get("strikes", 0)
+        u["strikes"] = before + n
+        for need, cheat_id in STRIKE_TIERS:
+            if before < need <= u["strikes"]:
+                self._cheat(user, cheat_id, now)
+
+    def _neighbours(self, user):
+        """Other students the service has seen (the seat names a command could point at)."""
+        return [o for o in self.ledger.users if o != user and o != self.facilitator]
+
     def _cheat(self, user, cheat_id, now):
         try:
             self.ledger.unlock(user, cheat_id, now)
@@ -113,7 +138,8 @@ class Store:
                 "completion": {"done": done, "total": total, "percent": pct, "complete": complete,
                                "needed": -(-total * self.config.completion_percent // 100)},
                 "recent": [{"id": r["id"], "title": r["title"], "kind": r["kind"], "points": r["points"],
-                            "at": r["at"]} for r in L.recent(user)],
+                            "joke": L._find(r["id"]).get("joke", ""),
+                            "when": L._find(r["id"]).get("when", ""), "at": r["at"]} for r in L.recent(user)],
                 "moments": L.moments(user),
                 "challenges": self._challenge_rows(user),
             }
@@ -140,6 +166,31 @@ class Store:
                      "you": r["user"] == viewer} for r in self.ledger.leaderboard()]
             self._save()
             return rows
+
+    def certificate(self, user):
+        """Everything the printable certificate and its summary page show, for the student
+        themself. The name printed on it is typed in the browser and never comes here."""
+        with self.lock:
+            self._student(user)
+            L = self.ledger
+            done, total, pct, complete = L.completion(user)
+            row = next(r for r in L.leaderboard() if r["user"] == user)
+            unlocked = sorted(L.visible_unlocked(user).items(), key=lambda kv: kv[1]["at"])
+            unlocks, cheats = [], []
+            for iid, x in unlocked:
+                title = L.index_title(iid)
+                if x["cheat"]:
+                    cheats.append({"title": title, "points": x["points"], "at": x["at"]})
+                elif x["kind"] != "funny":
+                    unlocks.append({"id": iid, "title": title, "kind": x["kind"], "points": x["points"],
+                                    "at": x["at"], "hints": x.get("hints", 0), "revealed": bool(x.get("revealed"))})
+            capstone = any(x["kind"] == "capstone" for x in unlocks)
+            return {"workshop": self.catalog["title"], "board_name": self.names.name_for(user), "user": user,
+                    "score": L.score(user), "rank": row["rank"], "of": len(L.users),
+                    "completion": {"done": done, "total": total, "percent": pct, "complete": complete},
+                    "tier": ("capstone" if capstone else "complete") if complete else None,
+                    "signature": self.signature, "class_date": self.class_date,
+                    "unlocks": unlocks, "moments": L.moments(user), "cheats": cheats}
 
     def toasts(self, user, surface, after=0):
         with self.lock:
@@ -219,7 +270,7 @@ class Store:
     def _matched(self, user, event, now):
         """Unlock whatever this normalised event fires. Returns the new ids."""
         got = []
-        for iid in self.matcher.match(event):
+        for iid in self.matcher.match(event, self.ledger.unlocked_ids(user), lambda i: self.ledger.bump(user, i)):
             if self.ledger.unlock(user, iid, now) is not None:
                 got.append(iid)
         return got
@@ -235,6 +286,9 @@ class Store:
             if not self.shell_limiter.hit(user, now):
                 raise Denied(429, "slow down")
             got = self._matched(user, event, now)
+            if any(name_in(o, event["cmd"]) for o in self._neighbours(user)):
+                self._strike(user, now)
+                got = got or ["strike"]
             if got:
                 self._save()
             return {"unlocked": len(got)}
@@ -246,9 +300,37 @@ class Store:
             return {"unlocked": 0}
         with self.lock:
             self._student(user)
+            now = self.clock()
+            got = self._matched(user, event, now)
+            owner = (event.get("repo") or "").split("/")[0]
+            if owner != user and owner in self._neighbours(user):
+                self._strike(user, now)     # a write (or review) in a classmate's repo
+            self._save()
+            return {"unlocked": len(got)}
+
+    def adapter(self, event):
+        """One normalised event from a module's adapter (already signature-checked by the caller)."""
+        user = event.get("user") if event else None
+        if not user or user == self.facilitator or user in self.ignore:
+            return {"unlocked": 0}
+        with self.lock:
+            self._student(user)
             got = self._matched(user, event, self.clock())
             self._save()
             return {"unlocked": len(got)}
+
+    def probe(self, user, body):
+        """A check or challenge request naming another student's space (only a hand-made
+        request can: dojo-check sends the challenge id and nothing else). Refused, one strike."""
+        with self.lock:
+            self._student(user)
+            values = [body.get(k) for k in ("user", "repo", "space")]
+            if not any(isinstance(v, str) and any(name_in(o, v) for o in self._neighbours(user))
+                       for v in values):
+                return
+            self._strike(user, self.clock())
+            self._save()
+        raise Denied(403, "that space is not yours")
 
     def hint(self, user, cid):
         with self.lock:
@@ -353,6 +435,7 @@ class Store:
                 done, total, pct, complete = L.completion(u)
                 students.append({"user": u, "name": self.names.name_for(u), "score": row["score"],
                                  "rank": row["rank"], "percent": pct, "complete": complete,
+                                 "override": bool(L.users[u].get("complete_override")),
                                  "unlocks": len(L.visible_unlocked(u)),
                                  "moments": [m["title"] for m in L.moments(u)],
                                  "cheats": [i for i, x in L.visible_unlocked(u).items() if x["cheat"]]})
@@ -367,6 +450,12 @@ class Store:
             if not isinstance(points, int) or isinstance(points, bool) or not -1000 <= points <= 1000:
                 raise Denied(400, "points must be a whole number from -1000 to 1000")
             self.ledger.award(user, points, str(reason)[:200], self.clock())
+            self._save()
+
+    def admin_complete(self, user, on):
+        with self.lock:
+            if not self.ledger.set_complete(user, bool(on), self.clock()):
+                raise Denied(404, "no such student")
             self._save()
 
     def admin_reset(self, user):

@@ -5,7 +5,7 @@
       "title": "Untagged and Rejected",
       "joke": "The cloud wants tags.",
       "core": true,
-      "when": "cloud: policy denial for a missing tag",
+      "when": "cloud: policy denial for a missing tag (needs the `cloud` event source, see the report)",
       "match": {}
     },
     {
@@ -13,7 +13,7 @@
       "title": "Wrong Neighbourhood",
       "joke": "Region not allowed.",
       "core": true,
-      "when": "cloud: policy denial for the region",
+      "when": "cloud: policy denial for the region (needs the `cloud` event source)",
       "match": {}
     },
     {
@@ -21,7 +21,7 @@
       "title": "Too Big to Ship",
       "joke": "Over the size limit.",
       "core": true,
-      "when": "cloud: policy denial for the size",
+      "when": "cloud: policy denial for the size (needs the `cloud` event source)",
       "match": {}
     }
   ]

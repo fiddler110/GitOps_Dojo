@@ -5,16 +5,27 @@
       "title": "Shared Custody",
       "joke": "Cloned the class's production zone. Nobody panic.",
       "core": true,
-      "when": "forgejo: clone of `dns-team/dns-as-code`",
-      "match": {}
+      "when": "shell: `git clone` of `dns-team/dns-as-code` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git clone",
+        "regex": "^git clone\\s.*dns-team/dns-as-code",
+        "exit": 0
+      }
     },
     {
       "id": "d3-blocked",
       "title": "Computer Says No",
       "joke": "You tried the shortcut. It said no.",
       "core": true,
-      "when": "forgejo: direct push to `main` rejected (the same event also shows as a funny moment, which scores nothing)",
-      "match": {}
+      "when": "shell: `git push` fails while on `main` (the branch rule refuses a direct push)",
+      "match": {
+        "source": "shell",
+        "cmd": "git push",
+        "exit": "nonzero",
+        "branch": "main",
+        "in_repo": true
+      }
     },
     {
       "id": "d3-pr",
@@ -22,23 +33,37 @@
       "joke": "A pull request, as nature intended.",
       "core": true,
       "when": "forgejo: PR opened on `dns-team/dns-as-code`",
-      "match": {}
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "repo": "dns-team/dns-as-code"
+      }
     },
     {
       "id": "d3-review",
       "title": "Second Pair of Eyes",
       "joke": "You reviewed someone else's change.",
       "core": true,
-      "when": "forgejo: review submitted on any PR in `dns-team/dns-as-code` that the student did not open (a neighbour's, or the seeded `dns-bot` PR, which the facilitator's setup opens so nobody is left without one)",
-      "match": {}
+      "when": "forgejo: review submitted on a PR in `dns-team/dns-as-code` (Forgejo does not let you approve your own)",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request_review",
+        "repo": "dns-team/dns-as-code"
+      }
     },
     {
       "id": "d3-applied",
       "title": "CI Did the Thing",
       "joke": "Merged, and the robot applied it.",
       "core": true,
-      "when": "forgejo: PR merged; verify: record present in the zone",
-      "match": {}
+      "when": "forgejo: your PR merged in `dns-team/dns-as-code` (CI applying it is not checked)",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "dns-team/dns-as-code"
+      }
     }
   ]
 }

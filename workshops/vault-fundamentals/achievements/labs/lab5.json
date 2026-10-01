@@ -5,23 +5,39 @@
       "title": "Not in the Code",
       "joke": "Moved it out of the source.",
       "core": true,
-      "when": "shell: app run reading from `.env`",
-      "match": {}
+      "when": "shell: `python3 app_env.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_env\\.py\\b",
+        "exit": 0
+      }
     },
     {
       "id": "v5-vault",
       "title": "The App Asks the Vault",
       "joke": "No file, no leak.",
       "core": true,
-      "when": "bao: KV read by the app's token",
-      "match": {}
+      "when": "shell: `python3 app_vault.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_vault\\.py\\b",
+        "exit": 0
+      }
     },
     {
       "id": "v5-nolog",
       "title": "Loose Lips",
       "joke": "Logging the secret? No.",
       "core": true,
-      "when": "verify: app log does not contain the secret value",
+      "when": "verify: app log free of the secret value (not wired: needs a file verb on the student's workspace, `file_lacks`)",
       "match": {}
     },
     {
@@ -29,8 +45,16 @@
       "title": "Token Expiry",
       "joke": "Tokens run out. That is the point.",
       "core": true,
-      "when": "bao: request with an expired token",
-      "match": {}
+      "when": "shell: `python3 token_ttl.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\btoken_ttl\\.py\\b",
+        "exit": 0
+      }
     }
   ]
 }

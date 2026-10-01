@@ -1,0 +1,16 @@
+{
+  "name": "dojo-achievements",
+  "displayName": "Dojo achievements",
+  "description": "Shows this student's achievement toasts inside VS Code.",
+  "publisher": "gitopsdojo",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": false
+  },
+  "categories": ["Other"]
+}

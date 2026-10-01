@@ -157,7 +157,7 @@ class Ledger:
     def _user(self, user):
         if user not in self.users:
             self.users[user] = {"unlocked": {}, "bonuses": [], "adjust": [], "hints": {},
-                                "revealed": [], "toasts": [], "joined": None}
+                                "revealed": [], "toasts": [], "joined": None, "strikes": 0, "counts": {}}
         return self.users[user]
 
     def _toast(self, u, now, kind, title, joke, points, item_id, cheat=False, badge=None):
@@ -322,6 +322,12 @@ class Ledger:
             out.append({"user": name, "score": score, "rank": rank})
         return out
 
+    def bump(self, user, item_id):
+        """One more matching event for a `count` rule; returns the student's running total."""
+        counts = self._user(user).setdefault("counts", {})
+        counts[item_id] = counts.get(item_id, 0) + 1
+        return counts[item_id]
+
     def unlocked_ids(self, user):
         """What the student has unlocked, switched-off items left out."""
         return set(self.users.get(user, {}).get("unlocked", {})) - self.disabled
@@ -332,7 +338,18 @@ class Ledger:
 
     def completion(self, user):
         """(done, total, percent, complete) over the core milestones."""
-        return cat.completion(self.catalog, self.unlocked_ids(user), self.config.completion_percent)
+        done, total, pct, complete = cat.completion(self.catalog, self.unlocked_ids(user),
+                                                    self.config.completion_percent)
+        return done, total, pct, complete or bool(self.users.get(user, {}).get("complete_override"))
+
+    def set_complete(self, user, on, now, by="facilitator"):
+        """Facilitator override: count this student as complete (or take it back)."""
+        u = self.users.get(user)
+        if u is None:
+            return False
+        u["complete_override"] = bool(on)
+        self.log.append({"action": "complete" if on else "uncomplete", "user": user, "at": now, "by": by})
+        return True
 
     def recent(self, user, n=10):
         """The student's latest unlocks, newest first (the landing page's permanent record)."""

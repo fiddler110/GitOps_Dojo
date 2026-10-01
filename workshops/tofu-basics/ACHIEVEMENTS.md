@@ -50,15 +50,15 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t0-fork | Forked Over | "Your own copy of the starter repo." | 10 | yes | forgejo: fork created |
-| t0-clone | Cloned Around | "Now it is on your machine." | 10 | yes | shell: `git clone` of the fork |
-| t0-tour | Is It Terraform? | "It is OpenTofu. Same thing. Mostly." | 10 | yes | shell: `tofu version` or `terraform version` |
+| t0-fork | Forked Over | "Your own copy of the starter repo." | 10 | yes | forgejo: fork created (needs a `fork` event, see the report) |
+| t0-clone | Cloned Around | "Now it is on your machine." | 10 | yes | shell: `git clone` of the fork `<user>/tofu-basics` (exit 0) |
+| t0-tour | Is It Terraform? | "It is OpenTofu. Same thing. Mostly." | 10 | yes | shell: `tofu version` or `terraform version` (also `-version`, exit 0) |
 
 ## Lab 1: first run
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t1-init | Initialised | "Downloaded providers. Digital groceries." | 10 | yes | shell: `tofu init` (exit 0) |
+| t1-init | Initialised | "Downloaded providers. Digital groceries." | 10 | yes | shell: `tofu init` or `terraform init` (exit 0) |
 | t1-validate | Syntax Approved | "The parser has no complaints." | 10 | yes | shell: `tofu validate` (exit 0) |
 | t1-plan | Plan Before Act | "Previewed. Changed nothing. Wise." | 10 | yes | shell: `tofu plan` (exit 0) |
 | t1-apply | It Is Alive | "First apply. Frankenstein noises." | 10 | yes | shell: `tofu apply` (exit 0) |
@@ -67,82 +67,82 @@ structured `verify` assertion mentions `{user}`.
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t2-idem | Idempotent, Baby | "Applied twice, changed once." | 10 | yes | shell: second `tofu apply` reports 0 changes |
-| t2-change | Tilde Time | "An in-place change, read carefully." | 10 | yes | shell: `tofu plan` shows `~` |
-| t2-replace | Out With the Old | "Forced a replacement." | 10 | yes | shell: `tofu apply -replace=...` or plan `-/+` |
-| t2-broke | Broke It On Purpose | "Errors are teachers." | 10 | yes | shell: `tofu validate` or `plan` exits 1 |
+| t2-idem | Idempotent, Baby | "Applied twice, changed once." | 10 | yes | shell: the first `tofu plan` (exit 0) after the first apply; the "No changes" text itself is not read, only that the plan ran cleanly on an applied config |
+| t2-change | Tilde Time | "An in-place change, read carefully." | 10 | yes | shell: the first successful `tofu apply` after the idempotent plan (the edited input applied); the `~` in the plan text is not read |
+| t2-replace | Out With the Old | "Forced a replacement." | 10 | yes | shell: `tofu plan -replace=...` or `tofu apply -replace=...` (exit 0) |
+| t2-broke | Broke It On Purpose | "Errors are teachers." | 10 | yes | shell: `tofu validate` or `tofu plan` exits nonzero |
 
 ## Lab 3: tear it down
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | t3-destroy | Scorched Earth | "Everything created is gone." | 10 | yes | shell: `tofu destroy` (exit 0) |
-| t3-state | What the State Remembers | "Looked at what is left behind." | 10 | yes | shell: `tofu state list` or `ls terraform.tfstate*` |
+| t3-state | What the State Remembers | "Looked at what is left behind." | 10 | yes | shell: `tofu state list`, or `ls`/`cat` of `terraform.tfstate*` |
 
 ## Lab 4: meet Dojo Cloud
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t4-portal | Cloud Tourist | "Opened the portal." | 10 | yes | cloud: first portal request by the student |
-| t4-creds | Keys to the Kingdom | "Your credentials are in your environment." | 10 | yes | shell: `env` or `echo $ARM_*` (values are never logged) |
-| t4-provider | Provider Installed | "azurerm, but a friendlier universe." | 10 | yes | shell: `tofu init` in the Track B folder (exit 0) |
+| t4-portal | Cloud Tourist | "Opened the portal." | 10 | yes | cloud: first portal request by the student (needs the `cloud` event source, see the report) |
+| t4-creds | Keys to the Kingdom | "Your credentials are in your environment." | 10 | yes | shell: `env`, `printenv`, or `echo`/`grep` naming `ARM_*` (values are never logged) |
+| t4-provider | Provider Installed | "azurerm, but a friendlier universe." | 10 | yes | shell: `tofu init` (exit 0) after the credentials were looked at (Track B; the folder is not read, the earlier milestone tells the tracks apart) |
 
 ## Lab 5: deploy hello
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t5-plan | Read the Blueprint | "A plan for a real container." | 10 | yes | shell: `tofu plan` in Track B |
-| t5-apply | Hello, World | "A real container in a real (practice) cloud." | 10 | yes | cloud: container created; verify: `resource_state` running |
-| t5-site | It Is on the Internet | "Opened your own site." | 10 | yes | cloud: request served by the student's container |
+| t5-plan | Read the Blueprint | "A plan for a real container." | 10 | yes | shell: `tofu plan` (exit 0) after the Track B init |
+| t5-apply | Hello, World | "A real container in a real (practice) cloud." | 10 | yes | shell: `tofu apply` (exit 0) after the Track B init; a successful apply means the container group was created (the cloud is not asked) |
+| t5-site | It Is on the Internet | "Opened your own site." | 10 | yes | cloud: request served by the student's container (needs a `cloud` `site_request` event, see the report) |
 
 ## Lab 6: policy
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t6-tag | Untagged and Rejected | "The cloud wants tags." | 10 | yes | cloud: policy denial for a missing tag |
-| t6-region | Wrong Neighbourhood | "Region not allowed." | 10 | yes | cloud: policy denial for the region |
-| t6-size | Too Big to Ship | "Over the size limit." | 10 | yes | cloud: policy denial for the size |
+| t6-tag | Untagged and Rejected | "The cloud wants tags." | 10 | yes | cloud: policy denial for a missing tag (needs the `cloud` event source, see the report) |
+| t6-region | Wrong Neighbourhood | "Region not allowed." | 10 | yes | cloud: policy denial for the region (needs the `cloud` event source) |
+| t6-size | Too Big to Ship | "Over the size limit." | 10 | yes | cloud: policy denial for the size (needs the `cloud` event source) |
 
 ## Lab 7: drift
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t7-tag | Somebody Retagged It | "Drift noticed by `plan`." | 10 | yes | shell: `tofu plan` shows drift after a portal edit |
-| t7-delete | It Vanished | "The container was deleted behind your back." | 10 | yes | cloud: activity log shows a delete by the student in the portal |
-| t7-restored | Back in Business | "Apply restored the declared state." | 10 | yes | shell: `tofu apply` after drift (exit 0) |
+| t7-tag | Somebody Retagged It | "Drift noticed by `plan`." | 10 | yes | cloud: the container's tags were edited in the portal (needs the `cloud` event source); the `~` in `plan` is not read by the shell hook |
+| t7-delete | It Vanished | "The container was deleted behind your back." | 10 | yes | cloud: the container was deleted in the portal (needs the `cloud` event source) |
+| t7-restored | Back in Business | "Apply restored the declared state." | 10 | yes | shell: `tofu apply` (exit 0) after the portal delete (fires once `t7-delete` is earned, so it waits for the `cloud` event source) |
 
 ## Lab 8: change types
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t8-inplace | Fix It In Place | "A tag changes without a rebuild." | 10 | yes | shell: `tofu apply` with `~` only |
-| t8-replace | Rebuilt from Scratch | "The message forces a new container." | 10 | yes | shell: `tofu apply` with `-/+` |
-| t8-forced | Because I Said So | "`-replace` on demand." | 10 | yes | shell: `tofu apply -replace=` |
+| t8-inplace | Fix It In Place | "A tag changes without a rebuild." | 10 | yes | shell output: `tofu apply` whose plan is `~` only (needs the shell hook to report output, see the report) |
+| t8-replace | Rebuilt from Scratch | "The message forces a new container." | 10 | yes | shell output: `tofu apply` whose plan is `-/+` (needs shell output, or a `cloud` event of a container re-created) |
+| t8-forced | Because I Said So | "`-replace` on demand." | 10 | yes | shell: `tofu apply -replace=...` (exit 0) in Track B (after the credentials milestone) |
 
 ## Lab 9: scale
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t9-foreach | One Block, Many Sites | "`for_each` made the copies." | 10 | yes | verify: 3+ containers from one resource block |
-| t9-quota | Quota Reached | "You met the limit." | 10 | yes | cloud: quota denial for the student |
-| t9-fixed | Code Meets Reality | "Reduced the code to what fits." | 10 | yes | shell: `tofu plan` reports no changes after the quota |
+| t9-foreach | One Block, Many Sites | "`for_each` made the copies." | 10 | yes | cloud state: 3+ containers from one resource block (no `match` field reads cloud state; needs a `cloud` event or milestone `verify`) |
+| t9-quota | Quota Reached | "You met the limit." | 10 | yes | cloud: quota denial for the student (needs the `cloud` event source) |
+| t9-fixed | Code Meets Reality | "Reduced the code to what fits." | 10 | yes | shell: `tofu plan` (exit 0) after the quota denial (fires once `t9-quota` is earned, so it waits for the `cloud` event source) |
 
 ## Lab 10: clean up
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| t10-destroy | Leave No Trace | "Destroyed and verified." | 10 | yes | shell: `tofu destroy` (exit 0); verify: `resource_state` empty |
-| t10-commit | Committed | "Your work is saved in git." | 10 | yes | forgejo: push from the student's fork after the destroy |
+| t10-destroy | Leave No Trace | "Destroyed and verified." | 10 | yes | shell: `tofu destroy` (exit 0) in Track B (after the credentials milestone); the empty cloud is not checked |
+| t10-commit | Committed | "Your work is saved in git." | 10 | yes | forgejo: push to the student's fork `<user>/tofu-basics` after the Track B destroy |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
-| f-nolock | Locked Out | "State lock in the way." | 0 | shell: `tofu` exits with an `Error acquiring the state lock` |
-| f-typo | Fat Fingers | "A typo in a resource name." | 0 | shell: `tofu validate` exits 1 with `Reference to undeclared` |
-| f-yes | Auto Approve Bravado | "`-auto-approve` on the first try." | 0 | shell: `tofu apply -auto-approve` |
-| f-destroyfirst | Destroy First | "Ran `destroy` before anything was created." | 0 | shell: `tofu destroy` on empty state |
-| f-statecommit | State in Git | "Committed `terraform.tfstate`. Lab 3 warned you." | 0 | forgejo: push containing `terraform.tfstate` |
+| f-nolock | Locked Out | "State lock in the way." | 0 | shell output: a `tofu` line that prints `Error acquiring the state lock` (needs shell output) |
+| f-typo | Fat Fingers | "A typo in a resource name." | 0 | shell output: `tofu validate` exits 1 printing `Reference to undeclared` (needs shell output) |
+| f-yes | Auto Approve Bravado | "`-auto-approve` on the first try." | 0 | shell: `tofu apply -auto-approve` (exit 0); "on the first try" is not checked |
+| f-destroyfirst | Destroy First | "Ran `destroy` before anything was created." | 0 | shell: `tofu destroy` while nothing is held yet (needs a generic `requires_not`, an id NOT yet held) |
+| f-statecommit | State in Git | "Committed `terraform.tfstate`. Lab 3 warned you." | 0 | shell: a `git add` naming `terraform.tfstate` (exit 0); the push payload's file list is not read |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 
@@ -159,32 +159,38 @@ capstone's clean-up) does not undo it.
 ### C1: Tag Team (after Lab 5 or 6; needs 1 free container group)
 
 - **Points:** 100
-- **Where it runs:** the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`
+- **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c1` (cloned to `~/lab/challenge-c1`, own state); resources tagged `challenge=c1`
 - **Goal shown to the student:** Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL.
-- **Verify:** `resource_state`: one `challenge=c1` container running, policy-compliant, with `{user}` in its site name; an `output` named `url` in the challenge state.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.
+- **Verify:** Dojo Cloud (the student's own subscription, read-only): exactly one `challenge=c1` container running, site name `{user}-second`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` of `{user}/challenge-c1` declares `output "url"` (push it). Not checked: the `url` value and that the code is the only source of the site (the state is not read).
 - **Hint 1:** Copy your first site, and remember what the policy asked for.
 - **Hint 2:** Tags, region, size, and a new name.
-- **Collision check:** the site name has `{user}`, so the class-wide unique DNS label can't clash.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-c1`, then in `main.tf`: location `canadacentral`, `cpu = 0.25`, tags `{ owner = var.owner, env = "dev", challenge = "c1" }` on the group (and the resource group), `dns_name_label = "{user}-second"`, and add `output "url" { value = "${var.portal_base_url}/site/{user}-second/" }` (with a `portal_base_url` variable, as in Lab 5). `tofu init && tofu apply`, `git add . && git commit && git push origin main`, `dojo-check c1`.
+- **Collision check:** the site name has `{user}`, so the class-wide unique DNS label can't clash; the cloud check reads only the checking student's own subscription (the verb takes no account argument), and the repo is their own.
 
 ### C2: Quota Whisperer (after Lab 9; needs 1 free container group)
 
 - **Points:** 100
-- **Where it runs:** the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`
+- **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, own state); resources tagged `challenge=c2`
 - **Goal shown to the student:** Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.
-- **Seed:** a starter `main.tf` in `~/challenges/c2` with a `for_each` over 5 names, each already prefixed with the student's username.
-- **Verify:** `resource_state`: at least one `challenge=c2` site running, no `QuotaExceeded` in the last apply, and a `plan` in the challenge folder that is clean. The count never needs to be exact, since the free quota depends on what the student still has from the labs.
+- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.
+- **Verify:** Dojo Cloud (own subscription, read-only): one or two `challenge=c2` containers running, each with a `{user}-c2-` site name and the `owner` and `env` tags (the exact count depends on the quota left from the labs, so any count from 1 to 2 passes); and `main.tf` on `main` of `{user}/challenge-c2` no longer declares the original list of 5 sites (push the change). Not checked: that the last `apply` had no `QuotaExceeded` and that the plan is clean (shell output and state are not read); the pushed code stands in for them.
 - **Hint 1:** The error tells you the limit.
 - **Hint 2:** The list feeding `for_each` is what decides how many.
+- **Answer:** `dojo-challenge start c2`, `cd ~/lab/challenge-c2`, shorten `local.sites` to what fits (for example `["alpha"]`, or two names if the quota allows; `tofu apply` errors with `QuotaExceeded` and tells the limit), `tofu init && tofu apply`, commit and `git push origin main`, `dojo-check c2`.
+- **Collision check:** every site label starts with `{user}-c2-`, so labels can't clash; the cloud check reads only the checking student's own subscription and the repo is their own; the challenge never asks for more than 2 groups.
 
 ## Capstone (300 points, optional): Site Factory
 
 - **Points:** 300
-- **Where it runs:** the student's private Dojo Cloud subscription (`{user}`), in their own folder `~/challenges/<id>` with its own state; resources tagged `challenge=<id>`
+- **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/site-factory` (cloned to `~/lab/site-factory`, own state); resources tagged `challenge=capstone`
 - **Goal shown to the student:** Build, from scratch, one module-like layout that deploys **two** differently named sites from one `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing running.
-- **Seed:** an empty folder `~/challenges/capstone` (own state) and a Forgejo repo `{user}/site-factory`. All names use `{user}`.
-- **Verify:** two `challenge=capstone` containers live at check time 1 (`dojo-check` while up); an output map with two URLs; the second check after `destroy`: `resource_state` for `challenge=capstone` is empty; the code is pushed to `{user}/site-factory`. Two checks, both run by the student.
+- **Seed:** `dojo-challenge start capstone` creates `{user}/site-factory` (cloned to `~/lab/site-factory`): a README with the brief, `providers.tf`, `versions.tf`, `variables.tf` (`owner`) and a `.gitignore`. All names use `{user}`.
+- **Verify:** while the sites run (`dojo-check` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`; the output map is not checked. Not checked yet (one check can't be two phases): the clean state after `destroy` (see the report's proposal for a `phase`).
 - **Hint 1:** Lab 9 plus Lab 10, in one go.
 - **Hint 2:** `for_each` gives you `each.key`; outputs can use a `for` expression.
+- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/site-factory`, write `main.tf` (one `azurerm_container_group` with `for_each = toset(["a", "b"])`, `dns_name_label = "{user}-${each.key}"`, tags `owner`, `env`, `challenge = "capstone"`, canadacentral, `cpu = 0.25`), `outputs.tf` (`output "urls" { value = { for k, g in azurerm_container_group.site : k => g.fqdn } }`), `tofu init && tofu apply`, push to `main`, `dojo-check capstone`, then `tofu destroy`.
+- **Collision check:** names carry `{user}`; the cloud check reads only the checking student's own subscription and the repo is their own; needs the 2 groups of the quota, so old lab sites must be destroyed first.
 - **Badge tier:** capstone (stars)
 
 ## Totals (computed)

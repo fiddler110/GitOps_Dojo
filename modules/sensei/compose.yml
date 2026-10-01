@@ -1,0 +1,40 @@
+# sensei module: the roster pull-request bot (server.py + bot.py). Relative paths resolve
+# against engine/, not this folder. Acts as the Forgejo admin account; signs comments "Sensei".
+services:
+  sensei:
+    build:
+      context: ../modules/sensei
+    image: gitopsdojo/sensei:local
+    container_name: workshop_sensei
+    entrypoint: ["python3", "-B", "/opt/sensei/server.py"]
+    environment:
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_SENSEI:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - FORGEJO_URL=http://git-server:3000
+      # No `:?` here: `./run.sh stop` reads only engine/.env.
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:-}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:-}
+      - SENSEI_ENABLED=${SENSEI_ENABLED:-1}
+      - SENSEI_REPO=${SENSEI_REPO:-}
+      - SENSEI_FILE=${SENSEI_FILE:-roster/team.yaml}
+      - SENSEI_SEED=${SENSEI_SEED:-}
+      - DATA_DIR=/data
+    volumes:
+      - ../modules/sensei:/opt/sensei:ro
+      # Reuses the achievements service's Forgejo client (service/challenges.py).
+      - ../modules/achievements:/opt/achievements:ro
+      - sensei_data:/data
+    user: "0:0"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  sensei_data:

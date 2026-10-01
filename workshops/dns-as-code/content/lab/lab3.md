@@ -117,7 +117,7 @@ Within a few seconds CI runs the **DNS Preview** job:
 
 ## 6. Review someone else's change
 
-The merge button is still blocked: `main` needs one approval, and you can't approve your own pull request. Pair up with a neighbour, or ask the facilitator, and review each other's:
+The merge button is still blocked: `main` needs one approval, and you can't approve your own pull request. Pair up with a neighbour and review each other's. No neighbour free? Sensei, the class review bot, has opened a practice pull request ("Add status.dojo.test") that anyone can review. It only opens it: the facilitator decides whether it merges.
 
 1. In Forgejo, open their pull request from the repo's **Pull requests** tab.
 2. Read **Files changed**: one new line, with their name on it?

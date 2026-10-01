@@ -5,24 +5,37 @@
       "title": "Challenge Accepted",
       "joke": "Started a dns-01 issuance.",
       "core": true,
-      "when": "ca: dns-01 order created for the student",
-      "match": {}
+      "when": "shell: `certbot certonly ... dns-01` run (fires when the command ends, however it ends; the CA order is not read)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot certonly",
+        "regex": "dns-01"
+      }
     },
     {
       "id": "c5-txt",
       "title": "Prove You Own It",
       "joke": "TXT record deployed via the DNS pipeline.",
       "core": true,
-      "when": "dns: `_acme-challenge.{user}` TXT present",
-      "match": {}
+      "when": "dns: the student's own key changed a name in `certs.dojo.test` (the TXT PATCH; which name is not in the event)",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "certs.dojo.test"
+      }
     },
     {
       "id": "c5-done",
       "title": "Wildcard Energy",
       "joke": "Issued through DNS. No open ports needed.",
       "core": true,
-      "when": "ca: dns-01 order valid",
-      "match": {}
+      "when": "shell: `certbot certonly ... dns-01` exit 0 (certbot reports the certificate issued)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot certonly",
+        "regex": "dns-01",
+        "exit": 0
+      }
     }
   ]
 }

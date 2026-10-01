@@ -1,0 +1,21 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-c1",
+  "description": "{user}'s own challenge c1 (OpenTofu Basics)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 3,
+      "message": "Start the second site",
+      "files": [
+        {"path": "main.tf", "from": "site-c1/main.tf"},
+        {"path": "providers.tf", "from": "site-c1/providers.tf"},
+        {"path": "versions.tf", "from": "site-c1/versions.tf"},
+        {"path": "variables.tf", "from": "site-c1/variables.tf"},
+        {"path": "README.md", "from": "site-c1/README.md"},
+        {"path": ".gitignore", "from": "site-c1/.gitignore"}
+      ]
+    }
+  ]
+}

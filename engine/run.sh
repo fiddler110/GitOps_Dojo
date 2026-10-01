@@ -6,11 +6,15 @@
 # Usage:
 #   ./run.sh setup [--default] [--force]  # create engine/.env (scripts/env-setup.sh; --rotate-class: new class password)
 #   ./run.sh capacity --students N [...]  # size the terminal limits (scripts/capacity-calc.sh)
+#   ./run.sh alias-setup                  # add a `dojo` shell function to your profile (scripts/alias-setup.sh)
 #   ./run.sh <workshop-name>              # e.g. ./run.sh dns-as-code
 #   ./run.sh <workshop-name> --test       # also spin up demo/test bot students (3)
 #   ./run.sh <workshop-name> --test 14    # ...or N bots: 1-3 fixed personas, rest random
 #   ./run.sh <workshop-name> --dry-run    # preview: what would rebuild/start, builds nothing
 #   ./run.sh <workshop-name> --env home   # also load engine/.env.home on top of engine/.env
+#   ./run.sh <workshop-name> --allow-default-passwords  # start even with default passwords on a non-loopback address
+#   ./run.sh <workshop-name> --build-only # build/refresh its images, start nothing
+#   ./run.sh build-all [--env NAME] [--dry-run]  # --build-only for every workshop, one after another
 #   ./run.sh list                         # show available workshops
 #   ./run.sh modules                      # show available modules and who uses them
 #   ./run.sh stop | teardown              # stop the stack, wipe all volumes
@@ -53,8 +57,10 @@ cd "$(dirname "$0")"
 # of everything else, so the completion offer below can be skipped too --
 # a dry run shouldn't prompt for (or edit) your shell rc file.
 dry_run=0
+build_only=0
 for arg in "$@"; do
   if [ "$arg" = "--dry-run" ]; then dry_run=1; fi
+  if [ "$arg" = "--build-only" ]; then build_only=1; fi
 done
 
 # One-time, interactive offer to wire up shell tab-completion (workshop
@@ -64,9 +70,9 @@ done
 # ahead of help or stop either: asking a question before printing usage (or
 # tearing down) is the wrong first thing to do.
 case "${1:-}" in
-  help | -h | --help | stop | teardown) ;;
+  help | -h | --help | stop | teardown | alias-setup) ;;
   *)
-    if [ "$dry_run" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
+    if [ "$dry_run" = "0" ] && [ "$build_only" = "0" ] && [ -f ./scripts/install-completion.sh ]; then
       ./scripts/install-completion.sh
     fi ;;
 esac
@@ -81,6 +87,9 @@ case "${1:-}" in
   capacity | --capacity)
     shift
     exec ./scripts/capacity-calc.sh "$@" ;;
+  alias-setup)
+    shift
+    exec ./scripts/alias-setup.sh "$@" ;;
 esac
 
 usage() {
@@ -99,12 +108,21 @@ Commands:
                                 and started; default passwords are refused
                                 unless PUBLIC_BASE_URL and LAB_HOST_IP are
                                 loopback (--allow-default-passwords overrides)
+  <workshop-name> --build-only  build or refresh that workshop's images and stop
+                                there: nothing is started, no password checks
+  build-all [--env NAME] [--dry-run]
+                                --build-only for every workshop in turn: builds
+                                what changed or is missing, reuses the rest;
+                                --dry-run only reports
   list                          show available workshops
   modules                       show available modules (../modules/) and which
                                 workshops use them (MODULES= in workshop.env)
   setup [--default] [--force]   create engine/.env (--rotate-class: new class
                                 password only)
   capacity --students N [...]   size the terminal resource limits for this machine
+  alias-setup                   add a 'dojo' shell function (runs this run.sh from
+                                anywhere) to ~/.zshrc_aliases / ~/.zshrc, or
+                                ~/.bash_aliases / ~/.bashrc for bash
   stop | teardown [--dry-run]   stop the stack and wipe ALL volumes (irreversible);
                                 --dry-run lists what would be removed instead
   help | -h | --help            show this message
@@ -189,7 +207,12 @@ not_ready_list() {
 }
 wait_until_ready() {
   wr_end=$(($(date +%s) + ${STARTUP_WAIT:-300}))
-  while [ -n "$(not_ready_list)" ] && [ "$(date +%s)" -lt "$wr_end" ]; do sleep 2; done
+  # A container that exited non-zero won't become ready (and leaves its
+  # dependents in "Created" for good), so stop waiting as soon as one has.
+  while [ -n "$(not_ready_list)" ] && [ "$(date +%s)" -lt "$wr_end" ]; do
+    [ -z "$(ps_all --filter name=workshop_ --format '{{.Status}}' 2>/dev/null | grep '^Exited ([1-9]' || true)" ] || break
+    sleep 2
+  done
 }
 
 # `compose up -d` prints little while it waits on a container, so a slow start
@@ -244,7 +267,7 @@ list_workshops() {
     case "$order" in '' | *[!0-9]*) order=99 ;; esac
     title="$(sed -n 's/^WORKSHOP_NAME=//p' "${d}workshop.env" | head -1 | tr -d '"')"
     case "$name" in
-      setup | capacity | stop | teardown | help | list | modules)
+      setup | capacity | alias-setup | build-all | stop | teardown | help | list | modules)
         title="(unreachable: '${name}' is also a command, rename the folder)" ;;
     esac
     printf '%02d\t%s\t%s\n' "$order" "$name" "${title:-}"
@@ -296,6 +319,39 @@ esac
 case "${1:-}" in
   modules)
     list_modules
+    exit 0 ;;
+  build-all)
+    shift
+    ba_args=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --dry-run) ba_args="${ba_args} --dry-run" ;;
+        --env)
+          case "${2:-}" in
+            '' | *[!a-z0-9-]* | -*)
+              echo "--env expects a name (lowercase letters, digits and '-'), e.g. --env home" >&2
+              exit 1 ;;
+          esac
+          ba_args="${ba_args} --env $2"; shift ;;
+        -h | --help) usage; exit 0 ;;
+        *)
+          echo "Unrecognized argument: $1 (usage: ./run.sh build-all [--env NAME] [--dry-run])" >&2
+          exit 1 ;;
+      esac
+      shift
+    done
+    [ -f .env ] || { echo ".env not found; run './run.sh setup' first." >&2; exit 1; }
+    ba_ok=""; ba_bad=""
+    for d in ../workshops/*/; do
+      w="$(basename "$d")"
+      [ -f "${d}workshop.env" ] || continue
+      say_step "Building ${w}"
+      # shellcheck disable=SC2086
+      if sh ./run.sh "$w" --build-only $ba_args; then ba_ok="${ba_ok} ${w}"; else ba_bad="${ba_bad} ${w}"; fi
+    done
+    echo
+    [ -z "$ba_ok" ] || say_ok "built or up to date:${ba_ok}"
+    if [ -n "$ba_bad" ]; then say_bad "failed:${ba_bad}"; exit 1; fi
     exit 0 ;;
   list)
     list_workshops
@@ -359,7 +415,7 @@ while [ "$#" -gt 0 ]; do
           echo "--env expects a name (lowercase letters, digits and '-'), e.g. --env home" >&2
           exit 1 ;;
       esac ;;
-    --dry-run) ;; # already picked up above
+    --dry-run | --build-only) ;; # already picked up above
     --allow-default-passwords) allow_default_passwords=1 ;;
     -h | --help)
       usage
@@ -506,7 +562,7 @@ for pair in "TTYD_PASSWORD:${TTYD_PASSWORD:-}" "$student_secret" \
     change-me | student | student123 | admin) default_passwords="${default_passwords} ${pair%%:*}" ;;
   esac
 done
-if [ -n "$default_passwords" ] && [ "$local_only" = "0" ]; then
+if [ -n "$default_passwords" ] && [ "$local_only" = "0" ] && [ "$build_only" = "0" ]; then
   if [ "$allow_default_passwords" = "1" ] || [ "${ALLOW_DEFAULT_PASSWORDS:-0}" = "1" ]; then
     echo "WARNING: default passwords in use (${default_passwords# }) on ${PUBLIC_BASE_URL}," >&2
     echo "         reachable beyond this machine (--allow-default-passwords / ALLOW_DEFAULT_PASSWORDS=1)." >&2
@@ -577,6 +633,10 @@ fi
 # installed; fall back to docker otherwise. teardown.sh and capacity-calc.sh
 # use the same detection, so all three agree on which engine is in play.
 if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
+  # On WSL2 the Windows folders (/mnt/c/...) are on PATH, and podman searches PATH for every OCI
+  # runtime it knows, each miss crossing into Windows: ~1.2 s per podman call instead of ~0.06 s,
+  # and run.sh makes dozens. Nothing podman needs lives there.
+  case ":$PATH:" in *:/mnt/*) PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd:)"; export PATH ;; esac
   build() { podman build "$@"; }
   compose() { podman-compose "$@"; }
   inspect() { podman inspect "$@"; }
@@ -633,10 +693,6 @@ sync_lab_docs() {
   lab_dst="${content_dir}/slides/lab"
   [ -d "$lab_src" ] || return 0
   mkdir -p "$lab_dst"
-  # On WSL2 the Windows folders (/mnt/c/...) are on PATH, and podman searches PATH for every OCI
-  # runtime it knows, each miss crossing into Windows: ~1.2 s per podman call instead of ~0.06 s,
-  # and run.sh makes dozens. Nothing podman needs lives there.
-  case ":$PATH:" in *:/mnt/*) PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd:)"; export PATH ;; esac
   # Drop generated copies whose source was renamed or deleted since the
   # last run, before regenerating what's actually there now.
   for existing in "$lab_dst"/*.md.txt; do
@@ -666,6 +722,8 @@ hash_dir() {
     find "$1" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' \
       | LC_ALL=C sort | while IFS= read -r f; do
         sha256_cmd "$f"
+        # COPY keeps the executable bit, so flipping it has to change the hash too.
+        if [ -x "$f" ]; then printf 'exec %s\n' "$f"; fi
       done
     [ -z "$build_salt" ] || printf '%s\n' "$build_salt"
   } | sha256_cmd | awk '{print $1}'
@@ -938,7 +996,8 @@ done
 # terminal ports (remediation T2.2a). A module or workshop service that
 # joined it would get that path too, so no fragment may mention it.
 for f in $extra_files; do
-  if grep -n 'terminal_ingress\|web-terminal-ingress' "$f" >&2; then
+  # Comment lines may mention it (to say why a service doesn't join); only real uses count.
+  if grep -n 'terminal_ingress\|web-terminal-ingress' "$f" | grep -v '^[0-9]*:[[:space:]]*#' >&2; then
     echo "Refusing to start: $f joins terminal_ingress, the gateway's private path to the" >&2
     echo "students' IDE and terminal ports. Use workshop_lab (see workshops/README.md)." >&2
     exit 1
@@ -952,6 +1011,10 @@ done
 if [ -n "$overlay_dirs" ]; then
   # shellcheck disable=SC2086
   compose_overlay_build_if_changed "$overlay_dirs" ".build-state/${workshop}.overlay-hash" $compose_args
+fi
+if [ "$build_only" = "1" ]; then
+  [ "$dry_run" = "1" ] || reap_superseded
+  exit 0
 fi
 
 # Workshop extensions (engine/MODULES-PLAN.md §3): the workshop's
@@ -985,11 +1048,15 @@ for key in $(cat $env_files | grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' | tr -d '=' | 
   ext_env_args="$ext_env_args -e $key"
 done
 # shellcheck disable=SC2086
-ext_services="$(compose $compose_args config --services 2>/dev/null | tr '\n' ' ')"
+ext_err="$(mktemp)"
+ext_services="$(compose $compose_args config --services 2>"$ext_err" | tr '\n' ' ')"
 if [ -z "$ext_services" ]; then
-  echo "Could not list this run's Compose services ('compose ${compose_args} config --services' failed)." >&2
+  echo "Could not list this run's Compose services ('compose ${compose_args} config --services' failed):" >&2
+  cat "$ext_err" >&2
+  rm -f "$ext_err"
   exit 1
 fi
+rm -f "$ext_err"
 # The script is mounted from the source tree, not baked in, so a dry run
 # (which builds nothing) still checks with the current rules; the image is
 # only its Python.
@@ -1079,13 +1146,17 @@ up_start="$(date +%s)"
 up_rc=0
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   # A terminal: one table that redraws in place. Compose's own output goes to a log.
+  # Failed starts keep their log for diagnosis; drop the ones left by earlier runs after a day.
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'dojo-up.*' -mtime +1 -delete 2>/dev/null || true
   up_log="$(mktemp "${TMPDIR:-/tmp}/dojo-up.XXXXXX")"
   tbl_state="$(mktemp)"; echo 0 > "$tbl_state"
-  echo "Compose output is in ${up_log}"
+  echo "Compose output is in ${up_log} (deleted once the start succeeds)"
   printf '\033[?25l'
   table_loop &
   watch_pid=$!
-  trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT INT TERM
+  # INT/TERM must exit: a trap alone returns to the script, which would carry on.
+  trap 'kill "$watch_pid" 2>/dev/null; printf "\033[?25h"' EXIT
+  trap 'exit 130' INT TERM
   # shellcheck disable=SC2086
   compose $compose_args up -d > "$up_log" 2>&1 || up_rc=$?
   [ "$up_rc" != 0 ] || wait_until_ready
@@ -1097,12 +1168,15 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   if [ "$up_rc" != 0 ]; then
     say_bad "compose failed (exit ${up_rc}); the last lines of its output:"
     tail -n 20 "$up_log"
+  else
+    rm -f "$up_log"
   fi
 else
   echo "A line appears below whenever a container changes state; 'still waiting on' names what is holding things up."
   progress_watch &
   watch_pid=$!
-  trap 'kill "$watch_pid" 2>/dev/null' EXIT INT TERM
+  trap 'kill "$watch_pid" 2>/dev/null' EXIT
+  trap 'exit 130' INT TERM
   # shellcheck disable=SC2086
   compose $compose_args up -d || up_rc=$?
   [ "$up_rc" != 0 ] || wait_until_ready

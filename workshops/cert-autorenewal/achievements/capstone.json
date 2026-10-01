@@ -4,11 +4,24 @@
   "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
   "goal": "Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different vhosts (`www` and `api` under your name), and set up renewal that works for both.",
   "seed": "the wildcard A record above. The two vhosts are created by the student in their own directory. The DNS pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.",
-  "verify_text": "both vhosts serve the same wildcard serial; a renewal entry exists; a forced renewal updates both.",
+  "verify_text": "`www.{user}.certs.dojo.test` and `api.{user}.certs.dojo.test` are both served, over SNI, a valid certificate that chains to the CA root, that covers `*.{user}.certs.dojo.test`, with the same serial on both. That a renewal entry exists and that a forced renewal updates both are not checked.",
   "isolation": "the challenge TXT name is under the student's own parent, so two students issuing at once never overwrite each other's record.",
   "badge_tier": "capstone",
   "hints": [
     "A wildcard only works through DNS.",
     "One cert file, two vhosts, one reload."
-  ]
+  ],
+  "verify": [
+    {
+      "verb": "served_same",
+      "hosts": [
+        "www.{user}.certs.dojo.test",
+        "api.{user}.certs.dojo.test"
+      ],
+      "san": [
+        "*.{user}.certs.dojo.test"
+      ]
+    }
+  ],
+  "answer": "Lab 5's dns-01 flow for `*.{user}.certs.dojo.test` (`certbot certonly --manual --preferred-challenges dns-01 -d '*.{user}.certs.dojo.test'`, the TXT record through `dns-api`), install the one certificate for both the `www` and `api` vhosts, reload, wire the renewal script into cron for both, then `dojo-check capstone`."
 }

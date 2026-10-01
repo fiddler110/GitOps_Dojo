@@ -198,7 +198,7 @@ def forgejo_event(kind, payload):
     repo = payload.get("repository") if isinstance(payload.get("repository"), dict) else {}
     ev = {"source": "forgejo", "event": None, "action": None, "user": None, "actor": _login(payload.get("sender")),
           "repo": repo.get("full_name") if isinstance(repo.get("full_name"), str) else None,
-          "branch": None, "tag": None, "ref_type": None}
+          "branch": None, "tag": None, "ref_type": None, "head": None}
 
     def ref(value, ref_type=None):
         if not isinstance(value, str):
@@ -227,6 +227,8 @@ def forgejo_event(kind, payload):
         ev["user"] = _login(pr.get("user")) or ev["actor"]
         base = pr.get("base") if isinstance(pr.get("base"), dict) else {}
         ev["branch"] = base.get("ref") if isinstance(base.get("ref"), str) else None
+        head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
+        ev["head"] = head.get("ref") if isinstance(head.get("ref"), str) else None
     elif kind.startswith("pull_request_review"):
         # pull_request_review_approved / _rejected / _comment
         action = kind[len("pull_request_review_"):] or None
@@ -241,9 +243,54 @@ def forgejo_event(kind, payload):
 
 
 def _forgejo_match(m, ev):
-    for key in ("event", "action", "ref_type", "branch", "tag", "repo"):
+    for key in ("event", "action", "ref_type", "branch", "tag", "repo", "head"):
         if not _value_ok(m, ev, key, ev["user"]):
             return False
+    if "head_prefix" in m:
+        head = ev.get("head") or ""
+        if not any(head.startswith(p.replace("{user}", ev["user"] or "")) for p in _as_list(m["head_prefix"])):
+            return False
+    return True
+
+
+# -- dns (posted by the dns-gate module, signed; see server.py /api/adapter) --------------------
+DNS_EVENTS = ("zone_patch", "api_refused")
+
+
+def dns_event(body):
+    """A validated dns event from the gate's signed post, or None.
+
+    zone_patch: one accepted change to a zone by an account's own key, with what it did to the
+    zone: {zone, first, created, changed, deleted, min_ttl}. api_refused: a refused write by an
+    account's own key. `user` is the account whose key it was."""
+    if not isinstance(body, dict) or body.get("event") not in DNS_EVENTS:
+        return None
+    user, zone = body.get("user"), body.get("zone")
+    if not isinstance(user, str) or not user or not isinstance(zone, str):
+        return None
+
+    def num(k):
+        v = body.get(k)
+        return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else 0
+
+    ttl = body.get("min_ttl")
+    return {"source": "dns", "event": body["event"], "user": user, "zone": zone[:200],
+            "first": body.get("first") is True, "created": num("created"), "changed": num("changed"),
+            "deleted": num("deleted"),
+            "min_ttl": ttl if isinstance(ttl, int) and not isinstance(ttl, bool) and ttl >= 0 else None}
+
+
+def _dns_match(m, ev):
+    for key in ("event", "zone"):
+        if not _value_ok(m, ev, key, ev["user"]):
+            return False
+    if "first" in m and ev["first"] != m["first"]:
+        return False
+    for key in ("created", "changed", "deleted"):
+        if key + "_min" in m and ev[key] < m[key + "_min"]:
+            return False
+    if "ttl_below" in m and (ev["min_ttl"] is None or ev["min_ttl"] >= m["ttl_below"]):
+        return False
     return True
 
 
@@ -260,19 +307,28 @@ class Matcher:
             alts = m.get("any") if "any" in m else [m]
             compiled = []
             for a in alts:
-                if isinstance(a, dict) and a.get("source") in ("shell", "forgejo"):
+                if isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns"):
                     compiled.append((a, re.compile(a["regex"]) if "regex" in a else None))
             if compiled:
                 self.rules.append((iid, compiled))
 
-    def match(self, event):
-        """Ids whose match fires for this normalised event, in catalog order."""
+    def match(self, event, have=(), bump=None):
+        """Ids whose match fires for this normalised event, in catalog order.
+
+        `have`: ids the student already holds (for `requires`: every listed id must be held).
+        `bump(id)`: counts one more matching event for this student and returns the new total
+        (for `count: N`: fires from the Nth matching event on). Both are optional."""
         out = []
         for iid, alts in self.rules:
             for m, rx in alts:
                 if m["source"] != event["source"]:
                     continue
-                ok = _shell_match(m, event, rx) if event["source"] == "shell" else _forgejo_match(m, event)
+                if "requires" in m and not all(r in have for r in _as_list(m["requires"])):
+                    continue
+                ok = {"shell": lambda: _shell_match(m, event, rx), "forgejo": lambda: _forgejo_match(m, event),
+                      "dns": lambda: _dns_match(m, event)}[event["source"]]()
+                if ok and "count" in m:
+                    ok = bump is not None and bump(iid) >= m["count"]
                 if ok:
                     out.append(iid)
                     break

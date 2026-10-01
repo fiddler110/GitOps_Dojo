@@ -2,7 +2,7 @@
   'use strict';
   var HDR = { 'Content-Type': 'application/json', 'X-Requested-With': 'dojo-admin' };
   function $(id) { return document.getElementById(id); }
-  function cell(text) { var td = document.createElement('td'); td.textContent = text; return td; }
+  function cell(text, cls) { var td = document.createElement('td'); td.textContent = text; if (cls) { td.className = cls; } return td; }
   function say(t, bad) { $('msg').textContent = t; $('msg').className = bad ? 'err' : 'dim'; }
   function post(path, body) {
     return fetch('api/' + path, { method: 'POST', headers: HDR, credentials: 'same-origin', body: JSON.stringify(body) })
@@ -14,7 +14,7 @@
     d.students.forEach(function (s) {
       var tr = document.createElement('tr');
       [s.rank, s.user, s.name, s.score, s.percent + '%' + (s.complete ? ' ✓' : ''), s.moments.join(', '), s.cheats.join(', ')]
-        .forEach(function (v) { tr.appendChild(cell(v)); });
+        .forEach(function (v, i) { tr.appendChild(cell(v, i === 3 && v < 0 ? 'neg' : '')); });
       var td = document.createElement('td'), b = document.createElement('button');
       b.textContent = 'Reset'; b.className = 'danger';
       b.addEventListener('click', function () {
@@ -45,6 +45,12 @@
   $('a-go').addEventListener('click', function () {
     post('award', { user: $('a-user').value.trim(), points: parseInt($('a-pts').value, 10), reason: $('a-why').value })
       .then(function () { say('Awarded.'); load(); }).catch(function (e) { say(e.message, true); });
+  });
+  ['complete', 'uncomplete'].forEach(function (id) {
+    $(id).addEventListener('click', function () {
+      post('complete', { user: $('a-user').value.trim(), on: id === 'complete' })
+        .then(function () { say(id === 'complete' ? 'Marked complete.' : 'Override removed.'); load(); }).catch(function (e) { say(e.message, true); });
+    });
   });
   $('reload').addEventListener('click', function () {
     post('reload', {}).then(function () { say('Catalog reloaded.'); load(); }).catch(function (e) { say(e.message, true); });

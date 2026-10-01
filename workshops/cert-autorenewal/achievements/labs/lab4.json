@@ -5,8 +5,12 @@
       "title": "Script Kiddie (Proud)",
       "joke": "A renewal script that reinstalls too.",
       "core": true,
-      "when": "verify: script exists, executable, runs with exit 0",
-      "match": {}
+      "when": "shell: the renewal script `renew-and-reload.sh` run by hand, exit 0 (existence and the executable bit are not checked separately)",
+      "match": {
+        "source": "shell",
+        "regex": "renew-and-reload\\.sh",
+        "exit": 0
+      }
     },
     {
       "id": "c4-installs",
@@ -21,8 +25,16 @@
       "title": "Set It and Forget It",
       "joke": "Wired into cron.",
       "core": true,
-      "when": "shell: `crontab` shows the renewal entry",
-      "match": {}
+      "when": "shell: `crontab -e` (saved, exit 0) or `crontab -l`; the entry itself is not read",
+      "match": {
+        "source": "shell",
+        "cmd": "crontab",
+        "flags": [
+          "-e",
+          "-l"
+        ],
+        "exit": 0
+      }
     },
     {
       "id": "c4-watch",

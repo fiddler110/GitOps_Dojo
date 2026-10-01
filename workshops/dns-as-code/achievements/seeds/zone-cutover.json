@@ -1,0 +1,39 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-zone",
+  "description": "{user}'s own challenge zone (DNS as Code)",
+  "private": false,
+  "values": {
+    "n": [
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18"
+    ]
+  },
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 10,
+      "message": "Start the zone",
+      "files": [
+        {
+          "path": "dnsconfig.js",
+          "from": "zone-cutover/dnsconfig.js"
+        },
+        {
+          "path": "creds.json",
+          "from": "zone-cutover/creds.json"
+        },
+        {
+          "path": "README.md",
+          "from": "zone-cutover/README.md"
+        }
+      ]
+    }
+  ]
+}

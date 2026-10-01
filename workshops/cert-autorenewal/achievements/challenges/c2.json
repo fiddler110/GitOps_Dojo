@@ -8,5 +8,8 @@
   "hints": [
     "Cron runs at most once a minute.",
     "`renew` only acts when the cert is close to expiry."
-  ]
+  ],
+  "answer": "Reuse Lab 4's `renew-and-reload.sh` and its cron line for `{user}.certs.dojo.test`, and leave it alone for 20 minutes (the cert must be reissued at least twice). Not checkable by `dojo-check` yet.",
+  "isolation": "the student's own vhost directory and hostname only.",
+  "seed": "nothing to seed: the student's own hostname and the wildcard A record."
 }

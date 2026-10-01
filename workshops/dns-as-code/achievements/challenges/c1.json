@@ -3,11 +3,53 @@
   "title": "The Typo",
   "after": "after Lab 1 or 2",
   "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
-  "goal": "The zone contains a record whose hostname is wrong. Find it and fix it without touching any other record.",
-  "seed": "the student's `dnsconfig.js` gains one doubled-zone hostname (`www.{user}.dojo.test.dojo.test`) among ~6 records.",
-  "verify_text": "`resource_state`: the record now resolves under `{user}.dojo.test`, and the other records are unchanged.",
+  "goal": "Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.",
+  "seed": "`dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol doubles the zone onto it. `{label}` is picked per student.",
+  "verify_text": "the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the doubled target is gone.",
   "hints": [
     "Run the tool that shows you what it would change.",
     "Look at the end of each hostname."
-  ]
+  ],
+  "seed_plan": "zone-typo.json",
+  "verify": [
+    {
+      "verb": "zone_records",
+      "zone": "{user}.dojo.test",
+      "records": [
+        {
+          "name": "@",
+          "type": "A",
+          "value": "203.0.113.10"
+        },
+        {
+          "name": "mail",
+          "type": "A",
+          "value": "203.0.113.20"
+        },
+        {
+          "name": "www",
+          "type": "A",
+          "value": "203.0.113.10"
+        },
+        {
+          "name": "{label}",
+          "type": "CNAME",
+          "value": "www.{user}.dojo.test."
+        }
+      ]
+    },
+    {
+      "verb": "zone_absent",
+      "zone": "{user}.dojo.test",
+      "records": [
+        {
+          "name": "{label}",
+          "type": "CNAME",
+          "value": "www.{user}.dojo.test.{user}.dojo.test."
+        }
+      ]
+    }
+  ],
+  "isolation": "the student's own repo and their own zone `{user}.dojo.test`, which only their own key can change. The check reads that zone only.",
+  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (the `{label}` CNAME shows the zone twice), add the trailing dot: `CNAME(\"{label}\", \"www.{user}.dojo.test.\")`, `dnscontrol push`, then `dojo-check c1`."
 }

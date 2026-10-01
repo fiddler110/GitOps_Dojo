@@ -49,63 +49,63 @@ structured `verify` assertion mentions `{user}`.
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | d1-preview | Look Before You Leap | "Previewed before pushing. Adults do that." | 10 | yes | shell: `dnscontrol preview` (exit 0) |
-| d1-push | Live on the Wire | "Your zone exists. Somewhere a resolver blinked." | 10 | yes | shell: `dnscontrol push` (exit 0); dns: zone created |
-| d1-add | Record Collector | "More records than a 90s teenager." | 10 | yes | verify: `resource_state` zone has 3+ records |
-| d1-change | Changed My Mind | "TTLs are a suggestion, apparently." | 10 | yes | verify: a record differs from its first pushed value |
-| d1-remove | Gone, Not Forgotten | "Removed a record by deleting one line." | 10 | yes | dns: record deleted after a push |
-| d1-dot | The Trailing Dot | "One character. Whole different hostname." | 10 | yes | shell: `dnscontrol preview` output shows the doubled zone name |
+| d1-push | Live on the Wire | "Your zone exists. Somewhere a resolver blinked." | 10 | yes | shell: `dnscontrol push` (exit 0) |
+| d1-add | Record Collector | "More records than a 90s teenager." | 10 | yes | dns: your own zone gets a new record after its first push |
+| d1-change | Changed My Mind | "TTLs are a suggestion, apparently." | 10 | yes | dns: a push changes a record already in your zone |
+| d1-remove | Gone, Not Forgotten | "Removed a record by deleting one line." | 10 | yes | dns: a push removes a record from your zone |
+| d1-dot | The Trailing Dot | "One character. Whole different hostname." | 10 | yes | shell: `dnscontrol preview` fails (the file is refused, e.g. a target without its trailing dot) |
 
 ## Lab 2: drift and undoing
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| d2-drift | Who Touched My Zone? | "Someone changed it behind your back. Classic." | 10 | yes | shell: `dnscontrol preview` shows a change you did not make |
+| d2-drift | Who Touched My Zone? | "Someone changed it behind your back. Classic." | 10 | yes | shell: `curl -X PATCH` against `dns-api` (the step that makes the zone drift; a proxy for seeing the drift in `preview`) |
 | d2-fix | Back to Declared | "Config is the truth. The zone obeys." | 10 | yes | shell: `dnscontrol push` after drift, exit 0 |
-| d2-revert | Time Machine | "Undid a pushed change the polite way." | 10 | yes | shell: `git revert` (exit 0) then `dnscontrol push` |
+| d2-revert | Time Machine | "Undid a pushed change the polite way." | 10 | yes | shell: `git revert` (exit 0) |
 
 ## Lab 3: the change process on a shared zone
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| d3-clone | Shared Custody | "Cloned the class's production zone. Nobody panic." | 10 | yes | forgejo: clone of `dns-team/dns-as-code` |
-| d3-blocked | Computer Says No | "You tried the shortcut. It said no." | 10 | yes | forgejo: direct push to `main` rejected (the same event also shows as a funny moment, which scores nothing) |
+| d3-clone | Shared Custody | "Cloned the class's production zone. Nobody panic." | 10 | yes | shell: `git clone` of `dns-team/dns-as-code` (exit 0) |
+| d3-blocked | Computer Says No | "You tried the shortcut. It said no." | 10 | yes | shell: `git push` fails while on `main` (the branch rule refuses a direct push) |
 | d3-pr | Please Look at This | "A pull request, as nature intended." | 10 | yes | forgejo: PR opened on `dns-team/dns-as-code` |
-| d3-review | Second Pair of Eyes | "You reviewed someone else's change." | 10 | yes | forgejo: review submitted on any PR in `dns-team/dns-as-code` that the student did not open (a neighbour's, or the seeded `dns-bot` PR, which the facilitator's setup opens so nobody is left without one) |
-| d3-applied | CI Did the Thing | "Merged, and the robot applied it." | 10 | yes | forgejo: PR merged; verify: record present in the zone |
+| d3-review | Second Pair of Eyes | "You reviewed someone else's change." | 10 | yes | forgejo: review submitted on a PR in `dns-team/dns-as-code` (Forgejo does not let you approve your own) |
+| d3-applied | CI Did the Thing | "Merged, and the robot applied it." | 10 | yes | forgejo: your PR merged in `dns-team/dns-as-code` (CI applying it is not checked) |
 
 ## Lab 4: `dnsctl.py`
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| d4-wizard | Wizardry | "Added a record with a wizard. Very Gandalf." | 10 | yes | shell: `dnsctl.py add` (exit 0) |
-| d4-submit | Submitted | "Preview, then a PR, in one command." | 10 | yes | forgejo: PR opened by `dnsctl.py submit` branch pattern |
-| d4-status | Status Report | "Checked on your PR from the terminal." | 10 | yes | shell: `dnsctl.py status` (exit 0) |
-| d4-validated | Trust, Then Verify | "The record is live and you checked." | 10 | yes | shell: `dnsctl.py validate` (exit 0) |
+| d4-wizard | Wizardry | "Added a record with a wizard. Very Gandalf." | 10 | yes | shell: `dnsctl.py record add` (or `dnsc record add`), exit 0 |
+| d4-submit | Submitted | "Preview, then a PR, in one command." | 10 | yes | shell: `dnsctl.py submit` (or `dnsc submit`), exit 0 |
+| d4-status | Status Report | "Checked on your PR from the terminal." | 10 | yes | shell: `dnsctl.py status` (or `dnsc status`), exit 0 |
+| d4-validated | Trust, Then Verify | "The record is live and you checked." | 10 | yes | shell: `dnsctl.py validate` (or `dnsc validate`), exit 0 |
 
 ## Lab 5: history and rollback
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| d5-history | DNS Archaeologist | "Read the zone's past like a diary." | 10 | yes | shell: `dnsctl.py history` (exit 0) |
-| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | forgejo: PR opened from a `rollback-*` branch |
-| d5-gone | Actually Gone | "Confirmed it is really gone." | 10 | yes | dns: rolled-back record no longer resolves (verify) |
+| d5-history | DNS Archaeologist | "Read the zone's past like a diary." | 10 | yes | shell: `dnsctl.py history` (or `dnsc history`), exit 0 |
+| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `rollback-*` PR) |
+| d5-gone | Actually Gone | "Confirmed it is really gone." | 10 | yes | forgejo: a `rollback-*` pull request of yours is merged |
 
 ## Lab 6: conflicts in `dnsconfig.js`
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
-| d6-conflict | Same Line, Different Idea | "Two edits, one line." | 10 | yes | shell: `git merge` or `git pull --rebase` exits non-zero with a conflict in `dnsconfig.js` |
-| d6-resolved | Diplomat | "Both records kept. Peace in our time." | 10 | yes | shell: commit completes a merge; verify: no `<<<<<<<` in `dnsconfig.js` |
-| d6-preview | Preview First, Always | "Previewed the merge result before pushing." | 10 | yes | shell: `dnscontrol preview` after a merge commit |
+| d6-conflict | Same Line, Different Idea | "Two edits, one line." | 10 | yes | shell: `git merge` or `git pull` exits non-zero and leaves a merge in progress |
+| d6-resolved | Diplomat | "Both records kept. Peace in our time." | 10 | yes | shell: `git commit` that completes a merge (exit 0) |
+| d6-preview | Preview First, Always | "Previewed the merge result before pushing." | 10 | yes | shell: `dnscontrol preview` while the merge is still in progress (exit 0) |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
 | ID | Title | Joke | Pts | When |
 |---|---|---|---|---|
 | f-dot2 | Dot. Com. Dot. | "Trailing dot on the wrong record." | 0 | shell: `dnscontrol` errors with a name ending in the zone twice |
-| f-ttl | Time To Live, Laugh, Love | "TTL of 1. Very confident." | 0 | shell: file diff sets a TTL below 60 |
+| f-ttl | Time To Live, Laugh, Love | "TTL of 1. Very confident." | 0 | dns: a push sets a TTL below 60 in your zone |
 | f-nxdomain | It's Always DNS | "NXDOMAIN. Of course it was." | 0 | dns: your lookup for your own name returns NXDOMAIN |
-| f-rejected | Denied at the Gate | "You tried to change `dojo.test` without CI." | 0 | dns: API refusal for a non-CI write (funny, but see cheating tiers) |
+| f-rejected | Denied at the Gate | "You tried to change `dojo.test` without CI." | 0 | dns: the gate refuses a write made with your own key |
 | f-fivepr | PR Machine | "Five pull requests. Do you sleep?" | 0 | forgejo: 5th PR opened |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
@@ -122,30 +122,37 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
-- **Goal shown to the student:** The zone contains a record whose hostname is wrong. Find it and fix it without touching any other record.
-- **Seed:** the student's `dnsconfig.js` gains one doubled-zone hostname (`www.{user}.dojo.test.dojo.test`) among ~6 records.
-- **Verify:** `resource_state`: the record now resolves under `{user}.dojo.test`, and the other records are unchanged.
+- **Goal shown to the student:** Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol doubles the zone onto it. `{label}` is picked per student.
+- **Verify:** the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the doubled target is gone.
 - **Hint 1:** Run the tool that shows you what it would change.
 - **Hint 2:** Look at the end of each hostname.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (the `{label}` CNAME shows the zone twice), add the trailing dot: `CNAME("{label}", "www.{user}.dojo.test.")`, `dnscontrol push`, then `dojo-check c1`.
+- **Collision check:** the student's own repo and their own zone `{user}.dojo.test`, which only their own key can change. The check reads that zone only.
 
 ### C2: The Cutover (after Lab 5 or 6)
 
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** `app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, and the zone must show no other changes.
-- **Verify:** `app` A record equals `10.20.0.{n}`; `www` is a CNAME to `app`; a `dnscontrol preview` is clean afterwards; the change is one commit in the student's repo.
+- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.
+- **Verify:** the zone `{user}.dojo.test`: `app` is an A record at `10.20.0.{n}`, `www` is a CNAME to `app.{user}.dojo.test.` (and no longer an A record), the apex A and `mail` are unchanged. It can't see how many commits made the change.
 - **Hint 1:** One commit, two records.
 - **Hint 2:** An alias is a CNAME; the target ends with a dot.
+- **Answer:** `dojo-challenge start c2`, `cd ~/lab/challenge-zone`; change `A("app", "10.10.0.5")` to `A("app", "10.20.0.{n}")` and `A("www", ...)` to `CNAME("www", "app.{user}.dojo.test.")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`.
+- **Collision check:** the student's own repo and their own zone; nobody else's zone is read or written.
 
 ## Capstone (300 points, optional): The Bad Push
 
 - **Points:** 300
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record and dropping the bad one, without rewriting history.
-- **Seed:** the service commits and pushes (applies) one such commit in the student's own repo and zone, with the good and bad record names built from `{user}`. The bad one's address is a per-student value.
-- **Verify:** in `{user}.dojo.test`: bad record absent, good record present, all other records unchanged; the repo's history still contains the seed commit (no force-push), plus a new commit that fixes it.
+- **Seed:** `dojo-challenge start capstone` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.
+- **Verify:** the zone `{user}.dojo.test`: `{good}` is an A record at `198.51.100.{good_octet}`, `{bad}` is absent, the apex, `www` and `mail` are unchanged. It can't see whether history was rewritten, so the goal only asks for that.
 - **Hint 1:** History shows you which commit.
 - **Hint 2:** You can roll back part of a commit by editing, not only by `revert`.
+- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/challenge-zone`, `git log -p` shows the last commit added `{good}` and `{bad}`; delete the `{bad}` line by editing (or `git revert` and then re-add `{good}`), commit (no force push), `dnscontrol preview`, `dnscontrol push`, then `dojo-check capstone`.
+- **Collision check:** the student's own repo and their own zone only.
 - **Badge tier:** capstone (stars)
 
 ## Totals (computed)

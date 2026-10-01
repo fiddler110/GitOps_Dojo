@@ -5,8 +5,13 @@
       "title": "Same Job, Different Tool",
       "joke": "acme.sh did it in one line.",
       "core": true,
-      "when": "ca: second certificate issued to the same student",
-      "match": {}
+      "when": "shell: `acme.sh --issue` exit 0 (the client reports success; the CA log is not read)",
+      "match": {
+        "source": "shell",
+        "cmd": "acme.sh",
+        "flags": "--issue",
+        "exit": 0
+      }
     },
     {
       "id": "c3-read",
@@ -14,7 +19,15 @@
       "joke": "You read the tool's output.",
       "core": true,
       "when": "shell: `acme.sh --list` or `--info`",
-      "match": {}
+      "match": {
+        "source": "shell",
+        "cmd": "acme.sh",
+        "flags": [
+          "--list",
+          "--info"
+        ],
+        "exit": 0
+      }
     }
   ]
 }
