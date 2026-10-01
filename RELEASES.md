@@ -9,6 +9,8 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## Unreleased: `feat/achievements` (not yet merged to `main`)
 
+**OpenBao network holder and start-up (2026-09-30, locally).** `openbao` is now a tiny holder that owns the network namespace and `openbao-server` is the real server, so restarting the server no longer strands the SSO shim (it kept `network_mode: service:openbao`). `performance_multiplier = 1` cuts a first-start election from about 8 s to 1.7 s, and `run.sh` drops `/mnt/*` from `PATH` for podman on WSL2 (each call 1.2 s down to 0.07 s; compose up about 1:30). On the holder topology, unit, tenancy, cli_login, setup_tokens, labs 2 and 5-13, audit and browser all pass, pool passed on the earlier stack, and a server-only restart left the shim healthy. Not run: bots, load, a holder restart.
+
 **vault-fundamentals setup and lab 12 (2026-09-30, locally).** `openbao-setup` hooks run per student in parallel (`par_each`, `enable_once`): a fresh start reaches `ready` in about 63 s and a restart in about 15 s (was about 24 s). The `lab_12` flake was real: `bao lease revoke` only queues the revoke, so the login still worked for a moment; the lab now says `-sync`. Full e2e (no pool, bots on) passes, and the three browser scripts log in through the class form.
 
 **Achievements phase 3 and 4 for git-fundamentals (2026-09-30, locally).** Shell hook and Forgejo system webhook feed a
