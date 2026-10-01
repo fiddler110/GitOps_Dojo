@@ -330,9 +330,9 @@ this is how the engine uses it.
 - **Settings.** Each `module.env` is sourced first, then `.env` and
   `workshop.env` again, so the workshop wins.
 - **Compose files.** `-f docker-compose.yml`, each module's `compose.yml`, then
-  the workshop's `COMPOSE_OVERLAY`. The list is written to `.last-overlay`
-  (one file per line) so `./run.sh stop` / `teardown.sh` bring down the same
-  set. Build-change detection hashes each module folder and the overlay folder.
+  the workshop's `COMPOSE_OVERLAY`. The list is recorded in
+  `.build-state/current.json` so `./run.sh stop` brings down the same set.
+  Build-change detection hashes each module folder and the overlay folder.
 - **Terminal chain.** `gitopsdojo/web-terminal:base` → each module's
   `terminal/` as `:<workshop>.<module>` → the workshop's `compose/terminal/` as
   `:<workshop>`. Each link is `ARG BASE` / `FROM ${BASE}` and inherits the
@@ -483,11 +483,57 @@ that has visited once won't fall back to plain HTTP for a day.
 ./run.sh list                  # see available workshops
 ./run.sh setup                 # create .env (--default for lazy local values)
 ./run.sh capacity --students N # size the terminal resource limits (scripts/capacity-calc.sh)
-./run.sh stop                  # tear down the stack and all volumes (scripts/teardown.sh)
+./run.sh restart [<service>]   # recreate the last start's containers (or one service), keep volumes
+./run.sh restart --clean       # stop (wipe all volumes), then start the same workshop again
+./run.sh stop                  # tear down the stack and all volumes
 ./run.sh <workshop> --dry-run  # preview a start (also: ./run.sh stop --dry-run) — changes nothing
+./run.sh status [--json]       # what is running: workshop, address, health, students signed in
+./run.sh doctor [<workshop>]   # will a start work on this machine? exits 1 if not
+./run.sh config <workshop> [KEY ...] [--env NAME]   # each setting and the file it came from
+./run.sh logs <service> [-f]   # one service's log, by Compose service name
 ```
 
+**The `dojo` CLI.** `run.sh` is a short wrapper around a Python command line in
+`engine/dojo/` (Click for commands and completion, Rich for the display). Python 3.9+
+is the only requirement, and podman-compose already needs it. The first run
+downloads the few pure-Python dependencies listed in `dojo/requirements.lock`,
+checks each against its pinned sha256 and unpacks them into `engine/.cache/`
+(git-ignored): no pip, no venv. Behind TLS inspection, `CORP_CA_BUNDLE` works here
+as it does for the image builds. `setup`, `capacity` and `alias-setup` are still
+shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
+
+- **Settings.** `engine/.env` and `engine/.env.NAME` are read literally: a password
+  with `$`, a backquote or spaces arrives as typed. `workshop.env` and `module.env`
+  are shell code (they derive tokens with `$(...)`) and are run by `sh` as before.
+  `./run.sh config <workshop> KEY` shows every value a key was given and which won.
+- **What a start does**, in order: resolve the settings, apply the safety gates
+  (public passwords off loopback, the published port, plain HTTP), refuse a start
+  over a different running workshop, take the run lock (`/tmp/gitops-dojo-<uid>.lock`;
+  one build or start at a time, worktrees included), build what changed, check and
+  render the manifests, record the run, `compose up -d`, watch it settle, explain
+  anything that didn't, and remove images the rebuilds superseded.
+- **The display.** `podman events` wakes it whenever a container is created,
+  starts, changes health or exits; each container that is still working has its
+  log followed, so the activity pane shows what is underway. A one-shot job
+  (`restart: "no"`, no health check, e.g. `bootstrap`) counts as ready only once it
+  exits 0. A start that doesn't come up prints each problem container's last log
+  lines and health-check results.
+- **Records.** `.build-state/current.json` is the running stack (workshop, flags,
+  Compose files); `.build-state/history.jsonl` has one line per start, restart,
+  build and stop, with how long it took and how it ended.
+- **Tests.** `PYTHONPATH=engine:$(echo engine/.cache/pylib-*) python3 -B -m unittest discover -s engine/dojo/tests -t engine`
+
 Run these from the repo root, or from `engine/` — same commands either way.
+
+**Restarting a hung stack.** `./run.sh restart` re-runs the last start from this
+checkout with the same flags (`.build-state/last-start`, e.g. `dns-as-code --test 3
+--env home`) and adds `--force-recreate`: every container is stopped (killed after
+Compose's stop timeout) and replaced, while the volumes, so student homes and Forgejo,
+stay. `./run.sh restart web-terminal` (any name from `compose config --services`)
+replaces just that service with `--no-deps` and leaves the rest running.
+`./run.sh restart --clean` is `stop` followed by a fresh start, the state a class
+begins from. Starting a *different* workshop while one is running is refused: run
+`./run.sh stop` first, or the old one's extra services and volumes stay behind.
 
 **Preview first with `--dry-run`.** `./run.sh <workshop-name> --dry-run` shows
 the resolved content/overlay, which images would be rebuilt vs. reused,
@@ -504,9 +550,11 @@ that command's own help (e.g. `./run.sh capacity --help` for all the sizing
 flags, `./run.sh setup --help` for `--default`/`--force`).
 
 **Tab-completion.** The first time you run `./run.sh` in an interactive
-terminal, it offers to wire up completion for workshop names,
-`setup`/`capacity`/`list`/`stop`/`teardown`, and their flags — for bash or zsh, whichever `$SHELL` says you're
-using (`engine/scripts/install-completion.sh`). Say yes and it appends two
+terminal, it offers to wire up completion for bash or zsh, whichever `$SHELL` says
+you're using (`engine/scripts/install-completion.sh`). It completes everything the
+CLI defines: commands, workshop names (with titles in zsh), each command's flags,
+`--env` names from `engine/.env.*`, and the running stack's services for `restart`
+and `logs`; adding a command, workshop or option needs no completion change. Say yes and it appends two
 lines to `~/.bashrc`/`~/.zshrc`, sourcing the matching script under
 `engine/completions/`; say no, and it won't ask again (tracked in
 `engine/.build-state/`, gitignored) — source the file yourself later if you
@@ -527,10 +575,9 @@ mechanism. (Running `docker compose up -d --build` directly still works
 too, using whatever's in `.env` — useful for quick iteration on the engine
 itself, but `run.sh` is the normal path.)
 
-Needs a container engine on `PATH`: real `docker` (with the `compose`
-plugin) if you have it, otherwise `run.sh`/`scripts/teardown.sh` fall back
-to `podman build`/`podman-compose` automatically — there's no flag to set,
-they just detect whichever is actually installed. Confirmed working
+Needs a container engine on `PATH`: podman with podman-compose if both are
+installed, otherwise docker with its `compose` plugin. There's no flag to set;
+`./run.sh doctor` says which one it found. Confirmed working
 end-to-end on Podman (`podman-compose`) as well as Docker.
 
 This builds the terminal and gateway images, starts Forgejo, waits for it to
@@ -631,14 +678,14 @@ stack is up.
 **Facilitator ops below use plain `docker compose ...` commands** (on podman, read them as `podman-compose ...`,
 which `run.sh` prefers when it is installed). If the
 running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
-plus one `-f` per file listed in `.last-overlay` to those commands too, and
+plus one `-f` per file in `"files"` of `.build-state/current.json` to those commands too, and
 set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:
 `gitopsdojo/web-terminal:<workshop>`, or `:<workshop>.<module>` when only a
 module adds tools). A bare `docker compose ...` only sees the
 base file, and e.g. `--force-recreate web-terminal` would recreate it
-*without* that workshop's extra tooling. Simplest fix: re-run
-`./run.sh <workshop-name>` instead, which always passes the right flags and
-is safe to run again on an already-running stack.
+*without* that workshop's extra tooling. Simplest fix: `./run.sh restart web-terminal`
+(or a plain re-run of `./run.sh <workshop-name>`), which always passes the right
+files and flags.
 
 ## Update workshop content mid-session
 

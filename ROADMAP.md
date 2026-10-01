@@ -193,6 +193,12 @@ every challenge; built that way in phase 4). A26 (does Sensei seed the `dns-bot`
 ## Next
 
 ### Student reset (facilitator resets one student's whole environment)
+### `run.sh` CLI follow-ups (C1-C4 shipped 2026-10-01, see RELEASES)
+
+| # | Item | Detail | Status |
+|---|---|---|---|
+| C5 | Untested paths | Docker instead of podman (only podman here); macOS's system Python 3.9 (click 8.1.8 and rich 15 support it, not run); `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection; zsh completion in a real interactive shell (tested with stubbed zsh built-ins) | Needs a Mac / Docker host |
+
 
 Design: `docs/archive/STUDENT-RESET-PLAN.md` (read §4 design, §4.4 hook contract, §6 security). Rule: **ask before
 editing any `engine/` file**, and before moving between phases.
@@ -432,7 +438,7 @@ the facilitator.
 | Area | Items |
 |---|---|
 | **vault-fundamentals follow-ups** | Policy as code (namespace policies in a git repo, changed by PR and applied by CI with drift shown when someone edits in the UI; OpenTofu `vault` provider building on tofu-basics, or `bao policy write` in CI; a lab or its own workshop) · OpenBao PKI for `cert-autorenewal` · mirror a small pinned set of actions (checkout, a vault-login action) into Forgejo at setup so labs can show `uses:` as companies do · lab 11 should show a restart logging in again (lab 10 ends on that promise) |
-| **tofu-basics follow-ups** | `dojo` CLI (`login`, `group list`, `container list/show/logs`) · CI `plan` on pull requests via Forgejo Actions (needs runner network design like dns-as-code's `runner_net`) · more Azure-shaped resources (virtual network, storage account) if the ARM facade extends cheaply · remote state backend simulation · stretch labs 11-12 only if wanted |
+| **tofu-basics follow-ups** | `dcloud` CLI for students (`login`, `group list`, `container list/show/logs`; not `dojo`, which is the facilitator's platform CLI) · CI `plan` on pull requests via Forgejo Actions (needs runner network design like dns-as-code's `runner_net`) · more Azure-shaped resources (virtual network, storage account) if the ARM facade extends cheaply · remote state backend simulation · stretch labs 11-12 only if wanted |
 | **tofu-basics known limits** | Only one container per group and only `dojo/hello:*` images (by design) · LRO (`Azure-AsyncOperation`) not implemented · arm64 untested (checksums pinned per arch, only amd64 built) · 20+ students out of scope (15 is this box's ceiling) · **T9.8 deferred:** re-test isolation on real Docker before any non-podman delivery (the privileged-DinD risk is materially higher there); this machine has no Docker |
 | **Not verified since `f977209`** (code-server memory cut) | tofu-basics `tests/e2e.sh` on the new web-terminal image · `./run.sh capacity` printing "Left out N" for a closed tab (dry-run only) |
 

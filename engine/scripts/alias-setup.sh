@@ -1,7 +1,7 @@
 #!/bin/sh
 # Add a `dojo` shell function to your shell profile, so `dojo <workshop>`,
-# `dojo stop`, etc. work from any directory. On zsh it also loads the tab
-# completion (completions/run.sh.zsh) for both `dojo` and ./run.sh. Safe to
+# `dojo stop`, etc. work from any directory. It also loads the tab completion
+# (completions/run.sh.zsh or .bash) for both `dojo` and ./run.sh. Safe to
 # re-run: it all sits between marker lines and is replaced in place, never
 # duplicated.
 #
@@ -37,7 +37,7 @@ case "$(basename "${SHELL:-}")" in
   *)
     if [ -f "$HOME/.bash_aliases" ]; then target="$HOME/.bash_aliases"; else target="$HOME/.bashrc"; fi
     rc="$HOME/.bashrc"
-    comp="" ;;      # no bash completion file yet
+    comp="${root}/engine/completions/run.sh.bash" ;;
 esac
 [ -f "$comp" ] || comp=""
 
@@ -55,7 +55,21 @@ dojo() {
 }
 ${end}"
 
-if [ -n "$comp" ]; then
+if [ -n "$comp" ] && [ "${comp%.bash}" != "$comp" ]; then
+  block="${begin}
+dojo() {
+    if [ -x '${root}/run.sh' ]; then
+        '${root}/run.sh' \"\$@\"
+    else
+        echo \"Error: ${root}/run.sh not found (was the repo moved? re-run ./run.sh alias-setup)\" >&2
+        return 1
+    fi
+}
+if [ -f '${comp}' ]; then
+    . '${comp}'    # tab completion for dojo and ./run.sh
+fi
+${end}"
+elif [ -n "$comp" ]; then
   # Completion needs compinit before the compdef inside the file runs; load it if the profile hasn't yet.
   block="${begin}
 dojo() {
@@ -94,7 +108,7 @@ echo "${action} the 'dojo' function in ${target} (runs ${root}/run.sh)."
 if [ -n "$comp" ]; then
   echo "It also loads tab completion for 'dojo' and ./run.sh."
 else
-  echo "Tab completion is zsh only for now; nothing added for ${SHELL:-your shell}."
+  echo "No tab completion for ${SHELL:-your shell} (bash and zsh only)."
 fi
 if [ "$target" != "$rc" ]; then
   echo "Note: ${target} only takes effect if ${rc} sources it."

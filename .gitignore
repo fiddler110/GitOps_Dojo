@@ -2,6 +2,8 @@ engine/.env
 engine/.last-overlay
 engine/.build-state/
 engine/.generated/
+# The dojo CLI's unpacked, hash-checked dependencies (engine/dojo/boot.py).
+engine/.cache/
 .infra/**/*.auto.tfvars
 .infra/**/.terraform/
 .infra/**/*.tfstate*

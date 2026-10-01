@@ -67,6 +67,8 @@ EOF
 }
 
 cd "$(dirname "$0")/.."
+# shellcheck source=lib.sh
+. ./scripts/lib.sh
 
 mode="interactive"
 force=0
@@ -139,12 +141,7 @@ current_value() {
 
 # Public values nobody should rely on off this machine: .env.example's
 # placeholder and the `--default` passwords. run.sh refuses them off loopback.
-is_weak() {
-  case "$1" in
-    '' | change-me | student | student123 | admin) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+is_weak() { [ -z "$1" ] || dojo_is_default_password "$1"; }
 
 if [ "$mode" = "rotate-class" ]; then
   if [ ! -f .env ]; then

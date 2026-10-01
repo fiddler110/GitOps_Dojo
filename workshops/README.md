@@ -58,8 +58,8 @@ The numbers are the order to teach them in. `0` is the showcase for facilitators
    folder (`:<workshop>.<module>`) → the workshop's own `compose/terminal/`
    (`:<workshop>`). The last link is the image the stack runs.
 5. Runs `compose -f docker-compose.yml [-f modules/<m>/compose.yml ...] [-f <overlay>] up -d`
-   and records that file list in `engine/.last-overlay`, so `./run.sh stop`
-   tears down exactly what was started.
+   and records that file list in `engine/.build-state/current.json`, so
+   `./run.sh stop` tears down exactly what was started.
 
 ## Three kinds of workshop
 

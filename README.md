@@ -31,9 +31,12 @@ is part of the lesson and never an incident.
 
 ```sh
 ./run.sh setup              # first time only: writes engine/.env
+./run.sh doctor             # will a start work here? (exits 1 if not)
 ./run.sh list               # which workshops exist
 ./run.sh tofu-basics        # build and start one
 ./run.sh tofu-basics --test # the same, with simulated students
+./run.sh status             # what is running, healthy, who is signed in
+./run.sh restart            # stuck? recreate every container, keep student work
 ./run.sh stop               # tear down and wipe
 ```
 

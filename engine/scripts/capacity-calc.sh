@@ -91,13 +91,9 @@ if [ -z "$STUDENTS" ]; then
   exit 1
 fi
 
-runtime() {
-  if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
-    podman "$@"
-  else
-    docker "$@"
-  fi
-}
+# shellcheck source=lib.sh
+. ./scripts/lib.sh
+runtime() { "$dojo_cli" "$@"; }
 
 # --- Detect the memory this container's mem_limit actually has to share --
 # On a real Linux VM (the Azure path), that's just the host's own RAM. On a
