@@ -20,6 +20,8 @@ MAX_CMD = 2000
 MAX_OUT = 4000      # the tail of what the command printed (see terminal/dojo-achievements.zsh)
 CONTROL = {"&&", "||", ";", "|", "&", "|&", ";;", "(", ")"}
 REDIRECT = re.compile(r"^[0-9]*(>>?|<<?<?|>&|<&|&>>?)$")
+OPERATORS = sorted(CONTROL | {">>", "<<<", "<<", ">&", "<&", "&>>", "&>", ">", "<"}, key=len, reverse=True)
+PUNCT_RUN = re.compile(r"^[();<>|&]+$")
 # git options that come before the subcommand and take a value (`git -C dir status`).
 GIT_OPT_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 SHELL_WRAPPERS = {"command", "builtin", "noglob", "nocorrect", "time", "exec"}
@@ -35,9 +37,21 @@ def _tokens(line):
         lex = shlex.shlex(text, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
         lex.commenters = ""
-        return list(lex)
+        toks = list(lex)
     except ValueError:      # an unbalanced quote: fall back to plain words
         return text.split()
+    # shlex joins a run of punctuation into one token (`(a); b` gives `);`): split such a run
+    # into operators, longest first, unless it is a redirect
+    out = []
+    for t in toks:
+        if t in CONTROL or REDIRECT.match(t) or not PUNCT_RUN.match(t):
+            out.append(t)
+            continue
+        while t:
+            op = next((o for o in OPERATORS if t.startswith(o)), t[0])
+            out.append(op)
+            t = t[len(op):]
+    return out
 
 
 def _normalise_git(words):
@@ -51,12 +65,13 @@ def _normalise_git(words):
     return out + words[i:]
 
 
-def segments(line):
-    """The simple commands in one command line: [{"words": [...], "text": "..."}].
+def segments(line, code=None):
+    """The simple commands in one command line: [{"words": [...], "text": "...", "exit": ...}].
 
     `words` is the command and its arguments (redirects and their targets removed, leading
     VAR=value and `command`-style wrappers dropped, git's global options dropped); `text` is
-    the same with redirects kept, for `regex`."""
+    the same with redirects kept, for `regex`. `exit` is that command's own exit code where the
+    line's code (`code`) tells it, else None (see `_segment_exits`)."""
     out, cur = [], []
 
     def flush():
@@ -75,15 +90,43 @@ def segments(line):
             words.append(toks[i])
             i += 1
         if words:
-            out.append({"words": words, "text": " ".join(toks)})
+            out.append({"words": words, "text": " ".join(toks), "sep": None})
 
     for t in _tokens(line[:MAX_CMD]):
         if t in CONTROL:
             flush()
+            if out and t not in ("(", ")"):
+                out[-1]["sep"] = t      # what joins this command to the next one
         else:
             cur.append(t)
     flush()
+    _segment_exits(out, code)
     return out
+
+
+def _segment_exits(segs, code):
+    """Give each command its own exit code where the line's code proves it, else None.
+
+    The prompt hook sees only the line's code: that of the last command that ran. It belongs
+    to the last command of the last list (after the final `;`, `&` or newline), and only when
+    that list is a single pipeline; in `a && b && c` a 0 means every part succeeded, but a
+    failure could be any of them, and in `a || b` either one. Commands earlier in a pipeline
+    or before a `;` are never known."""
+    for s in segs:
+        s["exit"] = None
+    start = 0
+    for i, s in enumerate(segs[:-1]):
+        if s["sep"] in (";", "&", ";;"):
+            start = i + 1
+    tail = segs[start:]
+    if not tail:
+        return
+    ends = [i for i, s in enumerate(tail[:-1]) if s["sep"] in ("&&", "||")] + [len(tail) - 1]
+    if len(ends) == 1:
+        tail[-1]["exit"] = code
+    elif code == 0 and all(tail[i]["sep"] == "&&" for i in ends[:-1]):
+        for i in ends:
+            tail[i]["exit"] = 0
 
 
 def _has_flag(args, flag):
@@ -129,9 +172,14 @@ def shell_event(body):
             "merging": flag("merging"), "merging_after": flag("merging_after")}
 
 
-def _exit_ok(want, code):
+def _exit_ok(want, code, line_code=None):
+    """`code` None (not known for this command, see `_segment_exits`) passes `exit: 0` only
+    when the whole line succeeded, and never a failure code: a failure is credited only to
+    the command that really failed."""
     if want is None or want == "any":
         return True
+    if code is None:
+        return line_code == 0 and 0 in _as_list(want)
     if want == "nonzero":
         return code != 0
     return code in _as_list(want)
@@ -152,8 +200,6 @@ def _value_ok(m, ev, key, user):
 
 
 def _shell_match(m, ev, rx):
-    if not _exit_ok(m.get("exit"), ev["exit"]):
-        return False
     for key in ("branch", "branch_before"):
         if not _value_ok(m, ev, key, None):
             return False
@@ -163,7 +209,9 @@ def _shell_match(m, ev, rx):
     if "out_regex" in m and not any(re.search(r, ev.get("out") or "", re.M) for r in _as_list(m["out_regex"])):
         return False
     cmds = [c.split() for c in _as_list(m["cmd"])] if "cmd" in m else [None]
-    for seg in segments(ev["cmd"]):
+    for seg in segments(ev["cmd"], ev["exit"]):
+        if not _exit_ok(m.get("exit"), seg["exit"], ev["exit"]):
+            continue
         words = seg["words"]
         for cw in cmds:
             if cw is not None and words[:len(cw)] != cw:

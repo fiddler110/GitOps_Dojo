@@ -12,4 +12,4 @@ jobs:
           echo "runner user: $(id -un)"
           echo "commit:      ${GITHUB_SHA:-unknown}"
       - name: Which tools does the runner have?
-        run: bao version
+        run: dnscontrol version

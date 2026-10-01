@@ -79,4 +79,16 @@ git branch -D lab4-explore
 
 **Next:** [lab5.md](lab5.md) — resolving a merge conflict and safely undoing a shared change.
 
+---
+
+## Challenge c2: The Detective (bonus)
+
+Someone changed a line they shouldn't have. Find the commit, and say whose it was.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-repo` and
+clones it to `~/lab/challenge-repo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
 <!-- dojo-challenge: c2 -->

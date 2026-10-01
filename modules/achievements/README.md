@@ -131,6 +131,10 @@ limit applies); Forgejo being down is "try again" (503), not a wrong answer. `PO
 `{challenge, action: start|reset}` builds the repo (start leaves an existing one alone, reset
 deletes and re-creates it; hints and points are untouched) and returns the goal with the
 student's values filled in. Check runs are logged for the facilitator (`/api/state` `checks`).
+A challenge with `"watch": true` is checked over time, not once (cert-autorenewal `c2`: the site renews itself for
+20 minutes): a failing `dojo-check ID` puts it on the student's watch list (kept in `state.json`), and the state sweep
+re-runs its verifiers every `ACHIEVEMENTS_STATE_SECONDS` until they pass, then scores it like a check (logged with
+`watched: true`). The verb keeps its own progress (`served_renews` in memory, so a restart starts the window again).
 Tests: `service/test_challenges.py` against the in-memory `service/fake_forgejo.py`.
 
 **Lab buttons.** A lab adds a Start/Reset box for a challenge with one marker line, where the

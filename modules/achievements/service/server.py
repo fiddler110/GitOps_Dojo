@@ -341,7 +341,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ch = store.ledger.index[cid]["item"]
             doc.update(title=ch["title"], goal=runner.render(ch, user, ch.get("goal")),
                        constraints=runner.render(ch, user, ch.get("constraints")),
-                       clone_url=f"{PUBLIC_FORGEJO}/{doc['repo']}.git")
+                       clone_url=f"{PUBLIC_FORGEJO}/{doc['repo']}.git" if doc["repo"] else None)
             return self._json(200, doc)
         self._json(404, {"error": "not found"})
 
@@ -407,7 +407,7 @@ def make_runner(admin, password):
 
 
 def state_loop():
-    """Every few seconds, give each student's `verify` milestones a turn (Store.sweep_state)."""
+    """Every few seconds, give each student's `verify` milestones and watched challenges a turn (Store.sweep_state)."""
     gap = int(os.environ.get("ACHIEVEMENTS_STATE_SECONDS", "20") or 20)
     while True:
         time.sleep(min(5, gap))

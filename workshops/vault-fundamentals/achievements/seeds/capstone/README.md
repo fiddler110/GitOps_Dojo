@@ -10,6 +10,8 @@ platform role `capstone-app` (on `jwt-platform`), database role `capstone-app`, 
 - Rotate the static secret (write `capstone/app` again) without deploying.
 - `capstone/agent.hcl` in this repo is your Agent config: it must never hold a role id or secret id.
 
-There is **one** slot per student: deploying this replaces the app the labs left running at `/srv/apps/{user}`.
+Starting the capstone unlocked your second app slot, `{user}-capstone` (see **My App**). A push to `main` of this repo
+deploys there, with the platform identity `slot:{user}-capstone`, so bind your `capstone-app` role to that subject.
+The app from the labs keeps running in your first slot.
 
 Work in your own namespace: `export BAO_NAMESPACE=students/$USER`. Then run `dojo-check capstone`.

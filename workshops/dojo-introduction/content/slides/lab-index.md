@@ -18,7 +18,7 @@ footer: '[&larr; Hub](index.md)'
 <div class="cards">
 <div>
 <h3><a href="assets/lab-reader.html?file=tools-tour.md.txt">Tool tour &rarr;</a></h3>
-<p>Git, CI, the vault, DNS, certificates and OpenTofu, one at a time.</p>
+<p>Git, CI, DNS and OpenTofu, one at a time.</p>
 </div>
 <div>
 <h3><a href="workshops.md">Workshop library &rarr;</a></h3>

@@ -1,6 +1,6 @@
 {
   "builder": "forgejo-repo",
-  "repo": "{user}/challenge-zone",
+  "repo": "{user}/challenge-cutover",
   "description": "{user}'s own challenge zone (DNS as Code)",
   "private": false,
   "values": {

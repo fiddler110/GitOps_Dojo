@@ -2,7 +2,9 @@
 lookalikes; the challenge verbs read a faked demo-app handshake."""
 import importlib.util
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +30,14 @@ def ids(ev):
 
 def sh(cmd, exit=0, **kw):
     return ids(mt.shell_event(dict(cmd=cmd, exit=exit, **kw)))
+
+
+class Clock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
 
 
 class CertsShell(unittest.TestCase):
@@ -153,6 +163,61 @@ class CertsChallenges(unittest.TestCase):
         self.assertFalse(self.mod.served_changed(None, dict(args, key="other"), ctx)[0])   # own baseline
         self.assertFalse(self.mod.served_changed(None, args, {"user": "ben"})[0])           # not amy's host
         self.mod._seen.clear()
+
+    def test_renews_watches_for_the_whole_window(self):
+        self.serial, now = "01", [0]
+        self.mod._fetch = lambda host: (_ for _ in ()).throw(self.serial) if isinstance(self.serial, Exception) \
+            else cert(self.serial)
+        args = {"host": "amy.certs.dojo.test", "minutes": 20, "renewals": 2}
+
+        def look(after=0, user="amy"):
+            now[0] += after
+            return self.mod.served_renews(None, args, {"user": user, "now": now[0]})[0]
+        self.assertFalse(look())                    # starts the watch
+        self.serial = "02"
+        self.assertFalse(look(8 * 60))
+        self.serial = "03"
+        self.assertFalse(look(8 * 60))              # renewed twice, but only 16 minutes
+        self.assertTrue(look(4 * 60))
+        self.serial = self.mod.ssl.SSLCertVerificationError()
+        self.assertFalse(look(60))                  # lapsed: the watch starts again
+        self.serial = "04"
+        self.assertFalse(look(21 * 60))
+        self.assertFalse(look(0, user="ben"))       # not ben's host
+        self.mod._watch.clear()
+
+    def test_c2_clears_itself_in_the_sweep(self):
+        import store
+        clock, d = Clock(), tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        runner = challenges.Runner(challenges.load_plugins([PLUGIN]), os.path.join(PACK, "achievements", "seeds"),
+                                   None, clock)
+        st = store.Store(self.cat, lg.Config(), d, "secret", facilitator="boss", clock=clock)
+        mod = runner.verbs["served_renews"][1]      # this runner's own copy of the plug-in
+        self.serial = "01"
+        mod._fetch = lambda host: cert(self.serial)
+        self.assertFalse(st.check("amy", "c2", runner)["passed"])       # starts the watch
+        self.assertEqual(st.watching, {"amy": ["c2"]})
+        for serial in ("02", "03"):
+            clock.t += 8 * 60
+            self.serial = serial
+            st.sweep_state(runner, gap=0)
+        self.assertNotIn("c2", st.ledger.unlocked_ids("amy"))
+        # a restart: the service keeps the watch list, the plug-in's watch starts again
+        st = store.Store(self.cat, lg.Config(), d, "secret", facilitator="boss", clock=clock)
+        runner = challenges.Runner(challenges.load_plugins([PLUGIN]), os.path.join(PACK, "achievements", "seeds"),
+                                   None, clock)
+        runner.verbs["served_renews"][1]._fetch = lambda host: cert(self.serial)
+        self.assertEqual(st.watching, {"amy": ["c2"]})
+        clock.t += 60
+        self.assertEqual(st.sweep_state(runner, gap=0), 0)
+        for serial in ("04", "05"):
+            clock.t += 10 * 60
+            self.serial = serial
+            st.sweep_state(runner, gap=0)
+        self.assertIn("c2", st.ledger.unlocked_ids("amy"))
+        self.assertEqual(st.watching, {"amy": []})
+        self.assertTrue(st.checks[-1]["watched"])
 
     def test_expired_cert(self):
         err = self.mod.ssl.SSLCertVerificationError()

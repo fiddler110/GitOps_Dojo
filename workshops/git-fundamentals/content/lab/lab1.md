@@ -192,4 +192,17 @@ Before moving on, be ready to show or say:
 
 **Next:** [lab2.md](lab2.md) — reviewing and undoing changes before you commit.
 
+---
+
+## Challenge c1: The Hotfix (bonus)
+
+Production has a typo: your own role in `roster/team.yaml` is misspelled. Ship the fix without touching `main`
+directly.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/challenge-repo` and
+clones it to `~/lab/challenge-repo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c1`. A wrong answer costs nothing; `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` starts you over from a fresh copy.
+
 <!-- dojo-challenge: c1 -->

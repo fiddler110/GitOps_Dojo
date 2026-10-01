@@ -19,6 +19,7 @@ from ledger import cat
 
 STATE_FILE = "state.json"
 ACTIVITY_WINDOW = 600      # seconds of terminal history the stuck radar looks at
+ACTIVITY_SAVE = 30         # at most this often, a command that unlocks nothing still saves the activity
 
 # Strikes for poking at a neighbour -> the shared cheat unlocked on reaching it.
 STRIKE_TIERS = ((1, "cheat-bump"), (3, "cheat-curious"), (8, "cheat-persistent"))
@@ -27,6 +28,18 @@ STRIKE_TIERS = ((1, "cheat-bump"), (3, "cheat-curious"), (8, "cheat-persistent")
 def name_in(name, text):
     """`name` as a whole word in `text` (student1 is not in student10, nor in my-student1)."""
     return re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", text) is not None
+
+
+def _activity(doc):
+    """The saved stuck-radar activity, dropping anything malformed."""
+    out = {}
+    for user, a in (doc.items() if isinstance(doc, dict) else ()):
+        try:
+            out[user] = {"first": float(a["first"]), "last": float(a["last"]), "streak": int(a["streak"]),
+                         "recent": [(float(t), bool(f)) for t, f in a["recent"]][-200:]}
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
 
 
 class Denied(Exception):
@@ -67,11 +80,16 @@ class Store:
         # check runs the facilitator sees (A9).
         self.seeds = state.get("seeds", {})
         self.checks = state.get("checks", [])
+        # Challenges with "watch": true that a student's first `dojo-check` started: user -> [ids]. The
+        # state sweep re-checks them until they pass.
+        self.watching = {u: [c for c in ids if isinstance(c, str)] for u, ids in (state.get("watching") or {}).items()
+                         if isinstance(ids, list)}
         self.busy = set()                           # users whose seed is being built right now
         self._state_at = {}                         # user -> when their `verify` milestones last ran
         # Per-student terminal activity for Sensei's stuck radar: times and exit codes only, never the command
-        # text, and kept in memory (a restart starts it fresh).
-        self.activity = {}
+        # text. Saved with the rest of the state, so a restart keeps the radar.
+        self.activity = _activity(state.get("activity"))
+        self._saved_at = None
         self._save()
 
     # -- persistence -------------------------------------------------------------------
@@ -92,12 +110,14 @@ class Store:
             return
         doc = {"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
                "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
-               "checks": self.checks[-500:]}
+               "checks": self.checks[-500:], "activity": self.activity,
+               "watching": self.watching}
         tmp = path + ".tmp"
         os.makedirs(self.data_dir, exist_ok=True)
         with open(tmp, "w") as f:
             json.dump(doc, f)
         os.replace(tmp, path)
+        self._saved_at = self.clock()
 
     # -- helpers -----------------------------------------------------------------------
     def _student(self, user):
@@ -158,7 +178,7 @@ class Store:
                 continue
             cid = ch["id"]
             done = cid in self.ledger.unlocked_ids(user)
-            rows.append({"id": cid, "title": ch["title"], "done": done,
+            rows.append({"id": cid, "title": ch["title"], "done": done, "repo": bool(ch.get("seed_plan")),
                          "hints": self.ledger.hints_used(user, cid),
                          "worth": self.ledger.clear_points(user, cid) if not done else
                          self.ledger.users[user]["unlocked"][cid]["points"]})
@@ -295,7 +315,7 @@ class Store:
             if any(name_in(o, event["cmd"]) for o in self._neighbours(user)):
                 self._strike(user, now)
                 got = got or ["strike"]
-            if got:
+            if got or now - (self._saved_at or 0) >= ACTIVITY_SAVE:
                 self._save()
             return {"unlocked": len(got)}
 
@@ -375,34 +395,53 @@ class Store:
         from challenges import NotCheckable
         now = self.clock()
         with self.lock:
-            if not self.matcher.state_rules:
-                return 0
             todo = []
             for user in sorted(self.ledger.users, key=lambda u: self._state_at.get(u, 0)):
                 if user == self.facilitator or user in self.ignore or now - self._state_at.get(user, 0) < gap:
                     continue
-                items = self.matcher.pending_state(self.ledger.unlocked_ids(user))
+                have = self.ledger.unlocked_ids(user)
+                items = [(iid, {"id": iid, "verify": verify}, None)
+                         for iid, verify in (self.matcher.pending_state(have) if self.matcher.state_rules else [])]
+                for cid in [c for c in self.watching.get(user, []) if c not in have]:
+                    ch = (self.ledger.index.get(cid) or {}).get("item")
+                    if ch and ch.get("watch"):
+                        items.append((cid, ch, dict(self._seed_of(user, ch))))
                 if items:
                     todo.append((user, items))
                     self._state_at[user] = now
         got = 0
         for user, items in todo:
-            for iid, verify in items:
+            for iid, ch, seed in items:
                 if budget <= 0:
                     return got
                 budget -= 1
                 try:
-                    res = runner.verify({"id": iid, "verify": verify}, user)
+                    res = runner.verify(ch, user, seed) if seed is not None else runner.verify(ch, user)
                 except NotCheckable:
                     continue
                 except unavailable:
                     break
                 if res["passed"]:
                     with self.lock:
-                        if self.ledger.unlock(user, iid, self.clock()) is not None:
+                        if seed is not None:
+                            got += self._watched_pass(user, iid)
+                        elif self.ledger.unlock(user, iid, self.clock()) is not None:
                             got += 1
                             self._save()
         return got
+
+    def _watched_pass(self, user, cid):
+        """A watched challenge passed in the sweep: score it as a check would (caller holds the lock)."""
+        mine = self.watching.get(user, [])
+        if cid in mine:
+            mine.remove(cid)
+        if cid in self.ledger.unlocked_ids(user):
+            return 0
+        pts = self.ledger.clear(user, cid, self.clock())
+        self.checks.append({"user": user, "id": cid, "at": self.clock(), "passed": True,
+                            "hints": self.ledger.hints_used(user, cid), "points": pts, "watched": True})
+        self._save()
+        return 1
 
     def probe(self, user, body):
         """A check or challenge request naming another student's space (only a hand-made
@@ -471,6 +510,11 @@ class Store:
             raise Denied(503, f"couldn't check right now ({exc}); try again in a moment")
         with self.lock:
             pts = self.ledger.clear(user, cid, self.clock()) if res["passed"] else None
+            mine = self.watching.setdefault(user, [])
+            if ch.get("watch") and not res["passed"] and cid not in mine:
+                mine.append(cid)
+            elif res["passed"] and cid in mine:
+                mine.remove(cid)
             self.checks.append({"user": user, "id": cid, "at": now, "passed": res["passed"],
                                 "hints": self.ledger.hints_used(user, cid), "points": pts})
             self._save()
@@ -479,7 +523,9 @@ class Store:
 
     def challenge_space(self, user, cid, action, runner, unavailable=()):
         """Start (create if missing) or reset (delete and re-create) the student's challenge
-        space. Hints used and points earned are untouched: a reset never refunds or re-pays."""
+        space. Hints used and points earned are untouched: a reset never refunds or re-pays.
+        A challenge with no seed plan works in the student's own lab space: start only
+        answers with its goal (repo None), and there is nothing to reset."""
         if action not in ("start", "reset"):
             raise Denied(400, "action is start or reset")
         with self.lock:
@@ -487,7 +533,10 @@ class Store:
             self._throttle(user, self.clock())
             ch = self._active_challenge(cid)
             if not ch.get("seed_plan"):
-                raise Denied(501, f"{cid} has no seed yet")
+                if action == "reset":
+                    raise Denied(400, f"{cid} has no repo to reset: it works in your own lab space")
+                return {"repo": None, "created": False, "done": cid in self.ledger.unlocked_ids(user),
+                        "hints": self.ledger.hints_used(user, cid)}
             if user in self.busy:
                 raise Denied(409, "already building your challenge repo; wait a moment")
             self.busy.add(user)

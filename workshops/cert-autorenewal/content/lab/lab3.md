@@ -73,3 +73,17 @@ summarized. (There's no single right answer — that's the point: different
 tools, same protocol underneath.)
 
 Next: [lab4.md](lab4.md), automating renewal.
+
+---
+
+## Challenge c1: The Second Site (bonus)
+
+Give a second name, `shop.$USER.certs.dojo.test`, its own trusted certificate, with either tool, and leave your
+first site alone. The name already points at the demo site; the vhost is yours to write.
+
+Only when your class has achievements on (you see a score on your landing page).
+There is no repo for this one: it works in your own space (your own vhosts and names under `$USER.certs.dojo.test`). Click **Start challenge** below, or run
+`dojo-challenge start c1`, to see your goal. When you think it's done, run `dojo-check c1`. A wrong answer costs
+nothing; `dojo-check hint c1` gives a hint for part of the points.
+
+<!-- dojo-challenge: c1 -->

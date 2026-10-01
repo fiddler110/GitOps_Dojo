@@ -3,7 +3,7 @@
   "title": "The Bad Push",
   "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
   "goal": "A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record and dropping the bad one, without rewriting history.",
-  "seed": "`dojo-challenge start capstone` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.",
+  "seed": "`dojo-challenge start capstone` creates `{user}/challenge-badpush` (cloned to `~/lab/challenge-badpush`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.",
   "verify_text": "the zone `{user}.dojo.test`: `{good}` is an A record at `198.51.100.{good_octet}`, `{bad}` is absent, the apex, `www` and `mail` are unchanged. It can't see whether history was rewritten, so the goal only asks for that.",
   "badge_tier": "capstone",
   "hints": [
@@ -49,5 +49,5 @@
     }
   ],
   "isolation": "the student's own repo and their own zone only.",
-  "answer": "`dojo-challenge start capstone`, `cd ~/lab/challenge-zone`, `git log -p` shows the last commit added `{good}` and `{bad}`; delete the `{bad}` line by editing (or `git revert` and then re-add `{good}`), commit (no force push), `dnscontrol preview`, `dnscontrol push`, then `dojo-check capstone`."
+  "answer": "`dojo-challenge start capstone`, `cd ~/lab/challenge-badpush`, `git log -p` shows the last commit added `{good}` and `{bad}`; delete the `{bad}` line by editing (or `git revert` and then re-add `{good}`), commit (no force push), `dnscontrol preview`, `dnscontrol push`, then `dojo-check capstone`."
 }

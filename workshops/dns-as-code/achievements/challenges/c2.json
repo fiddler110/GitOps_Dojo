@@ -48,7 +48,7 @@
       ]
     }
   ],
-  "seed": "`dojo-challenge start c2` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.",
+  "seed": "`dojo-challenge start c2` creates `{user}/challenge-cutover` (cloned to `~/lab/challenge-cutover`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.",
   "isolation": "the student's own repo and their own zone; nobody else's zone is read or written.",
-  "answer": "`dojo-challenge start c2`, `cd ~/lab/challenge-zone`; change `A(\"app\", \"10.10.0.5\")` to `A(\"app\", \"10.20.0.{n}\")` and `A(\"www\", ...)` to `CNAME(\"www\", \"app.{user}.dojo.test.\")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`."
+  "answer": "`dojo-challenge start c2`, `cd ~/lab/challenge-cutover`; change `A(\"app\", \"10.10.0.5\")` to `A(\"app\", \"10.20.0.{n}\")` and `A(\"www\", ...)` to `CNAME(\"www\", \"app.{user}.dojo.test.\")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`."
 }

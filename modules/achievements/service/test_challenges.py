@@ -482,9 +482,14 @@ class ClassWide(Base):
         item.pop("seed_plan")
         with self.assertRaises(challenges.NotCheckable):
             self.check("amy", "capstone")
+        # No seed plan: start only answers (no repo, nothing built), reset is refused.
+        doc = self.start("amy", "capstone")
+        self.assertEqual((doc["repo"], doc["created"], doc["done"]), (None, False, False))
         with self.assertRaises(Denied) as cm:
-            self.start("amy", "capstone")
-        self.assertEqual(cm.exception.code, 501)
+            self.store.challenge_space("amy", "capstone", "reset", self.runner)
+        self.assertEqual(cm.exception.code, 400)
+        row = next(r for r in self.store._challenge_rows("amy") if r["id"] == "capstone")
+        self.assertFalse(row["repo"])
         with self.assertRaises(Denied):
             self.check("amy", "nope")
 

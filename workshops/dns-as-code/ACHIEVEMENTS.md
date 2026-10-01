@@ -123,11 +123,11 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file ("must end with a (.)"). `{label}` is picked per student.
+- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-typo` (owned by the student, cloned to `~/lab/challenge-typo`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file ("must end with a (.)"). `{label}` is picked per student.
 - **Verify:** the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the bad target is gone.
 - **Hint 1:** Run the tool that shows you what it would change.
 - **Hint 2:** Look at the end of each hostname.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (it refuses the file and names the `{label}` CNAME: the target must end with a dot), add the trailing dot: `CNAME("{label}", "www.{user}.dojo.test.")`, `dnscontrol push`, then `dojo-check c1`.
+- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-typo`, `dnscontrol preview` (it refuses the file and names the `{label}` CNAME: the target must end with a dot), add the trailing dot: `CNAME("{label}", "www.{user}.dojo.test.")`, `dnscontrol push`, then `dojo-check c1`.
 - **Collision check:** the student's own repo and their own zone `{user}.dojo.test`, which only their own key can change. The check reads that zone only.
 
 ### C2: The Cutover (after Lab 5 or 6)
@@ -135,11 +135,11 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** `app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, and the zone must show no other changes.
-- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.
+- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-cutover` (cloned to `~/lab/challenge-cutover`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.
 - **Verify:** the zone `{user}.dojo.test`: `app` is an A record at `10.20.0.{n}`, `www` is a CNAME to `app.{user}.dojo.test.` (and no longer an A record), the apex A and `mail` are unchanged. It can't see how many commits made the change.
 - **Hint 1:** One commit, two records.
 - **Hint 2:** An alias is a CNAME; the target ends with a dot.
-- **Answer:** `dojo-challenge start c2`, `cd ~/lab/challenge-zone`; change `A("app", "10.10.0.5")` to `A("app", "10.20.0.{n}")` and `A("www", ...)` to `CNAME("www", "app.{user}.dojo.test.")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`.
+- **Answer:** `dojo-challenge start c2`, `cd ~/lab/challenge-cutover`; change `A("app", "10.10.0.5")` to `A("app", "10.20.0.{n}")` and `A("www", ...)` to `CNAME("www", "app.{user}.dojo.test.")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`.
 - **Collision check:** the student's own repo and their own zone; nobody else's zone is read or written.
 
 ## Capstone (300 points, optional): The Bad Push
@@ -147,11 +147,11 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 - **Points:** 300
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
 - **Goal shown to the student:** A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record and dropping the bad one, without rewriting history.
-- **Seed:** `dojo-challenge start capstone` creates `{user}/challenge-zone` (cloned to `~/lab/challenge-zone`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.
+- **Seed:** `dojo-challenge start capstone` creates `{user}/challenge-badpush` (cloned to `~/lab/challenge-badpush`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.
 - **Verify:** the zone `{user}.dojo.test`: `{good}` is an A record at `198.51.100.{good_octet}`, `{bad}` is absent, the apex, `www` and `mail` are unchanged. It can't see whether history was rewritten, so the goal only asks for that.
 - **Hint 1:** History shows you which commit.
 - **Hint 2:** You can roll back part of a commit by editing, not only by `revert`.
-- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/challenge-zone`, `git log -p` shows the last commit added `{good}` and `{bad}`; delete the `{bad}` line by editing (or `git revert` and then re-add `{good}`), commit (no force push), `dnscontrol preview`, `dnscontrol push`, then `dojo-check capstone`.
+- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/challenge-badpush`, `git log -p` shows the last commit added `{good}` and `{bad}`; delete the `{bad}` line by editing (or `git revert` and then re-add `{good}`), commit (no force push), `dnscontrol preview`, `dnscontrol push`, then `dojo-check capstone`.
 - **Collision check:** the student's own repo and their own zone only.
 - **Badge tier:** capstone (stars)
 

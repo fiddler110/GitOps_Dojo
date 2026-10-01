@@ -88,3 +88,17 @@ python3 scripts/dnsctl.py submit "Re-add $USER-app"
 - `dnsctl.py validate` is how you confirm a change — forward or backward — actually reached live PowerDNS, instead of trusting CI's word for it.
 
 **Next:** [lab6.md](lab6.md) — resolving a merge conflict in `dnsconfig.js`.
+
+---
+
+## Challenge c2: The Cutover (bonus)
+
+Move `app` to a new server and make `www` an alias of it, in one commit, with no other change to the zone. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-cutover` and
+clones it to `~/lab/challenge-cutover`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->

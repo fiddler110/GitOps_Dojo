@@ -11,7 +11,7 @@ one workshop can use live in [`../modules/`](../modules/).
 
 | # | Workshop | What it teaches | Modules | Run it |
 | - | -------- | ---------------- | ------- | ------ |
-| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
+| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./run.sh dojo-introduction` |
 | 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
 | 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
 | 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |

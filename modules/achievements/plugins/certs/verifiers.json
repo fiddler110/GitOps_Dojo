@@ -31,6 +31,14 @@
         "host"
       ],
       "does": "host is served a certificate whose handshake fails because it has expired"
+    },
+    "served_renews": {
+      "args": [
+        "host",
+        "minutes?",
+        "renewals?"
+      ],
+      "does": "host keeps itself renewed: every look for `minutes` (default 20) found a valid certificate and the serial changed at least `renewals` times (default 2). The first look starts the watch, a look without a valid certificate restarts it (kept in memory; a restart starts it again). Meant for a challenge with \"watch\": true, which the state sweep re-checks on its own"
     }
   }
 }

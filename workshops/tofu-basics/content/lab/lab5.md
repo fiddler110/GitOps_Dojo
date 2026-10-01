@@ -258,3 +258,18 @@ This prints nothing: `terraform.tfstate` and `.terraform/` are in `.gitignore`, 
 | You typed `terraform apply` and pressed Enter but nothing happens | It's waiting for your answer. Type `yes`. |
 
 **Next:** [lab6.md](lab6.md)
+
+---
+
+## Challenge c1: Tag Team (bonus)
+
+Deploy a second site, `$USER-second`, from a starter that policy rejects four ways, with an output that prints its
+URL. It needs one free container group (your subscription holds two).
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/challenge-c1` and
+clones it to `~/lab/challenge-c1`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c1`. A wrong answer costs nothing; `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c1 -->

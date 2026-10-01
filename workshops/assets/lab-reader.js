@@ -166,10 +166,13 @@
     start.type = 'button';
     start.className = 'lab-challenge-start';
     start.textContent = 'Start challenge';
+    // A challenge without a repo (row.repo false) works in the student's own lab space.
+    var hasRepo = row.repo !== false;
     var reset = document.createElement('button');
     reset.type = 'button';
     reset.className = 'lab-challenge-reset';
     reset.textContent = 'Reset';
+    reset.hidden = !hasRepo;
     var status = document.createElement('p');
     status.className = 'lab-challenge-status';
     status.setAttribute('role', 'status');
@@ -181,13 +184,20 @@
       if (action === 'reset' && !window.confirm('Delete your challenge repo and build a fresh one? ' +
           'Points and hints already used stay as they are.')) return;
       start.disabled = reset.disabled = true;
-      status.textContent = action === 'reset' ? 'Rebuilding your repo…' : 'Building your repo…';
+      status.textContent = !hasRepo ? 'Opening…' : action === 'reset' ? 'Rebuilding your repo…' : 'Building your repo…';
       challengeCall(id, action)
         .then(function (doc) {
-          var repo = typeof doc.repo === 'string' ? doc.repo : 'your repo';
-          status.textContent = (action === 'reset' ? 'Rebuilt ' : (doc.created ? 'Built ' : 'Ready: ')) + repo +
-            '. In the terminal: ' + (action === 'reset' ? 'rm -rf ~/lab/challenge-repo && ' : '') +
-            'dojo-challenge start ' + id + ' (clones it into ~/lab), then dojo-check ' + id + ' when done.';
+          if (typeof doc.repo !== 'string' || !doc.repo) {
+            status.textContent = 'No repo for this one: it works in your own lab space. ' +
+              'Run dojo-check ' + id + ' in the terminal when you think you are done.';
+          } else {
+            var repo = doc.repo;
+            var folder = repo.split('/').pop();
+            status.textContent = (action === 'reset' ? 'Rebuilt ' : (doc.created ? 'Built ' : 'Ready: ')) + repo +
+              '. In the terminal: ' + (action === 'reset' ? 'rm -rf ~/lab/' + folder + ' && ' : '') +
+              'dojo-challenge start ' + id + ' (clones it into ~/lab/' + folder + '), then dojo-check ' + id +
+              ' when done.';
+          }
           status.className = 'lab-challenge-status ok';
           if (typeof doc.goal === 'string' && doc.goal) {
             goal.textContent = 'Goal: ' + doc.goal;

@@ -133,3 +133,17 @@ need a reachable web server at all — and you've now driven the same
 PowerDNS API `dns-as-code` wraps in `dnscontrol`, by hand.
 
 You've completed every lab in this workshop.
+
+---
+
+## Capstone: The Wildcard Heist (a friendly one) (bonus)
+
+One wildcard certificate for `*.$USER.certs.dojo.test`, issued with dns-01, serving two sites (`www` and `api`
+under your name), with renewal that covers both.
+
+Only when your class has achievements on (you see a score on your landing page).
+There is no repo for this one: it works in your own space (your own vhosts, and the `_acme-challenge` record under your name). Click **Start challenge** below, or run
+`dojo-challenge start capstone`, to see your goal. When you think it's done, run `dojo-check capstone`. A wrong answer costs
+nothing; `dojo-check hint capstone` gives a hint for part of the points.
+
+<!-- dojo-challenge: capstone -->

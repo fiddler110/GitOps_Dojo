@@ -227,6 +227,16 @@ class StoreTests(unittest.TestCase):
         self.s.shell("a", {"cmd": "ls", "exit": 0})
         self.assertEqual(self.s.activity_snapshot()["a"]["fails"], 0)
 
+    def test_activity_survives_a_restart(self):
+        self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0})    # unlocks: saved
+        self.clock.t += 5
+        self.s.shell("a", {"cmd": "ls", "exit": 1})                         # within 30 s: not saved yet
+        self.clock.t += 40
+        self.s.shell("a", {"cmd": "ls", "exit": 1})                         # 30 s on: saved
+        self.mk()
+        a = self.s.activity_snapshot()["a"]
+        self.assertEqual((a["streak"], a["cmds"], a["fails"], a["since_cmd"]), (2, 3, 2, 0))
+
     def test_progress_lists_core_milestones_by_lab(self):
         self.s.shell("a", {"cmd": "git clone http://x/y.git", "exit": 0})
         p = self.s.progress("a")

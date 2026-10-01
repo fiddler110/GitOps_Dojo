@@ -46,7 +46,7 @@ is part of the lesson and never an incident.
 
 | # | Workshop | What students learn | Labs | Length |
 | - | -------- | ------------------- | ---- | ------ |
-| 0 | [**Dojo Introduction**](workshops/dojo-introduction/) | A show-and-tell of the whole platform for a facilitator, not a lab: every module runs at once (vault, DNS, certificates, Dojo Cloud, CI runners) with a platform tour, a workshop library and a tools tour. | none | ~30 min |
+| 0 | [**Dojo Introduction**](workshops/dojo-introduction/) | A show-and-tell of the platform for a facilitator, not a lab: Forgejo with CI runners, DNS as code and Dojo Cloud run at once, with a platform tour, a workshop library and a tools tour. | none | ~30 min |
 | 1 | [**Git Fundamentals**](workshops/git-fundamentals/) | The core git workflow: clone, branch, commit, push, pull request, then reviewing and undoing changes, stashing, reading history and resolving merge conflicts. | 5 | 60 min |
 | 2 | [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | 45-60 min |
 | 3 | [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
@@ -171,7 +171,7 @@ automation instead of being made by hand.
 │   ├── git-fundamentals/     # Content only; also the Azure DevOps delivery mode
 │   ├── dns-as-code/          # + PowerDNS; runner-pool, dns-ui and dns-gate modules
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
-│   ├── dojo-introduction/    # Showcase of the whole platform; all modules at once
+│   ├── dojo-introduction/    # Showcase: Forgejo + CI, DNS and Dojo Cloud at once
 │   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; FACILITATOR.md, tests/
 │   └── vault-fundamentals/   # openbao + runner-pool modules, app-host and app-db; labs 0-13, tests/
 ├── ROADMAP.md                # All open work: the single list of tasks
@@ -318,7 +318,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | `cert-autorenewal` | `dns-ui`, `dns-gate` | `dns-server`, `dns-seed`, `step-ca`, `demo-app`; `zone-viewer`, `dns-admin`, `dns-api` (modules) | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq`; own DNS key (module) | step-ca, `dns-api`, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 | `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
-| `dojo-introduction` | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate` | Every module's services, plus PowerDNS, `step-ca` and the demo site reused from cert-autorenewal | `runner_net`, `cloud_net` (modules) | One image with `bao`, `sops`, `gitleaks`, `pass`, `dnscontrol`, `dig`, `step`, `certbot`, `acme.sh`, `tofu` | Everything above; nothing to complete |
+| `dojo-introduction` | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | The modules' services, plus PowerDNS as dns-as-code runs it | `runner_net`, `cloud_net` (modules) | One image with `dnscontrol`, `dig`, `tofu` | CI, DNS and Dojo Cloud; nothing to complete |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -722,7 +722,7 @@ their own under one shared, templated policy. The workshop adds three things
 on top of the engine: the `openbao` module (the vault, its start-up setup,
 single sign-on through Forgejo and an audit reader), the `runner-pool` module
 (single-use CI runners, autoscaled) and, in the workshop's own overlay,
-`app-host` (a deploy target with one slot per student) and `app-db`
+`app-host` (a deploy target with one slot per student, and a second one the capstone unlocks) and `app-db`
 (Postgres for the dynamic-credentials lab).
 
 **Infrastructure and connectivity.** OpenBao listens on plain HTTP on
@@ -748,7 +748,7 @@ graph TB
         AUD["openbao-audit<br/>reads the audit log"]
         GS["git-server (Forgejo)<br/>OIDC provider, Actions on"]
         CTL["runner-controller<br/>autoscales the pool"]
-        AH["app-host<br/>one slot per student, own user,<br/>egress allowlist"]
+        AH["app-host<br/>a slot per student (+ capstone), own user,<br/>egress allowlist"]
         DB[("app-db<br/>Postgres")]
     end
 
@@ -801,14 +801,14 @@ plain HTTP on the lab networks. See the workshop's
 [README](workshops/vault-fundamentals/README.md) for why, and for sizing
 (about 2 GiB for 10 demo bots).
 
-### `dojo-introduction` — everything at once
+### `dojo-introduction` — a light tour
 
-Not a lab. The terminal image carries the tools of all four workshops and the
-stack runs the vault, the runner pool, DNS with per-account zones, the
-certificate authority and Dojo Cloud together, so a facilitator can click
-through each capability as a student and as the facilitator. It adds no
-services of its own: it lists the modules and reuses the other packs' sources
-in one overlay, and serves each workshop's slides under a Workshop Library.
+Not a lab. The terminal image carries the tools of dns-as-code and tofu-basics,
+and the stack runs Forgejo with the runner pool, DNS with per-account zones and
+Dojo Cloud together (the vault and the certificate lab are left out to keep it
+light), so a facilitator can click through each capability as a student and as
+the facilitator. Its overlay adds PowerDNS, reuses dns-as-code's per-account
+zone hook, and serves each workshop's slides under a Workshop Library.
 
 ---
 

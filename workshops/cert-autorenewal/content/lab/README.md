@@ -43,6 +43,21 @@ glow lab1.md   # or: nano lab1.md, batcat lab1.md, etc.
 
 ---
 
+## Challenges (bonus)
+
+When your class has achievements on (you see a score on your landing page), some labs end with a challenge: a goal
+with no steps, in a space of your own, for extra points. They never count towards finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | The Second Site | end of [Lab 3](lab3.md) |
+| `c2` | The Short Fuse | end of [Lab 4](lab4.md) |
+| `capstone` | The Wildcard Heist | end of [Lab 5](lab5.md) |
+
+Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+with what each is worth.
+
 ## 1. Check your shell
 
 ```sh

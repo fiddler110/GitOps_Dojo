@@ -157,7 +157,7 @@ class Runner:
         if not assertions:
             raise NotCheckable(f"{ch['id']} can't be checked yet")
         vals = self.values(ch, user)
-        ctx = {"user": user, "seed": seed or {}}
+        ctx = {"user": user, "seed": seed or {}, "now": self.clock()}
         for a in assertions:
             if a.get("verb") not in self.verbs:
                 raise NotCheckable(f"{ch['id']}: no verifier '{a.get('verb')}' in this run")

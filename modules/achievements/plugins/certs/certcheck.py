@@ -3,6 +3,7 @@
 import os
 import socket
 import ssl
+import time
 
 
 class Unavailable(Exception):
@@ -139,6 +140,35 @@ def served_changed(api, args, ctx):
     return True, "ok"
 
 
+_watch = {}     # (user, host) -> {"since", "serials"}: a renewal watch in progress (memory only)
+
+
+def served_renews(api, args, ctx):
+    """The host keeps itself renewed: for `minutes` (default 20) every look found a valid certificate, and its
+    serial changed at least `renewals` times (default 2). The first call starts the watch; the service's state
+    sweep keeps calling it (a challenge with `"watch": true`). A look that finds no valid certificate starts the
+    watch again, as does a restart of the service. Looks are a sweep apart, so a lapse shorter than that can be
+    missed."""
+    host = str(args.get("host"))
+    minutes, want = float(args.get("minutes", 20)), int(args.get("renewals", 2))
+    k = (ctx["user"], host.lower())
+    now = ctx["now"] if "now" in ctx else time.time()
+    cert, fail = _cert(host, ctx)
+    if fail:
+        _watch.pop(k, None)
+        return False, f"{fail}; the {minutes:g}-minute watch starts again once it is valid"
+    if k not in _watch and len(_watch) >= MAX_SEEN:
+        _watch.clear()
+    w = _watch.setdefault(k, {"since": now, "serials": []})
+    if cert["serialNumber"] not in w["serials"]:
+        w["serials"].append(cert["serialNumber"])
+    done, renewed = (now - w["since"]) / 60, len(w["serials"]) - 1
+    if done >= minutes and renewed >= want:
+        return True, "ok"
+    return False, (f"watching {host}: {int(done)} of {minutes:g} minutes, renewed {renewed} of {want} times; "
+                   "I keep checking on my own, nothing else to run")
+
+
 def served_expired(api, args, ctx):
     """The host is served a certificate that has expired (the handshake fails for that reason)."""
     host = str(args.get("host"))
@@ -156,4 +186,4 @@ def served_expired(api, args, ctx):
 
 
 VERBS = {"served_cert": served_cert, "served_same": served_same, "served_changed": served_changed,
-         "served_expired": served_expired}
+         "served_expired": served_expired, "served_renews": served_renews}

@@ -198,4 +198,8 @@ class DnsChallenges(unittest.TestCase):
                 for f in c["files"]:
                     text = challenges.fill_text(open(os.path.join(seeds, f["from"])).read(), vals)
                     self.assertNotRegex(text, re.compile(r"\{(user|label|n|good|bad|good_octet|bad_octet)\}"), f["from"])
-            self.assertEqual(challenges.fill_text(plan["repo"], vals), "amy/challenge-zone")
+        repos = {json.load(open(os.path.join(seeds, ch["seed_plan"])))["repo"]
+                 for ch in self.cat["challenges"] + [self.cat["capstone"]]}
+        # One repo per challenge: start leaves an existing repo alone, so a shared one
+        # would hand c2 the zone c1 left behind.
+        self.assertEqual(repos, {"{user}/challenge-typo", "{user}/challenge-cutover", "{user}/challenge-badpush"})

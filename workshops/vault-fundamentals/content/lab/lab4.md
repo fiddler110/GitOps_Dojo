@@ -155,3 +155,18 @@ unset BAO_NAMESPACE
 **Rules used:** 1 (least privilege), 3 (short-lived and revocable), 7 (plan for leaks: revocation is routine).
 
 **Next:** [lab5.md](lab5.md)
+
+---
+
+## Challenge c1: The Shared Secret (bonus)
+
+Give a teammate's app read access to one of your secrets and to nothing else in your namespace. The repo's
+`seed.sh`, run with your own token, makes the secrets and the app's AppRole for you.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/challenge-secret` and
+clones it to `~/lab/challenge-secret`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c1`. A wrong answer costs nothing; `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c1 -->

@@ -111,7 +111,7 @@ vhost directory and the certificate `demo-app` serves for their own hostnames on
 - **Points:** 100
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.
-- **Seed:** nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (added when the challenge opens) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` has no repo to clone here.
+- **Seed:** nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (made for every student by the DNS seed at stack start, pointing at `demo-app`) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` (or the lab button) only shows the goal: there is no repo to clone, and nothing to reset.
 - **Verify:** `demo-app`'s HTTPS listener serves `shop.{user}.certs.dojo.test` (checked over SNI) a certificate that chains to the CA root, matches the name and is not expired, and is not the certificate served for `{user}.certs.dojo.test`. It cannot see whether the first site's serial changed, only that the two sites hold different certificates.
 - **Hint 1:** Same steps as your first site, new hostname.
 - **Hint 2:** New vhost, new issuance, new install.
@@ -124,10 +124,10 @@ vhost directory and the certificate `demo-app` serves for their own hostnames on
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Certificates from this CA only last 5-10 minutes. Make `{user}.certs.dojo.test` renew on its own and stay valid for 20 minutes without you touching it.
 - **Seed:** nothing to seed: the student's own hostname and the wildcard A record.
-- **Verify:** the served serial for the student's hostname changes at least twice within the window, and it never presents an expired cert.
+- **Verify:** the first `dojo-check c2` starts a 20-minute watch, and the service then looks at `{user}.certs.dojo.test` on its own every sweep (about 20 s): every look must find a valid certificate, and the served serial must change at least twice before the 20 minutes are up. A look with no valid certificate starts the watch again; so does a restart of the achievements service. A lapse shorter than one sweep can be missed.
 - **Hint 1:** Cron runs at most once a minute.
 - **Hint 2:** `renew` only acts when the cert is close to expiry.
-- **Answer:** Reuse Lab 4's `renew-and-reload.sh` and its cron line for `{user}.certs.dojo.test`, and leave it alone for 20 minutes (the cert must be reissued at least twice). Not checkable by `dojo-check` yet.
+- **Answer:** Reuse Lab 4's `renew-and-reload.sh` and its cron line for `{user}.certs.dojo.test`, run `dojo-check c2` once to start the watch, and leave it alone for 20 minutes (the cert must be reissued at least twice). The challenge clears on its own; `dojo-check c2` shows how far the watch has got.
 - **Collision check:** the student's own vhost directory and hostname only.
 
 ## Capstone (300 points, optional): The Wildcard Heist (a friendly one)
@@ -135,7 +135,7 @@ vhost directory and the certificate `demo-app` serves for their own hostnames on
 - **Points:** 300
 - **Where it runs:** the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`
 - **Goal shown to the student:** Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different vhosts (`www` and `api` under your name), and set up renewal that works for both.
-- **Seed:** the wildcard A record above. The two vhosts are created by the student in their own directory. The DNS pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.
+- **Seed:** the wildcard A record `*.{user}.certs.dojo.test` (made by the DNS seed at stack start), so `www` and `api` under the student's name resolve. The two vhosts are created by the student in their own directory. The DNS pipeline is Lab 5's, using the student's own key, so the `_acme-challenge.{user}.certs.dojo.test` TXT record is theirs alone.
 - **Verify:** `www.{user}.certs.dojo.test` and `api.{user}.certs.dojo.test` are both served, over SNI, a valid certificate that chains to the CA root, that covers `*.{user}.certs.dojo.test`, with the same serial on both. That a renewal entry exists and that a forced renewal updates both are not checked.
 - **Hint 1:** A wildcard only works through DNS.
 - **Hint 2:** One cert file, two vhosts, one reload.

@@ -156,3 +156,33 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 | `git push` says `! [rejected] ... (fetch first)`, or its output shows `iac-team/tofu-basics` | You cloned the team repo, not your fork, and someone already pushed that branch name there. Do Lab 0 step 1 (fork), then `git remote set-url origin http://git-server:3000/$USER/tofu-basics.git` and push again. |
 | `git push` asks for a username or password | Your token is missing or was changed. Check `ls -l ~/.git-credentials`; if it's gone or empty, ask the facilitator. |
 | `terraform state list` prints nothing but the portal has resources | You're in the wrong folder, or the state file was deleted. `cd ~/lab/tofu-basics` and check `ls terraform.tfstate`. |
+
+---
+
+## Challenge c2: Quota Whisperer (bonus)
+
+The code declares five sites; your subscription holds two container groups. Make the apply succeed without asking
+for more quota. Start it now that this lab has freed your quota.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-c2` and
+clones it to `~/lab/challenge-c2`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->
+
+---
+
+## Capstone: Site Factory (bonus)
+
+From a near-empty repo: two differently named sites from one `for_each`, each with the required tags, an output map
+of names to URLs, then a clean destroy that leaves nothing running.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/site-factory` and
+clones it to `~/lab/site-factory`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` starts you over from a fresh copy.
+
+<!-- dojo-challenge: capstone -->

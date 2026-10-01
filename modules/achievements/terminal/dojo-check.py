@@ -172,7 +172,17 @@ def challenge(action, cid):
     code, doc = call("POST", "/api/challenge", {"challenge": cid, "action": action}, timeout=120)
     if code != 200:
         return fail(code, doc)
-    repo, url = doc.get("repo", ""), doc.get("clone_url", "")
+    repo, url = doc.get("repo") or "", doc.get("clone_url") or ""
+    if not repo:
+        print("\033[1;36m%s: %s\033[0m" % (cid, doc.get("title", "")))
+        print("Goal: %s" % doc.get("goal", ""))
+        if doc.get("constraints"):
+            print("Rules: %s" % doc["constraints"])
+        print("No repo for this one: it works in your own lab space, so start where the lab left you.")
+        if doc.get("done"):
+            print("(You already cleared %s; practising again scores nothing new.)" % cid)
+        print("When you think you're done: dojo-check %s" % cid)
+        return 0
     name = repo.rsplit("/", 1)[-1]
     if not name or "/" in name or name.startswith(".") or not url.startswith("http://" + HOST + "/"):
         return fail(0, {"error": "the service sent an odd repo name"})

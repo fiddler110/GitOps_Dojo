@@ -114,3 +114,18 @@ client, a scheduler) — the same shape as what a managed platform automates
 for you, minus the vendor.
 
 Next: [lab5.md](lab5.md), the dns-01 challenge.
+
+---
+
+## Challenge c2: The Short Fuse (bonus)
+
+Keep your site's certificate valid for 20 minutes straight without touching it. Run `dojo-check c2` once with
+renewal in place: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
+renewals and no gap.
+
+Only when your class has achievements on (you see a score on your landing page).
+There is no repo for this one: it works in your own space (your own site, `$USER.certs.dojo.test`). Click **Start challenge** below, or run
+`dojo-challenge start c2`, to see your goal. When you think it's done, run `dojo-check c2`. A wrong answer costs
+nothing; `dojo-check hint c2` gives a hint for part of the points.
+
+<!-- dojo-challenge: c2 -->

@@ -144,3 +144,18 @@ None of those replace reading the diff yourself — they're a safety net, not a 
 - **Undoing an already-merged change:** don't hand-edit it back — `dnsctl.py rollback` (or plain `git revert`), covered in [lab5.md](lab5.md).
 
 You've now covered DNS as code in your own zone (Labs 1-2), the change process on a shared zone (Lab 3), automating it (Lab 4), investigating and rolling back history (Lab 5), and resolving conflicts safely (this lab). See [README.md](README.md) for the quick reference, and [cheat-sheet.md](cheat-sheet.md) for the full command list.
+
+---
+
+## Capstone: The Bad Push (bonus)
+
+Someone pushed one good record and one bad one in the same commit. Keep the good one, drop the bad one, and don't
+rewrite history. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/challenge-badpush` and
+clones it to `~/lab/challenge-badpush`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` starts you over from a fresh copy.
+
+<!-- dojo-challenge: capstone -->

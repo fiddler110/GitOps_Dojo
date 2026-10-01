@@ -10,7 +10,7 @@
     "Same steps as your first site, new hostname.",
     "New vhost, new issuance, new install."
   ],
-  "seed": "nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (added when the challenge opens) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` has no repo to clone here.",
+  "seed": "nothing to seed: no repo. The wildcard A record `*.{user}.certs.dojo.test` (made for every student by the DNS seed at stack start, pointing at `demo-app`) is what makes `shop.{user}.certs.dojo.test` resolve. `dojo-challenge start c1` (or the lab button) only shows the goal: there is no repo to clone, and nothing to reset.",
   "verify": [
     {
       "verb": "served_cert",

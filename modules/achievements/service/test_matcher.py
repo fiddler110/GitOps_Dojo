@@ -77,6 +77,31 @@ class ShellEvents(unittest.TestCase):
         self.assertEqual(m.match(shell("x", 2)), ["a", "b", "c"])
         self.assertEqual(m.match(shell("x", 3)), ["a", "c"])
 
+    def test_exit_belongs_to_the_command_that_ran_last(self):
+        def exits(line, code):
+            return [s["exit"] for s in mt.segments(line, code)]
+        self.assertEqual(exits("a; b; c", 1), [None, None, 1])
+        self.assertEqual(exits("a | b", 0), [None, 0])
+        self.assertEqual(exits("a && b | c && d", 0), [0, None, 0, 0])
+        self.assertEqual(exits("a && b", 1), [None, None])
+        self.assertEqual(exits("a || b", 0), [None, None])
+        self.assertEqual(exits("a; b && c", 0), [None, 0, 0])
+        self.assertEqual(exits("(a); b", 2), [None, 2])
+        self.assertEqual(exits("a\nb", 128), [None, 128])
+
+    def test_chained_lines(self):
+        idx = lg.build_index(load(), lg.Config())
+        m = mt.Matcher(idx)
+        # a rejected push after a good commit: the push is rejected, the commit is not "nothing"
+        got = m.match(shell('git commit -m "x"; git push', 1, in_repo=True))
+        self.assertIn("f-rejected", got)
+        self.assertNotIn("f-nothing", got)
+        # the push failed but the line ends on echo: no failure is known for anyone
+        got = m.match(shell("git push; echo $?", 0, in_repo=True))
+        self.assertNotIn("f-rejected", got)
+        # a pipe still counts as a success for the command before it
+        self.assertIn("l4-log", m.match(shell("git log --oneline | head", 0, in_repo=True)))
+
     def test_cheats_and_other_sources_are_not_matched(self):
         idx = lg.build_index(load(), lg.Config())
         ids = {iid for iid, _ in mt.Matcher(idx).rules}

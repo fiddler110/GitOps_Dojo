@@ -156,4 +156,17 @@ git branch -D undo-demo
 
 You've now covered the full loop (Lab 1) plus the most common "something went sideways" tools. That's the everyday git toolkit — see [README.md](README.md) for the quick reference, and don't hesitate to ask the facilitator about anything that came up.
 
+---
+
+## Capstone: The Great Merge (bonus)
+
+Two feature branches change the same spot, and one of them also broke something. Bring both into `main` through a
+pull request, keep both changes, and undo the broken commit the safe way.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/challenge-repo` and
+clones it to `~/lab/challenge-repo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` starts you over from a fresh copy.
+
 <!-- dojo-challenge: capstone -->

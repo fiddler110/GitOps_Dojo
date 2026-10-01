@@ -10,7 +10,8 @@ Three pieces, all offline and deterministic (student terminals have no internet 
 * `Achievements` that service's Sensei-only reads, and `current_lab` for `sensei check`
 * `HelpDesk`   the raise-a-hand queue the facilitator answers (`sensei hand`, `sensei inbox`).
 
-Challenge and capstone text never goes in: it is not in the lab files, and headings that name one are skipped, so
+Challenge and capstone text never goes in: the labs keep only a short teaser under a heading that names one, and those
+headings are skipped, so
 asking Sensei can never leak a hint or an answer.
 """
 import json

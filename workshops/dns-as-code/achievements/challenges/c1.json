@@ -4,7 +4,7 @@
   "after": "after Lab 1 or 2",
   "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
   "goal": "Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.",
-  "seed": "`dojo-challenge start c1` creates `{user}/challenge-zone` (owned by the student, cloned to `~/lab/challenge-zone`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file (\"must end with a (.)\"). `{label}` is picked per student.",
+  "seed": "`dojo-challenge start c1` creates `{user}/challenge-typo` (owned by the student, cloned to `~/lab/challenge-typo`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file (\"must end with a (.)\"). `{label}` is picked per student.",
   "verify_text": "the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the bad target is gone.",
   "hints": [
     "Run the tool that shows you what it would change.",
@@ -51,5 +51,5 @@
     }
   ],
   "isolation": "the student's own repo and their own zone `{user}.dojo.test`, which only their own key can change. The check reads that zone only.",
-  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-zone`, `dnscontrol preview` (it refuses the file and names the `{label}` CNAME: the target must end with a dot), add the trailing dot: `CNAME(\"{label}\", \"www.{user}.dojo.test.\")`, `dnscontrol push`, then `dojo-check c1`."
+  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-typo`, `dnscontrol preview` (it refuses the file and names the `{label}` CNAME: the target must end with a dot), add the trailing dot: `CNAME(\"{label}\", \"www.{user}.dojo.test.\")`, `dnscontrol push`, then `dojo-check c1`."
 }

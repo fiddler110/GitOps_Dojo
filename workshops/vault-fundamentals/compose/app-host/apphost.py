@@ -6,6 +6,13 @@ the student's name; its app runs as that user in its own user + PID
 namespace, with prlimit caps (the runner pool's pattern, T0.8), so one slot
 can't see or signal another's processes or read its files.
 
+Each student also has a second slot, <name>-capstone (roadmap A24), for the
+capstone app, so it doesn't replace the app the labs left running. It stays
+locked (no platform identity, no deploys) until the student's capstone repo
+<name>/<CAPSTONE_REPO> exists, which `dojo-challenge start capstone` makes:
+the student's own status page checks for it, and a deploy from it unlocks it
+too. CAPSTONE_REPO="" turns the second slots off.
+
 What the platform gives each slot, and what it asks of a deploy:
 
 - **A platform identity.** Every few minutes it writes each slot a short-lived
@@ -17,7 +24,8 @@ What the platform gives each slot, and what it asks of a deploy:
 - **A deploy API.** POST /deploy with a tar.gz of the app and, as the bearer
   token, the CI job's own Forgejo Actions ID token (audience app-host). The
   platform checks it against Forgejo's keys and deploys to the slot of the
-  repository's owner, from <owner>/<DEPLOY_REPO> on main only. No stored deploy
+  repository's owner, from <owner>/<DEPLOY_REPO> on main only (or to the
+  owner's capstone slot, from <owner>/<CAPSTONE_REPO>). No stored deploy
   secret exists. The bundle is unpacked by the slot's user, and its start.sh
   runs as that user with $PORT, $SLOT and $BAO_ADDR set.
 
@@ -45,6 +53,8 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 KEY_PATH = "/var/lib/app-host/key.pem"
@@ -68,6 +78,8 @@ LOG_LINES = 200
 RESTART_DELAY = 3
 RESTART_LIMIT = 5
 RESTART_WINDOW = 120
+CAPSTONE_CHECK = 10  # seconds between a student's checks for their capstone repo
+CAPSTONE_SUFFIX = "-capstone"
 CLEAN_ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}
 # What a slot's app may connect to (remediation T2.2b, FIND-04): DNS,
 # OpenBao and app-db, by port. Nothing else on these networks listens on
@@ -102,6 +114,10 @@ class Config:
         self.gateway_token = env.get("GATEWAY_TOKEN", "")
         self.facilitator = env.get("FACILITATOR_USERNAME") or "root"
         self.repo = env.get("DEPLOY_REPO") or "vault-fundamentals"
+        # Each student's second, locked slot for the capstone (empty: none).
+        self.capstone_repo = env.get("CAPSTONE_REPO", "capstone")
+        self.capstone_slots = [n + CAPSTONE_SUFFIX for n in self.slots] if self.capstone_repo else []
+        self.forgejo_api = env.get("FORGEJO_API_URL") or "http://git-server:3000/api/v1"
         self.forgejo_issuer = (env.get("PUBLIC_BASE_URL", "").rstrip("/")) + "/git/api/actions"
         self.forgejo_jwks = env.get("FORGEJO_JWKS_URL") or "http://git-server:3000/api/actions/.well-known/keys"
         self.bao_addr = env.get("BAO_ADDR") or "http://openbao:8200"
@@ -221,11 +237,16 @@ def check_deploy_claims(claims, cfg, now=None):
     owner = repository.split("/", 1)[0]
     if owner not in cfg.slots:
         raise ValueError(f"{repository!r}: its owner has no slot on this platform")
-    if repository != f"{owner}/{cfg.repo}":
-        raise ValueError(f"only {owner}/{cfg.repo} deploys to slot {owner}, not {repository!r}")
+    if cfg.capstone_repo and repository == f"{owner}/{cfg.capstone_repo}":
+        slot = owner + CAPSTONE_SUFFIX
+    elif repository == f"{owner}/{cfg.repo}":
+        slot = owner
+    else:
+        also = f" (or {owner}/{cfg.capstone_repo} to {owner}{CAPSTONE_SUFFIX})" if cfg.capstone_repo else ""
+        raise ValueError(f"only {owner}/{cfg.repo} deploys to slot {owner}{also}, not {repository!r}")
     if claims.get("ref") != "refs/heads/main":
         raise ValueError(f"only main deploys; this run is on {claims.get('ref')!r}")
-    return owner
+    return slot
 
 
 class ForgejoKeys:
@@ -286,13 +307,15 @@ def run(cmd, **kw):
 
 
 class Slot:
-    def __init__(self, name, index):
+    def __init__(self, name, index, owner=None, locked=False):
         self.name = name
+        self.owner = owner or name
         self.uid = UID_BASE + index
         self.port = PORT_BASE + index
         self.home = os.path.join(APPS_DIR, name)
         self.token_dir = os.path.join(TOKEN_DIR, name)
-        self.state = "empty"
+        self.state = "locked" if locked else "empty"
+        self.checked = 0.0  # last look for the capstone repo, while locked
         self.since = time.time()
         self.proc = None
         self.generation = 0
@@ -304,7 +327,7 @@ class Slot:
         self.deploy_lock = threading.Lock()
 
     def to_json(self, with_log):
-        doc = {"name": self.name, "state": self.state, "since": self.since, "port": self.port,
+        doc = {"name": self.name, "owner": self.owner, "state": self.state, "since": self.since, "port": self.port,
                "deployed": self.deployed, "restarts": len(self.restarts), "token_expires": self.token_exp}
         if with_log:
             doc["log"] = list(self.log)
@@ -312,7 +335,7 @@ class Slot:
 
 
 def slot_uid_range(cfg):
-    uids = [UID_BASE + i for i in range(1, len(cfg.slots) + 1)]
+    uids = [UID_BASE + i for i in range(1, len(cfg.slots) + len(cfg.capstone_slots) + 1)]
     return min(uids), max(uids)
 
 
@@ -346,6 +369,12 @@ class Platform:
         self.cfg = cfg
         self.lock = threading.Lock()  # every Slot's state, since, proc, log
         self.slots = {name: Slot(name, i) for i, name in enumerate(cfg.slots, start=1)}
+        # Capstone slots after the students' (and bots'), so the uids stay one range.
+        self.capstone_of = {}
+        for i, owner in enumerate(cfg.slots, start=len(cfg.slots) + 1):
+            if cfg.capstone_repo:
+                s = Slot(owner + CAPSTONE_SUFFIX, i, owner=owner, locked=True)
+                self.slots[s.name] = self.capstone_of[owner] = s
         self.forgejo_keys = ForgejoKeys(cfg.forgejo_jwks)
         self.jwk = None
 
@@ -382,7 +411,10 @@ class Platform:
                     s.deployed = json.load(f)
             except (OSError, ValueError):
                 s.deployed = None
-            self.write_token(s)
+            if s.deployed and s.state == "locked":
+                s.state = "empty"  # deployed before a restart, so already unlocked
+            if s.state != "locked":
+                self.write_token(s)
             if s.deployed and os.path.exists(os.path.join(s.home, "app", "start.sh")):
                 self.start(s, "the platform restarted")
         log(f"{len(self.slots)} slots ready")
@@ -404,12 +436,60 @@ class Platform:
     def refresh_tokens(self):
         while True:
             time.sleep(15)
-            for s in self.slots.values():
+            with self.lock:
+                due = [s for s in self.slots.values() if s.state != "locked"]
+            for s in due:
                 if time.time() - s.token_written >= TOKEN_REFRESH:
                     try:
                         self.write_token(s)
                     except (OSError, subprocess.CalledProcessError) as e:
                         log(f"{s.name}: could not write its token: {e}")
+
+    # capstone slots
+    def repo_exists(self, repo):
+        """Whether Forgejo has this public repo. Unauthenticated: the seed makes
+        the capstone repo public. Raises OSError when Forgejo can't be asked."""
+        owner, _, name = repo.partition("/")
+        url = f"{self.cfg.forgejo_api}/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(name)}"
+        try:
+            with urllib.request.urlopen(url, timeout=3) as r:
+                return r.status == 200
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False
+            raise
+
+    def unlock(self, s, why):
+        with self.lock:
+            if s.state != "locked":
+                return
+            s.state, s.since = "empty", time.time()
+        self.write_token(s)
+        log(f"{s.name}: unlocked ({why})")
+        self.note(s, f"[platform] unlocked ({why})")
+
+    def check_capstone(self, owner):
+        """Unlocks owner's capstone slot once their capstone repo exists. At most
+        one Forgejo read per student every CAPSTONE_CHECK seconds, never under
+        the lock."""
+        s = self.capstone_of.get(owner)
+        with self.lock:
+            if s is None or s.state != "locked" or time.time() - s.checked < CAPSTONE_CHECK:
+                return
+            s.checked = time.time()
+        repo = f"{owner}/{self.cfg.capstone_repo}"
+        try:
+            if self.repo_exists(repo):
+                self.unlock(s, f"{repo} exists: the capstone has started")
+        except OSError as e:
+            log(f"{s.name}: could not look for {repo}: {e}")
+
+    def visible(self, user, facilitator):
+        """The slots a status page shows: a student's own two, and for the
+        facilitator every slot in use (not the class's locked capstone slots)."""
+        with self.lock:
+            return [s.to_json(with_log=True) for s in self.slots.values()
+                    if s.owner == user or (facilitator and s.state != "locked")]
 
     # processes
     def kill_all(self, s):
@@ -630,9 +710,8 @@ def make_handler(platform):
 
         def _status(self, user):
             facilitator = user == cfg.facilitator
-            with platform.lock:
-                slots = [s.to_json(with_log=True) for s in platform.slots.values()
-                         if facilitator or s.name == user]
+            platform.check_capstone(user)
+            slots = platform.visible(user, facilitator)
             self._json(200, {"user": user, "facilitator": facilitator, "slots": slots,
                              "issuer": ISSUER, "now": time.time()})
 
@@ -657,7 +736,9 @@ def make_handler(platform):
                 return self._json(403, {"error": f"deploy refused: {e}"})
             except OSError as e:
                 return self._json(503, {"error": f"could not fetch Forgejo's keys: {e}"})
-            code, doc = platform.deploy(platform.slots[name], bundle, claims)
+            slot = platform.slots[name]
+            platform.unlock(slot, f"a deploy from {claims.get('repository')}")
+            code, doc = platform.deploy(slot, bundle, claims)
             self._json(code, doc)
 
         def _proxy(self):

@@ -48,7 +48,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 <div>
 <h3><a href="index.md">Dojo Introduction &rarr;</a></h3>
-<p>This tour: how the platform is built, and all of it running at once.</p>
-<p class="with">Everything above</p>
+<p>This tour: how the platform is built, with Git, CI, DNS and Dojo Cloud running at once.</p>
+<p class="with">Forgejo · PowerDNS · Dojo Cloud</p>
 </div>
 </div>
