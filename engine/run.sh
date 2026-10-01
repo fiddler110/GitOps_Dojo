@@ -1063,9 +1063,9 @@ rm -f "$ext_err"
 if ! inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
   echo "Extensions: not checked (the allocator image isn't built yet; a real run builds it first)."
 elif [ "$achievements_on" = "1" ] && ! run_once --network none \
-    -v "$PWD/../modules/achievements/catalog:/catalog:ro" \
+    -v "$PWD/../modules/achievements:/opt/achievements:ro" \
     -v "$PWD/${workshop_dir}/achievements:/w/${workshop}/achievements:ro" gitopsdojo/allocator:local \
-    python3 -B /catalog/validate.py "/w/${workshop}"; then
+    python3 -B /opt/achievements/catalog/validate.py "/w/${workshop}"; then
   echo "The workshop's achievements catalog was rejected (see above); nothing was started." >&2
   exit 1
 else
