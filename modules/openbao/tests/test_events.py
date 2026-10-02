@@ -35,6 +35,18 @@ class Classify(unittest.TestCase):
         self.assertEqual((out["event"], out["ok"], out["status"], out["mount"]), ("login", False, 400, "jwt-ci"))
         self.assertNotIn("role", out)
 
+    def test_claim_refused_login_has_its_error_only_in_the_response_data(self):
+        # As OpenBao 2.x logs a jwt-ci login from a branch: no top-level error, and an auth block with no policies.
+        e = entry("students/amy", "update", "auth/jwt-ci/login", resp={"data": {"error": "hmac-sha256:9d1b"}})
+        e["auth"] = {"policy_results": {"allowed": True}, "token_type": "default"}
+        out = ev.classify(e)
+        self.assertEqual((out["user"], out["ok"], out["status"], out["mount"]), ("amy", False, 400, "jwt-ci"))
+
+    def test_a_secret_with_an_error_field_is_still_a_success(self):
+        e = entry("students/amy", "read", "secret/app", ["default", "student"],
+                  resp={"data": {"error": "hmac-sha256:x", "other": "hmac-sha256:y"}})
+        self.assertTrue(ev.classify(e)["ok"])
+
     def test_root_namespace_oidc_login_is_attributed_by_display_name(self):
         e = entry("", "update", "auth/oidc/oidc/callback", resp={"auth": {"display_name": "oidc-student01",
                                                                           "policies": ["default"]}})
