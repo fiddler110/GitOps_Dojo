@@ -41,11 +41,11 @@ people finish its clean-up section before Lab 10.
    after about 5, 30, 36 and 66 s in the live test. **Terminals is the slowest, about a minute or more**,
    because the terminal container is creating every student account: yellow there is normal, not a fault. `docker ps` /
    `podman ps` should show the containers healthy too.
-4. **Size the machine.** The engine's calculator does not know about `cloud-host`, so tell it about the
-   two extra services with `--other-services-mb`:
+4. **Size the machine.** Name the workshop, so the calculator counts `cloud-host` (3 GB), `cloud-api` and the
+   other module services too (about 6.5 GB besides the terminals):
 
    ```sh
-   ./run.sh capacity --students 30 --other-services-mb 6400     # 3072 engine + 3072 cloud-host + 256 cloud-api
+   ./run.sh capacity tofu-basics --students 30
    ```
 
    Those are the ceilings the dojo-cloud module sets (`CLOUD_HOST_MEM_LIMIT` 3g, `CLOUD_API_MEM_LIMIT` 256m), not

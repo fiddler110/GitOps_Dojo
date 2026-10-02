@@ -92,8 +92,9 @@ in the browser.
   that updates in place while the stack starts, and `./run.sh stop` shows one
   while it comes down (plain lines when piped or with `NO_COLOR`).
 - **Runs on one machine.** A laptop for rehearsal or a single cloud VM for a
-  real class, with Docker or Podman. `./run.sh capacity --students 30` sizes the
-  per-student memory and process limits for that host. Nothing persists once the
+  real class, with Docker or Podman. `./run.sh capacity <workshop> --students 30`
+  sizes the per-student memory and process limits for that host, counting every
+  service the workshop starts. Nothing persists once the
   stack is stopped.
 
 ### Beyond the live lab

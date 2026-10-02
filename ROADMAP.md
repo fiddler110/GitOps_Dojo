@@ -174,7 +174,6 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
-| C6 | `capacity` counts only the four engine services | S | Found 2026-10-02 (N3 9.2): `engine/scripts/capacity*` hard-codes "Other 4 services' mem_limits: 3072MB" (forge, presentation, allocator, gateway), so on tofu-basics it leaves out cloud-host (3 GB), cloud-api (256 MB), achievements (128 MB) and sensei (no `mem_limit` at all). For 15 students it said 15.8 GB needed against 14.0 GB free (right verdict, ~3.4 GB short of the true ~19.3 GB). Read every service's `mem_limit` from the resolved Compose config instead, and give sensei a limit. Engine change: ask first |
 
 ### Remediation leftovers
 

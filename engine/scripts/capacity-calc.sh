@@ -40,12 +40,18 @@ RESERVE_MB=1024         # host OS + docker/podman daemon headroom
 # matches the mem_limits docker-compose.yml sets on those four services, so
 # this reserve is an enforced ceiling, not just an observed-idle guess.
 OTHER_SERVICES_MB=3072
+# What OTHER_SERVICES_MB counts, for the report. `./run.sh capacity WORKSHOP` passes the real total of that
+# workshop's services (modules included) and names it here.
+OTHER_SERVICES_FROM="the engine's 4 services only; name a workshop to count its modules too"
 MARGIN_PCT=15            # extra headroom applied on top of whichever per-student estimate is used
 HOST_MEM_MB_OVERRIDE=""
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh capacity --students N [options]
+Usage: ./run.sh capacity [WORKSHOP] --students N [options]
+
+With WORKSHOP, every service that workshop starts (its modules included) counts
+towards the memory left for students, not just the engine's four.
 
 Recommends WEB_TERMINAL_MEM_LIMIT / WEB_TERMINAL_PIDS_LIMIT /
 CODE_SERVER_MAX_HEAP_MB for engine/.env, sized to the machine it runs on.
@@ -65,8 +71,9 @@ Options:
   --procs-per-student N     node processes assumed per student for the
                             worst-case ceiling (default: 5)
   --reserve-mb MB           host OS + container-daemon headroom (default: 1024)
-  --other-services-mb MB    combined mem_limits of git-server, presentation,
-                            allocator, and gateway (default: 3072)
+  --other-services-mb MB    combined mem_limits of every service but the
+                            terminal (default: 3072, the engine's four;
+                            set for you when WORKSHOP is given)
   -h, --help                show this message
 EOF
 }
@@ -78,6 +85,7 @@ while [ $# -gt 0 ]; do
     --procs-per-student) PROCS_PER_STUDENT="$2"; shift 2 ;;
     --reserve-mb) RESERVE_MB="$2"; shift 2 ;;
     --other-services-mb) OTHER_SERVICES_MB="$2"; shift 2 ;;
+    --other-services-from) OTHER_SERVICES_FROM="$2"; shift 2 ;;
     --margin-pct) MARGIN_PCT="$2"; shift 2 ;;
     --host-mem-mb) HOST_MEM_MB_OVERRIDE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -236,7 +244,7 @@ if [ "$LIVE_STUDENTS" -eq 0 ]; then
 fi
 echo "Per-student memory estimate: ${PER_STUDENT_MB}MB"
 echo "Container base overhead:     ${BASE_MB}MB"
-echo "Other 4 services' mem_limits:${OTHER_SERVICES_MB}MB"
+echo "Other services' mem_limits: ${OTHER_SERVICES_MB}MB (${OTHER_SERVICES_FROM})"
 echo "OS/daemon reserve:           ${RESERVE_MB}MB"
 echo "-------------------------------------------------------------------"
 echo "Recommended engine/.env values for --students $STUDENTS:"

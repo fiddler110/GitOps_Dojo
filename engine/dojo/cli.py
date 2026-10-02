@@ -19,6 +19,7 @@ from rich.table import Table
 
 from . import doctor as doctor_mod
 from . import paths
+from . import stack
 from . import status as status_mod
 from .envfiles import EnvError, mask, resolve
 from .runtime import Runtime, project_name
@@ -296,7 +297,35 @@ def _passthrough(name: str, script: str, help_text: str) -> None:
 
 
 _passthrough("setup", "env-setup.sh", "Create or update engine/.env (--default, --force, --rotate-class).")
-_passthrough("capacity", "capacity-calc.sh", "Size the terminal resource limits for this machine (--students N).")
+
+
+@cli.command("capacity", add_help_option=False,
+             context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def capacity(args):
+    """Size the terminal resource limits for this machine ([WORKSHOP] --students N).
+
+    With WORKSHOP first, every service it starts (modules included) is counted."""
+    args = list(args)
+    script = str(paths.ENGINE / "scripts" / "capacity-calc.sh")
+    if args and args[0] in {w.name for w in all_workshops()}:
+        workshop = args.pop(0)
+        try:
+            res = resolve(workshop, None)
+            env = dict(res.env)
+            env.setdefault("WEB_TERMINAL_IMAGE", "gitopsdojo/web-terminal:base")
+            limits, oneshot = stack.mem_limits(Runtime(), stack.extra_files(res), env)
+        except (EnvError, RuntimeError, OSError) as exc:
+            fail(f"Could not read {workshop}'s services: {exc}")
+            sys.exit(1)
+        counted = {k: v for k, v in limits.items() if k != "web-terminal" and k not in oneshot}
+        for name in sorted(k for k, v in counted.items() if v is None):
+            console.print(f"[yellow]WARNING: {name} has no mem_limit, so nothing caps it; it isn't counted.[/]")
+        total = sum(v for v in counted.values() if v)
+        args = ["--other-services-mb", str(total),
+                "--other-services-from", f"{workshop}: " + ", ".join(f"{k} {v}" for k, v in sorted(counted.items()) if v),
+                *args]
+    os.execvp("sh", ["sh", script, *args])
 _passthrough("alias-setup", "alias-setup.sh", "Install the 'dojo' command (~/.local/bin) and tab completion (--check, --remove).")
 
 
