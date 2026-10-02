@@ -156,6 +156,9 @@ def shell_event(body):
         code = int(code)
     if not isinstance(code, int) or isinstance(code, bool):
         return None
+    # A command typed or pasted over several lines (`bao write ... \` then more arguments) is one
+    # command: join the continuations, so a catalog regex sees it as the shell runs it.
+    cmd = re.sub(r"[ \t]*\\\r?\n[ \t]*", " ", cmd)
 
     def text(k):
         v = body.get(k)

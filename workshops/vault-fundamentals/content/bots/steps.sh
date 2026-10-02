@@ -140,7 +140,8 @@ step_vf_lab1() {
   run_cmd "git rm -q config.env && git commit -qm 'Remove the secret'"
   run_cmd "git log -p | grep ghp_"
   narrate "still in history. Only rotating it at its source fixes that."
-  run_cmd "gitleaks git --no-banner . ; echo \"gitleaks exit: \$?\""
+  run_cmd "gitleaks git -v"   # exits 1 when it finds something, as the lab expects
+  return 0   # a finding is the point; never retry the step for it
 }
 
 # Lab 2: pass, secrets encrypted on this machine. A bot has nobody to type a passphrase into the box,
@@ -245,7 +246,7 @@ template {
   EOT
 }
 EOF"
-  run_cmd "(nohup bao agent -config=agent.hcl > agent.log 2>&1 &); sleep 5"
+  run_cmd "bao agent -config=agent.hcl > agent.log 2>&1 & disown; sleep 5"
   run_cmd "ls -l /dev/shm/\$USER/app.env && cut -c1-14 /dev/shm/\$USER/app.env"
   run_cmd "bao kv patch team/app db_password=rotated-$ROUND-$RANDOM; sleep 8"
   run_cmd "cut -c1-20 /dev/shm/\$USER/app.env"

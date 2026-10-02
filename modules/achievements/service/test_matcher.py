@@ -60,6 +60,11 @@ class Segments(unittest.TestCase):
 
 
 class ShellEvents(unittest.TestCase):
+    def test_line_continuations_are_joined(self):
+        ev = mt.shell_event({"cmd": "bao write auth/approle/role/app \\\n  token_policies=app-read \\\n"
+                                    "  secret_id_num_uses=1", "exit": 0})
+        self.assertEqual(ev["cmd"], "bao write auth/approle/role/app token_policies=app-read secret_id_num_uses=1")
+
     def test_body_validation(self):
         self.assertIsNone(mt.shell_event({"cmd": "", "exit": 0}))
         self.assertIsNone(mt.shell_event({"cmd": "ls", "exit": "x"}))
