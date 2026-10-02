@@ -101,5 +101,55 @@ class RestartKeepsAchievements(unittest.TestCase):
         self.assertEqual(self.restart(on, {"ACHIEVEMENTS_ENABLED": "0"})["on"], "0")   # this shell decides
 
 
+class RunningStackGate(unittest.TestCase):
+    """Step 2 of a start: what may start over a running stack, and restart's service names."""
+    def check(self, o, running, cur, svcs=("gateway", "step-ca")):
+        rt = mock.Mock(spec=Runtime)
+        rt.containers.return_value = running
+        p = start.Plan(o, rt, mock.Mock(), "engine", [], ["a.yml"], [], "")
+        p._services.extend(svcs)
+        with mock.patch.object(state, "read_current", return_value=cur):
+            start._check_running(p)
+        return p
+
+    up = [Container("gateway", "c_gateway", "Up", "01")]
+
+    def test_same_run_or_nothing_running_passes(self):
+        self.check(StartOptions("x"), [], None)
+        self.check(StartOptions("x"), self.up, state.Current("x", [], ["a.yml"], None))
+        self.check(StartOptions("y", build_only=True), self.up, None)   # a build doesn't touch the stack
+
+    def test_refuses_another_stack_or_other_files(self):
+        for cur in (None, state.Current("y", [], ["a.yml"], None), state.Current("x", [], ["b.yml"], None)):
+            with self.assertRaises(StartError):
+                self.check(StartOptions("x"), self.up, cur)
+        with mock.patch.object(start, "console"), mock.patch.object(start, "bad") as bad:
+            self.check(StartOptions("x", dry_run=True), self.up, None)  # a dry run only says so
+        bad.assert_called_once()
+
+    def test_restart_names(self):
+        cur = state.Current("x", [], ["a.yml"], None)
+        self.check(StartOptions("x", recreate=["step-ca"]), self.up, cur)
+        with self.assertRaisesRegex(StartError, "not a service"):
+            self.check(StartOptions("x", recreate=["nope"]), self.up, cur)
+        with self.assertRaisesRegex(StartError, "isn't running"):
+            self.check(StartOptions("x", recreate=["step-ca"]), [], None)
+
+
+class UpArgs(unittest.TestCase):
+    def args(self, recreate, also=()):
+        rt = mock.Mock(spec=Runtime)
+        rt.dependents.return_value = list(also)
+        res = mock.Mock(env={})
+        p = start.Plan(StartOptions("x", recreate=recreate), rt, res, "engine", [], [], [], "")
+        with mock.patch.object(start, "step"), mock.patch.object(start, "console"):
+            return start._up_args(p)
+
+    def test_start_restart_and_one_service(self):
+        self.assertEqual(self.args(None), [])
+        self.assertEqual(self.args([]), ["--force-recreate"])
+        self.assertEqual(self.args(["step-ca"], ["sensei"]), ["--force-recreate", "--no-deps", "step-ca", "sensei"])
+
+
 if __name__ == "__main__":
     unittest.main()

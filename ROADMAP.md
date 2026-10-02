@@ -119,7 +119,6 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 | RV20 | Shared `dojo_http.py` | M | Gateway-token/facilitator check, `send_json`, one security-header set, for the 7 module services. **Decided 2026-10-02:** one copy in `modules/_shared/`, copied into each module's build context at build time (`engine/dojo/build.py`, an engine change the user approved); a module lists the files it needs (e.g. `SHARED="dojo_http.py"` in `module.env`); the copies are git-ignored, so nothing drifts |
 | RV21 | Shared `adapter_client.py` | M | Bounded queue + one worker, replacing the three `Reporter` copies (dns-gate and dojo-cloud start a thread per event); same `modules/_shared/` mechanism as RV20 |
 | RV22 | Split the allocator server | L | `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler |
-| RV23 | Split `_build_and_up` | M | `engine/dojo/start.py:_build_and_up` is ~200 lines with 11 positional args |
 | RV24 | Concurrent image builds | M | Build the allocator, gateway and presentation images concurrently with the terminal chain; add `.dockerignore` files |
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
 | RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs) |
