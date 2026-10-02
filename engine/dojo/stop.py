@@ -86,6 +86,7 @@ def run_stop(dry_run: bool) -> int:
         rc = run("down", "--volumes", "--remove-orphans").returncode
     state.record("stop", cur.workshop if cur else "", [], time.time() - t0, "ok" if rc == 0 else f"exit {rc}")
     if rc != 0:
+        bad(f"compose down failed (exit {rc}); the run stays recorded. Re-run `./run.sh stop` to finish.")
         return rc
     state.clear_current()
     console.print("Done. No workshop data was retained.")

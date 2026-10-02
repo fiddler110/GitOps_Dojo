@@ -178,6 +178,38 @@ class ResetManagerTest(unittest.TestCase):
         mgr.snapshot("student01")["steps"][0]["status"] = "tampered"
         self.assertEqual(mgr.snapshot("student01")["steps"][0]["status"], "pending")
 
+    def test_runs_the_steps_it_showed(self):
+        calls = []
+
+        def steps_for(sid):
+            calls.append(sid)
+            return [("x", "X", lambda: "ok")]
+        mgr = reset.ResetManager(steps_for, lambda *a, **k: None)
+        mgr.request("student01")
+        mgr.run_one(mgr.queue.get_nowait())
+        self.assertEqual(calls, ["student01"])
+        self.assertEqual(mgr.snapshot("student01")["state"], "done")
+
+    def test_worker_survives_a_crash(self):
+        mgr = self.manager()
+        real = mgr.run_one
+
+        def flaky(sid):
+            if sid == "student01":
+                raise RuntimeError("boom")
+            real(sid)
+        mgr.run_one = flaky
+        mgr.request("student01")
+        mgr.request("student02")
+        mgr.start()
+        for _ in range(200):
+            if (mgr.snapshot("student02") or {}).get("state") == "done":
+                break
+            threading.Event().wait(0.01)
+        self.assertEqual(mgr.snapshot("student02")["state"], "done")
+        self.assertEqual(mgr.snapshot("student01")["state"], "failed")
+        self.assertFalse(mgr.fenced("student01"))
+
     def test_long_detail_is_cut(self):
         mgr = reset.ResetManager(lambda sid: [("x", "X", lambda: "y" * 500)], lambda *a, **k: None)
         mgr.request("student01")

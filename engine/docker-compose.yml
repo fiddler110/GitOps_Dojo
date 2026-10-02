@@ -294,16 +294,20 @@ services:
       # gateway's own GATEWAY_TOKEN below (gateway/Caddyfile's header_up
       # X-Gateway-Token on every block that proxies to allocator:8080).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - ALLOCATOR_STATE_FILE=/var/lib/dojo-allocator/slots.json
     volumes:
       # The workshop's checked extensions (cards, /admin tabs, route gates,
       # status checks), written by run.sh before every start.
       - ./.generated/allocator:/etc/dojo/extensions:ro
+      # The slot table (who holds which studentNN), saved on every claim and
+      # release so a crash or OOM restart keeps every assignment. Named, so
+      # `./run.sh stop` wipes it with the rest of the class.
+      - allocator_state:/var/lib/dojo-allocator
     networks:
       - workshop_lab
     restart: unless-stopped
-    # Backstop, same reasoning as git-server's above -- in-memory roster
-    # state for 30 students is trivial, this is just a ceiling in case of a
-    # leak.
+    # Backstop, same reasoning as git-server's above -- roster state for 30
+    # students is trivial, this is just a ceiling in case of a leak.
     mem_limit: ${ALLOCATOR_MEM_LIMIT:-256m}
 
   # 5b. Gateway: the only service exposed to students. Single hostname,
@@ -350,6 +354,7 @@ services:
 volumes:
   terminal_home:
   forgejo_data:
+  allocator_state:
 
 networks:
   public:

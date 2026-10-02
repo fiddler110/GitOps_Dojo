@@ -93,8 +93,10 @@ each student has their own uid, so one student's bomb can't eat a classmate's
 allowance. There is deliberately no address-space cap (it breaks
 node/code-server) and no per-user memory cap: that needs per-user cgroups, so
 `mem_limit` stays one shared pool (residual).
-`allocator` holds no persistent state (in-memory only, same ephemeral
-design as everything else) and never touches Docker itself — it only ever
+`allocator` keeps only its slot table on disk (the `allocator_state` volume,
+written on every claim and release, so a crash or OOM restart keeps every
+assignment; `./run.sh stop` wipes it like every other volume) and never
+touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.
 
 ### How a request gets routed and authenticated
@@ -906,13 +908,14 @@ docker compose logs bootstrap
 the same running stack) without touching student home directories:
 
 ```sh
-docker compose restart allocator
+podman exec workshop_allocator rm -f /var/lib/dojo-allocator/slots.json
+./run.sh restart allocator
 ```
 
-The allocator's slot table is in-memory only; a restart clears every
-assignment (documented, expected behavior — see **Architecture** above).
-Any student whose browser still has an old session cookie is simply
-reprompted for their name on their next request.
+The slot table survives a plain restart (so a crash doesn't hand a live
+student's slot to someone else); deleting the saved file first is what
+clears it. Any student whose browser still has an old session cookie is
+simply reprompted for their name on their next request.
 
 ## End of workshop: cleanup
 

@@ -17,19 +17,26 @@ Locking rules (keep them when touching shared state):
 - A release first records the slot's token, stops the workspace without the
   lock, then clears the slot only if the token is unchanged, so a slow
   release never frees a slot someone else has claimed in the meantime.
-- AssignLimit, audit() and audit_check() each have their own small lock.
+- AssignLimit, audit(), audit_check() and each TTLCache (READY_CACHE,
+  STATUS_CACHE) have their own small lock; `_save_lock` orders slot-table
+  writes to disk, taken only after `_state_lock` is released.
 
-All state is in-memory and reset on container restart, matching this
-project's ephemeral-by-design stack (see engine/docker-compose.yml).
+The slot table survives an allocator crash or restart: every claim and
+release writes it to ALLOCATOR_STATE_FILE (a named volume, so `./run.sh
+stop` still wipes it), and start-up reads it back. The write happens after
+the lock is released, under its own `_save_lock`, and a version number makes
+sure an older snapshot never overwrites a newer one. Everything else (rate
+limits, audit dedupe, reset progress) is in-memory only.
 
-Besides the request threads there is one background daemon that probes the
-lab's services (Forgejo, terminals, slides, plus whatever a workshop lists
-in STATUS_CHECKS) every few seconds for the facilitator's status strip
-(/admin/api/status). It never touches `slots`, `token_index` or anything
-else a request handler mutates: its only output is one status snapshot that
-it replaces wholesale (a single reference assignment, atomic in CPython),
-and request handlers only ever read that snapshot. All upstream I/O for
-status happens in that thread; no request handler waits on a probe.
+Besides the request threads there is one background daemon per service
+that probes the lab's services (Forgejo, terminals, slides, plus whatever a
+workshop lists in STATUS_CHECKS) every few seconds for the facilitator's
+status strip (/admin/api/status). They never touch `slots`, `token_index`
+or anything else a request handler mutates: their only output is one status
+snapshot, rebuilt under `_probe_lock` and replaced wholesale (a single
+reference assignment, atomic in CPython), and request handlers only ever
+read that snapshot. All upstream I/O for status happens in those threads; no
+request handler waits on a probe.
 """
 import base64
 import datetime
@@ -307,6 +314,60 @@ slots = {sid: {"name": None, "ip": None, "token": None, "tool": None, "assigned_
 token_index = {}  # token -> studentId
 # Guards slots and token_index (see the locking rules at the top).
 _state_lock = threading.Lock()
+# Where the slot table is saved; empty means not saved (unit tests).
+STATE_FILE = os.environ.get("ALLOCATOR_STATE_FILE", "")
+SLOT_FIELDS = ("name", "ip", "token", "tool", "assigned_at")
+_slots_version = 0  # bumped under _state_lock on every change
+_saved_version = 0  # guarded by _save_lock
+_save_lock = threading.Lock()
+
+
+def save_slots():
+    """Write the held slots to STATE_FILE (temp file + rename). Called
+    after a claim or release, never under _state_lock."""
+    global _saved_version
+    if not STATE_FILE:
+        return
+    with _state_lock:
+        held = {sid: dict(slot) for sid, slot in slots.items() if slot["name"] is not None}
+        version = _slots_version
+    with _save_lock:
+        if version <= _saved_version:
+            return  # a newer snapshot is already on disk
+        tmp = STATE_FILE + ".tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump({"slots": held}, f)
+            os.replace(tmp, STATE_FILE)
+            _saved_version = version
+        except OSError as exc:
+            audit("state-save", result="failed", detail=str(exc))
+
+
+def load_slots():
+    """Read STATE_FILE back at start-up: slots for students that still
+    exist (STUDENT_COUNT may have shrunk), and the token index."""
+    if not STATE_FILE:
+        return 0
+    try:
+        with open(STATE_FILE) as f:
+            held = json.load(f).get("slots", {})
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError, AttributeError) as exc:
+        audit("state-load", result="failed", detail=str(exc))
+        return 0
+    restored = 0
+    with _state_lock:
+        for sid, slot in held.items():
+            if sid not in slots or not isinstance(slot, dict) or not slot.get("name") or not slot.get("token"):
+                continue
+            slots[sid].update({k: slot.get(k) for k in SLOT_FIELDS})
+            token_index[slot["token"]] = sid
+            restored += 1
+    audit("state-load", result="ok", restored=restored)
+    return restored
 
 
 def _env_int(name, default):
@@ -369,6 +430,8 @@ def release_slot(sid, result="released", token=None):
         token_index.pop(token, None)
         name = slots[sid]["name"]
         slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+        _bump_version()
+    save_slots()
     audit("release", target=sid, name=name, result=result)
     return name
 
@@ -384,7 +447,15 @@ def claim_slot(name, ip):
             return None, None
         slots[sid].update(name=name, ip=ip, token=token, assigned_at=time.time())
         token_index[token] = sid
+        _bump_version()
+    save_slots()
     return sid, token
+
+
+def _bump_version():
+    """Caller holds _state_lock."""
+    global _slots_version
+    _slots_version += 1
 
 
 def slot_snapshot(sid):
@@ -437,21 +508,87 @@ def find_free_slot():
     return None
 
 
+class TTLCache:
+    """A few seconds' memory of an answer, so a burst of identical requests
+    makes one control call instead of hundreds. Its own small lock; the
+    caller does the I/O outside it."""
+
+    def __init__(self, ttl):
+        self.ttl = ttl
+        self._lock = threading.Lock()
+        self._items = {}  # key -> (expires, value)
+
+    def get(self, key):
+        with self._lock:
+            hit = self._items.get(key)
+            if hit is None or hit[0] <= time.monotonic():
+                self._items.pop(key, None)
+                return None
+            return hit[1]
+
+    def put(self, key, value):
+        with self._lock:
+            now = time.monotonic()
+            if len(self._items) > 512:  # drop expired entries now and then
+                self._items = {k: v for k, v in self._items.items() if v[0] > now}
+            self._items[key] = (now + self.ttl, value)
+
+    def forget_user(self, user):
+        """Drop every (tool, user) key for this user."""
+        with self._lock:
+            for key in [k for k in self._items if isinstance(k, tuple) and k[-1] == user]:
+                del self._items[key]
+
+
+# A workspace that answered ready is trusted for this long, so the hundreds of
+# asset requests behind one VS Code page load don't each make a control call
+# (identity and the reset fence are still checked on every request). Any stop
+# or reset of that user clears it (control_request below).
+READY_CACHE = TTLCache(2.0)
+# The roster's workspace status, shared by every open /admin tab.
+STATUS_CACHE = TTLCache(3.0)
+_FORGET_ON = re.compile(r"^/(?:stop|reset)/([A-Za-z0-9_-]+)")
+
+
 def control_request(method, path, timeout=CONTROL_TIMEOUT):
     """Best-effort call to workspace-control.py inside web-terminal. Never
     raises -- returns None on any failure so a flaky internal call degrades
-    gracefully instead of blocking the single-threaded allocator."""
+    gracefully instead of blocking a request thread."""
+    stopping = _FORGET_ON.match(path) if method == "POST" else None
+    if stopping:
+        READY_CACHE.forget_user(stopping.group(1))
+    try:
+        return _control_call(method, path, timeout)
+    finally:
+        if stopping:  # again, in case an auth-check cached it mid-stop
+            READY_CACHE.forget_user(stopping.group(1))
+
+
+# Whether the last control call reached web-terminal, so the log shows the
+# moment it went away and came back (not one line per failed call). A plain
+# bool: a lost update only costs a duplicate or missing log line.
+_control_reachable = True
+
+
+def _control_call(method, path, timeout):
+    global _control_reachable
     try:
         conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=timeout)
         conn.request(method, path, headers={"X-Control-Token": CONTROL_TOKEN})
         resp = conn.getresponse()
         body = resp.read()
         conn.close()
-        if resp.status != 200:
-            return None
-        return body
-    except (OSError, socket.timeout, http.client.HTTPException):
+    except (OSError, socket.timeout, http.client.HTTPException) as exc:
+        if _control_reachable:
+            _control_reachable = False
+            audit("control", result="unreachable", path=path.split("?", 1)[0], detail=_short(repr(exc)))
         return None
+    if not _control_reachable:
+        _control_reachable = True
+        audit("control", result="reachable", path=path.split("?", 1)[0])
+    if resp.status != 200:
+        return None
+    return body
 
 
 # -- Student reset (reset.py has the steps and the worker) -----------------
@@ -535,8 +672,8 @@ def forgejo_login_request(username, password):
 
 
 # -- Facilitator service status (see the module docstring) -----------------
-# One daemon thread (status_probe_loop, started by main()) probes each
-# service in turn and republishes _status_snapshot; request handlers only
+# One daemon thread per service (status_probe_loop, started by main()) probes
+# it and republishes _status_snapshot; request handlers only
 # read it. Nothing below is called from a request handler except
 # handle_status_api, which does a plain read.
 GATEWAY_HOST = "gateway"
@@ -676,7 +813,7 @@ def _extra_probe(url):
 
 def build_status_services():
     """[{name, probe, ok, last_ok, detail}] in display order. Only the probe
-    thread writes ok/last_ok/detail after this."""
+    threads write ok/last_ok/detail after this, under _probe_lock."""
     probes = [("Forgejo", probe_forgejo), ("Terminals", probe_terminals), ("Slides", probe_slides)]
     for item in STATUS_CHECKS.split(";"):
         label, sep, url = item.partition("=")
@@ -720,20 +857,38 @@ def _build_snapshot(now):
 _status_snapshot = _build_snapshot(time.monotonic())
 
 
-def status_probe_loop():
+# Orders the probe threads' writes to `_status_services` and the snapshot
+# rebuild; never held across a probe.
+_probe_lock = threading.Lock()
+
+
+def probe_once(svc):
+    """Run one service's probe and publish a new snapshot."""
     global _status_snapshot
+    try:
+        ok, detail = svc["probe"]()
+    except Exception as exc:  # a bad probe must not kill the thread
+        ok, detail = False, _short(f"probe error: {type(exc).__name__}")
+    with _probe_lock:
+        now = time.monotonic()
+        svc["ok"], svc["detail"] = ok, detail
+        if ok:
+            svc["last_ok"] = now
+        _status_snapshot = _build_snapshot(now)
+
+
+def status_probe_loop(svc):
+    """One thread per service, so a hung probe (up to its timeout) never
+    delays the others' green/yellow/red."""
     while True:
-        for svc in _status_services:
-            try:
-                ok, detail = svc["probe"]()
-            except Exception as exc:  # a bad probe must not kill the thread
-                ok, detail = False, _short(f"probe error: {type(exc).__name__}")
-            now = time.monotonic()
-            svc["ok"], svc["detail"] = ok, detail
-            if ok:
-                svc["last_ok"] = now
-            _status_snapshot = _build_snapshot(now)
+        probe_once(svc)
         time.sleep(STATUS_INTERVAL)
+
+
+def start_status_probes():
+    for svc in _status_services:
+        threading.Thread(target=status_probe_loop, args=(svc,), name=f"status-{svc['name']}",
+                         daemon=True).start()
 
 
 # Inline, self-contained SVGs for the confirmation page's tool cards (see
@@ -1484,6 +1639,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
 
+    def handle_one_request(self):
+        """An audit line for any handler that crashes (the traceback still
+        goes to stderr), so a broken page shows up in the JSON log."""
+        try:
+            super().handle_one_request()
+        except (ConnectionError, socket.timeout):
+            raise
+        except Exception as exc:
+            audit("error", method=getattr(self, "command", None),
+                  path=(getattr(self, "path", "") or "").split("?", 1)[0][:200],
+                  exc=type(exc).__name__, detail=_short(str(exc)))
+            raise
+
     # -- helpers ---------------------------------------------------------
     def send_html(self, body, status=200, headers=None):
         encoded = body.encode("utf-8")
@@ -2047,13 +2215,16 @@ EXT_PANELS_PLACEHOLDER</main>
 
         port = ide_port(username) if tool == "ide" else term_port(username)
         started = time.monotonic()
-        resp = control_request("POST", f"/start/{tool}/{username}")
-        ready = False
-        if resp is not None:
-            try:
-                ready = bool(json.loads(resp).get("ready"))
-            except (ValueError, AttributeError):
-                ready = False
+        ready = READY_CACHE.get((tool, username)) is not None
+        if not ready:
+            resp = control_request("POST", f"/start/{tool}/{username}")
+            if resp is not None:
+                try:
+                    ready = bool(json.loads(resp).get("ready"))
+                except (ValueError, AttributeError):
+                    ready = False
+            if ready:
+                READY_CACHE.put((tool, username), True)
         audit_check("auth-check", username, tool, 200 if ready else 202, uri=uri,
                     ms=round((time.monotonic() - started) * 1000))
 
@@ -2194,7 +2365,12 @@ EXT_PANELS_PLACEHOLDER</main>
         all_ids = list(held) + BOT_IDS
         status = {}
         if all_ids:
-            body = control_request("GET", "/status?users=" + ",".join(all_ids))
+            query = "/status?users=" + ",".join(all_ids)
+            body = STATUS_CACHE.get(query)
+            if body is None:
+                body = control_request("GET", query)
+                if body:
+                    STATUS_CACHE.put(query, body)
             if body:
                 try:
                     status = json.loads(body)
@@ -2524,7 +2700,8 @@ def make_server(addr):
 
 
 def main():
-    threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
+    load_slots()
+    start_status_probes()
     RESETS.start()
     server = make_server(("0.0.0.0", 8080))
     server.serve_forever()

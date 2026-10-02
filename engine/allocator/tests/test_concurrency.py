@@ -12,6 +12,7 @@ import threading
 import time
 import unittest
 import urllib.request
+from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -66,6 +67,24 @@ class IdleSocketsTest(unittest.TestCase):
         self.assertLess(elapsed, 1.0, f"/auth-check took {elapsed:.2f}s with 5 idle sockets")
 
 
+class HandlerCrashTest(unittest.TestCase):
+    """A crashing handler leaves an audit line (RV10), without the query."""
+
+    def test_crash_is_audited(self):
+        httpd = server.make_server(("127.0.0.1", 0))
+        httpd.handle_error = lambda *a: None  # keep the traceback out of the test output
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            with mock.patch.object(server.Handler, "do_GET", side_effect=ValueError("boom")), \
+                    mock.patch("server.audit") as audit:
+                with self.assertRaises(Exception):
+                    urllib.request.urlopen(f"http://127.0.0.1:{httpd.server_address[1]}/x?secret=1", timeout=5)
+            audit.assert_called_once_with("error", method="GET", path="/x", exc="ValueError", detail="boom")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+
 class ClaimSlotTest(unittest.TestCase):
     def setUp(self):
         _free_all()
@@ -101,6 +120,50 @@ class ClaimSlotTest(unittest.TestCase):
         self.assertIsNone(server.release_slot(sid, token=old))
         self.assertEqual(server.slot_snapshot(sid)["name"], "second")
         self.assertEqual(server.token_index[new], sid)
+
+
+class SlotPersistenceTest(unittest.TestCase):
+    """A crash or OOM restart must not lose who holds which slot (RV1)."""
+
+    def setUp(self):
+        import tempfile
+        _free_all()
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.dir.name, "slots.json")
+        server.STATE_FILE = self.path
+        server.control_request = lambda *a, **k: None
+
+    def tearDown(self):
+        server.STATE_FILE = ""
+        _free_all()
+        self.dir.cleanup()
+
+    def test_claims_and_releases_survive_a_restart(self):
+        sid1, tok1 = server.claim_slot("ada", "127.0.0.1")
+        sid2, tok2 = server.claim_slot("bob", "127.0.0.1")
+        server.release_slot(sid1)
+        self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o600)
+        _free_all()  # what a restart starts from
+        self.assertEqual(server.load_slots(), 1)
+        self.assertIsNone(server.slot_snapshot(sid1)["name"])
+        self.assertEqual(server.slot_snapshot(sid2)["name"], "bob")
+        self.assertEqual(server.token_index, {tok2: sid2})
+
+    def test_bad_or_missing_file_starts_empty(self):
+        self.assertEqual(server.load_slots(), 0)
+        with open(self.path, "w") as f:
+            f.write("{not json")
+        self.assertEqual(server.load_slots(), 0)
+        with open(self.path, "w") as f:
+            f.write('{"slots": {"student99": {"name": "x", "token": "t"}, "student01": {"name": "y"}}}')
+        self.assertEqual(server.load_slots(), 0)  # unknown slot, missing token
+        self.assertEqual(server.token_index, {})
+
+    def test_parallel_claims_leave_the_latest_snapshot(self):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda i: server.claim_slot(f"n{i}", "127.0.0.1"), range(12)))
+        _free_all()
+        self.assertEqual(server.load_slots(), 12)
 
 
 class AssignLimitTest(unittest.TestCase):

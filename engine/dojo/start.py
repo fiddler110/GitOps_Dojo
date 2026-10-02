@@ -422,6 +422,8 @@ def _build_and_up(o, rt, res, env, project, links, files, overlay_dirs, compose,
         changed("not ready yet: " + ", ".join(f"{c.service} ({c.status})" for c in problems))
         explain_not_ready(rt, problems)
     if rc != 0:
+        console.print("The run stays recorded so `./run.sh stop` can remove what did start; "
+                      "fix the error, then `./run.sh stop` and start again.")
         return rc
     b.reap()
     return 0

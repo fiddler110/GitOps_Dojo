@@ -100,6 +100,11 @@ class LockBusy(Exception):
     pass
 
 
+# Seconds a lock directory may sit without a pid file before it counts as left
+# behind by a crash.
+STALE_EMPTY_LOCK = 10
+
+
 class RunLock:
     """One build or start at a time per user. Two at once (two terminals, or the
     main tree and a git worktree) share image tags, container names and volumes.
@@ -116,7 +121,10 @@ class RunLock:
             self.dir.mkdir()
         except FileExistsError:
             pid = (self.dir / "pid").read_text().strip() if (self.dir / "pid").is_file() else ""
-            if not pid or _alive(pid):
+            # No pid yet is a start in its first instant, unless it has stayed
+            # that way: a crash between mkdir and the pid write leaves it so.
+            fresh = not pid and time.time() - self._mtime() < STALE_EMPTY_LOCK
+            if fresh or (pid and _alive(pid)):
                 what = (self.dir / "what").read_text().strip() if (self.dir / "what").is_file() else "just started"
                 raise LockBusy(f"Another ./run.sh is building or starting a stack: {what}.\n"
                                f"Wait for it to finish. If none is running, remove {self.dir} and try again.")
@@ -127,6 +135,12 @@ class RunLock:
         self.held = True
         (self.dir / "pid").write_text(f"{os.getpid()}\n")
         (self.dir / "what").write_text(f"pid {os.getpid()}, {self.what}, from {paths.REPO}\n")
+
+    def _mtime(self) -> float:
+        try:
+            return self.dir.stat().st_mtime
+        except OSError:
+            return 0.0
 
     def release(self) -> None:
         if self.held:

@@ -11,7 +11,7 @@ front-door reached `main` in PR #4, and their branches are deleted).
 |---|---|
 | [Priorities](#priorities-decided-2026-10-01) | The order of work, decided at the 2026-10-01 review |
 | [Now](#now) | Home demo dry run, merges, phase 9 live checks |
-| [Next](#next) | Student reset; achievements leftovers and reference; `run.sh` CLI; remediation leftovers |
+| [Next](#next) | Platform review (RV1-RV37); student reset; achievements leftovers and reference; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks-the-user-in-a-browser) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -25,9 +25,13 @@ front-door reached `main` in PR #4, and their branches are deleted).
 2. **Home demo dry run** (Now §1).
 3. **Merge `feat/achievements` to `main` early** (Now §2), after a toggle-off regression run; phase 9 live checks
    carry on from `main`.
-4. **Phase 9 live checks** (Now §3): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run.
-5. **Student reset**, starting with the R0 spikes (Next). Q1-Q7 are answered, so nothing blocks it.
-6. **Phase 10 sweep** and the remaining polish (dojo-introduction `--test 5`).
+4. **Platform review tier 1** (Next): the module items RV2, RV6, RV7 are left (the engine items shipped
+   2026-10-01), before the class-sized run.
+5. **Phase 9 live checks** (Now §3): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run.
+6. **Platform review tier 2** (RV13-RV19): CI and the missing tests.
+7. **Student reset**, starting with the R0 spikes (Next). Q1-Q7 are answered, so nothing blocks it.
+8. **Phase 10 sweep** and the remaining polish (dojo-introduction `--test 5`).
+9. **Platform review tiers 3-4** (RV20-RV37): refactors, then new features and workshops.
 
 The user's own browser checks (Manual checks) fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
@@ -110,6 +114,61 @@ Log failures per step here; when a pack passes, delete its step, add a line to `
 `when` text for any approximation that proved wrong.
 
 ## Next
+
+### Platform review (2026-10-01)
+
+A whole-stack review: four read-only passes over the engine runtime, the CLI and terminal images, the modules, and
+the workshops and docs. It left out items already on this roadmap and the accepted security residuals. Tiers are
+the suggested order. Line numbers are as of `7bc4ce9`.
+
+**Tier 1: load and crash fixes (before the class-sized run).** The engine items (RV1, RV3-RV5, RV8-RV12) shipped
+2026-10-01 (see RELEASES); the module items remain.
+
+| # | Where | Finding | Fix | Effort |
+|---|---|---|---|---|
+| RV2 | `modules/achievements/service/store.py:171` | `_save()` rewrites the whole state under the lock on every `me()` poll and every event | Dirty flag + save at most every 1-2 s + flush on SIGTERM; no save in `me()` | S |
+| RV6 | `modules/runner-pool/controller/controller.py:331` | `tick()` holds the lock across Forgejo calls; `/api/state` and `/healthz` stall when Forgejo is slow | I/O outside the lock, swap the snapshot under it | S |
+| RV7 | `modules/sensei/server.py:112` | One global lock across Forgejo calls serialises every student's `sensei` and the facilitator's PR tab | Per-user lock or call outside the lock | M |
+
+**Tier 2: CI and tests.**
+
+| # | Item | Effort |
+|---|---|---|
+| RV13 | CI workflow (`.github/workflows/` is empty): unit tests, `./run.sh <w> --dry-run` for every pack, the achievements catalog validator. No containers needed | S-M |
+| RV14 | The allocator tests run only from `engine/allocator` (`python3 -B -m unittest discover -s tests`); write that in `engine/README.md` and the roadmap's test notes, or add `__init__.py` so the repo-root form works too | S |
+| RV15 | Handler tests for `/auth-check`, `/assign`, `/release`, release-unused, sessions API, `/session-check` (fake `control_request`) | M |
+| RV16 | CLI tests: `hash_dir` golden value, `Builder.reap`/`tracking`, `terminal_chain` order, `RunLock` stale reclaim, MODULES resolution | M |
+| RV17 | `modules/runner-pool/pool/supervise.py` tests (the state.json handoff) | M |
+| RV18 | One shared test harness (`workshops/assets/test-lib.sh`) from the tofu and vault `tests/lib.sh` | M |
+| RV19 | Bot smoke tests for git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal | M each |
+
+**Tier 3: refactors and hygiene.**
+
+| # | Item | Effort |
+|---|---|---|
+| RV20 | Shared `dojo_http.py` (gateway-token/facilitator check, `send_json`, one security-header set) for the 7 module services; decide first how per-module build contexts share a file | M |
+| RV21 | Shared `adapter_client.py` (bounded queue + one worker) replacing the three `Reporter` copies (dns-gate and dojo-cloud start a thread per event) | M |
+| RV22 | Split `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler | L |
+| RV23 | Split `engine/dojo/start.py:_build_and_up` (~200 lines, 11 positional args) | M |
+| RV24 | Build the allocator, gateway and presentation images concurrently with the terminal chain; add `.dockerignore` files | M |
+| RV25 | dnscontrol and OpenTofu pins duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check | M |
+| RV26 | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs) | M |
+| RV27 | `modules/forgejo-runner` is unused (all packs use `runner-pool`): mark legacy or delete, and update `build.py` and CLAUDE.md | S |
+| RV28 | `engine/scripts/lib.sh:10` strips `/mnt/*` from PATH on any host: gate it on WSL | S |
+| RV29 | Pack consistency: required/optional file matrix in `workshops/README.md`, FACILITATOR.md for every pack, a cert-autorenewal README, remove `vault-fundamentals/spike/` | S-M |
+| RV30 | Docs: `workshops/README.md:19` says vault is "in progress"; trim the root README's duplicated tables; `DURATION=` in `workshop.env` feeding `./run.sh list` | S-M |
+| RV31 | `./run.sh new-workshop <name>` scaffold from a template | M |
+
+**Tier 4: new features and workshops.**
+
+| # | Item | Effort |
+|---|---|---|
+| RV32 | Facilitator export of progress and achievements (CSV/JSON) | S |
+| RV33 | End-of-class feedback survey card | M |
+| RV34 | Terminal session recording or replay | M |
+| RV35 | Workshop: policy as code (OPA/Conftest on `tofu plan` JSON; reuses dojo-cloud and runner-pool) | M |
+| RV36 | Workshop: GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation | L each |
+| RV37 | Several classes at once (one workshop per machine today) | L |
 
 ### Student reset (facilitator resets one student's whole environment)
 

@@ -226,6 +226,7 @@ class ResetManager:
         self.steps_for, self.audit, self.clock = steps_for, audit, clock
         self.lock = threading.Lock()
         self.state = {}  # sid -> {"state", "steps": [{id, label, status, detail}], "started", "finished"}
+        self.plans = {}  # sid -> the [(id, label, fn)] request() built, so run_one runs exactly what was shown
         self.queue = queue.Queue()
 
     def request(self, sid):
@@ -233,10 +234,12 @@ class ResetManager:
         with self.lock:
             if self._busy(sid):
                 return False
+            plan = self.steps_for(sid)
+            self.plans[sid] = plan
             self.state[sid] = {
                 "state": "queued", "started": None, "finished": None,
                 "steps": [{"id": i, "label": label, "status": "pending", "detail": ""}
-                          for i, label, _ in self.steps_for(sid)]}
+                          for i, label, _ in plan]}
         self.audit("reset-requested", target=sid)
         self.queue.put(sid)
         return True
@@ -266,8 +269,10 @@ class ResetManager:
 
     def run_one(self, sid):
         self._set(sid, state="running", started=self.clock())
+        with self.lock:
+            plan = self.plans.pop(sid, [])
         ok = True
-        for n, (step_id, _label, fn) in enumerate(self.steps_for(sid)):
+        for n, (step_id, _label, fn) in enumerate(plan):
             self._set_step(sid, n, status="running")
             try:
                 detail, step_ok = _short(fn() or ""), True
@@ -283,7 +288,12 @@ class ResetManager:
 
     def worker(self):
         while True:
-            self.run_one(self.queue.get())
+            sid = self.queue.get()
+            try:
+                self.run_one(sid)
+            except Exception as exc:  # noqa: BLE001 -- one bad reset must not stop every later one
+                self._set(sid, state="failed", finished=self.clock())
+                self.audit("reset", target=sid, result="failed", detail=_short(exc))
 
     def start(self):
         threading.Thread(target=self.worker, name="student-reset", daemon=True).start()

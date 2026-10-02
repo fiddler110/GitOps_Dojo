@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, List, Optional, Set
@@ -106,12 +107,14 @@ class Builder:
     @contextmanager
     def tracking(self) -> Iterator[None]:
         before_ours, before_untagged = self._ours(), self._ids(True)
-        yield
-        new = [i for i in self._ids(True) if i in before_ours or i not in before_untagged]
-        if new:
-            paths.STATE.mkdir(exist_ok=True)
-            with SUPERSEDED.open("a") as fh:
-                fh.writelines(f"{i}\n" for i in new)
+        try:
+            yield
+        finally:  # a failed or interrupted build can still have displaced a tag
+            new = [i for i in self._ids(True) if i in before_ours or i not in before_untagged]
+            if new:
+                paths.STATE.mkdir(exist_ok=True)
+                with SUPERSEDED.open("a") as fh:
+                    fh.writelines(f"{i}\n" for i in new)
 
     def reap(self) -> None:
         if not SUPERSEDED.is_file():
@@ -153,7 +156,6 @@ class Builder:
         args = list(extra or [])
         if with_ca and self.ca_bundle:
             args += ["--secret", f"id=corp_ca_cert,src={self.ca_bundle}"]
-        import time
         start = time.time()
         with self.tracking():
             res = subprocess.run([self.rt.cli, "build", *args, "--label", f"dojo.src-hash={new_hash}",
