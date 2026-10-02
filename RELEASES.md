@@ -7,7 +7,13 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
-## Unreleased: `feat/achievements` (not yet merged to `main`)
+## PR #6: achievements, the Python `run.sh` and platform review fixes (merged 2026-10-02)
+
+**N2: merge checks (2026-10-02, locally).** `.github/scripts/dry-runs.sh` passed for every pack with achievements off
+and on. Toggle-off regression, `ACHIEVEMENTS_ENABLED=0 ./run.sh git-fundamentals --test`: no achievements container
+(sensei up), `/achievements/*` 404, no widget frame or toast script on the portal, slides, VS Code or Forgejo,
+`/workspace` serves all five tabs once a seat is claimed, demo bots running. Trial merge clean; CI (unit tests, dry
+runs) green on the PR.
 
 **Platform review RV21: shared `adapter_client.py` (2026-10-02, locally).** dns-gate, cloud-api and openbao-audit tell the achievements service what a student did through one `modules/_shared/adapter_client.py` (listed in each `SHARED=`; dns-gate's image now copies `_shared/`) instead of three hand-written `Reporter` senders: one bounded queue (500) and one lazily started worker thread per service, so dns-gate and cloud-api no longer start a thread per event; a full queue drops, a post never raises or blocks. Each `events.py` keeps its own logic (zone summaries, refusals, replace detection, audit classification); `wait=` and openbao's `Reporter.start()` are gone (tests call `client.flush()`). Tests: 6 new for the client, every suite in `.github/scripts/unit-tests.sh` passes. Live: dns-as-code, tofu-basics and vault-fundamentals started healthy with the file in each service, no bad-signature lines; dns proven by a `dns`-only unlock (`d1-add`), cloud and bao by posting through the real reporter inside `workshop_cloud_api` (`t5-site`) and `workshop_openbao_audit` (`f-root`); reporter thread counts stayed flat over repeated actions.
 

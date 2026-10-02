@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (home demo dry run passed; tier 1, RV13-RV18, RV20 and RV21 done) · Working branch: `feat/achievements` (the only open branch;
-remediation and front-door reached `main` in PR #4, and their branches are deleted).
+Last updated: 2026-10-02 (`feat/achievements` merged to `main` in PR #6; tier 1, RV13-RV18, RV20 and RV21 done) · Working
+branch: `main`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -14,8 +14,8 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume: RV19 bot smoke tests; decisions of 2026-10-02 |
-| [Now](#now) | N2 merge, N3 phase 9 live checks |
+| [Up next](#up-next) | Where to resume: N3 phase 9 live checks, then RV19 bot smoke tests; decisions of 2026-10-02 |
+| [Now](#now) | N3 phase 9 live checks |
 | [Next](#next) | Platform review (RV19, RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
@@ -24,24 +24,23 @@ what is left (usually the live check).
 
 ## Priorities
 
-Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run and
-platform review tier 1 (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
+platform review tier 1 and the merge to `main` (PR #6) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Merge `feat/achievements` to `main` early | S | [N2](#n2-merge-featachievements-to-main), after a toggle-off regression run; phase 9 live checks carry on from `main` |
-| 2 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-| 3 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
-| 4 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
-| 5 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 6 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
+| 1 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
+| 2 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
+| 3 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
+| 4 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
+| 5 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
 
 ## Up next
 
 Resume here (written 2026-10-02 after `4a10e75`: the home demo dry run passed and its fixes are committed; tier 2's
-CI and tests RV13-RV18 are done, see RELEASES). First the merge, [N2](#n2-merge-featachievements-to-main)
-(priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
+CI and tests RV13-RV18 are done, see RELEASES; the branch reached `main` in PR #6). First
+[N3](#n3-phase-9-live-checks) (priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
 may be using the machine).
 
 | ID | Work | Effort | Description |
@@ -60,21 +59,7 @@ may be using the machine).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| N2 | [Merge `feat/achievements` to `main`](#n2-merge-featachievements-to-main) | S | Toggle-off regression run, `--dry-run` of every pack, then PR #5. Ask before pushing or opening a PR |
 | N3 | [Phase 9 live checks](#n3-phase-9-live-checks) | L | cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-
-### N2: Merge `feat/achievements` to `main`
-
-Ask before pushing or opening a PR. The branch is 68 commits ahead of `main`; `main` has 5 the branch lacks
-(`LICENSE` among them). The last trial merge (2026-10-01) was clean; redo it before the PR. Phase 9 checks continue
-on `main`.
-
-| Step | Check | What to do |
-|---|---|---|
-| 1 | Prerequisites | Done: the home demo dry run passed and its fixes are committed (`7749e97`, `e00f727`, 2026-10-02) |
-| 2 | Toggle-off regression | git-fundamentals `--test` with `ACHIEVEMENTS_ENABLED=0` in the shell: no achievements container (sensei stays, it is in every pack's `MODULES`), no toasts or widget, `/workspace` still works |
-| 3 | Dry runs | `.github/scripts/dry-runs.sh` (every pack, achievements off and on), or let CI run it on the push |
-| 4 | PR #5 | Open it once 2 and 3 pass |
 
 ### N3: Phase 9 live checks
 
