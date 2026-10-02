@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.parse
 
@@ -54,6 +55,10 @@ class Sensei:
         self.state_path = state_path
         self.enabled = True
         self.prs = {}
+        # `_state` guards self.prs and its file (memory only, never held across a Forgejo call); each PR has its
+        # own lock so the loop, a student's `sensei approve` and the facilitator never judge one PR at once.
+        self._state = threading.RLock()
+        self._pr_locks, self._pr_locks_guard = {}, threading.Lock()
         if state_path and os.path.exists(state_path):
             try:
                 with open(state_path) as f:
@@ -65,31 +70,35 @@ class Sensei:
     def _save(self):
         if not self.state_path:
             return
-        tmp = self.state_path + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(self.prs, f)
-        os.replace(tmp, self.state_path)
+        with self._state:
+            tmp = self.state_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self.prs, f)
+            os.replace(tmp, self.state_path)
 
     def _set(self, pr, status, reason="", **kw):
         n = pr["number"]
-        old = self.prs.get(n, {})
-        now = self.clock()
-        row = {"number": n, "title": pr.get("title", ""), "user": (pr.get("user") or {}).get("login", ""),
-               "sha": (pr.get("head") or {}).get("sha", ""), "status": status, "reason": reason,
-               "since": old.get("since", now) if old.get("status") == status else now, "updated": now,
-               "commented": old.get("commented", "")}
-        row.update(kw)
-        self.prs[n] = row
-        self._save()
+        with self._state:
+            old = self.prs.get(n, {})
+            now = self.clock()
+            row = {"number": n, "title": pr.get("title", ""), "user": (pr.get("user") or {}).get("login", ""),
+                   "sha": (pr.get("head") or {}).get("sha", ""), "status": status, "reason": reason,
+                   "since": old.get("since", now) if old.get("status") == status else now, "updated": now,
+                   "commented": old.get("commented", "")}
+            row.update(kw)
+            self.prs[n] = row
+            self._save()
 
     def attention(self):
         """How many PRs are waiting on the facilitator."""
-        return sum(1 for r in self.prs.values() if r["status"] in ("needs-review", "error"))
+        with self._state:
+            return sum(1 for r in self.prs.values() if r["status"] in ("needs-review", "error"))
 
     def snapshot(self):
         now = self.clock()
-        rows = sorted(self.prs.values(), key=lambda r: (r["status"] not in ("needs-review", "error"), -r["number"]))
-        return [dict(r, minutes=int((now - r["since"]) // 60)) for r in rows]
+        with self._state:
+            rows = sorted(self.prs.values(), key=lambda r: (r["status"] not in ("needs-review", "error"), -r["number"]))
+            return [dict(r, minutes=int((now - r["since"]) // 60)) for r in rows]
 
     # -- forgejo -------------------------------------------------------------------------
     def _raw(self, repo, ref, path):
@@ -121,8 +130,9 @@ class Sensei:
         if row.get("commented") == sha:
             return
         if self.comment(pr["number"], text):
-            self.prs[pr["number"]]["commented"] = sha
-            self._save()
+            with self._state:
+                self.prs[pr["number"]]["commented"] = sha
+                self._save()
 
     # -- one pass ------------------------------------------------------------------------
     def tick(self):
@@ -135,9 +145,10 @@ class Sensei:
         except GitFailed:
             return done
         open_numbers = {p["number"] for p in prs}
-        for n, row in self.prs.items():
-            if n not in open_numbers and row["status"] not in ("merged", "closed"):
-                row["status"], row["since"] = "closed", self.clock()
+        with self._state:
+            for n, row in self.prs.items():
+                if n not in open_numbers and row["status"] not in ("merged", "closed"):
+                    row["status"], row["since"] = "closed", self.clock()
         for pr in sorted(prs, key=lambda p: p["number"]):
             row = self.prs.get(pr["number"])
             if self.mode == "approve" and not self._approvable(pr):
@@ -148,14 +159,22 @@ class Sensei:
                 continue
             if pr.get("draft") or pr.get("title", "").lower().startswith("wip"):
                 continue
-            self.handle(pr["number"])
-            done.append(pr["number"])
+            if self.handle(pr["number"], wait=False) != "busy":  # busy: someone else is on it; next pass
+                done.append(pr["number"])
         self._save()
         return done
 
-    def handle(self, number, force=False, bypass=False):
+    def _pr_lock(self, number):
+        with self._pr_locks_guard:
+            return self._pr_locks.setdefault(number, threading.Lock())
+
+    def handle(self, number, force=False, bypass=False, wait=True):
         """Review and merge one PR. `force` (the facilitator's "merge anyway") skips the review; `bypass`
-        (approve mode, `sensei approve --force`) skips only the wait for peer review, not the DNS rules."""
+        (approve mode, `sensei approve --force`) skips only the wait for peer review, not the DNS rules.
+        With `wait` False, a PR someone else is already handling is left alone ("busy")."""
+        lock = self._pr_lock(number)
+        if not lock.acquire(blocking=wait):
+            return "busy"
         try:
             return self._handle(number, force, bypass)
         except GitFailed as e:
@@ -163,6 +182,8 @@ class Sensei:
             self._set(pr, "error", str(e))
             self._say_once(pr, "I got stuck merging this one, so I've flagged it for the facilitator.")
             return "error"
+        finally:
+            lock.release()
 
     def _get_pr(self, number):
         status, pr = self.api("GET", f"/repos/{self.repo}/pulls/{number}")
@@ -326,7 +347,7 @@ class Sensei:
         pr = mine[0]
         self._reviewers_at = -1e9  # they may have just reviewed
         result = self.handle(pr["number"], bypass=force)
-        row = self.prs.get(pr["number"], {})
+        row = dict(self.prs.get(pr["number"], {}))
         return {"ok": result == "approved", "result": result, "number": pr["number"], "reason": row.get("reason", ""),
                 "patience": self.patience}
 

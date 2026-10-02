@@ -42,7 +42,15 @@ resolver = None
 index = patterns = answers = desk = None  # support.LabIndex, .Patterns, .Answers, .HelpDesk
 achievements = None             # support.Achievements
 STUCK_MINUTES = int(os.environ.get("SENSEI_STUCK_MINUTES", "10") or 10)
-lock = threading.Lock()
+# RV7: no lock spans the whole service. A student's status/review/approve waits only on their own earlier call;
+# the bot's pass (the loop or /api/scan) has its own lock; the bot guards its PR table and each PR itself.
+tick_lock = threading.Lock()
+_user_locks, _user_locks_guard = {}, threading.Lock()
+
+
+def user_lock(user):
+    with _user_locks_guard:
+        return _user_locks.setdefault(user, threading.Lock())
 
 
 def log(msg):
@@ -116,7 +124,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._json(200, {"message": "I can't see your progress here: this workshop has no scoreboard "
                                                    "(or it isn't answering). The labs' checkpoints are your guide."})
             return self._json(200, support.current_lab(prog))
-        with lock:
+        with user_lock(user):
             if action == "status":
                 return self._json(200, sensei.student_status(user))
             if action == "review":
@@ -145,10 +153,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, {"available": students is not None, "minutes": STUCK_MINUTES,
                                     "students": support.stuck(students or {}, helping, STUCK_MINUTES)})
         if self.path == "/api/prs":
-            with lock:
-                return self._json(200, {"prs": sensei.snapshot(), "enabled": sensei.enabled, "repo": sensei.repo,
-                                     "watching": WATCHING,
-                                     "attention": sensei.attention(), "help_open": desk.open_count()})
+            return self._json(200, {"prs": sensei.snapshot(), "enabled": sensei.enabled, "repo": sensei.repo,
+                                    "watching": WATCHING,
+                                    "attention": sensei.attention(), "help_open": desk.open_count()})
         self._json(404, {"error": "not found"})
 
     def do_POST(self):
@@ -167,22 +174,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError:
             return self._json(400, {"error": "bad json"})
         number = body.get("number")
-        with lock:
-            if self.path == "/api/scan":
-                if WATCHING:
+        if self.path == "/api/scan":
+            if WATCHING and tick_lock.acquire(blocking=False):  # a pass already running is as good as a new one
+                try:
                     sensei.tick()
-            elif self.path == "/api/enabled":
-                sensei.enabled = bool(body.get("on"))
-            elif self.path == "/api/merge" and isinstance(number, int):
-                return self._json(200, {"result": sensei.handle(number, force=True)})
-            elif self.path == "/api/help/reply" and isinstance(body.get("id"), int):
-                return self._json(200, {"ok": desk.reply(body["id"], str(body.get("text", "")))})
-            elif self.path == "/api/help/close" and isinstance(body.get("id"), int):
-                return self._json(200, {"ok": desk.close(body["id"])})
-            elif self.path == "/api/comment" and isinstance(number, int) and str(body.get("text", "")).strip():
-                return self._json(200, {"ok": sensei.comment(number, str(body["text"])[:2000])})
-            else:
-                return self._json(404, {"error": "not found"})
+                finally:
+                    tick_lock.release()
+        elif self.path == "/api/enabled":
+            sensei.enabled = bool(body.get("on"))
+        elif self.path == "/api/merge" and isinstance(number, int):
+            return self._json(200, {"result": sensei.handle(number, force=True)})
+        elif self.path == "/api/help/reply" and isinstance(body.get("id"), int):
+            return self._json(200, {"ok": desk.reply(body["id"], str(body.get("text", "")))})
+        elif self.path == "/api/help/close" and isinstance(body.get("id"), int):
+            return self._json(200, {"ok": desk.close(body["id"])})
+        elif self.path == "/api/comment" and isinstance(number, int) and str(body.get("text", "")).strip():
+            return self._json(200, {"ok": sensei.comment(number, str(body["text"])[:2000])})
+        else:
+            return self._json(404, {"error": "not found"})
         self._json(200, {"ok": True})
 
 
@@ -193,7 +202,7 @@ WATCHING = False  # a workshop sets SENSEI_REPO to have Sensei review its roster
 def loop():
     while True:
         try:
-            with lock:
+            with tick_lock:
                 if WATCHING:
                     sensei.tick()
                 if seeder and sensei.enabled and seeder.seed():
