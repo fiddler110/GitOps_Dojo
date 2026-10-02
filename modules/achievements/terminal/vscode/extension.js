@@ -18,7 +18,7 @@ function token() {
   try {
     const lines = fs.readFileSync(path.join(os.homedir(), '.git-credentials'), 'utf8').split('\n');
     for (const raw of lines) {
-      const line = raw.trim();
+      const line = raw.trim().replace(/%3a/gi, ':');  // git may percent-encode the port
       if (line.startsWith('http://') && line.endsWith('@' + HOST)) {
         return line.slice('http://'.length, -('@' + HOST).length).split(':').slice(1).join(':');
       }

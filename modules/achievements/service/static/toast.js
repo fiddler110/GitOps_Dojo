@@ -60,6 +60,9 @@
     }, t.ms || 4000);
   }
   function poll() {
+    // A tab in the background doesn't claim toasts: VS Code or the visible page shows them, or
+    // this page does once it is in front again.
+    if (document.hidden) { return; }
     fetch(base + 'api/toasts?surface=' + encodeURIComponent(surface), { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : { toasts: [] }; })
       .then(function (d) { (d.toasts || []).forEach(function (t) { queue.push(t); }); if (!showing) { next(); } })
@@ -76,4 +79,5 @@
   });
   poll();
   setInterval(poll, 4000);
+  document.addEventListener('visibilitychange', poll);
 })();

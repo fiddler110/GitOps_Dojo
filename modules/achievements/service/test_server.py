@@ -450,6 +450,18 @@ class SaveTests(unittest.TestCase):
         self.assertFalse(self.s.flush())         # nothing new
         self.assertEqual(self.saved_score("a"), 10)
 
+    def test_flush_keeps_the_last_commands_activity(self):
+        self.mk(save_delay=60)
+        time.sleep(0.2)
+        fail = {"cmd": "git push origin nope", "exit": 1}  # unlocks nothing
+        self.s.shell("a", fail)                  # registers "a": a change of its own
+        self.s.flush()
+        for _ in range(4):                       # the stuck radar's "failing" needs 5 in a row
+            self.s.shell("a", fail)
+        self.s.flush()
+        again = Store(load(), lg.Config(), self.dir, "secret", facilitator="boss", clock=self.clock)
+        self.assertEqual(again.activity_snapshot()["a"]["streak"], 5)
+
     def test_failed_write_stays_dirty(self):
         self.mk(save_delay=60)
         time.sleep(0.2)

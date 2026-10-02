@@ -381,6 +381,8 @@ class Store:
                 got = got or ["strike"]
             if got or now - (self._saved_at or 0) >= ACTIVITY_SAVE:
                 self._save()
+            else:
+                self._dirty = True  # written with the next save, or by flush() at shutdown
             return {"unlocked": len(got)}
 
     def _touch(self, user, code, now):
