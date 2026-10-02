@@ -157,6 +157,7 @@ services:
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
+      - BOT_FAST=${BOT_FAST:-0}
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
       # 1 = the workshop's labs have each student fork the repo; bots do the same.

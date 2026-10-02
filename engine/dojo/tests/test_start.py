@@ -18,7 +18,8 @@ from dojo.stop import _volumes_in_config
 class Recorded(unittest.TestCase):
     def test_round_trip(self):
         for flags in ([], ["--test"], ["--test", "14"], ["--env", "home"],
-                      ["--test", "3", "--env", "home", "--allow-default-passwords"]):
+                      ["--test", "3", "--env", "home", "--allow-default-passwords"],
+                      ["--test", "--fast"], ["--test", "3", "--fast"]):
             o = parse_recorded(["dns-as-code", *flags])
             self.assertEqual(o.workshop, "dns-as-code")
             self.assertEqual(o.flags, flags, flags)
@@ -35,6 +36,11 @@ class Recorded(unittest.TestCase):
         for bad in ("0", "36", "abc"):
             with self.assertRaises(StartError):
                 bot_count(StartOptions("x", test=bad), {})
+
+    def test_fast_needs_test(self):
+        self.assertEqual(bot_count(StartOptions("x", test="", fast=True), {}), "3")
+        with self.assertRaises(StartError):
+            bot_count(StartOptions("x", fast=True), {})
 
 
 class LogLines(unittest.TestCase):

@@ -143,6 +143,13 @@ case "${BOT_PERSONA:-}" in
     ;;
 esac
 
+# --fast (BOT_FAST=1, for checks, not demos): no pauses or typing, a mistake in every round for the
+# intermediate and novice bots (the expert stays the clean path), and one round, then the bot stops.
+BOT_FAST="${BOT_FAST:-0}"
+if [ "$BOT_FAST" = 1 ]; then
+  BOT_MIN_DELAY=0; BOT_MAX_DELAY=0; BOT_ROUND_BREAK_MIN=0; BOT_ROUND_BREAK_MAX=0
+fi
+
 case "$PERSONA" in
   expert)
     : "${BOT_MIN_DELAY:=1}"; : "${BOT_MAX_DELAY:=3}"
@@ -169,6 +176,10 @@ case "$PERSONA" in
     TYPO_FLICKER_PCT=6
     ;;
 esac
+if [ "$BOT_FAST" = 1 ]; then
+  TYPO_FLICKER_PCT=0
+  [ "$PERSONA" = expert ] || MISTAKE_MOD=1
+fi
 
 # -- small "is this a live demo" presentation helpers ------------------------
 
@@ -176,11 +187,11 @@ rand_between() { # min max
   echo $(( $1 + RANDOM % ($2 - $1 + 1) ))
 }
 
-think() { sleep "$(rand_between "$BOT_MIN_DELAY" "$BOT_MAX_DELAY")"; }
+think() { [ "$BOT_FAST" = 1 ] || sleep "$(rand_between "$BOT_MIN_DELAY" "$BOT_MAX_DELAY")"; }
 
 narrate() { # a dim comment line, so a facilitator watching can follow along
   printf '\n\033[2m# %s\033[0m\n' "$1"
-  sleep 1
+  [ "$BOT_FAST" = 1 ] || sleep 1
 }
 
 type_out() { # print a string with a per-character delay, like slow typing.
@@ -190,6 +201,7 @@ type_out() { # print a string with a per-character delay, like slow typing.
   # real command below is unaffected -- to look like someone still hunting
   # for keys, not a script.
   local s="$1" i c
+  [ "$BOT_FAST" = 1 ] && { printf '%s\n' "$s"; return; }
   for (( i=0; i<${#s}; i++ )); do
     c="${s:$i:1}"
     if [ "$c" != " " ] && [ $(( RANDOM % 100 )) -lt "$TYPO_FLICKER_PCT" ]; then
@@ -646,13 +658,28 @@ while true; do
       continue
     fi
     step_fail_count=$((step_fail_count + 1))
-    retry_delay=$(( step_fail_count * step_fail_count * BOT_MIN_DELAY ))
+    if [ "$BOT_FAST" = 1 ] && [ "$step_fail_count" -ge 3 ]; then
+      # A check wants the rest of the round more than a fourth try: log it and move on.
+      narrate "FAST: ${STEPS[$i]} failed $step_fail_count times -- skipping it"
+      step_fail_count=0
+      STEP=$((i + 1))
+      save_state
+      break
+    fi
+    retry_delay=$(( step_fail_count * step_fail_count * (BOT_MIN_DELAY > 0 ? BOT_MIN_DELAY : 2) ))
     [ "$retry_delay" -gt 60 ] && retry_delay=60
     narrate "${STEPS[$i]} failed (attempt $step_fail_count) -- retrying in ${retry_delay}s instead of skipping ahead"
     sleep "$retry_delay"
     break
   done
   if [ "$STEP" -ge "${#STEPS[@]}" ]; then
+    if [ "$BOT_FAST" = 1 ]; then
+      # One round is the check. Stay alive (bot-supervisor.sh restarts a bot whose tmux session ends)
+      # and leave a marker a check can wait on.
+      narrate "FAST: $BOT_USER finished round $ROUND -- stopping"
+      echo "$ROUND" > "$HOME/.dojo-bot-done"
+      exec sleep infinity
+    fi
     ROUND=$((ROUND + 1))
     STEP=0
     save_state

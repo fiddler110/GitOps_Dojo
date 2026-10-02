@@ -814,6 +814,17 @@ The strip is facilitator-only by design: students are not shown service health.
 ```sh
 ./run.sh git-fundamentals --test        # 3 bots
 ./run.sh git-fundamentals --test 14     # 14 bots, for load / bigger-cohort testing
+./run.sh git-fundamentals --test --fast # 3 bots at full speed, one round each: for checks
+```
+
+`--fast` (`BOT_FAST=1`) is for checking a pack, not for showing one. The bots print each command at once instead of
+typing it and skip every pause; the intermediate and novice bots make their mistakes in every round (the expert stays
+the clean path); a step that fails 3 times is skipped with a `FAST:` line instead of retried forever. After one round
+each bot writes `~/.dojo-bot-done` and stops. Waits inside a pack's steps (CI runs, deploys) still apply. Wait for
+every bot with:
+
+```sh
+podman exec workshop_terminal sh -c 'ls /home/testuser*/.dojo-bot-done | wc -l'   # 3 when all are done
 ```
 
 Spins up simulated "students" alongside the real stack — no extra

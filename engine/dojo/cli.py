@@ -58,6 +58,9 @@ def start_options(f):
         click.option("--test", "test", is_flag=False, flag_value="", default=None, metavar="[N]",
                      help="Also start demo bot students: 3, or N (max 35). testuser1-3 are "
                           "expert/intermediate/novice; any beyond get one of those at random."),
+        click.option("--fast", is_flag=True,
+                     help="With --test: bots skip every pause and typing delay, put mistakes in every round "
+                          "(intermediate, novice), and stop after one round. For checks, not demos."),
         ENV_OPTION,
         click.option("--dry-run", is_flag=True, help="Preview what would be rebuilt and started; change nothing."),
         click.option("--build-only", is_flag=True, help="Build or refresh the images and stop there (no password checks)."),
@@ -68,9 +71,9 @@ def start_options(f):
     return f
 
 
-def _start(workshop: str, test, env_name, dry_run, build_only, allow_default_passwords) -> None:
+def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords) -> None:
     from .start import StartOptions, run_start
-    sys.exit(run_start(StartOptions(workshop, test=test, env_name=env_name, dry_run=dry_run,
+    sys.exit(run_start(StartOptions(workshop, test=test, fast=fast, env_name=env_name, dry_run=dry_run,
                                     build_only=build_only, allow_default_passwords=allow_default_passwords)))
 
 

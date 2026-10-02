@@ -159,7 +159,7 @@ step_tb_edit() {
   narrate "Lab 8 -- the message forces a replace"
   run_cmd "sed -i 's/^message .*/message     = \"Hello, Canada!\"/' terraform.tfvars"
   run_cmd "terraform plan -no-color -input=false"
-  if [ "$ROUND" = 2 ]; then
+  if [ "$ROUND" = 2 ] || [ "${BOT_FAST:-0}" = 1 ]; then   # --fast has only round 1
     # The replace takes ~25 s (destroy, then create), so the plan is sure to find the lock held.
     narrate "(demo) a second terminal plans while the first apply still holds the state lock"
     run_cmd "terraform apply -auto-approve -no-color -input=false & sleep 3; terraform plan -no-color -input=false -lock-timeout=0s; wait"
