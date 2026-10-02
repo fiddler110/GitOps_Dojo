@@ -11,7 +11,6 @@
   POST /api/enabled    {on}: pause or resume the bot
 Identity headers count only with X-Gateway-Token (the route is facilitator-gated at Caddy).
 """
-import hmac
 import http.server
 import json
 import os
@@ -23,6 +22,9 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "achievements", "service"))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "_shared"), os.path.join(HERE, "_shared")]
+import dojo_http  # noqa: E402
 import bot  # noqa: E402
 import support  # noqa: E402
 import seed  # noqa: E402
@@ -35,8 +37,6 @@ FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
 INTERVAL = int(os.environ.get("SENSEI_INTERVAL", "5"))
 STATIC = os.path.join(HERE, "static")
 PAGES = {"/": "admin.html", "/admin.js": "admin.js", "/style.css": "style.css"}
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; "
-       "form-action 'none'; frame-ancestors 'self'")
 sensei = None
 resolver = None
 index = patterns = answers = desk = None  # support.LabIndex, .Patterns, .Answers, .HelpDesk
@@ -81,22 +81,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def _send(self, code, body, ctype="application/json"):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Content-Security-Policy", CSP)
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        dojo_http.send(self, code, body, ctype)
 
     def _json(self, code, doc):
-        self._send(code, json.dumps(doc).encode())
+        dojo_http.send_json(self, code, doc)
 
     def _facilitator(self):
-        given = (self.headers.get("X-Gateway-Token") or "").encode()
-        ok = GATEWAY_TOKEN and hmac.compare_digest(given, GATEWAY_TOKEN.encode())
-        return ok and self.headers.get("X-Auth-User") == FACILITATOR
+        return dojo_http.is_facilitator(self.headers, GATEWAY_TOKEN, FACILITATOR)
 
     def _student(self, action, body):
         """The `sensei` command in a student's terminal. Identity is the student's own Forgejo token, which

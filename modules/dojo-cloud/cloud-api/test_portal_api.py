@@ -568,7 +568,7 @@ class Progress(Base):
         status, headers, data = self.call("GET", self.URL, user=FAC)
         self.assertEqual(status, 200)
         self.assertTrue(headers["Content-Type"].startswith("application/json"))
-        self.assertNotIn("Content-Security-Policy", headers)  # a JSON API response, not an HTML page
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")  # served as JSON, never sniffed as HTML
         r = self.row(A, json.loads(data))
         self.assertEqual((r["lastEvent"]["operation"], r["lastEvent"]["message"]), (evil, evil))
         self.assertEqual(r["containerGroups"][0]["name"], "ci-<i>")
@@ -699,7 +699,7 @@ class Static(Base):
             self.assertEqual(status, 200, path)
             self.assertTrue(headers["Content-Type"].startswith(ctype), path)
             self.assertTrue(headers["Content-Security-Policy"].startswith(CSP_START), path)
-            self.assertEqual(headers["Content-Security-Policy"], portal_api.CSP)
+            self.assertEqual(headers["Content-Security-Policy"], portal_api.dojo_http.CSP)
             self.assertIn("frame-ancestors 'self'", headers["Content-Security-Policy"])
             self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
             if data:

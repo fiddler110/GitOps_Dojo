@@ -30,7 +30,6 @@ GET /api/entries?student=<name>|*[&accessor=][&path=][&op=][&errors=1][&limit=N]
     panel does.
 """
 import collections
-import hmac
 import http.server
 import json
 import os
@@ -43,6 +42,10 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "_shared"),
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shared")]
+import dojo_http  # noqa: E402
 import events  # noqa: E402
 
 LOG_FILE = os.environ.get("AUDIT_FILE", "/logs/audit.log")
@@ -53,14 +56,6 @@ MAX_LIMIT = 1000
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
 HERE = os.path.dirname(os.path.abspath(__file__))
-SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-                               "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
-    "X-Frame-Options": "SAMEORIGIN",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Cache-Control": "no-store",
-}
 STATIC = {"/": ("panel.html", "text/html; charset=utf-8"),
           "/panel.js": ("panel.js", "text/javascript; charset=utf-8"),
           "/panel.css": ("panel.css", "text/css; charset=utf-8")}
@@ -217,22 +212,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def _send(self, code, body, ctype):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        for k, v in SECURITY_HEADERS.items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
+        dojo_http.send(self, code, body, ctype)
 
     def _json(self, code, doc):
-        self._send(code, json.dumps(doc).encode(), "application/json")
+        dojo_http.send_json(self, code, doc)
 
     def _facilitator(self):
-        given = self.headers.get("X-Gateway-Token") or ""
-        if not GATEWAY_TOKEN or not hmac.compare_digest(given.encode(), GATEWAY_TOKEN.encode()):
-            return False
-        return self.headers.get("X-Auth-User") == FACILITATOR
+        return dojo_http.is_facilitator(self.headers, GATEWAY_TOKEN, FACILITATOR)
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)

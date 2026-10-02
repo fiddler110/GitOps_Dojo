@@ -20,6 +20,7 @@ route uses the gateway's `shared` gate and carries no identity.
 
 import json
 import os
+import sys
 import threading
 import time
 import urllib.error
@@ -27,10 +28,13 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+import dojo_http  # noqa: E402
+
 PREFIX = os.environ.get("PATH_PREFIX", "").rstrip("/")
-STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"))
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; "
-       "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
+STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(HERE, "static"))
 # Fixed allow-list: request path -> (file in STATIC_DIR, Content-Type). Nothing else is served.
 FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -109,21 +113,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # polled every few seconds by every student; keep the container log quiet
 
-    def _send(self, status, body, ctype, extra=None):
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "no-referrer")
-        for k, v in (extra or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        if self.command != "HEAD":
-            self.wfile.write(body)
+    def _send(self, status, body, ctype):
+        dojo_http.send(self, status, body, ctype)
 
     def _json(self, status, obj):
-        self._send(status, json.dumps(obj).encode(), "application/json")
+        dojo_http.send_json(self, status, obj)
 
     def do_HEAD(self):
         self.do_GET()
@@ -155,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
                     body = f.read()
             except OSError:
                 return self._json(404, {"error": "not found"})
-            return self._send(200, body, ctype, {"Content-Security-Policy": CSP})
+            return self._send(200, body, ctype)
         return self._json(404, {"error": "not found"})
 
 

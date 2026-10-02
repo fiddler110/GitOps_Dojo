@@ -68,7 +68,7 @@ def modules() -> List[Module]:
     shops = workshops()
     found = []
     for d in sorted(paths.MODULES.iterdir()) if paths.MODULES.is_dir() else []:
-        if not d.is_dir():
+        if not d.is_dir() or d.name.startswith("_"):  # modules/_shared/: files modules copy, not a module
             continue
         summary = ""
         readme = d / "README.md"

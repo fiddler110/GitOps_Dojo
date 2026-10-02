@@ -293,8 +293,17 @@ copy in `modules/_shared/`. A module lists the ones it uses in its `module.env`
 as `SHARED="<context>/<file> ..."` (e.g. `SHARED="gate/dojo_http.py"`), and each
 start copies them into `<context>/_shared/` before building. Those folders are
 git-ignored and rebuilt every start (never edit a copy), so the Dockerfile does
-`COPY _shared/dojo_http.py ...`. `SHARED` is read from that module's own
-`module.env` as written: no `$(...)`, and a workshop can't override it.
+`COPY _shared/ /app/_shared/` (a service that bind-mounts its folder sees the copy
+there without one). `SHARED` is read from that module's own `module.env` as written:
+no `$(...)`, and a workshop can't override it. The service puts both folders on its
+path, so its unit tests find the one copy without a start:
+`sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]`
+(one `..` fewer for a service at the module's top, like `sensei/server.py`).
+
+`modules/_shared/dojo_http.py` is the one every web service uses: `gateway_user`
+and `is_facilitator` (identity only alongside the right `X-Gateway-Token`, failing
+closed when it's unset), `token_ok`, the security headers (`SECURITY_HEADERS`, a
+strict `CSP`) and `send`/`send_json` for an `http.server` handler.
 
 Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
 [`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and

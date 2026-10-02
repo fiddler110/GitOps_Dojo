@@ -26,7 +26,6 @@ Forgejo call of their own. /healthz needs no token.
 """
 import base64
 import collections
-import hmac
 import http.server
 import json
 import math
@@ -41,6 +40,10 @@ import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+import dojo_http  # noqa: E402
+
 PREFIX = "pool-"
 ALIVE = ("starting", "idle", "busy")
 FINISHED = ("done", "removed", "failed")
@@ -515,14 +518,6 @@ class Controller:
             self.wake.clear()
 
 
-SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-                               "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
-    "X-Frame-Options": "SAMEORIGIN",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Cache-Control": "no-store",
-}
 STATIC = {"/": ("panel.html", "text/html; charset=utf-8"),
           "/panel.js": ("panel.js", "text/javascript; charset=utf-8"),
           "/panel.css": ("panel.css", "text/css; charset=utf-8")}
@@ -537,24 +532,13 @@ def make_handler(ctl, static_dir=HERE):
             pass
 
         def _send(self, status, body=b"", ctype="application/json"):
-            self.send_response(status)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(body)))
-            for k, v in SECURITY_HEADERS.items():
-                self.send_header(k, v)
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(body)
+            dojo_http.send(self, status, body, ctype)
 
         def _json(self, status, doc):
-            self._send(status, json.dumps(doc).encode())
+            dojo_http.send_json(self, status, doc)
 
         def _facilitator(self):
-            token = ctl.cfg.gateway_token
-            given = self.headers.get("X-Gateway-Token") or ""
-            if not token or not hmac.compare_digest(given.encode(), token.encode()):
-                return False
-            return self.headers.get("X-Auth-User") == ctl.cfg.facilitator
+            return dojo_http.is_facilitator(self.headers, ctl.cfg.gateway_token, ctl.cfg.facilitator)
 
         def _path(self):
             return self.path.split("?", 1)[0] or "/"

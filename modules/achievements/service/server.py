@@ -39,7 +39,10 @@ import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
 import catalog as cat  # noqa: E402
+import dojo_http  # noqa: E402
 import challenges  # noqa: E402
 import identity  # noqa: E402
 import ledger as lg  # noqa: E402
@@ -54,14 +57,6 @@ MAX_BODY = 8192
 SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); every widget polls
 MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
-SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-                               "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
-    "X-Frame-Options": "SAMEORIGIN",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Cache-Control": "no-store",
-}
 PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html"}
 ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js")
 ADMIN_PAGES = {"/": "admin.html"}
@@ -134,16 +129,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def _send(self, code, body, ctype):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        for k, v in SECURITY_HEADERS.items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
+        dojo_http.send(self, code, body, ctype)
 
     def _json(self, code, doc):
-        self._send(code, json.dumps(doc).encode(), "application/json")
+        dojo_http.send_json(self, code, doc)
 
     def _static(self, name):
         try:
@@ -158,10 +147,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _gateway_user(self):
         """The user the gateway identified, or None when its token is missing or wrong."""
-        given = self.headers.get("X-Gateway-Token") or ""
-        if not GATEWAY_TOKEN or not hmac.compare_digest(given.encode(), GATEWAY_TOKEN.encode()):
-            return None
-        return self.headers.get("X-Auth-User") or None
+        return dojo_http.gateway_user(self.headers, GATEWAY_TOKEN)
 
     def _caller(self, mutating=False):
         """The identified user, or None. Two ways in: the gateway's headers (the browser), or

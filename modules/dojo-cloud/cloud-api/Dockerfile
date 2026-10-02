@@ -3,6 +3,7 @@ FROM docker.io/library/python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154
 RUN apk add --no-cache openssl
 WORKDIR /app
 COPY auth.py events.py policy.py docker_api.py state.py pki.py portal_api.py server.py /app/
+COPY _shared/ /app/_shared/
 # The Dojo Portal single-page app (served by portal_api.py from PORTAL_DIR, default /app/portal).
 COPY portal/ /app/portal/
 # Unit tests ride along so `podman exec ... python -m unittest` works in the image.

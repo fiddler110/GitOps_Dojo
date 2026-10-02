@@ -19,6 +19,7 @@ ENV DATABASE_DRIVER=sqlite \
     FACILITATOR_USERNAME=root
 
 COPY dojo_wsgi.py dojo_config.py dojo_seed.py /app/
+COPY _shared/ /app/_shared/
 COPY dojo-entrypoint.sh /app/dojo-entrypoint.sh
 RUN chmod +x /app/dojo-entrypoint.sh
 
