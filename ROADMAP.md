@@ -120,11 +120,10 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 | RV21 | Shared `adapter_client.py` | M | Bounded queue + one worker, replacing the three `Reporter` copies (dns-gate and dojo-cloud start a thread per event); same `modules/_shared/` mechanism as RV20 |
 | RV22 | Split the allocator server | L | `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler |
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
-| RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs) |
+| RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
 | RV27 | Unused `forgejo-runner` module | S | All packs use `runner-pool`: mark it legacy or delete it, and update `build.py` and CLAUDE.md |
 | RV29 | Pack consistency | S-M | Required/optional file matrix in `workshops/README.md`, FACILITATOR.md for every pack, a cert-autorenewal README, remove `vault-fundamentals/spike/` |
 | RV30 | Docs drift | S-M | `workshops/README.md:19` says vault is "in progress"; trim the root README's duplicated tables; `DURATION=` in `workshop.env` feeding `./run.sh list` |
-| RV31 | Workshop scaffold | M | `./run.sh new-workshop <name>` from a template |
 
 **Tier 4: new features and workshops.**
 

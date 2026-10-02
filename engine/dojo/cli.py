@@ -253,6 +253,37 @@ def config(workshop: str, keys: Tuple[str, ...], env_name: Optional[str], show_s
     console.print(table)
 
 
+@cli.command("new-workshop", context_settings=SETTINGS)
+@click.argument("name")
+@click.option("--title", default="", help="Display name (default: from NAME, e.g. 'Dns As Code').")
+@click.option("--description", default="", help="One sentence, shown on the login page.")
+@click.option("--modules", "mods", default="", metavar="'A B'", help="Modules to use ('./run.sh modules' lists them).")
+@click.option("--order", type=int, default=-1, help="Place in the learning path (default: last).")
+@click.option("--org", default="training", show_default=True, help="Forgejo organisation of the sample repo.")
+@click.option("--repo", default="", help="Forgejo name of the sample repo (default: NAME).")
+@click.option("--terminal", is_flag=True, help="Also add compose/terminal/Dockerfile for extra tools.")
+@click.option("--dry-run", is_flag=True, help="List the files it would write; write nothing.")
+def new_workshop(name, title, description, mods, order, org, repo, terminal, dry_run) -> None:
+    """Start a new workshop pack in workshops/NAME/ from workshops/assets/template/:
+    workshop.env, slides, a first lab and a sample repo, with TODOs to fill in."""
+    from .scaffold import Scaffold, ScaffoldError, create, plan, prepare
+    try:
+        s = prepare(Scaffold(name, title, description, mods, order, org, repo, terminal), cli.commands)
+        files = plan(s) if dry_run else create(s)
+    except (ScaffoldError, OSError) as exc:
+        fail(str(exc))
+        sys.exit(1)
+    console.print(f"{'Would write' if dry_run else 'Wrote'} [bold]workshops/{name}/[/] "
+                  f"([cyan]{escape(s.title)}[/], order {s.order}, modules: {s.modules or 'none'}, "
+                  f"repo {s.org}/{s.repo}):")
+    for f in files:
+        console.print(f"  {f}")
+    if dry_run:
+        return
+    console.print(f"\nNext: fill in the TODOs (workshops/{name}/README.md lists them), then\n"
+                  f"  {PROG} {name} --dry-run\n  {PROG} {name}")
+
+
 # --- setup, still shell scripts ---------------------------------------------------
 def _passthrough(name: str, script: str, help_text: str) -> None:
     """A command run by its shell script with every argument as given (so

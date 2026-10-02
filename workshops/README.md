@@ -81,9 +81,13 @@ want the same thing, make it a module instead.
 
 ## Adding a new workshop
 
-1. `mkdir -p workshops/<name>/content/{slides,lab,sample-repo}`
-2. Write `content/slides/presentation.md` (Marp — copy an existing deck's
-   frontmatter/style block for visual consistency), `content/lab/README.md`
+1. `./run.sh new-workshop <name>` (`--title`, `--description`, `--modules "a b"`,
+   `--terminal` for step 4's Dockerfile, `--dry-run`; `--help` lists them) copies
+   [`assets/template/`](assets/template/) into `workshops/<name>/`: `workshop.env`, a
+   README, the slide hub, deck, labs index, lab overview and cheat sheet, a first lab
+   and a sample repo, each with TODOs, already wired together and to the shared
+   themes. It starts as is (`./run.sh <name>`), so you can watch it fill in.
+2. Write `content/slides/presentation.md` (Marp, on the shared theme), `content/lab/README.md`
    (seeded into every student's `~/lab`), and `content/sample-repo/`
    (seeded into Forgejo by the `bootstrap` service — same mechanism for
    every workshop, nothing to configure). A lab with an achievements
@@ -91,7 +95,7 @@ want the same thing, make it a module instead.
    `capstone`): the lab reader turns it into Start/Reset buttons when the
    `achievements` module is on, and shows nothing otherwise (see
    `modules/achievements/README.md`).
-3. Write `workshop.env`:
+3. Check `workshop.env` (the scaffold fills it in):
    ```sh
    WORKSHOP_NAME=<display name>
    WORKSHOP_DESCRIPTION="<one sentence, shown on the login page>"

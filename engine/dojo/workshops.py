@@ -11,10 +11,6 @@ from . import paths
 # A workshop or module name becomes an image tag and a file name.
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
-# Commands: a workshop folder with one of these names could never be started.
-RESERVED = {"setup", "capacity", "alias-setup", "build-all", "restart", "stop", "teardown",
-            "help", "list", "modules", "status", "doctor", "config", "logs", "completion"}
-
 
 def read_var(env_file: Path, key: str) -> str:
     """A plain KEY=value from a workshop.env without running it (first match,
