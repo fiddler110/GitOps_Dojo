@@ -200,6 +200,17 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 | `scripts` | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it |
 | `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
 | `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
+| `resets` | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30); a student reset hook, see below |
+
+**Student reset hooks.** When the facilitator resets one student from the Roster, the allocator calls each `resets`
+entry twice, in manifest order: `POST <upstream><path>?phase=teardown` before the student's Forgejo account is deleted,
+and `?phase=provision` after the terminal is set up again. `{user}` is the student's account (`studentNN` or a bot).
+Answer `200` with `{"ok": true, "detail": "short text"}`; anything else fails that step and stops the reset (the
+facilitator can Retry, so both phases must be safe to run again). The request carries `X-Dojo-Reset-Token`: compare it,
+in constant time, with `RESET_TOKEN`, which your compose fragment passes in as `RESET_TOKEN=${RESET_TOKEN_<SERVICE>:-}`
+(service name upper-cased, `-` and `.` as `_`). The token is your service's own, so it can't reset anything elsewhere,
+and since students can reach your service on `workshop_lab`, an endpoint that skips the check lets any student wipe
+any other. Per-student state inside the terminal uses `/etc/dojo/account.d` and `reset.d` hooks instead.
 
 **Student workspace.** Every student can open `/workspace`, the tabbed version of the landing page: Labs, VS Code,
 Terminal, Forgejo and Slides, then one tab per `cards` entry (framing that card's `href`). A card therefore needs no

@@ -256,7 +256,8 @@ EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extens
 
 
 def load_extensions(path=EXTENSIONS_FILE):
-    empty = {"cards": [], "admin_tabs": [], "widgets": [], "scripts": [], "routes": [], "status_checks": []}
+    empty = {"cards": [], "admin_tabs": [], "widgets": [], "scripts": [], "routes": [], "status_checks": [],
+             "resets": []}
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -482,14 +483,16 @@ def reset_steps(sid):
             raise reset.ResetError("web-terminal did not answer")
         return "processes stopped"
 
+    hooks = EXTENSIONS["resets"]
     return [
         ("stop", "Stop VS Code and terminal", stop),
+    ] + reset.hook_steps(hooks, sid, "teardown", GATEWAY_TOKEN) + [
         ("forgejo-teardown", "Forgejo: close pull requests, delete branches and the account",
          lambda: reset.forgejo_teardown(fj, FORGEJO_ORG, sid)),
         ("forgejo-provision", "Forgejo: recreate the account",
          lambda: reset.forgejo_provision(fj, FORGEJO_ORG, sid, password)),
         ("terminal", "Terminal: home, lab files and hooks", lambda: reset_terminal(sid)),
-    ]
+    ] + reset.hook_steps(hooks, sid, "provision", GATEWAY_TOKEN)
 
 
 RESETS = reset.ResetManager(reset_steps, audit)
@@ -1141,7 +1144,7 @@ const RESET_WHAT = [
   'their open pull requests are closed and their branches deleted',
   'their Forgejo account, repositories and forks are deleted and the account made again',
   'their home folder and lab files are deleted and set up fresh',
-];
+].concat(__RESET_HOOK_LABELS__.map(l => l + ': theirs is removed and set up again'));
 let resetDialog = null;
 
 function resetDialogFor(sid) {
@@ -1448,7 +1451,9 @@ WORKSPACE_ASSETS = {
 }
 
 ADMIN_ASSETS = {
-    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS),
+    # Reset hook labels passed render_extensions.py's check_text; json.dumps keeps them data.
+    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS.replace(
+        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"]]))),
     "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
 }
 

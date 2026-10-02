@@ -212,6 +212,100 @@ class TerminalStepTest(unittest.TestCase):
         self.assertEqual(provision.call_args[0][3], server.BOT_PASSWORD)
 
 
+class FakeHookService:
+    """A module's reset endpoint on 127.0.0.1: records each call and answers
+    with `status` and `reply` (a dict, or raw bytes)."""
+
+    def __init__(self, status=200, reply=None):
+        import http.server
+        self.calls, self.status = [], status
+        self.reply = {"ok": True, "detail": "2 containers removed"} if reply is None else reply
+        fake = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                fake.calls.append((self.path, self.headers.get("X-Dojo-Reset-Token")))
+                body = fake.reply if isinstance(fake.reply, bytes) else json.dumps(fake.reply).encode()
+                self.send_response(fake.status)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        self.httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def hook(self, **over):
+        h = {"id": "dojo-cloud", "label": "Dojo Cloud resources", "upstream": f"127.0.0.1:{self.port}",
+             "path": "/_dojo/reset/{user}", "timeout": 5}
+        h.update(over)
+        return h
+
+    def close(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+class ServiceHookTest(unittest.TestCase):
+    def service(self, **kw):
+        svc = FakeHookService(**kw)
+        self.addCleanup(svc.close)
+        return svc
+
+    def test_posts_phase_with_the_services_own_token(self):
+        svc = self.service()
+        self.assertEqual(reset.call_hook(svc.hook(), "student01", "teardown", "m" * 64), "2 containers removed")
+        self.assertEqual(svc.calls, [("/_dojo/reset/student01?phase=teardown",
+                                      reset.hook_token("m" * 64, "127.0.0.1"))])
+        self.assertNotEqual(reset.hook_token("m" * 64, "a"), reset.hook_token("m" * 64, "b"))
+
+    def test_error_status_not_ok_or_junk_fails(self):
+        for kw, pattern in (({"status": 403, "reply": {"error": "bad token"}}, "HTTP 403 bad token"),
+                            ({"reply": {"ok": False, "detail": "quota api down"}}, "HTTP 200 quota api down"),
+                            ({"reply": b"<html>oops"}, "HTTP 200$"),
+                            ({"reply": {"ok": "yes"}}, "HTTP 200$")):
+            svc = self.service(**kw)
+            with self.assertRaisesRegex(reset.ResetError, pattern, msg=kw):
+                reset.call_hook(svc.hook(), "student01", "provision", "m" * 64)
+
+    def test_unreachable_fails(self):
+        svc = self.service()
+        hook = svc.hook()
+        svc.close()
+        with self.assertRaisesRegex(reset.ResetError, "unreachable"):
+            reset.call_hook(hook, "student01", "teardown", "m" * 64)
+
+    def test_hook_steps_around_the_engine_steps(self):
+        hooks = [{"id": "dojo-cloud", "label": "Dojo Cloud", "upstream": "cloud-api:8080",
+                  "path": "/r/{user}", "timeout": 30},
+                 {"id": "app-host", "label": "App slot", "upstream": "app-host:8080",
+                  "path": "/r/{user}", "timeout": 30}]
+        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
+            steps = server.reset_steps("student01")
+        self.assertEqual([i for i, _l, _f in steps],
+                         ["stop", "dojo-cloud-teardown", "app-host-teardown", "forgejo-teardown",
+                          "forgejo-provision", "terminal", "dojo-cloud-provision", "app-host-provision"])
+        self.assertEqual(steps[1][1], "Dojo Cloud: tear down")
+        with mock.patch.object(reset, "call_hook", return_value="ok") as call:
+            steps[2][2]()
+            steps[7][2]()
+        self.assertEqual([c.args[1:3] for c in call.call_args_list],
+                         [("student01", "teardown"), ("student01", "provision")])
+        self.assertEqual(call.call_args_list[1].args[0]["id"], "app-host")
+
+    def test_no_hooks_no_extra_steps(self):
+        self.assertEqual([i for i, _l, _f in server.reset_steps("student01")],
+                         ["stop", "forgejo-teardown", "forgejo-provision", "terminal"])
+
+    def test_dialog_lists_hook_labels_as_data(self):
+        js = server.ADMIN_JS.replace("__RESET_HOOK_LABELS__", json.dumps(["Dojo \"Cloud\""]))
+        self.assertIn('.concat(["Dojo \\"Cloud\\""].map(', js)
+        self.assertNotIn("__RESET_HOOK_LABELS__", server.ADMIN_ASSETS["/admin/admin.js"][1])
+
+
 class HttpTest(unittest.TestCase):
     """The admin endpoint, the fence and the sessions field over real HTTP."""
 

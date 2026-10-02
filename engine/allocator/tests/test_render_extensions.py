@@ -288,6 +288,85 @@ class TokenTests(unittest.TestCase):
             rx.render_caddy(out["routes"])
 
 
+def hook(**over):
+    h = {"id": "dojo-cloud", "label": "Dojo Cloud resources", "upstream": "cloud-api:8080",
+         "path": "/_dojo/reset/{user}"}
+    h.update(over)
+    return h
+
+
+class ResetHookTests(unittest.TestCase):
+    def test_good_hook_defaults_timeout(self):
+        out, _ = run_merge(manifest(resets=[hook()]))
+        self.assertEqual(out["resets"], [{"source": "00-test.json", "id": "dojo-cloud", "label": "Dojo Cloud resources",
+                                          "upstream": "cloud-api:8080", "path": "/_dojo/reset/{user}",
+                                          "timeout": 30}])
+
+    def test_manifest_order_kept(self):
+        out, _ = run_merge(manifest(resets=[hook(id="b")]), manifest(resets=[hook(id="a")]))
+        self.assertEqual([h["id"] for h in out["resets"]], ["b", "a"])
+
+    def test_duplicate_id_across_manifests(self):
+        with self.assertRaisesRegex(rx.ManifestError, "already used"):
+            run_merge(manifest(resets=[hook()]), manifest(resets=[hook()]))
+
+    def test_upstream_must_be_in_this_run(self):
+        for bad in ("nope:8080", "cloud-api", "cloud-api:0", "http://cloud-api:8080"):
+            with self.assertRaises(rx.ManifestError, msg=bad):
+                run_merge(manifest(resets=[hook(upstream=bad)]))
+
+    def test_path_needs_user_once_and_nothing_else(self):
+        for bad in ("/_dojo/reset", "/r/{user}/{user}", "/r/{id}/{user}", "r/{user}", "/r/{user}?x=1",
+                    "/r/{user} ", "//host/{user}", 7):
+            with self.assertRaises(rx.ManifestError, msg=repr(bad)):
+                run_merge(manifest(resets=[hook(path=bad)]))
+        out, _ = run_merge(manifest(resets=[hook(path="/api/v1/students/{user}/reset")]))
+        self.assertEqual(out["resets"][0]["path"], "/api/v1/students/{user}/reset")
+
+    def test_timeout_range(self):
+        for bad in (0, 121, 2.5, "30", True):
+            with self.assertRaises(rx.ManifestError, msg=repr(bad)):
+                run_merge(manifest(resets=[hook(timeout=bad)]))
+        out, _ = run_merge(manifest(resets=[hook(timeout=120)]))
+        self.assertEqual(out["resets"][0]["timeout"], 120)
+
+    def test_label_checked(self):
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(resets=[hook(label="x" * 41)]))
+
+    def test_unknown_field(self):
+        with self.assertRaises(rx.ManifestError):
+            rx.load_manifest(self._write(manifest(resets=[hook(phase="teardown")])))
+
+    def _write(self, data):
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d))
+        path = os.path.join(d, "01-x.json")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return path
+
+    def test_one_token_per_service_not_the_gateway_token(self):
+        hooks = [{"upstream": "cloud-api:8080"}, {"upstream": "cloud-api:9090"}, {"upstream": "app-host:8080"}]
+        t = rx.reset_tokens(hooks, MASTER)
+        self.assertEqual(set(t), {"cloud-api", "app-host"})
+        self.assertNotEqual(t["cloud-api"], rx.upstream_tokens(
+            [{"upstream": "cloud-api:8080", "gate": "identity"}], MASTER)["cloud-api"])
+        self.assertEqual(rx.reset_tokens([], ""), {})
+        with self.assertRaises(rx.ManifestError):
+            rx.reset_tokens(hooks, "")
+
+    def test_matches_what_the_allocator_derives(self):
+        import reset
+        self.assertEqual(rx.reset_tokens([{"upstream": "cloud-api:8080"}], MASTER)["cloud-api"],
+                         reset.hook_token(MASTER, "cloud-api"))
+
+    def test_env_file(self):
+        env = rx.render_tokens_env({"cloud-api": "ab" * 32}, {"cloud-api": "cd" * 32})
+        self.assertIn("GATEWAY_TOKEN_CLOUD_API=" + "ab" * 32 + "\n", env)
+        self.assertIn("RESET_TOKEN_CLOUD_API=" + "cd" * 32 + "\n", env)
+
+
 class MainTests(unittest.TestCase):
     def setUp(self):
         old = os.environ.get("GATEWAY_TOKEN")
@@ -309,6 +388,20 @@ class MainTests(unittest.TestCase):
             self.assertEqual(os.stat(env_path).st_mode & 0o777, 0o600)
             with open(env_path) as f:
                 self.assertIn("GATEWAY_TOKEN_CLOUD_API=", f.read())
+
+    def test_end_to_end_with_reset_hook(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "in"))
+            with open(os.path.join(d, "in", "01-module-x.json"), "w") as f:
+                json.dump(manifest(resets=[hook()]), f)
+            rc = rx.main(["--in", os.path.join(d, "in"), "--out", d, "--services", " ".join(SERVICES)])
+            self.assertEqual(rc, 0)
+            with open(os.path.join(d, "allocator", "extensions.json")) as f:
+                self.assertEqual(json.load(f)["resets"][0]["path"], "/_dojo/reset/{user}")
+            with open(os.path.join(d, "upstream-tokens.env")) as f:
+                text = f.read()
+            self.assertIn("RESET_TOKEN_CLOUD_API=", text)
+            self.assertNotIn("GATEWAY_TOKEN_CLOUD_API=", text)
 
     def test_missing_master_writes_nothing(self):
         os.environ.pop("GATEWAY_TOKEN", None)

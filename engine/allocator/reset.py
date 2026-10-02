@@ -7,6 +7,9 @@ The facilitator asks for it from the Roster (server.py, POST
 as a list of steps:
 
   stop               kill the student's VS Code and terminal processes
+  <hook>-teardown    each service reset hook a module or workshop declares
+                     (extensions.json `resets`), in manifest order, while the
+                     Forgejo account still exists
   forgejo-teardown   in the org's repos: close the student's open pull
                      requests and delete the branches they made (Q5); then
                      delete the account with purge (its own repos and forks)
@@ -15,6 +18,8 @@ as a list of steps:
   terminal           workspace-control.py's POST /reset/<user>: reset.d hooks,
                      home and temp files removed, the account provisioned
                      again, account.d hooks
+  <hook>-provision   each service reset hook again, same order: set the
+                     student's state up as at start
 
 A step that fails stops the reset there; Retry runs the whole list again
 (every step is idempotent, R5). While a reset is queued or running the
@@ -24,6 +29,8 @@ routes instead of proxying. The seat is kept (R4).
 Locking: `ResetManager.lock` guards `state` only, never held across a step.
 """
 import base64
+import hashlib
+import hmac
 import http.client
 import json
 import queue
@@ -34,6 +41,9 @@ import urllib.parse
 
 DETAIL_MAX = 200
 TEAM_NAME = "students"
+# render_extensions.py RESET_TOKEN_CONTEXT: each hook's service gets its own
+# token, RESET_TOKEN_<SERVICE> in its compose fragment.
+RESET_TOKEN_CONTEXT = "dojo-reset-token/v1/"
 
 
 class ResetError(Exception):
@@ -164,6 +174,46 @@ def forgejo_provision(fj, org, user, password):
         raise ResetError(f"no '{TEAM_NAME}' team in {org}")
     fj.expect("PUT", f"/teams/{int(team['id'])}/members/{q(user)}", (204,))
     return f"{made}, in team '{TEAM_NAME}'"
+
+
+def hook_token(master, service):
+    """The X-Dojo-Reset-Token a service's reset hook checks."""
+    return hmac.new(master.encode(), (RESET_TOKEN_CONTEXT + service).encode(), hashlib.sha256).hexdigest()
+
+
+def call_hook(hook, user, phase, master):
+    """POST one service reset hook (render_extensions.py checked its
+    upstream, path and timeout). The service answers 200 with
+    {"ok": true, "detail": "..."}; anything else fails the step."""
+    service, _, port = hook["upstream"].rpartition(":")
+    path = hook["path"].replace("{user}", q(user)) + "?phase=" + phase
+    try:
+        conn = http.client.HTTPConnection(service, int(port), timeout=hook["timeout"])
+        conn.request("POST", path, body=b"", headers={
+            "X-Dojo-Reset-Token": hook_token(master, service), "Accept": "application/json",
+            "Content-Length": "0"})
+        resp = conn.getresponse()
+        raw = resp.read(64 * 1024)
+        conn.close()
+    except (OSError, socket.timeout, http.client.HTTPException) as exc:
+        raise ResetError(f"{service} unreachable: {exc}") from exc
+    try:
+        parsed = json.loads(raw) if raw else None
+    except ValueError:
+        parsed = None
+    if not isinstance(parsed, dict):
+        parsed = {}
+    detail = parsed.get("detail") or parsed.get("error") or ""
+    if resp.status != 200 or parsed.get("ok") is not True:
+        raise ResetError(f"{service}: HTTP {resp.status} {detail}".strip())
+    return str(detail) or "ok"
+
+
+def hook_steps(hooks, user, phase, master):
+    """[(id, label, fn)] for one phase of every service hook, in order."""
+    word = {"teardown": "tear down", "provision": "set up again"}[phase]
+    return [(f"{h['id']}-{phase}", f"{h['label']}: {word}",
+             (lambda h=h: call_hook(h, user, phase, master))) for h in hooks]
 
 
 class ResetManager:
