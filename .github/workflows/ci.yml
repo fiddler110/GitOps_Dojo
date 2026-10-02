@@ -1,9 +1,14 @@
-# Unit tests and every workshop's dry run (RV13). Both scripts run locally too.
+# Unit tests and every workshop's dry run (RV13). Both scripts run locally too:
+#   sh .github/scripts/unit-tests.sh   (~2.5 min)
+#   sh .github/scripts/dry-runs.sh     (~45 s)
+# Here only on pull requests into main, or by hand (Actions > CI > Run workflow),
+# to save the private repo's Actions minutes on everyday branch pushes.
 name: CI
 
 on:
-  push:
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
