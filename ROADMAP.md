@@ -66,13 +66,12 @@ may be using the machine).
 Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it
 wipes volumes). Order goes from smallest blast radius to largest, so a core defect shows up on the cheapest pack.
 Each step: start with `--test`, wait for the bots, then compare fired items against the pack's `ACHIEVEMENTS.md`.
-Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02).
+Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02).
 
 | Step | Work | Effort | Description |
 |---|---|---|---|
-| 9.2 | tofu-basics (`cloud` adapter) | M | `cloud-api` events (portal/site request, policy/quota denied, container create/update/delete/replace) reaching the service; credentials/secret wired through compose. Watch the known approximations: `site_request` credits the owner, `t8-inplace` fires early, `t9-foreach` reads `extra[...]`. Check the added Sensei container against the 15-student ceiling |
 | 9.3 | vault-fundamentals (`bao` adapter, heaviest) | M | Audit tailer posts (login, request, wrapping) and `repo_secret`. Check `role` (first non-default policy) and the 404 guess; `v13-recover` only proves the app answers. `f-paste` stays facilitator-awarded. **Capstone slot (A24, unit-tested only):** **My App** shows `{user}-capstone` locked, then unlocked within ~10 s of `dojo-challenge start capstone`; a push to `main` of `{user}/capstone` (Actions on in that new repo?) deploys there while the lab app keeps running; the app logs in as `slot:{user}-capstone` |
-| 9.x | Challenges in the labs (every pack) | M | Built 2026-10-01, unit-tested only: every workshop's labs end the right lab with a `## Challenge ...` / `## Capstone ...` section and its `<!-- dojo-challenge: ID -->` box, and each lab README lists them. dns-as-code and cert-autorenewal passed 2026-10-02 (see RELEASES). Left: tofu-basics, vault-fundamentals and git-fundamentals: each challenge's repo clones under `~/lab/`, solve one per pack (cert solved all four), `dojo-check`, Reset, Sensei `ask` clean; and once, with achievements **off**, the lab box must not appear, `dojo-check`, and Reset |
+| 9.x | Challenges in the labs (every pack) | M | Built 2026-10-01, unit-tested only: every workshop's labs end the right lab with a `## Challenge ...` / `## Capstone ...` section and its `<!-- dojo-challenge: ID -->` box, and each lab README lists them. dns-as-code, cert-autorenewal and tofu-basics passed 2026-10-02 (see RELEASES). Left: vault-fundamentals and git-fundamentals: each challenge's repo clones under `~/lab/`, solve one per pack (cert solved all four), `dojo-check`, Reset, Sensei `ask` clean; and once, with achievements **off**, the lab box must not appear, `dojo-check`, and Reset |
 | 9.4 | Class-sized concurrency run (last) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
 
 Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
@@ -166,6 +165,7 @@ git-fundamentals and dns-as-code ([N3](#n3-phase-9-live-checks)). Design, decisi
 | — | Quirk: `lab0.md.txt` 404 | S | 404s in the git-fundamentals lab reader (harmless probe) |
 | — | Quirk: widget resize | S | The widget only resizes once `toast.js` has loaded |
 | — | Hidden-tab toasts: browser check | S | Built 2026-10-02, not seen in a browser: with the landing page open in a background tab, an unlock in the VS Code terminal pops up in VS Code (`toast.js` skips polling while `document.hidden`), and the landing page shows queued toasts when it comes to the front |
+| — | tofu-basics checks looser than their text | S | Found 2026-10-02 (N3 9.2): c1 passes with an `output "url"` that prints a bare host name (its goal says "prints its URL"), and the capstone passes while the sites still run, so its "destroys cleanly" part is never checked (after the destroy, a re-check only says "Already cleared"). Tighten the `verify` or the goal text |
 
 ### `run.sh` CLI follow-ups
 
@@ -174,6 +174,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
+| C6 | `capacity` counts only the four engine services | S | Found 2026-10-02 (N3 9.2): `engine/scripts/capacity*` hard-codes "Other 4 services' mem_limits: 3072MB" (forge, presentation, allocator, gateway), so on tofu-basics it leaves out cloud-host (3 GB), cloud-api (256 MB), achievements (128 MB) and sensei (no `mem_limit` at all). For 15 students it said 15.8 GB needed against 14.0 GB free (right verdict, ~3.4 GB short of the true ~19.3 GB). Read every service's `mem_limit` from the resolved Compose config instead, and give sensei a limit. Engine change: ask first |
 
 ### Remediation leftovers
 

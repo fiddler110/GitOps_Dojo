@@ -84,7 +84,7 @@ class Sources(unittest.TestCase):
             self.assertIsNone(mt.adapter_event(body))
 
     def test_fork(self):
-        ev = mt.forgejo_event("fork", {"forkee": {"full_name": "amy/sample"}, "repo": {"full_name": "t/sample"},
+        ev = mt.forgejo_event("fork", {"forkee": {"full_name": "t/sample"}, "repository": {"full_name": "amy/sample"},
                                        "sender": {"login": "amy"}})
         self.assertEqual((ev["user"], ev["repo"]), ("amy", "amy/sample"))
         self.assertEqual(self.m.match(ev), ["fork"])

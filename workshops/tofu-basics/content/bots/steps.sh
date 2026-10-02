@@ -154,17 +154,18 @@ step_tb_edit() {
   run_cmd "sed -i '/managed_by = \"opentofu\"/a\    cost_center = \"training\"' locals.tf"
   run_cmd "terraform fmt"
   run_cmd "terraform plan -no-color -input=false"
-  if [ "$ROUND" = 2 ]; then
-    narrate "(demo) a second terminal plans while the first apply still holds the state lock"
-    run_cmd "terraform apply -auto-approve -no-color -input=false & sleep 2; terraform plan -no-color -input=false -lock-timeout=0s; wait"
-  else
-    run_cmd "terraform apply -auto-approve -no-color -input=false"
-  fi
+  run_cmd "terraform apply -auto-approve -no-color -input=false"
 
   narrate "Lab 8 -- the message forces a replace"
   run_cmd "sed -i 's/^message .*/message     = \"Hello, Canada!\"/' terraform.tfvars"
   run_cmd "terraform plan -no-color -input=false"
-  run_cmd "terraform apply -auto-approve -no-color -input=false"
+  if [ "$ROUND" = 2 ]; then
+    # The replace takes ~25 s (destroy, then create), so the plan is sure to find the lock held.
+    narrate "(demo) a second terminal plans while the first apply still holds the state lock"
+    run_cmd "terraform apply -auto-approve -no-color -input=false & sleep 3; terraform plan -no-color -input=false -lock-timeout=0s; wait"
+  else
+    run_cmd "terraform apply -auto-approve -no-color -input=false"
+  fi
   run_cmd "sed -i 's/^image_tag .*/image_tag   = \"2.0\"/' terraform.tfvars"
   run_cmd "terraform apply -auto-approve -no-color -input=false"
   narrate "Lab 8 -- replace it on purpose"
