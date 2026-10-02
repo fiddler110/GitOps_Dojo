@@ -24,7 +24,7 @@ dns-01 challenge to go deeper. Work through them in order.
 | Lab                | Topic                                                              | Time    |
 | ------------------ | ------------------------------------------------------------------ | ------- |
 | [lab1.md](lab1.md) | Trusting the CA: bootstrap, inspect the root cert                  | ~10 min |
-| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~20 min |
+| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~25 min |
 | [lab3.md](lab3.md) | The same task with acme.sh — comparing ACME clients                | ~15 min |
 | [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min |
 | [lab5.md](lab5.md) | The dns-01 challenge, against real DNS records you write           | ~15 min |

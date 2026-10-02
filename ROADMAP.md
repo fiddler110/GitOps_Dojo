@@ -27,7 +27,7 @@ front-door reached `main` in PR #4, and their branches are deleted).
    carry on from `main`.
 4. **Phase 9 live checks** (Now §3): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run.
 5. **Student reset**, starting with the R0 spikes (Next). Q1-Q7 are answered, so nothing blocks it.
-6. **Phase 10 sweep** and the remaining polish (dojo-introduction `--test 5`, Caddy log redaction).
+6. **Phase 10 sweep** and the remaining polish (dojo-introduction `--test 5`).
 
 The user's own browser checks (Manual checks) fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
@@ -172,7 +172,7 @@ file**. Phases 0-8 are done (RELEASES); phase 9 is built and live on git-fundame
 | 7 | Sensei (roster auto-merge, `/admin` PR tab, dns-as-code review PR seed) | done |
 | 8 | Toast surfaces (VS Code extension, Forgejo header) | done |
 | 9 | Other four packs: `match`, adapters, verifiers, seeds (9a build done 2026-10-01) | live checks: Now §3 |
-| 10 | Sweep: overflow screenshots, re-check lab time totals (git-fundamentals about 55 min, dns-as-code about 92, cert-autorenewal about 75) | todo |
+| 10 | Sweep: overflow screenshots (lab times re-checked 2026-10-01: git-fundamentals 55 min, dns-as-code 102, cert-autorenewal 80; dns-as-code's `README.md` still says "45-60 minute session") | todo |
 
 #### Leftovers
 
@@ -299,7 +299,6 @@ user, a real class or 3-5 person dry run, the tone of the jokes and the printed 
 | FIND-19 | Accepted, no work | Plaintext to OpenBao and Postgres, documented |
 | Not exercised in P4/P5 | Untested | 300 app-db connections · the app-host shim on 443 (base URL was plain `http://localhost:8080`) · a real-browser "Release unused" |
 | `dojo-introduction` live check | Untested | Not re-run since P4, and slimmed to Forgejo + CI, DNS and Dojo Cloud (2026-10-01): run `./run.sh dojo-introduction --test 5` once and walk FACILITATOR.md. (git-fundamentals and dns-as-code were re-run live 2026-10-01; cert-autorenewal `--test 1` passed after P4) |
-| Caddy log redaction | Verify | Confirm on the pinned Caddy version that `Authorization`, `Cookie` and `Set-Cookie` are redacted in access logs unless `log_credentials` is on (expected for 2.5+) |
 
 ## Manual checks (the user, in a browser)
 

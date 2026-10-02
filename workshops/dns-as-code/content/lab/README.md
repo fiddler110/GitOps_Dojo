@@ -20,8 +20,8 @@ The session slides cover the *why*. This lab is the *how*, in two parts.
 | ---- | --- | ----- | ---- |
 | 1: your zone | [lab1.md](lab1.md) | Preview, push, verify; add, edit and remove records; catch mistakes | ~20 min |
 | 1: your zone | [lab2.md](lab2.md) | Drift: when someone changes DNS outside the code, and undoing your own changes | ~10 min |
-| 2: shared zone | [lab3.md](lab3.md) | The change process: branch, PR, CI preview, review, merge, CI apply | ~25 min |
-| 2: shared zone | [lab4.md](lab4.md) | `dnsctl.py`: the same process, one command per step | ~15 min |
+| 2: shared zone | [lab3.md](lab3.md) | The change process: branch, PR, CI preview, review, merge, CI apply | ~30 min |
+| 2: shared zone | [lab4.md](lab4.md) | `dnsctl.py`: the same process, one command per step | ~20 min |
 | 2: shared zone | [lab5.md](lab5.md) | Investigating history and rolling back a merged change | ~10 min |
 | 2: shared zone | [lab6.md](lab6.md) | Merge conflicts in `dnsconfig.js` | ~12 min |
 
