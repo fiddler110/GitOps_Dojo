@@ -57,8 +57,24 @@ EOF
 paste_cmd() {
   printf '%s@%s:~%s$ ' "$BOT_USER" "$(hostname 2>/dev/null || echo dojo)" "${PWD#"$HOME"}"
   printf '%s\n' "$1"
-  eval "$1"
-  local rc=$?
+  # Like zsh running a pasted block: one complete command at a time (a heredoc, quote or trailing
+  # backslash keeps lines together until `bash -n` accepts them silently), each through bot_cmd_pre/post
+  # so the achievements hook sees it. The block is read on fd 3, so commands keep the bot's stdin.
+  local line chunk='' rc=0
+  while IFS= read -r -u 3 line || [ -n "$line" ]; do
+    chunk+="$line"$'\n'
+    case "$line" in *\\) continue ;; esac
+    # an unclosed heredoc is only a warning to `bash -n`, so any output also means "not yet"
+    [ -z "$(bash -n <<<"$chunk" 2>&1)" ] || continue
+    if [ -n "$(printf '%s' "$chunk" | grep -v '^[[:space:]]*\(#.*\)\{0,1\}$')" ]; then
+      declare -F bot_cmd_pre >/dev/null && bot_cmd_pre "$chunk"
+      eval "$chunk"
+      rc=$?
+      declare -F bot_cmd_post >/dev/null && bot_cmd_post "${chunk%$'\n'}" "$rc"
+    fi
+    chunk=''
+  done 3<<<"$1"
+  [ -z "$chunk" ] || { eval "$chunk"; rc=$?; }
   think
   return $rc
 }
@@ -106,6 +122,12 @@ step_vf_lab0() {
   narrate "Lab 0 -- the CLI is already signed in: what can this token do?"
   run_cmd "bao token lookup"
   run_cmd "ls -l ~/.vault-token"
+  if [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
+    narrate "(demo) printing the token to check it's there"
+    run_cmd "echo $(cat ~/.vault-token 2>/dev/null)"
+    narrate "oops -- it's on screen and in the shell history now"
+    run_cmd "history | tail -3"
+  fi
 }
 
 # Lab 1: a secret committed, "deleted", and still in history; gitleaks finds it.
@@ -138,7 +160,7 @@ step_vf_lab2() {
 
 step_vf_lab3() {
   vf_env || return 1
-  local p="secret/students/$BOT_USER/db"
+  local p="secret/students/\$USER/db"
   narrate "Lab 3 -- the shared vault: KV v2 in my own folder"
   run_cmd "bao kv get secret/students/\$USER/welcome"
   run_cmd "bao kv put $p username=app password=first-password"
@@ -147,6 +169,11 @@ step_vf_lab3() {
   run_cmd "bao kv get -version=1 $p"
   run_cmd "bao kv rollback -version=2 $p"
   run_cmd "bao kv get -field=password $p"
+  run_cmd "bao kv destroy -versions=1 $p"
+  if [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
+    narrate "(demo) a typo in the path"
+    run_cmd "bao kv get secret/students/\$USER/wellcome"
+  fi
   if [ "$PERSONA" != expert ] || [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
     narrate "what about a neighbour's folder?"
     run_cmd "bao kv get secret/students/$VF_NEIGHBOUR/welcome"
@@ -179,19 +206,12 @@ step_vf_lab4() {
 # rotation. The agent is stopped at the end: a bot mustn't leave one running between rounds.
 step_vf_lab5_6() {
   vf_env || return 1
-  narrate "Lab 5 -- the app reads its secret from the vault"
-  run_cmd "mkdir -p ~/lab/app && cd ~/lab/app"
-  run_cmd "bao kv put secret/students/\$USER/app db_password=vault-db-pass-789 api_key=vault-api-key-012"
-  paste_cmd "cat > app_vault.py <<'EOF'
-import os
-import hvac
-c = hvac.Client()
-r = c.secrets.kv.v2.read_secret_version(mount_point=\"secret\", path=f\"students/{os.environ['USER']}/app\",
-                                        raise_on_deleted_version=True)
-print(\"read version\", r[\"data\"][\"metadata\"][\"version\"], \"of the app's secret\")
-EOF"
-  run_cmd "python3 app_vault.py"
-  run_cmd "bao kv patch secret/students/\$USER/app db_password=rotated-db-pass-000 && python3 app_vault.py"
+  narrate "Lab 5 -- secrets in .env, then the app reads them from the vault"
+  paste_cmd "$(vf_block lab5.md 1 sh:2:.env gitignore:1:.gitignore python:1:app_env.py 2 3 4 5 6)"
+  paste_cmd "$(vf_block lab5.md python:2:app_vault.py 7 8 9 10)"
+  narrate "the debug line printed the secret -- log the key names only"
+  run_cmd "sed -i 's/log.debug(\"loaded config: %s\", secret)/log.debug(\"loaded config keys: %s\", sorted(secret.keys()))/' app_vault.py"
+  paste_cmd "$(vf_block lab5.md 11 python:4:token_ttl.py 12)"
 
   narrate "Lab 6 -- the Agent logs in by itself and writes the secret to a file in memory"
   run_cmd "export BAO_NAMESPACE=students/\$USER"
@@ -338,10 +358,38 @@ step_vf_lab11() {
   unset BAO_NAMESPACE
 }
 
+# Lab 12: dynamic database logins, by hand and then through the deployed app's Agent.
+step_vf_lab12() {
+  vf_env || return 1
+  cd "$REPO_DIR" || return 1
+  narrate "Lab 12 -- a database login that expires"
+  paste_cmd "$(vf_block lab12.md 1 2 3 4 5 6 7)"
+  cd "$REPO_DIR" || return 1
+  paste_cmd "$(vf_block lab12.md hcl:1:+app/agent.hcl 8)" || return 1
+  narrate "waiting for the deploy job"
+  if vf_wait_app 'database' 240; then
+    paste_cmd "$(vf_block lab12.md 9)"
+  else
+    narrate "no database line after 4 minutes -- the runners may be busy; moving on"
+  fi
+  paste_cmd "$(vf_block lab12.md 10)"
+  unset BAO_NAMESPACE
+}
+
+# Lab 13: a leaked token, traced through the audit log, revoked, and the secrets rotated.
+step_vf_lab13() {
+  vf_env || return 1
+  cd "$HOME/lab" || return 1
+  narrate "Lab 13 -- incident: a leaked token"
+  paste_cmd "$(vf_block lab13.md 1 hcl:1:nightly-report.hcl 2 3 4 5 6 7 8 9 10)"
+  unset BAO_NAMESPACE
+}
+
 case "$PERSONA" in
   expert)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab1 step_vf_lab2 step_vf_lab3 step_vf_lab4
-           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab10 step_vf_lab11 step_wrap_round)
+           step_vf_lab5_6 step_vf_lab7 step_vf_lab8_9 step_vf_lab10 step_vf_lab11 step_vf_lab12
+           step_vf_lab13 step_wrap_round)
     ;;
   intermediate)
     STEPS=(step_ensure_clone step_vf_reset step_vf_lab0 step_vf_lab2 step_vf_lab3 step_vf_lab4
