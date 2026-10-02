@@ -15,6 +15,7 @@
 #   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
 #         classmate's (or Sensei's) approval, so lab-prep opens the pull request and stops.
 set -euo pipefail
+USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
 
 GIT_SERVER=http://git-server:3000
 SHARED_REPO=dns-team/dns-as-code

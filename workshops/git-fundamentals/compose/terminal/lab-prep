@@ -10,6 +10,7 @@
 #   3     a branch of your own to switch away from and back to (Lab 1 step
 #         2). No later lab needs Lab 1's commit, push or pull request.
 set -euo pipefail
+USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
 
 GIT_SERVER=http://git-server:3000
 SHARED_REPO=training/sample-training-repo

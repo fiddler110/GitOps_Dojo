@@ -7,6 +7,10 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `feat/phase9-live-checks` (not merged yet)
+
+**N3 9.0: dns-as-code leftovers and challenges (2026-10-02, locally, `--test 3`, achievements on).** The bots fired every pack item; only the challenges, capstone and the shared cheats stayed at 0, which no bot attempts. `f-dot2` fired from the Lab 1 "opposite mistake" step; `dns_catch_up` ran before each push with no stray errors in any bot or service log. Sensei's criss-cross rule live: four bot PRs (#6, #8, #13, #16) carried merges of `main` and were still approved and merged, all 18 bot PRs merged (none left open with conflicts). As `student01`: `sensei help|status|review|approve` (refused before a review) and `approve --force`; `lab-prep 5` stops at "merge the pull request above first". As `student02`: `dojo-challenge start c1|c2|capstone` each cloned its own repo (`challenge-typo`, `-cutover`, `-badpush`), `dojo-check` says not yet, `reset c1` re-clones; c1 solved (trailing dot, `dnscontrol push`) gave `Passed! c1 +100`; `sensei ask` returns no challenge section. Headless Chromium: the lab 2 reader shows the c1 box (Start, Reset) for a signed-in student. Readback in a real tmux pane: `dig` NXDOMAIN after 20,000 lines of output still fired `f-nxdomain`, and after `clear` `sensei why` no longer sees it. Lab 3 has the fresh `git pull` and the DELETE-in-preview box. Fixed: the four `lab-prep` scripts failed with `USER: unbound variable` when run without `$USER` (a bare `podman exec`); they now fall back to `id -un` (checked by copying the script into the running terminal).
+
 ## PR #6: achievements, the Python `run.sh` and platform review fixes (merged 2026-10-02)
 
 **N2: merge checks (2026-10-02, locally).** `.github/scripts/dry-runs.sh` passed for every pack with achievements off

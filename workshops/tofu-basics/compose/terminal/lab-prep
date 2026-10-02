@@ -14,6 +14,7 @@
 #   6-10  hello deployed to Dojo Cloud (Lab 5). Labs 9 and 10 run fine without
 #         Lab 8's edits or Lab 9's extra site, so lab-prep doesn't make them.
 set -euo pipefail
+USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
 
 GIT_SERVER=http://git-server:3000
 API=$GIT_SERVER/api/v1
