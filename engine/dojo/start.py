@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from . import checks, paths, state
-from .build import Builder, BuildError
+from .build import Builder, BuildError, sync_shared
 from .envfiles import EnvError, Resolution, parse_literal, resolve
 from .monitor import StartMonitor, explain_not_ready
 from .runtime import Container, Runtime, project_name
@@ -334,6 +334,7 @@ def _build_and_up(p: Plan) -> int:
 def _build_images(p: Plan) -> Builder:
     """Step 3: build what changed. The Builder is returned to reap superseded images once the start succeeds."""
     step("Checking images (dry run)" if p.o.dry_run else "Checking images")
+    sync_shared(p.res.modules)   # before hashing: the copies are part of each build context
     b = Builder(p.rt, dry_run=p.o.dry_run, ca_bundle=p.ca or None)
     b.images(p.links)
     if p.overlay_dirs:

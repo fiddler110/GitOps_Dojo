@@ -284,6 +284,14 @@ Rules for `compose.yml`:
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
 
+Shared helpers: a file several module services need (say `dojo_http.py`) has one
+copy in `modules/_shared/`. A module lists the ones it uses in its `module.env`
+as `SHARED="<context>/<file> ..."` (e.g. `SHARED="gate/dojo_http.py"`), and each
+start copies them into `<context>/_shared/` before building. Those folders are
+git-ignored and rebuilt every start (never edit a copy), so the Dockerfile does
+`COPY _shared/dojo_http.py ...`. `SHARED` is read from that module's own
+`module.env` as written: no `$(...)`, and a workshop can't override it.
+
 Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
 [`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and
 [`forgejo-runner`](../modules/forgejo-runner/) (a long-lived runner for one repo; no workshop uses it since

@@ -16,3 +16,5 @@ workshops/*/content/slides/lab/
 # Extra env files for `./run.sh <workshop> --env NAME`.
 engine/.env.*
 !engine/.env.example
+# Build-time copies of modules/_shared/ files (SHARED= in module.env; engine/dojo/build.py).
+modules/*/**/_shared/

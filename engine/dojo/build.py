@@ -15,11 +15,18 @@ container pins them any more. Anything still pinned is retried next run.
 Concurrency: the engine images build alongside the terminal chain (images()). The
 chain streams its output, as the long build; each engine image's goes to a log
 file, shown only when its build fails.
+
+Shared files: one copy of a helper several module services use lives in
+modules/_shared/. A module lists what it needs in its own module.env, as
+SHARED="<context>/<file> ...": each lands in modules/<m>/<context>/_shared/
+before anything is hashed, so a change to the shared copy rebuilds every user.
+Those _shared/ folders are git-ignored and synced exactly (extra files removed).
 """
 from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -31,6 +38,7 @@ from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set
 
 from . import paths
+from .envfiles import parse_literal
 from .runtime import Runtime
 from .ui import changed, console, ok
 
@@ -246,10 +254,53 @@ class Builder:
         state_file.write_text(new_hash + "\n")
 
 
+def shared_copies(modules: List[str]) -> Dict[Path, Path]:
+    """{destination: source} for each module's SHARED= list. SHARED is read literally
+    from the module's own module.env: every module.env is sourced into one run
+    environment, where one module's list would overwrite another's."""
+    wanted: Dict[Path, Path] = {}
+    for m in modules:
+        module_env = paths.MODULES / m / "module.env"
+        rows = parse_literal(module_env) if module_env.is_file() else []
+        for entry in next((v for k, v, _ in reversed(rows) if k == "SHARED"), "").split():
+            context, _, name = entry.rpartition("/")
+            src = paths.MODULES / "_shared" / name
+            where = f"modules/{m}/module.env: SHARED entry '{entry}'"
+            if not context or ".." in entry.split("/") or entry.startswith("/"):
+                raise BuildError(f"{where} must be <context>/<file>, inside the module.")
+            if not src.is_file():
+                raise BuildError(f"{where}: no modules/_shared/{name}.")
+            if not (paths.MODULES / m / context).is_dir():
+                raise BuildError(f"{where}: no folder modules/{m}/{context}.")
+            wanted[paths.MODULES / m / context / "_shared" / name] = src
+    return wanted
+
+
+def sync_shared(modules: List[str]) -> None:
+    """Make each listed module's <context>/_shared/ hold exactly its SHARED files,
+    copied byte for byte with their mode (hash_dir counts the exec bit)."""
+    wanted = shared_copies(modules)
+    for m in modules:
+        for folder in (paths.MODULES / m).glob("**/_shared"):
+            for f in folder.iterdir():
+                if f not in wanted:
+                    shutil.rmtree(f) if f.is_dir() and not f.is_symlink() else f.unlink()
+            if not any(folder.iterdir()):
+                folder.rmdir()
+    for dst, src in wanted.items():
+        if not dst.is_file() or dst.read_bytes() != src.read_bytes():
+            dst.parent.mkdir(exist_ok=True)
+            shutil.copyfile(src, dst)
+        shutil.copymode(src, dst)
+
+
 def _open_build_log(image: str):
     for old in Path(tempfile.gettempdir()).glob("dojo-build.*"):  # failed builds keep their log a day
-        if time.time() - old.stat().st_mtime > 86400:
-            old.unlink(missing_ok=True)
+        try:
+            if time.time() - old.stat().st_mtime > 86400:
+                old.unlink()
+        except FileNotFoundError:  # a concurrent build's log, gone with its success
+            pass
     fd, log_path = tempfile.mkstemp(prefix=f"dojo-build.{image.split('/')[-1].replace(':', '-')}.")
     return os.fdopen(fd, "w"), log_path
 

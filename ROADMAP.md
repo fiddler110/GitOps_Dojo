@@ -53,7 +53,7 @@ may be using the machine).
 | Question | Answer |
 |---|---|
 | Reset button | Yes, a full **Reset environment** button on `/admin` (RV38), with Release all as its first step. Nothing may persist past `./run.sh stop` |
-| Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied in at build time |
+| Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied into `<context>/_shared/` at build time (`SHARED=` in `module.env`) |
 | Next workshop | Policy as code (RV35). Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md`; its three open questions are answered (full 12 labs, policy sets get a lab, named Cloud-Policy-as-Code) |
 
 ## Now
@@ -116,7 +116,7 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV20 | Shared `dojo_http.py` | M | Gateway-token/facilitator check, `send_json`, one security-header set, for the 7 module services. **Decided 2026-10-02:** one copy in `modules/_shared/`, copied into each module's build context at build time (`engine/dojo/build.py`, an engine change the user approved); a module lists the files it needs (e.g. `SHARED="dojo_http.py"` in `module.env`); the copies are git-ignored, so nothing drifts |
+| RV20 | Shared `dojo_http.py` | M | Gateway-token/facilitator check, `send_json`, one security-header set, for the 7 module services. The copy mechanism shipped (RELEASES): `SHARED="<context>/dojo_http.py"` in `module.env` puts it in `<context>/_shared/`. Left: write `modules/_shared/dojo_http.py` and move the services onto it (their unit tests must find it too, e.g. via `sys.path`) |
 | RV21 | Shared `adapter_client.py` | M | Bounded queue + one worker, replacing the three `Reporter` copies (dns-gate and dojo-cloud start a thread per event); same `modules/_shared/` mechanism as RV20 |
 | RV22 | Split the allocator server | L | `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler |
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |

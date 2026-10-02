@@ -338,5 +338,61 @@ class Modules(unittest.TestCase):
         self.assertEqual(self.resolve('MODULES="mod-a"\n').modules, ["mod-a"])     # .env says 0
 
 
+
+class SharedFiles(unittest.TestCase):
+    """SHARED= in a module's own module.env copies modules/_shared/ files into <context>/_shared/."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        (self.root / "_shared").mkdir()
+        (self.root / "_shared" / "dojo_http.py").write_text("v1\n")
+        (self.root / "_shared" / "run.sh").write_text("#!/bin/sh\n")
+        os.chmod(self.root / "_shared" / "run.sh", 0o755)
+        for m, ctxs in (("mod-a", ("gate",)), ("mod-b", ("api", "ui"))):
+            for c in ctxs:
+                (self.root / m / c).mkdir(parents=True)
+        self.env("mod-a", 'SHARED="gate/dojo_http.py gate/run.sh"\n')
+        self.env("mod-b", "SHARED=api/dojo_http.py\n")
+        saved = paths.MODULES
+        paths.MODULES = self.root
+        self.addCleanup(setattr, paths, "MODULES", saved)
+
+    def env(self, m, text):
+        (self.root / m / "module.env").write_text(text)
+
+    def test_each_module_gets_its_own_list(self):
+        build.sync_shared(["mod-a", "mod-b"])
+        self.assertEqual((self.root / "mod-a/gate/_shared/dojo_http.py").read_text(), "v1\n")
+        self.assertTrue(os.access(self.root / "mod-a/gate/_shared/run.sh", os.X_OK))
+        self.assertEqual(sorted(p.name for p in (self.root / "mod-b/api/_shared").iterdir()), ["dojo_http.py"])
+        self.assertFalse((self.root / "mod-b/ui/_shared").exists())
+
+    def test_a_change_reaches_the_copy_and_its_hash(self):
+        build.sync_shared(["mod-a"])
+        (self.root / "engine").mkdir()
+        with mock.patch.object(paths, "ENGINE", self.root / "engine"):
+            before = hash_dir("../mod-a/gate")
+            (self.root / "_shared" / "dojo_http.py").write_text("v2\n")
+            build.sync_shared(["mod-a"])
+            self.assertNotEqual(hash_dir("../mod-a/gate"), before)
+        self.assertEqual((self.root / "mod-a/gate/_shared/dojo_http.py").read_text(), "v2\n")
+
+    def test_dropped_entries_are_removed(self):
+        build.sync_shared(["mod-a", "mod-b"])
+        self.env("mod-a", "SHARED=gate/dojo_http.py\n")
+        self.env("mod-b", "# none now\n")
+        build.sync_shared(["mod-a", "mod-b"])
+        self.assertEqual([p.name for p in (self.root / "mod-a/gate/_shared").iterdir()], ["dojo_http.py"])
+        self.assertFalse((self.root / "mod-b/api/_shared").exists())
+
+    def test_bad_entries_stop_the_start(self):
+        for entry, msg in (("dojo_http.py", "must be <context>/<file>"), ("../mod-b/api/dojo_http.py", "inside"),
+                           ("gate/nope.py", "no modules/_shared/nope.py"), ("web/dojo_http.py", "no folder")):
+            self.env("mod-a", f"SHARED={entry}\n")
+            with self.assertRaisesRegex(build.BuildError, msg):
+                build.sync_shared(["mod-a"])
+
+
 if __name__ == "__main__":
     unittest.main()
