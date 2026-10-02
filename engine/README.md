@@ -568,7 +568,9 @@ your shell profile (`~/.zshrc_aliases` or `~/.zshrc`, `~/.bash_aliases` or
 `~/.bashrc`, by `$SHELL`) that loads the completion script under
 `engine/completions/` and, only if `~/.local/bin` isn't on your PATH (common on
 macOS), adds it. Re-running it replaces that block; it also removes the older
-`dojo` function block and the two lines the first-run offer used to write.
+`dojo` function block and the two lines the first-run offer used to write, and
+warns about any other line in your profiles that loads a dojo completion file
+(another clone's, say), which it leaves for you to remove.
 `--check` says whether it's installed for this checkout, `--remove` undoes it,
 and it won't overwrite a `~/.local/bin/dojo` it didn't write. Move the repo?
 Re-run it from the new place.

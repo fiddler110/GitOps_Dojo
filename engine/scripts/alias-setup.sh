@@ -126,7 +126,26 @@ strip "$target"
 if [ -s "$target" ] && [ -n "$(tail -c1 "$target")" ]; then echo >> "$target"; fi
 printf '%s\n' "$block" >> "$target"
 
+# Any other line that loads a dojo completion file (another clone's, or one added by
+# hand) would load it a second time, possibly from a different repo: point it out.
+case "$(basename "${SHELL:-}")" in
+  zsh) profiles="$HOME/.zshrc_aliases ${rc} $HOME/.zprofile" ;;
+  *) profiles="$HOME/.bash_aliases ${rc} $HOME/.bash_profile $HOME/.profile" ;;
+esac
+others=""
+for f in $profiles; do
+  [ -f "$f" ] || continue
+  found="$(awk -v b="$begin" -v e="$end" -v f="$f" '
+    $0 == b { skip = 1 } !skip && /completions\/run\.sh\.(zsh|bash)/ { print "  " f ":" NR ": " $0 } $0 == e { skip = 0 }' "$f")"
+  [ -n "$found" ] && others="${others}${found}
+"
+done
+
 echo "Installed ${shim} (runs ${root}/run.sh)."
+if [ -n "$others" ]; then
+  echo "Warning: these lines also load a dojo completion file, so it may load twice (remove them if they're stale):"
+  printf '%s' "$others"
+fi
 if [ -n "$comp" ]; then
   echo "${target} loads tab completion for 'dojo' and ./run.sh."
 else
