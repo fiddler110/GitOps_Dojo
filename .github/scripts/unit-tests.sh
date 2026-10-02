@@ -1,6 +1,7 @@
 #!/bin/sh
 # Every unit-test suite in the repo, the way each one is meant to be run
-# (RV13). Stdlib Python only; no containers. Runs locally too:
+# (RV13), plus the shell test harnesses' offline self-tests. Stdlib Python
+# only; no containers. Runs locally too:
 #   sh .github/scripts/unit-tests.sh
 # Each suite runs from its own folder (the modules import their siblings by
 # plain name), so a new folder with test_*.py files is picked up by itself.
@@ -25,6 +26,10 @@ run engine/allocator sh -c 'cd engine/allocator && python3 -B -m unittest discov
 for dir in $(find modules workshops -name 'test_*.py' -not -path '*/node_modules/*' -exec dirname {} \; | sort -u); do
   run "$dir" sh -c "cd '$dir' && python3 -B -m unittest discover -p 'test_*.py'"
 done
+
+# The live-stack test harnesses' own offline self-tests (fake container CLI, mock portal).
+run workshops/assets/test-lib sh workshops/assets/test-lib-selftest.sh
+run workshops/tofu-basics/tests/selftest bash workshops/tofu-basics/tests/selftest/run.sh
 
 if [ -n "$failed" ]; then
   echo "FAILED:$failed" >&2

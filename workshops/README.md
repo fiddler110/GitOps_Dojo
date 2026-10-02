@@ -152,6 +152,13 @@ want the same thing, make it a module instead.
 7. `./run.sh <name> --dry-run` shows what would build and start and checks the
    manifests and image pins. Then run it locally end to end, including the facilitator's
    `/admin` view, before trusting it for a live session.
+8. Optional: scripted lab tests in `tests/`, run from the repo root against the running stack.
+   Source `workshops/assets/test-lib.sh` (POSIX sh) for the shared helpers: run commands in a
+   student's login shell (`as`, `ok`, `has`, `lacks`, `denied`), check captured output
+   (`check`, `absent`), the Forgejo admin `api`, Actions job logs (`job_logs`, `new_logs`), and
+   the labs' own commands (`md_blocks`, `md_line`, `md_range`), so a test follows its lab. End
+   with `finish`. `workshops/vault-fundamentals/tests/lab_8.sh` is a short example.
+   `sh workshops/assets/test-lib-selftest.sh` checks the library offline (CI runs it).
 
 Nothing about adding a workshop this way ever requires editing
 `engine/docker-compose.yml`, the base `web-terminal` image, the allocator

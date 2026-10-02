@@ -6,22 +6,10 @@
 # ~/.password-store), so it can run again. Exits 1 on any failure.
 #   sh workshops/vault-fundamentals/tests/lab_2.sh [student03]
 # TERMINAL=<container> points it at another terminal container.
-s="${1:-student03}"; term="${TERMINAL:-workshop_terminal}"
+s="${1:-student03}"; DOJO_TERMINAL="${TERMINAL:-workshop_terminal}"
 labs="$(dirname "$0")/../content/lab"
-failed=0
-as() { podman exec -i "$term" su - "$s" -c "$1"; }
-has()  { out="$(as "$2" 2>&1)"; case "$out" in *"$3"*) echo "  ok:   $1" ;; *) echo "  FAIL: $1: $(echo "$out" | tail -3)"; failed=1 ;; esac; }
-lacks() { out="$(as "$2" 2>&1)"; case "$out" in *"$3"*) echo "  FAIL: $1: $(echo "$out" | tail -3)"; failed=1 ;; *) echo "  ok:   $1" ;; esac; }
-block() {
-  f="$1"; shift
-  python3 -B - "$labs/$f" "$@" <<'EOF'
-import re, sys
-text = open(sys.argv[1]).read()
-blocks = re.findall(r"^```bash\n(.*?)^```$", text, re.S | re.M)
-for n in sys.argv[2:]:
-    sys.stdout.write(blocks[int(n) - 1])
-EOF
-}
+. "$(dirname "$0")/../../assets/test-lib.sh"   # as, has/lacks, finish, md_blocks
+block() { _lab="$1"; shift; md_blocks "$labs/$_lab" "$s" "$@"; }
 
 echo "== reset $s"
 as 'gpgconf --kill gpg-agent; rm -rf ~/.gnupg ~/.password-store' >/dev/null 2>&1
@@ -50,5 +38,4 @@ has   "shared: encrypted for two" "$(block lab2.md 12)" "teammate <teammate@dojo
 lacks "taken back: the new file is mine only" "$(block lab2.md 13)" "teammate <teammate@dojo.test>"
 has   "but the old copy still opens for them" "$(block lab2.md 14)" "teammate <teammate@dojo.test>"
 
-[ "$failed" -eq 0 ] && echo "PASS: lab 2" || echo "FAIL: lab 2"
-exit "$failed"
+finish "lab 2"
