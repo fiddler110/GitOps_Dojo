@@ -190,7 +190,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | M | The Mac (podman) and home-server (Docker) runs passed (RELEASES). Left: a start on Docker from a clean clone to confirm the `slides/assets` mount-point fix (delete the two hand-made `content/slides/assets` folders on the server first); `CORP_CA_BUNDLE` and the no-bundle error behind TLS inspection; real Tab presses in zsh. Also seen once on the Mac: one allocator test failed with `ConnectionResetError` in a socket read (160/161; a rerun passed), so watch for a flaky handler test. Steps: [`C5-guide.md`](C5-guide.md) |
+| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2); real Tab presses in zsh on the Mac (completion is registered there, and Tab worked in an interactive zsh here). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
 
 ### Remediation leftovers
 
