@@ -9,5 +9,4 @@ something real to open in VS Code and run in the terminal.
 | `dns/` | DNS as code: a zone declared in `dnsconfig.js` (offline; your live zone is `~/lab/my-zone`) | `cd dns && dnscontrol check` |
 | `cloud/` | OpenTofu against Dojo Cloud, with no credentials in the files | `cd cloud && tofu init && tofu plan` |
 
-No secrets live here. The vault, the certificate authority and the DNS server are shown from the terminal: see
-`~/lab/tools-tour.md`.
+Your live DNS zone and the Dojo Cloud portal are shown from the terminal: see `~/lab/tools-tour.md`.

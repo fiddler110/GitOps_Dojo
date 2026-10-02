@@ -48,7 +48,7 @@ Hands-on training loses its first half hour to setup: versions, blocked installs
 - **VS Code** and a **terminal**, in the browser
 - a **Forgejo** git server account
 - the **slides** and lab guides
-- the workshop's extras: a vault, DNS, a cloud
+- the workshop's extras: DNS, a cloud, a vault
 
 </div>
 <div>
@@ -56,7 +56,7 @@ Hands-on training loses its first half hour to setup: versions, blocked installs
 **The facilitator** gets `/admin`, with everything a student can reach, plus:
 
 - **Roster**: a tile per student, a read-only view of their terminal, **Release**
-- the workshop's own tabs: Vault, Audit, Runners, DNS Admin
+- the workshop's own tabs: Runners, DNS Admin, Vault, Audit
 - a **status strip**: green when each service answers
 
 </div>
@@ -152,8 +152,8 @@ Each declares its front door in an `extensions.json`:
 
 <div class="mermaid">
 flowchart LR
-  base["base image<br/>VS Code, ttyd, git"] --> m1["+ module tools<br/>bao, the cloud broker"]
-  m1 --> w["+ workshop tools<br/>dnscontrol, step, tofu, sops"]
+  base["base image<br/>VS Code, ttyd, git"] --> m1["+ module tools<br/>the cloud broker, the DNS key"]
+  m1 --> w["+ workshop tools<br/>dnscontrol, tofu"]
   w --> run["the image the class runs"]
 </div>
 
@@ -173,7 +173,7 @@ flowchart LR
 | **OpenTofu Basics** | init / plan / apply / destroy | `dojo-cloud` |
 | **Vault Fundamentals** | secrets out of code, git and pipelines | `openbao`, `runner-pool` |
 
-<p class="small">All five, with slides, labs and cheat sheets, are on the <a href="workshops.md">Workshop library</a>. Not running in this tour: the app host and its database (vault labs 11-13) and the DNS review flow (they need their own workshop).</p>
+<p class="small">All five, with slides, labs and cheat sheets, are on the <a href="workshops.md">Workshop library</a>. Not running in this tour: the vault, the certificate lab and the DNS review flow (each needs its own workshop).</p>
 
 ---
 
@@ -182,8 +182,7 @@ flowchart LR
 | Capability | How it works | Where to look |
 | ---------- | ------------ | ------------- |
 | **CI** | a single-use runner per job, in its own user, on a network with no route to the control plane | Forgejo **Actions**, facilitator **Runners** |
-| **Vault** | real OpenBao; sign in with Forgejo, a namespace per student, CI logs in by identity | **Vault** card, **Audit** tab |
-| **DNS and certificates** | records declared in git, pushed to PowerDNS; step-ca issues short-lived certs | **DNS Zones**, **DNS Admin** |
+| **DNS as code** | records declared in git, pushed to PowerDNS through a gate that owns each student's zone | **DNS Zones**, **DNS Admin** |
 | **Dojo Cloud** | an Azure-*inspired* cloud: ARM-style API, real containers, policy | **Dojo Cloud** card, `tofu` in the terminal |
 
 ---
@@ -200,12 +199,12 @@ flowchart LR
 <div class="split">
 <div>
 
-**As a student:** type a name, open `~/lab/tools-tour.md` in **VS Code**, then **Forgejo**, **Vault**, **DNS Zones**, **Dojo Cloud**
+**As a student:** type a name, open `~/lab/tools-tour.md` in **VS Code**, then **Forgejo**, **DNS Zones**, **Dojo Cloud**
 
 </div>
 <div>
 
-**As the facilitator:** sign in at `/admin`, watch the **Roster**, then **Runners**, **Audit**, **DNS Admin** and the status strip
+**As the facilitator:** sign in at `/admin`, watch the **Roster**, then **Runners**, **DNS Admin** and the status strip
 
 </div>
 </div>

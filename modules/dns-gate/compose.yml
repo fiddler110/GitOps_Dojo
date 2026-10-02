@@ -32,6 +32,10 @@ services:
       - DNS_GATE_CI_REPO=${DNS_GATE_CI_REPO:-}
       - DNS_API_RATE_BURST=${DNS_API_RATE_BURST:-200}
       - DNS_API_RATE_PER_SEC=${DNS_API_RATE_PER_SEC:-50}
+      # Optional: tells the achievements module what a student did to their zone (gate/events.py).
+      # Both stay empty when achievements is off, and the gate then reports nothing.
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
     networks:
       - workshop_lab
     cap_drop:

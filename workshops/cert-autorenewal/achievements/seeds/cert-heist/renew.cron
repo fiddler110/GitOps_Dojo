@@ -1,0 +1,9 @@
+# Your crontab for the Wildcard Heist. Install it with:
+#   crontab ~/lab/cert-heist/renew.cron
+# That replaces your whole crontab; `crontab -l` shows what is installed.
+#
+# Fields: minute  hour  day-of-month  month  day-of-week  command
+# Cron runs with almost none of your shell's environment: use full paths,
+# and send the output to a log file you can read.
+# Run from cron, `certbot renew` first sleeps for a random 0-8 minutes, longer
+# than this CA's certificates last: add --no-random-sleep-on-renew.

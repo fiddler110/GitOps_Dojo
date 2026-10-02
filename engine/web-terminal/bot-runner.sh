@@ -247,8 +247,10 @@ orient() {
 run_cmd() {
   printf '%s@%s:~%s$ ' "$BOT_USER" "$(hostname 2>/dev/null || echo dojo)" "${PWD#"$HOME"}"
   type_out "$1"
+  declare -F bot_cmd_pre >/dev/null && bot_cmd_pre "$1"
   eval "$1"
   local rc=$?
+  declare -F bot_cmd_post >/dev/null && bot_cmd_post "$1" "$rc"
   think
   return $rc
 }
@@ -593,6 +595,15 @@ case "$PERSONA" in
     )
     ;;
 esac
+
+# A module can watch every bot command the way its shell hook watches a
+# student's: its terminal image ships /etc/dojo/bot.d/NN-<name>.sh, sourced
+# here, defining bot_cmd_pre "<cmd>" and/or bot_cmd_post "<cmd>" <exit code>
+# (run_cmd calls them around each command when defined).
+for bot_hook in /etc/dojo/bot.d/*.sh; do
+  # shellcheck disable=SC1090
+  [ -r "$bot_hook" ] && . "$bot_hook"
+done
 
 # A workshop pack can replace the steps above with its own labs: it ships
 # content/bots/steps.sh (mounted at /opt/workshop-content), which is sourced

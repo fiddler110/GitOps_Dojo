@@ -1,0 +1,45 @@
+# The whole vhost once HTTPS works (Lab 2 step 6): the port-80 block now
+# sends everyone to HTTPS, and the HTTPS block adds HSTS. Two changes from
+# vhost-http + vhost-tls, both marked CHANGED below.
+#
+# Replace /srv/webroot/studentNN/conf.d/studentNN.conf with this (studentNN
+# replaced by your own account name everywhere it appears) — see Lab 2.
+
+server {
+    listen 80;
+    server_name studentNN.certs.dojo.test;
+
+    root /srv/webroot/studentNN/html;
+
+    # Still plain HTTP on purpose: renewal (Lab 4) proves control of the
+    # name with a file here, over http://, before any certificate exists.
+    location /.well-known/acme-challenge/ {
+        root /srv/webroot/studentNN/html;
+    }
+
+    # CHANGED: everything else is a permanent redirect to the same name and
+    # path over HTTPS.
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name studentNN.certs.dojo.test;
+
+    ssl_certificate     /srv/webroot/studentNN/certs/fullchain.pem;
+    ssl_certificate_key /srv/webroot/studentNN/certs/privkey.pem;
+
+    # CHANGED: browsers remember "HTTPS only" for this name for max-age
+    # seconds. 300 (five minutes) while you're trying it out; a real site
+    # moves up to a year once it's sure every name has HTTPS. `always` sends
+    # it on error pages too.
+    add_header Strict-Transport-Security "max-age=300" always;
+
+    root /srv/webroot/studentNN/html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

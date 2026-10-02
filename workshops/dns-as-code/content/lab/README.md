@@ -14,16 +14,16 @@ The session slides cover the *why*. This lab is the *how*, in two parts.
 
 **Part 2: the shared zone, the company way.** `dojo.test` is the whole class's zone, standing in for a company's production DNS. Its config lives in the shared `dns-team/dns-as-code` repo, and **only CI can change it**: a `dnscontrol push` from your terminal is refused, and nobody can push to `main`. Every change goes through a branch, a pull request, an automatic preview, a review by someone else, and a merge, and then the pipeline applies it. This is where you learn the process around DNS as code.
 
-**Labs 1 and 3 are required.** The rest are optional deep dives; do them in any order once you've done the required lab in that part.
+**Every lab is part of the workshop.** Work through them in order: Part 1, then Part 2.
 
-| Part | Lab | Topic | Time | Required? |
-| ---- | --- | ----- | ---- | --------- |
-| 1: your zone | [lab1.md](lab1.md) | Preview, push, verify; add, edit and remove records; catch mistakes | ~20 min | **Yes, start here** |
-| 1: your zone | [lab2.md](lab2.md) | Drift: when someone changes DNS outside the code, and undoing your own changes | ~10 min | Optional |
-| 2: shared zone | [lab3.md](lab3.md) | The change process: branch, PR, CI preview, review, merge, CI apply | ~25 min | **Yes** |
-| 2: shared zone | [lab4.md](lab4.md) | `dnsctl.py`: the same process, one command per step | ~15 min | Optional |
-| 2: shared zone | [lab5.md](lab5.md) | Investigating history and rolling back a merged change | ~10 min | Optional |
-| 2: shared zone | [lab6.md](lab6.md) | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
+| Part | Lab | Topic | Time |
+| ---- | --- | ----- | ---- |
+| 1: your zone | [lab1.md](lab1.md) | Preview, push, verify; add, edit and remove records; catch mistakes | ~20 min |
+| 1: your zone | [lab2.md](lab2.md) | Drift: when someone changes DNS outside the code, and undoing your own changes | ~10 min |
+| 2: shared zone | [lab3.md](lab3.md) | The change process: branch, PR, CI preview, review, merge, CI apply | ~30 min |
+| 2: shared zone | [lab4.md](lab4.md) | `dnsctl.py`: the same process, one command per step | ~20 min |
+| 2: shared zone | [lab5.md](lab5.md) | Investigating history and rolling back a merged change | ~10 min |
+| 2: shared zone | [lab6.md](lab6.md) | Merge conflicts in `dnsconfig.js` | ~12 min |
 
 The **DNS Zones** page (a card on the workshop landing page) shows every zone and record PowerDNS is serving right now, and highlights what changed since you opened it. Keep it open in a tab and watch your changes land.
 
@@ -40,6 +40,21 @@ glow lab1.md   # or: nano lab1.md, batcat lab1.md, etc.
 ```
 
 ---
+
+## Challenges (bonus)
+
+When your class has achievements on (you see a score on your landing page), some labs end with a challenge: a goal
+with no steps, in a space of your own, for extra points. They never count towards finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | The Typo | end of [Lab 2](lab2.md) |
+| `c2` | The Cutover | end of [Lab 5](lab5.md) |
+| `capstone` | The Bad Push | end of [Lab 6](lab6.md) |
+
+Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+with what each is worth.
 
 ## 1. Check your shell
 

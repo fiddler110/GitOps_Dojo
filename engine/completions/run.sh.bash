@@ -1,73 +1,35 @@
-# Bash tab-completion for run.sh -- both the repo-root ./run.sh (a thin
-# forwarder) and engine/run.sh, which take identical arguments.
+# Bash tab-completion for ./run.sh (repo root or engine/) and the `dojo`
+# command from `./run.sh alias-setup` (~/.local/bin/dojo).
 #
-# Usage:
-#   type `./run.sh <TAB>` (from the repo root or engine/) and it lists
-#   workshop names plus `setup`, `capacity`, `list`, `modules`, `stop`,
-#   `teardown`, `help`. After a workshop name, <TAB> offers `--test`/`--dry-run`; after
-#   `setup`, `--default`/`--force`; after `stop`, `--dry-run`; after
-#   `capacity`, its sizing flags.
+# Everything it offers comes from the dojo CLI's own definitions (Click's
+# completion protocol): commands, workshop names, each command's options, the
+# engine/.env.NAME files for --env, and the running stack's services for
+# `restart` and `logs`. Nothing here needs updating when commands, workshops
+# or options change.
 #
-# Install: source this file from your ~/.bashrc, e.g.
-#   source /path/to/GitOps_Dojo/engine/completions/run.sh.bash
-#
-# (engine/scripts/install-completion.sh does this for you on first run of
-# ./run.sh, with confirmation.)
-#
-# This mirrors run.sh's own workshop-discovery logic (workshops/*/workshop.env
-# next to engine/), so it stays correct as workshops are added or removed —
-# nothing here needs to be updated by hand.
+# Install: source this file from ~/.bashrc (./run.sh alias-setup, or the
+# first-run offer, does it for you).
 
-# Resolve engine_dir from this completion script's own path (not $PWD),
-# so completion works no matter which directory you're typing ./run.sh
-# from -- same trick the zsh version uses. Done once, at source time: inside
-# the function, a relative `source` path would be re-resolved against
-# whatever directory you've since cd'd to.
+# This file's engine/, resolved once at source time (a relative path inside
+# the function would be re-resolved against wherever you've since cd'd to).
 _run_sh_engine_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 _run_sh_complete() {
-  local cur workshops_dir opts d capacity_opts
-  capacity_opts="--students --heap-mb --margin-pct --host-mem-mb --procs-per-student --reserve-mb --other-services-mb --help"
-
+  local IFS=$'\n' response completion type value
+  response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD="$COMP_CWORD" _DOJO_COMPLETE=bash_complete \
+    python3 -B "${_run_sh_engine_dir}/dojo/boot.py" 2>/dev/null)
   COMPREPLY=()
-  cur="${COMP_WORDS[COMP_CWORD]}"
-
-  workshops_dir="${_run_sh_engine_dir}/../workshops"
-
-  if [ "$COMP_CWORD" -eq 1 ]; then
-    opts="setup capacity list modules stop teardown help --help"
-    if [ -d "$workshops_dir" ]; then
-      for d in "$workshops_dir"/*/; do
-        [ -f "${d}workshop.env" ] || continue
-        opts="$opts $(basename "$d")"
-      done
-    fi
-    COMPREPLY=($(compgen -W "$opts" -- "$cur"))
-    return 0
-  fi
-
-  # Options depend on the first word (command or workshop name), at any
-  # later position -- so `./run.sh <workshop> --test --dry-run` completes too.
-  case "${COMP_WORDS[1]}" in
-    list | modules) COMPREPLY=($(compgen -W "--help" -- "$cur")) ;;
-    help | --help) ;;
-    stop | teardown) COMPREPLY=($(compgen -W "--dry-run --help" -- "$cur")) ;;
-    setup | --setup) COMPREPLY=($(compgen -W "--default --force --help" -- "$cur")) ;;
-    capacity | --capacity) COMPREPLY=($(compgen -W "$capacity_opts" -- "$cur")) ;;
-    *)
-      # Don't offer an option that is already on the line.
-      local o w remaining=""
-      for o in --test --env --dry-run --help; do
-        for w in "${COMP_WORDS[@]:2:COMP_CWORD-2}"; do
-          [ "$w" = "$o" ] && continue 2
-        done
-        remaining="$remaining $o"
-      done
-      COMPREPLY=($(compgen -W "$remaining" -- "$cur")) ;;
-  esac
+  for completion in $response; do
+    IFS=',' read -r type value <<< "$completion"
+    case "$type" in
+      dir) compopt -o dirnames 2>/dev/null ;;
+      file) compopt -o default 2>/dev/null ;;
+      plain) COMPREPLY+=("$value") ;;
+    esac
+  done
+  return 0
 }
 
-# Bash can't register a pattern, so list the relative forms you'd actually
-# type: from the repo root (./run.sh, ./engine/run.sh) or from engine/
-# (./run.sh, ../run.sh).
-complete -F _run_sh_complete run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh
+# -o nosort keeps the CLI's order (bash 4.4+); older bash (macOS's 3.2) sorts.
+complete -o nosort -F _run_sh_complete run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh dojo 2>/dev/null \
+  || complete -F _run_sh_complete run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh dojo

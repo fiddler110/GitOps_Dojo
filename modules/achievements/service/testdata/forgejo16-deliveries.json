@@ -1,0 +1,195 @@
+{
+ "about": "Real Forgejo 16.0.4 system/repo webhook deliveries recorded on a live git-fundamentals stack (2026-09-30), trimmed to the fields the matcher reads. Headers as sent.",
+ "deliveries": [
+  {
+   "headers": {
+    "X-Forgejo-Event": "create",
+    "X-Forgejo-Event-Type": "create",
+    "X-Gitea-Event": "create"
+   },
+   "payload": {
+    "ref": "refs/heads/main",
+    "ref_type": "branch",
+    "sender": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    }
+   }
+  },
+  {
+   "headers": {
+    "X-Forgejo-Event": "push",
+    "X-Forgejo-Event-Type": "push",
+    "X-Gitea-Event": "push"
+   },
+   "payload": {
+    "ref": "refs/heads/main",
+    "before": "0000000000000000000000000000000000000000",
+    "after": "7baa321b4932a7bda21a75e4b4c8c9e3a8e0bb5e",
+    "pusher": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "sender": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    }
+   }
+  },
+  {
+   "headers": {
+    "X-Forgejo-Event": "pull_request",
+    "X-Forgejo-Event-Type": "pull_request",
+    "X-Gitea-Event": "pull_request"
+   },
+   "payload": {
+    "action": "opened",
+    "sender": {
+     "id": 6,
+     "login": "testuser1",
+     "username": "testuser1"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    },
+    "pull_request": {
+     "number": 1,
+     "merged": false,
+     "user": {
+      "id": 6,
+      "login": "testuser1",
+      "username": "testuser1"
+     },
+     "base": {
+      "ref": "main"
+     },
+     "head": {
+      "ref": "testuser1/round1-add-testuser1"
+     }
+    }
+   }
+  },
+  {
+   "headers": {
+    "X-Forgejo-Event": "pull_request_approved",
+    "X-Forgejo-Event-Type": "pull_request_review_approved",
+    "X-Gitea-Event": "pull_request_approved"
+   },
+   "payload": {
+    "action": "reviewed",
+    "sender": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    },
+    "pull_request": {
+     "number": 1,
+     "merged": false,
+     "user": {
+      "id": 6,
+      "login": "testuser1",
+      "username": "testuser1"
+     },
+     "base": {
+      "ref": "main"
+     },
+     "head": {
+      "ref": "testuser1/round1-add-testuser1"
+     }
+    },
+    "review": {
+     "type": "pull_request_review_approved",
+     "content": "lgtm"
+    }
+   }
+  },
+  {
+   "headers": {
+    "X-Forgejo-Event": "pull_request",
+    "X-Forgejo-Event-Type": "pull_request",
+    "X-Gitea-Event": "pull_request"
+   },
+   "payload": {
+    "action": "closed",
+    "sender": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    },
+    "pull_request": {
+     "number": 1,
+     "merged": true,
+     "user": {
+      "id": 6,
+      "login": "testuser1",
+      "username": "testuser1"
+     },
+     "base": {
+      "ref": "main"
+     },
+     "head": {
+      "ref": "testuser1/round1-add-testuser1"
+     }
+    }
+   }
+  },
+  {
+   "headers": {
+    "X-Forgejo-Event": "pull_request_rejected",
+    "X-Forgejo-Event-Type": "pull_request_review_rejected",
+    "X-Gitea-Event": "pull_request_rejected"
+   },
+   "payload": {
+    "action": "reviewed",
+    "sender": {
+     "id": 1,
+     "login": "workshop-admin",
+     "username": "workshop-admin"
+    },
+    "repository": {
+     "full_name": "training/sample-training-repo",
+     "name": "sample-training-repo"
+    },
+    "pull_request": {
+     "number": 2,
+     "merged": false,
+     "user": {
+      "id": 7,
+      "login": "testuser2",
+      "username": "testuser2"
+     },
+     "base": {
+      "ref": "main"
+     },
+     "head": {
+      "ref": "testuser2/round1-add-testuser2"
+     }
+    },
+    "review": {
+     "type": "pull_request_review_rejected",
+     "content": "fix"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/site-factory",
+  "description": "{user}'s own capstone repo (OpenTofu Basics)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 3,
+      "message": "Start the site factory",
+      "files": [
+        {"path": "README.md", "from": "site-factory/README.md"},
+        {"path": "providers.tf", "from": "site-factory/providers.tf"},
+        {"path": "versions.tf", "from": "site-factory/versions.tf"},
+        {"path": "variables.tf", "from": "site-factory/variables.tf"},
+        {"path": ".gitignore", "from": "site-factory/.gitignore"}
+      ]
+    }
+  ]
+}

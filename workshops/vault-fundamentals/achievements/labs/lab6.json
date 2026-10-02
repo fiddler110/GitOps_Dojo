@@ -1,0 +1,46 @@
+{
+  "milestones": [
+    {
+      "id": "v6-approle",
+      "title": "AppRole Assigned",
+      "joke": "An identity for the app.",
+      "core": true,
+      "when": "shell: `bao write auth/approle/role/app ...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "auth/approle/role/app(\\s|$)",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v6-agent",
+      "title": "The Agent Works",
+      "joke": "It logs in and keeps the token alive.",
+      "core": true,
+      "when": "shell: `bao agent` started (exit 0); it shows the Agent was started, not that its login worked",
+      "match": {
+        "source": "shell",
+        "cmd": "bao agent",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v6-rotate",
+      "title": "Rotated Live",
+      "joke": "No restart. No downtime.",
+      "core": true,
+      "when": "shell: `bao kv put` or `patch` on `team/app` (exit 0) after the Agent was started",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv put",
+          "bao kv patch"
+        ],
+        "regex": "\\bteam/app\\b",
+        "exit": 0,
+        "requires": "v6-agent"
+      }
+    }
+  ]
+}

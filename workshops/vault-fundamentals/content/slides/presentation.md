@@ -1515,7 +1515,7 @@ can't read the production secrets (much less bad).
 .split > div:last-child { font-size: 0.9em; }
 </style>
 
-<p class="lede">Optional: lab 12</p>
+<p class="lede">Lab 12</p>
 
 <div class="split split-60">
 <div>
@@ -1547,8 +1547,7 @@ sequenceDiagram
 <!--
 The database engine from Part 1's engine table. The ladder decides how the
 app gets a vault token; dynamic credentials decide what that token reads:
-here, a login that didn't exist until the app asked for it. Lab 12 is
-optional; skip it when time is short.
+here, a login that didn't exist until the app asked for it.
 -->
 
 ---
@@ -1622,7 +1621,7 @@ log survives the revoke, so when in doubt, contain first.
 <p class="lede">Rules: 2, 3, 4, 5 separation of duties, 6 audit, 7 plan for leaks. <b>Next:</b> the whole day on one map, then the labs.</p>
 
 <!--
-Pause point (labs 10-13). Labs 10-11: deploy with a delivered secret ID, then with platform identity. Lab 12 (optional): dynamic database logins. Lab 13: the incident drill. If you run them now, pick the talk up again at
+Pause point (labs 10-13). Labs 10-11: deploy with a delivered secret ID, then with platform identity. Lab 12: dynamic database logins. Lab 13: the incident drill. If you run them now, pick the talk up again at
 the next slide afterwards; if not, just carry on. The footer is the only hint
 students see.
 -->
@@ -1709,9 +1708,9 @@ table { font-size: 22px; }
 | 3. Secrets in code | **5-6**   | the three places, AppRole, the Agent, rotation with no restart                       |
 | 4. Secrets in git  | **7**     | sops + transit, encrypt-only, retiring a key version                                 |
 | 5. Pipelines       | **8-9**   | masking, AppRole in CI, then the job's own identity                                  |
-| 6. Deployments     | **10-13** | a delivered secret ID, platform identity, dynamic logins (optional), the drill       |
+| 6. Deployments     | **10-13** | a delivered secret ID, platform identity, dynamic logins, the drill       |
 
-About **3½ hours** in all, a little less without the optional lab 12. Details and timings: [labs.md](labs.md).
+About **3½ hours** in all. Details and timings: [labs.md](labs.md).
 
 <!--
 If you paused for labs at the end of each part, this slide and the next are

@@ -1,0 +1,78 @@
+{
+  "unlocks": [
+    {
+      "id": "f-nolock",
+      "title": "Locked Out",
+      "joke": "State lock in the way.",
+      "when": "shell output: a `tofu` command that prints `Error acquiring the state lock`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu",
+          "terraform"
+        ],
+        "out_regex": "Error acquiring the state lock"
+      }
+    },
+    {
+      "id": "f-typo",
+      "title": "Fat Fingers",
+      "joke": "A typo in a resource name.",
+      "when": "shell output: `tofu validate` or `plan` fails printing `Reference to undeclared`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu validate",
+          "terraform validate",
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": "nonzero",
+        "out_regex": "Reference to undeclared"
+      }
+    },
+    {
+      "id": "f-yes",
+      "title": "Auto Approve Bravado",
+      "joke": "`-auto-approve` on the first try.",
+      "when": "shell: `tofu apply -auto-approve` (exit 0); \"on the first try\" is not checked",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "flags": "-auto-approve"
+      }
+    },
+    {
+      "id": "f-destroyfirst",
+      "title": "Destroy First",
+      "joke": "Ran `destroy` before anything was created.",
+      "when": "shell: `tofu destroy` before the student has ever run a successful `tofu apply`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu destroy",
+          "terraform destroy"
+        ],
+        "requires_not": [
+          "t1-apply"
+        ]
+      }
+    },
+    {
+      "id": "f-statecommit",
+      "title": "State in Git",
+      "joke": "Committed `terraform.tfstate`. Lab 3 warned you.",
+      "when": "shell: a `git add` naming `terraform.tfstate` (exit 0); the push payload's file list is not read",
+      "match": {
+        "source": "shell",
+        "cmd": "git add",
+        "exit": 0,
+        "regex": "terraform\\.tfstate"
+      }
+    }
+  ]
+}

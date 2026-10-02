@@ -17,7 +17,7 @@
 #    first `mkdir -p`, win it, and leave the target with a directory they can't
 #    write into, or plant a spoofed vhost under the target's own hostname. The
 #    facilitator gets one too: they have their own demo site
-#    (<facilitator>.<zone>, see ../../extensions.json and dns-seed/seed.sh).
+#    (<facilitator>.<zone>, see dns-seed/seed.sh).
 set -eu
 
 cron

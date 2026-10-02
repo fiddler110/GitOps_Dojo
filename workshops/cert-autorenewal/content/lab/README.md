@@ -16,18 +16,18 @@ same idea as your home directory, just also reachable by `demo-app`.
 ## What you'll do
 
 The session slides cover the *why*. This lab is the *how* — five short,
-self-contained labs. **Labs 1, 2, and 4 are required** and cover the
-end-to-end workflow: trust the CA, issue and install a certificate, then
-automate its renewal. Labs 3 and 5 are optional and go deeper on one topic
-each.
+self-contained labs. **Every lab is part of the workshop.** Together they
+cover the end-to-end workflow (trust the CA, issue and install a
+certificate, then automate its renewal), with a second ACME client and the
+dns-01 challenge to go deeper. Work through them in order.
 
-| Lab                | Topic                                                              | Time    | Required?            |
-| ------------------ | ------------------------------------------------------------------ | ------- | -------------------- |
-| [lab1.md](lab1.md) | Trusting the CA: bootstrap, inspect the root cert                  | ~10 min | **Yes — start here** |
-| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~20 min | **Yes**              |
-| [lab3.md](lab3.md) | The same task with acme.sh — comparing ACME clients                | ~15 min | Optional             |
-| [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min | **Yes**              |
-| [lab5.md](lab5.md) | Capstone: the dns-01 challenge, against real DNS records you write | ~15 min | Optional             |
+| Lab                | Topic                                                              | Time    |
+| ------------------ | ------------------------------------------------------------------ | ------- |
+| [lab1.md](lab1.md) | Trusting the CA: bootstrap, inspect the root cert                  | ~10 min |
+| [lab2.md](lab2.md) | Issue and install a certificate with certbot                       | ~25 min |
+| [lab3.md](lab3.md) | The same task with acme.sh — comparing ACME clients                | ~15 min |
+| [lab4.md](lab4.md) | Automating renewal, and watching it actually happen                | ~15 min |
+| [lab5.md](lab5.md) | The dns-01 challenge, against real DNS records you write           | ~15 min |
 
 **Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
 
@@ -42,6 +42,22 @@ glow lab1.md   # or: nano lab1.md, batcat lab1.md, etc.
 ```
 
 ---
+
+## Challenges (bonus)
+
+When your class has achievements on (you see a score on your landing page), some labs end with a challenge: a goal
+with no steps, in a space of your own, for extra points. They never count towards finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | The Second Site | end of [Lab 3](lab3.md) |
+| `c3` | Members Only (mutual TLS) | end of [Lab 3](lab3.md) |
+| `c2` | The Short Fuse | end of [Lab 4](lab4.md) |
+| `capstone` | The Wildcard Heist | end of [Lab 5](lab5.md) |
+
+Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+with what each is worth.
 
 ## 1. Check your shell
 
@@ -76,13 +92,14 @@ trust the CA → request a cert (prove you control your hostname) →
 install it → verify it → automate the next renewal before this one expires
 ```
 
-The workshop homepage also has a **Demo Site** link (opens `/demo/` in
-a new tab) — it always points at your own vhost, so from Lab 2 onward it's
-a quick way to confirm nginx picked up your config and is serving your
-content. That link is plain HTTP only, though — it never touches your
-certificate at all, trusted or not, so it can't show you anything about
-whether it's valid. `curl --cacert`/`-v` (see Lab 2 step 5) is your real
-check for that.
+The workshop homepage also has a **Site Inspector** card: your browser
+for this lab. Type one of your names and it visits it the way a browser
+would, showing each step: the plain `http://` request, any redirect, the
+HTTPS connection with the certificate it was served (and whether that
+chains to the lab CA), the `Strict-Transport-Security` header and the other
+security headers, and finally the page itself. Like a browser, it
+remembers HSTS. It can only visit your own names. `curl --cacert`/`-v`
+(Lab 2 step 5) is the same check from the terminal.
 
 ---
 

@@ -1,0 +1,64 @@
+{
+  "milestones": [
+    {
+      "id": "t1-init",
+      "title": "Initialised",
+      "joke": "Downloaded providers. Digital groceries.",
+      "core": true,
+      "when": "shell: `tofu init` or `terraform init` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu init",
+          "terraform init"
+        ],
+        "exit": 0
+      }
+    },
+    {
+      "id": "t1-validate",
+      "title": "Syntax Approved",
+      "joke": "The parser has no complaints.",
+      "core": true,
+      "when": "shell: `tofu validate` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu validate",
+          "terraform validate"
+        ],
+        "exit": 0
+      }
+    },
+    {
+      "id": "t1-plan",
+      "title": "Plan Before Act",
+      "joke": "Previewed. Changed nothing. Wise.",
+      "core": true,
+      "when": "shell: `tofu plan` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": 0
+      }
+    },
+    {
+      "id": "t1-apply",
+      "title": "It Is Alive",
+      "joke": "First apply. Frankenstein noises.",
+      "core": true,
+      "when": "shell: `tofu apply` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0
+      }
+    }
+  ]
+}

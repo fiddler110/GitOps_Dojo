@@ -1,6 +1,7 @@
 #!/bin/sh
-# Creates the workshop's DNS zone and one A record per configured student
-# via PowerDNS's HTTP API (https://doc.powerdns.com/authoritative/http-api/).
+# Creates the workshop's DNS zone and, per configured student, an A record and
+# a wildcard A record (*.<student>, so the challenges' extra names such as
+# shop.<student> and the capstone's www/api resolve) via PowerDNS's HTTP API (https://doc.powerdns.com/authoritative/http-api/).
 # Runs once per `docker compose up`; safe to re-run (a 409 on zone creation
 # or a REPLACE on an existing rrset are both no-ops in effect).
 #
@@ -35,20 +36,22 @@ i=1
 while [ "${i}" -le "${STUDENT_COUNT}" ]; do
   num=$(printf '%02d' "${i}")
   host="${STUDENT_PREFIX}${num}.${ZONE}"
-  echo "cert-autorenewal dns-seed: A ${host} -> ${DEMO_APP_IP}"
+  echo "cert-autorenewal dns-seed: A ${host} and *.${host} -> ${DEMO_APP_IP}"
   curl -sf -H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json" \
     -X PATCH "${API_BASE}/zones/${ZONE}" \
     -d "$(jq -n --arg name "${host}" --arg ip "${DEMO_APP_IP}" '{
-          rrsets: [{
-            name: $name, type: "A", ttl: 60, changetype: "REPLACE",
-            records: [{content: $ip, disabled: false}]
-          }]
+          rrsets: [
+            {name: $name, type: "A", ttl: 60, changetype: "REPLACE",
+             records: [{content: $ip, disabled: false}]},
+            {name: ("*." + $name), type: "A", ttl: 60, changetype: "REPLACE",
+             records: [{content: $ip, disabled: false}]}
+          ]
         }')" >/dev/null
   i=$((i + 1))
 done
 
-# The facilitator's own demo site (the /demo route sends them to
-# <facilitator>.<zone>, see ../../extensions.json).
+# The facilitator's own demo site, <facilitator>.<zone>, for showing the labs
+# (the Site Inspector visits it from the facilitator's /admin tab).
 host="${FACILITATOR_USERNAME:-root}.${ZONE}"
 echo "cert-autorenewal dns-seed: A ${host} -> ${DEMO_APP_IP} (facilitator)"
 curl -sf -H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json" \
@@ -60,4 +63,4 @@ curl -sf -H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json" \
         }]
       }')" >/dev/null
 
-echo "cert-autorenewal dns-seed: done (${STUDENT_COUNT} student records + the facilitator's)"
+echo "cert-autorenewal dns-seed: done (${STUDENT_COUNT} students, each with a wildcard, + the facilitator's)"

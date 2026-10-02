@@ -134,7 +134,7 @@ services:
       context: ./web-terminal
     # run.sh builds :base from ./web-terminal, then any module and workshop
     # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
-    # see engine/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
+    # see docs/archive/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
     # last link. Overlays no longer set image: here themselves.
     image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_terminal
@@ -279,6 +279,9 @@ services:
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      # A student reset recreates a demo bot's Forgejo account with this
+      # (allocator/reset.py), as bootstrap.sh made it.
+      - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
       # Shared secret allocator's control_request() sends on every call to
       # web-terminal's control API -- must match web-terminal's own
       # CONTROL_TOKEN above (workspace-control.py checks it on every
@@ -291,16 +294,20 @@ services:
       # gateway's own GATEWAY_TOKEN below (gateway/Caddyfile's header_up
       # X-Gateway-Token on every block that proxies to allocator:8080).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - ALLOCATOR_STATE_FILE=/var/lib/dojo-allocator/slots.json
     volumes:
       # The workshop's checked extensions (cards, /admin tabs, route gates,
       # status checks), written by run.sh before every start.
       - ./.generated/allocator:/etc/dojo/extensions:ro
+      # The slot table (who holds which studentNN), saved on every claim and
+      # release so a crash or OOM restart keeps every assignment. Named, so
+      # `./run.sh stop` wipes it with the rest of the class.
+      - allocator_state:/var/lib/dojo-allocator
     networks:
       - workshop_lab
     restart: unless-stopped
-    # Backstop, same reasoning as git-server's above -- in-memory roster
-    # state for 30 students is trivial, this is just a ceiling in case of a
-    # leak.
+    # Backstop, same reasoning as git-server's above -- roster state for 30
+    # students is trivial, this is just a ceiling in case of a leak.
     mem_limit: ${ALLOCATOR_MEM_LIMIT:-256m}
 
   # 5b. Gateway: the only service exposed to students. Single hostname,
@@ -347,6 +354,7 @@ services:
 volumes:
   terminal_home:
   forgejo_data:
+  allocator_state:
 
 networks:
   public:

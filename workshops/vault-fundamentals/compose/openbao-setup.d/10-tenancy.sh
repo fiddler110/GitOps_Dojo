@@ -1,6 +1,6 @@
 # vault-fundamentals setup hook, sourced by the openbao module's setup.sh on
 # every start with the provisioner token (BAO_TOKEN, `log`, `retry`,
-# STUDENT_COUNT, STUDENT_PREFIX and `class_users` (students, then demo bots) are set). Safe to re-run. It makes:
+# STUDENT_COUNT, STUDENT_PREFIX, `class_users` (students, then demo bots), `par_each` and `enable_once` are set). Safe to re-run. It makes:
 #   - the shared KV v2 mount `secret/` (lab 3) and a welcome secret in each
 #     student's folder, written once (a re-run doesn't add versions);
 #   - the `student` policy (student.hcl), which the module attaches to every
@@ -25,7 +25,9 @@ seed() {
   return 1
 }
 
-for s in $(class_users); do
+# tenancy_one NAME: the student's namespace, rate limit and welcome secret.
+tenancy_one() {
+  s="$1"
   BAO_NAMESPACE=students bao namespace lookup "$s" >/dev/null 2>&1 \
     || BAO_NAMESPACE=students retry 10 bao namespace create "$s" >/dev/null
   # Tripwire against a runaway loop in one namespace (OPENBAO_NAMESPACE_RATE,
@@ -38,5 +40,6 @@ for s in $(class_users); do
       || { log "tenancy: could not set $s's rate limit"; exit 1; }
   fi
   retry 30 seed "$s" || { log "tenancy: could not seed $s's welcome secret"; exit 1; }
-done
+}
+par_each tenancy_one || exit 1
 log "tenancy: secret/, the student policy and $(class_users | wc -l) namespaces under students/"

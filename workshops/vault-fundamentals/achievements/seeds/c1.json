@@ -1,0 +1,18 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-secret",
+  "description": "{user}'s own challenge (Vault Fundamentals): the shared secret",
+  "private": false,
+  "values": {},
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 3,
+      "message": "Add the setup script and the brief",
+      "files": [
+        {"path": "README.md", "from": "c1/README.md"},
+        {"path": "seed.sh", "from": "c1/seed.sh"}
+      ]
+    }
+  ]
+}

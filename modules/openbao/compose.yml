@@ -5,7 +5,28 @@
 # against engine/, not this folder.
 
 services:
+  # The network holder: owns the namespace that the server (openbao-server)
+  # and the SSO shim share, and does nothing else. The shim answers for the
+  # public name on the server's own localhost, so both must share one
+  # namespace; if the server owned it, restarting the server alone (a crash,
+  # a manual restart) would leave the shim on a dead one. This service is
+  # named `openbao` so its DNS name and any overlay's `networks:` for it stay
+  # as they were.
   openbao:
+    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    container_name: workshop_openbao_net
+    entrypoint: ["sh", "-c", "exec sleep 2147483647"]
+    init: true
+    networks:
+      - workshop_lab
+    # The public name means this namespace's own localhost, where the SSO
+    # shim below answers for it. OPENBAO_PUBLIC_HOST comes from module.env.
+    extra_hosts:
+      - "${OPENBAO_PUBLIC_HOST:-localhost}:127.0.0.1"
+    mem_limit: 8m
+    restart: unless-stopped
+
+  openbao-server:
     # 2.7.0, pinned by its multi-arch index digest (amd64
     # sha256:6d575d906d70d40b9d789149c8dc09897291c5a1707d4d0ba8a459eaaa94c8c4,
     # arm64 sha256:4ca9310dd2a50c746d4227f44058088ee0470a8470031ee3f09cc8b1a69dd7f6).
@@ -16,12 +37,11 @@ services:
       - ../modules/openbao/config.hcl:/openbao/config/config.hcl:ro
       - openbao_data:/openbao/file
       - openbao_logs:/openbao/logs
-    networks:
-      - workshop_lab
-    # The public name means this container's own localhost, where the SSO
-    # shim below answers for it. OPENBAO_PUBLIC_HOST comes from module.env.
-    extra_hosts:
-      - "${OPENBAO_PUBLIC_HOST:-localhost}:127.0.0.1"
+    # Joins the network holder's namespace: the server can restart on its own
+    # without taking the SSO shim's network with it.
+    network_mode: "service:openbao"
+    depends_on:
+      - openbao
     mem_limit: ${OPENBAO_MEM_LIMIT:-512m}
     restart: unless-stopped
 
@@ -93,7 +113,7 @@ services:
     networks:
       - workshop_lab
     depends_on:
-      - openbao
+      - openbao-server
       - openbao-sso-shim
       - git-server
     healthcheck:
@@ -117,6 +137,10 @@ services:
       # Runners panel, since workshop_lab reaches this port directly.
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_OPENBAO_AUDIT:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      # What students do in the vault, posted to the achievements service when that module is in
+      # the run (audit/events.py). No `:?` here: `./run.sh stop` reads only engine/.env.
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
     volumes:
       - ../modules/openbao/audit:/opt/openbao-audit:ro
       - openbao_logs:/logs:ro
@@ -128,7 +152,7 @@ services:
     networks:
       - workshop_lab
     depends_on:
-      - openbao
+      - openbao-server
     # The image's own check sends the gateway token to /; /healthz needs none.
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
@@ -146,7 +170,7 @@ services:
       - openbao_broker_key:/var/lib/openbao-broker
       - openbao_broker_pub:/run/openbao-broker-pub
     depends_on:
-      openbao:
+      openbao-server:
         condition: service_started
 
 volumes:

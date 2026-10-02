@@ -1,0 +1,54 @@
+{
+  "id": "c2",
+  "title": "The Cutover",
+  "after": "after Lab 5 or 6",
+  "space": "the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone",
+  "goal": "`app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, and the zone must show no other changes.",
+  "verify_text": "the zone `{user}.dojo.test`: `app` is an A record at `10.20.0.{n}`, `www` is a CNAME to `app.{user}.dojo.test.` (and no longer an A record), the apex A and `mail` are unchanged. It can't see how many commits made the change.",
+  "hints": [
+    "One commit, two records.",
+    "An alias is a CNAME; the target ends with a dot."
+  ],
+  "seed_plan": "zone-cutover.json",
+  "verify": [
+    {
+      "verb": "zone_records",
+      "zone": "{user}.dojo.test",
+      "records": [
+        {
+          "name": "@",
+          "type": "A",
+          "value": "203.0.113.10"
+        },
+        {
+          "name": "mail",
+          "type": "A",
+          "value": "203.0.113.20"
+        },
+        {
+          "name": "app",
+          "type": "A",
+          "value": "10.20.0.{n}"
+        },
+        {
+          "name": "www",
+          "type": "CNAME",
+          "value": "app.{user}.dojo.test."
+        }
+      ]
+    },
+    {
+      "verb": "zone_absent",
+      "zone": "{user}.dojo.test",
+      "records": [
+        {
+          "name": "www",
+          "type": "A"
+        }
+      ]
+    }
+  ],
+  "seed": "`dojo-challenge start c2` creates `{user}/challenge-cutover` (cloned to `~/lab/challenge-cutover`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.",
+  "isolation": "the student's own repo and their own zone; nobody else's zone is read or written.",
+  "answer": "`dojo-challenge start c2`, `cd ~/lab/challenge-cutover`; change `A(\"app\", \"10.10.0.5\")` to `A(\"app\", \"10.20.0.{n}\")` and `A(\"www\", ...)` to `CNAME(\"www\", \"app.{user}.dojo.test.\")`; `dnscontrol preview`, one commit, `dnscontrol push`, then `dojo-check c2`."
+}

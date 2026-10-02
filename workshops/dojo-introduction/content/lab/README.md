@@ -1,7 +1,7 @@
 # Dojo Introduction: the tour
 
-Nothing here is a lab you have to finish. Everything the platform can do is running, and this terminal has the
-tools for all four workshops. Pick anything.
+Nothing here is a lab you have to finish. Forgejo with CI, DNS as code and Dojo Cloud are running, and this terminal
+has their tools. Pick anything.
 
 - **Slides:** the platform tour, and every workshop's own slides, labs and cheat sheet, from the **Slides** button
   (or **Workshop Library**).

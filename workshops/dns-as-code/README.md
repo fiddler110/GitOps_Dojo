@@ -1,6 +1,6 @@
 # DNS as Code — Session 3
 
-A 45-60 minute session: managing DNS records via git + pull requests
+About two hours (the six labs alone take about 100 minutes): managing DNS records via git + pull requests
 (`dnscontrol`), for anyone who's already been through
 [Git Fundamentals](../git-fundamentals/). Same clone/branch/commit/push/PR
 muscle memory, applied to a `dnsconfig.js` file instead of a roster.

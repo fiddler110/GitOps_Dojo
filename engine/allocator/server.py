@@ -17,19 +17,26 @@ Locking rules (keep them when touching shared state):
 - A release first records the slot's token, stops the workspace without the
   lock, then clears the slot only if the token is unchanged, so a slow
   release never frees a slot someone else has claimed in the meantime.
-- AssignLimit, audit() and audit_check() each have their own small lock.
+- AssignLimit, audit(), audit_check() and each TTLCache (READY_CACHE,
+  STATUS_CACHE) have their own small lock; `_save_lock` orders slot-table
+  writes to disk, taken only after `_state_lock` is released.
 
-All state is in-memory and reset on container restart, matching this
-project's ephemeral-by-design stack (see engine/docker-compose.yml).
+The slot table survives an allocator crash or restart: every claim and
+release writes it to ALLOCATOR_STATE_FILE (a named volume, so `./run.sh
+stop` still wipes it), and start-up reads it back. The write happens after
+the lock is released, under its own `_save_lock`, and a version number makes
+sure an older snapshot never overwrites a newer one. Everything else (rate
+limits, audit dedupe, reset progress) is in-memory only.
 
-Besides the request threads there is one background daemon that probes the
-lab's services (Forgejo, terminals, slides, plus whatever a workshop lists
-in STATUS_CHECKS) every few seconds for the facilitator's status strip
-(/admin/api/status). It never touches `slots`, `token_index` or anything
-else a request handler mutates: its only output is one status snapshot that
-it replaces wholesale (a single reference assignment, atomic in CPython),
-and request handlers only ever read that snapshot. All upstream I/O for
-status happens in that thread; no request handler waits on a probe.
+Besides the request threads there is one background daemon per service
+that probes the lab's services (Forgejo, terminals, slides, plus whatever a
+workshop lists in STATUS_CHECKS) every few seconds for the facilitator's
+status strip (/admin/api/status). They never touch `slots`, `token_index`
+or anything else a request handler mutates: their only output is one status
+snapshot, rebuilt under `_probe_lock` and replaced wholesale (a single
+reference assignment, atomic in CPython), and request handlers only ever
+read that snapshot. All upstream I/O for status happens in those threads; no
+request handler waits on a probe.
 """
 import base64
 import datetime
@@ -48,6 +55,7 @@ import threading
 import time
 import urllib.parse
 
+import reset
 from dojo_secret import forgejo_password
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
@@ -248,14 +256,15 @@ LOGIN_ASSETS = _load_login_assets()
 with open(os.path.join(LOGIN_DIR, "login.html"), encoding="utf-8") as _f:
     LOGIN_HTML = _f.read()
 
-# Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
+# Workshop/module extensions (docs/archive/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
 # (run.sh, before start) and mounted read-only. Missing means none.
 EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extensions.json")
 
 
 def load_extensions(path=EXTENSIONS_FILE):
-    empty = {"cards": [], "admin_tabs": [], "routes": [], "status_checks": []}
+    empty = {"cards": [], "admin_tabs": [], "widgets": [], "scripts": [], "routes": [], "status_checks": [],
+             "resets": []}
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -305,6 +314,60 @@ slots = {sid: {"name": None, "ip": None, "token": None, "tool": None, "assigned_
 token_index = {}  # token -> studentId
 # Guards slots and token_index (see the locking rules at the top).
 _state_lock = threading.Lock()
+# Where the slot table is saved; empty means not saved (unit tests).
+STATE_FILE = os.environ.get("ALLOCATOR_STATE_FILE", "")
+SLOT_FIELDS = ("name", "ip", "token", "tool", "assigned_at")
+_slots_version = 0  # bumped under _state_lock on every change
+_saved_version = 0  # guarded by _save_lock
+_save_lock = threading.Lock()
+
+
+def save_slots():
+    """Write the held slots to STATE_FILE (temp file + rename). Called
+    after a claim or release, never under _state_lock."""
+    global _saved_version
+    if not STATE_FILE:
+        return
+    with _state_lock:
+        held = {sid: dict(slot) for sid, slot in slots.items() if slot["name"] is not None}
+        version = _slots_version
+    with _save_lock:
+        if version <= _saved_version:
+            return  # a newer snapshot is already on disk
+        tmp = STATE_FILE + ".tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump({"slots": held}, f)
+            os.replace(tmp, STATE_FILE)
+            _saved_version = version
+        except OSError as exc:
+            audit("state-save", result="failed", detail=str(exc))
+
+
+def load_slots():
+    """Read STATE_FILE back at start-up: slots for students that still
+    exist (STUDENT_COUNT may have shrunk), and the token index."""
+    if not STATE_FILE:
+        return 0
+    try:
+        with open(STATE_FILE) as f:
+            held = json.load(f).get("slots", {})
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError, AttributeError) as exc:
+        audit("state-load", result="failed", detail=str(exc))
+        return 0
+    restored = 0
+    with _state_lock:
+        for sid, slot in held.items():
+            if sid not in slots or not isinstance(slot, dict) or not slot.get("name") or not slot.get("token"):
+                continue
+            slots[sid].update({k: slot.get(k) for k in SLOT_FIELDS})
+            token_index[slot["token"]] = sid
+            restored += 1
+    audit("state-load", result="ok", restored=restored)
+    return restored
 
 
 def _env_int(name, default):
@@ -367,6 +430,8 @@ def release_slot(sid, result="released", token=None):
         token_index.pop(token, None)
         name = slots[sid]["name"]
         slots[sid].update(name=None, ip=None, token=None, tool=None, assigned_at=None)
+        _bump_version()
+    save_slots()
     audit("release", target=sid, name=name, result=result)
     return name
 
@@ -382,7 +447,15 @@ def claim_slot(name, ip):
             return None, None
         slots[sid].update(name=name, ip=ip, token=token, assigned_at=time.time())
         token_index[token] = sid
+        _bump_version()
+    save_slots()
     return sid, token
+
+
+def _bump_version():
+    """Caller holds _state_lock."""
+    global _slots_version
+    _slots_version += 1
 
 
 def slot_snapshot(sid):
@@ -435,21 +508,131 @@ def find_free_slot():
     return None
 
 
-def control_request(method, path):
+class TTLCache:
+    """A few seconds' memory of an answer, so a burst of identical requests
+    makes one control call instead of hundreds. Its own small lock; the
+    caller does the I/O outside it."""
+
+    def __init__(self, ttl):
+        self.ttl = ttl
+        self._lock = threading.Lock()
+        self._items = {}  # key -> (expires, value)
+
+    def get(self, key):
+        with self._lock:
+            hit = self._items.get(key)
+            if hit is None or hit[0] <= time.monotonic():
+                self._items.pop(key, None)
+                return None
+            return hit[1]
+
+    def put(self, key, value):
+        with self._lock:
+            now = time.monotonic()
+            if len(self._items) > 512:  # drop expired entries now and then
+                self._items = {k: v for k, v in self._items.items() if v[0] > now}
+            self._items[key] = (now + self.ttl, value)
+
+    def forget_user(self, user):
+        """Drop every (tool, user) key for this user."""
+        with self._lock:
+            for key in [k for k in self._items if isinstance(k, tuple) and k[-1] == user]:
+                del self._items[key]
+
+
+# A workspace that answered ready is trusted for this long, so the hundreds of
+# asset requests behind one VS Code page load don't each make a control call
+# (identity and the reset fence are still checked on every request). Any stop
+# or reset of that user clears it (control_request below).
+READY_CACHE = TTLCache(2.0)
+# The roster's workspace status, shared by every open /admin tab.
+STATUS_CACHE = TTLCache(3.0)
+_FORGET_ON = re.compile(r"^/(?:stop|reset)/([A-Za-z0-9_-]+)")
+
+
+def control_request(method, path, timeout=CONTROL_TIMEOUT):
     """Best-effort call to workspace-control.py inside web-terminal. Never
     raises -- returns None on any failure so a flaky internal call degrades
-    gracefully instead of blocking the single-threaded allocator."""
+    gracefully instead of blocking a request thread."""
+    stopping = _FORGET_ON.match(path) if method == "POST" else None
+    if stopping:
+        READY_CACHE.forget_user(stopping.group(1))
     try:
-        conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=CONTROL_TIMEOUT)
+        return _control_call(method, path, timeout)
+    finally:
+        if stopping:  # again, in case an auth-check cached it mid-stop
+            READY_CACHE.forget_user(stopping.group(1))
+
+
+# Whether the last control call reached web-terminal, so the log shows the
+# moment it went away and came back (not one line per failed call). A plain
+# bool: a lost update only costs a duplicate or missing log line.
+_control_reachable = True
+
+
+def _control_call(method, path, timeout):
+    global _control_reachable
+    try:
+        conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=timeout)
         conn.request(method, path, headers={"X-Control-Token": CONTROL_TOKEN})
         resp = conn.getresponse()
         body = resp.read()
         conn.close()
-        if resp.status != 200:
-            return None
-        return body
-    except (OSError, socket.timeout, http.client.HTTPException):
+    except (OSError, socket.timeout, http.client.HTTPException) as exc:
+        if _control_reachable:
+            _control_reachable = False
+            audit("control", result="unreachable", path=path.split("?", 1)[0], detail=_short(repr(exc)))
         return None
+    if not _control_reachable:
+        _control_reachable = True
+        audit("control", result="reachable", path=path.split("?", 1)[0])
+    if resp.status != 200:
+        return None
+    return body
+
+
+# -- Student reset (reset.py has the steps and the worker) -----------------
+# workspace-control.py's POST /reset/<user> waits for Forgejo (up to 60 s) and
+# runs every hook, so it gets far longer than CONTROL_TIMEOUT.
+RESET_TERMINAL_TIMEOUT = 300.0
+# Demo bots' Forgejo password (bootstrap.sh and web-terminal use the same).
+BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "testuser123")
+
+
+def reset_terminal(sid):
+    body = control_request("POST", f"/reset/{sid}", timeout=RESET_TERMINAL_TIMEOUT)
+    if body is None:
+        raise reset.ResetError("web-terminal did not answer (or a reset of this account is already running)")
+    result = json.loads(body)
+    failed = [s for s in result.get("steps", []) if not s.get("ok")]
+    if failed:
+        raise reset.ResetError("; ".join(f"{s.get('id')}: {s.get('detail') or 'failed'}" for s in failed))
+    return f"{len(result.get('steps', []))} step(s) ok"
+
+
+def reset_steps(sid):
+    """The steps of one reset, in order (reset.py's module docstring)."""
+    fj = reset.Forgejo(GIT_SERVER_HOST, GIT_SERVER_PORT, FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD)
+    password = BOT_PASSWORD if sid in BOT_IDS else forgejo_password(sid)
+
+    def stop():
+        if control_request("POST", f"/stop/{sid}") is None:
+            raise reset.ResetError("web-terminal did not answer")
+        return "processes stopped"
+
+    hooks = EXTENSIONS["resets"]
+    return [
+        ("stop", "Stop VS Code and terminal", stop),
+    ] + reset.hook_steps(hooks, sid, "teardown", GATEWAY_TOKEN) + [
+        ("forgejo-teardown", "Forgejo: close pull requests, delete branches and the account",
+         lambda: reset.forgejo_teardown(fj, FORGEJO_ORG, sid)),
+        ("forgejo-provision", "Forgejo: recreate the account",
+         lambda: reset.forgejo_provision(fj, FORGEJO_ORG, sid, password)),
+        ("terminal", "Terminal: home, lab files and hooks", lambda: reset_terminal(sid)),
+    ] + reset.hook_steps(hooks, sid, "provision", GATEWAY_TOKEN)
+
+
+RESETS = reset.ResetManager(reset_steps, audit)
 
 
 def local_path(value):
@@ -489,8 +672,8 @@ def forgejo_login_request(username, password):
 
 
 # -- Facilitator service status (see the module docstring) -----------------
-# One daemon thread (status_probe_loop, started by main()) probes each
-# service in turn and republishes _status_snapshot; request handlers only
+# One daemon thread per service (status_probe_loop, started by main()) probes
+# it and republishes _status_snapshot; request handlers only
 # read it. Nothing below is called from a request handler except
 # handle_status_api, which does a plain read.
 GATEWAY_HOST = "gateway"
@@ -630,7 +813,7 @@ def _extra_probe(url):
 
 def build_status_services():
     """[{name, probe, ok, last_ok, detail}] in display order. Only the probe
-    thread writes ok/last_ok/detail after this."""
+    threads write ok/last_ok/detail after this, under _probe_lock."""
     probes = [("Forgejo", probe_forgejo), ("Terminals", probe_terminals), ("Slides", probe_slides)]
     for item in STATUS_CHECKS.split(";"):
         label, sep, url = item.partition("=")
@@ -674,20 +857,38 @@ def _build_snapshot(now):
 _status_snapshot = _build_snapshot(time.monotonic())
 
 
-def status_probe_loop():
+# Orders the probe threads' writes to `_status_services` and the snapshot
+# rebuild; never held across a probe.
+_probe_lock = threading.Lock()
+
+
+def probe_once(svc):
+    """Run one service's probe and publish a new snapshot."""
     global _status_snapshot
+    try:
+        ok, detail = svc["probe"]()
+    except Exception as exc:  # a bad probe must not kill the thread
+        ok, detail = False, _short(f"probe error: {type(exc).__name__}")
+    with _probe_lock:
+        now = time.monotonic()
+        svc["ok"], svc["detail"] = ok, detail
+        if ok:
+            svc["last_ok"] = now
+        _status_snapshot = _build_snapshot(now)
+
+
+def status_probe_loop(svc):
+    """One thread per service, so a hung probe (up to its timeout) never
+    delays the others' green/yellow/red."""
     while True:
-        for svc in _status_services:
-            try:
-                ok, detail = svc["probe"]()
-            except Exception as exc:  # a bad probe must not kill the thread
-                ok, detail = False, _short(f"probe error: {type(exc).__name__}")
-            now = time.monotonic()
-            svc["ok"], svc["detail"] = ok, detail
-            if ok:
-                svc["last_ok"] = now
-            _status_snapshot = _build_snapshot(now)
+        probe_once(svc)
         time.sleep(STATUS_INTERVAL)
+
+
+def start_status_probes():
+    for svc in _status_services:
+        threading.Thread(target=status_probe_loop, args=(svc,), name=f"status-{svc['name']}",
+                         daemon=True).start()
 
 
 # Inline, self-contained SVGs for the confirmation page's tool cards (see
@@ -716,6 +917,8 @@ ICON_KEY = _SVG.format('<circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21
 ICON_DNS = _SVG.format('<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line>'
                         '<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>')
 # Names an extensions.json card may use (render_extensions.py ICONS).
+ICON_LAYOUT = _SVG.format('<rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+                         '<line x1="9" y1="3" x2="9" y2="21"></line><line x1="9" y1="9" x2="21" y2="9"></line>')
 ICONS_BY_NAME = {"code": ICON_CODE, "terminal": ICON_TERMINAL, "git": ICON_GIT, "slides": ICON_SLIDES,
                  "rocket": ICON_ROCKET, "cloud": ICON_CLOUD, "key": ICON_KEY, "dns": ICON_DNS}
 ICON_ARROW ='<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' \
@@ -756,13 +959,14 @@ CONFIRM_CSS = """
           max-width: 40rem; margin: 6vh auto; padding: 0 1.25rem 3rem; color: #1a1a1a; background: #fafafa; }
   @media (prefers-color-scheme: dark) { body { color: #eee; background: #171717; } }
   .hero { text-align: center; margin-bottom: 2rem; }
+  .signout { position: absolute; top: 0.9rem; right: 1.25rem; font-size: 0.85rem; }
   .hero-badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 999px;
           padding: 0.2rem 0.85rem; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.02em;
           margin-bottom: 0.9rem; }
   @media (prefers-color-scheme: dark) { .hero-badge { background: #1e2352; color: #c7d2fe; } }
   .hero h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
   .hero .sub { opacity: 0.7; margin: 0; }
-  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1.25rem; }
   @media (max-width: 30rem) { .cards { grid-template-columns: 1fr; } }
   .card { display: flex; align-items: center; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 0.75rem;
           border: 1px solid #e2e2e2; background: #fff; text-decoration: none; color: inherit;
@@ -799,9 +1003,15 @@ CONFIRM_CSS = """
   .secret-value { font-size: 1.05rem; font-weight: 600; user-select: all; overflow-wrap: anywhere; }
   .secret-hint { font-size: 0.8rem; opacity: 0.65; line-height: 1.35; }
   .footnote { margin-top: 1.75rem; text-align: center; font-size: 0.8rem; opacity: 0.55; }
+  .card.wide { grid-column: 1 / -1; }
+  .widgets { margin-top: 1.25rem; }
+  .widget { display: block; width: 100%; border: 0; margin: 0 0 0.75rem; background: transparent; }
+  .widget-small { height: 7rem; }
+  .widget-medium { height: 14rem; }
+  .widget-large { height: 24rem; }
 """
 
-ADMIN_CSS = """
+SHELL_CSS = """
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -851,6 +1061,9 @@ ADMIN_CSS = """
     #status { flex-direction: row; flex-wrap: wrap; margin-top: 0; }
     #main { overflow: visible; }
   }
+"""
+
+ADMIN_CSS = SHELL_CSS + """
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
   .tile { border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
            display: flex; flex-direction: column; height: 280px; }
@@ -860,7 +1073,7 @@ ADMIN_CSS = """
   .tile-label { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .tile-reload { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }
   .tile-reload:hover { color: #fff; }
-  .tile-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }
+  .tile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; font-size: 0.72rem; opacity: 0.85; }
   .tile-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile-status { white-space: nowrap; }
   .tile-status.st-on { color: #16a34a; }
@@ -872,6 +1085,34 @@ ADMIN_CSS = """
   .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release { margin-left: auto; }
   .tile-release:hover, .tile-pw-btn:hover { background: #7c8494; }
   .tile-release:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #b91c1c; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-reset-btn:hover { background: #dc2626; }
+  .tile-reset-btn:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; font-size: 0.72rem; }
+  .tile-reset:empty { display: none; }
+  .tile-reset .rs-done { color: #16a34a; }
+  .tile-reset .rs-failed { color: #f87171; }
+  .tile-reset .rs-running { color: #facc15; }
+  .tile-reset .rs-pending { color: #888; }
+  .tile-reset .rs-error { flex-basis: 100%; color: #f87171; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-reset button { padding: 0.1rem 0.5rem; font-size: 0.7rem; border-radius: 0.3rem; border: none;
+          background: #6b7280; color: white; cursor: pointer; }
+  #reset-dialog { max-width: 28rem; border: 1px solid #444; border-radius: 0.5rem; padding: 1rem 1.2rem;
+          background: #fff; color: #111; }
+  #reset-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+  #reset-dialog h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+  #reset-dialog p { margin: 0.4rem 0; font-size: 0.85rem; line-height: 1.4; }
+  #reset-dialog ul { margin: 0.3rem 0 0.6rem 1.1rem; padding: 0; font-size: 0.82rem; }
+  #reset-dialog input { width: 100%; box-sizing: border-box; padding: 0.35rem 0.5rem; font: inherit; margin: 0.3rem 0; }
+  #reset-dialog .rd-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem; }
+  #reset-dialog .rd-actions button { padding: 0.35rem 0.9rem; border-radius: 0.35rem; border: 0; cursor: pointer; }
+  #reset-dialog .rd-go { background: #b91c1c; color: #fff; }
+  #reset-dialog .rd-go:disabled { opacity: 0.5; cursor: default; }
+  #reset-dialog .rd-error { color: #b91c1c; min-height: 1.2em; }
+  @media (prefers-color-scheme: dark) {
+    #reset-dialog { background: #1e1e1e; color: #eee; }
+  }
   #roster-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
   #release-unused { padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
     background: #64748b; color: #fff; cursor: pointer; }
@@ -892,7 +1133,7 @@ ADMIN_CSS = """
   #grid.has-enlarged .tile.enlarged { display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }
 """
 
-ADMIN_JS = """
+TABS_JS = """
 // -- tabs ---------------------------------------------------------------
 const tabs = Array.from(document.querySelectorAll('.tab'));
 const panels = {};
@@ -905,7 +1146,9 @@ function activateTab(name) {
   if (frame) { frame.src = frame.dataset.src; frame.removeAttribute('data-src'); }
 }
 tabs.forEach(t => t.onclick = () => activateTab(t.dataset.tab));
+"""
 
+ADMIN_JS = TABS_JS + """
 // -- roster grid ------------------------------------------------------
 const grid = document.getElementById('grid');
 const tiles = {};
@@ -1046,6 +1289,119 @@ function closeEnlarge() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEnlarge(); });
 
+// Roster "Reset" (student reset, allocator/reset.py): puts one student or
+// bot back as at stack start. The facilitator types the id to enable the
+// button; progress comes back in each /admin/api/sessions row's `reset`.
+// Every string goes in through textContent: step details can echo
+// student input.
+const RESET_WHAT = [
+  'their VS Code and terminal are stopped',
+  'their open pull requests are closed and their branches deleted',
+  'their Forgejo account, repositories and forks are deleted and the account made again',
+  'their home folder and lab files are deleted and set up fresh',
+].concat(__RESET_HOOK_LABELS__.map(l => l + ': theirs is removed and set up again'));
+let resetDialog = null;
+
+function resetDialogFor(sid) {
+  if (!resetDialog) {
+    const d = document.createElement('dialog');
+    d.id = 'reset-dialog';
+    const h = make('h2');
+    const p1 = make('p', '', 'This cannot be undone:');
+    const ul = make('ul');
+    RESET_WHAT.forEach(t => ul.appendChild(make('li', '', t)));
+    const p2 = make('p', '', 'Their seat stays theirs; everyone else carries on. Type the id to confirm:');
+    const input = make('input');
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    const err = make('p', 'rd-error');
+    const actions = make('div', 'rd-actions');
+    const cancel = make('button', '', 'Cancel');
+    const go = make('button', 'rd-go', 'Reset');
+    cancel.type = go.type = 'button';
+    actions.append(cancel, go);
+    d.append(h, p1, ul, p2, input, err, actions);
+    document.body.appendChild(d);
+    cancel.onclick = () => d.close();
+    input.oninput = () => { go.disabled = input.value.trim() !== d.dataset.sid; };
+    input.onkeydown = (e) => { if (e.key === 'Enter' && !go.disabled) go.click(); };
+    go.onclick = () => {
+      const target = d.dataset.sid;
+      go.disabled = true;
+      fetch('/admin/reset/' + encodeURIComponent(target), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'dojo-admin', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'confirm=' + encodeURIComponent(input.value.trim()),
+      }).then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, j })))
+        .then(({ ok, j }) => {
+          if (ok) { d.close(); refresh(); return; }
+          err.textContent = String(j.error || 'Reset refused');
+          go.disabled = false;
+        })
+        .catch(() => { err.textContent = 'Reset request failed'; go.disabled = false; });
+    };
+    resetDialog = { d, h, input, go, err };
+  }
+  const rd = resetDialog;
+  rd.d.dataset.sid = sid;
+  rd.h.textContent = 'Reset ' + sid + '?';
+  rd.input.value = '';
+  rd.input.placeholder = sid;
+  rd.err.textContent = '';
+  rd.go.disabled = true;
+  rd.d.showModal();
+  rd.input.focus();
+}
+
+function resetBusy(reset) {
+  return !!reset && (reset.state === 'queued' || reset.state === 'running');
+}
+
+const RESET_MARK = { done: '\u2713', failed: '\u2717', running: '\u2026', pending: '\u00B7' };
+
+// The tile's reset line: nothing until a reset is asked for, then one mark
+// per step (detail on hover), the failing step's error and Retry.
+function updateReset(tile, sid, reset) {
+  const box = tile.querySelector('.tile-reset');
+  const btn = tile.querySelector('.tile-reset-btn');
+  const key = reset ? JSON.stringify(reset) : '';
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.textContent = '';
+  const busy = resetBusy(reset);
+  btn.disabled = busy;
+  if (busy) {
+    // Their terminal is about to go; watch again once the reset is over.
+    const frame = tile.querySelector('iframe');
+    frame.removeAttribute('src');
+    tile.classList.remove('watching');
+  }
+  if (!reset) return;
+  const word = { queued: 'Reset queued', running: 'Resetting', done: 'Reset done', failed: 'Reset failed' };
+  const head = make('span', 'rs-' + (reset.state === 'queued' ? 'pending' : reset.state),
+                    word[reset.state] || String(reset.state));
+  box.appendChild(head);
+  let failed = null;
+  (Array.isArray(reset.steps) ? reset.steps : []).forEach(st => {
+    const status = RESET_MARK[st.status] ? st.status : 'pending';
+    const el = make('span', 'rs-' + status, RESET_MARK[status] + ' ' + String(st.label));
+    if (st.detail) el.title = String(st.detail);
+    box.appendChild(el);
+    if (status === 'failed') failed = st;
+  });
+  if (reset.state === 'failed') {
+    const retry = make('button', '', 'Retry');
+    retry.type = 'button';
+    retry.onclick = (e) => { e.stopPropagation(); resetDialogFor(sid); };
+    box.appendChild(retry);
+    if (failed && failed.detail) {
+      const errEl = make('span', 'rs-error', String(failed.detail));
+      errEl.title = String(failed.detail);
+      box.appendChild(errEl);
+    }
+  }
+}
+
 function buildTile(r) {
   const tile = document.createElement('div');
   tile.className = 'tile';
@@ -1062,8 +1418,12 @@ function buildTile(r) {
   const pw = make('code', 'tile-pw');
   const pwBtn = make('button', 'tile-pw-btn', 'Password');
   const release = make('button', 'tile-release', 'Release');
-  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release);
-  head.append(title, meta);
+  const resetBtn = make('button', 'tile-reset-btn', 'Reset');
+  resetBtn.title = 'Put this account back as at stack start';
+  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release, resetBtn);
+  const resetLine = make('div', 'tile-reset');
+  head.append(title, meta, resetLine);
+  resetBtn.onclick = (e) => { e.stopPropagation(); resetDialogFor(r.studentId); };
   label.onclick = () => toggleEnlarge(r.studentId);
   reload.onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
   release.onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
@@ -1083,7 +1443,8 @@ function buildTile(r) {
   tile.appendChild(head);
   tile.appendChild(wrap);
   frameObserver.observe(wrap);
-  if (r.watchable) activateWatch(tile, r.studentId);
+  updateReset(tile, r.studentId, r.reset);
+  if (r.watchable && !resetBusy(r.reset)) activateWatch(tile, r.studentId);
   return tile;
 }
 
@@ -1093,7 +1454,8 @@ function updateRoster(rows) {
     seen.add(r.studentId);
     if (tiles[r.studentId]) {
       setStatus(tiles[r.studentId].querySelector('.tile-status'), r.active);
-      if (r.watchable) activateWatch(tiles[r.studentId], r.studentId);
+      updateReset(tiles[r.studentId], r.studentId, r.reset);
+      if (r.watchable && !resetBusy(r.reset)) activateWatch(tiles[r.studentId], r.studentId);
       continue;
     }
     const tile = buildTile(r);
@@ -1181,8 +1543,72 @@ CSP = ("default-src 'self'; script-src 'self'; "
        "img-src 'self' data:; object-src 'none'; base-uri 'none'; "
        "form-action 'self'; frame-ancestors 'self'")
 
+# Student workspace (/workspace): the same shell CSS and tab code as /admin,
+# plus a small script that remembers split or workspace mode in this browser.
+# Served behind the ordinary session gate (any login), like the pages.
+WORKSPACE_CSS = SHELL_CSS + """
+  .tab.indent { margin-left: 1rem; font-size: 0.88rem; }
+  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #topbar { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 1.1rem;
+             padding: 0.4rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #ddd; background: #f3f3f3; }
+  @media (prefers-color-scheme: dark) { #topbar { border-bottom-color: #333; background: #121212; } }
+  #topbar .who { margin-right: auto; opacity: 0.7; }
+  #content #main { flex: 1; }
+  .panel iframe { height: calc(100vh - 3.6rem); }
+  @media (max-width: 700px) { #content { display: block; } .panel iframe { height: calc(100vh - 1.5rem); } }
+"""
+WORKSPACE_JS = TABS_JS + """
+// Open the first tab (its iframe loads now; the rest load on first click).
+if (tabs.length) { activateTab(tabs[0].dataset.tab); }
+"""
+WORKSPACE_MODE_JS = """
+// Remember, per browser, whether this student prefers the tabbed workspace or the
+// separate pages ("split mode", which keeps Chrome's split screen usable).
+(function () {
+  var KEY = 'dojo-mode';
+  function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function set(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  var page = document.documentElement.dataset.page;
+  // The landing page goes straight to the workspace for anyone who chose it, unless they
+  // just came back on purpose (?split).
+  if (page === 'landing' && get() === 'workspace' && !/[?&]split(&|$)/.test(location.search)) {
+    location.replace('/workspace');
+    return;
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-mode]') : null;
+    if (el) { set(el.dataset.mode); }
+  });
+})();
+"""
+# Manifest `scripts`: one loader every student page includes (landing, /workspace, slides, lab
+# reader) as <script src="/workspace/extra.js" data-surface="NAME">. It adds each same-origin
+# script the run's modules asked for, passing the surface name along. Empty when there are none.
+def build_extra_js(scripts):
+    return """(function () {
+  var me = document.currentScript, surface = me && me.getAttribute('data-surface');
+  %s.forEach(function (src) {
+    var s = document.createElement('script');
+    s.src = src;
+    if (surface) { s.setAttribute('data-surface', surface); }
+    document.head.appendChild(s);
+  });
+})();
+""" % json.dumps([x["src"] for x in scripts])
+
+
+EXTRA_JS = build_extra_js(EXTENSIONS["scripts"])
+WORKSPACE_ASSETS = {
+    "/workspace/extra.js": ("text/javascript; charset=utf-8", EXTRA_JS),
+    "/workspace/workspace.css": ("text/css; charset=utf-8", WORKSPACE_CSS),
+    "/workspace/workspace.js": ("text/javascript; charset=utf-8", WORKSPACE_JS),
+    "/workspace/mode.js": ("text/javascript; charset=utf-8", WORKSPACE_MODE_JS),
+}
+
 ADMIN_ASSETS = {
-    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS),
+    # Reset hook labels passed render_extensions.py's check_text; json.dumps keeps them data.
+    "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS.replace(
+        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"]]))),
     "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
 }
 
@@ -1212,6 +1638,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
+
+    def handle_one_request(self):
+        """An audit line for any handler that crashes (the traceback still
+        goes to stderr), so a broken page shows up in the JSON log."""
+        try:
+            super().handle_one_request()
+        except (ConnectionError, socket.timeout):
+            raise
+        except Exception as exc:
+            audit("error", method=getattr(self, "command", None),
+                  path=(getattr(self, "path", "") or "").split("?", 1)[0][:200],
+                  exc=type(exc).__name__, detail=_short(str(exc)))
+            raise
 
     # -- helpers ---------------------------------------------------------
     def send_html(self, body, status=200, headers=None):
@@ -1381,6 +1820,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "icon": ICONS_BY_NAME.get(card["icon"], ICON_ARROW),
             })
 
+        workspace_card = f"""<a class="card wide" href="/workspace" data-mode="workspace">
+  <span class="card-icon">{ICON_LAYOUT}</span>
+  <span class="card-text">
+    <span class="card-title">Open workspace</span>
+    <span class="card-desc">Everything on one page: the labs, VS Code, terminal, Forgejo and slides as tabs.</span>
+  </span>
+  {ICON_ARROW}
+</a>"""
+        widgets = "\n".join(
+            f'<iframe class="widget widget-{html.escape(w["size"])}" src="{html.escape(w["src"])}" '
+            f'title="{html.escape(w["id"])}"></iframe>'
+            for w in EXTENSIONS["widgets"]
+        )
+        if widgets:
+            widgets = f'<div class="widgets">\n{widgets}\n</div>'
+
         cards = "\n".join(
             f"""<a class="card{' primary' if t.get('primary') else ''}" href="{t['href']}" target="_blank" rel="noopener">
   <span class="card-icon">{t['icon']}</span>
@@ -1394,13 +1849,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         )
 
         body = f"""
+<a class="signout" href="/logout">Sign out</a>
 <div class="hero">
   <span class="hero-badge">{html.escape(sid)}</span>
   <h1>You're in, {html.escape(slot['name'])}</h1>
-  <p class="sub">Pick a tool to get started -- each one opens in a new tab.</p>
-</div>
-<div class="cards">
-{cards}
+  <p class="sub">Pick a tool to get started -- each opens in a new tab -- or open the workspace to keep everything on one page.</p>
 </div>
 <div class="secret">
   <span class="secret-label">Your Forgejo account</span>
@@ -1410,14 +1863,80 @@ class Handler(http.server.BaseHTTPRequestHandler):
   </table>
   <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
+<div class="cards">
+{workspace_card}
+{cards}
+</div>
+{widgets}
 <p class="footnote">Reload this page any time -- it always brings you straight back here as <strong>{html.escape(sid)}</strong>, with nothing lost.</p>
-<p class="footnote"><a href="/logout">Sign out</a></p>"""
+"""
 
         return f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html data-page="landing"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(WORKSHOP_NAME)}</title>
+<script src="/workspace/mode.js"></script>
+<script src="/workspace/extra.js" data-surface="portal"></script>
 <style>{CONFIRM_CSS}</style></head>
 <body>{body}</body></html>"""
+
+    def render_workspace(self, sid):
+        """The student's tabbed workspace at /workspace: the lab reader, VS
+        Code, terminal, Forgejo and slides, plus a tab for each landing card
+        a workshop or module declares, all as iframes on one page (the
+        student's counterpart of /admin, sharing its layout and tab code).
+        Nothing new for Caddy to authorize: each iframe is the same
+        session-gated route the landing page's cards open in a new tab, and
+        it is set lazily on that tab's first click so opening the workspace
+        doesn't start a VS Code or terminal the student may not use.
+
+        Split mode (the landing page and its separate tabs) stays as it is:
+        the "Split mode" link and the landing page's "Open workspace" card
+        each remember the choice in this browser (see WORKSPACE_MODE_JS)."""
+        # VS Code, Terminal, Forgejo, Slides (the labs sit under it), then a tab per
+        # widget (its full page) and per card. The first tab opens at load.
+        tabs = [
+            ("ide", "VS Code", "/ide/", False),
+            ("term", "Terminal", "/term/", False),
+            ("forgejo", "Forgejo", "/forgejo-login", False),
+            ("slides", "Slides", "/slides/", False),
+            ("labs", "Labs", "/slides/labs.md", True),
+        ] + [(w["id"], w["id"].replace("-", " ").title(), w["src"], False) for w in EXTENSIONS["widgets"]] \
+          + [(c["id"], c["label"], c["href"], False) for c in EXTENSIONS["cards"]]
+        buttons = "".join(
+            f'  <button class="tab{" indent" if sub else ""}{" active" if i == 0 else ""}" data-tab="{html.escape(tid)}">{html.escape(label)}</button>\n'
+            for i, (tid, label, _, sub) in enumerate(tabs))
+        panels = "".join(
+            f'<div class="panel{" active" if i == 0 else ""}" id="panel-{html.escape(tid)}">'
+            f'<iframe data-src="{html.escape(src)}" title="{html.escape(label)}"></iframe></div>\n'
+            for i, (tid, label, src, _) in enumerate(tabs))
+        return f"""<!doctype html>
+<html data-page="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(WORKSHOP_NAME)}</title>
+<script src="/workspace/mode.js"></script>
+<script src="/workspace/extra.js" data-surface="workspace"></script>
+<link rel="stylesheet" href="/workspace/workspace.css">
+</head>
+<body>
+<nav id="side">
+  <div id="bar">
+    <h1>Workspace</h1>
+    <p class="sub"><span class="badge">{html.escape(sid)}</span></p>
+    <p class="sub"><a href="/" data-mode="split" target="_top">Split mode</a></p>
+  </div>
+  <div class="tabs" role="tablist" aria-orientation="vertical">
+{buttons}  </div>
+</nav>
+<div id="content">
+<div id="topbar">
+  <span class="who">{html.escape(sid)}</span>
+  <a href="/?split" target="_top">Home</a>
+  <a href="/logout" target="_top">Sign out</a>
+</div>
+<main id="main">
+{panels}</main>
+</div>
+<script src="/workspace/workspace.js"></script>
+</body></html>"""
 
     def render_facilitator_workspace(self):
         """The facilitator's one-stop page at /admin: a roster of live
@@ -1569,6 +2088,21 @@ EXT_PANELS_PLACEHOLDER</main>
                 self.send_html(self.render_name_form())
             return
 
+        if path in WORKSPACE_ASSETS:
+            self.send_asset(*WORKSPACE_ASSETS[path])
+            return
+
+        if path in ("/workspace", "/workspace/"):
+            username, sid = self.resolve_identity()
+            if username == FACILITATOR_USERNAME:
+                # The facilitator's workspace is /admin.
+                self.redirect("/admin")
+            elif sid is None:
+                self.redirect("/")
+            else:
+                self.send_html(self.render_workspace(sid), headers=NO_STORE_HEADERS)
+            return
+
         if path == "/forgejo-login":
             # Deliberately NOT under /git/* -- Caddy's @git matcher is a
             # raw prefix match ("/git*"), so a path starting with "/git"
@@ -1579,6 +2113,11 @@ EXT_PANELS_PLACEHOLDER</main>
                 self.send_header("Location", "/")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
+                return
+            if RESETS.fenced(username):
+                self.send_html(page("Resetting", "<main><h1>Your environment is being reset</h1>"
+                                    "<p>Reload this page in a few seconds.</p></main>"),
+                               status=503, headers=NO_STORE_HEADERS)
                 return
             if username == FACILITATOR_USERNAME:
                 forgejo_user, password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
@@ -1665,15 +2204,27 @@ EXT_PANELS_PLACEHOLDER</main>
             self.end_headers()
             return
 
+        if RESETS.fenced(username):
+            # Being reset: the self-refreshing starting page, as for a
+            # workspace that isn't up yet; it comes back once the reset ends.
+            audit_check("auth-check", username, tool, 202, uri=uri, reset=True)
+            self.send_response(202)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         port = ide_port(username) if tool == "ide" else term_port(username)
         started = time.monotonic()
-        resp = control_request("POST", f"/start/{tool}/{username}")
-        ready = False
-        if resp is not None:
-            try:
-                ready = bool(json.loads(resp).get("ready"))
-            except (ValueError, AttributeError):
-                ready = False
+        ready = READY_CACHE.get((tool, username)) is not None
+        if not ready:
+            resp = control_request("POST", f"/start/{tool}/{username}")
+            if resp is not None:
+                try:
+                    ready = bool(json.loads(resp).get("ready"))
+                except (ValueError, AttributeError):
+                    ready = False
+            if ready:
+                READY_CACHE.put((tool, username), True)
         audit_check("auth-check", username, tool, 200 if ready else 202, uri=uri,
                     ms=round((time.monotonic() - started) * 1000))
 
@@ -1711,7 +2262,15 @@ EXT_PANELS_PLACEHOLDER</main>
             denied = 403
         elif "host" in route and not DNS_LABEL_RE.match(username.lower()):
             denied = 403
+        elif RESETS.fenced(username):
+            denied = 503
         audit_check("route-check", username, route_id, denied or 200)
+        if denied == 503:
+            self.send_response(503)
+            self.send_header("Retry-After", "5")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if route is None or route["gate"] not in ("identity", "facilitator"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -1765,7 +2324,7 @@ EXT_PANELS_PLACEHOLDER</main>
             self.end_headers()
             return
 
-        body = control_request("POST", f"/start/watch/{sid}")
+        body = None if RESETS.fenced(sid) else control_request("POST", f"/start/watch/{sid}")
         audit_check("watch", username, sid, 409 if body is None else 200)
         if body is None:
             self.send_response(409)  # student has no term session to watch yet
@@ -1806,7 +2365,12 @@ EXT_PANELS_PLACEHOLDER</main>
         all_ids = list(held) + BOT_IDS
         status = {}
         if all_ids:
-            body = control_request("GET", "/status?users=" + ",".join(all_ids))
+            query = "/status?users=" + ",".join(all_ids)
+            body = STATUS_CACHE.get(query)
+            if body is None:
+                body = control_request("GET", query)
+                if body:
+                    STATUS_CACHE.put(query, body)
             if body:
                 try:
                     status = json.loads(body)
@@ -1826,6 +2390,7 @@ EXT_PANELS_PLACEHOLDER</main>
                 # this to connect a tile's watch iframe itself the moment
                 # it turns true, instead of only on the next manual reload.
                 "watchable": bool(s.get("watchable", False)),
+                "reset": RESETS.snapshot(sid),
             })
         # Demo bots are always listed (no /assign step -- see BOT_IDS above),
         # right after real students, so a facilitator can watch/Release them
@@ -1840,6 +2405,7 @@ EXT_PANELS_PLACEHOLDER</main>
                 "assignedAt": None,
                 "active": bool(s.get("active", False)),
                 "watchable": bool(s.get("watchable", False)),
+                "reset": RESETS.snapshot(sid),
             })
         self.send_json(rows)
 
@@ -1878,6 +2444,15 @@ EXT_PANELS_PLACEHOLDER</main>
                 return
             sid = path[len("/admin/release/"):]
             self.handle_release(sid)
+            return
+
+        if path.startswith("/admin/reset/"):
+            # Same forgery guard as Release, plus the typed id in the body.
+            if self.headers.get("X-Requested-With") != "dojo-admin":
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.handle_reset(path[len("/admin/reset/"):])
             return
 
         if path == "/admin/release-unused":
@@ -2061,6 +2636,29 @@ EXT_PANELS_PLACEHOLDER</main>
         release_slot(sid)
         self.send_json({"released": sid})
 
+    def handle_reset(self, sid):
+        """The Roster's Reset (reset.py): puts one student or bot back as at
+        stack start. The facilitator types the id (form field `confirm`);
+        the reset runs on the worker thread and its progress shows in
+        /admin/api/sessions. Never the facilitator's own account."""
+        if self.resolve_identity()[0] != FACILITATOR_USERNAME:
+            # Caddy's /admin* basic_auth already decided; checked again here,
+            # as /auth-check-watch does, since a reset deletes data.
+            self.send_response(403)
+            self.end_headers()
+            return
+        if sid not in STUDENT_IDS and sid not in BOT_IDS:
+            self.send_response(404)
+            self.end_headers()
+            return
+        if self.read_form_body().get("confirm") != sid:
+            self.send_json({"error": "type the student id to confirm"}, status=400)
+            return
+        if not RESETS.request(sid):
+            self.send_json({"error": "a reset of this account is already running"}, status=409)
+            return
+        self.send_json({"reset": sid, "state": "queued"}, status=202)
+
     def handle_release_unused(self):
         """The Roster's "Release unused" (remediation T3.4): frees every slot
         taken at least UNUSED_AFTER_SECONDS ago with no IDE or terminal
@@ -2102,7 +2700,9 @@ def make_server(addr):
 
 
 def main():
-    threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
+    load_slots()
+    start_status_probes()
+    RESETS.start()
     server = make_server(("0.0.0.0", 8080))
     server.serve_forever()
 

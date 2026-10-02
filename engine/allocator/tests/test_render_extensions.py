@@ -38,6 +38,11 @@ class LoadTests(unittest.TestCase):
         self.addCleanup(os.unlink, f.name)
         return rx.load_manifest(f.name)
 
+    def test_widget_fields(self):
+        for item in ({"id": "w"}, {"id": "w", "src": "/a/", "height": "9999px"}):  # src required; no raw values
+            with self.subTest(item=item), self.assertRaises(rx.ManifestError):
+                self.load(manifest(widgets=[item]))
+
     def test_bad_json(self):
         with self.assertRaisesRegex(rx.ManifestError, "not valid JSON"):
             self.load(None, raw="{nope")
@@ -153,6 +158,45 @@ class CardTabStatusTests(unittest.TestCase):
                                          admin_tabs=[{"id": "cloud", "label": "Dojo Cloud", "src": "/cloud/#/p"}]))
         self.assertEqual(warnings, [])
 
+    def test_workspace_path_is_reserved(self):
+        for path in ("/workspace", "/workspace-x"):
+            with self.subTest(path=path), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(routes=[route(path=path)]))
+
+    def test_widget(self):
+        merged, _ = run_merge(manifest(widgets=[{"id": "score", "src": "/achievements/widget/"}]))
+        self.assertEqual(merged["widgets"], [{"source": "00-test.json", "id": "score",
+                                              "src": "/achievements/widget/", "size": "small"}])
+        merged, _ = run_merge(manifest(widgets=[{"id": "score", "src": "/a/", "size": "large"}]))
+        self.assertEqual(merged["widgets"][0]["size"], "large")
+
+    def test_widget_checks(self):
+        bad = [
+            {"id": "w", "src": "https://evil.example/"},   # not same-origin
+            {"id": "w", "src": "//evil.example/"},         # scheme-relative
+            {"id": "w", "src": "/a/", "size": "huge"},     # not a fixed size
+            {"id": "Bad Id", "src": "/a/"},
+        ]
+        for w in bad:
+            with self.subTest(w=w), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(widgets=[w]))
+
+    def test_duplicate_widget_id(self):
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(widgets=[{"id": "w", "src": "/a/"}, {"id": "w", "src": "/b/"}]))
+
+    def test_scripts(self):
+        merged, _ = run_merge(manifest(scripts=[{"id": "toasts", "src": "/achievements/toast.js"}]))
+        self.assertEqual(merged["scripts"], [{"source": "00-test.json", "id": "toasts", "src": "/achievements/toast.js"}])
+
+    def test_script_checks(self):
+        for bad in ({"id": "s", "src": "https://evil.example/x.js"}, {"id": "s", "src": "//evil.example/x.js"},
+                    {"id": "S s", "src": "/a.js"}):
+            with self.subTest(bad=bad), self.assertRaises(rx.ManifestError):
+                run_merge(manifest(scripts=[bad]))
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(scripts=[{"id": "s", "src": "/a.js"}, {"id": "s", "src": "/b.js"}]))
+
     def test_status_checks(self):
         out, _ = run_merge(manifest(status_checks=[{"label": "Cloud", "url": "http://cloud-api:8080/readyz"}]))
         self.assertEqual(out["status_checks"][0]["url"], "http://cloud-api:8080/readyz")
@@ -244,6 +288,85 @@ class TokenTests(unittest.TestCase):
             rx.render_caddy(out["routes"])
 
 
+def hook(**over):
+    h = {"id": "dojo-cloud", "label": "Dojo Cloud resources", "upstream": "cloud-api:8080",
+         "path": "/_dojo/reset/{user}"}
+    h.update(over)
+    return h
+
+
+class ResetHookTests(unittest.TestCase):
+    def test_good_hook_defaults_timeout(self):
+        out, _ = run_merge(manifest(resets=[hook()]))
+        self.assertEqual(out["resets"], [{"source": "00-test.json", "id": "dojo-cloud", "label": "Dojo Cloud resources",
+                                          "upstream": "cloud-api:8080", "path": "/_dojo/reset/{user}",
+                                          "timeout": 30}])
+
+    def test_manifest_order_kept(self):
+        out, _ = run_merge(manifest(resets=[hook(id="b")]), manifest(resets=[hook(id="a")]))
+        self.assertEqual([h["id"] for h in out["resets"]], ["b", "a"])
+
+    def test_duplicate_id_across_manifests(self):
+        with self.assertRaisesRegex(rx.ManifestError, "already used"):
+            run_merge(manifest(resets=[hook()]), manifest(resets=[hook()]))
+
+    def test_upstream_must_be_in_this_run(self):
+        for bad in ("nope:8080", "cloud-api", "cloud-api:0", "http://cloud-api:8080"):
+            with self.assertRaises(rx.ManifestError, msg=bad):
+                run_merge(manifest(resets=[hook(upstream=bad)]))
+
+    def test_path_needs_user_once_and_nothing_else(self):
+        for bad in ("/_dojo/reset", "/r/{user}/{user}", "/r/{id}/{user}", "r/{user}", "/r/{user}?x=1",
+                    "/r/{user} ", "//host/{user}", 7):
+            with self.assertRaises(rx.ManifestError, msg=repr(bad)):
+                run_merge(manifest(resets=[hook(path=bad)]))
+        out, _ = run_merge(manifest(resets=[hook(path="/api/v1/students/{user}/reset")]))
+        self.assertEqual(out["resets"][0]["path"], "/api/v1/students/{user}/reset")
+
+    def test_timeout_range(self):
+        for bad in (0, 121, 2.5, "30", True):
+            with self.assertRaises(rx.ManifestError, msg=repr(bad)):
+                run_merge(manifest(resets=[hook(timeout=bad)]))
+        out, _ = run_merge(manifest(resets=[hook(timeout=120)]))
+        self.assertEqual(out["resets"][0]["timeout"], 120)
+
+    def test_label_checked(self):
+        with self.assertRaises(rx.ManifestError):
+            run_merge(manifest(resets=[hook(label="x" * 41)]))
+
+    def test_unknown_field(self):
+        with self.assertRaises(rx.ManifestError):
+            rx.load_manifest(self._write(manifest(resets=[hook(phase="teardown")])))
+
+    def _write(self, data):
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d))
+        path = os.path.join(d, "01-x.json")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return path
+
+    def test_one_token_per_service_not_the_gateway_token(self):
+        hooks = [{"upstream": "cloud-api:8080"}, {"upstream": "cloud-api:9090"}, {"upstream": "app-host:8080"}]
+        t = rx.reset_tokens(hooks, MASTER)
+        self.assertEqual(set(t), {"cloud-api", "app-host"})
+        self.assertNotEqual(t["cloud-api"], rx.upstream_tokens(
+            [{"upstream": "cloud-api:8080", "gate": "identity"}], MASTER)["cloud-api"])
+        self.assertEqual(rx.reset_tokens([], ""), {})
+        with self.assertRaises(rx.ManifestError):
+            rx.reset_tokens(hooks, "")
+
+    def test_matches_what_the_allocator_derives(self):
+        import reset
+        self.assertEqual(rx.reset_tokens([{"upstream": "cloud-api:8080"}], MASTER)["cloud-api"],
+                         reset.hook_token(MASTER, "cloud-api"))
+
+    def test_env_file(self):
+        env = rx.render_tokens_env({"cloud-api": "ab" * 32}, {"cloud-api": "cd" * 32})
+        self.assertIn("GATEWAY_TOKEN_CLOUD_API=" + "ab" * 32 + "\n", env)
+        self.assertIn("RESET_TOKEN_CLOUD_API=" + "cd" * 32 + "\n", env)
+
+
 class MainTests(unittest.TestCase):
     def setUp(self):
         old = os.environ.get("GATEWAY_TOKEN")
@@ -265,6 +388,20 @@ class MainTests(unittest.TestCase):
             self.assertEqual(os.stat(env_path).st_mode & 0o777, 0o600)
             with open(env_path) as f:
                 self.assertIn("GATEWAY_TOKEN_CLOUD_API=", f.read())
+
+    def test_end_to_end_with_reset_hook(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "in"))
+            with open(os.path.join(d, "in", "01-module-x.json"), "w") as f:
+                json.dump(manifest(resets=[hook()]), f)
+            rc = rx.main(["--in", os.path.join(d, "in"), "--out", d, "--services", " ".join(SERVICES)])
+            self.assertEqual(rc, 0)
+            with open(os.path.join(d, "allocator", "extensions.json")) as f:
+                self.assertEqual(json.load(f)["resets"][0]["path"], "/_dojo/reset/{user}")
+            with open(os.path.join(d, "upstream-tokens.env")) as f:
+                text = f.read()
+            self.assertIn("RESET_TOKEN_CLOUD_API=", text)
+            self.assertNotIn("GATEWAY_TOKEN_CLOUD_API=", text)
 
     def test_missing_master_writes_nothing(self):
         os.environ.pop("GATEWAY_TOKEN", None)

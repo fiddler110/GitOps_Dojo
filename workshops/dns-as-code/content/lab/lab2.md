@@ -1,6 +1,6 @@
 # Lab 2 — Drift, and Undoing Your Own Changes
 
-**Optional. Part 1.** DNS as code only works if the file stays the source of truth. In real life someone eventually "just fixes it in the dashboard". This lab shows what `dnscontrol` does about that, and how to undo a change you've already pushed. Still in your own zone:
+**Part 1.** DNS as code only works if the file stays the source of truth. In real life someone eventually "just fixes it in the dashboard". This lab shows what `dnscontrol` does about that, and how to undo a change you've already pushed. Still in your own zone:
 
 ```sh
 cd ~/lab/my-zone
@@ -80,4 +80,19 @@ dig @dns-server www.$USER.dojo.test A +short
 - A change made outside the code survives only until the next push, unless someone adds it to the code.
 - Undo a pushed change with `git revert` and another push, not by hand.
 
-**Next:** [lab3.md](lab3.md), the required Part 2 lab: the shared zone.
+**Next:** [lab3.md](lab3.md), the first Part 2 lab: the shared zone.
+
+---
+
+## Challenge c1: The Typo (bonus)
+
+A copy of your zone that `dnscontrol` refuses to push: one record points at the wrong hostname. Find it and fix it
+without touching any other record, then push. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/challenge-typo` and
+clones it to `~/lab/challenge-typo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c1`. A wrong answer costs nothing; `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c1 -->

@@ -11,7 +11,7 @@ one workshop can use live in [`../modules/`](../modules/).
 
 | # | Workshop | What it teaches | Modules | Run it |
 | - | -------- | ---------------- | ------- | ------ |
-| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the whole platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and every capability running at once (Forgejo, vault, runners, DNS, certificates, Dojo Cloud) | `openbao`, `runner-pool`, `dojo-cloud`, `dns-ui` | `./run.sh dojo-introduction` |
+| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./run.sh dojo-introduction` |
 | 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
 | 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
 | 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
@@ -58,8 +58,8 @@ The numbers are the order to teach them in. `0` is the showcase for facilitators
    folder (`:<workshop>.<module>`) → the workshop's own `compose/terminal/`
    (`:<workshop>`). The last link is the image the stack runs.
 5. Runs `compose -f docker-compose.yml [-f modules/<m>/compose.yml ...] [-f <overlay>] up -d`
-   and records that file list in `engine/.last-overlay`, so `./run.sh stop`
-   tears down exactly what was started.
+   and records that file list in `engine/.build-state/current.json`, so
+   `./run.sh stop` tears down exactly what was started.
 
 ## Three kinds of workshop
 
@@ -81,13 +81,21 @@ want the same thing, make it a module instead.
 
 ## Adding a new workshop
 
-1. `mkdir -p workshops/<name>/content/{slides,lab,sample-repo}`
-2. Write `content/slides/presentation.md` (Marp — copy an existing deck's
-   frontmatter/style block for visual consistency), `content/lab/README.md`
+1. `./run.sh new-workshop <name>` (`--title`, `--description`, `--modules "a b"`,
+   `--terminal` for step 4's Dockerfile, `--dry-run`; `--help` lists them) copies
+   [`assets/template/`](assets/template/) into `workshops/<name>/`: `workshop.env`, a
+   README, the slide hub, deck, labs index, lab overview and cheat sheet, a first lab
+   and a sample repo, each with TODOs, already wired together and to the shared
+   themes. It starts as is (`./run.sh <name>`), so you can watch it fill in.
+2. Write `content/slides/presentation.md` (Marp, on the shared theme), `content/lab/README.md`
    (seeded into every student's `~/lab`), and `content/sample-repo/`
    (seeded into Forgejo by the `bootstrap` service — same mechanism for
-   every workshop, nothing to configure).
-3. Write `workshop.env`:
+   every workshop, nothing to configure). A lab with an achievements
+   challenge can end that section with `<!-- dojo-challenge: c1 -->` (or
+   `capstone`): the lab reader turns it into Start/Reset buttons when the
+   `achievements` module is on, and shows nothing otherwise (see
+   `modules/achievements/README.md`).
+3. Check `workshop.env` (the scaffold fills it in):
    ```sh
    WORKSHOP_NAME=<display name>
    WORKSHOP_DESCRIPTION="<one sentence, shown on the login page>"
@@ -148,15 +156,30 @@ want the same thing, make it a module instead.
 7. `./run.sh <name> --dry-run` shows what would build and start and checks the
    manifests and image pins. Then run it locally end to end, including the facilitator's
    `/admin` view, before trusting it for a live session.
+8. Optional: scripted lab tests in `tests/`, run from the repo root against the running stack.
+   Source `workshops/assets/test-lib.sh` (POSIX sh) for the shared helpers: run commands in a
+   student's login shell (`as`, `ok`, `has`, `lacks`, `denied`), check captured output
+   (`check`, `absent`), the Forgejo admin `api`, Actions job logs (`job_logs`, `new_logs`), and
+   the labs' own commands (`md_blocks`, `md_line`, `md_range`), so a test follows its lab. End
+   with `finish`. `workshops/vault-fundamentals/tests/lab_8.sh` is a short example.
+   `sh workshops/assets/test-lib-selftest.sh` checks the library offline (CI runs it).
 
 Nothing about adding a workshop this way ever requires editing
 `engine/docker-compose.yml`, the base `web-terminal` image, the allocator
 or the gateway.
 
+## Sensei help in your workshop
+
+List the `sensei` module in `MODULES=` (the shipped workshops all do) and students get `sensei ask|why|hand|inbox`.
+`ask` searches your `content/lab/*.md`; `why` explains the last error on screen, with a table it derives from any
+"You see | Cause / fix" table in your labs (the first cell is the backticked message). Add
+`workshops/<name>/sensei/patterns.json` for errors the labs don't tabulate (format in `modules/sensei/README.md`).
+Labs must never hold challenge answers; Sensei skips headings that name a challenge, but that is a backstop.
+
 ## Front door: `extensions.json`
 
 A workshop or module declares its landing cards, facilitator `/admin` tabs,
-gateway routes and status checks in an `extensions.json`. The engine checks
+landing-page widgets, gateway routes and status checks in an `extensions.json`. The engine checks
 it and renders it through fixed templates; a manifest never supplies raw
 Caddy config or HTML. `cert-autorenewal/extensions.json`:
 
@@ -164,15 +187,18 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 {
   "version": 1,
   "cards": [
-    { "id": "demo", "label": "Demo Site", "desc": "The live site your lab work is serving.",
-      "href": "/demo/", "icon": "rocket" }
+    { "id": "inspect", "label": "Site Inspector", "desc": "Visit your site like a browser: redirects, certificate, HSTS and headers, step by step.",
+      "href": "/inspect/", "icon": "key" }
   ],
   "admin_tabs": [
-    { "id": "demo", "label": "Demo Site", "src": "/demo/" }
+    { "id": "inspect", "label": "Site Inspector", "src": "/inspect/" }
   ],
   "routes": [
-    { "id": "demo", "path": "/demo", "upstream": "demo-app:80", "gate": "identity",
-      "strip_prefix": true, "host": "{user}.${DEMO_APP_ZONE}" }
+    { "id": "inspect", "path": "/inspect", "upstream": "site-inspector:8080", "gate": "identity",
+      "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "Site Inspector", "url": "http://site-inspector:8080/healthz" }
   ]
 }
 ```
@@ -181,8 +207,27 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 |---|---|
 | `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns` |
 | `admin_tabs` | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page |
+| `widgets` | `id`, `src` (same-origin), `size` (`small`, `medium` or `large`, default `small`); a page framed at the top of the student's landing page, above the cards. It is a page you also serve through a `routes` entry, so it has its own gate and identity |
+| `scripts` | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it |
 | `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
 | `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
+| `resets` | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30); a student reset hook, see below |
+
+**Student reset hooks.** When the facilitator resets one student from the Roster, the allocator calls each `resets`
+entry twice, in manifest order: `POST <upstream><path>?phase=teardown` before the student's Forgejo account is deleted,
+and `?phase=provision` after the terminal is set up again. `{user}` is the student's account (`studentNN` or a bot).
+Answer `200` with `{"ok": true, "detail": "short text"}`; anything else fails that step and stops the reset (the
+facilitator can Retry, so both phases must be safe to run again). The request carries `X-Dojo-Reset-Token`: compare it,
+in constant time, with `RESET_TOKEN`, which your compose fragment passes in as `RESET_TOKEN=${RESET_TOKEN_<SERVICE>:-}`
+(service name upper-cased, `-` and `.` as `_`). The token is your service's own, so it can't reset anything elsewhere,
+and since students can reach your service on `workshop_lab`, an endpoint that skips the check lets any student wipe
+any other. Per-student state inside the terminal uses `/etc/dojo/account.d` and `reset.d` hooks instead.
+
+**Student workspace.** Every student can open `/workspace`, the tabbed version of the landing page: Labs, VS Code,
+Terminal, Forgejo and Slides, then one tab per `cards` entry (framing that card's `href`). A card therefore needs no
+extra manifest field to appear there, but its page must allow being framed by the same origin (the `/admin` tab for
+the same card already needs that). Its `/` counterpart, *split mode*, is unchanged; a student's choice is remembered in
+their browser.
 
 **Gates** pick who gets through a route:
 
@@ -242,6 +287,29 @@ Rules for `compose.yml`:
   `./run.sh stop` removes them.
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` (later file wins); see `modules/forgejo-runner/README.md`.
+
+Shared helpers: a file several module services need (say `dojo_http.py`) has one
+copy in `modules/_shared/`. A module lists the ones it uses in its `module.env`
+as `SHARED="<context>/<file> ..."` (e.g. `SHARED="gate/dojo_http.py"`), and each
+start copies them into `<context>/_shared/` before building. Those folders are
+git-ignored and rebuilt every start (never edit a copy), so the Dockerfile does
+`COPY _shared/ /app/_shared/` (a service that bind-mounts its folder sees the copy
+there without one). `SHARED` is read from that module's own `module.env` as written:
+no `$(...)`, and a workshop can't override it. The service puts both folders on its
+path, so its unit tests find the one copy without a start:
+`sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]`
+(one `..` fewer for a service at the module's top, like `sensei/server.py`).
+
+`modules/_shared/dojo_http.py` is the one every web service uses: `gateway_user`
+and `is_facilitator` (identity only alongside the right `X-Gateway-Token`, failing
+closed when it's unset), `token_ok`, the security headers (`SECURITY_HEADERS`, a
+strict `CSP`) and `send`/`send_json` for an `http.server` handler.
+
+`modules/_shared/adapter_client.py` is for a module that tells the achievements service what a
+student did (dns-gate, cloud-api, openbao-audit): `AdapterClient(url, secret, source).post(doc)`
+signs the event and hands it to one bounded queue with one worker thread. It never raises or
+blocks; it is off unless both `ACHIEVEMENTS_ADAPTER_URL` and `ACHIEVEMENTS_ADAPTER_SECRET` are
+set, and a full queue drops the event. Tests pass `send=` and call `flush()`.
 
 Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
 [`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and

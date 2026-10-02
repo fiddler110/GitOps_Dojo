@@ -1,0 +1,54 @@
+{
+  "milestones": [
+    {
+      "id": "d6-conflict",
+      "title": "Same Line, Different Idea",
+      "joke": "Two edits, one line.",
+      "core": true,
+      "when": "shell: `git merge` or `git pull` exits non-zero and leaves a merge in progress",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "git merge",
+            "exit": "nonzero",
+            "merging_after": true
+          },
+          {
+            "source": "shell",
+            "cmd": "git pull",
+            "exit": "nonzero",
+            "merging_after": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "d6-resolved",
+      "title": "Diplomat",
+      "joke": "Both records kept. Peace in our time.",
+      "core": true,
+      "when": "shell: `git commit` that completes a merge (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "exit": 0,
+        "merging": true,
+        "merging_after": false
+      }
+    },
+    {
+      "id": "d6-preview",
+      "title": "Preview First, Always",
+      "joke": "Previewed the merge result before pushing.",
+      "core": true,
+      "when": "shell: `dnscontrol preview` while the merge is still in progress (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol preview",
+        "exit": 0,
+        "merging": true
+      }
+    }
+  ]
+}

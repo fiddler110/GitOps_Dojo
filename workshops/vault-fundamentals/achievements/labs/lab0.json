@@ -1,0 +1,42 @@
+{
+  "milestones": [
+    {
+      "id": "v0-ui",
+      "title": "Front Door",
+      "joke": "Signed in with Forgejo. No password to forget.",
+      "core": true,
+      "when": "bao: an OIDC login for the student (the browser sign-in through Forgejo)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "oidc",
+        "ok": true
+      }
+    },
+    {
+      "id": "v0-token",
+      "title": "Token Holder",
+      "joke": "The terminal was already signed in.",
+      "core": true,
+      "when": "shell: `bao token lookup` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao token lookup",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v0-first",
+      "title": "First Secret",
+      "joke": "Your very first secret.",
+      "core": true,
+      "when": "shell: `bao kv get` of the welcome secret (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao kv get",
+        "regex": "students/\\S+/welcome",
+        "exit": 0
+      }
+    }
+  ]
+}

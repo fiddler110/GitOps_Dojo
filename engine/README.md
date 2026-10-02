@@ -93,8 +93,10 @@ each student has their own uid, so one student's bomb can't eat a classmate's
 allowance. There is deliberately no address-space cap (it breaks
 node/code-server) and no per-user memory cap: that needs per-user cgroups, so
 `mem_limit` stays one shared pool (residual).
-`allocator` holds no persistent state (in-memory only, same ephemeral
-design as everything else) and never touches Docker itself — it only ever
+`allocator` keeps only its slot table on disk (the `allocator_state` volume,
+written on every claim and release, so a crash or OOM restart keeps every
+assignment; `./run.sh stop` wipes it like every other volume) and never
+touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.
 
 ### How a request gets routed and authenticated
@@ -189,6 +191,7 @@ Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 | ---------------- | --------------- | -------------------------------------------------------------------- |
 | `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
 | `/`              | `allocator`     | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
+| `/workspace`, `/workspace/*` | `allocator` | Shared gate. The student's tabbed workspace (Labs, VS Code, Terminal, Forgejo, Slides and one tab per landing card, each an iframe loaded on first click) and its three static assets. A facilitator gets a redirect to `/admin`, a browser with no slot one to `/`. The landing page's "Open workspace" card remembers the choice (`localStorage` key `dojo-mode`), and `/` then goes straight to the workspace unless the URL has `?split`. |
 | `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
 | `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
 | `/admin/*`       | `allocator`     | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
@@ -271,7 +274,7 @@ don't remove that when editing it.
 
 ### Workshop extensions (`extensions.json`)
 
-A workshop or module adds landing cards, `/admin` tabs, routes and status
+A workshop or module adds landing cards, `/admin` tabs, landing widgets, routes and status
 checks with an `extensions.json`, not by editing the engine. The format, the
 gates and the rules are in [`workshops/README.md`](../workshops/README.md#front-door-extensionsjson);
 this is how the engine uses it.
@@ -303,13 +306,21 @@ this is how the engine uses it.
   renderer can't chown, under Docker). Caddy re-sorts path-matched `handle` blocks,
   so correct routing relies on the renderer's no-overlap rule, not on order.
 - **Allocator.** Reads `.generated/allocator/extensions.json` at start: cards
-  go on the landing page after the built-in ones, tabs into `/admin` after the
-  built-in ones, status checks into the status strip. `/auth-check?route=<id>`
+  go on the landing page after the built-in ones (and become tabs in the student
+  `/workspace`), tabs into `/admin` after the built-in ones, widgets are framed
+  above the landing cards, `scripts` are loaded by every student page (landing, `/workspace`, slides, lab
+  reader) through `/workspace/extra.js`, status checks into the status strip. `/auth-check?route=<id>`
   looks the route up: `303` to `/` without a session, `403` for a student on a
   `facilitator` route, `404` for an unknown or `shared` route, and otherwise
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
+- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` makes `run.sh` add the
+  `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
+  (warning and no module when it doesn't). The catalog is validated first, in the allocator image
+  (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
+  mounted read-only, so a challenge or milestone naming an unknown verifier verb is an error); an error
+  stops the start like a bad manifest. Unset or `0` loads nothing.
 - **Legacy.** `STATUS_CHECKS` (`Label=URL;...` on the allocator) still adds
   status-strip entries; new work uses `status_checks` in the manifest.
 
@@ -321,9 +332,9 @@ this is how the engine uses it.
 - **Settings.** Each `module.env` is sourced first, then `.env` and
   `workshop.env` again, so the workshop wins.
 - **Compose files.** `-f docker-compose.yml`, each module's `compose.yml`, then
-  the workshop's `COMPOSE_OVERLAY`. The list is written to `.last-overlay`
-  (one file per line) so `./run.sh stop` / `teardown.sh` bring down the same
-  set. Build-change detection hashes each module folder and the overlay folder.
+  the workshop's `COMPOSE_OVERLAY`. The list is recorded in
+  `.build-state/current.json` so `./run.sh stop` brings down the same set.
+  Build-change detection hashes each module folder and the overlay folder.
 - **Terminal chain.** `gitopsdojo/web-terminal:base` → each module's
   `terminal/` as `:<workshop>.<module>` → the workshop's `compose/terminal/` as
   `:<workshop>`. Each link is `ARG BASE` / `FROM ${BASE}` and inherits the
@@ -474,11 +485,66 @@ that has visited once won't fall back to plain HTTP for a day.
 ./run.sh list                  # see available workshops
 ./run.sh setup                 # create .env (--default for lazy local values)
 ./run.sh capacity --students N # size the terminal resource limits (scripts/capacity-calc.sh)
-./run.sh stop                  # tear down the stack and all volumes (scripts/teardown.sh)
+./run.sh restart [<service>]   # recreate the last start's containers (or one service), keep volumes
+./run.sh restart --clean       # stop (wipe all volumes), then start the same workshop again
+./run.sh stop                  # tear down the stack and all volumes
 ./run.sh <workshop> --dry-run  # preview a start (also: ./run.sh stop --dry-run) — changes nothing
+./run.sh status [--json]       # what is running: workshop, address, health, students signed in
+./run.sh doctor [<workshop>]   # will a start work on this machine? exits 1 if not
+./run.sh config <workshop> [KEY ...] [--env NAME]   # each setting and the file it came from
+./run.sh logs <service> [-f]   # one service's log, by Compose service name
 ```
 
+`restart <service>` also recreates the services that depend on it under podman (it won't replace a container
+others are linked to), and says which; restarting `step-ca` in cert-autorenewal, say, recreates the student
+terminal too, so open terminal sessions reconnect (homes are volumes). A restart repeats the running start's
+achievements setting unless `ACHIEVEMENTS_ENABLED` is set in the shell.
+
+**The `dojo` CLI.** `run.sh` is a short wrapper around a Python command line in
+`engine/dojo/` (Click for commands and completion, Rich for the display). Python 3.9+
+is the only requirement, and podman-compose already needs it. The first run
+downloads the few pure-Python dependencies listed in `dojo/requirements.lock`,
+checks each against its pinned sha256 and unpacks them into `engine/.cache/`
+(git-ignored): no pip, no venv. Behind TLS inspection, `CORP_CA_BUNDLE` works here
+as it does for the image builds. `setup`, `capacity` and `alias-setup` are still
+shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
+
+- **Settings.** `engine/.env` and `engine/.env.NAME` are read literally: a password
+  with `$`, a backquote or spaces arrives as typed. `workshop.env` and `module.env`
+  are shell code (they derive tokens with `$(...)`) and are run by `sh` as before.
+  `./run.sh config <workshop> KEY` shows every value a key was given and which won.
+- **What a start does**, in order: resolve the settings, apply the safety gates
+  (public passwords off loopback, the published port, plain HTTP), refuse a start
+  over a different running workshop, take the run lock (`/tmp/gitops-dojo-<uid>.lock`;
+  one build or start at a time, worktrees included), build what changed, check and
+  render the manifests, record the run, `compose up -d`, watch it settle, explain
+  anything that didn't, and remove images the rebuilds superseded.
+- **The display.** `podman events` wakes it whenever a container is created,
+  starts, changes health or exits; each container that is still working has its
+  log followed, so the activity pane shows what is underway. A one-shot job
+  (`restart: "no"`, no health check, e.g. `bootstrap`) counts as ready only once it
+  exits 0. A start that doesn't come up prints each problem container's last log
+  lines and health-check results.
+- **Records.** `.build-state/current.json` is the running stack (workshop, flags,
+  Compose files); `.build-state/history.jsonl` has one line per start, restart,
+  build and stop, with how long it took and how it ended.
+- **Tests.** `PYTHONPATH=engine:$(echo engine/.cache/pylib-*) python3 -B -m unittest discover -s engine/dojo/tests -t engine`
+  (from the repo root). The allocator's tests import `server` by plain name, so they
+  run only from `engine/allocator`: `cd engine/allocator && python3 -B -m unittest
+  discover -s tests`. `sh .github/scripts/unit-tests.sh` runs every suite in the repo
+  the way CI does, and `sh .github/scripts/dry-runs.sh` dry-runs every workshop.
+
 Run these from the repo root, or from `engine/` — same commands either way.
+
+**Restarting a hung stack.** `./run.sh restart` re-runs the last start from this
+checkout with the same flags (`.build-state/last-start`, e.g. `dns-as-code --test 3
+--env home`) and adds `--force-recreate`: every container is stopped (killed after
+Compose's stop timeout) and replaced, while the volumes, so student homes and Forgejo,
+stay. `./run.sh restart web-terminal` (any name from `compose config --services`)
+replaces just that service with `--no-deps` and leaves the rest running.
+`./run.sh restart --clean` is `stop` followed by a fresh start, the state a class
+begins from. Starting a *different* workshop while one is running is refused: run
+`./run.sh stop` first, or the old one's extra services and volumes stay behind.
 
 **Preview first with `--dry-run`.** `./run.sh <workshop-name> --dry-run` shows
 the resolved content/overlay, which images would be rebuilt vs. reused,
@@ -494,21 +560,36 @@ before it overwrites one.)
 that command's own help (e.g. `./run.sh capacity --help` for all the sizing
 flags, `./run.sh setup --help` for `--default`/`--force`).
 
-**Tab-completion.** The first time you run `./run.sh` in an interactive
-terminal, it offers to wire up completion for workshop names,
-`setup`/`capacity`/`list`/`stop`/`teardown`, and their flags — for bash or zsh, whichever `$SHELL` says you're
-using (`engine/scripts/install-completion.sh`). Say yes and it appends two
-lines to `~/.bashrc`/`~/.zshrc`, sourcing the matching script under
-`engine/completions/`; say no, and it won't ask again (tracked in
-`engine/.build-state/`, gitignored) — source the file yourself later if you
-change your mind. One completion script covers both the root `./run.sh` and
-`engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`, `./engine/run.sh`),
-and it finds the workshops from its own location, not your current directory,
-so it works the same wherever you are. Already installed? It's sourced by
-path, so a new shell picks up updates with no re-install. Never prompts outside a real terminal (CI, `--test` bot
-runs, etc. are unaffected), and does nothing at all for a shell it doesn't
-recognize (e.g. PowerShell) beyond pointing you at `engine/completions/` to
-wire up by hand.
+**The `dojo` command and tab-completion.** `./run.sh alias-setup` installs
+`~/.local/bin/dojo`, a three-line script that runs this checkout's `./run.sh`
+with `DOJO_PROG=dojo` (so help and advice say `dojo ...`). It works from any
+directory, in any shell and from scripts. It also adds one marked block to
+your shell profile (`~/.zshrc_aliases` or `~/.zshrc`, `~/.bash_aliases` or
+`~/.bashrc`, by `$SHELL`) that loads the completion script under
+`engine/completions/` and, only if `~/.local/bin` isn't on your PATH (common on
+macOS), adds it. Re-running it replaces that block; it also removes the older
+`dojo` function block and the two lines the first-run offer used to write, and
+warns about any other line in your profiles that loads a dojo completion file
+(another clone's, say), which it leaves for you to remove.
+`--check` says whether it's installed for this checkout, `--remove` undoes it,
+and it won't overwrite a `~/.local/bin/dojo` it didn't write. Move the repo?
+Re-run it from the new place.
+
+`./run.sh setup` offers it at the end (interactive mode; `--default` only
+prints a hint), and so does the first `./run.sh` in an interactive terminal
+(`engine/scripts/install-completion.sh`), once per machine: the answer is
+kept in `engine/.build-state/` (gitignored). Neither ever prompts outside a
+real terminal, so CI and `--test` bot runs are unaffected.
+
+Completion covers everything the CLI defines: commands, workshop names (with
+titles in zsh), each command's flags, `--env` names from `engine/.env.*`, and
+the running stack's services for `restart` and `logs`; adding a command,
+workshop or option needs no completion change. One script covers `dojo`, the
+root `./run.sh` and `engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`,
+`./engine/run.sh`), and it finds the workshops from its own location, not your
+current directory. It's sourced by path, so a new shell picks up updates with
+no re-install. Only bash and zsh; for another shell, wire up a file from
+`engine/completions/` by hand.
 
 `run.sh` picks the workshop's content/org/repo from
 `workshops/<name>/workshop.env`, builds the base terminal image, layers on
@@ -518,10 +599,9 @@ mechanism. (Running `docker compose up -d --build` directly still works
 too, using whatever's in `.env` — useful for quick iteration on the engine
 itself, but `run.sh` is the normal path.)
 
-Needs a container engine on `PATH`: real `docker` (with the `compose`
-plugin) if you have it, otherwise `run.sh`/`scripts/teardown.sh` fall back
-to `podman build`/`podman-compose` automatically — there's no flag to set,
-they just detect whichever is actually installed. Confirmed working
+Needs a container engine on `PATH`: podman with podman-compose if both are
+installed, otherwise docker with its `compose` plugin. There's no flag to set;
+`./run.sh doctor` says which one it found. Confirmed working
 end-to-end on Podman (`podman-compose`) as well as Docker.
 
 This builds the terminal and gateway images, starts Forgejo, waits for it to
@@ -619,16 +699,17 @@ sits only on the internal-only `workshop_lab` network (see
 `docker-compose.yml`), with no route to the internet at all once the
 stack is up.
 
-**Facilitator ops below use plain `docker compose ...` commands.** If the
+**Facilitator ops below use plain `docker compose ...` commands** (on podman, read them as `podman-compose ...`,
+which `run.sh` prefers when it is installed). If the
 running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
-plus one `-f` per file listed in `.last-overlay` to those commands too, and
+plus one `-f` per file in `"files"` of `.build-state/current.json` to those commands too, and
 set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:
 `gitopsdojo/web-terminal:<workshop>`, or `:<workshop>.<module>` when only a
 module adds tools). A bare `docker compose ...` only sees the
 base file, and e.g. `--force-recreate web-terminal` would recreate it
-*without* that workshop's extra tooling. Simplest fix: re-run
-`./run.sh <workshop-name>` instead, which always passes the right flags and
-is safe to run again on an already-running stack.
+*without* that workshop's extra tooling. Simplest fix: `./run.sh restart web-terminal`
+(or a plain re-run of `./run.sh <workshop-name>`), which always passes the right
+files and flags.
 
 ## Update workshop content mid-session
 
@@ -844,13 +925,14 @@ docker compose logs bootstrap
 the same running stack) without touching student home directories:
 
 ```sh
-docker compose restart allocator
+podman exec workshop_allocator rm -f /var/lib/dojo-allocator/slots.json
+./run.sh restart allocator
 ```
 
-The allocator's slot table is in-memory only; a restart clears every
-assignment (documented, expected behavior — see **Architecture** above).
-Any student whose browser still has an old session cookie is simply
-reprompted for their name on their next request.
+The slot table survives a plain restart (so a crash doesn't hand a live
+student's slot to someone else); deleting the saved file first is what
+clears it. Any student whose browser still has an old session cookie is
+simply reprompted for their name on their next request.
 
 ## End of workshop: cleanup
 

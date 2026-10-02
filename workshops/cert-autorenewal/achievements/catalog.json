@@ -1,0 +1,28 @@
+{
+  "workshop": "cert-autorenewal",
+  "title": "Certificate Auto-Renewal",
+  "intro": "**Where challenges run.** The shared pieces are the CA (`step-ca`), `demo-app` and the `certs.dojo.test` zone. A challenge changes only the student's own vhost directory (`/srv/webroot/{user}/`) and names under `{user}.certs.dojo.test`, which is exactly what the DNS gate's per-student key already allows. No challenge reconfigures the CA, nginx or the zone's shared records. The student's hostname is `{user}.certs.dojo.test`. Triggers here: `shell:`, `verify:` (end state on `demo-app` or the CA), `ca:` (CA log), `dns:` (dns-gate lines).",
+  "challenges_intro": "At open, the service seeds one wildcard A record `*.{user}.certs.dojo.test` to `demo-app` (through the DNS gate, in the\nstudent's own scope), so any new hostname the challenge needs already resolves. Verifiers read the student's own\nvhost directory and the certificate `demo-app` serves for their own hostnames only.",
+  "labs": [
+    {
+      "id": "lab1",
+      "title": "trust the CA"
+    },
+    {
+      "id": "lab2",
+      "title": "certbot"
+    },
+    {
+      "id": "lab3",
+      "title": "acme.sh"
+    },
+    {
+      "id": "lab4",
+      "title": "automate renewal"
+    },
+    {
+      "id": "lab5",
+      "title": "the dns-01 challenge"
+    }
+  ]
+}

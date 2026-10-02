@@ -1,0 +1,57 @@
+{
+  "milestones": [
+    {
+      "id": "v8-secret",
+      "title": "Repository Secret",
+      "joke": "A secret in the repository.",
+      "core": true,
+      "when": "verify: the fork has an Actions secret named `DEMO_API_KEY` (checked in Forgejo every few seconds; Forgejo sends no event)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "repo_secret",
+            "repo": "{user}/vault-fundamentals",
+            "name": "DEMO_API_KEY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v8-masked",
+      "title": "Masking Is Not Protection",
+      "joke": "The log hid it. The job still knew it.",
+      "core": true,
+      "when": "forgejo: the second push to your fork's main (the workflow that prints the secret again; a later push also counts)",
+      "match": {
+        "source": "forgejo",
+        "event": "push",
+        "repo": "{user}/vault-fundamentals",
+        "branch": "main",
+        "count": 2
+      }
+    },
+    {
+      "id": "v8-rotate",
+      "title": "Cleaned Up After",
+      "joke": "Rotated what leaked.",
+      "core": true,
+      "when": "verify: `DEMO_API_KEY` is gone again after the workflow ran twice (removed in Forgejo; checked every few seconds)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "v8-secret",
+          "v8-masked"
+        ],
+        "verify": [
+          {
+            "verb": "repo_secret",
+            "repo": "{user}/vault-fundamentals",
+            "name": "DEMO_API_KEY",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

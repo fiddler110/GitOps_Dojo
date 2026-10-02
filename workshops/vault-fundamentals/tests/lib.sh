@@ -3,60 +3,24 @@
 # student03) is the student account the lab's steps run as. Each script resets what it leaves behind, and replays
 # any earlier lab it depends on quietly, so it runs alone and can run again.
 s="${1:-student03}"; other=student01
-set -a; . engine/.env; set +a
+. "$(dirname "$0")/../../assets/test-lib.sh"   # as, ok/has/lacks/check/absent/finish, api, job logs, md_blocks
+load_env
 labs=workshops/vault-fundamentals/content/lab
-failed=0
 
-# as CMD: run CMD in the student's login shell in the terminal container (stdin passes through).
-as() { podman exec -i workshop_terminal su - "$s" -c "$1"; }
-# ok NAME CMD: CMD must succeed. has/lacks NAME CMD TEXT: CMD's output must contain / not contain TEXT.
-ok()   { if out="$(as "$2" 2>&1)"; then echo "  ok:   $1"; else echo "  FAIL: $1: $(echo "$out" | tail -3)"; failed=1; fi; }
-has()  { out="$(as "$2" 2>&1)"; case "$out" in *"$3"*) echo "  ok:   $1" ;; *) echo "  FAIL: $1: $(echo "$out" | tail -3)"; failed=1 ;; esac; }
-lacks() { out="$(as "$2" 2>&1)"; case "$out" in *"$3"*) echo "  FAIL: $1: $(echo "$out" | tail -3)"; failed=1 ;; *) echo "  ok:   $1" ;; esac; }
-# check NAME OUTPUT TEXT / absent NAME OUTPUT TEXT: the same on output already captured.
-check() { case "$2" in *"$3"*) echo "  ok:   $1" ;; *) echo "  FAIL: $1 (no '$3')"; echo "$2" | tail -8 | sed 's/^/        /'; failed=1 ;; esac; }
-absent() { case "$2" in *"$3"*) echo "  FAIL: $1 ('$3' is there)"; failed=1 ;; *) echo "  ok:   $1" ;; esac; }
-finish() { [ "$failed" = 0 ] && echo "PASS: $1" || { echo "FAIL: $1"; exit 1; }; }
-
-# The Forgejo admin API, and the student's job logs (compressed; python3 >= 3.14 on the host reads them).
-api() { podman exec workshop_terminal curl -s -u "${FORGEJO_ADMIN_USER}:${FORGEJO_ADMIN_PASSWORD}" \
-    -H 'Content-Type: application/json' -X "$1" "http://git-server:3000/api/v1$2" ${3:+-d "$3"}; }
-logs() { podman exec workshop_forge sh -c "find /data/gitea/actions_log/$s/vault-fundamentals -name '*.log.zst' 2>/dev/null" | sort; }
-new_logs() {  # new_logs BEFORE N: wait for N job logs not in BEFORE, print them decompressed
-  end=$(( $(date +%s) + 240 ))
-  while [ "$(logs | grep -vxF -e "$1" -e '' | wc -l)" -lt "$2" ] && [ "$(date +%s)" -lt "$end" ]; do sleep 3; done
-  sleep 3  # the last lines of a finished job reach the archive a moment later
-  for f in $(logs | grep -vxF -e "$1" -e ''); do
-    podman exec workshop_forge cat "$f" | python3 -B -c 'import compression.zstd as z,sys; sys.stdout.write(z.decompress(sys.stdin.buffer.read()).decode())'
-  done; }
+# The student's job logs in their fork.
+logs() { log_files "$s/vault-fundamentals"; }
 # push_and_read N CMD: run CMD (a push) in the clone, wait for N new job logs, print them.
 push_and_read() {
   before="$(logs)"
   ok "push: $2" "cd ~/lab/vault-fundamentals && $2" >&2
-  new_logs "$before" "$1"; }
+  new_logs "$s/vault-fundamentals" "$before" "$1"; }
 # run_and_read N SCRIPT: run SCRIPT in the clone (it pushes), print its output, then N new job logs.
 run_and_read() {
   before="$(logs)"
   as "cd ~/lab/vault-fundamentals; $2" 2>&1
-  new_logs "$before" "$1"; }
-# block LAB N...: the lab's Nth `bash` blocks; LANG:N:PATH (+PATH appends) writes its Nth LANG file there.
-block() {
-  f="$1"; shift
-  python3 -B - "$labs/$f" "$s" "$@" <<'PY'
-import re, sys
-text, user = open(sys.argv[1]).read(), sys.argv[2]
-fences = re.findall(r"^```(\w+)\n(.*?)^```$", text, re.S | re.M)
-for tok in sys.argv[3:]:
-    if ":" not in tok:
-        sys.stdout.write([c for lang, c in fences if lang == "bash"][int(tok) - 1])
-        continue
-    lang, n, path = tok.split(":", 2)
-    body = [c for l, c in fences if l == lang][int(n) - 1].replace("studentXX", user)
-    op = ">>" if path.startswith("+") else ">"
-    path = path.lstrip("+")
-    sys.stdout.write(f"mkdir -p {path.rsplit('/', 1)[0] if '/' in path else '.'} && cat {op} {path} <<'LABFILE'\n{body}LABFILE\n")
-PY
-}
+  new_logs "$s/vault-fundamentals" "$before" "$1"; }
+# block LAB TOKEN...: the lab's code blocks as shell text (md_blocks in test-lib.sh says how).
+block() { _lab="$1"; shift; md_blocks "$labs/$_lab" "$s" "$@"; }
 fp() { as "export BAO_NAMESPACE=students/\$USER; printf %s \"\$(bao kv get -field=$1 team/$2)\" | sha256sum | cut -c1-12"; }
 page() { as 'curl -s http://app-host:8080/$USER/'; }
 wait_page() {  # wait_page TEXT SECONDS

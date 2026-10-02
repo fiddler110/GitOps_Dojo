@@ -45,6 +45,21 @@ Open any lab file with:
 glow lab0.md   # or: nano lab0.md, batcat lab0.md, etc.
 ```
 
+## Challenges (bonus)
+
+When your class has achievements on (you see a score on your landing page), some labs end with a challenge: a goal
+with no steps, in a space of your own, for extra points. They never count towards finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | Tag Team | end of [Lab 5](lab5.md) |
+| `c2` | Quota Whisperer | end of [Lab 10](lab10.md) |
+| `capstone` | Site Factory | end of [Lab 10](lab10.md) |
+
+Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+with what each is worth.
+
 ## Check your shell
 
 ```sh

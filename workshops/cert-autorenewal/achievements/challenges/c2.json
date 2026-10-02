@@ -1,0 +1,38 @@
+{
+  "id": "c2",
+  "title": "The Short Fuse",
+  "after": "after Lab 4",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Certificates from this CA only last 5-10 minutes. Make `{user}.certs.dojo.test` renew on its own and stay valid for 20 minutes without you touching it.",
+  "verify_text": "the first `dojo-check c2` starts a 20-minute watch, and the service then looks at `{user}.certs.dojo.test` on its own every sweep (about 20 s): every look must find a valid certificate, and the served serial must change at least twice before the 20 minutes are up. A look with no valid certificate starts the watch again; so does a restart of the achievements service. A lapse shorter than one sweep can be missed. Once the watch passes, `renew.cron` on `main` of `{user}/cert-fuse` must hold an active line (not only comments). The repo's whole history (every branch, every commit) holds no private key. The repo is read only after the watch passes, so watching costs Forgejo nothing.",
+  "watch": true,
+  "verify": [
+    {
+      "verb": "served_renews",
+      "host": "{user}.certs.dojo.test",
+      "minutes": 20,
+      "renewals": 2
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-fuse",
+      "ref": "main",
+      "path": "renew.cron",
+      "regex": "^[ \\t]*[^#\\s]"
+    },
+    {
+      "verb": "history_absent",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "what": "a private key",
+      "repo": "{user}/cert-fuse"
+    }
+  ],
+  "hints": [
+    "Cron runs at most once a minute.",
+    "`renew` only acts when the cert is close to expiry."
+  ],
+  "answer": "`dojo-challenge start c2`, pick the client's block in `renew-and-reload.sh`, put Lab 4's every-minute line in `renew.cron` and install it (`crontab renew.cron`), push both to `main`, run `dojo-check c2` once to start the watch, and leave it alone for 20 minutes (the cert must be reissued at least twice). The challenge clears on its own; `dojo-check c2` shows how far the watch has got.",
+  "isolation": "the student's own vhost directory, hostname and repo `{user}/cert-fuse` only.",
+  "seed": "`dojo-challenge start c2` creates `{user}/cert-fuse` (cloned to `~/lab/cert-fuse`): a brief, Lab 4's `renew-and-reload.sh` with the student's name filled in, and a `renew.cron` holding only comments.",
+  "seed_plan": "cert-fuse.json"
+}

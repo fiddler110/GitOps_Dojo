@@ -1,0 +1,11 @@
+{
+  "backend": "dns",
+  "about": "Reads a student's own zone through the dns-gate module's read key (DNS_API_URL, DNS_READ_KEY). Reads only: the service never writes a zone. `zone` must be the checking student's own ({user}.<parent>), refused otherwise. In `name`, `@` is the zone apex and a bare label is relative to the zone.",
+  "impl": "dnszone.py",
+  "verbs": {
+    "zone_records": {"args": ["zone", "records", "exact?"],
+                     "does": "each of records ({name, type, value|values}) exists in the zone with exactly those values; exact: true also requires there to be no other record besides SOA and the apex NS"},
+    "zone_absent": {"args": ["zone", "records"],
+                    "does": "none of records ({name, type?, value?}) exists in the zone: a record with that name (and type, and value when given) is a failure"}
+  }
+}

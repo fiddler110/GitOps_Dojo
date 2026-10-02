@@ -1,0 +1,70 @@
+{
+  "milestones": [
+    {
+      "id": "v11-role",
+      "title": "A Role for Your Slot",
+      "joke": "The platform vouches for the app.",
+      "core": true,
+      "when": "shell: `bao write auth/jwt-platform/role/app ...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "auth/jwt-platform/role/app(\\s|$)",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v11-deploy",
+      "title": "Deployed With Identity",
+      "joke": "No secret ID at all.",
+      "core": true,
+      "when": "bao: a `jwt-platform` login that got `app-read` (the app's own identity from the platform)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-platform",
+        "ok": true,
+        "role": "app-read"
+      }
+    },
+    {
+      "id": "v11-nobread",
+      "title": "The Pipeline Cannot Read",
+      "joke": "Deployed, but never saw the secret.",
+      "core": true,
+      "when": "verify: the pipeline's `jwt-ci` role `ci-main` has no read on `team/data/app` (checked after the platform deploy)",
+      "match": {
+        "source": "verify",
+        "requires": "v11-deploy",
+        "verify": [
+          {
+            "verb": "role_policy_grants",
+            "mount": "jwt-ci",
+            "role": "ci-main",
+            "deny": [
+              "team/data/app"
+            ],
+            "student": "{user}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "v11-rotate",
+      "title": "Rotated, No Deploy",
+      "joke": "New value, same code.",
+      "core": true,
+      "when": "shell: `bao kv put` or `patch` on `team/app` (exit 0) after the platform role was written",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv put",
+          "bao kv patch"
+        ],
+        "regex": "\\bteam/app\\b",
+        "exit": 0,
+        "requires": "v11-role"
+      }
+    }
+  ]
+}

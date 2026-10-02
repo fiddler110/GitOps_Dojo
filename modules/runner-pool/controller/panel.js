@@ -37,13 +37,18 @@ function draw(st) {
   $("waiting-count").textContent = String(st.waiting.length);
   $("min").textContent = String(st.min_idle);
   $("max").textContent = String(st.max);
+  $("max-minus").disabled = st.max <= 1;
+  $("max-plus").disabled = st.max >= st.ceiling;
+  $("max-plus").title = "Up to " + st.ceiling + " (the pool shares one memory limit)";
   $("mode-auto").classList.toggle("on", st.mode === "auto");
   $("mode-manual").classList.toggle("on", st.mode === "manual");
   $("mode-auto").setAttribute("aria-pressed", String(st.mode === "auto"));
   $("mode-manual").setAttribute("aria-pressed", String(st.mode === "manual"));
   $("help").textContent = st.mode === "auto"
-    ? "Auto: − / + change how many idle runners are kept ready; more start by themselves when jobs wait."
-    : "Manual: nothing starts or stops by itself. + adds a runner, − removes an idle one (never a busy one).";
+    ? "Auto: − / + change how many idle runners are kept ready; more start by themselves when jobs wait, up to Max. " +
+      "At the max, + raises Max too."
+    : "Manual: nothing starts or stops by itself. + adds a runner (raising Max if needed), − removes an idle one " +
+      "(never a busy one).";
   const err = st.error || (st.paused ? "Several runners failed to start: Auto is pausing new starts for a minute." : "");
   $("error").textContent = err;
   $("error").hidden = !err;
@@ -104,6 +109,8 @@ async function post(path, body) {
 document.addEventListener("DOMContentLoaded", () => {
   $("plus").addEventListener("click", () => post("api/scale", { delta: 1 }));
   $("minus").addEventListener("click", () => post("api/scale", { delta: -1 }));
+  $("max-plus").addEventListener("click", () => post("api/max", { delta: 1 }));
+  $("max-minus").addEventListener("click", () => post("api/max", { delta: -1 }));
   for (const b of document.querySelectorAll(".mode button")) {
     b.addEventListener("click", () => post("api/mode", { mode: b.dataset.mode }));
   }

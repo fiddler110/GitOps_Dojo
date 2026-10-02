@@ -1,0 +1,23 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/cert-members",
+  "description": "{user}'s own challenge c3 (Certificate Autorenewal)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 1,
+      "message": "Start the members-only site",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "cert-members/README.md"
+        },
+        {
+          "path": "members.conf",
+          "from": "cert-members/members.conf"
+        }
+      ]
+    }
+  ]
+}

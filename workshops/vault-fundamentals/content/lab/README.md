@@ -49,7 +49,7 @@ Only have the plain **Terminal** tab? Use `nano <file>` instead: paste with **Ct
 | [lab9.md](lab9.md) | CI logs in to OpenBao: AppRole (secret zero in the pipeline), then the job's own OIDC identity, bound to repo and branch | ~20 min | 5: Secrets in pipelines |
 | [lab10.md](lab10.md) | Deploy with a delivered secret ID: the pipeline mints a wrapped, single-use AppRole secret ID at every deploy, and can't read | ~25 min | 6: Secrets in deployments |
 | [lab11.md](lab11.md) | Deploy with workload identity: the app logs in with its platform identity, the pipeline deploys but can't read | ~20 min | 6: Secrets in deployments |
-| [lab12.md](lab12.md) | *(optional)* Dynamic database credentials: logins made on demand, leases, renew, revoke | ~15 min | 6: Secrets in deployments |
+| [lab12.md](lab12.md) | Dynamic database credentials: logins made on demand, leases, renew, revoke | ~15 min | 6: Secrets in deployments |
 | [lab13.md](lab13.md) | Incident drill: a leaked token, the audit trail, revoke the tree, rotate, recover | ~15 min | 6: Secrets in deployments |
 
 Do them in order. Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
@@ -59,6 +59,21 @@ Open any lab file with:
 ```bash
 glow lab0.md   # or: nano lab0.md, batcat lab0.md, etc.
 ```
+
+## Challenges (bonus)
+
+When your class has achievements on (you see a score on your landing page), some labs end with a challenge: a goal
+with no steps, in a space of your own, for extra points. They never count towards finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | The Shared Secret | end of [Lab 4](lab4.md) |
+| `c2` | The Right Lease | end of [Lab 12](lab12.md) |
+| `capstone` | Zero Standing Secrets | end of [Lab 13](lab13.md) |
+
+Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+with what each is worth.
 
 ## The rules every lab comes back to
 

@@ -185,9 +185,11 @@ add_isolation_rule "$facilitator_username" "$facilitator_ide_port" "$facilitator
 
 # Each account's home, lab seed and settings: provision-account.sh (also
 # run by a student reset). The port rules stay here, in order.
+accounts=""  # every student and bot, for the account.d hooks below
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
+  accounts="$accounts $username"
 
   if [ "$username" = "$facilitator_username" ]; then
     echo "FACILITATOR_USERNAME must not match a generated student username: $username" >&2
@@ -218,6 +220,7 @@ python3 /usr/local/lib/dojo/forgejo-token.py --wait 600 \
 bot_counter=1
 while [ "$bot_counter" -le "$bot_count" ]; do
   bot_username="$(printf '%s%d' "$bot_prefix" "$bot_counter")"
+  accounts="$accounts $bot_username"
 
   if [ "$bot_username" = "$facilitator_username" ]; then
     echo "BOT_PREFIX must not produce a username matching FACILITATOR_USERNAME: $bot_username" >&2
@@ -308,7 +311,7 @@ echo "Provisioned $student_count student terminal accounts."
 echo "Facilitator shell username: $facilitator_username"
 echo "Student shell usernames: ${student_prefix}01 through $(printf '%s%02d' "$student_prefix" "$student_count")"
 
-# Start-up hooks (engine/MODULES-PLAN.md M11): modules and workshops drop
+# Start-up hooks (docs/archive/MODULES-PLAN.md M11): modules and workshops drop
 # /etc/dojo/start.d/NN-<name>.sh into their terminal image instead of
 # replacing this ENTRYPOINT (wrappers can't stack). They run in name order,
 # as root, after every account exists and before the workspaces are served;
@@ -321,6 +324,25 @@ for hook in /etc/dojo/start.d/*.sh; do
     echo "start.d: ${hook} failed" >&2
     exit 1
   fi
+done
+
+# Per-account hooks (student reset, docs/archive/STUDENT-RESET-PLAN.md §4.3):
+# /etc/dojo/account.d/NN-<name>.sh <user> sets up what a module or workshop
+# owns for one account, idempotently. Run here for every student and bot,
+# after start.d, and again for one account after a student reset
+# (workspace-control.py), so per-account work belongs here, not in start.d.
+# Its partner /etc/dojo/reset.d/NN-<name>.sh <user> runs only on a reset,
+# before the home is removed. A failing account.d hook stops the container,
+# as start.d does.
+for hook in /etc/dojo/account.d/*.sh; do
+  [ -f "$hook" ] || continue
+  echo "account.d: running ${hook}"
+  for username in $accounts; do
+    if ! sh "$hook" "$username"; then
+      echo "account.d: ${hook} failed for ${username}" >&2
+      exit 1
+    fi
+  done
 done
 
 # No per-account login prompt here anymore: the allocator service (see

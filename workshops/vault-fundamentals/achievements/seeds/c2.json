@@ -1,0 +1,15 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-lease",
+  "description": "{user}'s own challenge (Vault Fundamentals): the right lease",
+  "private": false,
+  "values": {},
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 3,
+      "message": "Add the brief",
+      "files": [{"path": "README.md", "from": "c2/README.md"}]
+    }
+  ]
+}

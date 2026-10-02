@@ -26,7 +26,6 @@ Forgejo call of their own. /healthz needs no token.
 """
 import base64
 import collections
-import hmac
 import http.server
 import json
 import math
@@ -41,6 +40,10 @@ import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+import dojo_http  # noqa: E402
+
 PREFIX = "pool-"
 ALIVE = ("starting", "idle", "busy")
 FINISHED = ("done", "removed", "failed")
@@ -53,6 +56,9 @@ OFFLINE_AFTER = 30
 FAIL_LIMIT = 3
 FAIL_WINDOW = 60
 TICK = 3
+# The panel can raise the max this far (or to RUNNER_MAX, if that is higher):
+# every runner shares the pool's RUNNER_POOL_MEM_LIMIT.
+MAX_CEILING = 24
 
 
 def env_int(name, default, env=os.environ):
@@ -215,7 +221,11 @@ class Controller:
         self.clock = clock
         self.mode = "auto"  # every class starts in Auto (S15)
         self.min_idle = cfg.min_idle
-        self.lock = threading.RLock()
+        self.max = cfg.max  # the facilitator's call from the panel; starts at RUNNER_MAX
+        self.ceiling = max(MAX_CEILING, cfg.max)
+        # RV6: guards the fields below, in memory only, never across a Forgejo call. Readers (/api/state,
+        # /healthz) take no lock at all: `snapshot` is replaced whole, never changed in place.
+        self.lock = threading.Lock()
         self.wake = threading.Event()
         self.created = {}  # name -> when we registered it
         self.offline_since = {}
@@ -229,22 +239,32 @@ class Controller:
         self.waiting = []
         self.pending = set()
         self.shim_ca = ""
+        self.repo_names = {}  # repo id -> name, for the waiting jobs (looked up before the lock)
         self.snapshot = {}
 
     # -- reading the world -------------------------------------------------
 
-    def _refresh(self):
-        now = self.clock()
+    def _fetch(self):
+        """Everything a tick reads from the spool and Forgejo. No lock held."""
         state = self.spool.read_state()
+        regs = self.forgejo.runners()
+        waiting = self.forgejo.waiting_jobs(self.cfg.labels)
+        names = {j.get("repo_id"): self.forgejo.repo_name(j.get("repo_id")) for j in waiting[:50]}
+        return state, regs, waiting, names, self.spool.pending()
+
+    def _refresh(self, seen):
+        """Take in what _fetch read (under the lock, memory only). Returns the ids of registrations to delete."""
+        state, regs, waiting, names, pending = seen
+        now = self.clock()
         sup = state.get("runners") if isinstance(state.get("runners"), dict) else {}
         self.sup = {n: s for n, s in sup.items() if isinstance(s, dict) and n.startswith(PREFIX)}
         self.shim_ca = state.get("shim_ca", "")
-        self.regs = {r["name"]: r for r in self.forgejo.runners()
+        self.regs = {r["name"]: r for r in regs
                      if isinstance(r, dict) and str(r.get("name", "")).startswith(PREFIX)}
-        self.waiting = self.forgejo.waiting_jobs(self.cfg.labels)
-        pending = self.spool.pending()
+        self.waiting, self.repo_names = waiting, names
         # Registrations whose runner is gone. One the supervisor hasn't picked
         # up yet (still pending, or just made) is left alone.
+        stale = []
         for name, reg in list(self.regs.items()):
             s = self.sup.get(name)
             if s is None:
@@ -252,7 +272,7 @@ class Controller:
             else:
                 gone = s.get("state") in FINISHED
             if gone:
-                self.forgejo.delete_runner(reg["id"])
+                stale.append(reg["id"])
                 del self.regs[name]
                 self.created.pop(name, None)
         for name, s in self.sup.items():
@@ -271,6 +291,7 @@ class Controller:
                 self.offline_since.setdefault(name, now)
             else:
                 self.offline_since.pop(name, None)
+        return stale
 
     def _problem(self, name, detail):
         self.problems.appendleft({"time": self.clock(), "runner": name, "detail": str(detail)[:300]})
@@ -284,17 +305,34 @@ class Controller:
 
     # -- acting ------------------------------------------------------------
 
-    def _start_one(self):
+    def _reserve(self):
+        """Count a new runner as starting before it exists (under the lock), so no other tick or click
+        starts one past the max while it registers."""
         name = PREFIX + secrets.token_hex(3)
-        uuid, token = self.forgejo.register(name)
         self.created[name] = self.clock()
-        try:
-            self.spool.write_start(name, runner_config(uuid, token, self.cfg.labels, self.cfg.job_timeout))
-        except OSError:
-            self.forgejo.delete_runner(self._reg_id(name))
-            raise
         self.pending.add(name)
         return name
+
+    def _unreserve(self, names):
+        with self.lock:
+            for name in names:
+                self.created.pop(name, None)
+                self.pending.discard(name)
+
+    def _start(self, names):
+        """Register reserved runners and hand them to the supervisor. Forgejo and the spool; no lock held."""
+        for i, name in enumerate(names):
+            try:
+                uuid, token = self.forgejo.register(name)
+            except ForgejoError:
+                self._unreserve(names[i:])
+                raise
+            try:
+                self.spool.write_start(name, runner_config(uuid, token, self.cfg.labels, self.cfg.job_timeout))
+            except OSError:
+                self._unreserve(names[i:])
+                self.forgejo.delete_runner(self._reg_id(name))
+                raise
 
     def _reg_id(self, name):
         for r in self.forgejo.runners():
@@ -314,58 +352,106 @@ class Controller:
         self.sup[name] = dict(self.sup[name], state="stopping")
 
     def _autoscale(self):
+        """Decide (under the lock): stop files are written now; returns the names reserved to start."""
         alive = self._alive()
         busy = sum(1 for s in alive.values() if s == "busy")
         ready = len(alive) - busy
         want_ready = self.min_idle + len(self.waiting)
-        want_total = min(self.cfg.max, busy + want_ready)
+        want_total = min(self.max, busy + want_ready)
+        if len(alive) > self.max:  # the facilitator lowered the max: idle ones above it go now
+            for name in self._idle_oldest_first()[:len(alive) - self.max]:
+                self._stop(name)
+            return []
         if len(alive) < want_total:
             if len(self.fail_times) >= FAIL_LIMIT:
-                return
-            for _ in range(want_total - len(alive)):
-                self._start_one()
-        elif ready > want_ready:
+                return []
+            return [self._reserve() for _ in range(want_total - len(alive))]
+        if ready > want_ready:
             for name in self._idle_oldest_first(self.cfg.idle_timeout)[:ready - want_ready]:
                 self._stop(name)
+        return []
 
     def tick(self):
+        """Read, decide, act. Forgejo and the spool are called with no lock held; the lock covers only the
+        decision and the snapshot swap, so the panel and /healthz never wait on a slow Forgejo."""
+        try:
+            seen = self._fetch()
+            with self.lock:
+                stale = self._refresh(seen)
+            for reg_id in stale:
+                self.forgejo.delete_runner(reg_id)
+            with self.lock:
+                start = self._autoscale() if self.mode == "auto" else []
+            self._start(start)
+            self.error = ""
+            self.last_ok = self.clock()
+        except ForgejoError as e:
+            self.error = f"Forgejo: {e}"
+        except OSError as e:
+            self.error = f"spool: {e}"
         with self.lock:
-            try:
-                self._refresh()
-                if self.mode == "auto":
-                    self._autoscale()
-                self.error = ""
-                self.last_ok = self.clock()
-            except ForgejoError as e:
-                self.error = f"Forgejo: {e}"
-            except OSError as e:
-                self.error = f"spool: {e}"
             self._snapshot()
+
+    def _room(self):
+        """Make room for one more runner: at the max, + raises the max too (the facilitator's call), up to the
+        ceiling. Returns a note for the message, or None if the ceiling is reached."""
+        if len(self._alive()) < self.max:
+            return ""
+        if self.max >= self.ceiling:
+            return None
+        self.max += 1
+        return f" (max raised to {self.max})"
 
     def scale(self, delta):
         """The panel's - / +. Returns (ok, message)."""
         with self.lock:
             if self.mode == "auto":
-                self.min_idle = max(0, min(self.cfg.max, self.min_idle + delta))
+                note = ""
+                if delta > 0:
+                    note = self._room()
+                    if note is None:
+                        return False, f"Already at the most the pool allows ({self.ceiling})"
+                self.min_idle = max(0, min(self.max, self.min_idle + delta))
                 self.wake.set()
                 self._snapshot()
-                return True, f"Warm pool: {self.min_idle} idle"
-            try:
-                if delta > 0:
-                    if len(self._alive()) >= self.cfg.max:
-                        return False, f"Already at the max ({self.cfg.max})"
-                    name = self._start_one()
-                    msg = f"Starting {name}"
-                else:
-                    idle = self._idle_oldest_first()
-                    if not idle:
-                        return False, "No idle runner to remove (a busy one is never removed)"
-                    self._stop(idle[0])
-                    msg = f"Removing {idle[0]}"
-            except ForgejoError as e:
-                return False, f"Forgejo: {e}"
+                return True, f"Warm pool: {self.min_idle} idle{note}"
+            if delta < 0:
+                idle = self._idle_oldest_first()
+                if not idle:
+                    return False, "No idle runner to remove (a busy one is never removed)"
+                self._stop(idle[0])
+                self._snapshot()
+                return True, f"Removing {idle[0]}"
+            note = self._room()
+            if note is None:
+                return False, f"Already at the most the pool allows ({self.ceiling})"
+            name = self._reserve()
+            self._snapshot()  # shown as starting while it registers
+        try:
+            self._start([name])
+        except ForgejoError as e:
+            return False, f"Forgejo: {e}"
+        with self.lock:
             self._snapshot()
-            return True, msg
+        return True, f"Starting {name}{note}"
+
+    def set_max(self, delta):
+        """The panel's Max - / +: the facilitator's call on how many runners Auto may run at once."""
+        with self.lock:
+            new = max(1, min(self.ceiling, self.max + delta))
+            if new == self.max:
+                return False, (f"Max is already the most the pool allows ({self.ceiling})" if delta > 0
+                               else "Max can't go below 1")
+            self.max = new
+            self.min_idle = min(self.min_idle, new)
+            over = len(self._alive()) - new
+            self.wake.set()
+            self._snapshot()
+        msg = f"Max: {new} runners"
+        if over > 0:
+            msg += (" (idle runners above it are being removed; busy ones finish their job first)" if self.mode == "auto"
+                    else " (Manual removes nothing by itself: use − to remove idle runners)")
+        return True, msg
 
     def set_mode(self, mode):
         with self.lock:
@@ -409,10 +495,11 @@ class Controller:
             rows.append({"name": name, "light": "green", "state": "starting", "detail": "starting",
                          "repo": "", "since": self.created.get(name)})
         alive = self._alive()
-        waiting = [{"repo": self.forgejo.repo_name(j.get("repo_id")), "job": str(j.get("name") or "")}
+        waiting = [{"repo": self.repo_names.get(j.get("repo_id")) or f"repo {j.get('repo_id')}",
+                    "job": str(j.get("name") or "")}
                    for j in self.waiting[:50]]
         self.snapshot = {
-            "mode": self.mode, "min_idle": self.min_idle, "max": self.cfg.max,
+            "mode": self.mode, "min_idle": self.min_idle, "max": self.max, "ceiling": self.ceiling,
             "runners": rows, "alive": len(alive),
             "busy": sum(1 for s in alive.values() if s == "busy"),
             "waiting": waiting, "problems": list(self.problems)[:10],
@@ -431,14 +518,6 @@ class Controller:
             self.wake.clear()
 
 
-SECURITY_HEADERS = {
-    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-                               "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
-    "X-Frame-Options": "SAMEORIGIN",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Cache-Control": "no-store",
-}
 STATIC = {"/": ("panel.html", "text/html; charset=utf-8"),
           "/panel.js": ("panel.js", "text/javascript; charset=utf-8"),
           "/panel.css": ("panel.css", "text/css; charset=utf-8")}
@@ -453,24 +532,13 @@ def make_handler(ctl, static_dir=HERE):
             pass
 
         def _send(self, status, body=b"", ctype="application/json"):
-            self.send_response(status)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(body)))
-            for k, v in SECURITY_HEADERS.items():
-                self.send_header(k, v)
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(body)
+            dojo_http.send(self, status, body, ctype)
 
         def _json(self, status, doc):
-            self._send(status, json.dumps(doc).encode())
+            dojo_http.send_json(self, status, doc)
 
         def _facilitator(self):
-            token = ctl.cfg.gateway_token
-            given = self.headers.get("X-Gateway-Token") or ""
-            if not token or not hmac.compare_digest(given.encode(), token.encode()):
-                return False
-            return self.headers.get("X-Auth-User") == ctl.cfg.facilitator
+            return dojo_http.is_facilitator(self.headers, ctl.cfg.gateway_token, ctl.cfg.facilitator)
 
         def _path(self):
             return self.path.split("?", 1)[0] or "/"
@@ -485,9 +553,7 @@ def make_handler(ctl, static_dir=HERE):
                 self._json(403, {"error": "facilitator only"})
                 return
             if path == "/api/state":
-                with ctl.lock:
-                    doc = ctl.snapshot
-                self._json(200, doc)
+                self._json(200, ctl.snapshot)
                 return
             if path in STATIC:
                 fname, ctype = STATIC[path]
@@ -525,15 +591,15 @@ def make_handler(ctl, static_dir=HERE):
                 return
             if path == "/api/scale" and body.get("delta") in (1, -1):
                 ok, msg = ctl.scale(body["delta"])
+            elif path == "/api/max" and body.get("delta") in (1, -1):
+                ok, msg = ctl.set_max(body["delta"])
             elif path == "/api/mode" and body.get("mode") in ("auto", "manual"):
                 ok, msg = ctl.set_mode(body["mode"])
             else:
                 self._json(400, {"error": "bad request"})
                 return
             self._audit(f"{path} {body.get('delta', body.get('mode'))}", 200 if ok else 409)
-            with ctl.lock:
-                doc = ctl.snapshot
-            self._json(200 if ok else 409, {"ok": ok, "message": msg, "state": doc})
+            self._json(200 if ok else 409, {"ok": ok, "message": msg, "state": ctl.snapshot})
 
     return Handler
 

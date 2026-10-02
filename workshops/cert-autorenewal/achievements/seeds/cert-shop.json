@@ -1,0 +1,23 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/cert-shop",
+  "description": "{user}'s own challenge c1 (Certificate Autorenewal)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 1,
+      "message": "Start the shop site",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "cert-shop/README.md"
+        },
+        {
+          "path": "shop.conf",
+          "from": "cert-shop/shop.conf"
+        }
+      ]
+    }
+  ]
+}

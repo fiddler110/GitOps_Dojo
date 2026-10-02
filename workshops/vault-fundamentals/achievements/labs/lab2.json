@@ -1,0 +1,43 @@
+{
+  "milestones": [
+    {
+      "id": "v2-key",
+      "title": "A Key of Your Own",
+      "joke": "Your own GPG key.",
+      "core": true,
+      "when": "shell: `gpg --quick-gen-key` (or --gen-key) exits 0",
+      "match": {
+        "source": "shell",
+        "cmd": "gpg",
+        "regex": "--(quick-gen-key|gen-key|full-generate-key|generate-key)\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v2-store",
+      "title": "Password Store",
+      "joke": "An encrypted store.",
+      "core": true,
+      "when": "shell: `pass init` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "pass init",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v2-share",
+      "title": "Shared, Then Unshared",
+      "joke": "Shared it and took it back.",
+      "core": true,
+      "when": "shell: the second `pass init -p <folder> ...` (share, then re-encrypt back to one recipient; exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "pass init",
+        "regex": "^pass init\\s+(-p|--path)",
+        "exit": 0,
+        "count": 2
+      }
+    }
+  ]
+}

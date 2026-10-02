@@ -1,0 +1,44 @@
+{
+  "milestones": [
+    {
+      "id": "t7-tag",
+      "title": "Somebody Retagged It",
+      "joke": "Drift noticed by `plan`.",
+      "core": true,
+      "when": "cloud: the container's tags were saved from the Dojo Portal (not by the API)",
+      "match": {
+        "source": "cloud",
+        "event": "container_updated",
+        "reason": "portal"
+      }
+    },
+    {
+      "id": "t7-delete",
+      "title": "It Vanished",
+      "joke": "The container was deleted behind your back.",
+      "core": true,
+      "when": "cloud: the container was deleted from the Dojo Portal (not by the API)",
+      "match": {
+        "source": "cloud",
+        "event": "container_deleted",
+        "reason": "portal"
+      }
+    },
+    {
+      "id": "t7-restored",
+      "title": "Back in Business",
+      "joke": "Apply restored the declared state.",
+      "core": true,
+      "when": "shell: `tofu apply` (exit 0) after the portal delete (fires once `t7-delete` is earned, so it waits for the `cloud` event source)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "requires": "t7-delete"
+      }
+    }
+  ]
+}

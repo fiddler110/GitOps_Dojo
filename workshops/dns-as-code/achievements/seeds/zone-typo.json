@@ -1,0 +1,39 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-typo",
+  "description": "{user}'s own challenge zone (DNS as Code)",
+  "private": false,
+  "values": {
+    "label": [
+      "blog",
+      "docs",
+      "status",
+      "wiki",
+      "api",
+      "cdn",
+      "shop",
+      "help"
+    ]
+  },
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 10,
+      "message": "Start the zone",
+      "files": [
+        {
+          "path": "dnsconfig.js",
+          "from": "zone-typo/dnsconfig.js"
+        },
+        {
+          "path": "creds.json",
+          "from": "zone-typo/creds.json"
+        },
+        {
+          "path": "README.md",
+          "from": "zone-typo/README.md"
+        }
+      ]
+    }
+  ]
+}

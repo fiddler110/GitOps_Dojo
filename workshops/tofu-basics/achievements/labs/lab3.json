@@ -1,0 +1,47 @@
+{
+  "milestones": [
+    {
+      "id": "t3-destroy",
+      "title": "Scorched Earth",
+      "joke": "Everything created is gone.",
+      "core": true,
+      "when": "shell: `tofu destroy` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu destroy",
+          "terraform destroy"
+        ],
+        "exit": 0
+      }
+    },
+    {
+      "id": "t3-state",
+      "title": "What the State Remembers",
+      "joke": "Looked at what is left behind.",
+      "core": true,
+      "when": "shell: `tofu state list`, or `ls`/`cat` of `terraform.tfstate*`",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu state list",
+              "terraform state list"
+            ],
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "ls",
+              "cat"
+            ],
+            "exit": 0,
+            "regex": "terraform\\.tfstate"
+          }
+        ]
+      }
+    }
+  ]
+}

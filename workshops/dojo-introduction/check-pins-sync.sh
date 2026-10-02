@@ -29,10 +29,8 @@ shas() {
 }
 
 check "$ws/dns-as-code/compose/terminal/Dockerfile" DNSCONTROL_VERSION
-check "$ws/cert-autorenewal/compose/terminal/Dockerfile" ACMESH_VERSION STEP_CLI_VERSION
-check "$ws/vault-fundamentals/compose/terminal/Dockerfile" SOPS_VERSION GITLEAKS_VERSION
 check "$ws/tofu-basics/compose/terminal/Dockerfile" TOFU_VERSION OPENTOFU_VSCODE_VERSION
-for d in dns-as-code cert-autorenewal vault-fundamentals tofu-basics; do shas "$ws/$d/compose/terminal/Dockerfile"; done
+for d in dns-as-code tofu-basics; do shas "$ws/$d/compose/terminal/Dockerfile"; done
 # the provider mirror files are copies too
 for f in mirror.tf unpack-mirror.py tofurc disable-tofu-ls.py; do
   cmp -s "$ws/tofu-basics/compose/terminal/$f" "$here/compose/terminal/$f" \

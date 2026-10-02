@@ -1,6 +1,6 @@
 # Lab 3 — The Same Task with acme.sh
 
-**Optional.** certbot is a full Python application with plugins and a
+certbot is a full Python application with plugins and a
 config system; acme.sh is a single shell script that speaks ACME directly.
 Same protocol, same CA, very different level of transparency into what's
 actually happening. This lab issues a second certificate for comparison —
@@ -47,6 +47,17 @@ summarizing it. Look for:
   validate it.
 - The final certificate download once validation succeeds.
 
+acme.sh keeps track of every certificate it manages. Ask it what it has
+(the `--cert-home` must match the one you issued with):
+
+```sh
+acme.sh --list --cert-home ~/acmesh-lab3
+```
+
+One row for `${host}`: the key type, the CA it came from, when it was made
+and when acme.sh plans to renew it. certbot's equivalent is
+`certbot certificates`.
+
 acme.sh makes an ECC key by default and keeps that certificate in a folder
 named after the host with `_ecc` on the end:
 
@@ -61,8 +72,8 @@ This lab never copies its output into `/srv/webroot/${me}/certs/`, so
 `demo-app` is still serving Lab 2's certificate, not this one — the acme.sh
 cert exists (you can inspect it above), it's just not installed. The
 `curl --cacert` check from Lab 2 step 5 would confirm that if you ran it
-again here; the homepage's **Demo Site** link wouldn't tell you either
-way, since it never touches HTTPS at all.
+again here, and so would the homepage's **Site Inspector**: its
+certificate's serial and dates are still Lab 2's.
 
 ---
 
@@ -72,4 +83,38 @@ You can name at least one thing acme.sh showed you directly that certbot
 summarized. (There's no single right answer — that's the point: different
 tools, same protocol underneath.)
 
-Next: [lab4.md](lab4.md) — required, automating renewal.
+Next: [lab4.md](lab4.md), automating renewal.
+
+---
+
+## Challenge c1: The Second Site (bonus)
+
+Give a second name, `shop.$USER.certs.dojo.test`, its own trusted certificate, with either tool, and leave your
+first site alone. The name already points at the demo site; the vhost is yours to write.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/cert-shop` and
+clones it to `~/lab/cert-shop`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check c1`. A wrong answer costs nothing;
+`dojo-check hint c1` gives a hint for part of the points, and `dojo-challenge reset c1` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
+
+<!-- dojo-challenge: c1 -->
+
+---
+
+## Challenge c3: Members Only (bonus)
+
+Mutual TLS: serve `https://members.$USER.certs.dojo.test` only to clients that present a certificate from the lab
+CA, and turn everyone else away. Until now only the server proved who it was; here the client does too, the way
+services talk to each other without passwords. Any fresh certificate from the lab CA doubles as the client
+certificate to test with.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c3`: it makes your own repo `$USER/cert-members` and
+clones it to `~/lab/cert-members`, with a brief and starter files. The goal is printed there, with your own names in
+it. When you think it's done, push your files and run `dojo-check c3`. A wrong answer costs nothing;
+`dojo-check hint c3` gives a hint for part of the points, and `dojo-challenge reset c3` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
+
+<!-- dojo-challenge: c3 -->

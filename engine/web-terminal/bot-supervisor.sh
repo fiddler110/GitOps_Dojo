@@ -25,7 +25,9 @@ while true; do
   counter=1
   while [ "$counter" -le "$bot_count" ]; do
     user="$(printf '%s%d' "$bot_prefix" "$counter")"
-    if id "$user" >/dev/null 2>&1; then
+    # A student reset (workspace-control.py) marks the bot while it removes
+    # and rebuilds its home; restarting it then would write into that home.
+    if id "$user" >/dev/null 2>&1 && [ ! -e "/run/dojo-reset/$user" ]; then
       if ! su - "$user" -c 'tmux has-session -t main' >/dev/null 2>&1; then
         su - "$user" -c 'tmux new-session -d -s main /opt/dojo-shell/bot-runner.sh' >/dev/null 2>&1
       fi

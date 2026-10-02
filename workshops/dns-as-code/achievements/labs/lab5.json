@@ -1,0 +1,41 @@
+{
+  "milestones": [
+    {
+      "id": "d5-history",
+      "title": "DNS Archaeologist",
+      "joke": "Read the zone's past like a diary.",
+      "core": true,
+      "when": "shell: `dnsctl.py history` (or `dnsc history`), exit 0",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+history\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "d5-rollback",
+      "title": "Rewind",
+      "joke": "Rolled back through a pull request.",
+      "core": true,
+      "when": "shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `dns/revert-*` PR)",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+rollback\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "d5-gone",
+      "title": "Actually Gone",
+      "joke": "Confirmed it is really gone.",
+      "core": true,
+      "when": "forgejo: a `dns/revert-*` pull request of yours is merged",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "head_prefix": "dns/revert-"
+      }
+    }
+  ]
+}

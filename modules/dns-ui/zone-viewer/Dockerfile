@@ -2,6 +2,7 @@
 FROM docker.io/library/python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154777cf012a4ece5f86097130d7a4478111
 WORKDIR /app
 COPY server.py /app/
+COPY _shared/ /app/_shared/
 COPY static/ /app/static/
 # Unit tests ride along so `podman exec ... python -m unittest` works in the image.
 COPY test_server.py /app/

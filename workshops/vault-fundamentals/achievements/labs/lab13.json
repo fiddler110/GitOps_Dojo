@@ -1,0 +1,72 @@
+{
+  "milestones": [
+    {
+      "id": "v13-leak",
+      "title": "Playing the Attacker",
+      "joke": "You found the leaked token.",
+      "core": true,
+      "when": "bao: a request made with the leaked `nightly-report` token (seen in the audit log by the token's policy)",
+      "match": {
+        "source": "bao",
+        "event": "request",
+        "role": "nightly-report",
+        "op": "read"
+      }
+    },
+    {
+      "id": "v13-audit",
+      "title": "Read the Audit Log",
+      "joke": "What did it do? Now you know.",
+      "core": true,
+      "when": "shell: `bao-audit` with the token's accessor (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao-audit",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v13-revoke",
+      "title": "Revoke the Tree",
+      "joke": "Killed the token and its children.",
+      "core": true,
+      "when": "shell: `bao token revoke -accessor ...` (exit 0); revoking a token revokes its children",
+      "match": {
+        "source": "shell",
+        "cmd": "bao token revoke",
+        "regex": "\\s-accessor\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v13-rotate",
+      "title": "Rotated What It Read",
+      "joke": "New secrets, old ones worthless.",
+      "core": true,
+      "when": "shell: `bao kv put` or `patch` on `team/app` or `team/ci` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "bao kv put",
+          "bao kv patch"
+        ],
+        "regex": "\\bteam/(app|ci)\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v13-recover",
+      "title": "The App Recovers",
+      "joke": "No manual restart.",
+      "core": true,
+      "when": "shell: the app's fingerprint read from `app-host` after the secrets were rotated (output shows `fingerprint:`)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "regex": "app-host:8080/",
+        "out_regex": "fingerprint: [0-9a-f]{12}",
+        "requires": "v13-rotate"
+      }
+    }
+  ]
+}

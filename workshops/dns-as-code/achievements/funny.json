@@ -1,0 +1,60 @@
+{
+  "unlocks": [
+    {
+      "id": "f-dot2",
+      "title": "Dot. Com. Dot.",
+      "joke": "Said the domain name twice. Once was plenty.",
+      "when": "shell: a `dnscontrol` command prints a hostname that ends with a zone twice, which is what a record named with the whole hostname (`A(\"www.studentXX.dojo.test\", ...)` instead of `www`) looks like in `preview` (the output is read from the terminal)",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol",
+        "out_regex": "([a-z0-9-]+\\.dojo\\.test)\\.\\1\\b"
+      }
+    },
+    {
+      "id": "f-ttl",
+      "title": "Time To Live, Laugh, Love",
+      "joke": "TTL of 1. Very confident.",
+      "when": "dns: a push sets a TTL below 60 in your zone",
+      "match": {
+        "source": "dns",
+        "event": "zone_patch",
+        "zone": "{user}.dojo.test",
+        "ttl_below": 60
+      }
+    },
+    {
+      "id": "f-nxdomain",
+      "title": "It's Always DNS",
+      "joke": "NXDOMAIN. Of course it was.",
+      "when": "shell: `dig` (without `+short`) prints `status: NXDOMAIN` (the output is read from the terminal)",
+      "match": {
+        "source": "shell",
+        "cmd": "dig",
+        "out_regex": "status: NXDOMAIN"
+      }
+    },
+    {
+      "id": "f-rejected",
+      "title": "Denied at the Gate",
+      "joke": "You tried to change `dojo.test` without CI.",
+      "when": "dns: the gate refuses a write made with your own key",
+      "match": {
+        "source": "dns",
+        "event": "api_refused"
+      }
+    },
+    {
+      "id": "f-fivepr",
+      "title": "PR Machine",
+      "joke": "Five pull requests. Do you sleep?",
+      "when": "forgejo: 5th PR opened",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "count": 5
+      }
+    }
+  ]
+}

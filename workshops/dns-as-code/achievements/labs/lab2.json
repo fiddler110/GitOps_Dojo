@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "d2-drift",
+      "title": "Who Touched My Zone?",
+      "joke": "Someone changed it behind your back. Classic.",
+      "core": true,
+      "when": "shell: `curl -X PATCH` against `dns-api` (the step that makes the zone drift; a proxy for seeing the drift in `preview`)",
+      "match": {
+        "source": "shell",
+        "regex": "^curl\\b.*(-X|--request)\\s*PATCH\\b.*dns-api"
+      }
+    },
+    {
+      "id": "d2-fix",
+      "title": "Back to Declared",
+      "joke": "Config is the truth. The zone obeys.",
+      "core": true,
+      "when": "shell: `dnscontrol push` after drift, exit 0",
+      "match": {
+        "source": "shell",
+        "cmd": "dnscontrol push",
+        "exit": 0,
+        "requires": "d2-drift"
+      }
+    },
+    {
+      "id": "d2-revert",
+      "title": "Time Machine",
+      "joke": "Undid a pushed change the polite way.",
+      "core": true,
+      "when": "shell: `git revert` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git revert",
+        "exit": 0
+      }
+    }
+  ]
+}

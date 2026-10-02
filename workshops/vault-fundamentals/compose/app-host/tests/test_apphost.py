@@ -33,6 +33,61 @@ class Slots(unittest.TestCase):
         self.assertEqual(cfg(BOT_COUNT="2").slots, ["student01", "student02", "student03", "testuser1", "testuser2"])
         self.assertEqual(cfg(BOT_COUNT="x").slots, ["student01", "student02", "student03"])
 
+    def test_a_locked_capstone_slot_each(self):
+        p = P.Platform(cfg(BOT_COUNT="1"))
+        self.assertEqual(list(p.slots), ["student01", "student02", "student03", "testuser1", "student01-capstone",
+                                         "student02-capstone", "student03-capstone", "testuser1-capstone"])
+        cap = p.slots["student02-capstone"]
+        self.assertEqual((cap.owner, cap.state, cap.uid, cap.port), ("student02", "locked", 30006, 9006))
+        self.assertEqual(p.slots["student02"].state, "empty")
+        self.assertEqual(P.slot_uid_range(p.cfg), (30001, 30008))
+        self.assertEqual(list(P.Platform(cfg(CAPSTONE_REPO="")).slots), ["student01", "student02", "student03"])
+
+
+class Capstone(unittest.TestCase):
+    def setUp(self):
+        self.p = P.Platform(cfg())
+        self.looked, self.written, self.exists = [], [], False
+        self.p.repo_exists = lambda repo: self.looked.append(repo) or self.exists
+        self.p.write_token = lambda s: self.written.append(s.name)
+        self.cap = self.p.slots["student01-capstone"]
+
+    def test_unlocks_once_the_repo_exists(self):
+        self.p.check_capstone("student01")
+        self.assertEqual((self.cap.state, self.looked), ("locked", ["student01/capstone"]))
+        self.p.check_capstone("student01")  # within CAPSTONE_CHECK: no second look
+        self.assertEqual(len(self.looked), 1)
+        self.exists, self.cap.checked = True, 0
+        self.p.check_capstone("student01")
+        self.assertEqual((self.cap.state, self.written), ("empty", ["student01-capstone"]))
+        self.p.check_capstone("student01")
+        self.assertEqual(len(self.looked), 2)  # unlocked: no more looks
+        self.assertEqual(self.p.slots["student02-capstone"].state, "locked")
+
+    def test_forgejo_down_stays_locked(self):
+        def down(repo):
+            raise OSError("refused")
+        self.p.repo_exists = down
+        self.p.check_capstone("student01")
+        self.assertEqual((self.cap.state, self.written), ("locked", []))
+
+    def test_no_capstone_slot(self):
+        self.p.check_capstone("root")
+        self.p.check_capstone("student01-capstone")
+        self.assertEqual(self.looked, [])
+
+    def test_a_deploy_unlocks(self):
+        self.p.unlock(self.cap, "a deploy")
+        self.p.unlock(self.cap, "a deploy")
+        self.assertEqual((self.cap.state, self.written), ("empty", ["student01-capstone"]))
+
+    def test_who_sees_what(self):
+        names = lambda user, fac=False: [s["name"] for s in self.p.visible(user, fac)]
+        self.assertEqual(names("student01"), ["student01", "student01-capstone"])
+        self.assertEqual(names("root", True), ["student01", "student02", "student03"])
+        self.p.unlock(self.cap, "test")
+        self.assertEqual(names("root", True), ["student01", "student02", "student03", "student01-capstone"])
+
 
 class JWT(unittest.TestCase):
     @classmethod
@@ -94,6 +149,13 @@ class DeployClaims(unittest.TestCase):
 
     def test_other_repo(self):
         self.refused("only student01/vault-fundamentals", repository="student01/other")
+
+    def test_capstone_repo_deploys_to_the_capstone_slot(self):
+        self.assertEqual(P.check_deploy_claims(claims(repository="student01/capstone"), cfg()), "student01-capstone")
+        with self.assertRaisesRegex(ValueError, "only student01/vault-fundamentals deploys"):
+            P.check_deploy_claims(claims(repository="student01/capstone"), cfg(CAPSTONE_REPO=""))
+        self.refused("only main", repository="student01/capstone", ref="refs/heads/try")
+        self.refused("no slot", repository="student01-capstone/capstone")
 
     def test_not_a_student(self):
         self.refused("no slot", repository="platform-team/vault-fundamentals")

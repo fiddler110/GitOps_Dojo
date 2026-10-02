@@ -1,0 +1,100 @@
+{
+  "id": "capstone",
+  "title": "The Wildcard Heist (a friendly one)",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Issue a wildcard certificate for `*.{user}.certs.dojo.test` using dns-01, install it on two different vhosts (`www` and `api` under your name), and set up renewal that works for both. Then make HTTPS the only way in: plain HTTP redirects to HTTPS permanently, and HTTPS sends HSTS. And harden the API: `api` also sends `X-Content-Type-Options: nosniff` and a `Content-Security-Policy`.",
+  "seed": "`dojo-challenge start capstone` creates `{user}/cert-heist` (cloned to `~/lab/cert-heist`): a brief, port-80 vhosts `www.conf` and `api.conf`, a `dns-hook.sh` skeleton for certbot's `--manual-auth-hook` (its body is the student's), and a `renew.cron` holding only comments. The wildcard A record `*.{user}.certs.dojo.test` (made by the DNS seed at stack start) makes `www` and `api` resolve. The TXT record goes through `dns-api` with the student's own key, so `_acme-challenge.{user}.certs.dojo.test` is theirs alone.",
+  "verify_text": "`www.{user}.certs.dojo.test` and `api.{user}.certs.dojo.test` are both served, over SNI, a valid certificate that chains to the CA root, that covers `*.{user}.certs.dojo.test`, with the same serial on both. Plain `http://` for each answers a permanent redirect (301 or 308) to the same name over `https://`, and each HTTPS response carries `Strict-Transport-Security` with `max-age` of at least 86400. `https://api...` also answers with `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that sets `default-src`. On `main` of `{user}/cert-heist`: `www.conf` and `api.conf` each have an uncommented `listen 443 ssl` and `ssl_certificate` lines no longer `TODO`, and `renew.cron` holds an active line. The repo's whole history (every branch, every commit) holds no private key. Not checked: that a forced renewal really updates both sites; `includeSubDomains`/`preload` (not wanted on a lab name); what the CSP allows; the TLS protocol versions (on demo-app's shared port 443 nginx takes them from the default server, so no single site can set them).",
+  "isolation": "the challenge TXT name is under the student's own parent, so two students issuing at once never overwrite each other's record; the repo is the student's own `{user}/cert-heist`.",
+  "badge_tier": "capstone",
+  "hints": [
+    "A wildcard only works through DNS.",
+    "One cert file, two vhosts, one reload; each header is one `add_header ... always;` line."
+  ],
+  "verify": [
+    {
+      "verb": "served_same",
+      "hosts": [
+        "www.{user}.certs.dojo.test",
+        "api.{user}.certs.dojo.test"
+      ],
+      "san": [
+        "*.{user}.certs.dojo.test"
+      ]
+    },
+    {
+      "verb": "served_redirect",
+      "hosts": [
+        "www.{user}.certs.dojo.test",
+        "api.{user}.certs.dojo.test"
+      ]
+    },
+    {
+      "verb": "served_hsts",
+      "hosts": [
+        "www.{user}.certs.dojo.test",
+        "api.{user}.certs.dojo.test"
+      ],
+      "min_age": 86400
+    },
+    {
+      "verb": "served_header",
+      "hosts": [
+        "api.{user}.certs.dojo.test"
+      ],
+      "name": "X-Content-Type-Options",
+      "regex": "^\\s*nosniff\\s*$"
+    },
+    {
+      "verb": "served_header",
+      "hosts": [
+        "api.{user}.certs.dojo.test"
+      ],
+      "name": "Content-Security-Policy",
+      "regex": "default-src\\s"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-heist",
+      "ref": "main",
+      "path": "www.conf",
+      "regex": "^[ \\t]*listen\\s+443\\s+ssl"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-heist",
+      "ref": "main",
+      "path": "www.conf",
+      "regex": "^[ \\t]*ssl_certificate\\s+(?!TODO)\\S"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-heist",
+      "ref": "main",
+      "path": "api.conf",
+      "regex": "^[ \\t]*listen\\s+443\\s+ssl"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-heist",
+      "ref": "main",
+      "path": "api.conf",
+      "regex": "^[ \\t]*ssl_certificate\\s+(?!TODO)\\S"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-heist",
+      "ref": "main",
+      "path": "renew.cron",
+      "regex": "^[ \\t]*[^#\\s]"
+    },
+    {
+      "verb": "history_absent",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "what": "a private key",
+      "repo": "{user}/cert-heist"
+    }
+  ],
+  "answer": "`dojo-challenge start capstone`; write `dns-hook.sh` (Lab 5's PATCH with `$CERTBOT_VALIDATION`, then wait for `dig`); `certbot certonly --manual --preferred-challenges dns-01 --manual-auth-hook \"sh $HOME/lab/cert-heist/dns-hook.sh\" -d '*.{user}.certs.dojo.test'` (or acme.sh); copy the one certificate into `/srv/webroot/{user}/certs/`; in `www.conf` and `api.conf` uncomment the HTTPS block, point both certificate lines at it and add `add_header Strict-Transport-Security \"max-age=86400\" always;`, in `api.conf` also `add_header X-Content-Type-Options nosniff always;` and `add_header Content-Security-Policy \"default-src 'none'; frame-ancestors 'none'\" always;`, and make the port-80 block `return 301 https://$host$request_uri;`; copy them in; a `renew.cron` line for `certbot renew --no-random-sleep-on-renew` (the hook makes it unattended), installed; push it all to `main` (no key); `dojo-check capstone`.",
+  "seed_plan": "cert-heist.json"
+}

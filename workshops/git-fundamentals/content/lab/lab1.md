@@ -1,6 +1,6 @@
 # Lab 1 — The Core Workflow
 
-**Required.** By the end of this lab you'll have personally cloned a repo, created a branch, made and committed a change, pushed it, and opened a pull request. This is the loop you'll use for most of your day-to-day git work — see the table in [README.md](README.md) if you want the one-line summary of each step first.
+By the end of this lab you'll have personally cloned a repo, created a branch, made and committed a change, pushed it, and opened a pull request. This is the loop you'll use for most of your day-to-day git work — see the table in [README.md](README.md) if you want the one-line summary of each step first.
 
 ---
 
@@ -143,13 +143,13 @@ ls -l ~/.git-credentials
 
 Go back to the workshop landing page (the tab or window where you clicked **Open VS Code** or **Open Terminal**) and click **Open Forgejo**. It opens a new tab, already signed in as you — no separate login.
 
-Find your `add-yourname` branch (Forgejo usually prompts you with a banner offering to open a pull request for a recently-pushed branch) and open a pull request into `main`. The facilitator will review and merge it.
+Find your `add-yourname` branch (Forgejo usually prompts you with a banner offering to open a pull request for a recently-pushed branch) and open a pull request into `main`. Sensei, the class review bot, looks at it within a few seconds and, if your roster entry follows the format, rubber-stamps it and merges it for you. If something is off, Sensei leaves a comment saying what and flags your facilitator, who will take a look.
 
 ---
 
 ## 8. Clean up after your branch is merged
 
-Once the facilitator merges your pull request, `add-yourname` has done its job — the change lives on `main` now. Your local copy doesn't know that yet, though. Switch back to `main` and bring it up to date:
+Once Sensei (or, if it flagged your PR, the facilitator) merges your pull request, `add-yourname` has done its job — the change lives on `main` now. Your local copy doesn't know that yet, though. Switch back to `main` and bring it up to date:
 
 ```sh
 git checkout main
@@ -190,4 +190,19 @@ Before moving on, be ready to show or say:
 - In your own words: what changed locally at `git commit`, and what changed remotely at `git push`?
 - What `git fetch --prune` cleaned up, and why `git branch -d` refuses to delete an unmerged branch.
 
-**Next:** Labs 2-5 in [README.md](README.md) are optional deep dives — pick whichever sounds most useful, or work through them in order.
+**Next:** [lab2.md](lab2.md) — reviewing and undoing changes before you commit.
+
+---
+
+## Challenge c1: The Hotfix (bonus)
+
+Production has a typo: your own role in `roster/team.yaml` is misspelled. Ship the fix without touching `main`
+directly.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/challenge-repo` and
+clones it to `~/lab/challenge-repo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c1`. A wrong answer costs nothing; `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c1 -->

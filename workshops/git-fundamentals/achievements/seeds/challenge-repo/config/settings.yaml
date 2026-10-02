@@ -1,0 +1,4 @@
+# Team settings: how deploys run.
+team: training
+deploy_window: "Tue-Thu 10:00-15:00"
+approvals: 2

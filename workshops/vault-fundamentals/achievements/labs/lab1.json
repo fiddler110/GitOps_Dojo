@@ -1,0 +1,43 @@
+{
+  "milestones": [
+    {
+      "id": "v1-leak",
+      "title": "Oops, Committed",
+      "joke": "A secret in git. It happens to everyone.",
+      "core": true,
+      "when": "shell: the lab's first `git commit` inside a repo (exit 0); it can't see the file's content, only that a commit happened",
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "exit": 0,
+        "in_repo": true
+      }
+    },
+    {
+      "id": "v1-scan",
+      "title": "Scanner Darkly",
+      "joke": "A scanner found it.",
+      "core": true,
+      "when": "shell: `gitleaks` exits non-zero, which is how it reports a finding",
+      "match": {
+        "source": "shell",
+        "cmd": "gitleaks",
+        "exit": "nonzero"
+      }
+    },
+    {
+      "id": "v1-hook",
+      "title": "Pre-Commit Bouncer",
+      "joke": "A hook now stops the next leak.",
+      "core": true,
+      "when": "shell: a `git commit` that fails after a scan found the leak (the hook refusing it; a commit that fails for another reason also counts)",
+      "match": {
+        "source": "shell",
+        "cmd": "git commit",
+        "exit": "nonzero",
+        "in_repo": true,
+        "requires": "v1-scan"
+      }
+    }
+  ]
+}

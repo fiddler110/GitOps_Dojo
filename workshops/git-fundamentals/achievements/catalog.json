@@ -1,0 +1,29 @@
+{
+  "workshop": "git-fundamentals",
+  "title": "Git Fundamentals",
+  "intro": "## Completion\n\n**Every lab is mandatory** (decided). `core` is every lab milestone, so the certificate and the \"Workshop complete\"\nbanner come at 80% of them, and the student's home page shows a running completion percentage. Challenges, the capstone\nand the funny unlocks are optional bonuses and never count toward completion. `l1-merged` counts too: the Sensei bot\nmerges the roster PR.",
+  "challenges_intro": "**Where they run.** The lab repo `training/sample-training-repo` is shared by the class, so a challenge never merges\ninto its `main`. When a student opens a challenge, the service creates their own copy, `{user}/challenge-repo` (a\nseeded fork owned by that student, with the challenge's planted branches and commits). Pull requests, merges and\n`main` below all mean that repo. Merging there is safe: nobody else can see it change.",
+  "labs": [
+    {
+      "id": "lab1",
+      "title": "the core workflow"
+    },
+    {
+      "id": "lab2",
+      "title": "reviewing and undoing before you commit"
+    },
+    {
+      "id": "lab3",
+      "title": "stashing"
+    },
+    {
+      "id": "lab4",
+      "title": "investigating history"
+    },
+    {
+      "id": "lab5",
+      "title": "merge conflicts and undoing a change"
+    }
+  ],
+  "require_match": true
+}

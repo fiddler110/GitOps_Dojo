@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Achievements admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Achievements</h1>
+<div class="card">
+  <table><thead><tr><th>#</th><th>Student</th><th>Board name</th><th>Points</th><th>Done</th><th>Moments</th><th>Cheats</th><th></th></tr></thead>
+  <tbody id="rows"></tbody></table>
+</div>
+<div class="card">
+  <h2>Award points</h2>
+  <input id="a-user" placeholder="student"> <input id="a-pts" type="number" placeholder="points" class="narrow">
+  <input id="a-why" placeholder="reason" size="30"> <button id="a-go">Award</button>
+  <button id="complete">Mark complete</button> <button id="uncomplete">Undo complete</button>
+  <button id="reload">Reload catalog</button> <span id="msg" class="dim"></span>
+</div>
+<div class="card"><h2>Log</h2><table><tbody id="log"></tbody></table></div>
+<div class="card"><h2>Challenge checks</h2><table><tbody id="checks"></tbody></table></div>
+<script src="admin.js"></script>
+</body>
+</html>

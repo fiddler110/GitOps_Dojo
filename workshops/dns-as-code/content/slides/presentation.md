@@ -385,11 +385,11 @@ skipping the wrapper entirely, so both tracks are teachable here.
 ## What you'll do
 
 **Part 1, your own zone** (`<you>.dojo.test`): nobody else touches it.
-**Lab 1 (required):** preview, push, `dig`; add, change and remove
+**Lab 1:** preview, push, `dig`; add, change and remove
 records; catch a mistake. **Lab 2:** drift and undo.
 
 **Part 2, the shared zone** (`dojo.test`): only CI can change it.
-**Lab 3 (required):** branch → PR → CI preview → a classmate approves →
+**Lab 3:** branch → PR → CI preview → a classmate approves →
 merge → CI applies. **Labs 4-6:** `dnsctl.py`, rollback, merge conflicts.
 
 **Full steps are in `~/lab/README.md`** inside your terminal.

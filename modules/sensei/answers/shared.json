@@ -1,0 +1,95 @@
+{
+ "answers": [
+  {
+   "id": "undo-pushed",
+   "title": "Undo a change you already pushed",
+   "match": [
+    "\\b(undo|revert|roll ?back|take back|reverse)\\b.*\\b(push|pushed|pushing|commit(ted)?|merged|live)\\b",
+    "\\b(push|pushed|committed|merged)\\b.*\\b(undo|revert|roll ?back|by mistake|wrong|oops)\\b"
+   ],
+   "markdown": "## Undo a change you already pushed\n\nDon't rewrite history that someone else may have pulled. Add a new commit that does the opposite:\n\n```sh\ngit log --oneline            # find the commit to undo\ngit revert --no-edit HEAD    # or: git revert <commit>\ngit push\n```\n\n`git revert` leaves the history intact, so everyone can still see what happened and when. If `main` is protected, do this on a branch and open a pull request.\n\n**Never** `git push --force` on a shared branch to get rid of it."
+  },
+  {
+   "id": "undo-local-commit",
+   "title": "Undo a commit you haven't pushed",
+   "match": [
+    "\\b(undo|remove|delete|uncommit|take back)\\b.*\\b(last|latest|previous)? ?commit\\b.*\\b(not|haven'?t|before|without)\\b.*\\bpush",
+    "\\bundo\\b.*\\b(local|unpushed)\\b.*\\bcommit",
+    "\\buncommit\\b"
+   ],
+   "markdown": "## Undo a commit you haven't pushed\n\nNobody else has it yet, so you may rewrite it:\n\n```sh\ngit reset --soft HEAD~1   # undo the commit, keep the changes staged\ngit reset --hard HEAD~1   # undo the commit AND throw the changes away\n```\n\nCheck first with `git log --oneline`: if the commit is already on the server, use `git revert` instead."
+  },
+  {
+   "id": "discard-changes",
+   "title": "Throw away changes in a file",
+   "match": [
+    "\\b(discard|throw away|undo|reset|drop|get rid of|abandon)\\b.*\\b(changes?|edits?|modifications?)\\b",
+    "\\brestore\\b.*\\bfile\\b"
+   ],
+   "markdown": "## Throw away changes in a file\n\n```sh\ngit status                  # what changed\ngit restore <file>          # discard edits you haven't staged\ngit restore --staged <file> # unstage it, keep the edits\n```\n\nDiscarding is permanent: there is no undo for edits that were never committed."
+  },
+  {
+   "id": "branch",
+   "title": "Make or switch branches",
+   "match": [
+    "\\b(create|make|start|new|switch|change|checkout|go to)\\b.*\\bbranch\\b",
+    "\\bbranch\\b.*\\b(create|make|new|switch)\\b"
+   ],
+   "markdown": "## Branches\n\n```sh\ngit switch -c my-change     # make a new branch from where you are, and move to it\ngit switch main             # go back to main\ngit branch                  # list branches (* marks the current one)\ngit push -u origin my-change   # first push of a new branch\n```\n\nStart every change from an up-to-date `main`: `git switch main && git pull`, then branch."
+  },
+  {
+   "id": "push-main",
+   "title": "Why I can't push to main",
+   "match": [
+    "\\b(can'?t|cannot|unable|why|not allowed|denied|rejected|blocked)\\b.*\\b(push)\\b.*\\bmain\\b",
+    "\\bprotected\\b.*\\b(branch|main)\\b",
+    "\\bmain\\b.*\\bprotected\\b"
+   ],
+   "markdown": "## Why you can't push to `main`\n\n`main` is protected on purpose: changes reach it through a pull request, with a passing check and a review.\n\n```sh\ngit switch -c my-change     # move your commit to a branch\ngit push -u origin my-change\n```\n\nThen open the pull request in Forgejo. If you already committed on `main` by mistake: make the branch first (above), then `git switch main && git reset --hard origin/main`."
+  },
+  {
+   "id": "get-latest",
+   "title": "Get the latest changes",
+   "match": [
+    "\\b(update|latest|newest|sync|fresh|up ?to ?date|behind)\\b.*\\b(main|changes|code|repo|branch|remote)\\b",
+    "\\bgit pull\\b",
+    "\\bhow\\b.*\\b(pull|fetch)\\b"
+   ],
+   "markdown": "## Get the latest changes\n\n```sh\ngit switch main\ngit pull                    # fetch and merge what others pushed\n```\n\nOn a branch that's behind `main`: `git pull origin main` brings `main`'s commits into it. Resolve any conflict, commit, push."
+  },
+  {
+   "id": "conflict",
+   "title": "Fix a merge conflict",
+   "match": [
+    "\\bconflicts?\\b"
+   ],
+   "markdown": "## Fix a merge conflict\n\nGit stopped because two changes touched the same lines. It marked the file:\n\n```text\n<<<<<<< HEAD\nyour version\n=======\ntheir version\n>>>>>>> other-branch\n```\n\n1. Open the file, keep what's right (yours, theirs or both) and delete the three marker lines.\n2. `git add <file>`\n3. `git commit` (or `git merge --continue` / `git rebase --continue` if you were in one)\n4. `git status` should say the tree is clean."
+  },
+  {
+   "id": "what-changed",
+   "title": "See what I changed",
+   "match": [
+    "\\b(see|show|list|view|check|what)\\b.*\\b(changed|changes|diff|modified|difference)\\b",
+    "\\bgit (status|diff)\\b"
+   ],
+   "markdown": "## See what you changed\n\n```sh\ngit status             # which files changed, and what is staged\ngit diff               # edits not yet staged\ngit diff --staged      # edits that will go in the next commit\ngit log --oneline      # the history\n```"
+  },
+  {
+   "id": "amend",
+   "title": "Fix my last commit message",
+   "match": [
+    "\\b(change|fix|edit|amend|rename|reword|typo)\\b.*\\b(commit )?(message)\\b",
+    "\\bamend\\b"
+   ],
+   "markdown": "## Fix the last commit message\n\n```sh\ngit commit --amend -m \"better message\"\n```\n\nOnly if you haven't pushed it. If it's already pushed, leave it: rewriting shared history causes more trouble than a typo."
+  },
+  {
+   "id": "clone",
+   "title": "Get a copy of a repo",
+   "match": [
+    "\\b(clone|download|copy|get)\\b.*\\b(repo|repository|project)\\b"
+   ],
+   "markdown": "## Clone a repo\n\n```sh\ngit clone http://git-server:3000/<owner>/<repo>.git\ncd <repo>\n```\n\nYour terminal is already signed in to the Forgejo server, so no password prompt."
+  }
+ ]
+}

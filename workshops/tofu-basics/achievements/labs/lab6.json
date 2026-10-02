@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "t6-tag",
+      "title": "Untagged and Rejected",
+      "joke": "The cloud wants tags.",
+      "core": true,
+      "when": "cloud: a request refused for a missing required tag (policy `Require tag`, reported by cloud-api)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "tag"
+      }
+    },
+    {
+      "id": "t6-region",
+      "title": "Wrong Neighbourhood",
+      "joke": "Region not allowed.",
+      "core": true,
+      "when": "cloud: a request refused for a region outside `canadacentral`/`canadaeast` (policy `Allowed locations`)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "region"
+      }
+    },
+    {
+      "id": "t6-size",
+      "title": "Too Big to Ship",
+      "joke": "Over the size limit.",
+      "core": true,
+      "when": "cloud: a request refused for a container size over the limit (`InvalidResourceRequest`)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "size"
+      }
+    }
+  ]
+}

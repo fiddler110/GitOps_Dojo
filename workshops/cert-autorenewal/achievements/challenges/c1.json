@@ -1,0 +1,43 @@
+{
+  "id": "c1",
+  "title": "The Second Site",
+  "after": "after Lab 2 or 3",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.",
+  "verify_text": "`demo-app`'s HTTPS listener serves `shop.{user}.certs.dojo.test` (checked over SNI) a certificate that chains to the CA root, matches the name and is not expired, and is not the certificate served for `{user}.certs.dojo.test`. It cannot see whether the first site's serial changed, only that the two sites hold different certificates. And `shop.conf` on `main` of `{user}/cert-shop` names `shop.{user}.certs.dojo.test` and has a `listen 443 ssl` block (push the vhost you run). The repo's whole history (every branch, every commit) holds no private key.",
+  "isolation": "a second vhost in the student's own subdirectory and the student's own repo `{user}/cert-shop`; issuance goes through the shared CA, which handles concurrent orders for different names. The check reads only names under `{user}.certs.dojo.test` and that repo.",
+  "hints": [
+    "Same steps as your first site, new hostname.",
+    "New vhost, new issuance, new install."
+  ],
+  "seed": "`dojo-challenge start c1` creates `{user}/cert-shop` (owned by the student, cloned to `~/lab/cert-shop`): a brief and `shop.conf`, a port-80 vhost for `shop.{user}.certs.dojo.test` with its own webroot folder. The wildcard A record `*.{user}.certs.dojo.test` (made for every student by the DNS seed at stack start, pointing at `demo-app`) is what makes the name resolve.",
+  "verify": [
+    {
+      "verb": "served_cert",
+      "host": "shop.{user}.certs.dojo.test",
+      "differs_from": "{user}.certs.dojo.test"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-shop",
+      "ref": "main",
+      "path": "shop.conf",
+      "regex": "^[ \\t]*server_name\\s+shop\\.{user}\\.certs\\.dojo\\.test"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-shop",
+      "ref": "main",
+      "path": "shop.conf",
+      "regex": "^[ \\t]*listen\\s+443\\s+ssl"
+    },
+    {
+      "verb": "history_absent",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "what": "a private key",
+      "repo": "{user}/cert-shop"
+    }
+  ],
+  "answer": "`dojo-challenge start c1`, copy `shop.conf` into `/srv/webroot/{user}/conf.d/` and make `shop-html`, issue for `shop.{user}.certs.dojo.test` with certbot (Lab 2) or acme.sh (Lab 3) into a folder of its own, add a `listen 443 ssl` block pointing at that certificate, copy it in again, push `shop.conf` to `main` (no key in the repo), and run `dojo-check c1`.",
+  "seed_plan": "cert-shop.json"
+}

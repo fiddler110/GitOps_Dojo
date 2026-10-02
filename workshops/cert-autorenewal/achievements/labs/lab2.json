@@ -1,0 +1,98 @@
+{
+  "milestones": [
+    {
+      "id": "c2-vhost",
+      "title": "Port 80 Open for Business",
+      "joke": "Your vhost answers the challenge.",
+      "core": true,
+      "when": "shell: `curl --resolve host:80:IP http://host/` exit 0 (the vhost answers on port 80)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "regex": "--resolve\\s+\\S+:80:\\S+\\s.*http://",
+        "exit": 0
+      }
+    },
+    {
+      "id": "c2-issue",
+      "title": "Certified Fresh",
+      "joke": "A real cert, minted by machine.",
+      "core": true,
+      "when": "shell: `certbot certonly` exit 0 (the client reports success; the CA log is not read)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot certonly",
+        "exit": 0
+      }
+    },
+    {
+      "id": "c2-install",
+      "title": "Installed and Padlocked",
+      "joke": "HTTPS on. Green padlock energy.",
+      "core": true,
+      "when": "verify: after `certbot certonly`, demo-app serves your hostname a valid certificate from the CA (checked over SNI every few seconds)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-issue"
+        ],
+        "verify": [
+          {
+            "verb": "served_cert",
+            "host": "{user}.certs.dojo.test"
+          }
+        ]
+      }
+    },
+    {
+      "id": "c2-verify",
+      "title": "Trust, Verified",
+      "joke": "You checked the chain with your own eyes.",
+      "core": true,
+      "when": "shell: `openssl s_client` or `curl https://...` against the demo site with `--cacert`/`-v`, exit 0",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "openssl s_client",
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "curl",
+            "regex": "https://.*\\.certs\\.dojo\\.test|--cacert.*https://",
+            "exit": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "c2-https-only",
+      "title": "No Way Back to HTTP",
+      "joke": "Port 80 now only says 'try the other door'.",
+      "core": true,
+      "when": "verify: after the certificate is installed, plain http:// for your hostname answers a permanent redirect to https://, and HTTPS sends Strict-Transport-Security (any max-age)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_redirect",
+            "hosts": [
+              "{user}.certs.dojo.test"
+            ]
+          },
+          {
+            "verb": "served_hsts",
+            "hosts": [
+              "{user}.certs.dojo.test"
+            ],
+            "min_age": 1
+          }
+        ]
+      }
+    }
+  ]
+}

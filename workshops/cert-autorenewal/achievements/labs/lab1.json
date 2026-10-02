@@ -1,0 +1,67 @@
+{
+  "milestones": [
+    {
+      "id": "c1-root",
+      "title": "Root of All Trust",
+      "joke": "You fetched the CA's root certificate.",
+      "core": true,
+      "when": "shell: `step certificate inspect /opt/step-ca-root/root_ca.crt` (or `step certificate ...` on the root file), exit 0",
+      "match": {
+        "source": "shell",
+        "cmd": "step certificate inspect",
+        "regex": "root_ca\\.crt",
+        "exit": 0
+      }
+    },
+    {
+      "id": "c1-fingerprint",
+      "title": "Fingerprint Frisk",
+      "joke": "Checked the fingerprint, like a suspicious bouncer.",
+      "core": true,
+      "when": "shell: `step certificate fingerprint` or `openssl x509 ... -fingerprint`, exit 0",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": "step certificate fingerprint",
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": "openssl x509",
+            "flags": "-fingerprint",
+            "exit": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "c1-trust",
+      "title": "Now We Trust You",
+      "joke": "The system trusts the CA. Do not tell your bank.",
+      "core": true,
+      "when": "shell: `step ca bootstrap` exit 0 (the trust step; whether the bootstrap really wrote a usable config is not checked)",
+      "match": {
+        "source": "shell",
+        "cmd": "step ca bootstrap",
+        "exit": 0
+      }
+    },
+    {
+      "id": "c1-tools",
+      "title": "Trust Issues, Resolved",
+      "joke": "certbot and acme.sh trust it too, separately.",
+      "core": true,
+      "when": "shell: `acme.sh` run with `--ca-bundle` (exit 0) after certbot has issued (which Lab 2 does with `REQUESTS_CA_BUNDLE`); the tools' config files are not read",
+      "match": {
+        "source": "shell",
+        "cmd": "acme.sh",
+        "flags": "--ca-bundle",
+        "exit": 0,
+        "requires": [
+          "c2-issue"
+        ]
+      }
+    }
+  ]
+}

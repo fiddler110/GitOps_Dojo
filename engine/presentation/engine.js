@@ -116,7 +116,19 @@ function cron(hljs) {
   };
 }
 
+// Every page gets the manifest `scripts` loader (engine/allocator/server.py, /workspace/extra.js):
+// a module such as achievements adds its toast script through it, and with none it is empty.
+function extraScripts(md) {
+  md.core.ruler.push('dojo_extra_scripts', (state) => {
+    const token = new state.Token('html_block', '', 0);
+    token.content = '<script src="/workspace/extra.js" data-surface="slides"></script>\n';
+    token.block = true;
+    state.tokens.push(token);
+  });
+}
+
 module.exports = ({ marp }) => {
+  marp.use(extraScripts);
   marp.highlightjs.registerLanguage('hcl', hcl);
   marp.highlightjs.registerLanguage('bash', shell);
   marp.highlightjs.registerLanguage('gitignore', gitignore);

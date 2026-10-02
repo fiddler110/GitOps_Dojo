@@ -18,7 +18,7 @@ footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; DNS as Code | Lab Overview'
 ## What each lab covers, before you dive in
 
 Two parts: **your own zone**, then **the shared zone, the company way**.
-**Labs 1 and 3 are required**; the rest go deeper on one topic each.
+Six labs, done in order; each goes deeper on one topic.
 
 <p class="nav">Keep <code>cheat-sheet.md</code> open in another tab while you work.</p>
 
@@ -42,20 +42,20 @@ Preinstalled in your terminal: `dnscontrol`, `dig` (from `dnsutils`),
 
 ## The six labs
 
-| Part | Lab | Topic | Time | Required? |
-| --- | --- | ----- | ---- | --------- |
-| 1: your zone | **1** | Preview, push, verify; add, edit, remove; catch mistakes | ~20 min | <span class="required">Yes — start here</span> |
-| 1: your zone | 2 | Drift, and undoing your own changes | ~10 min | Optional |
-| 2: shared zone | **3** | Branch → PR → CI preview → review → merge → CI applies | ~25 min | <span class="required">Yes</span> |
-| 2: shared zone | 4 | `dnsctl.py` — the same process, one command per step | ~15 min | Optional |
-| 2: shared zone | 5 | History and rolling back a merged change | ~10 min | Optional |
-| 2: shared zone | 6 | Merge conflicts in `dnsconfig.js` | ~12 min | Optional |
+| Part | Lab | Topic | Time |
+| --- | --- | ----- | ---- |
+| 1: your zone | **1** | Preview, push, verify; add, edit, remove; catch mistakes | ~20 min |
+| 1: your zone | 2 | Drift, and undoing your own changes | ~10 min |
+| 2: shared zone | **3** | Branch → PR → CI preview → review → merge → CI applies | ~25 min |
+| 2: shared zone | 4 | `dnsctl.py` — the same process, one command per step | ~15 min |
+| 2: shared zone | 5 | History and rolling back a merged change | ~10 min |
+| 2: shared zone | 6 | Merge conflicts in `dnsconfig.js` | ~12 min |
 
 ---
 
 <!-- _class: section-title -->
 
-# Lab 1 — Required
+# Lab 1
 
 ## Your own zone: you run every step
 
@@ -76,7 +76,7 @@ add, change and remove records, and catch a mistake before it's live.
 
 <!-- _class: section-title -->
 
-# Lab 3 — Required
+# Lab 3
 
 ## The shared zone: the process does the pushing
 
@@ -97,7 +97,7 @@ only CI applies it. A push from your terminal is refused.
 
 ---
 
-## Optional labs
+## The other labs
 
 <div class="cards">
 <div>

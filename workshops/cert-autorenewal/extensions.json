@@ -1,14 +1,17 @@
 {
   "version": 1,
   "cards": [
-    { "id": "demo", "label": "Demo Site", "desc": "The live site your lab work is serving.",
-      "href": "/demo/", "icon": "rocket" }
+    { "id": "inspect", "label": "Site Inspector", "desc": "Visit your site like a browser: redirects, certificate, HSTS and headers, step by step.",
+      "href": "/inspect/", "icon": "key" }
   ],
   "admin_tabs": [
-    { "id": "demo", "label": "Demo Site", "src": "/demo/" }
+    { "id": "inspect", "label": "Site Inspector", "src": "/inspect/" }
   ],
   "routes": [
-    { "id": "demo", "path": "/demo", "upstream": "demo-app:80", "gate": "identity",
-      "strip_prefix": true, "host": "{user}.${DEMO_APP_ZONE}" }
+    { "id": "inspect", "path": "/inspect", "upstream": "site-inspector:8080", "gate": "identity",
+      "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "Site Inspector", "url": "http://site-inspector:8080/healthz" }
   ]
 }

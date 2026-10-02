@@ -1,0 +1,72 @@
+{
+  "milestones": [
+    {
+      "id": "c4-script",
+      "title": "Script Kiddie (Proud)",
+      "joke": "A renewal script that reinstalls too.",
+      "core": true,
+      "when": "shell: the renewal script `renew-and-reload.sh` run by hand, exit 0 (existence and the executable bit are not checked separately)",
+      "match": {
+        "source": "shell",
+        "regex": "renew-and-reload\\.sh",
+        "exit": 0
+      }
+    },
+    {
+      "id": "c4-installs",
+      "title": "It Actually Installs",
+      "joke": "Renewed and reloaded the server.",
+      "core": true,
+      "when": "verify: demo-app now serves your hostname a different certificate than the one it served after Lab 2 (the service remembers serials while it runs; a service restart starts a new baseline, and a re-issue in Lab 3 counts)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_changed",
+            "host": "{user}.certs.dojo.test",
+            "key": "installs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "c4-cron",
+      "title": "Set It and Forget It",
+      "joke": "Wired into cron.",
+      "core": true,
+      "when": "shell: `crontab -e` (saved, exit 0) or `crontab -l`; the entry itself is not read",
+      "match": {
+        "source": "shell",
+        "cmd": "crontab",
+        "flags": [
+          "-e",
+          "-l"
+        ],
+        "exit": 0
+      }
+    },
+    {
+      "id": "c4-watch",
+      "title": "Watched a Pot Boil",
+      "joke": "You saw the renewal fire by itself.",
+      "core": true,
+      "when": "verify: after the cron entry exists, the certificate served for your hostname changes again (renewal by cron or by hand cannot be told apart: the cron log is not read)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c4-cron"
+        ],
+        "verify": [
+          {
+            "verb": "served_changed",
+            "host": "{user}.certs.dojo.test",
+            "key": "watch"
+          }
+        ]
+      }
+    }
+  ]
+}

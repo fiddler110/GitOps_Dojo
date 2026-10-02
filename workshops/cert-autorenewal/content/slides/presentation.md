@@ -7,6 +7,14 @@ html: true
 style: |
   @import url('assets/themes/presentation.css');
   .required { color: var(--amber); font-weight: 700; }
+  .https-only { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 14px; }
+  .https-only > div, .wall > div { background: var(--surface-raised); border: 1px solid var(--line); border-top: 4px solid var(--teal); border-radius: 6px; padding: 12px 20px; }
+  .https-only h3 { margin: 0 0 6px; font-size: 30px; }
+  .https-only p, .https-only li { font-size: 22px; }
+  .wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+  .wall b { display: block; font-size: 21px; color: var(--cyan); }
+  .wall code { font-size: 15px; }
+  .wall p { margin: 4px 0 0; font-size: 18px; color: var(--muted); }
 footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; Certificate Autorenewal | Engineering & IT Operations'
 ---
 
@@ -56,18 +64,13 @@ Venafi case at work reads as an instance of a pattern, not a black box.
 
 ## The core problem
 
-> A certificate is a promise with an expiry date. Nothing enforces that the
-> promise gets renewed before it lapses — except whoever remembers to do it.
+> A certificate is a promise with an expiry date. Nothing renews it except whoever remembers to.
 
-- Certificates expire. Expired certificates break HTTPS, hard, with no
-  graceful fallback — browsers and API clients alike refuse the connection
+- Expired certificates break HTTPS hard: browsers and API clients refuse the connection
 - "Who owns renewing this cert?" is a question a lot of outages start with
-- The fix teams reach for is usually a calendar reminder, a ticket, or a
-  tool like Venafi doing this centrally — all three are the same idea:
-  **something has to notice the expiry and act, before a human has to**
+- The usual fix is a calendar reminder, a ticket, or a central tool like Venafi; all the same idea: **something has to notice the expiry and act, before a human has to**
 
-This is the whole workshop in one sentence: replace "someone remembers" with
-"something runs."
+The whole workshop in one sentence: replace "someone remembers" with "something runs."
 
 <!--
 Worth pausing here — this is the motivating problem everything else in the
@@ -189,7 +192,7 @@ exchange happen twice in Lab 2 and Lab 3, once per client.
 | **dns-01** | Publishing a specific TXT record under the domain | Write access to the domain's DNS zone |
 
 http-01 is what Labs 1-4 use — simplest to reason about, and what most
-real-world issuance looks like. dns-01 (Lab 5, optional capstone) is what
+real-world issuance looks like. dns-01 (Lab 5) is what
 you reach for when there's **no web server to answer at all** — an
 internal service, a mail server, or a wildcard certificate, none of which
 http-01 can validate.
@@ -255,7 +258,7 @@ you see exactly what's being automated before you automate it. Step 5
 | What you see | A summarized log of each ACME step | More of the raw HTTP exchange, less summarized |
 | State | `~/certbot/config/` (this lab keeps it out of the system-wide default) | `~/.acme.sh` or wherever `--cert-home` points — plain per-user files |
 
-Lab 2 uses certbot. Lab 3 (optional) redoes the *same* issuance with
+Lab 2 uses certbot. Lab 3 redoes the *same* issuance with
 acme.sh, so you can compare the two side by side — same CA, same result,
 different level of transparency into how it got there.
 
@@ -289,17 +292,11 @@ CA has to solve at much larger scale.
 
 ## Why this lab's certs expire in minutes
 
-`step-ca`'s ACME provisioner in this lab is configured with a
-**5-10 minute** certificate lifetime — nowhere close to a real cert's
-weeks-to-months. That's deliberate:
+`step-ca`'s ACME provisioner in this lab is configured with a **5-10 minute** certificate lifetime, nowhere close to a real cert's weeks-to-months. That's deliberate:
 
-> A renewal you have to wait a month to see isn't something you watch
-> happen — it's something you take on faith. A renewal you can watch fire
-> inside a lab session is something you understand.
+> A renewal you wait a month to see is one you take on faith. A renewal you watch fire inside a lab session is one you understand.
 
-Everything about *how* renewal works — the client, the scheduler, the
-reload — is identical whether the cert lives for 8 minutes or 90 days.
-Only the waiting changes.
+Everything about *how* renewal works (the client, the scheduler, the reload) is identical whether the cert lives for 8 minutes or 90 days. Only the waiting changes.
 
 ---
 
@@ -339,7 +336,7 @@ knowing before you turn it off anywhere else.
 
 ---
 
-## dns-01 — the optional capstone
+## dns-01 — the last lab
 
 Every certificate up to this point proves control over HTTP. Lab 5 proves
 the same thing a different way: publishing a TXT record under
@@ -356,6 +353,52 @@ Reach for dns-01 instead of http-01 when:
 
 ---
 
+## HTTPS only: redirect, then HSTS
+
+A certificate protects nobody while the site still answers on plain HTTP.
+
+<div class="https-only">
+<div>
+
+### Redirect (port 80)
+
+`http://` answers **`301 Moved Permanently`** with `Location: https://` + the same name and path.
+
+- Permanent (301/308), not 302: plain HTTP stops being the real address
+- A site renewing with **http-01** keeps `/.well-known/acme-challenge/` on plain HTTP, or its next renewal fails
+
+</div>
+<div>
+
+### HSTS (port 443)
+
+**`Strict-Transport-Security: max-age=86400`** on every HTTPS response.
+
+- The browser remembers: no more plain HTTP for this name, not even the first request, so nobody on the network can answer it instead (SSL stripping)
+- One-way: start with a short `max-age`; `includeSubDomains` and `preload` only once every name has HTTPS
+
+</div>
+</div>
+
+---
+
+## Bonus: the security-header wall
+
+Beyond HSTS: one line of server config each, only worth having over HTTPS.
+
+<div class="wall">
+<div><b>Content-Security-Policy</b><code>default-src 'self'</code><p>Where scripts, styles and images may load from: the main defence against cross-site scripting.</p></div>
+<div><b>X-Content-Type-Options</b><code>nosniff</code><p>Use the declared content type; never guess that a text file is a script.</p></div>
+<div><b>Frame protection</b><code>frame-ancestors 'self'</code><p>Who may put your page in a frame (CSP, or the older X-Frame-Options): stops clickjacking.</p></div>
+<div><b>Referrer-Policy</b><code>strict-origin-when-cross-origin</code><p>How much of your URL other sites see when someone follows a link away.</p></div>
+<div><b>Permissions-Policy</b><code>camera=(), geolocation=()</code><p>Switch off browser features the page never uses.</p></div>
+<div><b>Cookie flags</b><code>Secure; HttpOnly; SameSite=Lax</code><p>HTTPS only, out of reach of scripts, not sent with requests from other sites.</p></div>
+</div>
+
+<p class="small">See any site's: <code>curl -sI https://example.com</code> (this dojo's pages send a strict CSP and <code>nosniff</code>)</p>
+
+---
+
 <!-- _class: section-title -->
 
 # Part 6
@@ -366,13 +409,13 @@ Reach for dns-01 instead of http-01 when:
 
 ## The five labs
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | --------- |
-| 1 | Trust the CA: bootstrap, inspect the root cert | ~10 min | <span class="required">Yes — start here</span> |
-| 2 | Issue and install a certificate with certbot | ~20 min | <span class="required">Yes</span> |
-| 3 | The same task with acme.sh — comparing clients | ~15 min | Optional |
-| 4 | Automating renewal, and watching it actually happen | ~15 min | <span class="required">Yes</span> |
-| 5 | Capstone: the dns-01 challenge, against real DNS | ~15 min | Optional |
+| Lab | Topic | Time |
+| --- | ----- | ---- |
+| 1 | Trust the CA: bootstrap, inspect the root cert | ~10 min |
+| 2 | Issue and install a certificate with certbot | ~20 min |
+| 3 | The same task with acme.sh — comparing clients | ~15 min |
+| 4 | Automating renewal, and watching it actually happen | ~15 min |
+| 5 | The dns-01 challenge, against real DNS | ~15 min |
 
 **Full steps are in `~/lab/README.md`** inside your terminal — it's the
 menu for all five labs plus a command cheat-sheet.

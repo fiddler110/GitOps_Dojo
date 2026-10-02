@@ -1,6 +1,6 @@
-# Lab 5 — Capstone: the dns-01 Challenge
+# Lab 5 — The dns-01 Challenge
 
-**Optional.** Every certificate so far proved you control `${host}` by
+Every certificate so far proved you control `${host}` by
 serving a file over HTTP. dns-01 proves the same thing a completely
 different way: by writing a DNS TXT record only the domain's owner could
 write. It's what you reach for when there's no web server to answer
@@ -121,8 +121,8 @@ certificate for the same domain — that's certbot's own bookkeeping, not
 anything to fix.) This lab doesn't copy that cert into
 `/srv/webroot/${me}/certs/` either, so `demo-app` is still serving whatever
 Lab 2/4 last installed there — `openssl` above is your real check for this
-one, not the homepage's **Demo Site** link (it's HTTP-only and
-wouldn't show a certificate either way).
+one (the homepage's **Site Inspector** would still show the certificate
+Lab 2/4 installed).
 
 ---
 
@@ -133,3 +133,21 @@ need a reachable web server at all — and you've now driven the same
 PowerDNS API `dns-as-code` wraps in `dnscontrol`, by hand.
 
 You've completed every lab in this workshop.
+
+---
+
+## Capstone: The Wildcard Heist (a friendly one) (bonus)
+
+One wildcard certificate for `*.$USER.certs.dojo.test`, issued with dns-01, serving two sites (`www` and `api`
+under your name), with renewal that covers both. Then make HTTPS the only way in: plain HTTP redirects to HTTPS for
+good, and HTTPS tells browsers never to try plain HTTP again (HSTS). `api` also sends two headers from the slides'
+bonus wall: `X-Content-Type-Options: nosniff` and a `Content-Security-Policy`.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/cert-heist` and
+clones it to `~/lab/cert-heist`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check capstone`. A wrong answer costs nothing;
+`dojo-check hint capstone` gives a hint for part of the points, and `dojo-challenge reset capstone` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
+
+<!-- dojo-challenge: capstone -->

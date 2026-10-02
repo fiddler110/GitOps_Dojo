@@ -2,7 +2,7 @@
 # Creates or refreshes one student or demo-bot account: the Linux user, its
 # home, the lab seed, git identity, code-server settings, the auto terminal
 # task and the shared .zshrc. entrypoint.sh calls it for every account at
-# start; a student reset (engine/student-reset.md) calls it again for one
+# start; a student reset (docs/archive/STUDENT-RESET-PLAN.md §4.3) calls it again for one
 # account after removing that home. Idempotent: files a student may have
 # changed are only written when missing.
 #

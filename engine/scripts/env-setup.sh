@@ -67,6 +67,8 @@ EOF
 }
 
 cd "$(dirname "$0")/.."
+# shellcheck source=lib.sh
+. ./scripts/lib.sh
 
 mode="interactive"
 force=0
@@ -139,12 +141,7 @@ current_value() {
 
 # Public values nobody should rely on off this machine: .env.example's
 # placeholder and the `--default` passwords. run.sh refuses them off loopback.
-is_weak() {
-  case "$1" in
-    '' | change-me | student | student123 | admin) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+is_weak() { [ -z "$1" ] || dojo_is_default_password "$1"; }
 
 if [ "$mode" = "rotate-class" ]; then
   if [ ! -f .env ]; then
@@ -269,6 +266,7 @@ if [ "$mode" = "default" ]; then
   echo "These lazy credentials are for this machine only: './run.sh <workshop>'"
   echo "refuses them unless PUBLIC_BASE_URL and LAB_HOST_IP are loopback."
   echo
+  ./scripts/alias-setup.sh --check || echo "Optional: './run.sh alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
   echo "Next: ./run.sh <workshop-name>"
   exit 0
 fi
@@ -451,4 +449,13 @@ echo "workshops/<name>/workshop.env when you run ./run.sh <workshop-name>."
 echo "New passwords reach a running stack only after './run.sh stop' (wipes its"
 echo "volumes) and './run.sh <workshop-name>': Forgejo keeps the accounts it seeded."
 echo
+if ! ./scripts/alias-setup.sh --check && [ -t 0 ]; then
+  if confirm "Install the 'dojo' command (dojo <workshop> from any directory, with tab completion)?"; then
+    ./scripts/alias-setup.sh || echo "  './run.sh alias-setup' tries again."
+  else
+    echo "  Skipped; './run.sh alias-setup' installs it any time."
+  fi
+  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from run.sh
+  echo
+fi
 echo "Next: ./run.sh <workshop-name>"

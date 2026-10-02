@@ -151,3 +151,20 @@ unset BAO_NAMESPACE LEAKED SPARE ACC CHILD
 3. Why didn't you rotate `team/admin`? *(The audit log shows the read was denied: the value never left the vault.)*
 
 **Rules used:** 6 (audit everything, and use it), 7 (plan for leaks: revoke, rotate, recover), 3 (a short-lived token would have limited it), 1 (least privilege kept `team/admin` safe), 2 (identity instead of a token is the real fix).
+
+---
+
+## Capstone: Zero Standing Secrets (bonus)
+
+A new app with no secret in git, CI or on disk: identity from the platform, its own least-privilege policy, one
+static secret, one dynamic database login, and a rotation with no deploy. Starting the capstone unlocks your second
+app slot, `$USER-capstone` (see **My App**): a push to `main` of your capstone repo deploys there, and your lab app
+keeps running.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/capstone` and
+clones it to `~/lab/capstone`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` starts you over from a fresh copy.
+
+<!-- dojo-challenge: capstone -->

@@ -1,0 +1,59 @@
+{
+  "milestones": [
+    {
+      "id": "t4-portal",
+      "title": "Cloud Tourist",
+      "joke": "Opened the portal.",
+      "core": true,
+      "when": "cloud: the student's first Dojo Portal API call (the portal page loads its data through it; reported by cloud-api)",
+      "match": {
+        "source": "cloud",
+        "event": "portal_request"
+      }
+    },
+    {
+      "id": "t4-creds",
+      "title": "Keys to the Kingdom",
+      "joke": "Your credentials are in your environment.",
+      "core": true,
+      "when": "shell: `env`, `printenv`, or `echo`/`grep` naming `ARM_*` (values are never logged)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "env",
+              "printenv"
+            ],
+            "exit": 0
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "echo",
+              "grep"
+            ],
+            "exit": 0,
+            "regex": "ARM_"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t4-provider",
+      "title": "Provider Installed",
+      "joke": "azurerm, but a friendlier universe.",
+      "core": true,
+      "when": "shell: `tofu init` (exit 0) after the credentials were looked at (Track B; the folder is not read, the earlier milestone tells the tracks apart)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu init",
+          "terraform init"
+        ],
+        "exit": 0,
+        "requires": "t4-creds"
+      }
+    }
+  ]
+}

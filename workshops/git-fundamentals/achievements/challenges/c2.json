@@ -1,0 +1,34 @@
+{
+  "id": "c2",
+  "title": "The Detective",
+  "after": "after Lab 3 or 4",
+  "space": "the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone",
+  "goal": "Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it.",
+  "seed": "planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo-challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.",
+  "verify_text": "forgejo `branch_exists` `case-{user}`, then `answer_names_commit`: the service finds the oldest commit on `main` whose diff adds `{target_line}` to `config/settings.yaml` and checks that `answer.txt` on `case-{user}` holds its short hash (7+ characters) and its author.",
+  "seed_plan": "challenge-repo.json",
+  "verify": [
+    {
+      "verb": "branch_exists",
+      "repo": "{user}/challenge-repo",
+      "branch": "case-{user}"
+    },
+    {
+      "verb": "answer_names_commit",
+      "repo": "{user}/challenge-repo",
+      "ref": "case-{user}",
+      "path": "answer.txt",
+      "search": {
+        "branch": "main",
+        "path": "config/settings.yaml",
+        "text": "{target_line}"
+      }
+    }
+  ],
+  "isolation": "read-only investigation of a private repo, one new branch.",
+  "hints": [
+    "Which command answers 'who changed this line?'",
+    "`git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared."
+  ],
+  "answer": "In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo-check c2`."
+}

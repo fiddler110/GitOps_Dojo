@@ -1,0 +1,30 @@
+{
+  "id": "c2",
+  "title": "The Right Lease",
+  "after": "after Lab 12",
+  "space": "the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot",
+  "goal": "The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a **new** role called `c2-app`, and get a credential from it.",
+  "verify_text": "in `students/{user}`: database role `c2-app` has `default_ttl` 2m and `max_ttl` 10m, and at least one lease exists under `database/creds/c2-app` (lease ids only, never the credential).",
+  "isolation": "each student has their own database `app_{user}` and their own `database/` engine; the check reads only `students/{user}` (the namespace is derived from the student).",
+  "hints": [
+    "TTL and max TTL are separate settings.",
+    "On the role, not on the mount."
+  ],
+  "seed": "`dojo-challenge start c2` creates `{user}/challenge-lease` (cloned to `~/lab/challenge-lease`) with a brief only. The student's own `database/config/app-db` from Lab 12 step 1 is the connection; the student creates `c2-app` and its credential.",
+  "seed_plan": "c2.json",
+  "verify": [
+    {
+      "verb": "db_role",
+      "role": "c2-app",
+      "default_ttl": "2m",
+      "max_ttl": "10m",
+      "student": "{user}"
+    },
+    {
+      "verb": "lease_exists",
+      "prefix": "database/creds/c2-app",
+      "student": "{user}"
+    }
+  ],
+  "answer": "`dojo-challenge start c2`, `export BAO_NAMESPACE=students/$USER`, `bao write database/roles/c2-app` as in Lab 12 step 2 (same `db_name` and statements) with `\"default_ttl\": \"2m\", \"max_ttl\": \"10m\"`, `bao read database/creds/c2-app`, then `dojo-check c2`."
+}

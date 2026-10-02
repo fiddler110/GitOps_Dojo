@@ -29,9 +29,13 @@ at parse time other than ``create_app`` -- by the time gunicorn imports this
 file, the entrypoint has already run migrations and the seed script, so
 building the real app here is safe.
 """
-import hmac
 import os
+import sys
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+import dojo_http  # noqa: E402
 from flask import session
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
@@ -91,20 +95,16 @@ def _token_ok(environ):
     if not GATEWAY_TOKEN:
         # Fail closed: an unset token must never be treated as "no check".
         return False
-    supplied = environ.get('HTTP_X_GATEWAY_TOKEN', '')
-    return hmac.compare_digest(supplied, GATEWAY_TOKEN)
+    return dojo_http.token_ok(environ.get('HTTP_X_GATEWAY_TOKEN', ''), GATEWAY_TOKEN)
 
 
-# Added to every response, ours and PowerDNS-Admin's. Only the /admin workspace
-# (same origin) may frame it. No full CSP: PowerDNS-Admin's pages use inline
-# scripts and styles, but it's reachable only by the facilitator through the gateway.
-SECURITY_HEADERS = [
-    ('X-Frame-Options', 'SAMEORIGIN'),
-    ('Content-Security-Policy', "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"),
-    ('X-Content-Type-Options', 'nosniff'),
-    ('Referrer-Policy', 'same-origin'),
-    ('Cache-Control', 'no-store'),
-]
+# Added to every response, ours and PowerDNS-Admin's: dojo_http's set, but not its
+# full CSP, since PowerDNS-Admin's pages use inline scripts and styles (it's reachable
+# only by the facilitator through the gateway). Its Referrer-Policy stays same-origin.
+SECURITY_HEADERS = list(dojo_http.headers({
+    'Content-Security-Policy': "frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
+    'Referrer-Policy': 'same-origin',
+}).items())
 _SECURITY_HEADER_NAMES = {name.lower() for name, _ in SECURITY_HEADERS}
 
 

@@ -1,0 +1,69 @@
+{
+  "id": "capstone",
+  "title": "Zero Standing Secrets",
+  "space": "the student's own namespace `students/{user}`, database `app_{user}`, repo `{user}/capstone` and capstone slot `{user}-capstone`",
+  "goal": "Give your app slot a new app with no secret stored anywhere in git, CI or on disk: identity from the platform, its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no deploy.",
+  "seed": "`dojo-challenge start capstone` creates `{user}/capstone` (cloned to `~/lab/capstone`) with a brief and a starter `capstone/agent.hcl`; the names to use are policy `capstone-app`, platform role `capstone-app`, database role `capstone-app`, KV mount `capstone/` and secret `capstone/app`. Starting the capstone also unlocks the student's second app slot, `{user}-capstone` (platform identity `slot:{user}-capstone`): a push to `main` of `{user}/capstone` deploys there, and the app the labs left in `{user}` keeps running. The brief says so.",
+  "verify_text": "in `students/{user}` (metadata only, never a value): policy `capstone-app` names only paths under `capstone/` and `database/creds/`, allows read of `capstone/data/app` and `database/creds/capstone-app`, and not of `secret/`; the `jwt-platform` role `capstone-app` carries that policy; database role `capstone-app` exists with a credential issued from it; `capstone/app` has been written at least twice (a rotation); `capstone/agent.hcl` in the student's repo holds no `role_id` or `secret_id`. Not checked (no verb yet): that the rotation happened with no deploy in between, and that the scanner passes.",
+  "isolation": "namespace, database, repo and capstone slot are all the student's own; the checks read only `students/{user}` and `{user}/capstone`. It is safe for the whole class to run it at once. Each student's capstone slot stays locked (no identity, no deploys) until their `{user}/capstone` repo exists.",
+  "badge_tier": "capstone",
+  "hints": [
+    "Labs 9, 11 and 12 combined.",
+    "Rotation is a write, not a deploy."
+  ],
+  "seed_plan": "capstone.json",
+  "verify": [
+    {
+      "verb": "policy_grants",
+      "policy": "capstone-app",
+      "allow": [
+        "capstone/data/app",
+        "database/creds/capstone-app"
+      ],
+      "deny": [
+        "secret/data/students/x"
+      ],
+      "only": [
+        "capstone/",
+        "database/creds/"
+      ],
+      "student": "{user}"
+    },
+    {
+      "verb": "auth_role",
+      "mount": "jwt-platform",
+      "role": "capstone-app",
+      "policies": [
+        "capstone-app"
+      ],
+      "student": "{user}"
+    },
+    {
+      "verb": "db_role",
+      "role": "capstone-app",
+      "student": "{user}"
+    },
+    {
+      "verb": "lease_exists",
+      "prefix": "database/creds/capstone-app",
+      "student": "{user}"
+    },
+    {
+      "verb": "kv_version",
+      "mount": "capstone",
+      "path": "app",
+      "min_version": 2,
+      "student": "{user}"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/capstone",
+      "ref": "main",
+      "path": "capstone/agent.hcl",
+      "regex": "role_id|secret_id",
+      "absent": true,
+      "student": "{user}"
+    }
+  ],
+  "answer": "`dojo-challenge start capstone`, then in `students/$USER`: enable `kv-v2` at `capstone`, write `capstone/app` (twice, the second is the rotation), write policy `capstone-app` (read `capstone/data/app` and `database/creds/capstone-app`), a database role `capstone-app`, the `jwt-platform` role `capstone-app` with `bound_subject=slot:$USER-capstone` and `token_policies=capstone-app`, read `database/creds/capstone-app` once, keep `agent.hcl` free of any role or secret id, then `dojo-check capstone`."
+}

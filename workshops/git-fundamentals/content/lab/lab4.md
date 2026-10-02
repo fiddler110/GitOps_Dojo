@@ -1,6 +1,6 @@
 # Lab 4 — Investigating History
 
-**Optional.** "Who changed this? When? Why?" — these are the tools for answering that without asking around. Especially useful once a repo has more than a handful of commits and more than one contributor.
+"Who changed this? When? Why?" — these are the tools for answering that without asking around. Especially useful once a repo has more than a handful of commits and more than one contributor.
 
 Do this from your `sample-training-repo` clone (Lab 1, step 1, if you haven't cloned it yet). If you haven't made a commit of your own yet either, do Lab 1 steps 3-5 first so you have something in your own history to look at.
 
@@ -78,3 +78,17 @@ git branch -D lab4-explore
 - `git diff <branch-1>..<branch-2>` — compare two branches directly.
 
 **Next:** [lab5.md](lab5.md) — resolving a merge conflict and safely undoing a shared change.
+
+---
+
+## Challenge c2: The Detective (bonus)
+
+Someone changed a line they shouldn't have. Find the commit, and say whose it was.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-repo` and
+clones it to `~/lab/challenge-repo`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->

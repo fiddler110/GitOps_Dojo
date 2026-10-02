@@ -1,6 +1,6 @@
 # Lab 1 — Your Own Zone
 
-**Required. Part 1.** By the end of this lab you'll have created your own DNS zone from a config file, checked it's really live with `dig`, and added, changed and removed records, catching a mistake before it reached the server. Everything here happens in **your own zone**, `<your-username>.dojo.test`: nobody else's config touches it, so experiment freely.
+**Part 1.** By the end of this lab you'll have created your own DNS zone from a config file, checked it's really live with `dig`, and added, changed and removed records, catching a mistake before it reached the server. Everything here happens in **your own zone**, `<your-username>.dojo.test`: nobody else's config touches it, so experiment freely.
 
 ---
 
@@ -161,6 +161,18 @@ dnscontrol preview         # 0 corrections again
 
 `git restore` discards uncommitted edits, so `preview` and `restore` together let you try anything safely: nothing is real until you `push`.
 
+Its cousin is the opposite mistake: a record **name** that already contains the zone. Inside `studentXX.dojo.test`, a name is relative to the zone, so writing the whole hostname gets the zone added a second time:
+
+```js
+	A("www.studentXX.dojo.test", "203.0.113.55"),   // the label should just be "www"
+```
+
+```sh
+dnscontrol preview
+```
+
+The error shows `www.studentXX.dojo.test.studentXX.dojo.test.` and says it repeats the domain. Throw this one away too with `git restore dnsconfig.js`.
+
 ---
 
 ## Checkpoint
@@ -171,4 +183,4 @@ Before moving on, be ready to show or say:
 - What `± MODIFY`, `+ CREATE` and `- DELETE` in a preview each mean.
 - Why removing a line from `dnsconfig.js` removes the record from the server.
 
-**Next:** [lab2.md](lab2.md) (optional) covers what happens when someone changes your zone outside the code. Or go straight to [lab3.md](lab3.md), the required Part 2 lab: the shared zone, where you can't push at all.
+**Next:** [lab2.md](lab2.md) covers what happens when someone changes your zone outside the code. After that, Part 2 ([lab3.md](lab3.md)) is the shared zone, where you can't push at all.

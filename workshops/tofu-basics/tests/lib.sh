@@ -26,6 +26,10 @@ TB_LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TB_WORKSHOP_DIR=$(cd "$TB_LIB_DIR/.." && pwd)
 TB_REPO_ROOT=$(cd "$TB_WORKSHOP_DIR/../.." && pwd)
 TB_HELPERS=$TB_LIB_DIR/helpers
+# The shared helpers (workshops/assets/test-lib.sh): this file uses its lab-text functions (md_line, md_range) and
+# defines its own reporting (pass, fail, ...) further down, which replaces the shared one.
+# shellcheck source=../../assets/test-lib.sh
+. "$TB_REPO_ROOT/workshops/assets/test-lib.sh"
 
 # ---- configuration (override from the environment) ---------------------------------------------------------------
 : "${TERMINAL_CONTAINER:=workshop_terminal}"
@@ -332,17 +336,11 @@ expect_wait() {
 # lab_line LABFILE PREFIX -> the first line of content/lab/LABFILE that starts with PREFIX (the labs' own command); non-zero if none.
 # The e2e scripts run the labs' real edit commands this way, so a lab that changes makes the test follow it (or fail loudly).
 lab_line() {
-  local line
-  line=$(awk -v p="$2" 'index($0, p) == 1 {print; exit}' "$TB_WORKSHOP_DIR/content/lab/$1")
-  [ -n "$line" ] || { say "  cannot find a line starting with [$2] in content/lab/$1"; return 1; }
-  printf '%s' "$line"
+  md_line "$TB_WORKSHOP_DIR/content/lab/$1" "$2" || { say "  cannot find a line starting with [$2] in content/lab/$1"; return 1; }
 }
 # lab_block LABFILE START_REGEX END_REGEX -> lines from the first START match through the first END match after it
 lab_block() {
-  local block
-  block=$(awk -v s="$2" -v e="$3" '$0 ~ s {on=1} on {print} on && $0 ~ e {exit}' "$TB_WORKSHOP_DIR/content/lab/$1")
-  [ -n "$block" ] || { say "  cannot find the block [$2 .. $3] in content/lab/$1"; return 1; }
-  printf '%s' "$block"
+  md_range "$TB_WORKSHOP_DIR/content/lab/$1" "$2" "$3" || { say "  cannot find the block [$2 .. $3] in content/lab/$1"; return 1; }
 }
 
 # ---- the stack, and the student's environment -------------------------------------------------------------------------

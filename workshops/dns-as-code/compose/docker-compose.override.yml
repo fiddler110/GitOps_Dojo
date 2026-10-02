@@ -104,6 +104,7 @@ services:
 
   # CI jobs run the terminal's own dnscontrol (runner-pool copies it in).
   runner-pool:
+    image: gitopsdojo/runner-pool:dns-as-code
     build:
       args:
         JOB_TOOLS: "dnscontrol"

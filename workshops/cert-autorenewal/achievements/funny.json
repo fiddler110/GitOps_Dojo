@@ -1,0 +1,67 @@
+{
+  "unlocks": [
+    {
+      "id": "f-untrusted",
+      "title": "Trust No One",
+      "joke": "`certificate verify failed`. Correct instinct.",
+      "when": "shell: `curl` exits 60 (certificate verify failed)",
+      "match": {
+        "source": "shell",
+        "cmd": "curl",
+        "exit": 60
+      }
+    },
+    {
+      "id": "f-ratelimit",
+      "title": "Too Eager",
+      "joke": "Rate-limited. Slow down, tiger.",
+      "when": "ca: `rateLimited` response for the student",
+      "match": {}
+    },
+    {
+      "id": "f-expired",
+      "title": "Expired Milk",
+      "joke": "You looked at an expired certificate.",
+      "when": "verify: demo-app serves your hostname a certificate that has expired (a renewal that never ran; the `-enddate` output itself is not read)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_expired",
+            "host": "{user}.certs.dojo.test"
+          }
+        ]
+      }
+    },
+    {
+      "id": "f-staging",
+      "title": "Practice Makes Perfect",
+      "joke": "Used `--staging` or `--test`. Wise.",
+      "when": "shell: `certbot ... --dry-run` or `--staging` (or `--test-cert`)",
+      "match": {
+        "source": "shell",
+        "cmd": "certbot",
+        "flags": [
+          "--dry-run",
+          "--staging",
+          "--test-cert"
+        ]
+      }
+    },
+    {
+      "id": "f-selfsigned",
+      "title": "Self-Signed and Proud",
+      "joke": "You made your own CA. Very independent.",
+      "when": "shell: `openssl req -x509`, exit 0",
+      "match": {
+        "source": "shell",
+        "cmd": "openssl req",
+        "flags": "-x509",
+        "exit": 0
+      }
+    }
+  ]
+}

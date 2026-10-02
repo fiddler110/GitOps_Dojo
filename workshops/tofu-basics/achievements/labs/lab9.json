@@ -1,0 +1,59 @@
+{
+  "milestones": [
+    {
+      "id": "t9-foreach",
+      "title": "One Block, Many Sites",
+      "joke": "`for_each` made the copies.",
+      "core": true,
+      "when": "shell output: `tofu apply` creating `extra[\"...\"]`, or `tofu state list` showing it (the lab's `for_each` block; the quota of 2 groups means one extra survives, so cloud state can't show three)",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu apply",
+              "terraform apply"
+            ],
+            "out_regex": "extra\\[\"[^\"]+\"\\]: Creation complete"
+          },
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu state list",
+              "terraform state list"
+            ],
+            "exit": 0,
+            "out_regex": "extra\\[\""
+          }
+        ]
+      }
+    },
+    {
+      "id": "t9-quota",
+      "title": "Quota Reached",
+      "joke": "You met the limit.",
+      "core": true,
+      "when": "cloud: a request refused for the quota of 2 container groups (`QuotaExceeded`, reported by cloud-api)",
+      "match": {
+        "source": "cloud",
+        "event": "quota_denied"
+      }
+    },
+    {
+      "id": "t9-fixed",
+      "title": "Code Meets Reality",
+      "joke": "Reduced the code to what fits.",
+      "core": true,
+      "when": "shell: `tofu plan` (exit 0) after the quota denial (fires once `t9-quota` is earned, so it waits for the `cloud` event source)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu plan",
+          "terraform plan"
+        ],
+        "exit": 0,
+        "requires": "t9-quota"
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "patterns": [
+    {"id": "bao-permission", "regex": "permission denied",
+     "title": "permission denied", "where": "",
+     "explain": "Your token's policy doesn't allow that path or operation, or you're in the wrong namespace.",
+     "fix": "bao token lookup shows your policies, and the path in the error shows what was refused. Check the path and the namespace before anything else."},
+    {"id": "bao-notoken", "regex": "missing client token",
+     "title": "no token", "where": "",
+     "explain": "You aren't logged in (or this shell has no BAO_TOKEN).",
+     "fix": "Log in the way the lab shows, then try again."},
+    {"id": "bao-refused", "regex": "connection refused|no route to host",
+     "title": "can't reach the server", "where": "",
+     "explain": "The address in BAO_ADDR doesn't answer: a typo, or the service is still starting.",
+     "fix": "echo $BAO_ADDR and compare it with the lab. If it's right, wait a few seconds and retry, then tell the facilitator."}
+  ]
+}

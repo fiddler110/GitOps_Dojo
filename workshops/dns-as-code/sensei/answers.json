@@ -1,0 +1,15 @@
+{
+ "answers": [
+  {
+   "id": "undo-pushed",
+   "title": "Undo a DNS change you already pushed",
+   "match": [
+    "\\b(undo|revert|roll ?back|take back|reverse)\\b.*\\b(push|pushed|pushing|commit(ted)?|merged|live|change|record|dns)\\b",
+    "\\b(pushed|committed|merged|live)\\b.*\\b(undo|revert|roll ?back|by mistake|wrong|oops)\\b"
+   ],
+   "where": "lab2.md",
+   "section": "Part B — Undo a change you've already pushed",
+   "markdown": "## Undo a DNS change you already pushed\n\nIn your own zone (Lab 2), let git make the inverse change, then push it:\n\n```sh\ncd ~/lab/my-zone\ngit log --oneline\ngit revert --no-edit HEAD\ndnscontrol preview      # shows the change going back\ndnscontrol push\n```\n\nIn the **shared zone** (Lab 5) never touch `main`. Roll back through a pull request:\n\n```sh\npython3 scripts/dnsctl.py rollback <your-pr-number>\n```\n\nIt reverts your commit on a new branch, shows the `dnscontrol preview` and opens a new PR."
+  }
+ ]
+}

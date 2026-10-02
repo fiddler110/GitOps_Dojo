@@ -1,6 +1,6 @@
 # Lab 4 — Automate Renewal
 
-**Required.** This is the actual point of the workshop: a certificate that
+This is the actual point of the workshop: a certificate that
 renews itself before it expires, with no one watching it happen. By the end
 of this lab you'll have a cron job doing that for real, and you'll have
 watched it fire.
@@ -39,6 +39,13 @@ default) is longer than this whole certificate's lifetime, so in this lab
 specifically, **every run renews**. In production, with month-long certs,
 only the ones genuinely close to expiry would. Worth noticing once, not
 something to fix.
+
+> **Tip: `--dry-run`.** In production you'd test renewal without touching
+> the real certificate first: `certbot renew --dry-run`. On its own that
+> flag switches to Let's Encrypt's staging server, which this lab can't
+> reach, so name `step-ca` as well:
+> `certbot renew --dry-run --server https://step-ca:9443/acme/acme/directory`
+> plus the same `--config-dir`/`--work-dir`/`--logs-dir` as your script.
 
 ---
 
@@ -97,11 +104,11 @@ curl --resolve "${me}.certs.dojo.test:443:${demo_ip}" --cacert /opt/step-ca-root
 Check `~/renew.log` if anything looks off — that's where cron's output
 landed.
 
-The homepage's **Demo Site** link still loads the page throughout —
-it's plain HTTP, so it never touches the certificate and won't show you
-the renewal happening. Rerun the `curl` above (or just re-run the
-`openssl x509 -enddate` check) after `notAfter` jumps forward to confirm
-the new certificate is what's actually being served.
+Watch it from the homepage's **Site Inspector** too: visit your name
+every few minutes and the certificate's serial and **Time left** change
+each time cron renews it, while the page keeps loading throughout. Or
+rerun the `curl` above (or the `openssl x509 -enddate` check) after
+`notAfter` jumps forward.
 
 ---
 
@@ -113,5 +120,21 @@ the whole workshop's goal, achieved with three open-source pieces (a CA, a
 client, a scheduler) — the same shape as what a managed platform automates
 for you, minus the vendor.
 
-Next: [lab5.md](lab5.md) (optional capstone — the dns-01 challenge), or
-you're done with the required path.
+Next: [lab5.md](lab5.md), the dns-01 challenge.
+
+---
+
+## Challenge c2: The Short Fuse (bonus)
+
+Keep your site's certificate valid for 20 minutes straight without touching it. Once renewal is in place,
+run `dojo-check c2` once: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
+renewals and no gap.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/cert-fuse` and
+clones it to `~/lab/cert-fuse`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check c2`. A wrong answer costs nothing;
+`dojo-check hint c2` gives a hint for part of the points, and `dojo-challenge reset c2` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
+
+<!-- dojo-challenge: c2 -->

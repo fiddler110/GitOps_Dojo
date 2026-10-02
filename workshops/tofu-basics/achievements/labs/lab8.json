@@ -1,0 +1,64 @@
+{
+  "milestones": [
+    {
+      "id": "t8-inplace",
+      "title": "Fix It In Place",
+      "joke": "A tag changes without a rebuild.",
+      "core": true,
+      "when": "shell output: a successful `tofu apply` whose output shows a resource `Modifying...` (an in-place change). Needs the terminal under tmux, which the browser terminal is",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "out_regex": [
+          "Modifications complete",
+          "Modifying\\.\\.\\."
+        ]
+      }
+    },
+    {
+      "id": "t8-replace",
+      "title": "Rebuilt from Scratch",
+      "joke": "The message forces a new container.",
+      "core": true,
+      "when": "shell output: a successful `tofu apply` that prints a destroy then a create; or cloud: the container was deleted and created again (or swapped) by the same student within 2 minutes",
+      "match": {
+        "any": [
+          {
+            "source": "shell",
+            "cmd": [
+              "tofu apply",
+              "terraform apply"
+            ],
+            "exit": 0,
+            "out_regex": "(?s)Destruction complete.*Creation complete"
+          },
+          {
+            "source": "cloud",
+            "event": "container_replaced"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t8-forced",
+      "title": "Because I Said So",
+      "joke": "`-replace` on demand.",
+      "core": true,
+      "when": "shell: `tofu apply -replace=...` (exit 0) in Track B (after the credentials milestone)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu apply",
+          "terraform apply"
+        ],
+        "exit": 0,
+        "regex": "\\s-replace[= ]",
+        "requires": "t4-creds"
+      }
+    }
+  ]
+}

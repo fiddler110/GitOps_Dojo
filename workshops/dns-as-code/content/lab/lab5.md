@@ -1,6 +1,6 @@
 # Lab 5 — Investigating & Rolling Back History
 
-**Optional. Part 2.** "Who changed this, when, and how do I undo it safely?" — the tools for answering that without hand-editing `dnsconfig.js` back to what it used to be. This lab uses `dnsctl.py`, so run [lab4.md](lab4.md)'s setup steps first if you haven't (`python3 scripts/dnsctl.py doctor` should be clean). You'll also need a merged PR to work with — Lab 3's is exactly right; grab its PR number if you wrote it down.
+**Part 2.** "Who changed this, when, and how do I undo it safely?" — the tools for answering that without hand-editing `dnsconfig.js` back to what it used to be. This lab uses `dnsctl.py`, so run [lab4.md](lab4.md)'s setup steps first if you haven't (`python3 scripts/dnsctl.py doctor` should be clean). You'll also need a merged PR to work with — Lab 3's is exactly right; grab its PR number if you wrote it down.
 
 ```sh
 cd ~/lab/dns-as-code
@@ -9,7 +9,7 @@ git pull
 git status   # should be clean
 ```
 
-> **Starting here?** This lab rolls back your Lab 3 record, so it needs that pull request merged. `lab-prep 5` clones the repo and opens the pull request; a classmate still has to approve it before you merge it. Safe to run even if you did the earlier labs.
+> **Starting here?** This lab rolls back your Lab 3 record, so it needs that pull request merged. `lab-prep 5` clones the repo and opens the pull request; someone else still has to approve it before you merge it: a neighbour, or Sensei (`sensei approve`, once you have reviewed a pull request that isn't yours: Lab 3 step 6; `sensei approve --force` skips the wait). Safe to run even if you did the earlier labs.
 
 ---
 
@@ -53,7 +53,7 @@ Same lifecycle as every other change so far, approval included: a rollback is a 
 ```sh
 python3 scripts/dnsctl.py status
 python3 scripts/dnsctl.py review <rollback-PR#>
-# a neighbour (or the facilitator) runs: python3 scripts/dnsctl.py approve <rollback-PR#>
+# a neighbour (or the facilitator, or Sensei once you have reviewed someone else's) approves: python3 scripts/dnsctl.py approve <rollback-PR#>
 python3 scripts/dnsctl.py merge <rollback-PR#>
 ```
 
@@ -88,3 +88,17 @@ python3 scripts/dnsctl.py submit "Re-add $USER-app"
 - `dnsctl.py validate` is how you confirm a change — forward or backward — actually reached live PowerDNS, instead of trusting CI's word for it.
 
 **Next:** [lab6.md](lab6.md) — resolving a merge conflict in `dnsconfig.js`.
+
+---
+
+## Challenge c2: The Cutover (bonus)
+
+Move `app` to a new server and make `www` an alias of it, in one commit, with no other change to the zone. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-cutover` and
+clones it to `~/lab/challenge-cutover`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->

@@ -18,7 +18,7 @@ function render(doc) {
   if (doc.facilitator) {
     document.getElementById("title").textContent = "Apps";
     document.getElementById("sub").textContent =
-      "Every student's slot on app-host, the platform their pipelines deploy to (Labs 11-13).";
+      "Every student's slot on app-host, the platform their pipelines deploy to (Labs 11-13), and each capstone slot in use.";
   }
   document.getElementById("empty").hidden = doc.slots.length > 0;
   const box = document.getElementById("slots");
@@ -32,7 +32,9 @@ function render(doc) {
     const q = (sel) => card.querySelector(sel);
     q(".light").className = "light " + (LIGHTS[s.state] || "");
     q(".name").textContent = s.name;
-    q(".state").textContent = s.state + " · " + ago(s.since, doc.now);
+    q(".state").textContent = s.state === "locked"
+      ? "locked · opens when you run dojo-challenge start capstone"
+      : s.state + " · " + ago(s.since, doc.now);
     q(".open").href = s.name + "/";
     q(".open").hidden = s.state !== "running";
     const d = s.deployed;

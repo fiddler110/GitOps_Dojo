@@ -15,6 +15,8 @@
 
 services:
   openbao-setup:
+    environment:
+      - BAO_CHECK_TOKEN=${BAO_CHECK_TOKEN:-}
     volumes:
       - ../workshops/vault-fundamentals/compose/openbao-setup.d:/etc/openbao-setup.d:ro
       # vault_<s>'s first passwords (30-platform.sh hands them to the vault,
@@ -26,6 +28,7 @@ services:
       - runner_net
 
   runner-pool:
+    image: gitopsdojo/runner-pool:vault-fundamentals
     build:
       args:
         JOB_TOOLS: "bao sops"
@@ -34,6 +37,7 @@ services:
   # runner_net; apps reach OpenBao and app-db, and the gateway reaches the
   # /apps page, over workshop_lab.
   app-host:
+    image: gitopsdojo/app-host:vault-fundamentals
     build:
       context: ../workshops/vault-fundamentals/compose/app-host
       args:
@@ -88,6 +92,9 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+      # Making the slot users and their egress rules takes ~25s before the
+      # platform listens; without this the check can fail three times first.
+      start_period: 60s
     restart: unless-stopped
 
   # Postgres for lab 12. compose/app-db/init.sh makes a database per student
@@ -100,8 +107,12 @@ services:
     image: docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     container_name: workshop_app_db
     # Starts as root: /bootstrap is the postgres user's to write (init.sh),
-    # then the image's entrypoint drops to that user.
-    entrypoint: ["sh", "-c", "chown postgres /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
+    # then the image's entrypoint drops to that user. Mode 1777 as well as the chown: podman chowns a
+    # new named volume to the first container that starts with it (openbao-setup mounts this one read-only),
+    # which on a slow start came after this chown and before init.sh wrote, so the write was denied and the
+    # first-start init (which never runs twice) left /bootstrap empty. A chown can't undo a mode. Only
+    # app-db and openbao-setup mount this volume.
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -123,6 +134,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+      # The first start makes a database per student before it listens (seen unhealthy at ~70s).
+      start_period: 60s
     restart: unless-stopped
 
 volumes:

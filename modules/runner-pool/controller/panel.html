@@ -27,7 +27,11 @@
     <div><dt>Busy</dt><dd id="busy">–</dd></div>
     <div><dt>Jobs waiting</dt><dd id="waiting-count">–</dd></div>
     <div><dt>Warm idle (min)</dt><dd id="min">–</dd></div>
-    <div><dt>Max</dt><dd id="max">–</dd></div>
+    <div><dt>Max</dt><dd class="max">
+      <button type="button" id="max-minus" aria-label="Lower the max">−</button>
+      <span id="max">–</span>
+      <button type="button" id="max-plus" aria-label="Raise the max">+</button>
+    </dd></div>
   </dl>
 </section>
 <p id="help" class="help"></p>

@@ -1,0 +1,8 @@
+{
+  "powerdns": {
+    "TYPE": "POWERDNS",
+    "apiUrl": "http://dns-api:8081",
+    "apiKey": "$DNS_API_KEY",
+    "serverName": "localhost"
+  }
+}

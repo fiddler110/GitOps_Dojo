@@ -1,8 +1,6 @@
-# Lab 12 (optional) — Dynamic database credentials
+# Lab 12 — Dynamic database credentials
 
 **Goal:** stop sharing a database password. The vault **makes a new Postgres login** for whoever asks (you, then your app), with a **lease**: it expires by itself, you can renew it, and you can revoke it early. There is no long-lived database password left to leak.
-
-This lab is optional. Lab 13 doesn't need it.
 
 **In this lab you will:**
 
@@ -78,7 +76,7 @@ Run these one at a time, and watch the TTL:
 ```bash
 bao lease lookup "$LEASE"      # ttl counting down from 5 minutes
 bao lease renew "$LEASE"       # back to 5 minutes, up to max_ttl (30 minutes)
-bao lease revoke "$LEASE"      # the vault runs the revocation SQL now
+bao lease revoke -sync "$LEASE"      # the vault runs the revocation SQL now, and waits for it
 psql -h app-db -U "$DB_USER" -d app_$USER -c "SELECT 1"   # the login is gone
 ```
 
@@ -146,3 +144,17 @@ unset BAO_NAMESPACE PGPASSWORD OTHER
 3. What does the app store to reach the database? *(Nothing it was given: its platform identity gets a vault token, and the vault makes it a login.)*
 
 **Rules used:** 3 (short-lived and revocable), 2 (the app's identity, not a password), 1 (one database, read and insert only), 7 (revoke is a normal operation), 6 (every login is its own name in the database's logs).
+
+---
+
+## Challenge c2: The Right Lease (bonus)
+
+Database logins that last 2 minutes and never more than 10 in total, on a new role `c2-app`, and one login from it.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-lease` and
+clones it to `~/lab/challenge-lease`. The goal is printed there, with your own names in it. When you think it's done, run
+`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->

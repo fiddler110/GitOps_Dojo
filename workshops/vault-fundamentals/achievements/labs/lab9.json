@@ -1,0 +1,58 @@
+{
+  "milestones": [
+    {
+      "id": "v9-approle",
+      "title": "The Stored Login",
+      "joke": "The usual way: a login secret in CI.",
+      "core": true,
+      "when": "bao: an AppRole login from a CI job that got `ci-read`",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "approle",
+        "ok": true,
+        "role": "ci-read"
+      }
+    },
+    {
+      "id": "v9-jwt",
+      "title": "The Job's Own Identity",
+      "joke": "No stored secret at all.",
+      "core": true,
+      "when": "bao: a JWT login on `jwt-ci` that got `ci-read` (the job's own identity)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": true,
+        "role": "ci-read"
+      }
+    },
+    {
+      "id": "v9-branch",
+      "title": "Other Branches Refused",
+      "joke": "Only main gets in.",
+      "core": true,
+      "when": "bao: a refused `jwt-ci` login (the job ran on a branch, not `main`), after the first JWT login",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": false,
+        "requires": "v9-jwt"
+      }
+    },
+    {
+      "id": "v9-retire",
+      "title": "Retired the Stored Secret",
+      "joke": "Nothing left to steal.",
+      "core": true,
+      "when": "shell: `curl -X DELETE .../actions/secrets/<name>` (exit 0; curl exits 0 on an HTTP error, so this proves the request, not the deletion)",
+      "match": {
+        "source": "shell",
+        "regex": "\\bcurl\\b.*-X\\s*DELETE\\b.*/actions/secrets/",
+        "exit": 0
+      }
+    }
+  ]
+}

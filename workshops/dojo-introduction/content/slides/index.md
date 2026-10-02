@@ -16,7 +16,7 @@ style: |
 
 # Dojo Introduction
 
-<p class="tag">A look at the whole GitOps Dojo: how it works, and everything it can do, running at once.</p>
+<p class="tag">A look at the GitOps Dojo: how it works, with Forgejo, DNS as code and Dojo Cloud running at once.</p>
 
 <div class="links">
 <a class="enter" href="presentation.md">&rarr; Platform tour</a>

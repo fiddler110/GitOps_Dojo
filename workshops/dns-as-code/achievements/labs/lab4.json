@@ -1,0 +1,52 @@
+{
+  "milestones": [
+    {
+      "id": "d4-wizard",
+      "title": "Wizardry",
+      "joke": "Added a record with a wizard. Very Gandalf.",
+      "core": true,
+      "when": "shell: `dnsctl.py record add` (or `dnsc record add`), exit 0",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+record\\s+add\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "d4-submit",
+      "title": "Submitted",
+      "joke": "Preview, then a PR, in one command.",
+      "core": true,
+      "when": "shell: `dnsctl.py submit` (or `dnsc submit`), exit 0",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+submit\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "d4-status",
+      "title": "Status Report",
+      "joke": "Checked on your PR from the terminal.",
+      "core": true,
+      "when": "shell: `dnsctl.py status` (or `dnsc status`), exit 0",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+status\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "d4-validated",
+      "title": "Trust, Then Verify",
+      "joke": "The record is live and you checked.",
+      "core": true,
+      "when": "shell: `dnsctl.py validate` (or `dnsc validate`), exit 0",
+      "match": {
+        "source": "shell",
+        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+validate\\b",
+        "exit": 0
+      }
+    }
+  ]
+}

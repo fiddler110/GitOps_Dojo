@@ -1,0 +1,1264 @@
+{
+ "about": "Lab walkthrough for one student (amy), command by command as the prompt hook reports it, with the Forgejo deliveries in between. `expect` lists the ids newly unlocked by that step.",
+ "lab1": [
+  {
+   "shell": {
+    "cmd": "git clone http://git-server:3000/training/sample-training-repo.git",
+    "exit": 0,
+    "branch": "",
+    "branch_before": "",
+    "in_repo": false,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-clone"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "cd sample-training-repo",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "",
+    "in_repo": false,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout -b add-amy",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-branch"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "cat >> roster/team.yaml <<'EOF'\n- name: Amy\n  role: Developer\nEOF",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-diff"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git diff",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git commit -m \"Add Amy to team roster\"",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-commit"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git log -1",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-log"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git push -u origin add-amy",
+    "exit": 0,
+    "branch": "add-amy",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "create",
+    {
+     "ref": "add-amy",
+     "ref_type": "branch",
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "push",
+    {
+     "ref": "refs/heads/add-amy",
+     "before": "0000000000000000000000000000000000000000",
+     "after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "total_commits": 1,
+     "commits": [
+      {
+       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "message": "x"
+      }
+     ],
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "pusher": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": [
+    "l1-push"
+   ]
+  },
+  {
+   "forgejo": [
+    "pull_request",
+    {
+     "action": "opened",
+     "number": 3,
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     },
+     "pull_request": {
+      "number": 3,
+      "user": {
+       "id": 7,
+       "login": "amy",
+       "username": "amy"
+      },
+      "merged": false,
+      "base": {
+       "ref": "main"
+      },
+      "head": {
+       "ref": "add-amy"
+      }
+     }
+    }
+   ],
+   "expect": [
+    "l1-pr"
+   ]
+  },
+  {
+   "forgejo": [
+    "pull_request_review_approved",
+    {
+     "action": "reviewed",
+     "review": {
+      "type": "pull_request_review_approved",
+      "content": "ok"
+     },
+     "pull_request": {
+      "number": 3,
+      "user": {
+       "id": 7,
+       "login": "amy",
+       "username": "amy"
+      },
+      "merged": false,
+      "base": {
+       "ref": "main"
+      },
+      "head": {
+       "ref": "add-amy"
+      }
+     },
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "boss",
+      "username": "boss"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "pull_request",
+    {
+     "action": "closed",
+     "number": 3,
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "boss",
+      "username": "boss"
+     },
+     "pull_request": {
+      "number": 3,
+      "user": {
+       "id": 7,
+       "login": "amy",
+       "username": "amy"
+      },
+      "merged": true,
+      "base": {
+       "ref": "main"
+      },
+      "head": {
+       "ref": "add-amy"
+      }
+     }
+    }
+   ],
+   "expect": [
+    "l1-merged"
+   ]
+  },
+  {
+   "forgejo": [
+    "delete",
+    {
+     "ref": "add-amy",
+     "ref_type": "branch",
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "boss",
+      "username": "boss"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "add-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git pull",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git fetch --prune",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-prune"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git branch -d add-amy",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-cleanup"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git branch",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  }
+ ],
+ "lab2": [
+  {
+   "shell": {
+    "cmd": "echo \"- name: Test Entry\" >> roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git restore roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l2-restore"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "echo \"- name: Another Test\" >> roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git restore --staged roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l2-unstage"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git restore roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "echo \"*.log\" >> .gitignore",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l2-ignore"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  }
+ ],
+ "lab3": [
+  {
+   "shell": {
+    "cmd": "echo \"- name: Work In Progress\" >> roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git stash",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l3-stash"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git stash list",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout -b lab3-side",
+    "exit": 0,
+    "branch": "lab3-side",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "lab3-side",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git stash pop",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l3-pop"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git restore roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  }
+ ],
+ "lab4": [
+  {
+   "shell": {
+    "cmd": "git log",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git log --oneline --graph --all",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git show 1a2b3c4",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-show"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git blame roster/team.yaml",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-blame"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git checkout -b lab4-explore",
+    "exit": 0,
+    "branch": "lab4-explore",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml && git commit -m \"Lab 4: branch comparison example\"",
+    "exit": 0,
+    "branch": "lab4-explore",
+    "branch_before": "lab4-explore",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git diff main..lab4-explore",
+    "exit": 0,
+    "branch": "lab4-explore",
+    "branch_before": "lab4-explore",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-compare"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "lab4-explore",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch -D lab4-explore",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  }
+ ],
+ "lab5": [
+  {
+   "shell": {
+    "cmd": "git checkout -b conflict-a",
+    "exit": 0,
+    "branch": "conflict-a",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml",
+    "exit": 0,
+    "branch": "conflict-a",
+    "branch_before": "conflict-a",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git commit -m \"conflict-a: update Alice's role\"",
+    "exit": 0,
+    "branch": "conflict-a",
+    "branch_before": "conflict-a",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "conflict-a",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout -b conflict-b",
+    "exit": 0,
+    "branch": "conflict-b",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git commit -am \"conflict-b: update Alice's role\"",
+    "exit": 0,
+    "branch": "conflict-b",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git merge conflict-a",
+    "exit": 1,
+    "branch": "conflict-b",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": true
+   },
+   "expect": [
+    "l5-conflict"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "conflict-b",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": true,
+    "merging_after": true
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml",
+    "exit": 0,
+    "branch": "conflict-b",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": true,
+    "merging_after": true
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git commit",
+    "exit": 0,
+    "branch": "conflict-b",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": true,
+    "merging_after": false
+   },
+   "expect": [
+    "l5-resolved"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "conflict-b",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch -D conflict-a conflict-b",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout -b undo-demo",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add roster/team.yaml; git commit -m \"Oops, wrong entry\"",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "undo-demo",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git reset --soft HEAD~1",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "undo-demo",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git reset --hard HEAD~1",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "undo-demo",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l5-reset"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git commit -am \"Example commit to revert\"",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "undo-demo",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git revert HEAD --no-edit",
+    "exit": 0,
+    "branch": "undo-demo",
+    "branch_before": "undo-demo",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l5-revert"
+   ]
+  }
+ ],
+ "funny": [
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 128,
+    "branch": "",
+    "branch_before": "",
+    "in_repo": false,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-wrongdir"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git clone http://git-server:3000/x/y.git",
+    "exit": 128,
+    "branch": "",
+    "branch_before": "",
+    "in_repo": false,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git -C sample-training-repo --no-pager log",
+    "exit": 0,
+    "branch": "",
+    "branch_before": "",
+    "in_repo": false,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-log"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git commit -m \"wip\"",
+    "exit": 1,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-nothing"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git commit -m \"fix: never git push --force\"",
+    "exit": 0,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-commit"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git commit --amend --no-edit",
+    "exit": 0,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-amend"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git stash list",
+    "exit": 0,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch -D feat",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "GIT_PAGER=cat git show HEAD",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l4-show"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git checkout a1b2c3d",
+    "exit": 0,
+    "branch": "HEAD",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-detached"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "HEAD",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add . && git commit -m \"straight to main\"",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-main"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git push -fu origin feat",
+    "exit": 1,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-force",
+    "f-rejected"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git push",
+    "exit": 128,
+    "branch": "feat",
+    "branch_before": "feat",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "push",
+    {
+     "ref": "refs/heads/main",
+     "before": "0000000000000000000000000000000000000000",
+     "after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "total_commits": 1,
+     "commits": [
+      {
+       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "message": "x"
+      }
+     ],
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "pusher": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "push",
+    {
+     "ref": "refs/tags/v1.0",
+     "before": "0000000000000000000000000000000000000000",
+     "after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "total_commits": 1,
+     "commits": [
+      {
+       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "message": "x"
+      }
+     ],
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "pusher": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "create",
+    {
+     "ref": "v1.0",
+     "ref_type": "tag",
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": []
+  },
+  {
+   "forgejo": [
+    "push",
+    {
+     "ref": "refs/heads/feat",
+     "before": "0000000000000000000000000000000000000000",
+     "after": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "total_commits": 1,
+     "commits": [
+      {
+       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "message": "x"
+      }
+     ],
+     "repository": {
+      "full_name": "training/sample-training-repo",
+      "name": "sample-training-repo",
+      "owner": {
+       "login": "training"
+      }
+     },
+     "pusher": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     },
+     "sender": {
+      "id": 7,
+      "login": "amy",
+      "username": "amy"
+     }
+    }
+   ],
+   "expect": [
+    "l1-push"
+   ]
+  }
+ ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check and render workshop/module extensions (engine/MODULES-PLAN.md §3).
+"""Check and render workshop/module extensions (docs/archive/MODULES-PLAN.md §3).
 
 A workshop pack or module declares its front door -- landing cards, /admin
 tabs, gated routes, status checks -- in an extensions.json. This script
@@ -8,7 +8,8 @@ and writes the two files the stack reads:
 
   <out>/gateway/extensions.caddy     imported by gateway/Caddyfile
   <out>/allocator/extensions.json    read by allocator/server.py at start
-  <out>/upstream-tokens.env          GATEWAY_TOKEN_<SERVICE>=..., sourced by
+  <out>/upstream-tokens.env          GATEWAY_TOKEN_<SERVICE>=... and
+                                     RESET_TOKEN_<SERVICE>=..., sourced by
                                      run.sh so compose can hand each upstream
                                      its own token (FIND-16)
 
@@ -19,6 +20,14 @@ holds a token that every other upstream (cloud-api, ...) refuses, and never
 the master the allocator trusts. The token is derived, not random, so it is
 stable across restarts and rotates with GATEWAY_TOKEN. The upstream's
 compose fragment passes it in as GATEWAY_TOKEN=${GATEWAY_TOKEN_<SERVICE>:-}.
+
+Student reset hooks (`resets`, docs/archive/STUDENT-RESET-PLAN.md §4.4): a
+service that keeps per-student state declares an endpoint the allocator
+POSTs to during a facilitator's reset of one student, with
+X-Dojo-Reset-Token. That token is derived the same way under its own context
+(reset.py hook_token(), which the allocator uses to call it), so each
+service holds only its own; compose passes it in as
+RESET_TOKEN=${RESET_TOKEN_<SERVICE>:-}.
 
 It runs once per `./run.sh <workshop>`, before anything starts, in a
 throwaway allocator container (the host needs no Python). Any error stops
@@ -51,7 +60,7 @@ VERSION = 1
 # an extension path merely *starting with* one of these would be shadowed.
 # The allocator-only paths are exact, but the allocator is the catch-all,
 # so an extension route there would hijack it.
-ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term")
+ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/workspace")
 ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch")
 
 # Built-in /admin tab ids (allocator/server.py render_facilitator_workspace).
@@ -61,6 +70,10 @@ ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")
 ICONS = ("code", "terminal", "git", "slides", "rocket", "cloud", "key", "dns")
 
 GATES = ("shared", "identity", "facilitator")
+
+# A widget is a same-origin page framed at the top of the student's landing page. Its height
+# is one of these fixed sizes (a class in the allocator's stylesheet), never a raw value.
+WIDGET_SIZES = ("small", "medium", "large")
 
 ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
 PATH_RE = re.compile(r"^/[a-z][a-z0-9-]{0,40}$")
@@ -81,12 +94,21 @@ TEXT_MAX = {"label": 40, "desc": 120}
 # podman), mode 0440, instead of leaving it world-readable.
 CADDY_UID = 65534
 TOKEN_CONTEXT = "dojo-gateway-token/v1/"
+RESET_TOKEN_CONTEXT = "dojo-reset-token/v1/"  # must match reset.py hook_token()
+
+# A reset hook's path: same-origin characters, with {user} (a validated
+# studentNN or bot id, so safe in a path) standing for the student.
+RESET_PATH_RE = re.compile(r"^/(?!/)[A-Za-z0-9._~/-]*\{user\}[A-Za-z0-9._~/-]*$")
+RESET_TIMEOUT = (1, 120)
 
 KINDS = {
     "cards": {"required": ("id", "label", "href", "icon"), "optional": ("desc",)},
     "admin_tabs": {"required": ("id", "label", "src"), "optional": ()},
+    "widgets": {"required": ("id", "src"), "optional": ("size",)},
+    "scripts": {"required": ("id", "src"), "optional": ()},
     "routes": {"required": ("id", "path", "upstream", "gate"), "optional": ("strip_prefix", "host")},
     "status_checks": {"required": ("label", "url"), "optional": ()},
+    "resets": {"required": ("id", "label", "upstream", "path"), "optional": ("timeout",)},
 }
 
 
@@ -118,6 +140,17 @@ def check_local_url(value, field, where):
     if not isinstance(value, str) or not LOCAL_URL_RE.match(value):
         raise ManifestError(f"{where}: {field} must be a same-origin path starting with one '/', got {value!r}")
     return value
+
+
+def check_upstream(value, services, where):
+    """<service>:<port> for a service in this run; returns it normalised."""
+    service, sep, port = str(value).rpartition(":")
+    if not sep or not SERVICE_RE.match(service) or not port.isdigit() or not 0 < int(port) < 65536:
+        raise ManifestError(f"{where}: upstream must be <service>:<port>, got {value!r}")
+    if service not in services:
+        raise ManifestError(f"{where}: upstream service {service!r} is not in this stack "
+                            f"(services: {', '.join(sorted(services))})")
+    return f"{service}:{int(port)}"
 
 
 def path_overlaps(a, b):
@@ -194,6 +227,16 @@ def merge(manifests, services):
                     entry["label"] = check_text(item["label"], "label", where)
                     entry["src"] = check_local_url(item["src"], "src", where)
 
+                elif kind == "scripts":
+                    entry["src"] = check_local_url(item["src"], "src", where)
+
+                elif kind == "widgets":
+                    entry["src"] = check_local_url(item["src"], "src", where)
+                    size = item.get("size", "small")
+                    if size not in WIDGET_SIZES:
+                        raise ManifestError(f"{where}: size must be one of {', '.join(WIDGET_SIZES)}, got {size!r}")
+                    entry["size"] = size
+
                 elif kind == "routes":
                     path = item["path"]
                     if not isinstance(path, str) or not PATH_RE.match(path):
@@ -207,13 +250,7 @@ def merge(manifests, services):
                         if path_overlaps(path, other["path"]):
                             raise ManifestError(
                                 f"{where}: path {path} overlaps {other['path']} from {other['source']}")
-                    upstream = item["upstream"]
-                    service, sep, port = str(upstream).rpartition(":")
-                    if not sep or not SERVICE_RE.match(service) or not port.isdigit() or not 0 < int(port) < 65536:
-                        raise ManifestError(f"{where}: upstream must be <service>:<port>, got {upstream!r}")
-                    if service not in services:
-                        raise ManifestError(f"{where}: upstream service {service!r} is not in this stack "
-                                            f"(services: {', '.join(sorted(services))})")
+                    upstream = check_upstream(item["upstream"], services, where)
                     gate = item["gate"]
                     if gate not in GATES:
                         raise ManifestError(f"{where}: gate must be one of {', '.join(GATES)}, got {gate!r}")
@@ -227,7 +264,7 @@ def merge(manifests, services):
                         if not isinstance(host, str) or not HOST_RE.match(host):
                             raise ManifestError(f"{where}: host must be a DNS name, optionally with {{user}} "
                                                 f"as a whole label, got {host!r}")
-                    entry.update(path=path, upstream=f"{service}:{int(port)}", gate=gate, strip_prefix=strip)
+                    entry.update(path=path, upstream=upstream, gate=gate, strip_prefix=strip)
                     if host is not None:
                         entry["host"] = host
 
@@ -240,6 +277,19 @@ def merge(manifests, services):
                     if m.group(1) not in services:
                         raise ManifestError(f"{where}: url host {m.group(1)!r} is not a service in this stack")
                     entry["url"] = url
+
+                elif kind == "resets":
+                    entry["label"] = check_text(item["label"], "label", where)
+                    entry["upstream"] = check_upstream(item["upstream"], services, where)
+                    path = item["path"]
+                    if not isinstance(path, str) or not RESET_PATH_RE.match(path) or path.count("{user}") != 1:
+                        raise ManifestError(f"{where}: path must be a path with {{user}} once and no other "
+                                            f"placeholder, got {path!r}")
+                    timeout = item.get("timeout", 30)
+                    lo, hi = RESET_TIMEOUT
+                    if isinstance(timeout, bool) or not isinstance(timeout, int) or not lo <= timeout <= hi:
+                        raise ManifestError(f"{where}: timeout must be whole seconds, {lo}-{hi}, got {timeout!r}")
+                    entry.update(path=path, timeout=timeout)
 
                 out[kind].append(entry)
 
@@ -256,22 +306,36 @@ def token_env_name(service):
     return "GATEWAY_TOKEN_" + re.sub(r"[^A-Z0-9]", "_", service.upper())
 
 
-def upstream_tokens(routes, master):
-    """{service: token} for every upstream a route hands identity to."""
-    services = sorted({r["upstream"].rpartition(":")[0] for r in routes if r["gate"] in ("identity", "facilitator")})
+def reset_env_name(service):
+    """RESET_TOKEN_<SERVICE>: cloud-api -> RESET_TOKEN_CLOUD_API."""
+    return "RESET_TOKEN_" + re.sub(r"[^A-Z0-9]", "_", service.upper())
+
+
+def _derive(services, master, context, env_name, why):
     if not services:
         return {}
     if not master:
-        raise ManifestError("GATEWAY_TOKEN is not set: identity/facilitator routes need it to derive "
-                            "their upstream tokens")
+        raise ManifestError(f"GATEWAY_TOKEN is not set: {why} need it to derive their tokens")
     names = {}
     for svc in services:
-        name = token_env_name(svc)
+        name = env_name(svc)
         if name in names:
             raise ManifestError(f"upstreams {names[name]!r} and {svc!r} would share the variable {name}")
         names[name] = svc
-    return {svc: hmac.new(master.encode(), (TOKEN_CONTEXT + svc).encode(), hashlib.sha256).hexdigest()
+    return {svc: hmac.new(master.encode(), (context + svc).encode(), hashlib.sha256).hexdigest()
             for svc in services}
+
+
+def upstream_tokens(routes, master):
+    """{service: token} for every upstream a route hands identity to."""
+    services = sorted({r["upstream"].rpartition(":")[0] for r in routes if r["gate"] in ("identity", "facilitator")})
+    return _derive(services, master, TOKEN_CONTEXT, token_env_name, "identity/facilitator routes")
+
+
+def reset_tokens(resets, master):
+    """{service: token} for every service with a reset hook."""
+    services = sorted({h["upstream"].rpartition(":")[0] for h in resets})
+    return _derive(services, master, RESET_TOKEN_CONTEXT, reset_env_name, "reset hooks")
 
 
 def caddy_for_route(r, token=None):
@@ -335,10 +399,11 @@ def render_caddy(routes, tokens=None):
         caddy_for_route(r, tokens.get(r["upstream"].rpartition(":")[0])) for r in routes) + "\n"
 
 
-def render_tokens_env(tokens):
+def render_tokens_env(tokens, resets=None):
     head = ("# Generated by engine/allocator/render_extensions.py; sourced by run.sh.\n"
-            "# Each upstream's own X-Gateway-Token (FIND-16). Do not edit.\n")
-    return head + "".join(f"{token_env_name(s)}={t}\n" for s, t in sorted(tokens.items()))
+            "# Each upstream's own X-Gateway-Token (FIND-16) and reset-hook token. Do not edit.\n")
+    return (head + "".join(f"{token_env_name(s)}={t}\n" for s, t in sorted(tokens.items()))
+            + "".join(f"{reset_env_name(s)}={t}\n" for s, t in sorted((resets or {}).items())))
 
 
 def write_atomic(path, text, mode=0o644, owner=None):
@@ -374,6 +439,7 @@ def main(argv=None):
         manifests = [load_manifest(os.path.join(args.in_dir, f)) for f in files]
         merged, warnings = merge(manifests, services)
         tokens = upstream_tokens(merged["routes"], os.environ.get("GATEWAY_TOKEN", ""))
+        resets = reset_tokens(merged["resets"], os.environ.get("GATEWAY_TOKEN", ""))
         caddy = render_caddy(merged["routes"], tokens)
     except ManifestError as e:
         print(f"extensions: ERROR {e}", file=sys.stderr)
@@ -383,7 +449,7 @@ def main(argv=None):
         print(f"extensions: WARNING {w}", file=sys.stderr)
 
     write_atomic(os.path.join(args.out, "gateway", "extensions.caddy"), caddy, 0o440, (CADDY_UID, 0))
-    write_atomic(os.path.join(args.out, "upstream-tokens.env"), render_tokens_env(tokens), 0o600)
+    write_atomic(os.path.join(args.out, "upstream-tokens.env"), render_tokens_env(tokens, resets), 0o600)
     allocator_view = dict(merged, version=VERSION)
     write_atomic(os.path.join(args.out, "allocator", "extensions.json"),
                  json.dumps(allocator_view, indent=2) + "\n")

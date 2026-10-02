@@ -17,8 +17,8 @@ footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; Git Fundamentals | Lab Overvi
 
 ## What each lab covers, before you dive in
 
-Five short, self-contained labs. **Lab 1 is required** — it's the whole
-workflow end to end. Labs 2-5 go deeper on one topic each, any order.
+Five short, self-contained labs. Lab 1 is the whole
+workflow end to end. Labs 2-5 go deeper on one topic each. Do them in order.
 
 <p class="nav">Keep <code>cheat-sheet.md</code> open in another tab while you work.</p>
 
@@ -42,19 +42,19 @@ nothing to set up yourself.
 
 ## The five labs
 
-| Lab | Topic | Time | Required? |
-| --- | ----- | ---- | --------- |
-| **1** | Core workflow: clone → branch → edit → commit → push → PR | ~15 min | <span class="required">Yes — start here</span> |
-| 2 | Reviewing changes and undoing mistakes before you commit | ~10 min | Optional |
-| 3 | Stashing — switching gears without committing | ~8 min | Optional |
-| 4 | Investigating history: log, blame, show | ~10 min | Optional |
-| 5 | Merge conflicts and safely undoing a shared change | ~12 min | Optional |
+| Lab | Topic | Time |
+| --- | ----- | ---- |
+| **1** | Core workflow: clone → branch → edit → commit → push → PR | ~15 min |
+| 2 | Reviewing changes and undoing mistakes before you commit | ~10 min |
+| 3 | Stashing — switching gears without committing | ~8 min |
+| 4 | Investigating history: log, blame, show | ~10 min |
+| 5 | Merge conflicts and safely undoing a shared change | ~12 min |
 
 ---
 
 <!-- _class: section-title -->
 
-# Lab 1 — Required
+# Lab 1
 
 ## The core workflow, end to end
 
@@ -77,7 +77,7 @@ and commit, push, and open a pull request into `main`.
 
 ---
 
-## Labs 2-5 — optional, any order
+## Labs 2-5 — in order
 
 <div class="cards">
 <div>

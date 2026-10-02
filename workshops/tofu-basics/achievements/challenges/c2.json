@@ -1,0 +1,39 @@
+{
+  "id": "c2",
+  "title": "Quota Whisperer",
+  "after": "after Lab 9; needs 1 free container group",
+  "space": "the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, own state); resources tagged `challenge=c2`",
+  "goal": "Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.",
+  "seed": "`dojo-challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.",
+  "verify_text": "Dojo Cloud (own subscription, read-only): one or two `challenge=c2` containers running, each with a `{user}-c2-` site name and the `owner` and `env` tags (the exact count depends on the quota left from the labs, so any count from 1 to 2 passes); and `main.tf` on `main` of `{user}/challenge-c2` no longer declares the original list of 5 sites (push the change). Not checked: that the last `apply` had no `QuotaExceeded` and that the plan is clean (shell output and state are not read); the pushed code stands in for them.",
+  "hints": [
+    "The error tells you the limit.",
+    "The list feeding `for_each` is what decides how many."
+  ],
+  "seed_plan": "site-c2.json",
+  "verify": [
+    {
+      "verb": "cloud_containers",
+      "tags": {
+        "challenge": "c2"
+      },
+      "name_prefix": "{user}-c2-",
+      "require_tags": [
+        "owner",
+        "env"
+      ],
+      "min": 1,
+      "max": 2
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/challenge-c2",
+      "ref": "main",
+      "path": "main.tf",
+      "absent": true,
+      "regex": "sites\\s*=\\s*\\[\\s*\"alpha\",\\s*\"bravo\",\\s*\"charlie\",\\s*\"delta\",\\s*\"echo\"\\s*\\]"
+    }
+  ],
+  "isolation": "every site label starts with `{user}-c2-`, so labels can't clash; the cloud check reads only the checking student's own subscription and the repo is their own; the challenge never asks for more than 2 groups.",
+  "answer": "`dojo-challenge start c2`, `cd ~/lab/challenge-c2`, shorten `local.sites` to what fits (for example `[\"alpha\"]`, or two names if the quota allows; `tofu apply` errors with `QuotaExceeded` and tells the limit), `tofu init && tofu apply`, commit and `git push origin main`, `dojo-check c2`."
+}

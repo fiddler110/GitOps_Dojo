@@ -1,0 +1,54 @@
+{
+  "milestones": [
+    {
+      "id": "v4-ns",
+      "title": "Own Namespace",
+      "joke": "Your own corner of the vault.",
+      "core": true,
+      "when": "shell: `export BAO_NAMESPACE=students/...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "regex": "\\bBAO_NAMESPACE=students/",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v4-engine",
+      "title": "Engine Enabled",
+      "joke": "A secrets engine of your own.",
+      "core": true,
+      "when": "shell: `bao secrets enable ... kv...` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao secrets enable",
+        "regex": "\\bkv",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v4-policy",
+      "title": "Least Privilege",
+      "joke": "A policy that gives only what is needed.",
+      "core": true,
+      "when": "shell: `bao policy write app-read ...` (exit 0); it doesn't prove the policy was attached to a token",
+      "match": {
+        "source": "shell",
+        "cmd": "bao policy write",
+        "regex": "\\bapp-read\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v4-revoke",
+      "title": "Revoked It",
+      "joke": "One command, no more token.",
+      "core": true,
+      "when": "shell: `bao token revoke` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao token revoke",
+        "exit": 0
+      }
+    }
+  ]
+}

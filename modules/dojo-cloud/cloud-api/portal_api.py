@@ -11,21 +11,23 @@ lock is released, then the executor is called. Container status comes from ONE l
 call per ~2 s for the whole class, not one inspect per container.
 """
 import copy
-import hmac
 import json
 import os
+import sys
 import threading
 import time
 from urllib.parse import unquote
 
-import auth
+HERE = os.path.dirname(os.path.abspath(__file__))
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+import auth  # noqa: E402
+import dojo_http  # noqa: E402
 import docker_api
 import policy
 import state as state_mod
 
 PORTAL_DIR = "/app/portal"
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-       "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
 # Fixed allow-list: request name -> (file in PORTAL_DIR, Content-Type). Nothing else is served,
 # and the request never becomes part of a filesystem path.
 STATIC = {
@@ -46,8 +48,7 @@ MAX_TAGS, MAX_TAG_KEY, MAX_TAG_VALUE = 15, 512, 256
 
 
 def _json(status, obj, headers=None):
-    hdrs = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff"}
+    hdrs = dojo_http.headers({"Content-Type": "application/json; charset=utf-8"})
     hdrs.update(headers or {})
     return status, hdrs, json.dumps(obj).encode()
 
@@ -103,8 +104,7 @@ class Portal:
                 data = f.read()
         except OSError:
             return _err(404, "NotFound", "The portal front end is not installed in this image.")
-        return 200, {"Content-Type": ctype, "Content-Security-Policy": CSP,
-                     "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}, data
+        return 200, dojo_http.headers({"Content-Type": ctype, "Cache-Control": "no-cache"}), data
 
     # ---- identity ------------------------------------------------------------
     def _identity(self, headers):
@@ -114,7 +114,7 @@ class Portal:
             return None, _err(503, "PortalNotConfigured", "The portal is not configured (GATEWAY_TOKEN is unset).")
         given = headers.get("X-Gateway-Token") or ""
         user = headers.get("X-Auth-User") or ""
-        if not user or not hmac.compare_digest(given.encode(), expected.encode()):
+        if not user or not dojo_http.token_ok(given, expected):
             return None, _err(401, "Unauthenticated", "Sign in through the gateway.")
         if user not in self.app.auth.users:  # roster incl. the facilitator
             return None, _err(403, "Forbidden", "You are not part of this workshop.")
@@ -137,10 +137,29 @@ class Portal:
             return bool(self.app.state.data.get("settings", {}).get("writeActions", True))
 
     # ---- router --------------------------------------------------------------
+    def _check_read(self, method, segs, query, headers):
+        """The achievements service's read-only credential (X-Check-Token, derived by module.env): it may
+        only GET the caller's own overview, so it can't act as anyone or change anything.
+        -> (user, response) when it applies, else None."""
+        given, expected = headers.get("X-Check-Token") or "", self.env.get("CLOUD_CHECK_TOKEN") or ""
+        if not given or not expected:
+            return None
+        user = headers.get("X-Auth-User") or ""
+        if not dojo_http.token_ok(given, expected) or user not in self.app.auth.users:
+            return user, _err(401, "Unauthenticated", "The check token or account is not valid.")
+        if method != "GET" or segs != ["overview"] or (query.get("scope") or ["mine"])[0] != "mine":
+            return user, _err(403, "Forbidden", "The check token can only read an account's own overview.")
+        return user, self._overview(user, query)
+
     def _api(self, method, segs, query, headers, body):
+        checked = self._check_read(method, segs, query, headers)
+        if checked:
+            return checked[1]
         user, err = self._identity(headers)
         if err:
             return err
+        if not self._is_fac(user):
+            self.app.events.emit("portal_request", user, every=60)
         head = segs[0].lower() if segs else ""
         try:
             if head == "me" and len(segs) == 1:

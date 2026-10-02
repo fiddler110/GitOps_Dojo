@@ -1,0 +1,69 @@
+{
+  "milestones": [
+    {
+      "id": "v5-env",
+      "title": "Not in the Code",
+      "joke": "Moved it out of the source.",
+      "core": true,
+      "when": "shell: `python3 app_env.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_env\\.py\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v5-vault",
+      "title": "The App Asks the Vault",
+      "joke": "No file, no leak.",
+      "core": true,
+      "when": "shell: `python3 app_vault.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_vault\\.py\\b",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v5-nolog",
+      "title": "Loose Lips",
+      "joke": "Logging the secret? No.",
+      "core": true,
+      "when": "shell: `app_vault.py` run again after the debug line was fixed (it prints `loaded config keys:`, not the values)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\bapp_vault\\.py\\b",
+        "out_regex": "loaded config keys: \\[",
+        "requires": "v5-vault"
+      }
+    },
+    {
+      "id": "v5-expired",
+      "title": "Token Expiry",
+      "joke": "Tokens run out. That is the point.",
+      "core": true,
+      "when": "shell: `python3 token_ttl.py` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "python3",
+          "python"
+        ],
+        "regex": "\\btoken_ttl\\.py\\b",
+        "exit": 0
+      }
+    }
+  ]
+}

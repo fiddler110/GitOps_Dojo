@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, urlparse
 
 import auth
 import docker_api
+import events
 import pki
 import policy
 import portal_api
@@ -124,6 +125,7 @@ class App:
         self.state = state if state is not None else state_mod.State(f"{DATA_DIR}/state.json")
         self.executor = executor or docker_api.Executor(DOCKER_SOCKET)
         self.reconciled = threading.Event()  # set once the start-up reconcile has worked
+        self.events = events.from_env(ENV)  # what students did, for the achievements service (off by default)
         self.readiness = Readiness(self)
         self.portal = portal_api.Portal(self, ENV)
 
@@ -215,9 +217,18 @@ class App:
                     return False
                 st.log(sub, user, op, rid, "Succeeded")
                 st.save()
+            self.report_delete(user, key, via)
             return True
         finally:
             st.release(key)
+
+    def report_refusal(self, user, exc):
+        if not self.auth.is_facilitator(user):
+            self.events.refused(user, exc)
+
+    def report_delete(self, user, key, via):
+        if not self.auth.is_facilitator(user):
+            self.events.deleted_group(user, key, via)
 
     def update_container_group_tags(self, sub, rg, cg, user, tags=KEEP_TAGS, via=""):
         """Replaces the tag set (policy-checked). Returns a snapshot copy of the record;
@@ -235,11 +246,15 @@ class App:
                 policy.check_tags(cg, tags)
             except policy.PolicyError as exc:
                 st.log(sub, user, op, rid, "Failed", f"{exc.code}: {exc.message}")
+                if not self.auth.is_facilitator(user):
+                    self.events.refused(user, exc)
                 raise
             rec["tags"] = tags
             rec["body"]["tags"] = tags
             st.log(sub, user, op, rid, "Succeeded")
             st.save()
+            if not self.auth.is_facilitator(user):
+                self.events.emit("container_updated", user, via or "arm")
             return copy.deepcopy(rec)
 
     # ---- ARM representations --------------------------------------------
@@ -627,6 +642,7 @@ class Handler(BaseHTTPRequestHandler):
                     policy.check_resource_group(rg, data.get("location"), data.get("tags"))
                 except policy.PolicyError as exc:
                     st.log(sub, user, "Create/Update resource group", rid, "Failed", f"{exc.code}: {exc.message}")
+                    APP.report_refusal(user, exc)
                     return exc.status, exc.body()
                 existed = key in st.rgs
                 st.rgs[key] = {"name": rg, "location": data["location"], "tags": data.get("tags") or {}}
@@ -645,6 +661,7 @@ class Handler(BaseHTTPRequestHandler):
                     policy.check_resource_group(rg, rec["location"], tags)
                 except policy.PolicyError as exc:
                     st.log(sub, user, "Update resource group tags", rid, "Failed", f"{exc.code}: {exc.message}")
+                    APP.report_refusal(user, exc)
                     return exc.status, exc.body()
                 rec["tags"] = tags
                 st.log(sub, user, "Update resource group tags", rid, "Succeeded")
@@ -774,6 +791,7 @@ class Handler(BaseHTTPRequestHandler):
                                              lambda label: st.dns_taken(label, key))
             except policy.PolicyError as exc:
                 st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
+                APP.report_refusal(user, exc)
                 return exc.status, exc.body()
 
             c = props["containers"][0]["properties"]
@@ -825,6 +843,8 @@ class Handler(BaseHTTPRequestHandler):
                 stored = copy.deepcopy(st.cgs[key])
         finally:
             st.release(key)
+        if not APP.auth.is_facilitator(user):
+            APP.events.written_group(user, key, created, changed)
         return (201 if created else 200), self.cg_view(sub, stored)  # Docker is asked with the lock released
 
     def cg_logs(self, sub, rg, cg):
@@ -848,6 +868,7 @@ class Handler(BaseHTTPRequestHandler):
         with APP.state.lock:
             key = APP.state.dns_owner(label)
             port = None if key is None else APP.state.cgs[key]["port"]
+            site_owner = None if key is None else APP.state.cgs[key].get("owner")
         if port is None:
             return self._send_text(404, "No site is deployed under that name (yet).")
         try:
@@ -860,6 +881,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_text(400, "That path is not valid.")
         except OSError:
             return self._send_text(502, "The container is not answering.")
+        if resp.status < 400 and site_owner and not APP.auth.is_facilitator(site_owner):
+            # The ingress doesn't know who is looking: the site's owner is credited (a classmate's visit counts too).
+            APP.events.emit("site_request", site_owner, every=30)
         self.send_response(resp.status)
         self.send_header("Content-Type", resp.getheader("Content-Type", "text/html"))
         self.send_header("Content-Length", str(len(payload)))

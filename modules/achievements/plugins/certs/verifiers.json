@@ -1,0 +1,71 @@
+{
+  "backend": "certs",
+  "about": "Reads the certificate a student's own hostname is served with, over TLS with SNI, on the demo app's HTTPS listener (CERTS_TLS_ADDR host:port, CERTS_CA_ROOT root cert file, CERTS_PARENT the shared zone, default certs.dojo.test). A read-only handshake: nothing is written. A host must be the checking student's own ({user}.<parent> or below), refused otherwise. The chain, the hostname and the validity dates are checked against the CA root, as a browser would.",
+  "impl": "certcheck.py",
+  "verbs": {
+    "served_cert": {
+      "args": [
+        "host",
+        "differs_from?",
+        "san?"
+      ],
+      "does": "host is served a certificate that chains to the CA root, matches the name and is not expired; differs_from: the serial differs from the one served for that other own host; san: each listed name is among the certificate's subject alternative names"
+    },
+    "served_same": {
+      "args": [
+        "hosts",
+        "san?"
+      ],
+      "does": "every one of hosts is served a valid certificate and they all carry the same serial; san as above"
+    },
+    "served_changed": {
+      "args": [
+        "host",
+        "times?",
+        "key?"
+      ],
+      "does": "host is served a valid certificate, and this service has seen `times` (default 2) distinct serials for it since it first looked (kept in memory per key; a restart starts a new baseline). Used by state milestones that the sweep re-runs, so renewal is seen as it happens"
+    },
+    "served_expired": {
+      "args": [
+        "host"
+      ],
+      "does": "host is served a certificate whose handshake fails because it has expired"
+    },
+    "served_renews": {
+      "args": [
+        "host",
+        "minutes?",
+        "renewals?"
+      ],
+      "does": "host keeps itself renewed: every look for `minutes` (default 20) found a valid certificate and the serial changed at least `renewals` times (default 2). The first look starts the watch, a look without a valid certificate restarts it (kept in memory; a restart starts it again). Meant for a challenge with \"watch\": true, which the state sweep re-checks on its own"
+    },
+    "served_redirect": {
+      "args": [
+        "hosts"
+      ],
+      "does": "plain http://host/ on the demo app (CERTS_HTTP_ADDR, default the TLS address's host on port 80) answers a permanent redirect (301 or 308) whose Location is https://host/..., for every one of hosts"
+    },
+    "served_hsts": {
+      "args": [
+        "hosts",
+        "min_age?"
+      ],
+      "does": "https://host/ is served a valid certificate and a Strict-Transport-Security header with max-age at least min_age seconds (default 86400), for every one of hosts"
+    },
+    "served_header": {
+      "args": [
+        "hosts",
+        "name",
+        "regex"
+      ],
+      "does": "https://host/ is served a valid certificate and a response header `name` whose value matches regex (case-insensitive search), for every one of hosts"
+    },
+    "served_mtls": {
+      "args": [
+        "host"
+      ],
+      "does": "https://host/ wants a client certificate: without one the handshake fails or the answer is 400/401/403/495/496, and with the checker's own client certificate from the lab CA (CERTS_CLIENT_CERT, CERTS_CLIENT_KEY) it answers 2xx"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Certificate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="cert-body">
+<div id="gate" class="card hidden"></div>
+<div id="tools" class="card hidden noprint">
+  <h2>Your certificate</h2>
+  <div class="dim">Choose the name printed on it. It stays in this browser: the service never sees it.</div>
+  <p><label><input type="radio" name="who" value="board" checked> <span id="opt-board"></span></label><br>
+     <label><input type="radio" name="who" value="typed"> Another name or email:</label>
+     <input id="typed" placeholder="Ada Lovelace or ada@example.com" size="30"></p>
+  <div id="suggest" class="dim"></div>
+  <button id="print">Print or save as PDF</button> <button id="png">Download badge (PNG)</button>
+  <canvas id="badge-canvas" class="hidden"></canvas>
+</div>
+<section id="page1" class="page hidden">
+  <div class="frame">
+    <img id="badge-img" alt="Badge" class="badge">
+    <div class="kicker">Certificate of completion</div>
+    <div class="who" id="c-name"></div>
+    <div>has completed the workshop</div>
+    <div class="what" id="c-workshop"></div>
+    <div class="dim" id="c-facts"></div>
+    <div class="sign"><div class="line"></div><div id="c-sig" class="dim"></div><div id="c-date" class="dim"></div></div>
+  </div>
+</section>
+<section id="page2" class="page hidden">
+  <h2>Achievement summary</h2>
+  <table><thead><tr><th>Achievement</th><th>Kind</th><th>Points</th><th>Date</th></tr></thead><tbody id="s-unlocks"></tbody></table>
+  <div id="s-moments-wrap"><h3>Moments</h3><table><tbody id="s-moments"></tbody></table></div>
+  <div id="s-cheats-wrap"><h3>Cheating tiers</h3><table><tbody id="s-cheats"></tbody></table></div>
+</section>
+<script src="badge.js"></script>
+<script src="certificate.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "milestones": [
+    {
+      "id": "v10-strict",
+      "title": "Strict Role",
+      "joke": "The app's role is locked down.",
+      "core": true,
+      "when": "shell: `bao write auth/approle/role/app ... secret_id_num_uses=1` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "bao write",
+        "regex": "auth/approle/role/app\\s.*secret_id_num_uses=1",
+        "exit": 0
+      }
+    },
+    {
+      "id": "v10-wrap",
+      "title": "Wrapped Delivery",
+      "joke": "A secret ID only the app can open.",
+      "core": true,
+      "when": "bao: a wrapping token unwrapped (`sys/wrapping/unwrap`), the delivered secret ID opened once",
+      "match": {
+        "source": "bao",
+        "event": "wrapping",
+        "path_prefix": "sys/wrapping/unwrap",
+        "ok": true
+      }
+    },
+    {
+      "id": "v10-deploy",
+      "title": "Delivered and Deployed",
+      "joke": "Pipeline delivers, app logs in.",
+      "core": true,
+      "when": "bao: an AppRole login that got `app-read`, after the strict one-use role of this lab",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "approle",
+        "ok": true,
+        "role": "app-read",
+        "requires": "v10-strict"
+      }
+    },
+    {
+      "id": "v10-branch",
+      "title": "A Branch Gets Nothing",
+      "joke": "A feature branch cannot deploy.",
+      "core": true,
+      "when": "bao: a refused `jwt-ci` login after the app was delivered (the branch's delivery job)",
+      "match": {
+        "source": "bao",
+        "event": "login",
+        "mount": "jwt-ci",
+        "ok": false,
+        "requires": "v10-deploy"
+      }
+    }
+  ]
+}

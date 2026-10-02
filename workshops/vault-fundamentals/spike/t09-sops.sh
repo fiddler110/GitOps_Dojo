@@ -1,5 +1,5 @@
 #!/bin/sh
-# P0 spike T0.9 (VAULT-FUNDAMENTALS-PLAN.md §10.6): sops encrypts a file with OpenBao's transit
+# P0 spike T0.9 (docs/archive/VAULT-FUNDAMENTALS-PLAN.md §4 item 7, §15): sops encrypts a file with OpenBao's transit
 # engine in a student's namespace, the file is committed, and only a token
 # with transit decrypt can read it back. Throwaway; P2 turns it into lab 6.
 # Run from the repo root with the stack up and OpenBao unsealed:

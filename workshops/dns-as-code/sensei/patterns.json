@@ -1,0 +1,48 @@
+{
+  "patterns": [
+    {
+      "id": "dns-dot",
+      "regex": "must end with a \\(\\.\\)",
+      "title": "target without its trailing dot",
+      "where": "lab1.md",
+      "section": "7. The trailing-dot mistake",
+      "explain": "In dnsconfig.js a CNAME or MX target needs a trailing dot, or dnscontrol reads it as a name inside your zone.",
+      "fix": "Add the dot: CNAME(\"x\", \"www.studentXX.dojo.test.\")."
+    },
+    {
+      "id": "dns-repeats",
+      "regex": "repeats the domain",
+      "title": "record name that already contains the zone",
+      "where": "lab1.md",
+      "section": "7. The trailing-dot mistake",
+      "explain": "Names in dnsconfig.js are relative to the zone, so A(\"www.studentXX.dojo.test\", ...) becomes www.studentXX.dojo.test.studentXX.dojo.test.",
+      "fix": "Use just the label: A(\"www\", \"203.0.113.10\")."
+    },
+    {
+      "id": "dns-403",
+      "regex": "only CI changes",
+      "title": "the push to the shared zone was refused",
+      "where": "lab3.md",
+      "section": "3. Try to go around the process",
+      "explain": "dojo.test is the class's production zone. Only the DNS Apply CI job may change it, so a push from your terminal gets 403 on purpose.",
+      "fix": "Nothing is broken. Make the change on a branch and open a pull request (Lab 3, step 4)."
+    },
+    {
+      "id": "dns-delete",
+      "regex": "[-\\u2212]\\s*DELETE",
+      "title": "preview wants to delete a record you didn't write",
+      "where": "lab3.md",
+      "section": "4. Make a change the proper way",
+      "explain": "Your clone is behind main: a classmate's newer record is live, but not in your file, so preview shows it as a delete.",
+      "fix": "git pull origin main (stash first if you haven't committed), then preview again: only your own CREATE should be left. Don't push until it is."
+    },
+    {
+      "id": "dns-syntax",
+      "regex": "executing dnsconfig\\.js[^\\n]*(SyntaxError|Unexpected|unexpected)",
+      "title": "dnsconfig.js has a syntax error",
+      "where": "lab1.md",
+      "explain": "The file isn't valid JavaScript: usually a missing comma, quote or closing parenthesis near the line it names.",
+      "fix": "Open the line named in the error and compare it with the lines around it. git diff shows exactly what you changed; git restore dnsconfig.js starts over."
+    }
+  ]
+}
