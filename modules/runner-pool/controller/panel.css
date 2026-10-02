@@ -27,6 +27,11 @@ h2 { font-size: 15px; margin: 20px 0 8px; }
 .numbers div { display: flex; flex-direction: column; }
 .numbers dt { color: var(--muted); font-size: 12px; }
 .numbers dd { margin: 0; font-size: 18px; font-weight: 600; }
+.numbers dd.max { display: flex; align-items: center; gap: 6px; }
+.max button { width: 22px; height: 22px; padding: 0; font-size: 14px; line-height: 1; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+.max button:hover { border-color: var(--accent); }
+.max button:disabled { opacity: 0.4; cursor: default; }
 .message { min-height: 1.2em; margin: 8px 0 0; }
 .message.bad, .error { color: var(--red); }
 table { border-collapse: collapse; width: 100%; }

@@ -177,7 +177,7 @@ class TestAuto(Base):
         self.assertEqual(len(self.alive()), 2)
 
     def test_never_removes_busy(self):
-        self.cfg.max = 6
+        self.ctl.max = 6
         self.ctl.min_idle = 0
         self.ctl.tick()
         self.sup = {f"pool-b{i}": {"state": "busy", "started": 0, "since": 0} for i in range(3)}
@@ -229,11 +229,19 @@ class TestManual(Base):
         self.assertFalse(ok)
         self.assertIn("busy", msg)
 
-    def test_plus_stops_at_max(self):
+    def test_plus_at_max_raises_it_up_to_the_ceiling(self):
         self.ctl.set_mode("manual")
         for _ in range(4):
             self.assertTrue(self.ctl.scale(1)[0])
-        self.assertFalse(self.ctl.scale(1)[0])
+        ok, msg = self.ctl.scale(1)
+        self.assertTrue(ok)
+        self.assertIn("max raised to 5", msg)
+        self.assertEqual(len(self.pending()), 5)
+        for _ in range(c.MAX_CEILING - 5):
+            self.assertTrue(self.ctl.scale(1)[0])
+        ok, msg = self.ctl.scale(1)
+        self.assertFalse(ok)
+        self.assertEqual(self.ctl.max, c.MAX_CEILING)
 
     def test_auto_plus_minus_moves_min_idle(self):
         self.ctl.scale(1)
@@ -241,9 +249,45 @@ class TestManual(Base):
         for _ in range(9):
             self.ctl.scale(-1)
         self.assertEqual(self.ctl.min_idle, 0)
-        for _ in range(9):
+        for _ in range(4):
             self.ctl.scale(1)
         self.assertEqual(self.ctl.min_idle, 4)
+        self.assertEqual(self.ctl.max, 4)  # nothing running yet: room under the max
+
+    def test_auto_plus_at_max_starts_one_more(self):
+        # Found live: a small class gets max 2 = the warm pool, and + did nothing.
+        self.ctl.tick(); self.supervise()
+        for s in self.sup.values():
+            s["state"] = "busy"
+        self.write_state()
+        self.ctl.tick(); self.supervise()  # 2 busy + 2 idle = max 4
+        self.assertEqual(len(self.alive()), 4)
+        ok, msg = self.ctl.scale(1)
+        self.assertTrue(ok)
+        self.assertEqual((self.ctl.max, self.ctl.min_idle), (5, 3))
+        self.ctl.tick()
+        self.assertEqual(len(self.pending()), 1)
+
+    def test_set_max(self):
+        self.assertTrue(self.ctl.set_max(1)[0])
+        self.assertEqual(self.ctl.snapshot["max"], 5)
+        for _ in range(10):
+            self.ctl.set_max(-1)
+        self.assertEqual((self.ctl.max, self.ctl.min_idle), (1, 1))
+        self.assertFalse(self.ctl.set_max(-1)[0])
+
+    def test_lower_max_removes_idle_above_it_at_once(self):
+        self.ctl.min_idle = 4
+        self.ctl.tick(); self.supervise()
+        self.sup[sorted(self.sup)[0]]["state"] = "busy"
+        self.write_state()
+        self.ctl.tick()
+        ok, msg = self.ctl.set_max(-1); self.ctl.set_max(-1)  # 4 -> 2
+        self.assertIn("being removed", msg)
+        self.ctl.tick()
+        self.assertEqual(len(os.listdir(self.spool.stop_dir)), 2)  # no idle timeout wait, busy one kept
+        self.supervise(); self.ctl.tick()
+        self.assertEqual(len(self.alive()), 2)
 
 
 class TestCleanupAndLights(Base):
@@ -349,6 +393,9 @@ class TestHTTP(Base):
         self.assertEqual(status, 200)
         self.assertEqual(self.ctl.mode, "manual")
         self.assertEqual(self.req("POST", "/api/scale", h, json.dumps({"delta": 5}))[0], 400)
+        self.assertEqual(self.req("POST", "/api/max", h, json.dumps({"delta": 3}))[0], 400)
+        status, _, data = self.req("POST", "/api/max", h, json.dumps({"delta": 1}))
+        self.assertEqual((status, json.loads(data)["state"]["max"]), (200, 5))
         self.assertEqual(self.req("POST", "/api/scale", h, "not json")[0], 400)
         status, _, data = self.req("POST", "/api/scale", h, json.dumps({"delta": -1}))
         self.assertEqual(status, 409)  # nothing idle to remove
@@ -357,6 +404,36 @@ class TestHTTP(Base):
     def test_student_cannot_post(self):
         h = {"X-Gateway-Token": TOKEN, "X-Auth-User": "student01", "X-Requested-With": "dojo-runners"}
         self.assertEqual(self.req("POST", "/api/scale", h, json.dumps({"delta": 1}))[0], 403)
+
+    def test_slow_forgejo_never_holds_the_lock(self):
+        """RV6: a tick stuck in a Forgejo read or a registration leaves the lock free and the panel answering."""
+        gate, entered = threading.Event(), threading.Event()
+        for method in ("runners", "register"):
+            real = getattr(self.fj, method)
+
+            def slow(*a, real=real):
+                entered.set()
+                gate.wait(10)
+                return real(*a)
+            setattr(self.fj, method, slow)
+            entered.clear()
+            gate.clear()
+            t = threading.Thread(target=self.ctl.tick if method == "runners" else lambda: self.ctl.scale(1))
+            if method == "register":
+                self.ctl.set_mode("manual")
+            t.start()
+            try:
+                self.assertTrue(entered.wait(5), method)
+                self.assertTrue(self.ctl.lock.acquire(timeout=1), method)
+                self.ctl.lock.release()
+                self.assertEqual(self.req("GET", "/api/state", self.FAC)[0], 200)
+                self.assertEqual(self.req("GET", "/healthz")[0], 200)
+                if method == "register":  # the runner being registered already counts toward the max
+                    self.assertEqual(self.ctl.snapshot["alive"], 3)
+            finally:
+                gate.set()
+                t.join(5)
+            setattr(self.fj, method, real)
 
 
 if __name__ == "__main__":

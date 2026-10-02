@@ -129,8 +129,12 @@ sleep 8
 a2="$(state | field 'd["alive"]')"
 [ "$a2" -eq "$a0" ] && ok "back to $a0" || fail "runners $a1 -> $a2 after +"
 if [ "$a2" -ge "$max" ]; then
-  [ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":1}' dojo-runners)" = 409 ] && ok "+ at the max ($max) refused" || fail "+ at the max not refused"
+  [ "$(panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":1}' dojo-runners)" = 200 ] && ok "+ at the max ($max)" || fail "+ at the max refused"
+  [ "$(state | field 'd["max"]')" -eq $((max + 1)) ] && ok "max raised to $((max + 1))" || fail "max not raised"
+  panel POST /api/scale "$FACILITATOR_USERNAME" '{"delta":-1}' dojo-runners >/dev/null
+  panel POST /api/max "$FACILITATOR_USERNAME" '{"delta":-1}' dojo-runners >/dev/null
 fi
+[ "$(panel POST /api/max "$FACILITATOR_USERNAME" '{"delta":2}' dojo-runners)" = 400 ] && ok "Max takes only -1 / +1" || fail "Max took +2"
 panel POST /api/mode "$FACILITATOR_USERNAME" '{"mode":"auto"}' dojo-runners >/dev/null
 
 echo "== runner users match live runners"
