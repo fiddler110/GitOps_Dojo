@@ -2,6 +2,7 @@
 beside the repo has its own state."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 ENGINE = Path(__file__).resolve().parent.parent
@@ -14,6 +15,9 @@ STATE = ENGINE / ".build-state"
 LAST_OVERLAY = ENGINE / ".last-overlay"       # teardown's -f files (one per line)
 RUNNING_WORKSHOP = STATE / "running-workshop"
 LAST_START = STATE / "last-start"             # the workshop and its flags, for restart
+
+# How the user ran us, for help and advice: ./run.sh, or `dojo` (the ~/.local/bin script sets DOJO_PROG).
+PROG = os.environ.get("DOJO_PROG", "./run.sh")
 
 
 def env_variant(name: str) -> Path:

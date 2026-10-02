@@ -193,7 +193,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | M | Needs a Mac / Docker host. Docker instead of podman (only podman here); macOS's system Python 3.9 (click 8.1.8 and rich 15 support it, not run); `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection; zsh completion in a real interactive shell (tested with stubbed zsh built-ins) |
+| C5 | Untested paths | M | Needs a Mac / Docker host. Docker instead of podman (only podman here); macOS's system Python 3.9 (click 8.1.8 and rich 15 support it, not run); `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection; zsh completion on macOS (it passed in an interactive zsh here); the `dojo` command and `setup`/`alias-setup`/`capacity` under bash 3.2 and BSD tools. Steps: [`C5-guide.md`](C5-guide.md) |
 
 ### Remediation leftovers
 

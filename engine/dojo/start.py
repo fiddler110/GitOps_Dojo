@@ -195,12 +195,12 @@ def _start(o: StartOptions) -> int:
     from .workshops import NAME_RE
     if not NAME_RE.match(o.workshop):
         raise StartError(f"'{o.workshop}' is not a workshop name (lowercase letters, digits and '-').\n"
-                         "Run './run.sh list' to see available workshops.")
+                         f"Run '{paths.PROG} list' to see available workshops.")
     if o.env_name is not None and not NAME_RE.match(o.env_name):
         raise StartError("--env expects a name (lowercase letters, digits and '-'), e.g. --env home")
     rt = Runtime()
     if not rt.available:
-        raise StartError("Neither podman (with podman-compose) nor docker was found; './run.sh doctor' explains.")
+        raise StartError(f"Neither podman (with podman-compose) nor docker was found; '{paths.PROG} doctor' explains.")
 
     p = _plan(o, rt)
     _check_running(p)
@@ -272,12 +272,12 @@ def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
             raise StartError(
                 f"Refusing to start: default passwords ({' '.join(weak)}) with PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')}\n"
                 f"and LAB_HOST_IP={env.get('LAB_HOST_IP') or '<unset>'}, i.e. reachable beyond this machine. Anyone who has seen\n"
-                "'./run.sh setup --default' can sign in. Generate real ones with './run.sh setup --force'\n"
+                f"'{paths.PROG} setup --default' can sign in. Generate real ones with '{paths.PROG} setup --force'\n"
                 "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass\n"
                 "--allow-default-passwords (or ALLOW_DEFAULT_PASSWORDS=1 in .env.<name>) to start anyway.")
     if not env.get("STUDENT_PASSWORD_SEED"):
         console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in engine/.env: every student's Forgejo password is the\n"
-                      "         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run './run.sh setup'.[/]")
+                      f"         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run '{paths.PROG} setup'.[/]")
     if checks.plain_http_offbox(env):
         console.print(f"[yellow]WARNING: PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')} is plain HTTP beyond this machine: passwords,\n"
                       "         cookies and terminal input travel unencrypted. For a class, use HTTPS: a real\n"
@@ -297,7 +297,7 @@ def _check_running(p: Plan) -> None:
                 gone = [f for f in cur.files if f not in p.files]
                 raise StartError(f"Refusing to start: {o.workshop} is running with other Compose files "
                                  f"(now adds {' '.join(added) or 'nothing'}, drops {' '.join(gone) or 'nothing'}).\n"
-                                 "Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or './run.sh stop' "
+                                 f"Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or '{paths.PROG} stop' "
                                  "first (it deletes every volume).")
             if o.dry_run:
                 bad(f"{who} is still running: a real start would refuse until './run.sh stop'.")

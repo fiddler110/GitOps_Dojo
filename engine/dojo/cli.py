@@ -26,7 +26,7 @@ from .ui import console, fail
 from .workshops import modules as all_modules
 from .workshops import workshops as all_workshops
 
-PROG = os.environ.get("DOJO_PROG", "./run.sh")
+PROG = paths.PROG
 SETTINGS = {"help_option_names": ["-h", "--help"], "max_content_width": 100}
 
 
@@ -94,7 +94,7 @@ class DojoGroup(click.Group):
         return items + _complete_workshop(ctx, None, incomplete)
 
     def format_epilog(self, ctx, formatter):
-        with formatter.section("Workshops (./run.sh <workshop> [--test [N]] [--env NAME] [--dry-run] ...)"):
+        with formatter.section(f"Workshops ({paths.PROG} <workshop> [--test [N]] [--env NAME] [--dry-run] ...)"):
             formatter.write_dl([(w.name, w.title) for w in all_workshops()])
         formatter.write_paragraph()
         formatter.write_text(f"Run '{PROG} <command> --help' for a command's own options.")
@@ -110,7 +110,7 @@ def cli() -> None:
 @click.argument("workshop", shell_complete=_complete_workshop)
 @start_options
 def start(workshop, **kw) -> None:
-    """Build and start WORKSHOP (same as './run.sh WORKSHOP')."""
+    """Build and start WORKSHOP (the same as giving WORKSHOP as the command)."""
     _start(workshop, **kw)
 
 
@@ -124,7 +124,7 @@ def restart(services: Tuple[str, ...], clean: bool) -> None:
     restart              recreate every container; volumes are kept, so student
                          homes, Forgejo repos and accounts survive
     restart SERVICE...   recreate only those services; the rest keep running
-    restart --clean      './run.sh stop' (no undo), then a fresh start"""
+    restart --clean      stop (deletes every volume, no undo), then a fresh start"""
     from .start import run_restart
     sys.exit(run_restart(list(services), clean))
 
@@ -266,7 +266,7 @@ def _passthrough(name: str, script: str, help_text: str) -> None:
 
 _passthrough("setup", "env-setup.sh", "Create or update engine/.env (--default, --force, --rotate-class).")
 _passthrough("capacity", "capacity-calc.sh", "Size the terminal resource limits for this machine (--students N).")
-_passthrough("alias-setup", "alias-setup.sh", "Add a 'dojo' shell function and tab completion to your shell profile.")
+_passthrough("alias-setup", "alias-setup.sh", "Install the 'dojo' command (~/.local/bin) and tab completion (--check, --remove).")
 
 
 @cli.command(context_settings=SETTINGS)

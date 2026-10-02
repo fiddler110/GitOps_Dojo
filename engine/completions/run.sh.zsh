@@ -1,5 +1,5 @@
 # Zsh tab-completion for ./run.sh (repo root or engine/) and the `dojo`
-# function from `./run.sh alias-setup`.
+# command from `./run.sh alias-setup` (~/.local/bin/dojo).
 #
 # Everything it offers comes from the dojo CLI's own definitions (Click's
 # completion protocol), with descriptions: commands, workshop names, each

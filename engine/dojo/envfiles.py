@@ -149,7 +149,7 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
     if not workshop_env.is_file():
         raise EnvError(f"No such workshop: {workshop} (expected {rel(workshop_env)})")
     if not paths.ENV_FILE.is_file():
-        raise EnvError("engine/.env not found: run './run.sh setup' (or 'setup --default' for local use) first.")
+        raise EnvError(f"engine/.env not found: run '{paths.PROG} setup' (or 'setup --default' for local use) first.")
     variant = paths.env_variant(env_name) if env_name else None
     if variant is not None and not variant.is_file():
         raise EnvError(f"--env {env_name}: engine/.env.{env_name} not found.")

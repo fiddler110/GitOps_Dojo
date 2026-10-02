@@ -560,23 +560,34 @@ before it overwrites one.)
 that command's own help (e.g. `./run.sh capacity --help` for all the sizing
 flags, `./run.sh setup --help` for `--default`/`--force`).
 
-**Tab-completion.** The first time you run `./run.sh` in an interactive
-terminal, it offers to wire up completion for bash or zsh, whichever `$SHELL` says
-you're using (`engine/scripts/install-completion.sh`). It completes everything the
-CLI defines: commands, workshop names (with titles in zsh), each command's flags,
-`--env` names from `engine/.env.*`, and the running stack's services for `restart`
-and `logs`; adding a command, workshop or option needs no completion change. Say yes and it appends two
-lines to `~/.bashrc`/`~/.zshrc`, sourcing the matching script under
-`engine/completions/`; say no, and it won't ask again (tracked in
-`engine/.build-state/`, gitignored) — source the file yourself later if you
-change your mind. One completion script covers both the root `./run.sh` and
-`engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`, `./engine/run.sh`),
-and it finds the workshops from its own location, not your current directory,
-so it works the same wherever you are. Already installed? It's sourced by
-path, so a new shell picks up updates with no re-install. Never prompts outside a real terminal (CI, `--test` bot
-runs, etc. are unaffected), and does nothing at all for a shell it doesn't
-recognize (e.g. PowerShell) beyond pointing you at `engine/completions/` to
-wire up by hand.
+**The `dojo` command and tab-completion.** `./run.sh alias-setup` installs
+`~/.local/bin/dojo`, a three-line script that runs this checkout's `./run.sh`
+with `DOJO_PROG=dojo` (so help and advice say `dojo ...`). It works from any
+directory, in any shell and from scripts. It also adds one marked block to
+your shell profile (`~/.zshrc_aliases` or `~/.zshrc`, `~/.bash_aliases` or
+`~/.bashrc`, by `$SHELL`) that loads the completion script under
+`engine/completions/` and, only if `~/.local/bin` isn't on your PATH (common on
+macOS), adds it. Re-running it replaces that block; it also removes the older
+`dojo` function block and the two lines the first-run offer used to write.
+`--check` says whether it's installed for this checkout, `--remove` undoes it,
+and it won't overwrite a `~/.local/bin/dojo` it didn't write. Move the repo?
+Re-run it from the new place.
+
+`./run.sh setup` offers it at the end (interactive mode; `--default` only
+prints a hint), and so does the first `./run.sh` in an interactive terminal
+(`engine/scripts/install-completion.sh`), once per machine: the answer is
+kept in `engine/.build-state/` (gitignored). Neither ever prompts outside a
+real terminal, so CI and `--test` bot runs are unaffected.
+
+Completion covers everything the CLI defines: commands, workshop names (with
+titles in zsh), each command's flags, `--env` names from `engine/.env.*`, and
+the running stack's services for `restart` and `logs`; adding a command,
+workshop or option needs no completion change. One script covers `dojo`, the
+root `./run.sh` and `engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`,
+`./engine/run.sh`), and it finds the workshops from its own location, not your
+current directory. It's sourced by path, so a new shell picks up updates with
+no re-install. Only bash and zsh; for another shell, wire up a file from
+`engine/completions/` by hand.
 
 `run.sh` picks the workshop's content/org/repo from
 `workshops/<name>/workshop.env`, builds the base terminal image, layers on

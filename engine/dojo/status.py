@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from rich.table import Table
 
-from . import state
+from . import paths, state
 from .envfiles import operator_env
 from .runtime import READY, Runtime, project_name
 from .ui import STATE_MARK, STATE_STYLE, console
@@ -73,10 +73,10 @@ def show(info: Dict[str, Any]) -> None:
         console.print("[yellow]No workshop stack is running.[/]")
         if info["volumes"]:
             console.print(f"  {info['volumes']} volume(s) left from an earlier run: "
-                          "'./run.sh stop' removes them, or a start of the same workshop reuses them.")
+                          f"'{paths.PROG} stop' removes them, or a start of the same workshop reuses them.")
         if info["started_as"]:
             console.print(f"  Last started here as: [cyan]{info['started_as']}[/]  "
-                          "('./run.sh restart' starts it again)")
+                          f"('{paths.PROG} restart' starts it again)")
         return
     title = f" ({info['title']})" if info["title"] else ""
     console.print(f"[bold]Workshop:[/]  {info['workshop'] or '(not recorded: started from another checkout?)'}{title}")

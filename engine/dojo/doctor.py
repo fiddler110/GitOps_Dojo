@@ -105,7 +105,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
 
     # --- engine/.env -------------------------------------------------------
     if not paths.ENV_FILE.is_file():
-        add(Check(FAIL, "engine/.env", "missing", "Run './run.sh setup' (or './run.sh setup --default' for local use)."))
+        add(Check(FAIL, "engine/.env", "missing", f"Run '{paths.PROG} setup' (or '{paths.PROG} setup --default' for local use)."))
         return out
     mode = stat.S_IMODE(paths.ENV_FILE.stat().st_mode)
     add(Check(OK if mode & 0o077 == 0 else WARN, "engine/.env", f"present, mode {mode:o}",
@@ -117,16 +117,16 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
     missing = [k for k in _required_keys() if not env.get(k)]
     if missing:
         add(Check(FAIL, "Required settings", "empty or missing: " + ", ".join(missing),
-                  "Run './run.sh setup' to fill them in."))
+                  f"Run '{paths.PROG} setup' to fill them in."))
     if not env.get("STUDENT_PASSWORD_SEED"):
         add(Check(WARN, "Student passwords", "no STUDENT_PASSWORD_SEED: every student shares one Forgejo password",
-                  "Add one ('openssl rand -hex 32') or run './run.sh setup'."))
+                  f"Add one ('openssl rand -hex 32') or run '{paths.PROG} setup'."))
     weak = checks.default_passwords(env)
     if weak and not checks.local_only(env):
         allowed = env.get("ALLOW_DEFAULT_PASSWORDS") == "1"
         add(Check(WARN if allowed else FAIL, "Passwords", f"public defaults ({', '.join(weak)}) reachable beyond this machine"
                   + (" (allowed by ALLOW_DEFAULT_PASSWORDS=1)" if allowed else ""),
-                  "" if allowed else "Generate real ones with './run.sh setup', or start with --allow-default-passwords."))
+                  "" if allowed else f"Generate real ones with '{paths.PROG} setup', or start with --allow-default-passwords."))
     elif weak:
         add(Check(INFO, "Passwords", f"public defaults ({', '.join(weak)}), fine while only this machine can connect"))
     else:
@@ -157,7 +157,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         need = term_mb + 3072 + 1024
         add(Check(OK if need <= host_mb else WARN, "Memory",
                   f"{host_mb} MB here; terminals {term_mb} MB + other services ~3072 + reserve 1024 = {need} MB",
-                  "" if need <= host_mb else "Run './run.sh capacity --students N' to size the limits for this machine."))
+                  "" if need <= host_mb else f"Run '{paths.PROG} capacity --students N' to size the limits for this machine."))
     lock = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
     if lock.is_dir():
         pid = read_state(lock / "pid")
@@ -168,7 +168,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
     if containers:
         cur = state.read_current()
         recorded = cur.workshop if cur and cur.workshop else "an unrecorded workshop"
-        add(Check(INFO, "Running now", f"{recorded}: {len(containers)} container(s) ('./run.sh status' for detail)"))
+        add(Check(INFO, "Running now", f"{recorded}: {len(containers)} container(s) ('{paths.PROG} status' for detail)"))
     images = [i for i in ("gitopsdojo/web-terminal:base", "gitopsdojo/allocator:local",
                           "gitopsdojo/gateway:local", "gitopsdojo/presentation:local")
               if not rt.out("image", "inspect", "--format", "{{.Id}}", i)]
@@ -193,7 +193,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         cur = state.read_current()
         recorded = cur.workshop if cur else ""
         if containers and recorded and recorded != workshop:
-            add(Check(WARN, "Switching workshop", f"{recorded} is running; starting {workshop} is refused until './run.sh stop'"))
+            add(Check(WARN, "Switching workshop", f"{recorded} is running; starting {workshop} is refused until '{paths.PROG} stop'"))
     return out
 
 

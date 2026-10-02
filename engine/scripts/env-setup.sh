@@ -266,6 +266,7 @@ if [ "$mode" = "default" ]; then
   echo "These lazy credentials are for this machine only: './run.sh <workshop>'"
   echo "refuses them unless PUBLIC_BASE_URL and LAB_HOST_IP are loopback."
   echo
+  ./scripts/alias-setup.sh --check || echo "Optional: './run.sh alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
   echo "Next: ./run.sh <workshop-name>"
   exit 0
 fi
@@ -448,4 +449,13 @@ echo "workshops/<name>/workshop.env when you run ./run.sh <workshop-name>."
 echo "New passwords reach a running stack only after './run.sh stop' (wipes its"
 echo "volumes) and './run.sh <workshop-name>': Forgejo keeps the accounts it seeded."
 echo
+if ! ./scripts/alias-setup.sh --check && [ -t 0 ]; then
+  if confirm "Install the 'dojo' command (dojo <workshop> from any directory, with tab completion)?"; then
+    ./scripts/alias-setup.sh || echo "  './run.sh alias-setup' tries again."
+  else
+    echo "  Skipped; './run.sh alias-setup' installs it any time."
+  fi
+  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from run.sh
+  echo
+fi
 echo "Next: ./run.sh <workshop-name>"
