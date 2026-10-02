@@ -335,10 +335,7 @@ def _build_images(p: Plan) -> Builder:
     """Step 3: build what changed. The Builder is returned to reap superseded images once the start succeeds."""
     step("Checking images (dry run)" if p.o.dry_run else "Checking images")
     b = Builder(p.rt, dry_run=p.o.dry_run, ca_bundle=p.ca or None)
-    b.terminal_chain(p.links)
-    for image, context in (("gitopsdojo/allocator:local", "./allocator"), ("gitopsdojo/gateway:local", "./gateway"),
-                           ("gitopsdojo/presentation:local", "./presentation")):
-        b.build_if_changed(image, context)
+    b.images(p.links)
     if p.overlay_dirs:
         b.overlay_if_changed(p.overlay_dirs, paths.STATE / f"{p.o.workshop}.overlay-hash", p.compose, p.env, p.services())
     return b

@@ -11,15 +11,23 @@ untagged <none> image. Each build is wrapped in tracking that notes what it
 displaced (one of our tagged images that lost its tag) or created untagged (a
 multi-stage build's earlier stages); reap() removes them after `up -d`, when no
 container pins them any more. Anything still pinned is retried next run.
+
+Concurrency: the engine images build alongside the terminal chain (images()). The
+chain streams its output, as the long build; each engine image's goes to a log
+file, shown only when its build fails.
 """
 from __future__ import annotations
 
 import hashlib
 import os
 import subprocess
+import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set
 
 from . import paths
@@ -27,6 +35,9 @@ from .runtime import Runtime
 from .ui import changed, console, ok
 
 SUPERSEDED = paths.STATE / "superseded-images"
+ENGINE_IMAGES = (("gitopsdojo/allocator:local", "./allocator"), ("gitopsdojo/gateway:local", "./gateway"),
+                 ("gitopsdojo/presentation:local", "./presentation"))
+_record_lock = threading.Lock()  # concurrent builds append to SUPERSEDED
 
 
 def _files(context: str) -> List[str]:
@@ -113,7 +124,7 @@ class Builder:
             new = [i for i in self._ids(True) if i in before_ours or i not in before_untagged]
             if new:
                 paths.STATE.mkdir(exist_ok=True)
-                with SUPERSEDED.open("a") as fh:
+                with _record_lock, SUPERSEDED.open("a") as fh:
                     fh.writelines(f"{i}\n" for i in new)
 
     def reap(self) -> None:
@@ -143,7 +154,8 @@ class Builder:
 
     # --- builds --------------------------------------------------------------
     def build_if_changed(self, image: str, context: str, extra: Optional[List[str]] = None,
-                         salt_extra: str = "", with_ca: bool = False) -> None:
+                         salt_extra: str = "", with_ca: bool = False, quiet: bool = False) -> None:
+        """quiet: the build's output goes to a log file, shown only if it fails."""
         new_hash = hash_dir(context, self.salt + salt_extra)
         if self.label(image, "dojo.src-hash") == new_hash:
             ok(f"{image}: unchanged")
@@ -157,13 +169,42 @@ class Builder:
         if with_ca and self.ca_bundle:
             args += ["--secret", f"id=corp_ca_cert,src={self.ca_bundle}"]
         start = time.time()
-        with self.tracking():
-            res = subprocess.run([self.rt.cli, "build", *args, "--label", f"dojo.src-hash={new_hash}",
-                                  "-t", image, context], cwd=str(paths.ENGINE), env=self.env)
+        log, log_path = _open_build_log(image) if quiet else (None, "")
+        try:
+            with self.tracking():
+                res = subprocess.run([self.rt.cli, "build", *args, "--label", f"dojo.src-hash={new_hash}",
+                                      "-t", image, context], cwd=str(paths.ENGINE), env=self.env,
+                                     stdout=log, stderr=subprocess.STDOUT if log else None)
+        finally:
+            if log:
+                log.close()
         if res.returncode != 0:
+            if log:
+                tail = "\n".join(Path(log_path).read_text(errors="replace").splitlines()[-25:])
+                console.print(tail, markup=False)
+                raise BuildError(f"building {image} failed (exit {res.returncode}); the last lines of its output "
+                                 f"are above, all of it is in {log_path}.")
             raise BuildError(f"building {image} failed (exit {res.returncode}); its output is above.")
+        if log:
+            os.unlink(log_path)
         secs = int(time.time() - start)
         ok(f"{image}: built in {secs // 60}:{secs % 60:02d}")
+
+    def images(self, links: List[tuple]) -> None:
+        """The terminal chain and the engine images, built concurrently. Every build
+        runs to the end, then the first failure is raised."""
+        if self.dry_run:  # nothing builds: keep the report in a stable order
+            self.terminal_chain(links)
+            for image, context in ENGINE_IMAGES:
+                self.build_if_changed(image, context)
+            return
+        with ThreadPoolExecutor(max_workers=1 + len(ENGINE_IMAGES)) as pool:
+            jobs = [pool.submit(self.terminal_chain, links)]
+            jobs += [pool.submit(self.build_if_changed, image, context, quiet=True) for image, context in ENGINE_IMAGES]
+            errors = [j.exception() for j in jobs]
+        for exc in errors:
+            if exc is not None:
+                raise exc
 
     def terminal_chain(self, links: List[tuple]) -> None:
         """:base, then each (image, context) link built FROM the one before. A
@@ -203,6 +244,14 @@ class Builder:
                 raise BuildError(f"building the overlay images failed (exit {res.returncode}); its output is above.")
         state_file.parent.mkdir(exist_ok=True)
         state_file.write_text(new_hash + "\n")
+
+
+def _open_build_log(image: str):
+    for old in Path(tempfile.gettempdir()).glob("dojo-build.*"):  # failed builds keep their log a day
+        if time.time() - old.stat().st_mtime > 86400:
+            old.unlink(missing_ok=True)
+    fd, log_path = tempfile.mkstemp(prefix=f"dojo-build.{image.split('/')[-1].replace(':', '-')}.")
+    return os.fdopen(fd, "w"), log_path
 
 
 class BuildError(Exception):

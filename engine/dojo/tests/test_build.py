@@ -168,6 +168,59 @@ class TerminalChain(Quiet):
         self.assertEqual(run.call_count, 1)
 
 
+class ConcurrentImages(Quiet):
+    """images(): the engine images build alongside the chain, quietly, and every build finishes."""
+    LINKS = TerminalChain.LINKS
+    builder = TerminalChain.builder
+
+    def setUp(self):
+        super().setUp()
+        self.hashes = {"./web-terminal": "h-base", "../modules/mod-a/terminal": "h-mod",
+                       "../workshops/w/compose/terminal": "h-ws", **{ctx: f"h-{ctx[2:]}" for _, ctx in build.ENGINE_IMAGES}}
+        p = mock.patch.object(build, "hash_dir", side_effect=lambda ctx, salt="": f"{self.hashes[ctx]}|{salt}")
+        p.start()
+        self.addCleanup(p.stop)
+        p = mock.patch.object(build.tempfile, "gettempdir", return_value=tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+        self.addCleanup(shutil.rmtree, build.tempfile.gettempdir())
+
+    def run_images(self, fail=()):
+        def fake(cmd, **kw):
+            image = cmd[cmd.index("-t") + 1]
+            if kw.get("stdout"):
+                kw["stdout"].write(f"step 1 of {image}\n")
+            return subprocess.CompletedProcess(cmd, 2 if image in fail else 0)
+        rt = FakeRuntime(cli="docker")
+        with mock.patch.object(build.subprocess, "run", side_effect=fake) as run:
+            self.builder(rt).images(self.LINKS)
+        return run
+
+    def test_all_images_build_and_only_engine_ones_are_quiet(self):
+        run = self.run_images()
+        by_image = {c[0][0][c[0][0].index("-t") + 1]: c[1] for c in run.call_args_list}
+        self.assertEqual(len(by_image), 3 + len(build.ENGINE_IMAGES))
+        for image, _ in build.ENGINE_IMAGES:
+            self.assertIsNotNone(by_image[image]["stdout"])
+        self.assertIsNone(by_image["gitopsdojo/web-terminal:base"]["stdout"])
+        self.assertEqual(list(Path(build.tempfile.gettempdir()).glob("dojo-build.*")), [])  # logs of good builds go
+
+    def test_a_failure_waits_for_the_others_and_keeps_its_log(self):
+        with self.assertRaisesRegex(build.BuildError, "gateway:local failed.*dojo-build.gateway-local"):
+            self.run_images(fail={"gitopsdojo/gateway:local"})
+        logs = list(Path(build.tempfile.gettempdir()).glob("dojo-build.*"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn("step 1 of gitopsdojo/gateway:local", logs[0].read_text())
+
+    def test_dry_run_reports_in_order(self):
+        rt = FakeRuntime(cli="docker")
+        b = self.builder(rt, dry_run=True)
+        with mock.patch.object(build.subprocess, "run") as run:
+            b.images(self.LINKS)
+        run.assert_not_called()
+        self.assertEqual(len(b.would_build), 3 + len(build.ENGINE_IMAGES))
+
+
 class Superseded(Quiet):
     def setUp(self):
         super().setUp()
