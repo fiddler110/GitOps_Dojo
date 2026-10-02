@@ -77,6 +77,31 @@ Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (20
 Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
 `when` text for any approximation that proved wrong.
 
+**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.2 and C6 are done (RELEASES).
+1. **9.3 vault-fundamentals: run started, result not recorded.** A sub-agent started `--test 3` (achievements on); the
+   session was cleared before it reported, so treat it as not run. If the stack is still up (`podman ps`), read
+   `python3 -B modules/achievements/tools/fired.py vault-fundamentals` and the bot logs
+   (`/home/testuserN/.dojo-bot.log` in `workshop_terminal`, "round N done"); otherwise start it again. First live run
+   of the bot changes in `8a0d1d2`/`68dd047`: `paste_cmd` now reports each pasted command to achievements (Labs 8-13
+   counted for nothing before), Lab 5 uses the lab's own files, the expert bot gains Labs 12-13, and the matcher joins
+   `\` line continuations (`v10-strict`/`v11-role` never fired for a student pasting the lab's command). Stop the wait
+   when testuser1 has "round 1 done" (cap 60 min). Expected never-fired: `v0-ui` (browser OIDC), `f-seal`, `f-root`,
+   `f-paste`, cheats, challenges. Then the capstone slot (see 9.3's row) and solve c1, c2 and the capstone once.
+2. **git-fundamentals challenges, then the box with achievements off** (9.x). `./run.sh git-fundamentals` with
+   achievements on and no bots: solve c1 (a `hotfix-<user>` PR fixing your role typo in `roster/team.yaml`), c2 (`git
+   log -S` the target line, hash and author in `answer.txt` on `case-<user>`) and the capstone (merge `feature-a` and
+   `feature-b` through one PR, resolve the CHANGELOG conflict, undo "Make deploys faster"); `dojo-check`, a reset,
+   `sensei ask`. `modules/achievements/tools/box.py lab1.md.txt` must find the box; then stop, start with
+   `ACHIEVEMENTS_ENABLED=0` and it must find none.
+3. **9.4, the class-sized run: ask the user first.**
+
+Tools (`modules/achievements/tools/`, run from the repo root): `fired.py <workshop>` lists each catalog item with who
+earned it and the never-fired ids; `botaudit.py <workshop>` runs every bot command through the real matcher (static:
+runtime values, output and `requires` are not known, so its misses need a look, not a fix); `box.py` (usage in its
+header) counts challenge boxes on a lab page in headless Chromium. Working rules: long waits go to a sub-agent with a
+short brief and one blocking wait loop; bots stay lab-only (decided 2026-10-02: challenges are solved by hand, one
+solve each per pack); student commands that must reach achievements run in an interactive zsh (tmux), not `zsh -lc`.
+
 ## Next
 
 ### Platform review (2026-10-01)
