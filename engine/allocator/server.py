@@ -48,6 +48,7 @@ import threading
 import time
 import urllib.parse
 
+import reset
 from dojo_secret import forgejo_password
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost")
@@ -435,12 +436,12 @@ def find_free_slot():
     return None
 
 
-def control_request(method, path):
+def control_request(method, path, timeout=CONTROL_TIMEOUT):
     """Best-effort call to workspace-control.py inside web-terminal. Never
     raises -- returns None on any failure so a flaky internal call degrades
     gracefully instead of blocking the single-threaded allocator."""
     try:
-        conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=CONTROL_TIMEOUT)
+        conn = http.client.HTTPConnection(WEB_TERMINAL_HOST, CONTROL_PORT, timeout=timeout)
         conn.request(method, path, headers={"X-Control-Token": CONTROL_TOKEN})
         resp = conn.getresponse()
         body = resp.read()
@@ -450,6 +451,48 @@ def control_request(method, path):
         return body
     except (OSError, socket.timeout, http.client.HTTPException):
         return None
+
+
+# -- Student reset (reset.py has the steps and the worker) -----------------
+# workspace-control.py's POST /reset/<user> waits for Forgejo (up to 60 s) and
+# runs every hook, so it gets far longer than CONTROL_TIMEOUT.
+RESET_TERMINAL_TIMEOUT = 300.0
+# Demo bots' Forgejo password (bootstrap.sh and web-terminal use the same).
+BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "testuser123")
+
+
+def reset_terminal(sid):
+    body = control_request("POST", f"/reset/{sid}", timeout=RESET_TERMINAL_TIMEOUT)
+    if body is None:
+        raise reset.ResetError("web-terminal did not answer (or a reset of this account is already running)")
+    result = json.loads(body)
+    failed = [s for s in result.get("steps", []) if not s.get("ok")]
+    if failed:
+        raise reset.ResetError("; ".join(f"{s.get('id')}: {s.get('detail') or 'failed'}" for s in failed))
+    return f"{len(result.get('steps', []))} step(s) ok"
+
+
+def reset_steps(sid):
+    """The steps of one reset, in order (reset.py's module docstring)."""
+    fj = reset.Forgejo(GIT_SERVER_HOST, GIT_SERVER_PORT, FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD)
+    password = BOT_PASSWORD if sid in BOT_IDS else forgejo_password(sid)
+
+    def stop():
+        if control_request("POST", f"/stop/{sid}") is None:
+            raise reset.ResetError("web-terminal did not answer")
+        return "processes stopped"
+
+    return [
+        ("stop", "Stop VS Code and terminal", stop),
+        ("forgejo-teardown", "Forgejo: close pull requests, delete branches and the account",
+         lambda: reset.forgejo_teardown(fj, FORGEJO_ORG, sid)),
+        ("forgejo-provision", "Forgejo: recreate the account",
+         lambda: reset.forgejo_provision(fj, FORGEJO_ORG, sid, password)),
+        ("terminal", "Terminal: home, lab files and hooks", lambda: reset_terminal(sid)),
+    ]
+
+
+RESETS = reset.ResetManager(reset_steps, audit)
 
 
 def local_path(value):
@@ -872,7 +915,7 @@ ADMIN_CSS = SHELL_CSS + """
   .tile-label { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .tile-reload { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }
   .tile-reload:hover { color: #fff; }
-  .tile-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; opacity: 0.85; }
+  .tile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; font-size: 0.72rem; opacity: 0.85; }
   .tile-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile-status { white-space: nowrap; }
   .tile-status.st-on { color: #16a34a; }
@@ -884,6 +927,34 @@ ADMIN_CSS = SHELL_CSS + """
   .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release { margin-left: auto; }
   .tile-release:hover, .tile-pw-btn:hover { background: #7c8494; }
   .tile-release:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #b91c1c; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-reset-btn:hover { background: #dc2626; }
+  .tile-reset-btn:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; font-size: 0.72rem; }
+  .tile-reset:empty { display: none; }
+  .tile-reset .rs-done { color: #16a34a; }
+  .tile-reset .rs-failed { color: #f87171; }
+  .tile-reset .rs-running { color: #facc15; }
+  .tile-reset .rs-pending { color: #888; }
+  .tile-reset .rs-error { flex-basis: 100%; color: #f87171; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-reset button { padding: 0.1rem 0.5rem; font-size: 0.7rem; border-radius: 0.3rem; border: none;
+          background: #6b7280; color: white; cursor: pointer; }
+  #reset-dialog { max-width: 28rem; border: 1px solid #444; border-radius: 0.5rem; padding: 1rem 1.2rem;
+          background: #fff; color: #111; }
+  #reset-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+  #reset-dialog h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+  #reset-dialog p { margin: 0.4rem 0; font-size: 0.85rem; line-height: 1.4; }
+  #reset-dialog ul { margin: 0.3rem 0 0.6rem 1.1rem; padding: 0; font-size: 0.82rem; }
+  #reset-dialog input { width: 100%; box-sizing: border-box; padding: 0.35rem 0.5rem; font: inherit; margin: 0.3rem 0; }
+  #reset-dialog .rd-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem; }
+  #reset-dialog .rd-actions button { padding: 0.35rem 0.9rem; border-radius: 0.35rem; border: 0; cursor: pointer; }
+  #reset-dialog .rd-go { background: #b91c1c; color: #fff; }
+  #reset-dialog .rd-go:disabled { opacity: 0.5; cursor: default; }
+  #reset-dialog .rd-error { color: #b91c1c; min-height: 1.2em; }
+  @media (prefers-color-scheme: dark) {
+    #reset-dialog { background: #1e1e1e; color: #eee; }
+  }
   #roster-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
   #release-unused { padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
     background: #64748b; color: #fff; cursor: pointer; }
@@ -1060,6 +1131,119 @@ function closeEnlarge() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEnlarge(); });
 
+// Roster "Reset" (student reset, allocator/reset.py): puts one student or
+// bot back as at stack start. The facilitator types the id to enable the
+// button; progress comes back in each /admin/api/sessions row's `reset`.
+// Every string goes in through textContent: step details can echo
+// student input.
+const RESET_WHAT = [
+  'their VS Code and terminal are stopped',
+  'their open pull requests are closed and their branches deleted',
+  'their Forgejo account, repositories and forks are deleted and the account made again',
+  'their home folder and lab files are deleted and set up fresh',
+];
+let resetDialog = null;
+
+function resetDialogFor(sid) {
+  if (!resetDialog) {
+    const d = document.createElement('dialog');
+    d.id = 'reset-dialog';
+    const h = make('h2');
+    const p1 = make('p', '', 'This cannot be undone:');
+    const ul = make('ul');
+    RESET_WHAT.forEach(t => ul.appendChild(make('li', '', t)));
+    const p2 = make('p', '', 'Their seat stays theirs; everyone else carries on. Type the id to confirm:');
+    const input = make('input');
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    const err = make('p', 'rd-error');
+    const actions = make('div', 'rd-actions');
+    const cancel = make('button', '', 'Cancel');
+    const go = make('button', 'rd-go', 'Reset');
+    cancel.type = go.type = 'button';
+    actions.append(cancel, go);
+    d.append(h, p1, ul, p2, input, err, actions);
+    document.body.appendChild(d);
+    cancel.onclick = () => d.close();
+    input.oninput = () => { go.disabled = input.value.trim() !== d.dataset.sid; };
+    input.onkeydown = (e) => { if (e.key === 'Enter' && !go.disabled) go.click(); };
+    go.onclick = () => {
+      const target = d.dataset.sid;
+      go.disabled = true;
+      fetch('/admin/reset/' + encodeURIComponent(target), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'dojo-admin', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'confirm=' + encodeURIComponent(input.value.trim()),
+      }).then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, j })))
+        .then(({ ok, j }) => {
+          if (ok) { d.close(); refresh(); return; }
+          err.textContent = String(j.error || 'Reset refused');
+          go.disabled = false;
+        })
+        .catch(() => { err.textContent = 'Reset request failed'; go.disabled = false; });
+    };
+    resetDialog = { d, h, input, go, err };
+  }
+  const rd = resetDialog;
+  rd.d.dataset.sid = sid;
+  rd.h.textContent = 'Reset ' + sid + '?';
+  rd.input.value = '';
+  rd.input.placeholder = sid;
+  rd.err.textContent = '';
+  rd.go.disabled = true;
+  rd.d.showModal();
+  rd.input.focus();
+}
+
+function resetBusy(reset) {
+  return !!reset && (reset.state === 'queued' || reset.state === 'running');
+}
+
+const RESET_MARK = { done: '\u2713', failed: '\u2717', running: '\u2026', pending: '\u00B7' };
+
+// The tile's reset line: nothing until a reset is asked for, then one mark
+// per step (detail on hover), the failing step's error and Retry.
+function updateReset(tile, sid, reset) {
+  const box = tile.querySelector('.tile-reset');
+  const btn = tile.querySelector('.tile-reset-btn');
+  const key = reset ? JSON.stringify(reset) : '';
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.textContent = '';
+  const busy = resetBusy(reset);
+  btn.disabled = busy;
+  if (busy) {
+    // Their terminal is about to go; watch again once the reset is over.
+    const frame = tile.querySelector('iframe');
+    frame.removeAttribute('src');
+    tile.classList.remove('watching');
+  }
+  if (!reset) return;
+  const word = { queued: 'Reset queued', running: 'Resetting', done: 'Reset done', failed: 'Reset failed' };
+  const head = make('span', 'rs-' + (reset.state === 'queued' ? 'pending' : reset.state),
+                    word[reset.state] || String(reset.state));
+  box.appendChild(head);
+  let failed = null;
+  (Array.isArray(reset.steps) ? reset.steps : []).forEach(st => {
+    const status = RESET_MARK[st.status] ? st.status : 'pending';
+    const el = make('span', 'rs-' + status, RESET_MARK[status] + ' ' + String(st.label));
+    if (st.detail) el.title = String(st.detail);
+    box.appendChild(el);
+    if (status === 'failed') failed = st;
+  });
+  if (reset.state === 'failed') {
+    const retry = make('button', '', 'Retry');
+    retry.type = 'button';
+    retry.onclick = (e) => { e.stopPropagation(); resetDialogFor(sid); };
+    box.appendChild(retry);
+    if (failed && failed.detail) {
+      const errEl = make('span', 'rs-error', String(failed.detail));
+      errEl.title = String(failed.detail);
+      box.appendChild(errEl);
+    }
+  }
+}
+
 function buildTile(r) {
   const tile = document.createElement('div');
   tile.className = 'tile';
@@ -1076,8 +1260,12 @@ function buildTile(r) {
   const pw = make('code', 'tile-pw');
   const pwBtn = make('button', 'tile-pw-btn', 'Password');
   const release = make('button', 'tile-release', 'Release');
-  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release);
-  head.append(title, meta);
+  const resetBtn = make('button', 'tile-reset-btn', 'Reset');
+  resetBtn.title = 'Put this account back as at stack start';
+  meta.append(make('span', 'tile-ip', String(r.ip)), status, pw, pwBtn, release, resetBtn);
+  const resetLine = make('div', 'tile-reset');
+  head.append(title, meta, resetLine);
+  resetBtn.onclick = (e) => { e.stopPropagation(); resetDialogFor(r.studentId); };
   label.onclick = () => toggleEnlarge(r.studentId);
   reload.onclick = (e) => { e.stopPropagation(); reloadTile(r.studentId); };
   release.onclick = (e) => { e.stopPropagation(); releaseTile(r.studentId, e.currentTarget); };
@@ -1097,7 +1285,8 @@ function buildTile(r) {
   tile.appendChild(head);
   tile.appendChild(wrap);
   frameObserver.observe(wrap);
-  if (r.watchable) activateWatch(tile, r.studentId);
+  updateReset(tile, r.studentId, r.reset);
+  if (r.watchable && !resetBusy(r.reset)) activateWatch(tile, r.studentId);
   return tile;
 }
 
@@ -1107,7 +1296,8 @@ function updateRoster(rows) {
     seen.add(r.studentId);
     if (tiles[r.studentId]) {
       setStatus(tiles[r.studentId].querySelector('.tile-status'), r.active);
-      if (r.watchable) activateWatch(tiles[r.studentId], r.studentId);
+      updateReset(tiles[r.studentId], r.studentId, r.reset);
+      if (r.watchable && !resetBusy(r.reset)) activateWatch(tiles[r.studentId], r.studentId);
       continue;
     }
     const tile = buildTile(r);
@@ -1751,6 +1941,11 @@ EXT_PANELS_PLACEHOLDER</main>
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
+            if RESETS.fenced(username):
+                self.send_html(page("Resetting", "<main><h1>Your environment is being reset</h1>"
+                                    "<p>Reload this page in a few seconds.</p></main>"),
+                               status=503, headers=NO_STORE_HEADERS)
+                return
             if username == FACILITATOR_USERNAME:
                 forgejo_user, password = FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD
             else:
@@ -1836,6 +2031,15 @@ EXT_PANELS_PLACEHOLDER</main>
             self.end_headers()
             return
 
+        if RESETS.fenced(username):
+            # Being reset: the self-refreshing starting page, as for a
+            # workspace that isn't up yet; it comes back once the reset ends.
+            audit_check("auth-check", username, tool, 202, uri=uri, reset=True)
+            self.send_response(202)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         port = ide_port(username) if tool == "ide" else term_port(username)
         started = time.monotonic()
         resp = control_request("POST", f"/start/{tool}/{username}")
@@ -1882,7 +2086,15 @@ EXT_PANELS_PLACEHOLDER</main>
             denied = 403
         elif "host" in route and not DNS_LABEL_RE.match(username.lower()):
             denied = 403
+        elif RESETS.fenced(username):
+            denied = 503
         audit_check("route-check", username, route_id, denied or 200)
+        if denied == 503:
+            self.send_response(503)
+            self.send_header("Retry-After", "5")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if route is None or route["gate"] not in ("identity", "facilitator"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -1936,7 +2148,7 @@ EXT_PANELS_PLACEHOLDER</main>
             self.end_headers()
             return
 
-        body = control_request("POST", f"/start/watch/{sid}")
+        body = None if RESETS.fenced(sid) else control_request("POST", f"/start/watch/{sid}")
         audit_check("watch", username, sid, 409 if body is None else 200)
         if body is None:
             self.send_response(409)  # student has no term session to watch yet
@@ -1997,6 +2209,7 @@ EXT_PANELS_PLACEHOLDER</main>
                 # this to connect a tile's watch iframe itself the moment
                 # it turns true, instead of only on the next manual reload.
                 "watchable": bool(s.get("watchable", False)),
+                "reset": RESETS.snapshot(sid),
             })
         # Demo bots are always listed (no /assign step -- see BOT_IDS above),
         # right after real students, so a facilitator can watch/Release them
@@ -2011,6 +2224,7 @@ EXT_PANELS_PLACEHOLDER</main>
                 "assignedAt": None,
                 "active": bool(s.get("active", False)),
                 "watchable": bool(s.get("watchable", False)),
+                "reset": RESETS.snapshot(sid),
             })
         self.send_json(rows)
 
@@ -2049,6 +2263,15 @@ EXT_PANELS_PLACEHOLDER</main>
                 return
             sid = path[len("/admin/release/"):]
             self.handle_release(sid)
+            return
+
+        if path.startswith("/admin/reset/"):
+            # Same forgery guard as Release, plus the typed id in the body.
+            if self.headers.get("X-Requested-With") != "dojo-admin":
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.handle_reset(path[len("/admin/reset/"):])
             return
 
         if path == "/admin/release-unused":
@@ -2232,6 +2455,29 @@ EXT_PANELS_PLACEHOLDER</main>
         release_slot(sid)
         self.send_json({"released": sid})
 
+    def handle_reset(self, sid):
+        """The Roster's Reset (reset.py): puts one student or bot back as at
+        stack start. The facilitator types the id (form field `confirm`);
+        the reset runs on the worker thread and its progress shows in
+        /admin/api/sessions. Never the facilitator's own account."""
+        if self.resolve_identity()[0] != FACILITATOR_USERNAME:
+            # Caddy's /admin* basic_auth already decided; checked again here,
+            # as /auth-check-watch does, since a reset deletes data.
+            self.send_response(403)
+            self.end_headers()
+            return
+        if sid not in STUDENT_IDS and sid not in BOT_IDS:
+            self.send_response(404)
+            self.end_headers()
+            return
+        if self.read_form_body().get("confirm") != sid:
+            self.send_json({"error": "type the student id to confirm"}, status=400)
+            return
+        if not RESETS.request(sid):
+            self.send_json({"error": "a reset of this account is already running"}, status=409)
+            return
+        self.send_json({"reset": sid, "state": "queued"}, status=202)
+
     def handle_release_unused(self):
         """The Roster's "Release unused" (remediation T3.4): frees every slot
         taken at least UNUSED_AFTER_SECONDS ago with no IDE or terminal
@@ -2274,6 +2520,7 @@ def make_server(addr):
 
 def main():
     threading.Thread(target=status_probe_loop, name="status-probe", daemon=True).start()
+    RESETS.start()
     server = make_server(("0.0.0.0", 8080))
     server.serve_forever()
 

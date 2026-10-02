@@ -279,6 +279,9 @@ services:
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      # A student reset recreates a demo bot's Forgejo account with this
+      # (allocator/reset.py), as bootstrap.sh made it.
+      - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
       # Shared secret allocator's control_request() sends on every call to
       # web-terminal's control API -- must match web-terminal's own
       # CONTROL_TOKEN above (workspace-control.py checks it on every

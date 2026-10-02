@@ -63,7 +63,7 @@ first if anyone else is using the machine). When the dry run passes, add the sup
 ### 2. Merge `feat/achievements` to `main` (ask before pushing or opening a PR)
 
 After the commit (Priorities 1) and the demo: one regression run with `ACHIEVEMENTS_ENABLED` unset (git-fundamentals
-`--test`: no achievements or sensei container, no toasts or widget, `/workspace` still works) plus `--dry-run` of every
+`--test` with `ACHIEVEMENTS_ENABLED=0` in the shell: no achievements container (sensei stays, it is in every pack's `MODULES`), no toasts or widget, `/workspace` still works) plus `--dry-run` of every
 pack, then PR #5. The branch is 41 commits ahead of `main` and lacks only `LICENSE`; a trial merge (2026-10-01) was
 clean. Phase 9 checks continue on `main`.
 
@@ -149,7 +149,7 @@ editing any `engine/` file**, and before moving between phases.
 | Phase | Scope | Tasks |
 |---|---|---|
 | **R0 spikes** | Throwaway, no engine edits kept | R0.1 list every student-owned file after doing all labs of one workshop · R0.2 Forgejo purge and recreate by hand via the admin API, record what survives · R0.3 manual reset of one vault-fundamentals student (namespace delete plus tenancy hooks) and rerun labs · R0.4 time each step (target under 30 s) |
-| **R1 engine core** | Engine reset machinery | R1.1 done (7172d9b) · R1.2 `account.d`/`reset.d` hook runner and `POST /reset/<user>` in `workspace-control.py` · R1.3 Forgejo teardown and re-provision (per Q6) · R1.4 allocator `POST /admin/reset/<sid>` with worker thread, fence and `reset` in the sessions API · R1.5 Roster UI (Reset item, confirm dialog, progress, Retry) · R1.6 tests in `engine/allocator/tests/` (auth, fence, idempotency, bot reset) and a live check |
+| **R1 engine core** | Engine reset machinery | R1.1 done (7172d9b) · R1.2-R1.4 built 2026-10-01, unit-tested only, nothing live: `account.d`/`reset.d` runner (entrypoint, all accounts after `start.d`) and `POST /reset/<user>` in `workspace-control.py`; `allocator/reset.py` (Forgejo teardown: close the student's open PRs and delete their branches in every org repo, then delete the account with purge; re-provision; one worker thread); `POST /admin/reset/<sid>` (facilitator, `X-Requested-With`, typed `confirm=<sid>`), fence on `/auth-check` (starting page), routes (503), `/forgejo-login`, watch; `reset` in `/admin/api/sessions`. Still to confirm live, with the R0 spikes: what purge removes in the org repo, whether the name can be recreated at once, the new token reaching git, a bot restarting from round 1 · R1.5 built 2026-10-01: Roster tile **Reset** (red), a dialog listing what goes and enabling the button only once the id is typed, a per-step progress line (✓ ✗ …, detail on hover), the failing step's error and **Retry**; the watch view drops during a reset and reconnects after. Checked in Chromium against a local allocator with fake sessions (1400 px and 390 px, no console errors, an error with `<script>` shown as text), not on a stack · R1.6 tests in `engine/allocator/tests/` (auth, fence, idempotency, bot reset) and a live check |
 | **R2 hook contract** | How hooks are declared and called | `resets` in `render_extensions.py` (with tests) · `RESET_TOKEN` in `env-setup.sh` and compose · the allocator calls service hooks with a per-hook timeout and results |
 | **R3 adoption** | Modules and workshops reset their own state | `dojo-cloud` (reset endpoint on cloud-api, reuse `_purge`; live check on tofu-basics) · `openbao` plus vault tenancy/CI/platform via `openbao-reset` (R9) · `runner-pool` and `forgejo-runner` · vault `app-host` (both slots; the capstone slot locks again) and `app-db` · dns-ui, dns-as-code, cert-autorenewal per Q3 (move any per-account `start.d` work to `account.d`) · achievements: clear or keep the student's score (A28) |
 | **R4 docs and live pass** | Documentation and verification | `engine/README.md` "Facilitator operations" · `workshops/README.md` hook contract · module READMEs · per workshop: break a student on purpose, reset, redo the first labs as them while a second student carries on |
@@ -178,7 +178,6 @@ file**. Phases 0-8 are done (RELEASES); phase 9 is built and live on git-fundame
 
 | Item | Detail |
 |---|---|
-| **Decision: certificate variables** | `ACHIEVEMENTS_SIGNATURE` / `ACHIEVEMENTS_CLASS_DATE` are in the module `compose.yml` but not in `engine/.env.example`; adding them is an engine edit and needs the user's OK |
 | Phase 3: zsh hook | Not run with a prompt framework (oh-my-zsh, powerlevel10k) in the real terminal image |
 | Not looked at in a browser | A red negative score (board, widget, `/admin`) and a negative toast in VS Code; the badge PNG download, capstone badge tier and a typed certificate name; a real student's stale-branch roster PR |
 | Known quirks | Round 1's `git reset --hard HEAD~1` fails with "unknown revision" in `bot-runner.sh` (engine; round 2 succeeds) · a signed event whose user doesn't exist burns its nonce · `lab0.md.txt` 404s in the git-fundamentals lab reader (harmless probe) · the widget only resizes once `toast.js` has loaded |
