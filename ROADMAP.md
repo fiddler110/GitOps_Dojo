@@ -191,7 +191,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | M | Needs a Mac / Docker host. Docker instead of podman (only podman here); macOS's system Python 3.9 (click 8.1.8 and rich 15 support it, not run); `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection; zsh completion on macOS (it passed in an interactive zsh here); the `dojo` command and `setup`/`alias-setup`/`capacity` under bash 3.2 and BSD tools. Steps: [`C5-guide.md`](C5-guide.md) |
+| C5 | Untested paths | M | The Mac run passed on podman (RELEASES); left, needing Docker Desktop with `podman-compose` off the PATH: the Docker path (start, `restart <service>` recreating only that service, `stop`), `CORP_CA_BUNDLE` and the no-bundle error behind TLS inspection, a browser session on the Mac (terminal, VS Code), real Tab presses in zsh. Also seen once there: one allocator test failed with `ConnectionResetError` in a socket read (160/161; a rerun passed), so watch for a flaky handler test. Steps: [`C5-guide.md`](C5-guide.md) |
 
 ### Remediation leftovers
 
