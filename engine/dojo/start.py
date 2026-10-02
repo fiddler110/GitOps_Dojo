@@ -478,6 +478,8 @@ def _compose_up(p: Plan) -> int:
     if problems:
         changed("not ready yet: " + ", ".join(f"{c.service} ({c.status})" for c in problems))
         explain_not_ready(p.rt, problems)
+    if rc == 0 and p.o.fast and p.env.get("BOT_COUNT", "0") != "0":
+        release_bots(p.rt)
     if rc != 0:
         console.print("The run stays recorded so `./run.sh stop` can remove what did start; "
                       "fix the error, then `./run.sh stop` and start again.")
@@ -509,6 +511,17 @@ def _open_up_log():
     fd, log_path = tempfile.mkstemp(prefix="dojo-up.")
     console.print(f"Compose output is in {log_path} (deleted once the start succeeds)")
     return os.fdopen(fd, "w"), log_path
+
+
+BOTS_GO = "/run/dojo-bots-go"
+
+
+def release_bots(rt) -> None:
+    """--fast bots wait for this file before round 1, so they start on a stack that is up, not one still starting."""
+    if rt.run("exec", "workshop_terminal", "touch", BOTS_GO).returncode == 0:
+        ok("Bots released: every container is up, round 1 starts now")
+    else:
+        changed(f"Couldn't release the bots: run 'podman exec workshop_terminal touch {BOTS_GO}'")
 
 
 def run_restart(services_: List[str], clean: bool) -> int:

@@ -66,24 +66,17 @@ may be using the machine).
 Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it
 wipes volumes). Order goes from smallest blast radius to largest, so a core defect shows up on the cheapest pack.
 Each step: start with `--test --fast`, wait for the 3 `~/.dojo-bot-done` markers, then compare fired items against the pack's `ACHIEVEMENTS.md`.
-Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02), vault-fundamentals (2026-10-02).
+Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02), vault-fundamentals (2026-10-02), git-fundamentals challenges and the box with achievements off (2026-10-02).
 
 | Step | Work | Effort | Description |
 |---|---|---|---|
-| 9.x | Challenges in the labs (every pack) | M | Built 2026-10-01, unit-tested only: every workshop's labs end the right lab with a `## Challenge ...` / `## Capstone ...` section and its `<!-- dojo-challenge: ID -->` box, and each lab README lists them. dns-as-code, cert-autorenewal, tofu-basics and vault-fundamentals passed 2026-10-02 (see RELEASES). Left: git-fundamentals: each challenge's repo clones under `~/lab/`, solve one per pack (cert solved all four), `dojo-check`, Reset, Sensei `ask` clean; and once, with achievements **off**, the lab box must not appear, `dojo-check`, and Reset |
-| 9.4 | Class-sized concurrency run (last) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
+| 9.4 | Class-sized concurrency run (last; skipped for now, 2026-10-02) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
 
 Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
 `when` text for any approximation that proved wrong.
 
-**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.3, C6 and `--fast` bots are done (RELEASES).
-1. **git-fundamentals challenges, then the box with achievements off** (9.x). `./run.sh git-fundamentals` with
-   achievements on and no bots: solve c1 (a `hotfix-<user>` PR fixing your role typo in `roster/team.yaml`), c2 (`git
-   log -S` the target line, hash and author in `answer.txt` on `case-<user>`) and the capstone (merge `feature-a` and
-   `feature-b` through one PR, resolve the CHANGELOG conflict, undo "Make deploys faster"); `dojo-check`, a reset,
-   `sensei ask`. `modules/achievements/tools/box.py lab1.md.txt` must find the box; then stop, start with
-   `ACHIEVEMENTS_ENABLED=0` and it must find none.
-2. **9.4, the class-sized run: ask the user first.**
+**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.3, 9.x, C6 and `--fast` bots are done (RELEASES); only 9.4 is left.
+1. **9.4, the class-sized run: skipped for now (user, 2026-10-02).** Ask before starting it.
 
 Tools (`modules/achievements/tools/`, run from the repo root): `fired.py <workshop>` lists each catalog item with who
 earned it and the never-fired ids; `botaudit.py <workshop>` runs every bot command through the real matcher (static:

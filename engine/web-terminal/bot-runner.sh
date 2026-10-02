@@ -329,8 +329,9 @@ step_ensure_clone() {
 }
 
 step_sync_main() {
-  if [ "$PERSONA" = "novice" ] && [ $(( RANDOM % 100 )) -lt 30 ]; then
+  if [ "$PERSONA" = "novice" ] && { [ "$BOT_FAST" = 1 ] || [ $(( RANDOM % 100 )) -lt 30 ]; }; then
     narrate "(demo) checking status before actually being in the repo directory"
+    cd "$HOME" || return 1   # step_ensure_clone left the bot in the repo, where this wouldn't be a mistake
     run_cmd "git status"
     narrate "right -- wrong directory. Heading into the repo."
   fi
@@ -352,27 +353,24 @@ step_sync_main() {
   run_cmd "git fetch --prune"
   orient
 
-  if [ -n "$PENDING_PR_NUMBER" ]; then
-    local merged
-    merged="$(api_curl "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls/$PENDING_PR_NUMBER" | grep -o '"merged":[a-z]*' | head -1 | cut -d: -f2)"
-    if [ "$merged" = "true" ]; then
-      narrate "PR #$PENDING_PR_NUMBER ($PENDING_PR_BRANCH) was merged -- cleaning up the local branch"
-      # -D, not -d: a facilitator merging via Forgejo's squash option (not
-      # guaranteed to happen promptly, or at all, during a live demo)
-      # leaves this branch's commits unreachable from main, so the safe
-      # "-d" fails with "not fully merged". The API already told us it's
-      # merged, so force the local delete rather than leaving a stale
-      # branch (and, since step_sync_main's exit status now controls
-      # whether this step gets retried -- see the main loop below --
-      # leaving that failure unhandled would also wedge this step
-      # retrying forever instead of just cleaning up and moving on).
-      run_cmd "git branch -D '$PENDING_PR_BRANCH'"
-    else
-      narrate "PR #$PENDING_PR_NUMBER ($PENDING_PR_BRANCH) not merged yet -- leaving it for the facilitator, moving on"
-    fi
-    PENDING_PR_BRANCH=""
-    PENDING_PR_NUMBER=""
+  cleanup_merged_pr
+}
+
+# Last round's PR: if it was merged, delete its local branch, as Lab 1 ends. `-d` first, as the lab does; a
+# facilitator's squash merge leaves the branch's commits off main, so `-d` refuses and `-D` (the API already
+# said it's merged) cleans up instead of leaving this step to retry forever.
+cleanup_merged_pr() {
+  [ -n "$PENDING_PR_NUMBER" ] || return 0
+  local merged
+  merged="$(api_curl "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls/$PENDING_PR_NUMBER" | grep -o '"merged":[a-z]*' | head -1 | cut -d: -f2)"
+  if [ "$merged" = "true" ]; then
+    narrate "PR #$PENDING_PR_NUMBER ($PENDING_PR_BRANCH) was merged -- cleaning up the local branch"
+    run_cmd "git branch -d '$PENDING_PR_BRANCH'" || run_cmd "git branch -D '$PENDING_PR_BRANCH'"
+  else
+    narrate "PR #$PENDING_PR_NUMBER ($PENDING_PR_BRANCH) not merged yet -- leaving it for the facilitator, moving on"
   fi
+  PENDING_PR_BRANCH=""
+  PENDING_PR_NUMBER=""
 }
 
 step_lab1_branch_and_edit() {
@@ -540,6 +538,8 @@ step_lab5_undo() {
   run_cmd "git commit -m 'Oops, wrong entry'"
   run_cmd "git reset --soft HEAD~1"
   run_cmd "git status"
+  # --soft kept the change staged: commit it again, then drop it for good (one commit back again, as Lab 5 does).
+  run_cmd "git commit -m 'Oops, wrong entry'"
   run_cmd "git reset --hard HEAD~1"
   run_cmd "git status"
 
@@ -557,6 +557,15 @@ step_lab5_undo() {
 step_wrap_round() {
   cd "$REPO_DIR" || return 1
   run_cmd "git checkout main"
+  if [ "$BOT_FAST" = 1 ] && [ -n "$PENDING_PR_NUMBER" ]; then
+    # --fast has no round 2, where step_sync_main would clean up this round's PR: give it a minute to be merged.
+    local n=0
+    if [ "$FORGEJO_FORK_WORKFLOW" = 1 ]; then local pull="git pull -q upstream main"; else local pull="git pull -q"; fi
+    until api_curl "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls/$PENDING_PR_NUMBER" | grep -q '"merged":true' \
+        || [ "$n" -ge 12 ]; do n=$((n + 1)); sleep 5; done
+    run_cmd "$pull"
+    cleanup_merged_pr
+  fi
   narrate "round $ROUND done -- taking a short break before round $((ROUND + 1))"
   sleep "$(rand_between "$BOT_ROUND_BREAK_MIN" "$BOT_ROUND_BREAK_MAX")"
 }
@@ -645,6 +654,20 @@ narrate "=== GitOps Dojo demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
 # persistently-broken step (e.g. a genuinely wrong FORGEJO_ORG) from
 # hammering git-server/Forgejo at full human-typing cadence forever.
 step_fail_count=0
+
+# --fast has no pacing to hide a stack that is still starting: a round can end before Forgejo has made this bot's
+# account, or before a module (achievements) can record anything. Wait for run.sh's go (/run/dojo-bots-go, made
+# once every container is up), then for the account and each module's bot_ready (a bot.d hook may define one).
+if [ "$BOT_FAST" = 1 ]; then
+  ready_end=$(( SECONDS + 900 ))
+  [ -e /run/dojo-bots-go ] || narrate "FAST: waiting for run.sh to release the bots"
+  until [ -e /run/dojo-bots-go ] && [ "$(api_curl -o /dev/null -w '%{http_code}' "http://${GIT_SERVER}/api/v1/user")" = 200 ] \
+      && { ! declare -F bot_ready >/dev/null || bot_ready; }; do
+    [ "$SECONDS" -lt "$ready_end" ] || { narrate "FAST: stack still not ready after 15 minutes -- starting anyway"; break; }
+    sleep 3
+  done
+  narrate "FAST: stack ready after ${SECONDS}s"
+fi
 
 while true; do
   for (( i=0; i<${#STEPS[@]}; i++ )); do

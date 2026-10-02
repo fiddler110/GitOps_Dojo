@@ -10,7 +10,7 @@ from unittest import mock
 
 from dojo import start, state
 from dojo.monitor import clean_log_line
-from dojo.start import StartOptions, StartError, bot_count, parse_recorded
+from dojo.start import BOTS_GO, StartOptions, StartError, bot_count, parse_recorded, release_bots
 from dojo.runtime import Container, Runtime
 from dojo.stop import _volumes_in_config
 
@@ -41,6 +41,19 @@ class Recorded(unittest.TestCase):
         self.assertEqual(bot_count(StartOptions("x", test="", fast=True), {}), "3")
         with self.assertRaises(StartError):
             bot_count(StartOptions("x", fast=True), {})
+
+
+class ReleaseBots(unittest.TestCase):
+    def test_touches_the_go_file_in_the_terminal(self):
+        calls = []
+
+        class Rt:
+            def run(self, *args):
+                calls.append(args)
+                return type("R", (), {"returncode": 0})()
+
+        release_bots(Rt())
+        self.assertEqual(calls, [("exec", "workshop_terminal", "touch", BOTS_GO)])
 
 
 class LogLines(unittest.TestCase):
