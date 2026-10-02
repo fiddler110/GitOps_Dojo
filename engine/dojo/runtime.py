@@ -2,6 +2,7 @@
 Same rule as engine/scripts/lib.sh, so the shell scripts and the CLI agree."""
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import shutil
@@ -108,6 +109,32 @@ class Runtime:
         for c in rows:
             c.oneshot = self._oneshot.get(c.id, False)
         return sorted(rows, key=lambda c: (c.service, c.name))
+
+    def dependents(self, containers: List[Container], services: List[str]) -> List[str]:
+        """The services whose containers depend on a container of `services`, directly or
+        through another, by podman's own record (`depends_on` becomes a hard link under
+        podman-compose). podman won't remove a container others depend on, so recreating
+        one alone leaves the old one running. Docker keeps no such link: []."""
+        if self.cli != "podman" or not containers:
+            return []
+        deps, svc = {}, {}
+        for line in self.out("inspect", "--format", "{{.Id}}|{{json .Dependencies}}",
+                             *[c.id for c in containers]).splitlines():
+            full, _, raw = line.partition("|")
+            try:
+                deps[full] = json.loads(raw) or []
+            except ValueError:
+                deps[full] = []
+            svc[full] = next((c.service for c in containers if full.startswith(c.id)), "")
+        want = set(services)
+        grew = True
+        while grew:
+            grew = False
+            for full, needs in deps.items():
+                if svc[full] and svc[full] not in want and any(svc.get(d) in want for d in needs):
+                    want.add(svc[full])
+                    grew = True
+        return sorted(want - set(services))
 
     def volumes(self, project: str) -> List[str]:
         return [v for v in self.out("volume", "ls", "-q").split() if v.startswith(f"{project}_")]

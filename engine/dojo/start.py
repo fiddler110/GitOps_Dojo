@@ -248,6 +248,13 @@ def _start(o: StartOptions) -> int:
         cur = state.read_current()
         if cur is None or cur.workshop != o.workshop or cur.files != files:
             who = cur.workshop if cur and cur.workshop else "a stack this checkout didn't start"
+            if cur is not None and cur.workshop == o.workshop and not o.dry_run:
+                added = [f for f in files if f not in cur.files]
+                gone = [f for f in cur.files if f not in files]
+                raise StartError(f"Refusing to start: {o.workshop} is running with other Compose files "
+                                 f"(now adds {' '.join(added) or 'nothing'}, drops {' '.join(gone) or 'nothing'}).\n"
+                                 "Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or './run.sh stop' "
+                                 "first (it deletes every volume).")
             if o.dry_run:
                 bad(f"{who} is still running: a real start would refuse until './run.sh stop'.")
                 console.print()
@@ -361,8 +368,12 @@ def _build_and_up(o, rt, res, env, project, links, files, overlay_dirs, compose,
     up_extra: List[str] = []
     title = env.get("WORKSHOP_NAME") or o.workshop
     if o.recreate:
+        also = rt.dependents(running, o.recreate)
         step(f"Restarting {' '.join(o.recreate)} in '{o.workshop}' (volumes kept)")
-        up_extra = ["--force-recreate", "--no-deps", *o.recreate]
+        if also:
+            console.print(f"Also recreating {' '.join(also)}: they depend on it, and podman can't replace a "
+                          "container others depend on.")
+        up_extra = ["--force-recreate", "--no-deps", *o.recreate, *also]
     elif o.recreate is not None:
         step(f"Restarting workshop '{o.workshop}' ({title}): every container recreated, volumes kept")
         up_extra = ["--force-recreate"]
@@ -433,6 +444,12 @@ def run_restart(services_: List[str], clean: bool) -> int:
             return code
         return run_start(o)
     o.recreate = list(services_)
+    # Achievements are the one module the environment (not workshop.env) switches on:
+    # repeat what the running start did unless this shell says otherwise.
+    cur = state.read_current()
+    if cur and cur.workshop == o.workshop and "ACHIEVEMENTS_ENABLED" not in os.environ:
+        on = any(f.endswith("/achievements/compose.yml") for f in cur.files)
+        os.environ["ACHIEVEMENTS_ENABLED"] = "1" if on else "0"
     return run_start(o)
 
 

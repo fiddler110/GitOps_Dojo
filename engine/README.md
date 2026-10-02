@@ -493,6 +493,11 @@ that has visited once won't fall back to plain HTTP for a day.
 ./run.sh logs <service> [-f]   # one service's log, by Compose service name
 ```
 
+`restart <service>` also recreates the services that depend on it under podman (it won't replace a container
+others are linked to), and says which; restarting `step-ca` in cert-autorenewal, say, recreates the student
+terminal too, so open terminal sessions reconnect (homes are volumes). A restart repeats the running start's
+achievements setting unless `ACHIEVEMENTS_ENABLED` is set in the shell.
+
 **The `dojo` CLI.** `run.sh` is a short wrapper around a Python command line in
 `engine/dojo/` (Click for commands and completion, Rich for the display). Python 3.9+
 is the only requirement, and podman-compose already needs it. The first run
