@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check and render workshop/module extensions (engine/MODULES-PLAN.md §3).
+"""Check and render workshop/module extensions (docs/archive/MODULES-PLAN.md §3).
 
 A workshop pack or module declares its front door -- landing cards, /admin
 tabs, gated routes, status checks -- in an extensions.json. This script

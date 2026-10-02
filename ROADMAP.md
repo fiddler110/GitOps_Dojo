@@ -350,4 +350,3 @@ the facilitator.
 | Item | Detail |
 |---|---|
 | Take-home handouts and PowerPoint decks | Parked: `handouts/` (lab handouts, starter repos, deck export script), the `.githooks` pre-commit and the CI `handouts` checks were all deleted because they had drifted from the labs. Recover from git history if wanted again |
-| Stale plan references | Many code comments and READMEs cite plan sections (`PLAN.md §5.5`, `MODULES-PLAN.md §4.2`, `engine/student-reset.md`). The files now live in `docs/archive/` under new names (`TOFU-BASICS-PLAN.md`, `VAULT-FUNDAMENTALS-PLAN.md`, `MODULES-PLAN.md`, `STUDENT-RESET-PLAN.md`, `REMEDIATION-PLAN.md`). Outside `engine/` done 2026-10-01 (the rest already point at the archive names, and every cited section exists). Comments in `engine/` were left alone (engine edits need approval); reword them when next touched |

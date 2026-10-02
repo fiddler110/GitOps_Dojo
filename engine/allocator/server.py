@@ -249,7 +249,7 @@ LOGIN_ASSETS = _load_login_assets()
 with open(os.path.join(LOGIN_DIR, "login.html"), encoding="utf-8") as _f:
     LOGIN_HTML = _f.read()
 
-# Workshop/module extensions (engine/MODULES-PLAN.md §3): cards, /admin tabs,
+# Workshop/module extensions (docs/archive/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
 # (run.sh, before start) and mounted read-only. Missing means none.
 EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extensions.json")

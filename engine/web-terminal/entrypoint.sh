@@ -311,7 +311,7 @@ echo "Provisioned $student_count student terminal accounts."
 echo "Facilitator shell username: $facilitator_username"
 echo "Student shell usernames: ${student_prefix}01 through $(printf '%s%02d' "$student_prefix" "$student_count")"
 
-# Start-up hooks (engine/MODULES-PLAN.md M11): modules and workshops drop
+# Start-up hooks (docs/archive/MODULES-PLAN.md M11): modules and workshops drop
 # /etc/dojo/start.d/NN-<name>.sh into their terminal image instead of
 # replacing this ENTRYPOINT (wrappers can't stack). They run in name order,
 # as root, after every account exists and before the workspaces are served;

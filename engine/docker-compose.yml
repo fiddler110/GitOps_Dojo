@@ -134,7 +134,7 @@ services:
       context: ./web-terminal
     # run.sh builds :base from ./web-terminal, then any module and workshop
     # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
-    # see engine/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
+    # see docs/archive/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
     # last link. Overlays no longer set image: here themselves.
     image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_terminal
