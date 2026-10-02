@@ -10,6 +10,7 @@ front-door reached `main` in PR #4, and their branches are deleted).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities-decided-2026-10-01) | The order of work, decided at the 2026-10-01 review |
+| [Up next](#up-next-resume-here-written-2026-10-01-after-c3356cb) | Where to resume: RV2, RV6, RV7, then CI; open questions |
 | [Now](#now) | Home demo dry run, merges, phase 9 live checks |
 | [Next](#next) | Platform review (RV1-RV37); student reset; achievements leftovers and reference; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks-the-user-in-a-browser) | Browser passes only the user can do |
@@ -34,6 +35,39 @@ front-door reached `main` in PR #4, and their branches are deleted).
 9. **Platform review tiers 3-4** (RV20-RV37): refactors, then new features and workshops.
 
 The user's own browser checks (Manual checks) fit in around these; tofu-basics T9.4/T9.9 are the oldest.
+
+## Up next (resume here; written 2026-10-01 after `c3356cb`)
+
+The platform review's engine fixes are committed (`c3356cb`, see RELEASES). Pick up in this order. Each step:
+cheap checks per fix, then one combined live run (`podman ps` first: another session may be using the machine).
+
+1. **RV2, achievements state writes** (`modules/achievements/service/store.py`). `_save()` runs under `self.lock` at
+   about ten call sites (lines ~93-376), including `me()` (~171), which every student's widget polls. Plan: a
+   `_dirty` flag set where `_save()` is called today; a background thread that writes when dirty and at least 1-2 s
+   have passed since the last write; a flush on SIGTERM and at shutdown; drop the save from `me()` unless it
+   actually registered a new user. Keep the temp file + rename. Tests: the module has 290; add one for "state
+   written within N s and after SIGTERM". Live: `./run.sh git-fundamentals --test 3`, restart `achievements`,
+   scores identical before and after.
+2. **RV6, runner-pool controller lock** (`modules/runner-pool/controller/controller.py`). `tick()` (~331) holds the
+   RLock (~218) across `_refresh()` (~236), which calls Forgejo. Plan: call Forgejo with no lock held, then take the
+   lock only to swap `snapshot` in; `/api/state` and `/healthz` read the snapshot reference without the lock.
+   Check `test_controller.py`. Live: dns-as-code `--test 3`, Runners panel, with a pipeline running.
+3. **RV7, sensei global lock** (`modules/sensei/server.py`, `lock` at ~45, used ~119-196; Forgejo calls in
+   `support.py`). Plan: per-user locks (a dict of locks guarded by one small lock) for status/review/approve, and
+   no lock around the facilitator's `/api/prs` Forgejo calls. `test_bot.py` plus a new concurrency test (one slow
+   fake Forgejo call must not block another user).
+4. **Then tier 2** (Next → Platform review): RV13 CI workflow first (unit tests for engine/dojo, allocator,
+   achievements, sensei; `./run.sh <w> --dry-run` for every pack; the catalog validator), then RV14 docs, RV15
+   allocator handler tests.
+
+**Open questions for the user** (answer before or while doing the above):
+- A **"Release all" button** on `/admin`: `restart allocator` no longer clears assignments now that slots persist;
+  today the documented way is deleting `slots.json` first (`engine/README.md`). Add the button (engine change)?
+- **RV20/RV21 shared helpers**: each module builds from its own folder, so a shared `dojo_http.py` needs a decision:
+  copy it in at build time from `modules/_shared/` (needs a build-context change in `engine/dojo/build.py`), or
+  vendor it per module with a drift check like `check-pins.sh`.
+- **RV36 next workshop**: policy as code (cheap, reuses dojo-cloud and runner-pool) or GitOps with a reconciler
+  (Argo CD/Flux on k3s; biggest gap, needs a capacity check first)?
 
 ## Now
 
