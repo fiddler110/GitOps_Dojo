@@ -4,8 +4,8 @@ Off unless ACHIEVEMENTS_ADAPTER_URL and ACHIEVEMENTS_ADAPTER_SECRET are both set
 takes one audit response entry (the raw JSON object OpenBao wrote) and, when it is something a
 student did, posts {source: "bao", event, user, ...} signed with the shared secret (HMAC-SHA256
 of the raw body, header X-Adapter-Signature), the same contract as the dns-gate module. Posts go
-through one bounded queue and one worker thread that swallows every error: reporting must never
-slow down or break the audit tail, and a full queue just drops events.
+through the shared adapter_client (one bounded queue, one worker thread that swallows every
+error): reporting must never slow down or break the audit tail, and a full queue just drops events.
 
 What each field is derived from (the audit log HMACs every request/response *string value* in
 `data`, so a role name or a secret ID is never readable here; paths, operations, policies and
@@ -28,12 +28,13 @@ display names are not hashed):
           login, so the policy stands in for it: `ci-read` for Lab 9's jobs, `app-read` for the
           app, `app-deliver` for the pipeline, `nightly-report` for the leaked token.)
 """
-import hashlib
-import hmac
-import json
-import queue
-import threading
-import urllib.request
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+# adapter_client: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+from adapter_client import AdapterClient  # noqa: E402
 
 STUDENTS = "students/"
 SKIP_PREFIXES = ("sys/internal/", "sys/capabilities-self", "sys/health", "sys/seal-status", "sys/leader",
@@ -114,32 +115,9 @@ def classify(entry):
 
 class Reporter:
     def __init__(self, url, secret, timeout=2, send=None, size=500):
-        self.url, self.secret, self.timeout = url, secret, timeout
-        self.enabled = bool(url and secret)
-        self._send = send or self._post
-        self.queue = queue.Queue(maxsize=size)
+        self.client = AdapterClient(url, secret, "bao", timeout=timeout, send=send, size=size)
+        self.enabled = self.client.enabled
         self.live = False       # off while the first pass reads what was logged before we started
-        self.worker = None
-
-    def _post(self, raw, sig):
-        req = urllib.request.Request(self.url, data=raw, method="POST", headers={
-            "Content-Type": "application/json", "X-Adapter-Signature": sig})
-        urllib.request.urlopen(req, timeout=self.timeout).read()
-
-    def _run(self):
-        while True:
-            raw = self.queue.get()
-            sig = hmac.new(self.secret.encode(), raw, hashlib.sha256).hexdigest()
-            try:
-                self._send(raw, sig)
-            except Exception:  # noqa: BLE001 - reporting is best effort
-                pass
-            self.queue.task_done()
-
-    def start(self):
-        if self.enabled and self.worker is None:
-            self.worker = threading.Thread(target=self._run, daemon=True)
-            self.worker.start()
 
     def entry(self, entry):
         """Report one audit entry if it is a student's doing. Never raises, never blocks."""
@@ -148,6 +126,6 @@ class Reporter:
         try:
             ev = classify(entry)
             if ev:
-                self.queue.put_nowait(json.dumps(ev, separators=(",", ":")).encode())
+                self.client.post(ev)
         except Exception:  # noqa: BLE001
             pass

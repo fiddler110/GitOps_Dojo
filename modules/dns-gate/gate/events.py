@@ -3,15 +3,20 @@
 Off unless ACHIEVEMENTS_ADAPTER_URL and ACHIEVEMENTS_ADAPTER_SECRET are both set. The gate calls
 `Reporter.patched` after PowerDNS accepted a change made with an account's own key, and
 `Reporter.refused` when the gate refused a write. Each is posted, signed with the shared secret
-(HMAC-SHA256 of the raw body, header X-Adapter-Signature), from a short-lived thread that swallows
-every error: reporting must never slow down or break a zone change. The gate keeps the last
+(HMAC-SHA256 of the raw body, header X-Adapter-Signature), through the shared adapter_client (one
+bounded queue, one worker that swallows every error): reporting must never slow down or break a
+zone change. The gate keeps the last
 records it saw per zone in memory to tell a new record from an edited one.
 """
-import hashlib
-import hmac
 import json
+import os
+import sys
 import threading
-import urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+# adapter_client: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
+from adapter_client import AdapterClient  # noqa: E402
 
 
 def summarise(state, zone, body):
@@ -50,39 +55,19 @@ def summarise(state, zone, body):
 
 class Reporter:
     def __init__(self, url, secret, timeout=2, send=None):
-        self.url, self.secret, self.timeout = url, secret, timeout
-        self.enabled = bool(url and secret)
+        self.client = AdapterClient(url, secret, "dns", timeout=timeout, send=send)
+        self.enabled = self.client.enabled
         self.state, self.lock = {}, threading.Lock()
-        self._send = send or self._post
 
-    def _post(self, raw, sig):
-        req = urllib.request.Request(self.url, data=raw, method="POST", headers={
-            "Content-Type": "application/json", "X-Adapter-Signature": sig})
-        urllib.request.urlopen(req, timeout=self.timeout).read()
-
-    def _emit(self, doc, wait=False):
-        raw = json.dumps(dict(doc, source="dns"), separators=(",", ":")).encode()
-        sig = hmac.new(self.secret.encode(), raw, hashlib.sha256).hexdigest()
-
-        def run():
-            try:
-                self._send(raw, sig)
-            except Exception:  # noqa: BLE001 - reporting is best effort
-                pass
-        t = threading.Thread(target=run, daemon=True)
-        t.start()
-        if wait:
-            t.join()
-
-    def patched(self, user, zone, body, wait=False):
+    def patched(self, user, zone, body):
         if not self.enabled:
             return
         with self.lock:
             s = summarise(self.state, zone.lower().rstrip(".") + ".", body)
         if s:
             s["zone"] = s["zone"].rstrip(".")
-            self._emit(dict(s, event="zone_patch", user=user), wait)
+            self.client.post(dict(s, event="zone_patch", user=user))
 
-    def refused(self, user, zone, wait=False):
+    def refused(self, user, zone):
         if self.enabled:
-            self._emit({"event": "api_refused", "user": user, "zone": (zone or "").rstrip(".")}, wait)
+            self.client.post({"event": "api_refused", "user": user, "zone": (zone or "").rstrip(".")})

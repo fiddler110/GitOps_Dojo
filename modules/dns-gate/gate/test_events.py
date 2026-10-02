@@ -41,8 +41,9 @@ class Reporting(unittest.TestCase):
     def test_signed_post_and_off_switch(self):
         sent = []
         r = events.Reporter("http://x", "secret", send=lambda raw, sig: sent.append((raw, sig)))
-        r.patched("amy", "amy.dojo.test", patch(rr("www.amy.dojo.test.", "1.1.1.1")), wait=True)
-        r.refused("amy", "dojo.test.", wait=True)
+        r.patched("amy", "amy.dojo.test", patch(rr("www.amy.dojo.test.", "1.1.1.1")))
+        r.refused("amy", "dojo.test.")
+        r.client.flush()
         self.assertEqual(len(sent), 2)
         raw, sig = sent[0]
         self.assertEqual(sig, hmac.new(b"secret", raw, hashlib.sha256).hexdigest())
@@ -51,13 +52,16 @@ class Reporting(unittest.TestCase):
                          ("dns", "zone_patch", "amy", "amy.dojo.test", True))
         self.assertEqual(json.loads(sent[1][0])["zone"], "dojo.test")
         off = events.Reporter("", "", send=lambda *a: sent.append(a))
-        off.patched("amy", "z", patch(), wait=True)
+        off.patched("amy", "z", patch())
+        off.client.flush()
         self.assertEqual(len(sent), 2)
 
     def test_a_failing_send_is_swallowed(self):
         def boom(raw, sig):
             raise OSError("down")
-        events.Reporter("http://x", "s", send=boom).refused("amy", "z", wait=True)
+        r = events.Reporter("http://x", "s", send=boom)
+        r.refused("amy", "z")
+        r.client.flush()
 
 
 if __name__ == "__main__":

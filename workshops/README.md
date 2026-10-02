@@ -305,6 +305,12 @@ and `is_facilitator` (identity only alongside the right `X-Gateway-Token`, faili
 closed when it's unset), `token_ok`, the security headers (`SECURITY_HEADERS`, a
 strict `CSP`) and `send`/`send_json` for an `http.server` handler.
 
+`modules/_shared/adapter_client.py` is for a module that tells the achievements service what a
+student did (dns-gate, cloud-api, openbao-audit): `AdapterClient(url, secret, source).post(doc)`
+signs the event and hands it to one bounded queue with one worker thread. It never raises or
+blocks; it is off unless both `ACHIEVEMENTS_ADAPTER_URL` and `ACHIEVEMENTS_ADAPTER_SECRET` are
+set, and a full queue drops the event. Tests pass `send=` and call `flush()`.
+
 Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
 [`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/) and
 [`forgejo-runner`](../modules/forgejo-runner/) (a long-lived runner for one repo; no workshop uses it since

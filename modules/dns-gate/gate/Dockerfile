@@ -3,6 +3,7 @@
 FROM docker.io/library/python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154777cf012a4ece5f86097130d7a4478111
 WORKDIR /app
 COPY gate.py events.py /app/
+COPY _shared/ /app/_shared/
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER nobody
 EXPOSE 8081

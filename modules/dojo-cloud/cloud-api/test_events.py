@@ -23,8 +23,8 @@ class Recorder(events.Reporter):
         self.sent.append((json.loads(raw), sig, raw))
 
     def emit(self, *a, **kw):
-        kw["wait"] = True
         super().emit(*a, **kw)
+        self.client.flush()
 
     def seen(self):
         return [(d["event"], d["user"], d.get("reason")) for d, _, _ in self.sent]
@@ -34,7 +34,7 @@ class ReporterTest(unittest.TestCase):
     def test_off_without_url_or_secret(self):
         for r in (events.Reporter("", "s"), events.Reporter("u", ""), events.from_env({})):
             self.assertFalse(r.enabled)
-            r.emit("portal_request", "a", wait=True)
+            r.emit("portal_request", "a")
 
     def test_signed_body(self):
         r = Recorder()
@@ -57,7 +57,8 @@ class ReporterTest(unittest.TestCase):
         def boom(raw, sig):
             raise OSError("down")
         r = events.Reporter("u", "s", send=boom)
-        r.emit("portal_request", "amy", wait=True)
+        r.emit("portal_request", "amy")
+        r.client.flush()
 
     def test_denial_reasons(self):
         def err(code, pol=None):

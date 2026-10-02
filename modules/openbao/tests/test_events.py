@@ -75,11 +75,10 @@ class Posting(unittest.TestCase):
         sent = []
         r = ev.Reporter(url, secret, send=lambda raw, sig: sent.append((raw, sig)))
         r.live = True
-        r.start()
         return r, sent
 
     def wait(self, r):
-        r.queue.join()
+        r.client.flush()
 
     def test_posts_a_signed_event(self):
         r, sent = self.reporter()
@@ -107,9 +106,8 @@ class Posting(unittest.TestCase):
         r = ev.Reporter("http://x", "s", send=boom, size=1)
         r.live = True
         for _ in range(5):
-            r.entry(entry("students/amy", "read", "team/data/app"))      # no worker yet: queue fills, rest drop
-        r.start()
-        r.queue.join()
+            r.entry(entry("students/amy", "read", "team/data/app"))      # never raises, never blocks
+        r.client.flush()
 
 
 if __name__ == "__main__":

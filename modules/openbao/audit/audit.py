@@ -259,7 +259,6 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     catch_up()              # what was logged before we started is history: not reported
     reporter.live = True
-    reporter.start()
     threading.Thread(target=follow, daemon=True).start()
     server = http.server.ThreadingHTTPServer(("0.0.0.0", 8080), Handler)
     server.daemon_threads = True
