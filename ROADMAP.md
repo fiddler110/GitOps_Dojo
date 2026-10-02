@@ -4,7 +4,7 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (home demo dry run passed; tier 1 and RV13-RV18 done) · Working branch: `feat/achievements` (the only open branch;
+Last updated: 2026-10-02 (home demo dry run passed; tier 1, RV13-RV18, RV20 and RV21 done) · Working branch: `feat/achievements` (the only open branch;
 remediation and front-door reached `main` in PR #4, and their branches are deleted).
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
@@ -16,7 +16,7 @@ what is left (usually the live check).
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
 | [Up next](#up-next) | Where to resume: RV19 bot smoke tests; decisions of 2026-10-02 |
 | [Now](#now) | N2 merge, N3 phase 9 live checks |
-| [Next](#next) | Platform review (RV19-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Next](#next) | Platform review (RV19, RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -35,7 +35,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 | 3 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
 | 4 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
 | 5 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 6 | Platform review tiers 3-4 | L | RV20-RV38: refactors, then new features and workshops |
+| 6 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
 
 ## Up next
 
@@ -112,7 +112,8 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 |---|---|---|---|
 | RV19 | Bot smoke tests | M each | git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal |
 
-**Tier 3: refactors and hygiene.**
+**Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02 (see
+RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|

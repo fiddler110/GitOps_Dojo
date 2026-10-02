@@ -163,7 +163,9 @@ it is matched and dropped, never stored. A full-screen program (vim, less) or a 
 backend: `dns-gate` (`source: dns`), `cloud-api` (`cloud`), `openbao-audit` (`bao`, the student read from the
 namespace `students/<user>`). The body is `{source, event, user, ...}` with the optional fields `reason`, `mount`,
 `role`, `op`, `path`, `ok`, `root`, `status`; the vocabulary per source is in `catalog/catalog.py`. A body from an
-unknown source or event, or without a user, is ignored.
+unknown source or event, or without a user, is ignored. All three send through `modules/_shared/adapter_client.py`: one
+bounded queue and one worker thread per service, so a burst never starts extra threads, and a full queue drops events
+rather than wait (a lost event is a missed unlock, never a slow request).
 
 **State milestones.** `service/store.py` `sweep_state` gives each student's `verify` milestones a turn at most once
 per `ACHIEVEMENTS_STATE_SECONDS` and at most 40 backend checks per pass, outside the lock; a backend that is down

@@ -14,7 +14,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   POST /api/shell         one command line from the prompt hook {cmd, exit, branch, ...}:
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
-  POST /api/adapter       a module's event (dns-gate), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
+  POST /api/adapter       a module's event (dns-gate, cloud-api, openbao-audit), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
@@ -68,7 +68,7 @@ FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
 PUBLIC_FORGEJO = os.environ.get("FORGEJO_CLONE_BASE", "http://git-server:3000").rstrip("/")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgejo")
 WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
-# Modules' adapters (dns-gate) post signed events with this; unset means /api/adapter is off.
+# Modules' adapters (dns-gate, cloud-api, openbao-audit; adapter_client.py) post signed events with this; unset means /api/adapter is off.
 ADAPTER_SECRET = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET") or None
 # Sensei's stuck radar and `sensei check` read activity and progress with this key (Sensei's own gateway token,
 # which the compose file passes to both); unset means those two reads are off.
