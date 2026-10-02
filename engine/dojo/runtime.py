@@ -49,14 +49,25 @@ class Container:
         return "working" if state == "running" and self.oneshot else state
 
 
+def on_wsl() -> bool:
+    """Running under WSL (its kernel names Microsoft in /proc/version)."""
+    try:
+        with open("/proc/version") as f:
+            return "microsoft" in f.read().lower()
+    except OSError:
+        return False
+
+
 class Runtime:
     def __init__(self) -> None:
         if shutil.which("podman") and shutil.which("podman-compose"):
             self.cli = "podman"
             # WSL2: Windows folders on PATH make every podman call search them
             # (~1.2 s each instead of ~0.06 s). Nothing podman needs is there.
-            path = os.environ.get("PATH", "")
-            os.environ["PATH"] = ":".join(p for p in path.split(":") if not p.startswith("/mnt/"))
+            # Elsewhere /mnt/... is an ordinary mount, so leave PATH alone.
+            if on_wsl():
+                path = os.environ.get("PATH", "")
+                os.environ["PATH"] = ":".join(p for p in path.split(":") if not p.startswith("/mnt/"))
         elif shutil.which("docker"):
             self.cli = "docker"
         else:

@@ -7,8 +7,10 @@ if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&
   dojo_cli=podman
   # On WSL2 the Windows folders (/mnt/c/...) are on PATH, and podman searches PATH for every OCI
   # runtime it knows, each miss crossing into Windows: ~1.2 s per podman call instead of ~0.06 s.
-  # Nothing podman needs lives there.
-  case ":$PATH:" in *:/mnt/*) PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd:)"; export PATH ;; esac
+  # Nothing podman needs lives there. Only on WSL: elsewhere /mnt/... is an ordinary mount.
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    case ":$PATH:" in *:/mnt/*) PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd:)"; export PATH ;; esac
+  fi
 else
   dojo_cli=docker
 fi

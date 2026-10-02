@@ -18,7 +18,7 @@ from rich.table import Table
 
 from . import checks, paths, state
 from .envfiles import EnvError, operator_env, parse_literal, resolve
-from .runtime import Runtime, project_name
+from .runtime import Runtime, on_wsl, project_name
 from .stack import extra_files, read_state, services
 from .ui import console
 
@@ -92,7 +92,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         else:
             add(Check(FAIL, "Service DNS", f"backend {host.get('networkBackend', '?')}, no aardvark-dns",
                       "Install netavark and aardvark-dns: the gateway reaches every service by name."))
-        if os.path.exists("/proc/version") and "microsoft" in open("/proc/version").read().lower():
+        if on_wsl():
             add(Check(INFO, "WSL2", "Windows /mnt/* folders are dropped from PATH for podman calls (each would cost ~1.2 s)"))
         graphroot = (info.get("store") or {}).get("graphRoot")
     else:

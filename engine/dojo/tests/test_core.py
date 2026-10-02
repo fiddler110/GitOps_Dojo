@@ -116,5 +116,25 @@ class Classify(unittest.TestCase):
             self.assertEqual(classify(status), state, status)
 
 
+class WslPath(unittest.TestCase):
+    """Runtime drops Windows /mnt/* folders from PATH for podman, only on WSL."""
+
+    def runtime_path(self, wsl: bool) -> str:
+        from unittest import mock
+        from dojo import runtime
+        path = "/usr/bin:/mnt/c/Windows:/mnt/data/bin"
+        with mock.patch.dict(os.environ, {"PATH": path}), \
+                mock.patch.object(runtime.shutil, "which", return_value="/usr/bin/x"), \
+                mock.patch.object(runtime, "on_wsl", return_value=wsl):
+            runtime.Runtime()
+            return os.environ["PATH"]
+
+    def test_wsl_drops_mnt(self):
+        self.assertEqual(self.runtime_path(True), "/usr/bin")
+
+    def test_elsewhere_keeps_mnt(self):
+        self.assertEqual(self.runtime_path(False), "/usr/bin:/mnt/c/Windows:/mnt/data/bin")
+
+
 if __name__ == "__main__":
     unittest.main()
