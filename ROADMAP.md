@@ -190,7 +190,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2); real Tab presses in zsh on the Mac (completion is registered there, and Tab worked in an interactive zsh here). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
+| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
 
 ### Remediation leftovers
 
