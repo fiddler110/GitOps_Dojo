@@ -121,7 +121,7 @@ python3 scripts/dnsctl.py <command> [options]
 | `record remove <name>` | Remove a record. |
 | `record list [name]` | List records currently in `dnsconfig.js`. |
 | `record update-ip <old> <new>` | Bulk-replace an IP across every `A` record pointing at it. |
-| `lint` | Fast offline sanity checks (duplicate lines, missing trailing dots, CNAME conflicts) — no network call. |
+| `lint` | Fast offline sanity checks (duplicate lines, missing trailing dots, CNAME conflicts, leftover git conflict markers) — no network call. |
 | `show` | Table/CSV/Markdown view of every managed record. |
 
 ### Commands that talk to Forgejo (PR lifecycle)
