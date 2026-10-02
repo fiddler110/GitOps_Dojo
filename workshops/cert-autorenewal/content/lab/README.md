@@ -51,6 +51,7 @@ with no steps, in a space of your own, for extra points. They never count toward
 | Id | Challenge | Where |
 | -- | --------- | ----- |
 | `c1` | The Second Site | end of [Lab 3](lab3.md) |
+| `c3` | Members Only (mutual TLS) | end of [Lab 3](lab3.md) |
 | `c2` | The Short Fuse | end of [Lab 4](lab4.md) |
 | `capstone` | The Wildcard Heist | end of [Lab 5](lab5.md) |
 
@@ -91,13 +92,14 @@ trust the CA → request a cert (prove you control your hostname) →
 install it → verify it → automate the next renewal before this one expires
 ```
 
-The workshop homepage also has a **Demo Site** link (opens `/demo/` in
-a new tab) — it always points at your own vhost, so from Lab 2 onward it's
-a quick way to confirm nginx picked up your config and is serving your
-content. That link is plain HTTP only, though — it never touches your
-certificate at all, trusted or not, so it can't show you anything about
-whether it's valid. `curl --cacert`/`-v` (see Lab 2 step 5) is your real
-check for that.
+The workshop homepage also has a **Site Inspector** card: your browser
+for this lab. Type one of your names and it visits it the way a browser
+would, showing each step: the plain `http://` request, any redirect, the
+HTTPS connection with the certificate it was served (and whether that
+chains to the lab CA), the `Strict-Transport-Security` header and the other
+security headers, and finally the page itself. Like a browser, it
+remembers HSTS. It can only visit your own names. `curl --cacert`/`-v`
+(Lab 2 step 5) is the same check from the terminal.
 
 ---
 

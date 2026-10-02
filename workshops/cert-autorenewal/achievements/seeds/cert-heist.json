@@ -1,0 +1,35 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/cert-heist",
+  "description": "{user}'s own capstone (Certificate Autorenewal)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 1,
+      "message": "Start the wildcard sites",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "cert-heist/README.md"
+        },
+        {
+          "path": "www.conf",
+          "from": "cert-heist/www.conf"
+        },
+        {
+          "path": "api.conf",
+          "from": "cert-heist/api.conf"
+        },
+        {
+          "path": "dns-hook.sh",
+          "from": "cert-heist/dns-hook.sh"
+        },
+        {
+          "path": "renew.cron",
+          "from": "cert-heist/renew.cron"
+        }
+      ]
+    }
+  ]
+}

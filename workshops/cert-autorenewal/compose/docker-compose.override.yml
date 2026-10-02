@@ -118,9 +118,17 @@ services:
       # rewrites /etc/resolv.conf itself at startup using this instead —
       # see that file for the detail.
       - DNS_SERVER_IP=172.30.0.10
+      # The accounts whose own subtree (*.<account>.certs.dojo.test) the CA
+      # may sign, as dns-seed makes their records (see entrypoint.sh).
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
     volumes:
       - step_ca_data:/home/step
       - step_ca_root_pub:/pub
+      # Its client certificate for the achievements checker (entrypoint.sh); the
+      # achievements module mounts the same volume read-only.
+      - achievements_client_cert:/client
     networks:
       - workshop_lab
     restart: unless-stopped
@@ -136,6 +144,42 @@ services:
     networks:
       workshop_lab:
         ipv4_address: 172.30.0.20
+    restart: unless-stopped
+
+  # The "Site Inspector" card (/inspect, identity gate; extensions.json): a browser's visit to a
+  # student's own names on demo-app, one step at a time: redirects, the certificate and whether it
+  # verifies against the lab CA, HSTS (remembered like a browser), the security headers, and the page
+  # with scripts off. Students have no browser that reaches demo-app's HTTPS, so this is their browser.
+  # It connects only to demo-app (ports 80 and 443, GET only) and only for the viewer's own names.
+  site-inspector:
+    build:
+      context: ../workshops/cert-autorenewal/compose/site-inspector
+    image: gitopsdojo/site-inspector:local
+    container_name: workshop_cert_site_inspector
+    init: true
+    depends_on:
+      - demo-app
+      - step-ca
+    environment:
+      # Identity headers count only with this token (derived per upstream by run.sh).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_SITE_INSPECTOR:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
+      - TARGET_HOST=demo-app
+      - CA_ROOT=/opt/step-ca-root/root_ca.crt
+    volumes:
+      - step_ca_root_pub:/opt/step-ca-root:ro
+    networks:
+      - workshop_lab
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=4m
+    pids_limit: 64
+    mem_limit: ${SITE_INSPECTOR_MEM_LIMIT:-64m}
     restart: unless-stopped
 
   # Image: compose/terminal/, built and selected by engine/run.sh.
@@ -163,6 +207,7 @@ volumes:
   step_ca_data:
   step_ca_root_pub:
   cert_lab_webroot:
+  achievements_client_cert:
 
 # workshop_lab has no static subnet in the base engine file (Docker
 # auto-assigns one) — this adds one so dns-server/demo-app can be pinned to

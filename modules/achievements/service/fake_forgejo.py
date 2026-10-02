@@ -21,6 +21,7 @@ class FakeForgejo:
     def __init__(self, users=()):
         self.users = set(users)
         self.repos = {}
+        self.blobs = {}           # blob sha -> text, filled as trees are listed
         self.writes = []          # (method, path) of every change, for the isolation tests
         self.down = False
         self._n = itertools.count(1)
@@ -63,6 +64,25 @@ class FakeForgejo:
                 return 204, None
         if rest == ["contents"] and method == "POST":
             return self._contents(repo, body)
+        if rest == ["branches"] and method == "GET":
+            return 200, self._page([{"name": b, "commit": {"id": h}} for b, h in sorted(repo["branches"].items())], q)
+        if rest[:2] == ["git", "trees"] and len(rest) == 3 and method == "GET":
+            # A tree's id here is "t" + its commit's sha; always recursive, never truncated.
+            c = repo["commits"].get(rest[2][1:]) if rest[2].startswith("t") else None
+            if c is None:
+                return 404, None
+            rows = []
+            for path, text in sorted(c["tree"].items()):
+                sha = blob_sha(text)
+                self.blobs[sha] = text
+                rows.append({"path": path, "type": "blob", "sha": sha, "size": len(text.encode())})
+            return 200, {"sha": rest[2], "tree": rows, "truncated": False, "page": 1, "total_count": len(rows)}
+        if rest[:2] == ["git", "blobs"] and len(rest) == 3 and method == "GET":
+            text = self.blobs.get(rest[2])
+            if text is None:
+                return 404, None
+            return 200, {"sha": rest[2], "encoding": "base64", "size": len(text.encode()),
+                         "content": base64.b64encode(text.encode()).decode()}
         if rest[0] == "branches" and len(rest) == 2 and method == "GET":
             return (200, {"name": rest[1]}) if rest[1] in repo["branches"] else (404, None)
         if rest == ["commits"] and method == "GET":
@@ -168,7 +188,8 @@ class FakeForgejo:
     def _commit_json(self, repo, sha):
         c = repo["commits"][sha]
         return {"sha": sha, "parents": [{"sha": p} for p in c["parents"]],
-                "commit": {"author": c["author"], "committer": c["committer"], "message": c["message"]}}
+                "commit": {"author": c["author"], "committer": c["committer"], "message": c["message"],
+                           "tree": {"sha": "t" + sha}}}
 
     def _pr_head(self, repo, pr):
         return pr["merged_head"] if pr["merged"] else repo["branches"].get(pr["head"], pr.get("last_head"))
@@ -180,7 +201,7 @@ class FakeForgejo:
 
     # -- the student's side ------------------------------------------------------------
     def commit(self, full, branch, files, who, start=None, message=None, merge=None):
-        """Commit `files` ({path: text}) on `branch` as `who`, creating it from `start`
+        """Commit `files` ({path: text, or None to delete}) on `branch` as `who`, creating it from `start`
         (a branch) when new. Like a commit plus a push. `merge` (a branch) makes it a local
         merge commit with that branch's head as its second parent."""
         with self.lock:
@@ -188,6 +209,7 @@ class FakeForgejo:
             head = repo["branches"].get(branch) or repo["branches"][start or repo["default"]]
             tree = dict(repo["commits"][head]["tree"])
             tree.update(files)
+            tree = {k: v for k, v in tree.items() if v is not None}  # None deletes the file
             person = {"name": who, "email": f"{who}@lab.test"}
             parents = [head] + ([repo["branches"][merge]] if merge else [])
             sha = self._new_commit(repo, parents, tree, person, person, message or f"work by {who}")

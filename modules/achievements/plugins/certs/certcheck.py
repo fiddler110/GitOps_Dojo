@@ -1,6 +1,8 @@
 """certs verifier verbs (see verifiers.json). Stdlib only. Every verb is `fn(api, args, ctx) -> (passed, message)`.
 `api` is the Forgejo client the runner passes to every verb; these ignore it."""
+import http.client
 import os
+import re
 import socket
 import ssl
 import time
@@ -185,5 +187,151 @@ def served_expired(api, args, ctx):
     return False, f"{host} is served a certificate that is still valid"
 
 
+# -- HTTP behaviour: redirect to HTTPS, and HSTS ------------------------------------------
+PERMANENT = (301, 308)
+
+
+def _head(host, tls, client=None):
+    """(status, {header: value}) for GET / with Host: host, over TLS to CERTS_TLS_ADDR (SNI, verified against
+    the CA root like _fetch) or over plain HTTP to CERTS_HTTP_ADDR (default: the TLS address's host, port 80).
+    client: a (cert file, key file) to present over TLS. Raises ssl.SSLError when the certificate doesn't
+    verify, Unavailable when the demo app can't be reached."""
+    tls_addr = os.environ.get("CERTS_TLS_ADDR", "")
+    addr = tls_addr if tls else (os.environ.get("CERTS_HTTP_ADDR") or
+                                 (tls_addr.rpartition(":")[0] + ":80" if tls_addr else ""))
+    if not addr:
+        raise Unavailable("no CERTS_TLS_ADDR set")
+    hostname, _, port = addr.rpartition(":")
+    try:
+        with socket.create_connection((hostname, int(port)), timeout=8) as raw:
+            sslctx = _trust() if tls else None
+            if client:
+                sslctx.load_cert_chain(*client)
+            sock = sslctx.wrap_socket(raw, server_hostname=host) if tls else raw
+            try:
+                sock.sendall(f"GET / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: dojo-check\r\n"
+                             "Connection: close\r\n\r\n".encode())
+                resp = http.client.HTTPResponse(sock)
+                resp.begin()
+                return resp.status, {k.lower(): v for k, v in resp.getheaders()}
+            finally:
+                if tls:
+                    sock.close()
+    except ssl.SSLError:
+        raise
+    except (OSError, ValueError, http.client.HTTPException) as e:
+        raise Unavailable(f"demo-app isn't reachable ({e.__class__.__name__})")
+
+
+def served_redirect(api, args, ctx):
+    """Plain http://host/ answers with a permanent redirect (301 or 308) to https://host/..., for every host."""
+    for host in args.get("hosts") or []:
+        if not _own(host, ctx):
+            return False, "that check may only read your own hostnames"
+        status, headers = _head(host, tls=False)
+        where = headers.get("location", "")
+        if status in (301, 302, 303, 307, 308):
+            if not where.lower().startswith(f"https://{host.lower()}"):
+                return False, f"http://{host}/ redirects to {where or 'nowhere'}, not to https://{host}/"
+            if status not in PERMANENT:
+                return False, f"http://{host}/ redirects with {status}, a temporary redirect: make it permanent"
+            continue
+        return False, f"http://{host}/ answers {status} over plain HTTP: send it to https://{host}/ instead"
+    return True, "ok"
+
+
+def served_hsts(api, args, ctx):
+    """https://host/ is served a valid certificate and a Strict-Transport-Security header whose max-age is at
+    least min_age seconds (default 86400), for every host."""
+    want = int(args.get("min_age", 86400))
+    for host in args.get("hosts") or []:
+        if not _own(host, ctx):
+            return False, "that check may only read your own hostnames"
+        try:
+            _, headers = _head(host, tls=True)
+        except ssl.SSLCertVerificationError as e:
+            return False, (f"{host} is served a certificate that doesn't verify: "
+                           f"{getattr(e, 'verify_message', None) or e.__class__.__name__}")
+        except ssl.SSLError as e:
+            return False, f"{host} has no HTTPS yet ({e.__class__.__name__})"
+        hsts = headers.get("strict-transport-security")
+        if not hsts:
+            return False, f"https://{host}/ sends no Strict-Transport-Security header"
+        m = re.search(r"max-age\s*=\s*\"?(\d+)", hsts, re.I)
+        if not m or int(m.group(1)) < want:
+            return False, f"{host}'s Strict-Transport-Security max-age is under {want} seconds"
+    return True, "ok"
+
+
+def _https_headers(host, ctx):
+    """(headers, None) for GET https://host/, or (None, failure message)."""
+    if not _own(host, ctx):
+        return None, "that check may only read your own hostnames"
+    try:
+        status, headers = _head(host, tls=True)
+    except ssl.SSLCertVerificationError as e:
+        return None, (f"{host} is served a certificate that doesn't verify: "
+                      f"{getattr(e, 'verify_message', None) or e.__class__.__name__}")
+    except ssl.SSLError as e:
+        return None, f"{host} has no HTTPS yet ({e.__class__.__name__})"
+    return headers, None
+
+
+def served_header(api, args, ctx):
+    """https://host/ answers with header `name` whose value matches `regex` (case-insensitive), for every host."""
+    name = str(args.get("name", ""))
+    want = re.compile(str(args.get("regex", ".")), re.I)
+    for host in args.get("hosts") or []:
+        headers, fail = _https_headers(host, ctx)
+        if fail:
+            return False, fail
+        value = headers.get(name.lower())
+        if value is None:
+            return False, f"https://{host}/ sends no {name} header"
+        if not want.search(value):
+            return False, f"https://{host}/ sends {name}: {value[:80]}, which isn't what's asked for"
+    return True, "ok"
+
+
+REFUSED = (400, 401, 403, 495, 496)
+
+
+def _client_cert():
+    cert, key = os.environ.get("CERTS_CLIENT_CERT", ""), os.environ.get("CERTS_CLIENT_KEY", "")
+    if not (cert and key and os.path.isfile(cert) and os.path.isfile(key)):
+        raise Unavailable("the checker's own client certificate isn't there yet")
+    return cert, key
+
+
+def served_mtls(api, args, ctx):
+    """https://host/ wants a client certificate from the lab CA: without one it is refused (the handshake fails,
+    or the answer is 400/401/403/495/496), and with the checker's own client certificate (CERTS_CLIENT_CERT,
+    CERTS_CLIENT_KEY, issued by the lab CA) it answers 2xx."""
+    host = str(args.get("host"))
+    if not _own(host, ctx):
+        return False, "that check may only read your own hostnames"
+    client = _client_cert()
+    try:
+        status, _ = _head(host, tls=True)
+    except ssl.SSLCertVerificationError as e:
+        return False, (f"{host} is served a certificate that doesn't verify: "
+                       f"{getattr(e, 'verify_message', None) or e.__class__.__name__}")
+    except ssl.SSLError:
+        status = None           # refused in the handshake: that counts as asking for a certificate
+    except Unavailable:
+        status = None           # a TLS 1.3 server may hang up after the handshake instead
+    if status is not None and status not in REFUSED:
+        return False, f"https://{host}/ answers {status} without a client certificate: it should refuse"
+    try:
+        status, _ = _head(host, tls=True, client=client)
+    except ssl.SSLError as e:
+        return False, f"{host} refuses a client certificate from the lab CA too ({e.__class__.__name__})"
+    if not 200 <= status < 300:
+        return False, f"https://{host}/ answers {status} with a client certificate from the lab CA: it should let it in"
+    return True, "ok"
+
+
 VERBS = {"served_cert": served_cert, "served_same": served_same, "served_changed": served_changed,
-         "served_expired": served_expired, "served_renews": served_renews}
+         "served_expired": served_expired, "served_renews": served_renews,
+         "served_redirect": served_redirect, "served_hsts": served_hsts, "served_header": served_header,
+         "served_mtls": served_mtls}

@@ -1,0 +1,39 @@
+{
+  "id": "c3",
+  "title": "Members Only",
+  "after": "after Lab 2 or 3",
+  "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
+  "goal": "Serve `https://members.{user}.certs.dojo.test` only to clients that present a certificate from the lab CA (mutual TLS); everyone else is refused.",
+  "seed": "`dojo-challenge start c3` creates `{user}/cert-members` (owned by the student, cloned to `~/lab/cert-members`): a brief and `members.conf`, whose port-80 block is done (http-01 from `members-html`, a redirect for the rest) and whose HTTPS block is commented out with `TODO`s for the certificate, `ssl_client_certificate` and `ssl_verify_client`. The wildcard A record `*.{user}.certs.dojo.test` makes the name resolve.",
+  "verify_text": "`members.{user}.certs.dojo.test` is served (over SNI) a valid certificate for its own name. Without a client certificate, `https://members...` is refused (the handshake fails, or nginx answers 400, 401, 403, 495 or 496). With the checker's own client certificate, which step-ca issues at start from the lab CA's intermediate, it answers 2xx. `members.conf` on `main` of `{user}/cert-members` has an uncommented `ssl_verify_client on`. The repo's whole history (every branch, every commit) holds no private key. Not checked: that a certificate from another CA is refused (a client certificate that doesn't verify gets 400 from nginx anyway).",
+  "isolation": "a vhost in the student's own subdirectory and the student's own repo `{user}/cert-members`; the check reads only names under `{user}.certs.dojo.test` and that repo, and presents a client certificate only to that name.",
+  "hints": [
+    "The server already trusts the CA for its own certificate; it needs telling to trust it for clients too.",
+    "Any certificate from the lab CA is also a client certificate, until it expires."
+  ],
+  "verify": [
+    {
+      "verb": "served_cert",
+      "host": "members.{user}.certs.dojo.test"
+    },
+    {
+      "verb": "served_mtls",
+      "host": "members.{user}.certs.dojo.test"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/cert-members",
+      "ref": "main",
+      "path": "members.conf",
+      "regex": "^[ \\t]*ssl_verify_client\\s+on\\s*;"
+    },
+    {
+      "verb": "history_absent",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "what": "a private key",
+      "repo": "{user}/cert-members"
+    }
+  ],
+  "answer": "`dojo-challenge start c3`; make `members-html` with a page and copy `members.conf` in; issue for `members.{user}.certs.dojo.test` with `-w /srv/webroot/{user}/members-html` and copy it into `certs/` (e.g. `members-fullchain.pem`, `members-privkey.pem`); copy `/opt/step-ca-root/root_ca.crt` into `certs/`; in the HTTPS block set the two certificate lines, `ssl_client_certificate /srv/webroot/{user}/certs/root_ca.crt;` and `ssl_verify_client on;`, uncomment it and copy it in; test with `curl --cert`/`--key` (a fresh certificate from the lab CA, e.g. the members one); push `members.conf` to `main` (no key); `dojo-check c3`.",
+  "seed_plan": "cert-members.json"
+}

@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-01 (roadmap review) · Working branch: `feat/achievements`, stacked on `feat/front-door`, which
-is stacked on `feat/remediation`; nothing has reached `main` since PR #3.
+Last updated: 2026-10-01 (roadmap review) · Working branch: `feat/achievements` (the only open branch; remediation and
+front-door reached `main` in PR #4, and their branches are deleted).
 
 | Section | What it holds |
 |---|---|
@@ -23,8 +23,8 @@ is stacked on `feat/remediation`; nothing has reached `main` since PR #3.
    `state.json`, the chained-command matcher, the slimmed dojo-introduction. A demo from an uncommitted tree can't be
    reproduced.
 2. **Home demo dry run** (Now §1).
-3. **Merge `feat/remediation` + `feat/front-door` to `main`** (Now §2), then a toggle-off regression run and merge
-   `feat/achievements` early; phase 9 live checks carry on from `main`.
+3. **Merge `feat/achievements` to `main` early** (Now §2), after a toggle-off regression run; phase 9 live checks
+   carry on from `main`.
 4. **Phase 9 live checks** (Now §3): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run.
 5. **Student reset**, starting with the R0 spikes (Next). Q1-Q7 are answered, so nothing blocks it.
 6. **Phase 10 sweep** and the remaining polish (dojo-introduction `--test 5`, Caddy log redaction).
@@ -60,12 +60,12 @@ Soft spots: with `--test` bots running, `testuser*` accounts show up in the rada
 first at a student's prompt (facilitator-only nudges, by design). Have `./run.sh stop` ready; it wipes volumes (ask
 first if anyone else is using the machine). When the dry run passes, add the support desk to `RELEASES.md`.
 
-### 2. Merges to `main` (ask before pushing or opening a PR)
+### 2. Merge `feat/achievements` to `main` (ask before pushing or opening a PR)
 
-| # | Item | Detail | Status |
-|---|---|---|---|
-| M1 | `feat/remediation` + `feat/front-door` | One PR of front-door (it contains remediation: 65 + 2 commits). Both built and live-tested locally; see RELEASES "Unreleased" | Ready |
-| M2 | `feat/achievements` with the toggle off | After M1. One regression run with `ACHIEVEMENTS_ENABLED` unset (git-fundamentals `--test`: no achievements or sensei container, no toasts or widget, `/workspace` still works) plus `--dry-run` of every pack, then a PR. Phase 9 checks continue on `main` | After M1 and the demo |
+After the commit (Priorities 1) and the demo: one regression run with `ACHIEVEMENTS_ENABLED` unset (git-fundamentals
+`--test`: no achievements or sensei container, no toasts or widget, `/workspace` still works) plus `--dry-run` of every
+pack, then PR #5. The branch is 41 commits ahead of `main` and lacks only `LICENSE`; a trial merge (2026-10-01) was
+clean. Phase 9 checks continue on `main`.
 
 ### 3. Phase 9 live checks (order matters)
 
@@ -97,9 +97,10 @@ Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (20
    **Challenges in the labs (all packs, built 2026-10-01, unit-tested only):** every workshop's labs now end the right
    lab with a `## Challenge ...` / `## Capstone ...` section and its `<!-- dojo-challenge: ID -->` box, and each lab
    README lists them. On each pack's run: the box appears only with achievements on; Start builds the repo and the
-   status names `~/lab/<repo>`; Reset is hidden on cert-autorenewal (no repo; Start just shows the goal);
-   `shop.<user>.certs.dojo.test` and `www`/`api` under the student resolve (new per-student wildcard in the cert DNS
-   seed); dns-as-code c1, c2 and capstone each get their own repo (`challenge-typo`, `-cutover`, `-badpush`); Sensei
+   status names `~/lab/<repo>`; cert-autorenewal's `cert-shop`, `cert-fuse`, `cert-heist` clone and their starter
+   vhosts work when copied in (`cert-members` done 2026-10-01, with `history_absent` on real Forgejo and the
+   redirect/HSTS/header/mTLS verbs reaching `demo-app`); solve c1, c2 and the capstone once each (dns-01 wildcard
+   through a written `dns-hook.sh`: only its new-order is tested); dns-as-code c1, c2 and capstone each get their own repo (`challenge-typo`, `-cutover`, `-badpush`); Sensei
    `ask` never returns a challenge section; then solve one per pack, `dojo-check`, and Reset.
 4. **Class-sized concurrency run (last).** On dns-as-code or git-fundamentals with ~20 bots: shell hook latency,
    state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive.
@@ -216,7 +217,7 @@ nonce)`; a nonce can only be used once).
 | A26 | dns-as-code review PR | Sensei only *opens* the `dns-bot` review PR (`SENSEI_SEED`), never approves or merges it |
 | A27 | Scope of a score | Individuals only: people may work together, but the lab and the achievements are each student's own |
 | A28 | Storage and reset | State lives in a named module volume: it survives restarts within a class and `./run.sh stop` removes it. The facilitator's student reset (see Student reset above) can clear or keep that student's achievements, their choice at reset time |
-| A29 | Branching | `feat/achievements` was cut from `feat/front-door` (main lacks the front-door and remediation work this builds on). The student workspace page is built first (phase 1b) because it is useful with achievements off |
+| A29 | Branching | `feat/achievements` was cut from `feat/front-door` (both front-door and remediation reached `main` in PR #4, 2026-09-29). The student workspace page is built first (phase 1b) because it is useful with achievements off |
 | A30 | Funny unlocks and the Moments table | **Funny unlocks are worth 0 points** (`ACHIEVEMENTS_FUNNY_POINTS`, default 0, only the person launching the lab can raise it) so they never help a score; they just call you out. Each student's landing page has its own **Moments** table, shown only once they have unlocked one: title, the joke, what they did to earn it (the catalog's `when`) and when. It is private to that student (not on the leaderboard, not in anyone else's view), appears in the certificate's summary page, and the facilitator's `/admin` view lists a student's moments too. A funny event still toasts (5 s, no points shown). **Cheating still subtracts** (A7: -1 at most). The catalog validator refuses a positive `points` on a funny unlock or a cheat. |
 
 #### Catalog layout (A17/A21)
@@ -324,7 +325,7 @@ the facilitator.
 |---|---|
 | git-fundamentals | Lab 1, clone, branch, push, open a PR |
 | dns-as-code | `dnscontrol version`; push a branch and open a PR; Actions shows **DNS Preview** green; merge and **DNS Apply** goes green; `dig` shows the record |
-| cert-autorenewal | **Demo Site** card and tab; after lab 2 the student's card shows `studentNN.certs.dojo.test` and the facilitator's tab shows their own site (`admin.certs.dojo.test`) |
+| cert-autorenewal | **Site Inspector** card and tab; after Lab 2 step 6 a student's visit shows `http://` → 301 → `https://` with a verified certificate, the second visit is upgraded by HSTS; the facilitator's tab can visit any student's name |
 | tofu-basics | **Dojo Cloud** card and tab; the portal opens on the student's subscription; the facilitator's tab shows the progress view; after a Track B `apply` the resource shows in both |
 
 ### Other manual checks

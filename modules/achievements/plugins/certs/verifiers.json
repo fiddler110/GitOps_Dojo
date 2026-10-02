@@ -39,6 +39,33 @@
         "renewals?"
       ],
       "does": "host keeps itself renewed: every look for `minutes` (default 20) found a valid certificate and the serial changed at least `renewals` times (default 2). The first look starts the watch, a look without a valid certificate restarts it (kept in memory; a restart starts it again). Meant for a challenge with \"watch\": true, which the state sweep re-checks on its own"
+    },
+    "served_redirect": {
+      "args": [
+        "hosts"
+      ],
+      "does": "plain http://host/ on the demo app (CERTS_HTTP_ADDR, default the TLS address's host on port 80) answers a permanent redirect (301 or 308) whose Location is https://host/..., for every one of hosts"
+    },
+    "served_hsts": {
+      "args": [
+        "hosts",
+        "min_age?"
+      ],
+      "does": "https://host/ is served a valid certificate and a Strict-Transport-Security header with max-age at least min_age seconds (default 86400), for every one of hosts"
+    },
+    "served_header": {
+      "args": [
+        "hosts",
+        "name",
+        "regex"
+      ],
+      "does": "https://host/ is served a valid certificate and a response header `name` whose value matches regex (case-insensitive search), for every one of hosts"
+    },
+    "served_mtls": {
+      "args": [
+        "host"
+      ],
+      "does": "https://host/ wants a client certificate: without one the handshake fails or the answer is 400/401/403/495/496, and with the checker's own client certificate from the lab CA (CERTS_CLIENT_CERT, CERTS_CLIENT_KEY) it answers 2xx"
     }
   }
 }

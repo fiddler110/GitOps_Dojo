@@ -121,8 +121,8 @@ certificate for the same domain — that's certbot's own bookkeeping, not
 anything to fix.) This lab doesn't copy that cert into
 `/srv/webroot/${me}/certs/` either, so `demo-app` is still serving whatever
 Lab 2/4 last installed there — `openssl` above is your real check for this
-one, not the homepage's **Demo Site** link (it's HTTP-only and
-wouldn't show a certificate either way).
+one (the homepage's **Site Inspector** would still show the certificate
+Lab 2/4 installed).
 
 ---
 
@@ -139,11 +139,15 @@ You've completed every lab in this workshop.
 ## Capstone: The Wildcard Heist (a friendly one) (bonus)
 
 One wildcard certificate for `*.$USER.certs.dojo.test`, issued with dns-01, serving two sites (`www` and `api`
-under your name), with renewal that covers both.
+under your name), with renewal that covers both. Then make HTTPS the only way in: plain HTTP redirects to HTTPS for
+good, and HTTPS tells browsers never to try plain HTTP again (HSTS). `api` also sends two headers from the slides'
+bonus wall: `X-Content-Type-Options: nosniff` and a `Content-Security-Policy`.
 
 Only when your class has achievements on (you see a score on your landing page).
-There is no repo for this one: it works in your own space (your own vhosts, and the `_acme-challenge` record under your name). Click **Start challenge** below, or run
-`dojo-challenge start capstone`, to see your goal. When you think it's done, run `dojo-check capstone`. A wrong answer costs
-nothing; `dojo-check hint capstone` gives a hint for part of the points.
+Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/cert-heist` and
+clones it to `~/lab/cert-heist`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check capstone`. A wrong answer costs nothing;
+`dojo-check hint capstone` gives a hint for part of the points, and `dojo-challenge reset capstone` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
 
 <!-- dojo-challenge: capstone -->

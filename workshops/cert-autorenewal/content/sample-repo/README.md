@@ -11,6 +11,9 @@ lives so you (and a facilitator, if asked) can see what you did and why.
   challenge file).
 - `vhost-tls.conf.template` — the same vhost extended with a `listen 443
   ssl` server block, once you have a certificate to point at.
+- `vhost-https-only.conf.template` — the whole vhost once HTTPS works
+  (Lab 2's last step): port 80 redirects to HTTPS, except the ACME
+  challenge path, and HTTPS sends HSTS.
 - `renew-and-reload.sh` — the renewal script you build out in Lab 4:
   attempt renewal with your ACME client of choice, and only reload nginx if
   a new certificate actually landed.

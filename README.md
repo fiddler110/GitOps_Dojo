@@ -315,7 +315,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | -------- | ------- | -------------- | -------------- | ------------------- | --------------------------- |
 | `git-fundamentals` | — | none | none | nothing (base image) | Forgejo only |
 | `dns-as-code` | `runner-pool`, `dns-ui`, `dns-gate` | `dns-server`, `dns-gates`; `runner-pool`, `runner-pool-shim`, `runner-controller`, `zone-viewer`, `dns-admin`, `dns-api` (modules) | `runner_net` (module) | `dnscontrol`, `dig`, `python3`; own DNS key (module) | Forgejo, `dns-api` |
-| `cert-autorenewal` | `dns-ui`, `dns-gate` | `dns-server`, `dns-seed`, `step-ca`, `demo-app`; `zone-viewer`, `dns-admin`, `dns-api` (modules) | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq`; own DNS key (module) | step-ca, `dns-api`, shared webroot volume |
+| `cert-autorenewal` | `dns-ui`, `dns-gate` | `dns-server`, `dns-seed`, `step-ca`, `demo-app`, `site-inspector`; `zone-viewer`, `dns-admin`, `dns-api` (modules) | static subnet on `workshop_lab` | `step`, `certbot`, `acme.sh`, `openssl`, `dig`, `jq`; own DNS key (module) | step-ca, `dns-api`, shared webroot volume |
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 | `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
 | `dojo-introduction` | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | The modules' services, plus PowerDNS as dns-as-code runs it | `runner_net`, `cloud_net` (modules) | One image with `dnscontrol`, `dig`, `tofu` | CI, DNS and Dojo Cloud; nothing to complete |
@@ -482,7 +482,8 @@ watcher inside `demo-app` reloads nginx when files change, so no
 ```mermaid
 graph TB
     Browser(["Browser"]) --> GW["gateway"]
-    GW -->|"/demo, after allocator forward_auth, HTTP only"| APP
+    GW -->|"/inspect, after allocator forward_auth"| INS["site-inspector"]
+    INS -->|"GET :80 and :443 for the viewer's own names"| APP
 
     subgraph lab["workshop_lab - internal, 172.30.0.0/24"]
         WT["web-terminal<br/>step, certbot, acme.sh, cron"]
@@ -575,9 +576,14 @@ sequenceDiagram
     end
 ```
 
-The `/demo` link on the workshop homepage is HTTP-only and never touches a
-student's certificate, so `curl --cacert` from the terminal is the real
-check that a cert is valid.
+The **Site Inspector** card (`/inspect`, `site-inspector`) is the students'
+browser for `demo-app`: it visits one of the viewer's own names from inside
+the lab the way a browser would (plain `http://` first, redirects, HSTS
+remembered per viewer), verifies each certificate against the lab CA, lists
+the security headers and shows the page with scripts off. The gateway can't
+proxy a browser to `demo-app`'s HTTPS (each student's name is private to the
+lab), so this replaces the old HTTP-only `/demo` link. `curl --cacert` from
+the terminal is the same check by hand.
 
 ---
 

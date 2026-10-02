@@ -249,6 +249,45 @@ def commit_reverted(api, a, ctx):
     return False, f"'{subject}' is still in effect on {branch}: undo it with a commit that reverts it"
 
 
+MAX_SCAN_BLOBS = 300           # history_absent reads at most this many distinct files
+MAX_SCAN_BYTES = 256 * 1024    # and skips any single file bigger than this
+
+
+def history_absent(api, a, ctx):
+    """No file on any branch, in any commit, matches the regex: a secret deleted in a later
+    commit is still in the history, so it still fails. Reads each distinct blob once."""
+    repo, rx = a["repo"], re.compile(a["regex"], re.M)
+    rp = repo_path(repo)
+    branches = _paged(api, f"{rp}/branches")
+    if branches is None:
+        return False, f"{repo} doesn't exist yet (dojo-challenge start first)"
+    trees = set()
+    for b in branches:
+        for c in _commits(api, repo, b["name"]) or []:
+            sha = ((c.get("commit") or {}).get("tree") or {}).get("sha")
+            if sha:
+                trees.add(sha)
+    blobs = {}
+    for t in sorted(trees):
+        data = _get(api, f"{rp}/git/trees/{_seg(t)}?recursive=true&per_page=1000") or {}
+        for e in data.get("tree") or []:
+            if e.get("type") == "blob" and (e.get("size") or 0) <= MAX_SCAN_BYTES:
+                blobs.setdefault(e["sha"], e["path"])
+    if len(blobs) > MAX_SCAN_BLOBS:
+        return False, f"{repo} has too many files to scan ({len(blobs)}); keep it to the challenge's files"
+    for sha, path in sorted(blobs.items(), key=lambda kv: kv[1]):
+        data = _get(api, f"{rp}/git/blobs/{_seg(sha)}") or {}
+        try:
+            text = base64.b64decode(data.get("content") or "").decode(errors="replace")
+        except ValueError:
+            continue
+        if rx.search(text):
+            return False, (f"{a.get('what', 'something that must stay out of git')} is in {path}, somewhere in "
+                           f"{repo}'s history. Deleting it in a later commit doesn't remove it: "
+                           f"`dojo-challenge reset {ctx.get('challenge', 'ID')}` rebuilds the repo")
+    return True, f"no {a.get('what', 'match')} anywhere in the history"
+
+
 VERBS = {
     "repo_exists": repo_exists,
     "branch_exists": branch_exists,
@@ -259,6 +298,7 @@ VERBS = {
     "no_direct_push": no_direct_push,
     "answer_names_commit": answer_names_commit,
     "commit_reverted": commit_reverted,
+    "history_absent": history_absent,
 }
 
 

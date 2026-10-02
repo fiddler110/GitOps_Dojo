@@ -38,6 +38,10 @@ services:
       - CERTS_TLS_ADDR=${CERTS_TLS_ADDR:-}
       - CERTS_PARENT=${CERTS_PARENT:-certs.dojo.test}
       - CERTS_CA_URL=${CERTS_CA_URL:-}
+      # served_mtls presents a client certificate from the lab CA, which the workshop writes into
+      # achievements_client_cert (cert-autorenewal's step-ca does); unused when blank or absent.
+      - CERTS_CLIENT_CERT=${CERTS_CLIENT_CERT:-}
+      - CERTS_CLIENT_KEY=${CERTS_CLIENT_KEY:-}
       # bao verifier verbs (plugins/bao): the read-only token comes from the openbao module.
       - BAO_URL=${BAO_CHECK_URL:-}
       - BAO_CHECK_TOKEN=${BAO_CHECK_TOKEN:-}
@@ -65,6 +69,8 @@ services:
       # The workshop's achievements/ folder (it sits beside content/).
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/../achievements:/opt/workshop/achievements:ro
       - achievements_data:/data
+      # A client certificate for the certs verbs, written by a workshop service (empty otherwise).
+      - achievements_client_cert:/opt/achievements-client:ro
     # The image's own user can't write a fresh volume under podman: run as a fixed uid.
     user: "0:0"
     cap_drop:
@@ -82,3 +88,4 @@ services:
 
 volumes:
   achievements_data:
+  achievements_client_cert:

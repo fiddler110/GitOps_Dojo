@@ -7,6 +7,14 @@ html: true
 style: |
   @import url('assets/themes/presentation.css');
   .required { color: var(--amber); font-weight: 700; }
+  .https-only { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 14px; }
+  .https-only > div, .wall > div { background: var(--surface-raised); border: 1px solid var(--line); border-top: 4px solid var(--teal); border-radius: 6px; padding: 12px 20px; }
+  .https-only h3 { margin: 0 0 6px; font-size: 30px; }
+  .https-only p, .https-only li { font-size: 22px; }
+  .wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+  .wall b { display: block; font-size: 21px; color: var(--cyan); }
+  .wall code { font-size: 15px; }
+  .wall p { margin: 4px 0 0; font-size: 18px; color: var(--muted); }
 footer: '[&larr; Hub](index.md) &nbsp;|&nbsp; Certificate Autorenewal | Engineering & IT Operations'
 ---
 
@@ -353,6 +361,52 @@ Reach for dns-01 instead of http-01 when:
   prove control of a wildcard; dns-01 is the only option
 - The DNS zone is already automated (sound familiar? — same PowerDNS API
   `dns-as-code` wraps in `dnscontrol`, driven here by hand)
+
+---
+
+## HTTPS only: redirect, then HSTS
+
+A certificate protects nobody while the site still answers on plain HTTP.
+
+<div class="https-only">
+<div>
+
+### Redirect (port 80)
+
+`http://` answers **`301 Moved Permanently`** with `Location: https://` + the same name and path.
+
+- Permanent (301/308), not 302: plain HTTP stops being the real address
+- A site renewing with **http-01** keeps `/.well-known/acme-challenge/` on plain HTTP, or its next renewal fails
+
+</div>
+<div>
+
+### HSTS (port 443)
+
+**`Strict-Transport-Security: max-age=86400`** on every HTTPS response.
+
+- The browser remembers: no more plain HTTP for this name, not even the first request, so nobody on the network can answer it instead (SSL stripping)
+- One-way: start with a short `max-age`; `includeSubDomains` and `preload` only once every name has HTTPS
+
+</div>
+</div>
+
+---
+
+## Bonus: the security-header wall
+
+Beyond HSTS, for later: one line of server config each, and only worth having over HTTPS.
+
+<div class="wall">
+<div><b>Content-Security-Policy</b><code>default-src 'self'</code><p>Where scripts, styles and images may load from: the main defence against cross-site scripting.</p></div>
+<div><b>X-Content-Type-Options</b><code>nosniff</code><p>Use the declared content type; never guess that a text file is a script.</p></div>
+<div><b>Frame protection</b><code>frame-ancestors 'self'</code><p>Who may put your page in a frame (CSP, or the older X-Frame-Options): stops clickjacking.</p></div>
+<div><b>Referrer-Policy</b><code>strict-origin-when-cross-origin</code><p>How much of your URL other sites see when someone follows a link away.</p></div>
+<div><b>Permissions-Policy</b><code>camera=(), geolocation=()</code><p>Switch off browser features the page never uses.</p></div>
+<div><b>Cookie flags</b><code>Secure; HttpOnly; SameSite=Lax</code><p>HTTPS only, out of reach of scripts, not sent with requests from other sites.</p></div>
+</div>
+
+<p class="small">See any site's: <code>curl -sI https://example.com</code> (this dojo's pages send a strict CSP and <code>nosniff</code>)</p>
 
 ---
 

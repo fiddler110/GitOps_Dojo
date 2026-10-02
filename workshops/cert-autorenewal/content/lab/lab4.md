@@ -97,11 +97,11 @@ curl --resolve "${me}.certs.dojo.test:443:${demo_ip}" --cacert /opt/step-ca-root
 Check `~/renew.log` if anything looks off — that's where cron's output
 landed.
 
-The homepage's **Demo Site** link still loads the page throughout —
-it's plain HTTP, so it never touches the certificate and won't show you
-the renewal happening. Rerun the `curl` above (or just re-run the
-`openssl x509 -enddate` check) after `notAfter` jumps forward to confirm
-the new certificate is what's actually being served.
+Watch it from the homepage's **Site Inspector** too: visit your name
+every few minutes and the certificate's serial and **Time left** change
+each time cron renews it, while the page keeps loading throughout. Or
+rerun the `curl` above (or the `openssl x509 -enddate` check) after
+`notAfter` jumps forward.
 
 ---
 
@@ -119,13 +119,15 @@ Next: [lab5.md](lab5.md), the dns-01 challenge.
 
 ## Challenge c2: The Short Fuse (bonus)
 
-Keep your site's certificate valid for 20 minutes straight without touching it. Run `dojo-check c2` once with
-renewal in place: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
+Keep your site's certificate valid for 20 minutes straight without touching it. Once renewal is in place,
+run `dojo-check c2` once: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
 renewals and no gap.
 
 Only when your class has achievements on (you see a score on your landing page).
-There is no repo for this one: it works in your own space (your own site, `$USER.certs.dojo.test`). Click **Start challenge** below, or run
-`dojo-challenge start c2`, to see your goal. When you think it's done, run `dojo-check c2`. A wrong answer costs
-nothing; `dojo-check hint c2` gives a hint for part of the points.
+Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/cert-fuse` and
+clones it to `~/lab/cert-fuse`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check c2`. A wrong answer costs nothing;
+`dojo-check hint c2` gives a hint for part of the points, and `dojo-challenge reset c2` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
 
 <!-- dojo-challenge: c2 -->

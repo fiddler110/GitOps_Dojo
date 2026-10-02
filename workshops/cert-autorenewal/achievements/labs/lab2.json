@@ -65,6 +65,34 @@
           }
         ]
       }
+    },
+    {
+      "id": "c2-https-only",
+      "title": "No Way Back to HTTP",
+      "joke": "Port 80 now only says 'try the other door'.",
+      "core": true,
+      "when": "verify: after the certificate is installed, plain http:// for your hostname answers a permanent redirect to https://, and HTTPS sends Strict-Transport-Security (any max-age)",
+      "match": {
+        "source": "verify",
+        "requires": [
+          "c2-install"
+        ],
+        "verify": [
+          {
+            "verb": "served_redirect",
+            "hosts": [
+              "{user}.certs.dojo.test"
+            ]
+          },
+          {
+            "verb": "served_hsts",
+            "hosts": [
+              "{user}.certs.dojo.test"
+            ],
+            "min_age": 1
+          }
+        ]
+      }
     }
   ]
 }

@@ -61,8 +61,8 @@ This lab never copies its output into `/srv/webroot/${me}/certs/`, so
 `demo-app` is still serving Lab 2's certificate, not this one — the acme.sh
 cert exists (you can inspect it above), it's just not installed. The
 `curl --cacert` check from Lab 2 step 5 would confirm that if you ran it
-again here; the homepage's **Demo Site** link wouldn't tell you either
-way, since it never touches HTTPS at all.
+again here, and so would the homepage's **Site Inspector**: its
+certificate's serial and dates are still Lab 2's.
 
 ---
 
@@ -82,8 +82,28 @@ Give a second name, `shop.$USER.certs.dojo.test`, its own trusted certificate, w
 first site alone. The name already points at the demo site; the vhost is yours to write.
 
 Only when your class has achievements on (you see a score on your landing page).
-There is no repo for this one: it works in your own space (your own vhosts and names under `$USER.certs.dojo.test`). Click **Start challenge** below, or run
-`dojo-challenge start c1`, to see your goal. When you think it's done, run `dojo-check c1`. A wrong answer costs
-nothing; `dojo-check hint c1` gives a hint for part of the points.
+Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/cert-shop` and
+clones it to `~/lab/cert-shop`, with a brief and starter files. The goal is printed there, with your own names in it.
+When you think it's done, push your files and run `dojo-check c1`. A wrong answer costs nothing;
+`dojo-check hint c1` gives a hint for part of the points, and `dojo-challenge reset c1` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
 
 <!-- dojo-challenge: c1 -->
+
+---
+
+## Challenge c3: Members Only (bonus)
+
+Mutual TLS: serve `https://members.$USER.certs.dojo.test` only to clients that present a certificate from the lab
+CA, and turn everyone else away. Until now only the server proved who it was; here the client does too, the way
+services talk to each other without passwords. Any fresh certificate from the lab CA doubles as the client
+certificate to test with.
+
+Only when your class has achievements on (you see a score on your landing page).
+Click **Start challenge** below, or run `dojo-challenge start c3`: it makes your own repo `$USER/cert-members` and
+clones it to `~/lab/cert-members`, with a brief and starter files. The goal is printed there, with your own names in
+it. When you think it's done, push your files and run `dojo-check c3`. A wrong answer costs nothing;
+`dojo-check hint c3` gives a hint for part of the points, and `dojo-challenge reset c3` starts the repo over.
+Keep keys out of the repo: the check looks through its whole history for a private key.
+
+<!-- dojo-challenge: c3 -->

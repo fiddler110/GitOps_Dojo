@@ -1,0 +1,27 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/cert-fuse",
+  "description": "{user}'s own challenge c2 (Certificate Autorenewal)",
+  "private": false,
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 1,
+      "message": "Start the renewal setup",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "cert-fuse/README.md"
+        },
+        {
+          "path": "renew-and-reload.sh",
+          "from": "cert-fuse/renew-and-reload.sh"
+        },
+        {
+          "path": "renew.cron",
+          "from": "cert-fuse/renew.cron"
+        }
+      ]
+    }
+  ]
+}

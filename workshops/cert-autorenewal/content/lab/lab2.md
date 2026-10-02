@@ -125,18 +125,82 @@ any real client does. Compare that against what happens with
 `--insecure`/`-k` instead of `--cacert`: it still connects, but it's no
 longer *verifying* anything — worth seeing the difference once.
 
-You can also open the **Demo Site** link on the workshop homepage
-(new tab) to confirm the same vhost content — it's a quick sanity check
-that nginx picked up your config. It's plain HTTP only, though, so it
-never actually touches your certificate; the `curl` above (not the
-browser link) is what tells you whether the certificate itself is valid.
+Now the same check the way a browser makes it: open the **Site
+Inspector** card on the workshop homepage and visit `https://${host}`
+(type your own name). It shows the certificate it was served (names,
+issuer, serial, time left) and whether it chains to the lab CA, then the
+page. Then visit just `${host}`, with no `https://`: a browser starts at
+plain `http://`, and so does the inspector. Your site still answers there,
+unencrypted. Step 6 fixes that.
+
+---
+
+## 6. HTTPS only: redirect, then HSTS
+
+A certificate protects nobody while the site still answers on plain
+HTTP. Two changes, both in your `.conf` (see the slide *HTTPS only:
+redirect, then HSTS*):
+
+- **Port 80 redirects.** Everything on `http://` gets a `301` to the same
+  name and path on `https://`, *except* `/.well-known/acme-challenge/`:
+  renewal (Lab 4) proves control of your name with a file there, over
+  plain HTTP.
+- **Port 443 sends HSTS.** `Strict-Transport-Security: max-age=300`
+  tells the browser to skip `http://` for your name for the next five
+  minutes, even when you type it without `https://`.
+
+The template has both, marked `CHANGED`. Read it, then replace your file
+with it:
+
+```sh
+less ~/lab/sample-repo/vhost-https-only.conf.template
+sed "s/studentNN/${me}/g" ~/lab/sample-repo/vhost-https-only.conf.template \
+  > "/srv/webroot/${me}/conf.d/${me}.conf"
+```
+
+Check both from the terminal (`-I` prints only the headers):
+
+```sh
+curl -sI --resolve "${host}:80:${demo_ip}" "http://${host}/"
+curl -sI --resolve "${host}:443:${demo_ip}" --cacert /opt/step-ca-root/root_ca.crt "https://${host}/"
+curl -s  --resolve "${host}:80:${demo_ip}" -o /dev/null -w '%{http_code}\n' \
+  "http://${host}/.well-known/acme-challenge/missing"
+```
+
+```text
+HTTP/1.1 301 Moved Permanently
+Location: https://student07.certs.dojo.test/
+...
+HTTP/1.1 200 OK
+Strict-Transport-Security: max-age=300
+...
+404
+```
+
+The last one is `404`, not `301`: the challenge path still answers on
+plain HTTP.
+
+Now watch it from the browser's side. In the **Site Inspector**, visit
+`${host}` (no scheme) twice:
+
+1. The first visit goes `http://` → `301` → `https://`, and the HTTPS
+   response carries HSTS. The **HSTS memory** at the bottom now lists your
+   name.
+2. The second visit never sends the plain `http://` request: the
+   inspector upgrades it to `https://` first, as a browser does. That
+   skipped request is the one an attacker on the network would have
+   answered (SSL stripping).
+
+After five minutes the memory expires and the first visit's path comes
+back; **Forget all** does the same at once.
 
 ---
 
 ## Checkpoint
 
-You have a live HTTPS site, an issued certificate you can inspect, and
-you've watched the full ACME http-01 exchange happen. You also now know
+You have a live HTTPS-only site, an issued certificate you can inspect,
+and you've watched the full ACME http-01 exchange happen. Plain HTTP now
+redirects (except the challenge path) and browsers remember HSTS. You also now know
 that certificate expires in minutes, not months — which is exactly what
 Lab 4 automates.
 

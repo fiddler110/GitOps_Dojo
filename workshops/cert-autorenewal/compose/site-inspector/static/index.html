@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Site Inspector</title>
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <link rel="stylesheet" href="static/app.css">
+  <script src="static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="static/favicon.svg" alt="" width="24" height="24">
+      <span>Site Inspector</span>
+      <span class="sub">a browser's visit to your site, one step at a time</span>
+    </div>
+  </header>
+
+  <main>
+    <form id="go" class="address" autocomplete="off">
+      <label for="url" class="visually-hidden">Address</label>
+      <input id="url" name="url" list="names" spellcheck="false" placeholder="your-name.certs.dojo.test">
+      <datalist id="names"></datalist>
+      <button type="submit" class="btn primary" id="visit">Visit</button>
+    </form>
+    <p class="hint" id="hint">Type a name the way you would in a browser's address bar: no <code>https://</code>
+      means the browser tries <code>http://</code> first.</p>
+    <p class="status" id="status" role="status"></p>
+
+    <section id="result" hidden>
+      <h2>Steps</h2>
+      <ol class="hops" id="hops"></ol>
+      <p class="stopped" id="stopped" hidden></p>
+
+      <div id="final" hidden>
+        <h2>Security headers <span class="muted" id="final-url"></span></h2>
+        <table class="headers">
+          <thead><tr><th>Header</th><th>Value</th><th>What it means</th></tr></thead>
+          <tbody id="security"></tbody>
+        </table>
+
+        <h2>The page</h2>
+        <p class="muted" id="page-note"></p>
+        <iframe id="preview" sandbox="" title="The page, with scripts switched off" hidden></iframe>
+        <details>
+          <summary>Source</summary>
+          <pre id="source"></pre>
+        </details>
+      </div>
+    </section>
+
+    <section class="memory">
+      <h2>HSTS memory</h2>
+      <p class="muted">Like a browser, this inspector remembers the sites that sent
+        <code>Strict-Transport-Security</code> over a trusted HTTPS connection, and skips
+        <code>http://</code> for them until it expires. This memory is yours alone.</p>
+      <ul id="hsts"></ul>
+      <button type="button" class="btn" id="forget">Forget all</button>
+    </section>
+  </main>
+</body>
+</html>

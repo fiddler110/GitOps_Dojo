@@ -17,7 +17,9 @@
     "answer_names_commit": {"args": ["repo", "ref", "path", "search"],
                             "does": "the file names the short hash (7+ hex characters) and the author of the oldest commit on search.branch whose diff adds a line equal to search.text in search.path"},
     "commit_reverted": {"args": ["repo", "branch?", "message"],
-                        "does": "the commit whose subject is message is in the branch's history (default main) and a later commit there reverts it (git revert's 'This reverts commit <sha>' or subject 'Revert \"<message>\"')"}
+                        "does": "the commit whose subject is message is in the branch's history (default main) and a later commit there reverts it (git revert's 'This reverts commit <sha>' or subject 'Revert \"<message>\"')"},
+    "history_absent": {"args": ["repo", "regex", "what?"],
+                       "does": "no file in any commit on any branch matches the regex, so a secret deleted in a later commit still fails; what names it in the message"}
   },
   "builders": {
     "forgejo-repo": {"does": "creates {user}/NAME under the student's own account (the student owns it, so has write access) and plays the plan's commits and branches into it through the Forgejo API; reset deletes and re-creates it"}

@@ -50,8 +50,8 @@ while [ "${i}" -le "${STUDENT_COUNT}" ]; do
   i=$((i + 1))
 done
 
-# The facilitator's own demo site (the /demo route sends them to
-# <facilitator>.<zone>, see ../../extensions.json).
+# The facilitator's own demo site, <facilitator>.<zone>, for showing the labs
+# (the Site Inspector visits it from the facilitator's /admin tab).
 host="${FACILITATOR_USERNAME:-root}.${ZONE}"
 echo "cert-autorenewal dns-seed: A ${host} -> ${DEMO_APP_IP} (facilitator)"
 curl -sf -H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json" \
