@@ -5,10 +5,16 @@ import http.server
 import json
 import os
 import shutil
+import signal
+import socket
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+import urllib.request
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.environ["GATEWAY_TOKEN"] = "t" * 64
@@ -387,6 +393,101 @@ class CertificateTests(unittest.TestCase):
         self.assertEqual(len(doc["cheats"]), 1)
         self.assertEqual((doc["signature"], doc["class_date"]), ("Ada", "1 Jan"))
         self.assertNotIn("name", doc)
+
+
+class SaveTests(unittest.TestCase):
+    """RV2: polls don't write, a burst of changes is one write off the request path, and
+    flush() (SIGTERM) writes whatever the writer hasn't yet."""
+    tearDown, mk = StoreTests.tearDown, StoreTests.mk
+    ev = StoreTests.ev
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.clock = Clock()
+
+    def count_writes(self):
+        writes = []
+        real = self.s._write
+        self.s._write = lambda text: (writes.append(text), real(text))
+        return writes
+
+    def saved_score(self, user):
+        return Store(load(), lg.Config(), self.dir, "secret", facilitator="boss", clock=self.clock).me(user)["score"]
+
+    def test_polls_write_only_when_they_register_someone(self):
+        self.mk()
+        writes = self.count_writes()
+        self.s.me("a")
+        self.s.board("b")
+        self.assertEqual(len(writes), 2)        # each registered a new student
+        for _ in range(50):
+            self.s.me("a")
+            self.s.board("a")
+        self.assertEqual(len(writes), 2)
+
+    def test_a_burst_is_one_write_soon_after(self):
+        self.mk(save_delay=0.3)
+        time.sleep(0.4)                          # the start-up write
+        writes = self.count_writes()
+        self.s.event(None, self.ev("a", "l1-clone"))
+        for n in range(20):
+            self.s.me(f"s{n}")                   # each registers someone: a change
+            self.s.me("a")
+        self.assertEqual(writes, [])             # nothing written on the request path
+        deadline = time.monotonic() + 3
+        while not writes and time.monotonic() < deadline:
+            time.sleep(0.05)
+        time.sleep(0.4)
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(self.saved_score("a"), 10)
+
+    def test_flush_writes_what_is_pending(self):
+        self.mk(save_delay=60)
+        time.sleep(0.2)                          # the start-up write; the next one would wait 60 s
+        self.s.event(None, self.ev("a", "l1-clone"))
+        self.assertEqual(self.saved_score("a"), 0)
+        self.assertTrue(self.s.flush())
+        self.assertFalse(self.s.flush())         # nothing new
+        self.assertEqual(self.saved_score("a"), 10)
+
+    def test_failed_write_stays_dirty(self):
+        self.mk(save_delay=60)
+        time.sleep(0.2)
+        self.s.me("a")
+        self.s._write = mock.Mock(side_effect=OSError("disk full"))
+        with self.assertRaises(OSError):
+            self.s.flush()
+        del self.s._write
+        self.assertTrue(self.s.flush())
+
+    def test_sigterm_flushes_the_running_service(self):
+        """The real server process: a change, then SIGTERM well before the writer's next turn."""
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.close()
+        env = dict(os.environ, DATA_DIR=self.dir, PORT=str(port), WORKSHOP_DIR=WORKSHOP,
+                   GATEWAY_TOKEN="gw-test", FORGEJO_ADMIN_USER="", FORGEJO_ADMIN_PASSWORD="")
+        proc = subprocess.Popen([sys.executable, "-B", "-c", "import server; server.SAVE_DELAY = 60; server.main()"],
+                                cwd=HERE, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(proc.kill)
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/me",
+                                     headers={"X-Gateway-Token": "gw-test", "X-Auth-User": "student07"})
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                urllib.request.urlopen(req, timeout=2).read()
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    self.fail("the service never answered")
+                time.sleep(0.1)
+        with open(os.path.join(self.dir, "state.json")) as f:
+            self.assertNotIn("student07", f.read())     # the writer waits 60 s
+        proc.send_signal(signal.SIGTERM)
+        self.assertEqual(proc.wait(timeout=10), 0)
+        with open(os.path.join(self.dir, "state.json")) as f:
+            self.assertIn("student07", json.load(f)["ledger"]["users"])
 
 
 class ResolverTests(unittest.TestCase):

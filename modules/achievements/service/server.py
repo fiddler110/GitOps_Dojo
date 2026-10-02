@@ -51,6 +51,7 @@ GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
 ADMIN_PREFIX = "/achievements-admin"
 MAX_BODY = 8192
+SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); every widget polls
 MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
 SECURITY_HEADERS = {
@@ -120,7 +121,7 @@ def make_store():
     store = Store(catalog, lg.Config.from_env(env), env.get("DATA_DIR", "/data"),
                  secret=GATEWAY_TOKEN or os.urandom(16).hex(),
                  anonymous=env.get("ACHIEVEMENTS_ANONYMOUS", "1") not in ("0", "false", "no", ""),
-                 facilitator=FACILITATOR, ignore=(env.get("FORGEJO_ADMIN_USER"),))
+                 facilitator=FACILITATOR, ignore=(env.get("FORGEJO_ADMIN_USER"),), save_delay=SAVE_DELAY)
     store.signature = env.get("ACHIEVEMENTS_SIGNATURE", "")[:80]
     store.class_date = env.get("ACHIEVEMENTS_CLASS_DATE", "")[:40]
     return store
@@ -437,7 +438,10 @@ def main():
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
     log(f"serving {store.catalog['title']} on :{port}")
-    srv.serve_forever()
+    try:
+        srv.serve_forever()
+    finally:
+        store.flush()   # SIGTERM (podman stop) or a crash: write what the writer hasn't yet
 
 
 if __name__ == "__main__":

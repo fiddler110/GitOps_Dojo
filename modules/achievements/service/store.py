@@ -1,13 +1,17 @@
 """The service's state: one Ledger, its anonymous names, event guards and persistence.
 
 Everything mutating goes through `Store` under one lock, and the state is written to the
-module volume (atomically) after each change, so a restart keeps the class's scores. No
+module volume (atomically), so a restart keeps the class's scores. With `save_delay` set (the
+service), a change only marks the state dirty and a writer thread writes it at most that often,
+off the request path; `flush()` writes what is left (the service calls it on SIGTERM). Without
+it (tests, tools), every change is written at once. No
 HTTP in here: server.py is a thin layer, and tests drive this directly.
 """
 
 import json
 import os
 import re
+import sys
 import threading
 import time
 
@@ -53,7 +57,7 @@ class Denied(Exception):
 
 class Store:
     def __init__(self, catalog, config, data_dir, secret, anonymous=True, facilitator="facilitator",
-                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=()):
+                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=(), save_delay=None):
         self.lock = threading.Lock()
         self.data_dir = data_dir
         self.anonymous = anonymous
@@ -90,6 +94,13 @@ class Store:
         # text. Saved with the rest of the state, so a restart keeps the radar.
         self.activity = _activity(state.get("activity"))
         self._saved_at = None
+        self.save_delay = save_delay
+        self._dirty = False
+        self._write_lock = threading.Lock()     # one writer at a time: the thread or flush()
+        self._wake = threading.Event()
+        self._last_write = 0.0                  # time.monotonic() of the last write
+        if save_delay is not None:
+            threading.Thread(target=self._writer, daemon=True).start()
         self._save()
 
     # -- persistence -------------------------------------------------------------------
@@ -104,20 +115,69 @@ class Store:
         except (OSError, TypeError, ValueError):
             return {}
 
-    def _save(self):
+    def _doc(self):
+        """The whole state as JSON text (caller holds the lock)."""
+        return json.dumps({"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
+                           "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
+                           "checks": self.checks[-500:], "activity": self.activity,
+                           "watching": self.watching})
+
+    def _write(self, text):
         path = self._path()
-        if not path:
-            return
-        doc = {"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
-               "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
-               "checks": self.checks[-500:], "activity": self.activity,
-               "watching": self.watching}
         tmp = path + ".tmp"
         os.makedirs(self.data_dir, exist_ok=True)
         with open(tmp, "w") as f:
-            json.dump(doc, f)
+            f.write(text)
         os.replace(tmp, path)
-        self._saved_at = self.clock()
+
+    def _save(self):
+        """The state changed (caller holds the lock): write it now, or let the writer know."""
+        if not self._path():
+            return
+        self._dirty = True
+        if self.save_delay is None:
+            self._write(self._doc())
+            self._dirty = False
+            self._saved_at = self.clock()
+        else:
+            self._wake.set()
+
+    def flush(self):
+        """Write the state if it changed since the last write. Never call it holding the lock.
+        True if something was written."""
+        if not self._path():
+            return False
+        with self._write_lock:
+            with self.lock:
+                if not self._dirty:
+                    return False
+                text = self._doc()
+                self._dirty = False
+            try:
+                self._write(text)
+            except OSError:
+                with self.lock:
+                    self._dirty = True      # try again on the next change or flush
+                raise
+            self._last_write = time.monotonic()
+            with self.lock:
+                self._saved_at = self.clock()
+            return True
+
+    def _writer(self):
+        """Writes the dirty state at most every `save_delay` seconds; a burst of changes is one write."""
+        while True:
+            self._wake.wait()
+            wait = self._last_write + self.save_delay - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            self._wake.clear()      # a change from here on wakes us again
+            try:
+                self.flush()
+            except OSError as exc:
+                print(f"achievements: saving {self._path()} failed: {exc}", file=sys.stderr, flush=True)
+                time.sleep(self.save_delay)
+                self._wake.set()
 
     # -- helpers -----------------------------------------------------------------------
     def _student(self, user):
@@ -152,6 +212,7 @@ class Store:
     # -- student reads -----------------------------------------------------------------
     def me(self, user):
         with self.lock:
+            new = user not in self.ledger.users
             self._student(user)
             L = self.ledger
             board = L.leaderboard()
@@ -168,7 +229,8 @@ class Store:
                 "moments": L.moments(user),
                 "challenges": self._challenge_rows(user),
             }
-            self._save()
+            if new:     # every widget polls this: save only when it registered someone
+                self._save()
             return out
 
     def _challenge_rows(self, user):
@@ -186,10 +248,12 @@ class Store:
 
     def board(self, viewer):
         with self.lock:
+            new = viewer not in self.ledger.users
             self._student(viewer)
             rows = [{"name": self._label(r["user"]), "score": r["score"], "rank": r["rank"],
                      "you": r["user"] == viewer} for r in self.ledger.leaderboard()]
-            self._save()
+            if new:
+                self._save()
             return rows
 
     def certificate(self, user):
