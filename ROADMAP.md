@@ -4,7 +4,7 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (restyled into tables) · Working branch: `feat/achievements` (the only open branch;
+Last updated: 2026-10-02 (home demo dry run passed; tier 1 and RV13-RV18 done) · Working branch: `feat/achievements` (the only open branch;
 remediation and front-door reached `main` in PR #4, and their branches are deleted).
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
@@ -24,8 +24,9 @@ what is left (usually the live check).
 
 ## Priorities
 
-Decided at the 2026-10-01 review; committing the working tree (old item 1) is done (`4481225`). The user's own browser checks ([Manual checks](#manual-checks)) fit in around
-these; tofu-basics T9.4/T9.9 are the oldest.
+Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run and
+platform review tier 1 (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
@@ -38,8 +39,9 @@ these; tofu-basics T9.4/T9.9 are the oldest.
 
 ## Up next
 
-Resume here (written 2026-10-02 after `8f9b71c`: tier 2's CI and tests RV13-RV18 are done, see RELEASES).
-Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
+Resume here (written 2026-10-02 after `4a10e75`: the home demo dry run passed and its fixes are committed; tier 2's
+CI and tests RV13-RV18 are done, see RELEASES). First the merge, [N2](#n2-merge-featachievements-to-main)
+(priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
 may be using the machine).
 
 | ID | Work | Effort | Description |
@@ -63,14 +65,15 @@ may be using the machine).
 
 ### N2: Merge `feat/achievements` to `main`
 
-Ask before pushing or opening a PR. The branch is 41 commits ahead of `main` and lacks only `LICENSE`; a trial merge
-(2026-10-01) was clean. Phase 9 checks continue on `main`.
+Ask before pushing or opening a PR. The branch is 68 commits ahead of `main`; `main` has 5 the branch lacks
+(`LICENSE` among them). The last trial merge (2026-10-01) was clean; redo it before the PR. Phase 9 checks continue
+on `main`.
 
 | Step | Check | What to do |
 |---|---|---|
-| 1 | Prerequisites | Done: the working tree is committed (`4481225`) and the home demo dry run passed (2026-10-02; commit its fixes first) |
+| 1 | Prerequisites | Done: the home demo dry run passed and its fixes are committed (`7749e97`, `e00f727`, 2026-10-02) |
 | 2 | Toggle-off regression | git-fundamentals `--test` with `ACHIEVEMENTS_ENABLED=0` in the shell: no achievements container (sensei stays, it is in every pack's `MODULES`), no toasts or widget, `/workspace` still works |
-| 3 | Dry runs | `./run.sh <w> --dry-run` of every pack |
+| 3 | Dry runs | `.github/scripts/dry-runs.sh` (every pack, achievements off and on), or let CI run it on the push |
 | 4 | PR #5 | Open it once 2 and 3 pass |
 
 ### N3: Phase 9 live checks
