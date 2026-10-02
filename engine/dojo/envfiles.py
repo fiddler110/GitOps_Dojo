@@ -155,11 +155,17 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
         raise EnvError(f"--env {env_name}: engine/.env.{env_name} not found.")
 
     b = _Builder(base if base is not None else dict(os.environ))
+    # The achievements toggle set in the shell beats engine/.env, so one run (or a
+    # restart repeating the running start) can switch it without editing the file.
+    shell_toggle = b.env.get("ACHIEVEMENTS_ENABLED")
 
     def operator_and_workshop() -> None:
         b.literal(paths.ENV_FILE)
         if variant is not None:
             b.literal(variant)
+        if shell_toggle is not None:
+            b.env["ACHIEVEMENTS_ENABLED"] = shell_toggle
+            b._note("ACHIEVEMENTS_ENABLED", "environment", shell_toggle)
         b.shell(workshop_env)
 
     operator_and_workshop()

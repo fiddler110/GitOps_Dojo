@@ -43,6 +43,38 @@ class LiteralEnv(unittest.TestCase):
         self.assertEqual(got, EXPECTED)
 
 
+class AchievementsToggle(unittest.TestCase):
+    """ACHIEVEMENTS_ENABLED in the shell beats engine/.env; without it, the file decides."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        (self.root / "workshops" / "w" / "achievements").mkdir(parents=True)
+        (self.root / "workshops" / "w" / "workshop.env").write_text("WORKSHOP_TITLE=w\n")
+        (self.root / "workshops" / "w" / "achievements" / "catalog.json").write_text("{}")
+        (self.root / "modules" / "achievements").mkdir(parents=True)
+        (self.root / ".env").write_text("ACHIEVEMENTS_ENABLED=1\n")
+        self.saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE)
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE = (
+            self.root / "workshops", self.root / "modules", self.root / ".env")
+
+    def tearDown(self):
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE = self.saved
+        import shutil
+        shutil.rmtree(self.root)
+
+    def resolve(self, base):
+        return envfiles.resolve("w", base={"PATH": os.environ["PATH"], **base})
+
+    def test_file_decides_without_shell_value(self):
+        self.assertEqual(self.resolve({}).modules, ["achievements"])
+
+    def test_shell_value_wins(self):
+        res = self.resolve({"ACHIEVEMENTS_ENABLED": "0"})
+        self.assertEqual(res.modules, [])
+        self.assertEqual(res.env["ACHIEVEMENTS_ENABLED"], "0")
+        self.assertEqual(res.origins["ACHIEVEMENTS_ENABLED"][-1].source, "environment")
+
+
 class SharedFacts(unittest.TestCase):
     def test_default_passwords_match_lib_sh(self):
         lib = (paths.ENGINE / "scripts" / "lib.sh").read_text()
