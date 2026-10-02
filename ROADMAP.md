@@ -172,7 +172,7 @@ file**. Phases 0-8 are done (RELEASES); phase 9 is built and live on git-fundame
 | 7 | Sensei (roster auto-merge, `/admin` PR tab, dns-as-code review PR seed) | done |
 | 8 | Toast surfaces (VS Code extension, Forgejo header) | done |
 | 9 | Other four packs: `match`, adapters, verifiers, seeds (9a build done 2026-10-01) | live checks: Now §3 |
-| 10 | Sweep: overflow screenshots (lab times re-checked 2026-10-01: git-fundamentals 55 min, dns-as-code 102, cert-autorenewal 80; dns-as-code's `README.md` still says "45-60 minute session") | todo |
+| 10 | Sweep: overflow screenshots (lab times re-checked 2026-10-01: git-fundamentals 55 min, dns-as-code 102, cert-autorenewal 80) | todo |
 
 #### Leftovers
 
