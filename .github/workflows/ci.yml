@@ -1,0 +1,26 @@
+# Unit tests and every workshop's dry run (RV13). Both scripts run locally too.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sh .github/scripts/unit-tests.sh
+
+  dry-runs:
+    # Compose config, extensions.json, achievements catalogs and image pins for
+    # every pack, with docker; nothing is started.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sh .github/scripts/dry-runs.sh

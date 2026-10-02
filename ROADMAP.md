@@ -14,7 +14,7 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume: RV2, RV6, RV7, then CI; decisions of 2026-10-02 |
+| [Up next](#up-next) | Where to resume: RV2, RV6/RV7 live, RV13's first GitHub run; decisions of 2026-10-02 |
 | [Now](#now) | N1 home demo dry run, N2 merge, N3 phase 9 live checks |
 | [Next](#next) | Platform review (RV13-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
@@ -24,20 +24,19 @@ what is left (usually the live check).
 
 ## Priorities
 
-Decided at the 2026-10-01 review. The user's own browser checks ([Manual checks](#manual-checks)) fit in around
+Decided at the 2026-10-01 review; committing the working tree (old item 1) is done (`4481225`). The user's own browser checks ([Manual checks](#manual-checks)) fit in around
 these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Commit the working tree | S | The user stages and commits (`git add -A` is off limits). About 48 files on `feat/achievements` are uncommitted: the vault capstone slot (A24), the cert `c2` watch, Sensei activity saved in `state.json`, the chained-command matcher, the slimmed dojo-introduction. A demo from an uncommitted tree can't be reproduced |
-| 2 | Home demo dry run | M | [N1](#n1-home-demo-dry-run) |
-| 3 | Merge `feat/achievements` to `main` early | S | [N2](#n2-merge-featachievements-to-main), after a toggle-off regression run; phase 9 live checks carry on from `main` |
-| 4 | Platform review tier 1 | M | The module items RV2, RV6, RV7 ([Up next](#up-next)); the engine items shipped 2026-10-01. Before the class-sized run |
-| 5 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-| 6 | Platform review tier 2 | L | RV13-RV19: CI and the missing tests |
-| 7 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
-| 8 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 9 | Platform review tiers 3-4 | L | RV20-RV38: refactors, then new features and workshops |
+| 1 | Home demo dry run | M | [N1](#n1-home-demo-dry-run) |
+| 2 | Merge `feat/achievements` to `main` early | S | [N2](#n2-merge-featachievements-to-main), after a toggle-off regression run; phase 9 live checks carry on from `main` |
+| 3 | Platform review tier 1 | M | The module items RV2, RV6, RV7 ([Up next](#up-next)); the engine items shipped 2026-10-01. Before the class-sized run |
+| 4 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
+| 5 | Platform review tier 2 | L | RV16-RV19: the missing tests (RV13 CI built, RV14-RV15 done) |
+| 6 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
+| 7 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
+| 8 | Platform review tiers 3-4 | L | RV20-RV38: refactors, then new features and workshops |
 
 ## Up next
 
@@ -50,7 +49,7 @@ may be using the machine).
 | RV2 | Achievements state writes | S | `modules/achievements/service/store.py`: `_save()` rewrites the whole state under `self.lock` at about ten call sites (lines ~93-376), including `me()` (~171), which every student's widget polls. **Plan:** a `_dirty` flag set where `_save()` is called today; a background thread that writes when dirty and at least 1-2 s have passed since the last write; a flush on SIGTERM and at shutdown; drop the save from `me()` unless it actually registered a new user. Keep the temp file + rename. **Tests:** the module has 290; add one for "state written within N s and after SIGTERM". **Live:** `./run.sh git-fundamentals --test 3`, restart `achievements`, scores identical before and after |
 | RV6 | Runner-pool controller lock | S (live) | **Built 2026-10-02, unit-tested only (26 pass); live check left.** `modules/runner-pool/controller/controller.py`: `tick()` (~331) held the RLock (~218) across `_refresh()` (~236), which calls Forgejo, so `/api/state` and `/healthz` stalled when Forgejo was slow. Now `_fetch` reads with no lock; the lock covers the decision and the snapshot swap; registrations and deletions run outside it, a new runner's name reserved first so a tick and a manual + can't pass the max; readers take no lock. **Live (with RV7's):** dns-as-code `--test 3`, Runners panel, with a pipeline running |
 | RV7 | Sensei global lock | S (live) | **Built 2026-10-02, unit-tested only (70 pass, new `test_locks.py`); live check left.** `modules/sensei/server.py` (`lock` at ~45, used ~119-196; Forgejo calls in `support.py`) held one global lock across Forgejo calls, serialising every student's `sensei` and the facilitator's PR tab. Now per-user locks for status/review/approve; the loop and `/api/scan` share a tick lock (scan skips if a pass is running); in `bot.py` a state lock guards the PR table and its file, and a per-PR lock stops the loop, `sensei approve` and "merge anyway" judging one PR at once (the loop skips a busy PR). **Live (with RV6's):** dns-as-code `--test 3`, `sensei status\|review\|approve` from two students while the Sensei tab polls |
-| RV13-RV15 | Then tier 2 | M | [Platform review](#platform-review-2026-10-01) tier 2: RV13 CI workflow first (unit tests for engine/dojo, allocator, achievements, sensei; `./run.sh <w> --dry-run` for every pack; the catalog validator), then RV14 docs, RV15 allocator handler tests |
+| RV13 | CI: first GitHub run | S | **Built 2026-10-02, run locally with podman only.** `.github/workflows/ci.yml` runs `.github/scripts/unit-tests.sh` (every suite) and `.github/scripts/dry-runs.sh` (every pack, achievements off and on, allocator image built for the manifest and catalog checks) on `ubuntu-24.04`. Left: push and watch the first run; the dry runs there go through docker + `docker compose`, which this machine can't test. Then the rest of [tier 2](#platform-review-2026-10-01), RV16 first |
 
 **Answered 2026-10-02**
 
@@ -97,7 +96,7 @@ Ask before pushing or opening a PR. The branch is 41 commits ahead of `main` and
 
 | Step | Check | What to do |
 |---|---|---|
-| 1 | Prerequisites | The commit (Priorities 1) and the demo (N1) come first |
+| 1 | Prerequisites | The demo (N1) comes first (the working tree is committed, `4481225`) |
 | 2 | Toggle-off regression | git-fundamentals `--test` with `ACHIEVEMENTS_ENABLED=0` in the shell: no achievements container (sensei stays, it is in every pack's `MODULES`), no toasts or widget, `/workspace` still works |
 | 3 | Dry runs | `./run.sh <w> --dry-run` of every pack |
 | 4 | PR #5 | Open it once 2 and 3 pass |
@@ -136,9 +135,7 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV13 | CI workflow | S-M | `.github/workflows/` is empty: unit tests, `./run.sh <w> --dry-run` for every pack, the achievements catalog validator. No containers needed |
-| RV14 | Allocator test command | S | The allocator tests run only from `engine/allocator` (`python3 -B -m unittest discover -s tests`); write that in `engine/README.md` and the roadmap's test notes, or add `__init__.py` so the repo-root form works too |
-| RV15 | Allocator handler tests | M | `/auth-check`, `/assign`, `/release`, release-unused, sessions API, `/session-check` (fake `control_request`) |
+| RV13 | CI workflow | S | Built; first GitHub run left (see [Up next](#up-next)) |
 | RV16 | CLI tests | M | `hash_dir` golden value, `Builder.reap`/`tracking`, `terminal_chain` order, `RunLock` stale reclaim, MODULES resolution |
 | RV17 | Runner-pool supervisor tests | M | `modules/runner-pool/pool/supervise.py` (the state.json handoff) |
 | RV18 | Shared test harness | M | One `workshops/assets/test-lib.sh` from the tofu and vault `tests/lib.sh` |

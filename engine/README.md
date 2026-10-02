@@ -529,6 +529,10 @@ shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
   Compose files); `.build-state/history.jsonl` has one line per start, restart,
   build and stop, with how long it took and how it ended.
 - **Tests.** `PYTHONPATH=engine:$(echo engine/.cache/pylib-*) python3 -B -m unittest discover -s engine/dojo/tests -t engine`
+  (from the repo root). The allocator's tests import `server` by plain name, so they
+  run only from `engine/allocator`: `cd engine/allocator && python3 -B -m unittest
+  discover -s tests`. `sh .github/scripts/unit-tests.sh` runs every suite in the repo
+  the way CI does, and `sh .github/scripts/dry-runs.sh` dry-runs every workshop.
 
 Run these from the repo root, or from `engine/` — same commands either way.
 
