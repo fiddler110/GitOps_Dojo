@@ -4,6 +4,9 @@ Opens a branch and a PR into `base` of `repo` through Forgejo's contents API (no
 every student has something to review in Lab 3 even without a neighbour. Sensei only *opens* it: it
 is never approved or merged by the bot (students review it; the facilitator merges or closes it).
 Runs once per stack: the state file remembers the PR number, so a closed or merged one is not reopened.
+With `"after_ci": true` it waits until `base`'s head commit has passed CI (combined status `success`), so the
+PR's own CI preview runs against what that first CI run set up (dns-as-code: the first DNS Apply creates the
+`dojo.test` zone; a preview started alongside it reported the zone as missing).
 Same injected `api(method, path, body=None, raw=False) -> (status, data)` as bot.py.
 """
 import base64
@@ -25,6 +28,7 @@ class Seeder:
         self.file = cfg["file"]
         self.before, self.line = cfg["before"], cfg["line"]
         self.title, self.body = cfg["title"], cfg.get("body", "")
+        self.after_ci = bool(cfg.get("after_ci"))
         self.api, self.state_path = api, state_path
         self.number = None
         if state_path and os.path.exists(state_path):
@@ -44,9 +48,13 @@ class Seeder:
         """Open the PR if it has never been opened. True when it opened one now."""
         if self.number:
             return False
+        if self.after_ci:
+            status, st = self.api("GET", f"/repos/{self.repo}/commits/{_q(self.base)}/status")
+            if status != 200 or st.get("state") != "success":
+                return False  # base's first CI run still going (or failed): try again next pass
         status, meta = self.api("GET", f"/repos/{self.repo}/contents/{_q(self.file)}?ref={_q(self.base)}")
-        if status != 200:
-            return False  # repo or file not there yet: try again next pass
+        if status != 200 or not isinstance(meta, dict):
+            return False  # repo or file not there yet (an empty repo lists []): try again next pass
         text = base64.b64decode(meta["content"]).decode()
         if self.line in text or self.before not in text:
             return False  # already there, or not the file we expect: never guess

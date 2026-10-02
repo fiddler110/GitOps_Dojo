@@ -17,6 +17,7 @@
     enabled = d.enabled;
     $('attn').textContent = d.attention ? d.attention + ' pull request' + (d.attention === 1 ? '' : 's') + ' need' + (d.attention === 1 ? 's' : '') + ' you' : 'Nothing needs you';
     $('attn').className = d.attention ? 'err' : 'dim';
+    if (d.mode === 'approve') { $('what').textContent = 'Approves each pull request that adds or removes only its author\'s own records; merging stays with the student.'; }
     $('repo').textContent = d.watching === false ? 'not reviewing pull requests in this workshop' : d.repo; $('toggle').textContent = enabled ? 'Pause' : 'Resume';
     var body = $('rows'); while (body.firstChild) { body.removeChild(body.firstChild); }
     d.prs.forEach(function (p) {

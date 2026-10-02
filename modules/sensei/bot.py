@@ -154,7 +154,10 @@ class Sensei:
             if self.mode == "approve" and not self._approvable(pr):
                 continue
             if row and row["sha"] == pr["head"]["sha"] and row["status"] in ("needs-review", "merged", "approved"):
-                continue
+                # An approved PR is judged again once `main` moves under it and it conflicts, so `sensei status`
+                # stops saying "merge it" while Forgejo refuses the merge.
+                if not (row["status"] == "approved" and pr.get("mergeable") is False):
+                    continue
             if row and row["status"] == "error" and self.clock() - row["updated"] < 30:
                 continue
             if pr.get("draft") or pr.get("title", "").lower().startswith("wip"):
@@ -266,14 +269,6 @@ class Sensei:
         if not self._approvable(pr):
             raise GitFailed("this pull request is outside what Sensei is allowed to approve")
         author = pr["user"]["login"]
-        if not (bypass or self._is_bot(author) or author in self._reviewers() or self._patience_over(pr)):
-            # Peer review is part of the lesson: Sensei stands in for the neighbour once the student has
-            # done their half (Lab 3 step 6), or has waited long enough, and checks again every pass.
-            self._set(pr, "waiting", "review someone else's pull request first")
-            self._say_once(pr, "I'll approve this one as soon as you have reviewed someone else's pull request "
-                           "(Lab 3, step 6: run `sensei review` in your terminal and I'll pick one for you). "
-                           "I check every few seconds.")
-            return "waiting"
         if pr.get("mergeable") is False:
             # Nothing to judge until the branch has `main` in it: the merge base of a branch that has
             # been conflicting with a moving `main` can be anywhere. Looked at again on every pass.
@@ -282,6 +277,14 @@ class Sensei:
                            "Bring `%s` into it (`git pull origin %s`, keep both records, preview, commit, push) "
                            "and I'll look again straight away." % (self.base, self.base, self.base))
             return "conflicts"
+        if not (bypass or self._is_bot(author) or author in self._reviewers() or self._patience_over(pr)):
+            # Peer review is part of the lesson: Sensei stands in for the neighbour once the student has
+            # done their half (Lab 3 step 6), or has waited long enough, and checks again every pass.
+            self._set(pr, "waiting", "review someone else's pull request first")
+            self._say_once(pr, "I'll approve this one as soon as you have reviewed someone else's pull request "
+                           "(Lab 3, step 6: run `sensei review` in your terminal and I'll pick one for you). "
+                           "I check every few seconds.")
+            return "waiting"
         base_text = self._raw(self.repo, pr.get("merge_base") or self.base, self.file)
         head_text = self._raw(head_repo, pr["head"]["sha"], self.file)
         main_text = self._raw(self.repo, self.base, self.file)

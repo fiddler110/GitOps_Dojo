@@ -9,11 +9,13 @@ CFG = {"repo": "o/r", "file": "dnsconfig.js", "before": '\tA("mail", "2"),', "li
 
 
 class Fake:
-    def __init__(self, text=TEXT):
-        self.text, self.calls = text, []
+    def __init__(self, text=TEXT, ci="success"):
+        self.text, self.ci, self.calls = text, ci, []
 
     def __call__(self, method, path, body=None, raw=False):
         self.calls.append((method, path.split("?")[0], body))
+        if path.endswith("/status"):
+            return 200, {"state": self.ci}
         if method == "GET":
             return 200, {"content": base64.b64encode(self.text.encode()).decode(), "sha": "abc"}
         if path.endswith("/branches"):
@@ -47,6 +49,21 @@ class SeedTests(unittest.TestCase):
         api = Fake("something else\n")
         self.assertFalse(seed.Seeder(CFG, api).seed())
         self.assertEqual([c for c in api.calls if c[0] != "GET"], [])
+
+    def test_after_ci_waits_for_green_base(self):
+        cfg = dict(CFG, after_ci=True)
+        api = Fake(ci="pending")
+        s = seed.Seeder(cfg, api)
+        self.assertFalse(s.seed())
+        self.assertEqual([c[1] for c in api.calls], ["/repos/o/r/commits/main/status"])
+        api.ci = "success"
+        self.assertTrue(s.seed())
+        self.assertEqual(s.number, 7)
+
+    def test_without_after_ci_status_is_not_read(self):
+        api = Fake(ci="pending")
+        self.assertTrue(seed.Seeder(CFG, api).seed())
+        self.assertFalse(any(c[1].endswith("/status") for c in api.calls))
 
 
 if __name__ == "__main__":

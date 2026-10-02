@@ -154,7 +154,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     "students": support.stuck(students or {}, helping, STUCK_MINUTES)})
         if self.path == "/api/prs":
             return self._json(200, {"prs": sensei.snapshot(), "enabled": sensei.enabled, "repo": sensei.repo,
-                                    "watching": WATCHING,
+                                    "watching": WATCHING, "mode": sensei.mode,
                                     "attention": sensei.attention(), "help_open": desk.open_count()})
         self._json(404, {"error": "not found"})
 

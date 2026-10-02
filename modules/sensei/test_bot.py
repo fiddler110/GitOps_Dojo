@@ -163,6 +163,21 @@ class ApproveModeTests(unittest.TestCase):
         self.s.tick()
         self.assertEqual(self.s.prs[n]["status"], "approved")
 
+    def test_an_approved_pr_that_starts_conflicting_says_so(self):
+        n = self.fj.open_pr("testuser1", "add-1", self.record("testuser1-app"))
+        self.s.tick()
+        self.assertEqual(self.s.prs[n]["status"], "approved")
+        self.fj.prs[n]["mergeable"] = False  # main moved under it
+        self.s.tick()
+        self.assertEqual(self.s.prs[n]["status"], "conflicts")
+        self.assertEqual(self.fj.reviews, [(n, "APPROVED")])  # judged again, not approved twice
+
+    def test_conflicts_come_before_the_wait_for_a_review(self):
+        n = self.fj.open_pr("student01", "add-1", self.record("student01-app"))
+        self.fj.prs[n]["mergeable"] = False
+        self.s.tick()
+        self.assertEqual(self.s.prs[n]["status"], "conflicts")
+
     def test_someone_elses_record_is_flagged(self):
         n = self.fj.open_pr("testuser1", "add-1", self.record("testuser2-app"))
         self.s.tick()
