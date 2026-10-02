@@ -40,6 +40,13 @@ specifically, **every run renews**. In production, with month-long certs,
 only the ones genuinely close to expiry would. Worth noticing once, not
 something to fix.
 
+> **Tip: `--dry-run`.** In production you'd test renewal without touching
+> the real certificate first: `certbot renew --dry-run`. On its own that
+> flag switches to Let's Encrypt's staging server, which this lab can't
+> reach, so name `step-ca` as well:
+> `certbot renew --dry-run --server https://step-ca:9443/acme/acme/directory`
+> plus the same `--config-dir`/`--work-dir`/`--logs-dir` as your script.
+
 ---
 
 ## 2. Confirm it actually installs

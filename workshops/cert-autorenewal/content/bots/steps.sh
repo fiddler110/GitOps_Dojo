@@ -80,7 +80,20 @@ step_lab2_issue_and_install() {
   run_cmd "cp ~/certbot/config/live/${host}/privkey.pem \"/srv/webroot/${me}/certs/privkey.pem\""
   run_cmd "sed \"s/studentNN/${me}/g\" ~/lab/sample-repo/vhost-tls.conf.template >> \"/srv/webroot/${me}/conf.d/${me}.conf\""
 
+  if [ $(( ROUND % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
+    narrate "(demo) checking it without --cacert first"
+    run_cmd "curl -s --resolve \"${host}:443:${demo_ip}\" \"https://${host}/\" -o /dev/null"
+    narrate "right -- exit 60: curl doesn't trust step-ca's root unless told to."
+  fi
   run_cmd "curl -s --resolve \"${host}:443:${demo_ip}\" --cacert /opt/step-ca-root/root_ca.crt \"https://${host}/\" -o /dev/null -w 'verify: HTTP %{http_code}\\n'"
+
+  # Step 6: replace the file with the HTTPS-only template (301 on port 80,
+  # HSTS on 443), which also starts each round from one clean vhost.
+  narrate "Lab 2 step 6 -- HTTPS only: redirect, then HSTS"
+  run_cmd "sed \"s/studentNN/${me}/g\" ~/lab/sample-repo/vhost-https-only.conf.template > \"/srv/webroot/${me}/conf.d/${me}.conf\""
+  run_cmd "curl -sI --resolve \"${host}:80:${demo_ip}\" \"http://${host}/\""
+  run_cmd "curl -sI --resolve \"${host}:443:${demo_ip}\" --cacert /opt/step-ca-root/root_ca.crt \"https://${host}/\""
+  run_cmd "curl -s --resolve \"${host}:80:${demo_ip}\" -o /dev/null -w '%{http_code}\\n' \"http://${host}/.well-known/acme-challenge/missing\""
 }
 
 step_lab3_acmesh() {
@@ -91,7 +104,15 @@ step_lab3_acmesh() {
   narrate "Lab 3 (optional) -- same task with acme.sh, for comparison"
   run_cmd "acme.sh --issue --webroot \"/srv/webroot/${me}/html\" -d \"$host\" --server https://step-ca:9443/acme/acme/directory --ca-bundle /opt/step-ca-root/root_ca.crt --cert-home ~/acmesh-lab3 --accountemail \"${me}@example.com\""
   orient
+  run_cmd "acme.sh --list --cert-home ~/acmesh-lab3"
   run_cmd "openssl x509 -in ~/acmesh-lab3/${host}_ecc/${host}.cer -noout -dates -subject -issuer"
+  if [ $(( (ROUND + 1) % MISTAKE_MOD )) -eq "$MISTAKE_REM" ]; then
+    narrate "(demo) for contrast: a self-signed cert, no CA involved"
+    run_cmd "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 1 -subj /CN=${host} -keyout /tmp/${me}-ss.key -out /tmp/${me}-ss.crt"
+    run_cmd "openssl x509 -in /tmp/${me}-ss.crt -noout -subject -issuer"
+    narrate "subject and issuer are the same name -- nobody vouches for it. Cleaning up."
+    run_cmd "rm -f /tmp/${me}-ss.key /tmp/${me}-ss.crt"
+  fi
 }
 
 step_lab4_renew() {
@@ -131,6 +152,11 @@ SCRIPT
     narrate "right -- not executable yet. Fixing that."
   fi
   run_cmd "chmod +x $script"
+
+  if [ "$PERSONA" = expert ]; then
+    narrate "a dry run first: --server keeps it on step-ca (plain --dry-run tries Let's Encrypt staging)"
+    run_cmd "REQUESTS_CA_BUNDLE=/opt/step-ca-root/root_ca.crt certbot renew --dry-run --cert-name \"$host\" --server https://step-ca:9443/acme/acme/directory --config-dir ~/certbot/config --work-dir ~/certbot/work --logs-dir ~/certbot/logs --no-random-sleep-on-renew"
+  fi
 
   narrate "running it once by hand first -- never trust an automation script's first run to cron"
   run_cmd "$script"

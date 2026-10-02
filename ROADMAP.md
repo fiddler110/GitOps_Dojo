@@ -80,11 +80,9 @@ Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (20
    (fresh `git pull` before branching, the DELETE-in-preview box), a long output and `clear` through the readback,
    and `lab-prep 5`. Much of this overlaps the demo dry run; tick it there. Optional: bots close their own abandoned
    PRs (round-1 PRs #5/#6 stayed open with conflicts).
-1. **cert-autorenewal (`ca` adapter + `verify` sweep).** `ca` events reach `/api/adapter` (order_issued,
-   order_failed), `served_changed`/`served_expired` verifiers, and the sweep's first real backend use. Restart the
-   service once and note the `c4-installs`/`c4-watch` baseline reset (known). Expect all but `f-ratelimit`. `c2` is a
-   20-minute watch (`served_renews`, `"watch": true`): run `dojo-check c2` once with Lab 4's cron in place and see it
-   clear on its own.
+1. **cert-autorenewal leftovers** (the main run passed 2026-10-01, see RELEASES). On the next run: `f-untrusted`
+   and `f-selfsigned` fire (bot mistake steps, round 2 onwards, not reached in the rerun); `c2` is a 20-minute watch
+   (`served_renews`, `"watch": true`): run `dojo-check c2` once with Lab 4's cron in place and see it clear on its own.
 2. **tofu-basics (`cloud` adapter).** `cloud-api` events (portal/site request, policy/quota denied, container
    create/update/delete/replace) reaching the service; credentials/secret wired through compose. Watch the known
    approximations: `site_request` credits the owner, `t8-inplace` fires early, `t9-foreach` reads `extra[...]`. Check
@@ -172,7 +170,7 @@ file**. Phases 0-8 are done (RELEASES); phase 9 is built and live on git-fundame
 | 7 | Sensei (roster auto-merge, `/admin` PR tab, dns-as-code review PR seed) | done |
 | 8 | Toast surfaces (VS Code extension, Forgejo header) | done |
 | 9 | Other four packs: `match`, adapters, verifiers, seeds (9a build done 2026-10-01) | live checks: Now §3 |
-| 10 | Sweep: overflow screenshots (lab times re-checked 2026-10-01: git-fundamentals 55 min, dns-as-code 102, cert-autorenewal 80) | todo |
+| 10 | Sweep: overflow screenshots for git-fundamentals and dns-as-code (cert-autorenewal done 2026-10-01; lab times re-checked the same day: 55, 102 and 80 min) | todo |
 
 #### Leftovers
 

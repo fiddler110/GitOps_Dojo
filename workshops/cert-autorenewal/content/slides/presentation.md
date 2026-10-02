@@ -64,18 +64,13 @@ Venafi case at work reads as an instance of a pattern, not a black box.
 
 ## The core problem
 
-> A certificate is a promise with an expiry date. Nothing enforces that the
-> promise gets renewed before it lapses — except whoever remembers to do it.
+> A certificate is a promise with an expiry date. Nothing renews it except whoever remembers to.
 
-- Certificates expire. Expired certificates break HTTPS, hard, with no
-  graceful fallback — browsers and API clients alike refuse the connection
+- Expired certificates break HTTPS hard: browsers and API clients refuse the connection
 - "Who owns renewing this cert?" is a question a lot of outages start with
-- The fix teams reach for is usually a calendar reminder, a ticket, or a
-  tool like Venafi doing this centrally — all three are the same idea:
-  **something has to notice the expiry and act, before a human has to**
+- The usual fix is a calendar reminder, a ticket, or a central tool like Venafi; all the same idea: **something has to notice the expiry and act, before a human has to**
 
-This is the whole workshop in one sentence: replace "someone remembers" with
-"something runs."
+The whole workshop in one sentence: replace "someone remembers" with "something runs."
 
 <!--
 Worth pausing here — this is the motivating problem everything else in the
@@ -297,17 +292,11 @@ CA has to solve at much larger scale.
 
 ## Why this lab's certs expire in minutes
 
-`step-ca`'s ACME provisioner in this lab is configured with a
-**5-10 minute** certificate lifetime — nowhere close to a real cert's
-weeks-to-months. That's deliberate:
+`step-ca`'s ACME provisioner in this lab is configured with a **5-10 minute** certificate lifetime, nowhere close to a real cert's weeks-to-months. That's deliberate:
 
-> A renewal you have to wait a month to see isn't something you watch
-> happen — it's something you take on faith. A renewal you can watch fire
-> inside a lab session is something you understand.
+> A renewal you wait a month to see is one you take on faith. A renewal you watch fire inside a lab session is one you understand.
 
-Everything about *how* renewal works — the client, the scheduler, the
-reload — is identical whether the cert lives for 8 minutes or 90 days.
-Only the waiting changes.
+Everything about *how* renewal works (the client, the scheduler, the reload) is identical whether the cert lives for 8 minutes or 90 days. Only the waiting changes.
 
 ---
 
@@ -395,7 +384,7 @@ A certificate protects nobody while the site still answers on plain HTTP.
 
 ## Bonus: the security-header wall
 
-Beyond HSTS, for later: one line of server config each, and only worth having over HTTPS.
+Beyond HSTS: one line of server config each, only worth having over HTTPS.
 
 <div class="wall">
 <div><b>Content-Security-Policy</b><code>default-src 'self'</code><p>Where scripts, styles and images may load from: the main defence against cross-site scripting.</p></div>

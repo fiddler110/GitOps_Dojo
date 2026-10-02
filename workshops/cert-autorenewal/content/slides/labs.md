@@ -75,9 +75,7 @@ DNS label — `studentNN.certs.dojo.test` — for the rest of this lab.
 <span><b>4</b><br>automate<br><small>cron renews it live</small></span>
 </div>
 
-Bootstrap trust in the `step` CLI, get a real certificate onto a real
-HTTPS site, then wire up cron and watch that certificate renew itself
-before it expires — the whole point of the workshop, in one pass.
+Trust the CA, put a real certificate on a real HTTPS site, then let cron renew it before it expires: the whole workshop in one pass.
 
 ---
 

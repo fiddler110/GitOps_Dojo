@@ -47,6 +47,17 @@ summarizing it. Look for:
   validate it.
 - The final certificate download once validation succeeds.
 
+acme.sh keeps track of every certificate it manages. Ask it what it has
+(the `--cert-home` must match the one you issued with):
+
+```sh
+acme.sh --list --cert-home ~/acmesh-lab3
+```
+
+One row for `${host}`: the key type, the CA it came from, when it was made
+and when acme.sh plans to renew it. certbot's equivalent is
+`certbot certificates`.
+
 acme.sh makes an ECC key by default and keeps that certificate in a folder
 named after the host with `_ecc` on the end:
 
