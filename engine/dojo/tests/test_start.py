@@ -151,5 +151,21 @@ class UpArgs(unittest.TestCase):
         self.assertEqual(self.args(["step-ca"], ["sensei"]), ["--force-recreate", "--no-deps", "step-ca", "sensei"])
 
 
+class Mountpoints(unittest.TestCase):
+    """slides/assets exists before compose up (Docker can't create it inside the read-only slides mount)."""
+
+    def test_made_once_and_only_with_slides(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            content = Path(tmp)
+            start.make_mountpoints(content)  # no slides/: nothing to mount, nothing made
+            self.assertEqual(list(content.iterdir()), [])
+            (content / "slides").mkdir()
+            start.make_mountpoints(content)
+            start.make_mountpoints(content)
+            self.assertTrue((content / "slides" / "assets").is_dir())
+
+
 if __name__ == "__main__":
     unittest.main()

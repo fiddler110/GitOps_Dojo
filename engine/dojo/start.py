@@ -112,6 +112,15 @@ def sync_lab_docs(content_dir: Path) -> None:
         shutil.copyfile(md, dst / f"{md.name}.txt")
 
 
+def make_mountpoints(content_dir: Path) -> None:
+    """The presentation service mounts content/slides read-only and workshops/assets
+    inside it at slides/assets. Docker can't create that mount point inside a
+    read-only mount (podman can), and git keeps no empty folder, so a fresh clone
+    has none: make it here."""
+    if (content_dir / "slides").is_dir():
+        (content_dir / "slides" / "assets").mkdir(exist_ok=True)
+
+
 def run_once_cmd(rt: Runtime) -> List[str]:
     # Rootless podman already maps the container's root to us; rootful docker
     # needs --user or the files it writes into engine/ end up owned by root.
@@ -421,6 +430,7 @@ def _compose_up(p: Plan) -> int:
     content = p.env.get("WORKSHOP_CONTENT_DIR", "")
     if content:
         sync_lab_docs(paths.ENGINE / content)
+        make_mountpoints(paths.ENGINE / content)
 
     up_extra = _up_args(p)
     step("Creating networks and volumes, then starting containers in dependency order")

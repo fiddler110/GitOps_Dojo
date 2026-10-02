@@ -190,7 +190,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | M | The Mac run passed on podman (RELEASES); left, needing Docker Desktop with `podman-compose` off the PATH: the Docker path (start, `restart <service>` recreating only that service, `stop`), `CORP_CA_BUNDLE` and the no-bundle error behind TLS inspection, a browser session on the Mac (terminal, VS Code), real Tab presses in zsh. Also seen once there: one allocator test failed with `ConnectionResetError` in a socket read (160/161; a rerun passed), so watch for a flaky handler test. Steps: [`C5-guide.md`](C5-guide.md) |
+| C5 | Untested paths | M | The Mac (podman) and home-server (Docker) runs passed (RELEASES). Left: a start on Docker from a clean clone to confirm the `slides/assets` mount-point fix (delete the two hand-made `content/slides/assets` folders on the server first); `CORP_CA_BUNDLE` and the no-bundle error behind TLS inspection; a real browser session as a student (terminal, VS Code) on a Docker host; real Tab presses in zsh. Also seen once on the Mac: one allocator test failed with `ConnectionResetError` in a socket read (160/161; a rerun passed), so watch for a flaky handler test. Steps: [`C5-guide.md`](C5-guide.md) |
 
 ### Remediation leftovers
 
