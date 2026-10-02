@@ -87,7 +87,7 @@ structured `verify` assertion mentions `{user}`.
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | d5-history | DNS Archaeologist | "Read the zone's past like a diary." | 10 | yes | shell: `dnsctl.py history` (or `dnsc history`), exit 0 |
-| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `dns/revert-*` PR) |
+| d5-rollback | Rewind | "Rolled back through a pull request." | 10 | yes | forgejo: a `dns/revert-*` pull request of yours is opened (by `dnsctl.py rollback`, or by `submit` after a revert conflict) |
 | d5-gone | Actually Gone | "Confirmed it is really gone." | 10 | yes | forgejo: a `dns/revert-*` pull request of yours is merged |
 
 ## Lab 6: conflicts in `dnsconfig.js`

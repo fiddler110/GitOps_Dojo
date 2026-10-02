@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (`feat/achievements` merged to `main` in PR #6; tier 1, RV13-RV18, RV20 and RV21 done) · Working
-branch: `main`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-02 (Phase 9 live checks merged in PR #7, all but the class-sized run 9.4; RV19 started) · Working
+branch: `feat/rv19-bot-smoke-tests`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -14,9 +14,9 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume: N3 phase 9 live checks, then RV19 bot smoke tests; decisions of 2026-10-02 |
-| [Now](#now) | N3 phase 9 live checks |
-| [Next](#next) | Platform review (RV19, RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Up next](#up-next) | Where to resume: RV19 bot smoke tests; decisions of 2026-10-02 |
+| [Now](#now) | RV19 bot smoke tests |
+| [Next](#next) | N3 9.4 class-sized run; platform review (RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -25,27 +25,22 @@ what is left (usually the live check).
 ## Priorities
 
 Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
-platform review tier 1 and the merge to `main` (PR #6) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+platform review tier 1 and the merge to `main` (PR #6), the Phase 9 live checks apart from the class-sized run
+(PR #7) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-| 2 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
-| 3 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
-| 4 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 5 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
+| 1 | Platform review tier 2 | S each | [RV19](#now): bot smoke tests, the last of tier 2 (RV13-RV18 done) |
+| 2 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
+| 3 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
+| 4 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
 
 ## Up next
 
-Resume here (written 2026-10-02 after `4a10e75`: the home demo dry run passed and its fixes are committed; tier 2's
-CI and tests RV13-RV18 are done, see RELEASES; the branch reached `main` in PR #6). First
-[N3](#n3-phase-9-live-checks) (priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
-may be using the machine).
-
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| RV19 | Bot smoke tests | M each | The last of [tier 2](#platform-review-2026-10-01): git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal. The live scripts that moved onto `workshops/assets/test-lib.sh` (RV18) get their first live run alongside |
+Resume here (written 2026-10-02 after PR #7: the Phase 9 live checks passed on every pack; only the class-sized run
+[9.4](#n3-94-class-sized-run) is left, skipped for now). Next is [RV19](#now). Each step: cheap checks per fix, then
+one combined live run (`podman ps` first: another session may be using the machine).
 
 **Answered 2026-10-02**
 
@@ -59,24 +54,24 @@ may be using the machine).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| N3 | [Phase 9 live checks](#n3-phase-9-live-checks) | L | cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
+| RV19 | Bot smoke tests | S | The last of [tier 2](#platform-review-2026-10-01): the three smoke tests pass; the RV18 live scripts still need their first live run |
 
-### N3: Phase 9 live checks
+Smoke tests for git-fundamentals, dns-as-code and cert-autorenewal pass (2026-10-02, see RELEASES):
+`workshops/assets/smoke.sh <workshop>`. Left:
 
-Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it
-wipes volumes). Order goes from smallest blast radius to largest, so a core defect shows up on the cheapest pack.
-Each step: start with `--test --fast`, wait for the 3 `~/.dojo-bot-done` markers, then compare fired items against the pack's `ACHIEVEMENTS.md`.
-Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02), vault-fundamentals (2026-10-02), git-fundamentals challenges and the box with achievements off (2026-10-02).
+1. Run the RV18 live scripts (those on `workshops/assets/test-lib.sh`: vault-fundamentals `tests/`, tofu-basics
+   `tests/`, `modules/openbao/tests/`, `modules/runner-pool/tests/`) for the first time, one stack at a time.
+2. The dns-as-code bot's revert-conflict path (Lab 5) is tested offline only; it runs live when a rollback conflicts.
+
+## Next
+
+### N3 9.4: class-sized run
+
+Skipped for now (user, 2026-10-02); ask before starting it. The rest of N3 (Phase 9 live checks) is in RELEASES.
 
 | Step | Work | Effort | Description |
 |---|---|---|---|
 | 9.4 | Class-sized concurrency run (last; skipped for now, 2026-10-02) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
-
-Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
-`when` text for any approximation that proved wrong.
-
-**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.3, 9.x, C6 and `--fast` bots are done (RELEASES); only 9.4 is left.
-1. **9.4, the class-sized run: skipped for now (user, 2026-10-02).** Ask before starting it.
 
 Tools (`modules/achievements/tools/`, run from the repo root): `fired.py <workshop>` lists each catalog item with who
 earned it and the never-fired ids; `botaudit.py <workshop>` runs every bot command through the real matcher (static:
@@ -84,8 +79,6 @@ runtime values, output and `requires` are not known, so its misses need a look, 
 header) counts challenge boxes on a lab page in headless Chromium. Working rules: every bot run uses `--test --fast`; long waits go to a sub-agent with a
 short brief and one blocking wait loop; bots stay lab-only (decided 2026-10-02: challenges are solved by hand, one
 solve each per pack); student commands that must reach achievements run in an interactive zsh (tmux), not `zsh -lc`.
-
-## Next
 
 ### Platform review (2026-10-01)
 
@@ -96,11 +89,7 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 **Tier 1: load and crash fixes (before the class-sized run).** The engine items (RV1, RV3-RV5, RV8-RV12) shipped
 2026-10-01 (see RELEASES); the module items RV2, RV6 and RV7 passed live 2026-10-02 (see RELEASES).
 
-**Tier 2: CI and tests.** RV13-RV18 shipped 2026-10-02 (see RELEASES).
-
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| RV19 | Bot smoke tests | M each | git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal |
+**Tier 2: CI and tests.** RV13-RV18 shipped 2026-10-02 (see RELEASES); RV19 is in [Now](#now).
 
 **Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02 (see
 RELEASES).
@@ -158,14 +147,14 @@ An optional layer over the labs (`ACHIEVEMENTS_ENABLED`): toasts on every studen
 goal-only challenge per lab, a capstone, and a certificate at the end. Rule: **ask before editing any `engine/`
 file**. Done (RELEASES): phases 0-2 (design and catalogs, catalog core, engine workspace and widgets, score service
 and toasts), 4 (challenges), 5 (cheat tiers and names), 7 (Sensei), 8 (toast surfaces). Phase 9 is built and live on
-git-fundamentals and dns-as-code ([N3](#n3-phase-9-live-checks)). Design, decisions and working notes:
+git-fundamentals and dns-as-code ([N3](#n3-94-class-sized-run)). Design, decisions and working notes:
 [Reference](#achievements-design).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | Phase 3 | zsh hook with a prompt framework | S | Event sources are done, but the hook has not run with a prompt framework (oh-my-zsh, powerlevel10k) in the real terminal image |
 | Phase 6 | Certificate: one decision left | S | Certificate, badge PNG and name dialog are done; one decision is left |
-| Phase 9 | Other four packs | L | `match`, adapters, verifiers, seeds (9a build done 2026-10-01); live checks are [N3](#n3-phase-9-live-checks) |
+| Phase 9 | Other four packs | L | `match`, adapters, verifiers, seeds (9a build done 2026-10-01); live checks are [N3](#n3-94-class-sized-run) |
 | Phase 10 | Sweep | S-M | Overflow screenshots for git-fundamentals and dns-as-code (cert-autorenewal done 2026-10-01; lab times re-checked the same day: 55, 102 and 80 min) |
 | — | Browser look | S | Not looked at in a browser yet: a red negative score (board, widget, `/admin`) and a negative toast in VS Code; the badge PNG download, capstone badge tier and a typed certificate name; a real student's stale-branch roster PR |
 | — | Quirk: bot round 1 reset | S | Round 1's `git reset --hard HEAD~1` fails with "unknown revision" in `bot-runner.sh` (engine; round 2 succeeds) |

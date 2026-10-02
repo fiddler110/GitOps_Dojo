@@ -162,10 +162,31 @@ SCRIPT
   run_cmd "$script"
   run_cmd "openssl x509 -in \"/srv/webroot/${me}/certs/fullchain.pem\" -noout -dates"
 
-  run_cmd "(crontab -l 2>/dev/null | grep -v 'renew-and-reload.sh'; echo \"* * * * * $script >> $HOME/renew.log 2>&1\") | crontab -"
+  # Cron can't go below a minute; fast bots (checks, not demos) run the script three times per line, ~20 s
+  # apart, so the watch below takes about a minute instead of three.
+  local job="$script >> $HOME/renew.log 2>&1"
+  [ "$BOT_FAST" = 1 ] && job="$job; sleep 20; $job; sleep 20; $job"
+  run_cmd "(crontab -l 2>/dev/null | grep -v 'renew-and-reload.sh'; echo \"* * * * * $job\") | crontab -"
   run_cmd "crontab -l"
 
   run_cmd "curl -s --resolve \"${host}:443:${demo_ip}\" --cacert /opt/step-ca-root/root_ca.crt \"https://${host}/\" -o /dev/null -w 'renewed cert still serves: HTTP %{http_code}\\n'"
+
+  # Step 4, "Watch it happen": wait for cron to renew it twice. c4-installs and c4-watch fire when the
+  # achievements sweep sees the served certificate change after its first look, so a bot that moves on at
+  # once (fast mode, or Lab 5 removing the cron entry) would leave nothing for it to see.
+  narrate "Lab 4, step 4 -- watching cron renew it (twice, up to 5 minutes)"
+  local serial last="" changes=-1 tries=0
+  while [ "$changes" -lt 2 ] && [ "$tries" -lt 30 ]; do
+    serial="$(openssl s_client -connect "${demo_ip}:443" -servername "$host" </dev/null 2>/dev/null \
+      | openssl x509 -noout -serial 2>/dev/null)"
+    if [ -n "$serial" ] && [ "$serial" != "$last" ]; then
+      changes=$((changes + 1)); last="$serial"
+      echo "served: $serial"
+    fi
+    tries=$((tries + 1))
+    [ "$changes" -ge 2 ] || sleep 10
+  done
+  run_cmd "tail -3 ~/renew.log"
 }
 
 step_lab5_dns01() {
