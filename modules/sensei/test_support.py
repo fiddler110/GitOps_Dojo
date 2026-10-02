@@ -40,6 +40,43 @@ class Support(unittest.TestCase):
         self.assertEqual(r[0]["heading"], "4. Make a change the proper way")
         self.assertEqual(r[0]["file"], "lab3.md")
 
+    def test_search_returns_a_markdown_block_with_its_heading(self):
+        r = self.index.search("my preview shows a delete of someone else's record")
+        self.assertTrue(r[0]["markdown"].startswith("## 4. Make a change the proper way\n\n"))
+
+    def test_block_is_cut_on_a_line_and_closes_an_open_fence(self):
+        text = "```bash\n" + "\n".join("cmd %d" % i for i in range(200)) + "\n```"
+        md = support._block(2, "H", text)
+        self.assertEqual(md.count("```") % 2, 0)
+        self.assertIn("the lab has more", md)
+        self.assertNotIn("cmd 199", md)
+
+    def test_block_holds_the_subsections_but_never_a_challenge(self):
+        idx = support.LabIndex(self.dir)
+        idx._add("n.md", "# Lab\n\n## Parent\n\nparent words zebra\n\n### Child\n\nchild words\n\n"
+                         "### Capstone: x\n\nsecret words\n\n#### deeper\n\nmore secret\n\n## Next\n\nother\n")
+        md = [s for s in idx.sections if s["heading"] == "Parent"][0]["full"]
+        self.assertIn("### Child\n\nchild words", md)
+        self.assertNotIn("secret", md)
+        self.assertNotIn("other", md)
+        self.assertEqual(idx.search("zebra")[0]["heading"], "Parent")
+
+    def test_ready_answers_match_common_questions(self):
+        a = support.Answers.load([os.path.join(os.path.dirname(os.path.abspath(__file__)), "answers", "shared.json")])
+        for q, want in [("how do I undo a pushed change", "undo-pushed"), ("revert my last push", "undo-pushed"),
+                        ("why can't I push to main", "push-main"), ("how do I make a new branch", "branch"),
+                        ("I have a merge conflict", "conflict"), ("discard my changes to a file", "discard-changes"),
+                        ("how to get the latest main", "get-latest")]:
+            self.assertEqual((a.find(q) or {}).get("id"), want, q)
+        self.assertIsNone(a.find("kubernetes ingress controller"))
+        self.assertIsNone(a.find("what is a CNAME record"))
+
+    def test_workshop_answer_replaces_a_shared_one_with_the_same_id(self):
+        a = support.Answers([{"id": "x", "match": ["foo"], "markdown": "workshop"},
+                             {"id": "x", "match": ["foo"], "markdown": "shared"}, {"id": "bad", "match": ["("], "markdown": "m"}])
+        self.assertEqual(a.find("foo")["markdown"], "workshop")
+        self.assertEqual(len(a.items), 1)
+
     def test_nothing_matching_says_nothing(self):
         self.assertEqual(self.index.search("kubernetes ingress controller"), [])
         self.assertEqual(self.index.search("the a of"), [])

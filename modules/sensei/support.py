@@ -49,6 +49,27 @@ def _clip(text, n=CLIP):
     return text if len(text) <= n else text[:n].rsplit(" ", 1)[0] + " ..."
 
 
+def _block(level, heading, text, lines=120, chars=6000):
+    """The section as Markdown for `sensei ask` to render: its heading and as much body as fits, cut on a line
+    and never inside a code fence (an open fence is closed)."""
+    out, size, fence, cut = [], 0, False, False
+    for line in text.strip().splitlines():
+        if len(out) >= lines or size + len(line) > chars:
+            cut = True
+            break
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        out.append(line)
+        size += len(line) + 1
+    while out and not out[-1].strip():
+        out.pop()
+    if fence:
+        out.append("```")
+    if cut:
+        out += ["", "*...the lab has more; open it in the lab reader.*"]
+    return "#" * level + " " + heading + "\n\n" + "\n".join(out)
+
+
 # -- search the labs ---------------------------------------------------------------------------
 class LabIndex:
     def __init__(self, lab_dir):
@@ -67,31 +88,37 @@ class LabIndex:
                 self.df[t] = self.df.get(t, 0) + 1
 
     def _add(self, name, text):
-        lab, heading, body, fence = "", "", [], False
-
-        def flush():
-            if heading and not SKIP_HEADINGS.search(heading) and "".join(body).strip():
-                joined = "\n".join(body).strip()
-                tf = {}
-                for t in tokens(joined):
-                    tf[t] = tf.get(t, 0) + 1
-                head_tf = {t: 1 for t in tokens(heading)}
-                self.sections.append({"file": name, "lab": lab, "heading": heading, "text": joined, "tf": tf,
-                                      "head_tf": head_tf, "len": max(1, sum(tf.values()))})
-
+        entries, fence = [], False  # every heading of the file: [level, heading, body lines]
         for line in text.splitlines():
             if line.lstrip().startswith("```"):
                 fence = not fence
             m = None if fence else re.match(r"^(#{1,3})\s+(.*\S)\s*$", line)
             if m:
-                flush()
-                body = []
-                if m.group(1) == "#" and not lab:
-                    lab = m.group(2)
-                heading = m.group(2)
+                entries.append([len(m.group(1)), m.group(2), []])
+            elif entries:
+                entries[-1][2].append(line)
+        lab = next((h for lv, h, _ in entries if lv == 1), "")
+        for i, (level, heading, body) in enumerate(entries):
+            joined = "\n".join(body).strip()
+            if SKIP_HEADINGS.search(heading) or not joined:
                 continue
-            body.append(line)
-        flush()
+            tf = {}
+            for t in tokens(joined):
+                tf[t] = tf.get(t, 0) + 1
+            # The whole section under this heading: its sub-headings too (an h1 is the lab's intro only), but
+            # never a challenge section, which stays out of Sensei's answers however it is nested.
+            full, skip_below = [joined], None
+            for lv, h, b in entries[i + 1:] if level > 1 else []:
+                if lv <= level:
+                    break
+                if skip_below is not None and lv > skip_below:
+                    continue
+                skip_below = lv if SKIP_HEADINGS.search(h) else None
+                if skip_below is None:
+                    full.append("#" * lv + " " + h + "\n\n" + "\n".join(b).strip())
+            self.sections.append({"file": name, "lab": lab, "heading": heading, "text": joined, "tf": tf,
+                                  "head_tf": {t: 1 for t in tokens(heading)}, "len": max(1, sum(tf.values())),
+                                  "level": level, "full": "\n\n".join(full)})
 
     def search(self, query, limit=3):
         """Best sections for `query`: [{file, lab, heading, snippet, score}], [] when nothing fits well."""
@@ -113,8 +140,51 @@ class LabIndex:
                 scored.append((hit / len(set(q)), score, s))
         scored = [x for x in scored if x[0] >= 0.5]  # at least half the words of the question
         scored.sort(key=lambda x: (-x[0], -x[1]))
+        # the best match gets the most room; the others are shorter so the answer stays on one screen or two
         return [{"file": s["file"], "lab": s["lab"], "heading": s["heading"], "snippet": _clip(s["text"]),
-                 "score": round(sc, 2)} for _, sc, s in scored[:limit]]
+                 "markdown": _block(s["level"], s["heading"], s["full"], *((120, 6000) if rank == 0 else (40, 2000))),
+                 "score": round(sc, 2)} for rank, (_, sc, s) in enumerate(scored[:limit])]
+
+
+# -- ready-made answers ------------------------------------------------------------------------
+class Answers:
+    """Hand-written answers to the questions every class asks (`sensei ask` tries these before searching the labs).
+    An entry is {id, title, match: [regex, ...], markdown, where?, section?}; the workshop's own come first and
+    replace a shared entry with the same id."""
+
+    def __init__(self, entries):
+        self.items, seen = [], set()
+        for e in entries:
+            if e.get("id") in seen or not e.get("markdown"):
+                continue
+            try:
+                rx = [re.compile(r, re.I) for r in e.get("match", [])]
+            except re.error:
+                continue
+            if rx:
+                seen.add(e.get("id"))
+                self.items.append(dict(e, rx=rx))
+
+    @classmethod
+    def load(cls, files=()):
+        """`files` in priority order (the workshop's first)."""
+        entries = []
+        for path in files:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    entries += json.load(f).get("answers", [])
+            except (OSError, ValueError):
+                pass
+        return cls(entries)
+
+    def find(self, question):
+        """The entry whose patterns hit the question most (the most patterns, then the earliest), or None."""
+        best, score = None, 0
+        for e in self.items:
+            n = sum(1 for r in e["rx"] if r.search(question))
+            if n > score:
+                best, score = e, n
+        return {k: best.get(k, "") for k in ("id", "title", "markdown", "where", "section")} if best else None
 
 
 # -- explain an error --------------------------------------------------------------------------

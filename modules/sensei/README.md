@@ -31,7 +31,11 @@ the Lab 1 roster PR) and merges the good ones. Listed in a workshop's `MODULES=`
   background pass also applies by itself. `approve --force` skips that wait at once but never the `dnsrules.py`
   rules. Sensei never merges for students.
 - **Support desk** (every workshop lists the module, so the `sensei` command is always there; offline, no model):
-  - `sensei ask "..."`: searches the workshop's own `content/lab/*.md` section by section (`support.LabIndex`; headings
+  - `sensei ask "..."` first tries hand-written answers (`support.Answers`: `modules/sensei/answers/shared.json` for git,
+    plus an optional `workshops/<name>/sensei/answers.json`, which replaces a shared entry with the same `id`). An entry is
+    `{"id", "title", "match": [regex, ...], "markdown", "where", "section"}`; the answer is rendered with glow and the
+    matching lab sections follow as pointers. No ready answer: it searches
+     the workshop's own `content/lab/*.md` section by section (`support.LabIndex`; headings
     naming a challenge or capstone are skipped, so it can't leak a hint). Nothing matching says so instead of guessing.
   - `sensei why`: reads the last 60 lines of the student's tmux pane and explains the known error nearest the bottom
     (`support.Patterns`). The table is derived from the labs' own "You see | Cause / fix" tables, plus

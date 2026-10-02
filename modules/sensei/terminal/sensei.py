@@ -156,6 +156,24 @@ def clip(text, n=420):
     return text if len(text) <= n else text[:n].rsplit(" ", 1)[0] + " ..."
 
 
+def render(markdown):
+    """Show Markdown with glow (baked into the terminal image). False if it can't, so the caller prints plain text."""
+    if not sys.stdout.isatty():
+        return False
+    width = min(max(os.get_terminal_size().columns - 4, 40), 100)
+    # Capture glow's output rather than letting it write to the tty: on a tty it asks the terminal for its
+    # colours and waits for an answer, which web terminals don't always give.
+    try:
+        r = subprocess.run(["glow", "-s", "dark", "-w", str(width), "-"], input=markdown, text=True,
+                           capture_output=True, timeout=10, env=dict(os.environ, CLICOLOR_FORCE="1"))
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if r.returncode != 0 or not r.stdout.strip():
+        return False
+    print("\n".join(line.rstrip() for line in r.stdout.splitlines()))
+    return True
+
+
 def ask(argv):
     q = " ".join(argv).strip()
     if not q:
@@ -164,12 +182,25 @@ def ask(argv):
     code, doc = call("/api/student/ask", {"q": q})
     if code != 200:
         return fail(doc)
+    ready = doc.get("answer")
+    if ready:
+        say("the short answer:")
+        print()
+        if not render(ready["markdown"]):
+            print(ready["markdown"])
+        if doc["found"]:
+            print("\n  More in the labs:")
+            for f in doc["found"]:
+                print("    %s  >  %s" % (f["file"], f["heading"]))
+        return 0
     if not doc["found"]:
         say(doc["message"])
         return 1
     say("here is where the labs cover that:")
     for f in doc["found"]:
         print("\n  %s  >  %s" % (f["file"], f["heading"]))
+        if f.get("markdown") and render(f["markdown"]):
+            continue
         print("    " + clip(f["snippet"]))
     print("\n  Open the lab in the lab reader for the full steps.")
     return 0

@@ -39,7 +39,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'se
        "form-action 'none'; frame-ancestors 'self'")
 sensei = None
 resolver = None
-index = patterns = desk = None  # support.LabIndex, support.Patterns, support.HelpDesk
+index = patterns = answers = desk = None  # support.LabIndex, .Patterns, .Answers, .HelpDesk
 achievements = None             # support.Achievements
 STUCK_MINUTES = int(os.environ.get("SENSEI_STUCK_MINUTES", "10") or 10)
 lock = threading.Lock()
@@ -51,7 +51,10 @@ def log(msg):
 
 def ask(q):
     """`sensei ask`: the lab sections that best answer q. Nothing found is an honest "no", not a guess."""
+    ready = answers.find(q) if answers else None
     found = index.search(q) if index else []
+    if ready:  # a ready-made answer leads; the labs follow as pointers
+        return {"answer": ready, "found": found, "message": ""}
     return {"found": found, "message": "" if found else
             "I couldn't find that in this workshop's labs. Try other words, or `sensei hand \"...\"` to ask the facilitator."}
 
@@ -206,14 +209,16 @@ def main():
     if not (admin and password):
         log("no Forgejo admin login: Sensei cannot act")
         sys.exit(1)
-    global WATCHING, resolver, index, patterns, desk, achievements
+    global WATCHING, resolver, index, patterns, answers, desk, achievements
     workshop = os.environ.get("WORKSHOP_DIR", "/opt/workshop")
     lab_dir = os.path.join(workshop, "content", "lab")
     index = support.LabIndex(lab_dir)
     patterns = support.Patterns.load(lab_dir, [os.path.join(HERE, "patterns", "shared.json"),
                                               os.path.join(workshop, "sensei", "patterns.json")])
+    answers = support.Answers.load([os.path.join(workshop, "sensei", "answers.json"),
+                                    os.path.join(HERE, "answers", "shared.json")])
     desk = support.HelpDesk(os.path.join(os.environ.get("DATA_DIR", "/data"), "help.json"))
-    log(f"support: {len(index.sections)} lab sections, {len(patterns.items)} error patterns")
+    log(f"support: {len(index.sections)} lab sections, {len(patterns.items)} error patterns, {len(answers.items)} ready answers")
     resolver = identity.Resolver(identity.forgejo_fetch(FORGEJO_URL))
     achievements = support.Achievements(os.environ.get("ACHIEVEMENTS_URL"), os.environ.get("ACHIEVEMENTS_KEY"))
     cfg = {"repo": os.environ.get("SENSEI_REPO", ""),
