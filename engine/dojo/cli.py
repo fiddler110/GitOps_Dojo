@@ -19,6 +19,7 @@ from rich.table import Table
 
 from . import doctor as doctor_mod
 from . import paths
+from . import stack
 from . import status as status_mod
 from .envfiles import EnvError, mask, resolve
 from .runtime import Runtime, project_name
@@ -57,6 +58,9 @@ def start_options(f):
         click.option("--test", "test", is_flag=False, flag_value="", default=None, metavar="[N]",
                      help="Also start demo bot students: 3, or N (max 35). testuser1-3 are "
                           "expert/intermediate/novice; any beyond get one of those at random."),
+        click.option("--fast", is_flag=True,
+                     help="With --test: bots skip every pause and typing delay, put mistakes in every round "
+                          "(intermediate, novice), and stop after one round. For checks, not demos."),
         ENV_OPTION,
         click.option("--dry-run", is_flag=True, help="Preview what would be rebuilt and started; change nothing."),
         click.option("--build-only", is_flag=True, help="Build or refresh the images and stop there (no password checks)."),
@@ -67,9 +71,9 @@ def start_options(f):
     return f
 
 
-def _start(workshop: str, test, env_name, dry_run, build_only, allow_default_passwords) -> None:
+def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords) -> None:
     from .start import StartOptions, run_start
-    sys.exit(run_start(StartOptions(workshop, test=test, env_name=env_name, dry_run=dry_run,
+    sys.exit(run_start(StartOptions(workshop, test=test, fast=fast, env_name=env_name, dry_run=dry_run,
                                     build_only=build_only, allow_default_passwords=allow_default_passwords)))
 
 
@@ -296,7 +300,35 @@ def _passthrough(name: str, script: str, help_text: str) -> None:
 
 
 _passthrough("setup", "env-setup.sh", "Create or update engine/.env (--default, --force, --rotate-class).")
-_passthrough("capacity", "capacity-calc.sh", "Size the terminal resource limits for this machine (--students N).")
+
+
+@cli.command("capacity", add_help_option=False,
+             context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def capacity(args):
+    """Size the terminal resource limits for this machine ([WORKSHOP] --students N).
+
+    With WORKSHOP first, every service it starts (modules included) is counted."""
+    args = list(args)
+    script = str(paths.ENGINE / "scripts" / "capacity-calc.sh")
+    if args and args[0] in {w.name for w in all_workshops()}:
+        workshop = args.pop(0)
+        try:
+            res = resolve(workshop, None)
+            env = dict(res.env)
+            env.setdefault("WEB_TERMINAL_IMAGE", "gitopsdojo/web-terminal:base")
+            limits, oneshot = stack.mem_limits(Runtime(), stack.extra_files(res), env)
+        except (EnvError, RuntimeError, OSError) as exc:
+            fail(f"Could not read {workshop}'s services: {exc}")
+            sys.exit(1)
+        counted = {k: v for k, v in limits.items() if k != "web-terminal" and k not in oneshot}
+        for name in sorted(k for k, v in counted.items() if v is None):
+            console.print(f"[yellow]WARNING: {name} has no mem_limit, so nothing caps it; it isn't counted.[/]")
+        total = sum(v for v in counted.values() if v)
+        args = ["--other-services-mb", str(total),
+                "--other-services-from", f"{workshop}: " + ", ".join(f"{k} {v}" for k, v in sorted(counted.items()) if v),
+                *args]
+    os.execvp("sh", ["sh", script, *args])
 _passthrough("alias-setup", "alias-setup.sh", "Install the 'dojo' command (~/.local/bin) and tab completion (--check, --remove).")
 
 

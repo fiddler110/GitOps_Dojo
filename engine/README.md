@@ -814,6 +814,20 @@ The strip is facilitator-only by design: students are not shown service health.
 ```sh
 ./run.sh git-fundamentals --test        # 3 bots
 ./run.sh git-fundamentals --test 14     # 14 bots, for load / bigger-cohort testing
+./run.sh git-fundamentals --test --fast # 3 bots at full speed, one round each: for checks
+```
+
+`--fast` (`BOT_FAST=1`) is for checking a pack, not for showing one. The bots print each command at once instead of
+typing it and skip every pause; the intermediate and novice bots make their mistakes in every round (the expert stays
+the clean path); a step that fails 3 times is skipped with a `FAST:` line instead of retried forever. After one round
+each bot writes `~/.dojo-bot-done` and stops. The bots hold round 1 until `./run.sh` releases them, once every
+container is up (`/run/dojo-bots-go` in the terminal; touch it by hand if a start was interrupted), and then until
+their Forgejo account works and each module's `bot_ready` hook passes (achievements: the bot's token and the service).
+Waits inside a pack's steps (CI runs, deploys) still apply. Wait for
+every bot with:
+
+```sh
+podman exec workshop_terminal sh -c 'ls /home/testuser*/.dojo-bot-done | wc -l'   # 3 when all are done
 ```
 
 Spins up simulated "students" alongside the real stack — no extra

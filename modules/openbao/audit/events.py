@@ -75,7 +75,10 @@ def classify(entry):
     op = req.get("operation")
     if not path or not isinstance(op, str):
         return None
-    failed = bool(entry.get("error"))
+    # A refused request has a top-level `error`, except a logical error (HTTP 400, e.g. a JWT login whose claims don't
+    # match a role), which OpenBao logs with only `response.data.error`, HMAC'd like every other value.
+    data = resp.get("data")
+    failed = bool(entry.get("error")) or (isinstance(data, dict) and set(data) == {"error"})
     # A successful login's response carries the *new* token's auth block (policies, display name);
     # a failed one has none, and every other request is judged by the caller's own auth block.
     is_login = path.startswith("auth/") and (path.endswith("/login") or path.endswith("/callback"))

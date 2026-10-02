@@ -19,7 +19,7 @@ from rich.table import Table
 from . import checks, paths, state
 from .envfiles import EnvError, operator_env, parse_literal, resolve
 from .runtime import Runtime, on_wsl, project_name
-from .stack import extra_files, read_state, services
+from .stack import extra_files, mem_limits, read_state, services
 from .ui import console
 
 OK, INFO, WARN, FAIL = "ok", "info", "warn", "fail"
@@ -156,8 +156,9 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
     if host_mb and term_mb:
         need = term_mb + 3072 + 1024
         add(Check(OK if need <= host_mb else WARN, "Memory",
-                  f"{host_mb} MB here; terminals {term_mb} MB + other services ~3072 + reserve 1024 = {need} MB",
-                  "" if need <= host_mb else f"Run '{paths.PROG} capacity --students N' to size the limits for this machine."))
+                  f"{host_mb} MB here; terminals {term_mb} MB + engine services ~3072 + reserve 1024 = {need} MB"
+                  " (name a workshop to count its modules too)",
+                  "" if need <= host_mb else f"Run '{paths.PROG} capacity WORKSHOP --students N' to size the limits for this machine."))
     lock = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
     if lock.is_dir():
         pid = read_state(lock / "pid")
@@ -190,6 +191,18 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
                       f"Compose config loads ({len(names)} services)"))
         except (RuntimeError, OSError) as exc:
             add(Check(FAIL, f"Workshop {workshop}", "Compose config does not load", str(exc)[-600:]))
+        else:
+            try:
+                limits, oneshot = mem_limits(rt, extra_files(res), res.env)
+            except (RuntimeError, OSError):
+                limits, oneshot = {}, []
+            term_mb = limits.get("web-terminal")
+            others = sum(v or 0 for k, v in limits.items() if k != "web-terminal" and k not in oneshot)
+            if host_mb and term_mb and others:
+                need = term_mb + others + 1024
+                add(Check(OK if need <= host_mb else WARN, f"Memory for {workshop}",
+                          f"terminals {term_mb} MB + its other services {others} MB + reserve 1024 = {need} MB of {host_mb}",
+                          "" if need <= host_mb else f"Run '{paths.PROG} capacity {workshop} --students N' to size the limits."))
         cur = state.read_current()
         recorded = cur.workshop if cur else ""
         if containers and recorded and recorded != workshop:

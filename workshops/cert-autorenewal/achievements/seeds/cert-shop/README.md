@@ -3,6 +3,9 @@
 **Goal:** give `shop.{user}.certs.dojo.test` its own trusted certificate, with certbot (Lab 2) or acme.sh (Lab 3),
 without touching your first site, `{user}.certs.dojo.test`. The name already points at the demo site.
 
+Start from a first site that already serves HTTPS (Lab 2 done, or `lab-prep 4`, which sets up all of Lab 2): the check also makes sure it
+still serves its own certificate, and without one nginx answers its name with `shop`'s.
+
 ## What's here
 
 - `shop.conf`: the port-80 vhost for `shop`. It serves the http-01 challenge from its own folder, so your first

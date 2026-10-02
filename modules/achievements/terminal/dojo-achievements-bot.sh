@@ -28,10 +28,11 @@ _dojo_bot_git_state() {
 }
 
 # 0 when ~/.git-credentials holds a working token for this bot; makes one if not (at most
-# every 30 s: Forgejo's bootstrap may not have created the bot's account yet).
+# every 30 s: Forgejo's bootstrap may not have created the bot's account yet). A --fast bot
+# tries on every command: it can finish a whole round inside those 30 s.
 _dojo_bot_token() {
   [ "$_dojo_bot_tok_ok" = 1 ] && return 0
-  [ $(( SECONDS - _dojo_bot_tok_try )) -ge 30 ] || return 1
+  [ "${BOT_FAST:-0}" = 1 ] || [ $(( SECONDS - _dojo_bot_tok_try )) -ge 30 ] || return 1
   _dojo_bot_tok_try=$SECONDS
   local api="http://$_dojo_bot_host/api/v1" netrc="${NETRC:-$HOME/.dojo-bot-netrc}" tok
   tok=$(sed -n "s|^http://[^:]*:\(.*\)@$_dojo_bot_host\$|\1|p" "$HOME/.git-credentials" 2>/dev/null | head -1)
@@ -52,6 +53,12 @@ _dojo_bot_token() {
 # is their sum, so the lines a command printed can be read back, as dojo-achievements.zsh does.
 _dojo_bot_pane_pos() { command tmux display-message -p '#{history_size} #{cursor_y}' 2>/dev/null; }
 _dojo_bot_out_from=''
+
+# For bot-runner.sh's --fast start: 0 once this bot has its token and the service answers, so no command of
+# the round is lost.
+bot_ready() {
+  _dojo_bot_token && curl -s -o /dev/null -m 3 "${ACHIEVEMENTS_URL:-http://achievements:8080}/healthz"
+}
 
 bot_cmd_pre() {
   _dojo_bot_git_state
@@ -78,5 +85,8 @@ bot_cmd_post() { # <command> <exit code>
   DOJO_SH_BRANCH_BEFORE=$before DOJO_SH_BRANCH=$_dojo_bot_branch DOJO_SH_MERGING_AFTER=$_dojo_bot_merging \
     /usr/local/bin/dojo-check --shell </dev/null >/dev/null 2>&1 &
   disown $! 2>/dev/null
+  # The service drops a user's shell events past 40 per 10 s (store.py's shell_rate); a --fast bot has no pacing
+  # of its own to stay under that.
+  [ "${BOT_FAST:-0}" = 1 ] && sleep 0.3
   return 0
 }

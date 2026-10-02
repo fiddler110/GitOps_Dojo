@@ -43,6 +43,7 @@ class StartError(Exception):
 class StartOptions:
     workshop: str
     test: Optional[str] = None            # None: no --test; "": bare --test; "N": N bots
+    fast: bool = False                    # --fast: bots at full speed, one round (checks, not demos)
     env_name: Optional[str] = None
     dry_run: bool = False
     build_only: bool = False
@@ -55,6 +56,8 @@ class StartOptions:
         out: List[str] = []
         if self.test is not None:
             out += ["--test"] + ([self.test] if self.test else [])
+        if self.fast:
+            out.append("--fast")
         if self.env_name:
             out += ["--env", self.env_name]
         if self.allow_default_passwords:
@@ -80,6 +83,8 @@ def parse_recorded(words: List[str]) -> StartOptions:
             i += 1
         elif w.startswith("--env="):
             o.env_name = w.split("=", 1)[1]
+        elif w == "--fast":
+            o.fast = True
         elif w == "--allow-default-passwords":
             o.allow_default_passwords = True
         i += 1
@@ -88,6 +93,8 @@ def parse_recorded(words: List[str]) -> StartOptions:
 
 def bot_count(o: StartOptions, env: Dict[str, str]) -> Optional[str]:
     if o.test is None:
+        if o.fast:
+            raise StartError("--fast only changes demo bots: use it with --test")
         return None
     if o.test == "":
         return env.get("BOT_COUNT") or "3"
@@ -242,8 +249,11 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     bots = bot_count(o, env)
     if bots is not None:
         env["BOT_COUNT"] = bots
+        env["BOT_FAST"] = "1" if o.fast else "0"
         verb = "would start" if o.dry_run else "starting"
         console.print(f"Test mode: {verb} {bots} demo bot student(s) (prefix: {env.get('BOT_PREFIX') or 'testuser'}).")
+        if o.fast:
+            console.print("           --fast: no pauses, mistakes every round, each bot stops after round 1.")
         if int(bots) > 3:
             console.print(f"           testuser1-3 = expert/intermediate/novice; the other {int(bots) - 3} get a random one of those.")
 
@@ -468,6 +478,8 @@ def _compose_up(p: Plan) -> int:
     if problems:
         changed("not ready yet: " + ", ".join(f"{c.service} ({c.status})" for c in problems))
         explain_not_ready(p.rt, problems)
+    if rc == 0 and p.o.fast and p.env.get("BOT_COUNT", "0") != "0":
+        release_bots(p.rt)
     if rc != 0:
         console.print("The run stays recorded so `./run.sh stop` can remove what did start; "
                       "fix the error, then `./run.sh stop` and start again.")
@@ -499,6 +511,17 @@ def _open_up_log():
     fd, log_path = tempfile.mkstemp(prefix="dojo-up.")
     console.print(f"Compose output is in {log_path} (deleted once the start succeeds)")
     return os.fdopen(fd, "w"), log_path
+
+
+BOTS_GO = "/run/dojo-bots-go"
+
+
+def release_bots(rt) -> None:
+    """--fast bots wait for this file before round 1, so they start on a stack that is up, not one still starting."""
+    if rt.run("exec", "workshop_terminal", "touch", BOTS_GO).returncode == 0:
+        ok("Bots released: every container is up, round 1 starts now")
+    else:
+        changed(f"Couldn't release the bots: run 'podman exec workshop_terminal touch {BOTS_GO}'")
 
 
 def run_restart(services_: List[str], clean: bool) -> int:

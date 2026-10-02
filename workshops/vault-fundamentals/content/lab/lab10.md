@@ -402,6 +402,7 @@ The **deploy** run fails at the deliver step: `claim "ref" does not match any as
 
 ```bash
 git switch main
+git branch -D try-a-branch
 git push origin --delete try-a-branch
 ```
 

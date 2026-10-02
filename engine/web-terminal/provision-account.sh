@@ -110,6 +110,7 @@ if [ "$kind" = bot ]; then
 BOT_USER=$username
 BOT_PASSWORD=$bot_password
 BOT_PERSONA=$bot_persona
+BOT_FAST=${BOT_FAST:-0}
 FORGEJO_ORG=$forgejo_org
 FORGEJO_REPO=$forgejo_repo
 FORGEJO_FORK_WORKFLOW=$forgejo_fork_workflow

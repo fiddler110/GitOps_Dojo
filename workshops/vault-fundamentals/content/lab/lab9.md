@@ -213,10 +213,12 @@ In **Actions**, the two new runs differ:
 - **vault-oidc fails**: `error validating claims: claim "ref" does not match any associated bound claim values`. A branch, which anyone with write access can push without review, can't read what `main` reads.
 - **vault-approle succeeds**: the AppRole login can't tell a branch from `main`. Whoever holds the secret ID gets in.
 
-Go back to `main`, and delete the branch on the server:
+Go back to `main`, and delete the branch here and on the server (`-D`: git doesn't delete a branch whose commits
+aren't on `main` without it):
 
 ```bash
 git switch main
+git branch -D try-a-branch
 git push origin --delete try-a-branch
 ```
 

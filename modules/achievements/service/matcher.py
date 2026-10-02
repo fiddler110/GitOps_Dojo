@@ -156,6 +156,9 @@ def shell_event(body):
         code = int(code)
     if not isinstance(code, int) or isinstance(code, bool):
         return None
+    # A command typed or pasted over several lines (`bao write ... \` then more arguments) is one
+    # command: join the continuations, so a catalog regex sees it as the shell runs it.
+    cmd = re.sub(r"[ \t]*\\\r?\n[ \t]*", " ", cmd)
 
     def text(k):
         v = body.get(k)
@@ -273,13 +276,10 @@ def forgejo_event(kind, payload):
         ev["user"] = ev["actor"]
         ref(payload.get("ref"), payload.get("ref_type"))
     elif kind == "fork":
-        # The delivery names the new repository (`forkee`) and the original (`repo`); the forker
-        # is the sender. `repo` on the event is the new fork, which is the forker's own.
-        forkee = payload.get("forkee") if isinstance(payload.get("forkee"), dict) else {}
+        # Forgejo's delivery (unlike GitHub's) names the original as `forkee` and the new fork as
+        # `repository`, so `repo` on the event, already read from `repository`, is the forker's own.
         ev["event"] = "fork"
         ev["user"] = ev["actor"]
-        name = forkee.get("full_name")
-        ev["repo"] = name if isinstance(name, str) else ev["repo"]
     elif kind == "pull_request":
         pr = payload.get("pull_request") if isinstance(payload.get("pull_request"), dict) else {}
         action = payload.get("action")

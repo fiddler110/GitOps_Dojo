@@ -260,7 +260,7 @@ class CloudEvents(unittest.TestCase):
 
     def test_fork(self):
         def fork(repo):
-            return match(mt.forgejo_event("fork", {"forkee": {"full_name": repo}, "repo": {"full_name": "iac-team/tofu-basics"},
+            return match(mt.forgejo_event("fork", {"forkee": {"full_name": "iac-team/tofu-basics"}, "repository": {"full_name": repo},
                                                    "sender": {"login": "amy"}}))
         self.assertIn("t0-fork", fork("amy/tofu-basics"))
         self.assertNotIn("t0-fork", fork("amy/other"))

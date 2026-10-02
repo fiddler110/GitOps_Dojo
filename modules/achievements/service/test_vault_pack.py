@@ -233,8 +233,11 @@ class VaultChallenges(unittest.TestCase):
                     text = challenges.fill_text(open(os.path.join(seeds, f["from"])).read(), vals)
                     self.assertNotRegex(text, re.compile(r"\{user\}"), f["from"])
             self.assertTrue(challenges.fill_text(plan["repo"], vals).startswith("amy/"))
-        seed = open(os.path.join(seeds, "c1", "seed.sh")).read()
-        self.assertIn("students/$USER", seed)
+        # c1's seed works in the student's own namespace, named when it is installed (not from $USER, which a bare
+        # `podman exec` leaves unset).
+        seed = challenges.fill_text(open(os.path.join(seeds, "c1", "seed.sh")).read(), self.runner.values(
+            next(c for c in self.cat["challenges"] if c["id"] == "c1"), "amy"))
+        self.assertIn('BAO_NAMESPACE="students/amy"', seed)
 
 
 if __name__ == "__main__":

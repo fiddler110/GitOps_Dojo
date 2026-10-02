@@ -44,6 +44,8 @@ services:
       interval: 15s
       timeout: 3s
       retries: 3
+    # ~16 MB at rest; the cap keeps a runaway from eating into the students' share.
+    mem_limit: ${SENSEI_MEM_LIMIT:-128m}
     restart: unless-stopped
 
 volumes:

@@ -10,7 +10,7 @@ from unittest import mock
 
 from dojo import start, state
 from dojo.monitor import clean_log_line
-from dojo.start import StartOptions, StartError, bot_count, parse_recorded
+from dojo.start import BOTS_GO, StartOptions, StartError, bot_count, parse_recorded, release_bots
 from dojo.runtime import Container, Runtime
 from dojo.stop import _volumes_in_config
 
@@ -18,7 +18,8 @@ from dojo.stop import _volumes_in_config
 class Recorded(unittest.TestCase):
     def test_round_trip(self):
         for flags in ([], ["--test"], ["--test", "14"], ["--env", "home"],
-                      ["--test", "3", "--env", "home", "--allow-default-passwords"]):
+                      ["--test", "3", "--env", "home", "--allow-default-passwords"],
+                      ["--test", "--fast"], ["--test", "3", "--fast"]):
             o = parse_recorded(["dns-as-code", *flags])
             self.assertEqual(o.workshop, "dns-as-code")
             self.assertEqual(o.flags, flags, flags)
@@ -35,6 +36,24 @@ class Recorded(unittest.TestCase):
         for bad in ("0", "36", "abc"):
             with self.assertRaises(StartError):
                 bot_count(StartOptions("x", test=bad), {})
+
+    def test_fast_needs_test(self):
+        self.assertEqual(bot_count(StartOptions("x", test="", fast=True), {}), "3")
+        with self.assertRaises(StartError):
+            bot_count(StartOptions("x", fast=True), {})
+
+
+class ReleaseBots(unittest.TestCase):
+    def test_touches_the_go_file_in_the_terminal(self):
+        calls = []
+
+        class Rt:
+            def run(self, *args):
+                calls.append(args)
+                return type("R", (), {"returncode": 0})()
+
+        release_bots(Rt())
+        self.assertEqual(calls, [("exec", "workshop_terminal", "touch", BOTS_GO)])
 
 
 class LogLines(unittest.TestCase):

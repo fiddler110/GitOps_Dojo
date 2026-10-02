@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (home demo dry run passed; tier 1, RV13-RV18, RV20 and RV21 done) · Working branch: `feat/achievements` (the only open branch;
-remediation and front-door reached `main` in PR #4, and their branches are deleted).
+Last updated: 2026-10-02 (`feat/achievements` merged to `main` in PR #6; tier 1, RV13-RV18, RV20 and RV21 done) · Working
+branch: `main`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -14,8 +14,8 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume: RV19 bot smoke tests; decisions of 2026-10-02 |
-| [Now](#now) | N2 merge, N3 phase 9 live checks |
+| [Up next](#up-next) | Where to resume: N3 phase 9 live checks, then RV19 bot smoke tests; decisions of 2026-10-02 |
+| [Now](#now) | N3 phase 9 live checks |
 | [Next](#next) | Platform review (RV19, RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
@@ -24,24 +24,23 @@ what is left (usually the live check).
 
 ## Priorities
 
-Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run and
-platform review tier 1 (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
+platform review tier 1 and the merge to `main` (PR #6) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Merge `feat/achievements` to `main` early | S | [N2](#n2-merge-featachievements-to-main), after a toggle-off regression run; phase 9 live checks carry on from `main` |
-| 2 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-| 3 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
-| 4 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
-| 5 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 6 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
+| 1 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
+| 2 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
+| 3 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
+| 4 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
+| 5 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
 
 ## Up next
 
 Resume here (written 2026-10-02 after `4a10e75`: the home demo dry run passed and its fixes are committed; tier 2's
-CI and tests RV13-RV18 are done, see RELEASES). First the merge, [N2](#n2-merge-featachievements-to-main)
-(priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
+CI and tests RV13-RV18 are done, see RELEASES; the branch reached `main` in PR #6). First
+[N3](#n3-phase-9-live-checks) (priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
 may be using the machine).
 
 | ID | Work | Effort | Description |
@@ -60,40 +59,31 @@ may be using the machine).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| N2 | [Merge `feat/achievements` to `main`](#n2-merge-featachievements-to-main) | S | Toggle-off regression run, `--dry-run` of every pack, then PR #5. Ask before pushing or opening a PR |
 | N3 | [Phase 9 live checks](#n3-phase-9-live-checks) | L | cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-
-### N2: Merge `feat/achievements` to `main`
-
-Ask before pushing or opening a PR. The branch is 68 commits ahead of `main`; `main` has 5 the branch lacks
-(`LICENSE` among them). The last trial merge (2026-10-01) was clean; redo it before the PR. Phase 9 checks continue
-on `main`.
-
-| Step | Check | What to do |
-|---|---|---|
-| 1 | Prerequisites | Done: the home demo dry run passed and its fixes are committed (`7749e97`, `e00f727`, 2026-10-02) |
-| 2 | Toggle-off regression | git-fundamentals `--test` with `ACHIEVEMENTS_ENABLED=0` in the shell: no achievements container (sensei stays, it is in every pack's `MODULES`), no toasts or widget, `/workspace` still works |
-| 3 | Dry runs | `.github/scripts/dry-runs.sh` (every pack, achievements off and on), or let CI run it on the push |
-| 4 | PR #5 | Open it once 2 and 3 pass |
 
 ### N3: Phase 9 live checks
 
 Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it
 wipes volumes). Order goes from smallest blast radius to largest, so a core defect shows up on the cheapest pack.
-Each step: start with `--test`, wait for the bots, then compare fired items against the pack's `ACHIEVEMENTS.md`.
-Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01).
+Each step: start with `--test --fast`, wait for the 3 `~/.dojo-bot-done` markers, then compare fired items against the pack's `ACHIEVEMENTS.md`.
+Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02), vault-fundamentals (2026-10-02), git-fundamentals challenges and the box with achievements off (2026-10-02).
 
 | Step | Work | Effort | Description |
 |---|---|---|---|
-| 9.0 | dns-as-code leftovers | S | All unit-tested. One more `--test 3` on the final bot steps (Lab 1 "opposite mistake" for `f-dot2`, `dns_catch_up` before each push, Sensei's criss-cross rule; its `conflicts` status passed live in the home demo dry run), reading the bot logs for stray errors. As a student in the browser: `sensei help\|status\|review\|approve [--force]`, the Lab 3 text (fresh `git pull` before branching, the DELETE-in-preview box), a long output and `clear` through the readback, and `lab-prep 5`. The home demo dry run (RELEASES, 2026-10-02) covered the `sensei` commands from a terminal. Optional: bots close their own abandoned PRs (round-1 PRs #5/#6 stayed open with conflicts) |
-| 9.1 | cert-autorenewal leftovers | S | The main run passed 2026-10-01 (see RELEASES). On the next run: `f-untrusted` and `f-selfsigned` fire (bot mistake steps, round 2 onwards, not reached in the rerun); `c2` is a 20-minute watch (`served_renews`, `"watch": true`): run `dojo-check c2` once with Lab 4's cron in place and see it clear on its own |
-| 9.2 | tofu-basics (`cloud` adapter) | M | `cloud-api` events (portal/site request, policy/quota denied, container create/update/delete/replace) reaching the service; credentials/secret wired through compose. Watch the known approximations: `site_request` credits the owner, `t8-inplace` fires early, `t9-foreach` reads `extra[...]`. Check the added Sensei container against the 15-student ceiling |
-| 9.3 | vault-fundamentals (`bao` adapter, heaviest) | M | Audit tailer posts (login, request, wrapping) and `repo_secret`. Check `role` (first non-default policy) and the 404 guess; `v13-recover` only proves the app answers. `f-paste` stays facilitator-awarded. **Capstone slot (A24, unit-tested only):** **My App** shows `{user}-capstone` locked, then unlocked within ~10 s of `dojo-challenge start capstone`; a push to `main` of `{user}/capstone` (Actions on in that new repo?) deploys there while the lab app keeps running; the app logs in as `slot:{user}-capstone` |
-| 9.x | Challenges in the labs (every pack) | M | Built 2026-10-01, unit-tested only: every workshop's labs end the right lab with a `## Challenge ...` / `## Capstone ...` section and its `<!-- dojo-challenge: ID -->` box, and each lab README lists them. On each pack's run: the box appears only with achievements on; Start builds the repo and the status names `~/lab/<repo>`; cert-autorenewal's `cert-shop`, `cert-fuse`, `cert-heist` clone and their starter vhosts work when copied in (`cert-members` done 2026-10-01, with `history_absent` on real Forgejo and the redirect/HSTS/header/mTLS verbs reaching `demo-app`); solve c1, c2 and the capstone once each (dns-01 wildcard through a written `dns-hook.sh`: only its new-order is tested); dns-as-code c1, c2 and capstone each get their own repo (`challenge-typo`, `-cutover`, `-badpush`); Sensei `ask` never returns a challenge section; then solve one per pack, `dojo-check`, and Reset |
-| 9.4 | Class-sized concurrency run (last) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
+| 9.4 | Class-sized concurrency run (last; skipped for now, 2026-10-02) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
 
 Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
 `when` text for any approximation that proved wrong.
+
+**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.3, 9.x, C6 and `--fast` bots are done (RELEASES); only 9.4 is left.
+1. **9.4, the class-sized run: skipped for now (user, 2026-10-02).** Ask before starting it.
+
+Tools (`modules/achievements/tools/`, run from the repo root): `fired.py <workshop>` lists each catalog item with who
+earned it and the never-fired ids; `botaudit.py <workshop>` runs every bot command through the real matcher (static:
+runtime values, output and `requires` are not known, so its misses need a look, not a fix); `box.py` (usage in its
+header) counts challenge boxes on a lab page in headless Chromium. Working rules: every bot run uses `--test --fast`; long waits go to a sub-agent with a
+short brief and one blocking wait loop; bots stay lab-only (decided 2026-10-02: challenges are solved by hand, one
+solve each per pack); student commands that must reach achievements run in an interactive zsh (tmux), not `zsh -lc`.
 
 ## Next
 
@@ -183,6 +173,7 @@ git-fundamentals and dns-as-code ([N3](#n3-phase-9-live-checks)). Design, decisi
 | — | Quirk: `lab0.md.txt` 404 | S | 404s in the git-fundamentals lab reader (harmless probe) |
 | — | Quirk: widget resize | S | The widget only resizes once `toast.js` has loaded |
 | — | Hidden-tab toasts: browser check | S | Built 2026-10-02, not seen in a browser: with the landing page open in a background tab, an unlock in the VS Code terminal pops up in VS Code (`toast.js` skips polling while `document.hidden`), and the landing page shows queued toasts when it comes to the front |
+| — | tofu-basics checks looser than their text | S | Found 2026-10-02 (N3 9.2): c1 passes with an `output "url"` that prints a bare host name (its goal says "prints its URL"), and the capstone passes while the sites still run, so its "destroys cleanly" part is never checked (after the destroy, a re-check only says "Already cleared"). Tighten the `verify` or the goal text. Same kind, vault-fundamentals (N3 9.3): the capstone's "rotate without deploying" isn't checked, a second write of `capstone/app` passes even with a redeploy between (its `verify_text` says so) |
 
 ### `run.sh` CLI follow-ups
 

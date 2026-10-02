@@ -1,9 +1,10 @@
 """A workshop's Compose files and services."""
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 from . import paths
 from .envfiles import Resolution
@@ -37,6 +38,43 @@ def services(rt: Runtime, files: List[str], env: Dict[str, str]) -> List[str]:
     if res.returncode != 0 or not names:
         raise RuntimeError((res.stderr or res.stdout).strip() or "compose config printed no services")
     return names
+
+
+_UNITS = {"b": 1 / 1048576, "k": 1 / 1024, "m": 1, "g": 1024}
+
+
+def _mb(value: str) -> Optional[int]:
+    """`512m`, `3g`, `2048k` or bytes as whole MB; None if it isn't a size."""
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([bkmg])?b?", value.strip().strip("'\"").lower())
+    return int(float(m.group(1)) * _UNITS[m.group(2) or "b"]) if m else None
+
+
+def parse_mem_limits(config: str) -> Tuple[Dict[str, Optional[int]], List[str]]:
+    """From `compose config` YAML: ({service: mem_limit in MB, or None when it has none}, one-shot
+    services). A one-shot job (`restart: "no"`) exits once the stack is up, so it holds no memory."""
+    limits: Dict[str, Optional[int]] = {}
+    oneshot: List[str] = []
+    in_services, svc = False, None
+    for line in config.splitlines():
+        if re.match(r"\S", line):
+            in_services, svc = line.rstrip() == "services:", None
+        elif in_services and re.match(r"  [^ #][^:]*:\s*$", line):
+            svc = line.strip().rstrip(":")
+            limits[svc] = None
+        elif svc and line.startswith("    mem_limit:"):
+            limits[svc] = _mb(line.split(":", 1)[1])
+        elif svc and re.match(r"    restart:\s*['\"]?no['\"]?\s*$", line):
+            oneshot.append(svc)
+    return limits, oneshot
+
+
+def mem_limits(rt: Runtime, files: List[str], env: Dict[str, str]) -> Tuple[Dict[str, Optional[int]], List[str]]:
+    """This stack's services' memory limits (see parse_mem_limits); raises with Compose's message."""
+    res = subprocess.run([*rt.compose_cmd, *compose_args(files), "config"],
+                         cwd=str(paths.ENGINE), env=env, capture_output=True, text=True, timeout=120)
+    if res.returncode != 0:
+        raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
+    return parse_mem_limits(res.stdout)
 
 
 def read_state(path: Path) -> str:
