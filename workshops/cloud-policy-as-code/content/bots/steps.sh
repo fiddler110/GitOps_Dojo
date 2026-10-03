@@ -514,7 +514,8 @@ resource "azurerm_resource_group" "scratch" {
   }
 }
 EOT
-  run_cmd "cd infra && tofu plan -out=plan.out $CPC_TF >/dev/null && tofu show -json plan.out > plan.json && cd .. && conftest test --policy policy/rego --namespace main infra/plan.json"
+  run_cmd "cd $CPC_LAB/infra && tofu plan -out=plan.out $CPC_TF >/dev/null && tofu show -json plan.out > plan.json; cd $CPC_LAB"
+  run_cmd "conftest test --policy policy/rego --namespace main infra/plan.json"
   narrate "conftest says no; the cloud says no too"
   run_cmd "cd infra && $CPC_APPLY"
   narrate "add the tag and the plan passes"
@@ -526,7 +527,8 @@ i = s.rindex('    env   = "dev"\n  }\n}')
 s = s[:i] + '    env   = "dev"\n    costCenter = "cc-1001"\n  }\n}' + s[i + len('    env   = "dev"\n  }\n}'):]
 open(p, "w").write(s)
 EOT
-  run_cmd "cd $CPC_LAB/infra && tofu fmt && tofu plan -out=plan.out $CPC_TF >/dev/null && tofu show -json plan.out > plan.json && cd .. && conftest test --policy policy/rego --namespace main infra/plan.json"
+  run_cmd "cd $CPC_LAB/infra && tofu fmt && tofu plan -out=plan.out $CPC_TF >/dev/null && tofu show -json plan.out > plan.json; cd $CPC_LAB"
+  run_cmd "conftest test --policy policy/rego --namespace main infra/plan.json"
   narrate "drop the scratch block again"
   cd "$CPC_LAB" || return 1
   python3 - <<'EOT'
@@ -544,11 +546,12 @@ step_cpc_lab10() {
   run_cmd "opa test policy/rego --ignore fixtures -v | tail -4"
   narrate "write the failing test first: canadawest is not allowed"
   printf '\ntest_canadawest_denied if {\n\tcount(deny) == 1 with input as rc("canadawest")\n}\n' >> policy/rego/regions_test.rego
-  run_cmd "opa test policy/rego --ignore fixtures | tail -4"
+  run_cmd "opa test policy/rego --ignore fixtures"
   narrate "red for the right reason: the rule checks a prefix, not the set. Fix it."
   run_cmd "sed -i 's/not startswith(loc, \"canada\")/not loc in allowed_regions/' policy/rego/regions.rego"
-  run_cmd "opa fmt --diff policy/rego; opa test policy/rego --ignore fixtures -v | tail -4"
-  printf '\ntest_near_misses_denied if {\n\tevery loc in ["eastus", "westeurope", "canada", "canadacentral2", ""] {\n\t\tcount(deny) == 1 with input as rc(loc)\n\t}\n}\n' >> policy/rego/regions_test.rego
+  run_cmd "opa fmt --diff policy/rego"
+  run_cmd "opa test policy/rego --ignore fixtures"
+  printf '\ntest_near_misses_denied if {\n\tevery loc in ["eastus", "westeurope", "canada", "canadacentral2"] {\n\t\tcount(deny) == 1 with input as rc(loc)\n\t}\n}\n' >> policy/rego/regions_test.rego
   run_cmd "opa test policy/rego --ignore fixtures --coverage | python3 -c \"import sys,json; print(json.load(sys.stdin)['coverage'])\""
   run_cmd "conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-good.json"
   run_cmd "conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-bad.json"

@@ -452,9 +452,12 @@ def _build_assignment(st, sub, pol, rid, name, rg, data, props, existing):
     target = lookup(did)
     if target is None:
         return _err(404, "PolicyDefinitionNotFound", f"The policy definition '{did}' could not be found.")
-    out = {k: props[k] for k in ("description", "metadata", "nonComplianceMessage") if k in props}
-    out.update({"displayName": props.get("displayName") or name, "enforcementMode": mode, "policyDefinitionId": did,
-                "scope": scope, "notScopes": not_scopes, "parameters": params, "nonComplianceMessages": msgs})
+    # displayName and parameters are optional in azurerm: echo them only when sent, or every plan shows a diff
+    out = {k: props[k] for k in ("displayName", "description", "metadata", "nonComplianceMessage") if props.get(k)}
+    out.update({"enforcementMode": mode, "policyDefinitionId": did, "scope": scope, "notScopes": not_scopes,
+                "nonComplianceMessages": msgs})
+    if params:
+        out["parameters"] = params
     candidate = {"id": rid, "name": name, "properties": out}
     try:
         engine.expand_assignment(candidate, lookup)

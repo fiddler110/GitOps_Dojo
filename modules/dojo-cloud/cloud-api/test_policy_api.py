@@ -299,6 +299,17 @@ class Assignments(Base):
         status, out = self.put_cg()  # the platform's 0.25 passes, the student's 0.1 does not
         self.assertEqual((status, out["error"]["code"]), (403, "RequestDisallowedByPolicy"))
 
+    def test_unset_display_name_and_parameters_are_not_echoed(self):
+        # azurerm leaves both optional: a filled-in default reads as drift on every plan (Lab 12's drift job)
+        bid = "/providers/Microsoft.Authorization/policyDefinitions/dojo-require-tag-env"
+        body = {"properties": {"policyDefinitionId": bid, "enforcementMode": "Default"}}
+        status, out = self.arm("PUT", self.assign_path("bare"), body)
+        self.assertEqual(status, 201)
+        status, out = self.arm("GET", self.assign_path("bare"))
+        self.assertEqual(status, 200)
+        self.assertNotIn("displayName", out["properties"])
+        self.assertNotIn("parameters", out["properties"])
+
 
 class Enforcement(Base):
     def test_deny_on_a_container_group_names_assignment_definition_and_message(self):

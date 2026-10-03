@@ -70,3 +70,26 @@ fork's owner and `ARM_METADATA_HOSTNAME=management.dojo.cloud`.
 Built-in guardrails (platform scope, readable, not changeable): Canadian regions, `owner` and `env` tags, images
 `dojo/hello:1.0` and `2.0`, cpu and memory caps, port 80, at most 10 env vars. Names (`rg-*`, `ci-*`) and the
 2-container-group quota are plain validation, not policy.
+
+## Testing
+
+Unit-level checks (no stack): `opa test` over `content/sample-repo/policy/rego/`, `conftest` against sample plans, and
+`tofu validate` on the solutions.
+
+Stack runs (use the fast bots; plain `--test` is for demos):
+
+```sh
+./run.sh cloud-policy-as-code --test 3 --fast                             # bots, one round, done markers
+workshops/assets/smoke.sh cloud-policy-as-code --bots 1 --timeout 120      # full smoke
+workshops/assets/retest.sh cloud-policy-as-code <lab> [--only]             # re-run from one lab (--only: just that lab)
+```
+
+A full smoke takes about an hour, because the azurerm provider waits about 100 seconds per policy create and delete.
+The `sensei` module serves ready answers (`sensei/answers.json`) for the labs.
+
+## Known limits
+
+- Not yet run end to end with a class; timings are estimates.
+- arm64 checksums are pinned, but only amd64 has been built and tested. Student terminals have no internet: tools and the provider are baked in.
+- The built-in guardrails are fixed; students cannot change platform-scope policy.
+- Dojo Cloud is Azure-inspired practice software, not a real cloud.
