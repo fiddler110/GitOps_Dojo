@@ -156,6 +156,8 @@ services:
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
       - FORGEJO_TOKEN_FILE=/token/forgejo-token
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_RUNNER_CONTROLLER:-}
+      # The engine's student reset hook (extensions.json `resets`) carries this.
+      - RESET_TOKEN=${RESET_TOKEN_RUNNER_CONTROLLER:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - RUNNER_MIN_IDLE=${RUNNER_MIN_IDLE:-2}

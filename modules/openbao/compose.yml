@@ -101,6 +101,9 @@ services:
       - OPENBAO_NAMESPACE_RATE=${OPENBAO_NAMESPACE_RATE:-200}
       # For CLI login (setup/cli.sh): the facilitator's terminal account.
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      # Student resets: the reset worker (setup.sh) proves itself to
+      # openbao-reset with that service's hook token. Empty: no worker.
+      - RESET_TOKEN=${RESET_TOKEN_OPENBAO_RESET:-}
     volumes:
       - ../modules/openbao/setup:/etc/openbao-setup:ro
       - openbao_setup:/setup
@@ -160,6 +163,33 @@ services:
       timeout: 3s
       retries: 3
     mem_limit: 128m
+    restart: unless-stopped
+
+  # Student resets (reset/reset.py, the reset plan's R9): the allocator's hook
+  # for one student's vault state. A relay with no vault token: openbao-setup's
+  # reset worker takes each job and runs it with the reset token, which stays
+  # in that container's memory. A workshop that has per-student vault state
+  # (and a reset.hcl) declares the `resets` entry in its own extensions.json,
+  # in the order its other hooks need.
+  openbao-reset:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_openbao_reset
+    entrypoint: ["python3", "-B", "-u", "/opt/openbao-reset/reset.py"]
+    environment:
+      - RESET_TOKEN=${RESET_TOKEN_OPENBAO_RESET:-}
+    volumes:
+      - ../modules/openbao/reset:/opt/openbao-reset:ro
+    user: "65534:65534"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: 64m
     restart: unless-stopped
 
   # The terminal image gets bao and the identity broker from terminal/ (built

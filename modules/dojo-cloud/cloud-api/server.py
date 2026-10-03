@@ -11,6 +11,7 @@ student sites at /cloud/site/<label>/ (reverse proxy to cloud-host).
 Stdlib only, single file per concern, same spirit as engine/allocator.
 """
 import copy
+import hmac
 import http.client
 import json
 import os
@@ -22,14 +23,16 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import auth
 import docker_api
 import events
 import pki
 import policy
+import policy_api
 import portal_api
+import tfstate
 import state as state_mod
 
 ENV = os.environ
@@ -215,6 +218,7 @@ class App:
             with st.lock:
                 if st.cgs.pop(key, None) is None:  # the record went another way (a purge)
                     return False
+                policy_api.recompute(st, sub)
                 st.log(sub, user, op, rid, "Succeeded")
                 st.save()
             self.report_delete(user, key, via)
@@ -244,6 +248,13 @@ class App:
                 tags = rec.get("tags") or {}
             try:
                 policy.check_tags(cg, tags)
+                if policy_api.active(st, sub):  # a tags-only update must not sidestep the subscription's own deny
+                    out = policy_api.enforce(st, sub, policy.engine.resource_view(
+                        "containerGroup", cg, rec["location"], tags, (rec.get("body") or {}).get("properties"),
+                        sub, rg))
+                    if out.denied:
+                        raise policy_api.refusal(out, cg, st, sub)
+                    tags = out.resource["tags"]
             except policy.PolicyError as exc:
                 st.log(sub, user, op, rid, "Failed", f"{exc.code}: {exc.message}")
                 if not self.auth.is_facilitator(user):
@@ -251,6 +262,7 @@ class App:
                 raise
             rec["tags"] = tags
             rec["body"]["tags"] = tags
+            policy_api.recompute(st, sub)
             st.log(sub, user, op, rid, "Succeeded")
             st.save()
             if not self.auth.is_facilitator(user):
@@ -453,8 +465,11 @@ class Handler(BaseHTTPRequestHandler):
         return arm_error(503, "ServiceUnavailable", HOST_DOWN)
 
     def route(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         low = path.lower().rstrip("/") or "/"
+        if path.startswith(tfstate.PREFIX):  # before _body(): state may be bigger than the 1 MB body cap
+            return self.tfstate(parsed)
         body = self._body()
         if low == "/healthz":
             return self._send(200, {"status": "ok", "cloudHost": APP.executor.ping()})
@@ -469,15 +484,76 @@ class Handler(BaseHTTPRequestHandler):
         if low.endswith("/.well-known/openid-configuration"):
             return self._send(200, {"token_endpoint": f"{LOGIN}/{auth.TENANT_ID}/oauth2/v2.0/token",
                                     "issuer": f"{LOGIN}/{auth.TENANT_ID}/v2.0"})
+        if low.startswith("/_dojo/reset/"):
+            return self.student_reset(path)
         if low.startswith("/subscriptions"):
             return self._send_pair(self.arm(low, path, body))
+        if low.startswith("/providers/microsoft.authorization/"):  # the built-in policy definitions' own path
+            return self._send_pair(self.arm_global(method=self.command, parts=[p for p in path.split("/") if p]))
         if low.startswith("/cloud/site/") or low == "/cloud/site":
             return self.site(path)
         if low == "/cloud" or low.startswith("/cloud/"):  # Dojo Portal: SPA + /cloud/api/*
             return self.portal(path, body)
         return self._send(*arm_error(404, "NotFound", f"No route for '{path}'."))
 
-    do_GET = do_PUT = do_POST = do_DELETE = do_PATCH = do_HEAD = handle_any
+    do_GET = do_PUT = do_POST = do_DELETE = do_PATCH = do_HEAD = do_LOCK = do_UNLOCK = handle_any
+
+    def tfstate(self, parsed):
+        """OpenTofu http backend (tfstate.py). Bodies are read here, after auth, up to the state size limit."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+
+        def read_body(limit):
+            if n > limit:
+                self.close_connection = True  # the rest stays unread
+            return self.rfile.read(min(n, limit)) if n > 0 else b""
+        status, raw, headers = tfstate.handle(APP, LIMIT, self.command, parsed.path, parsed.query,
+                                              self.headers.get("Authorization"), read_body)
+        if status in (401, 429):  # body never read: don't let it be parsed as the next request
+            self.close_connection = True
+        self.send_response(status)
+        for k, v in headers.items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+
+    def student_reset(self, path):
+        """POST /_dojo/reset/<user>?phase=teardown|provision from the engine's student reset, with the
+        service's own X-Dojo-Reset-Token (students can reach this port, so nothing works without it)."""
+        want = ENV.get("RESET_TOKEN", "")
+        given = self.headers.get("X-Dojo-Reset-Token", "")
+        if self.command != "POST" or not want or not hmac.compare_digest(given.encode(), want.encode()):
+            return self._send(403, {"error": "reset token required"})
+        user = unquote(path[len("/_dojo/reset/"):])
+        phase = (parse_qs(urlparse(self.path).query).get("phase") or [""])[0]
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or phase not in ("teardown", "provision"):
+            return self._send(404, {"error": "not found"})
+        try:
+            detail = APP.portal.student_reset(user, phase)
+        except (RuntimeError, docker_api.DockerError) as exc:
+            return self._send(500, {"ok": False, "detail": str(exc)[:200]})
+        return self._send(200, {"ok": True, "detail": detail})
+
+    def student_reset(self, path):
+        """POST /_dojo/reset/<user>?phase=teardown|provision from the engine's student reset, with the
+        service's own X-Dojo-Reset-Token (students can reach this port, so nothing works without it)."""
+        want = ENV.get("RESET_TOKEN", "")
+        given = self.headers.get("X-Dojo-Reset-Token", "")
+        if self.command != "POST" or not want or not hmac.compare_digest(given.encode(), want.encode()):
+            return self._send(403, {"error": "reset token required"})
+        user = unquote(path[len("/_dojo/reset/"):])
+        phase = (parse_qs(urlparse(self.path).query).get("phase") or [""])[0]
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or phase not in ("teardown", "provision"):
+            return self._send(404, {"error": "not found"})
+        try:
+            detail = APP.portal.student_reset(user, phase)
+        except (RuntimeError, docker_api.DockerError) as exc:
+            return self._send(500, {"ok": False, "detail": str(exc)[:200]})
+        return self._send(200, {"ok": True, "detail": detail})
 
     # ---- discovery + auth -------------------------------------------------
     def metadata(self):
@@ -522,6 +598,14 @@ class Handler(BaseHTTPRequestHandler):
         return APP.auth.verify_token(header[7:].strip())
 
     # ---- ARM --------------------------------------------------------------
+    def arm_global(self, method, parts):
+        """Tenant-level ARM paths with no subscription (only the built-in policy definitions): a valid token is enough."""
+        if self.caller() is None:
+            return 401, {"error": {"code": "InvalidAuthenticationToken",
+                                   "message": "The access token is missing, invalid or expired."}}
+        return policy_api.global_route(method, parts) or arm_error(404, "InvalidResourceType",
+                                                                   f"No handler for '/{'/'.join(parts)}'.")
+
     def arm(self, low, path, body):
         user = self.caller()
         if user is None:
@@ -550,6 +634,10 @@ class Handler(BaseHTTPRequestHandler):
         method = self.command
         if len(parts) == 2:
             return 200, self.subscription_body(sub, owner)
+        # Policy objects, compliance and remediations (policy_api.py); None = not a policy path, carry on
+        if lparts[2] in ("providers", "resourcegroups") and (
+                answer := policy_api.route(APP, method, sub, user, parts, body, MGMT)) is not None:
+            return answer
         if lparts[2] == "resourcegroups":
             if len(parts) == 3:
                 with APP.state.lock:  # rg_body does no I/O; the dict must not change under the iteration
@@ -644,8 +732,19 @@ class Handler(BaseHTTPRequestHandler):
                     st.log(sub, user, "Create/Update resource group", rid, "Failed", f"{exc.code}: {exc.message}")
                     APP.report_refusal(user, exc)
                     return exc.status, exc.body()
+                tags = data.get("tags") or {}
+                if policy_api.active(st, sub):  # the subscription's own policy assignments (none: nothing changes)
+                    out = policy_api.enforce(st, sub, policy.engine.resource_view(
+                        "resourceGroup", rg, data.get("location"), tags, {}, sub, "-"))
+                    if out.denied:
+                        exc = policy_api.refusal(out, rg, st, sub)
+                        st.log(sub, user, "Create/Update resource group", rid, "Failed", f"{exc.code}: {exc.message}")
+                        APP.report_refusal(user, exc)
+                        return exc.status, exc.body()
+                    tags = out.resource["tags"]  # modify and append edits
                 existed = key in st.rgs
-                st.rgs[key] = {"name": rg, "location": data["location"], "tags": data.get("tags") or {}}
+                st.rgs[key] = {"name": rg, "location": data["location"], "tags": tags}
+                policy_api.recompute(st, sub)
                 st.log(sub, user, "Create/Update resource group", rid, "Succeeded")
                 st.save()
                 return (200 if existed else 201), APP.rg_body(sub, st.rgs[key])
@@ -663,7 +762,17 @@ class Handler(BaseHTTPRequestHandler):
                     st.log(sub, user, "Update resource group tags", rid, "Failed", f"{exc.code}: {exc.message}")
                     APP.report_refusal(user, exc)
                     return exc.status, exc.body()
+                if policy_api.active(st, sub):  # a tags-only update must not sidestep the subscription's own deny
+                    out = policy_api.enforce(st, sub, policy.engine.resource_view(
+                        "resourceGroup", rg, rec["location"], tags, {}, sub, "-"))
+                    if out.denied:
+                        exc = policy_api.refusal(out, rg, st, sub)
+                        st.log(sub, user, "Update resource group tags", rid, "Failed", f"{exc.code}: {exc.message}")
+                        APP.report_refusal(user, exc)
+                        return exc.status, exc.body()
+                    tags = out.resource["tags"]
                 rec["tags"] = tags
+                policy_api.recompute(st, sub)
                 st.log(sub, user, "Update resource group tags", rid, "Succeeded")
                 st.save()
                 return 200, APP.rg_body(sub, rec)
@@ -698,6 +807,7 @@ class Handler(BaseHTTPRequestHandler):
                     return arm_error(NOT_READY_STATUS, "ServiceUnavailable", host_stopped_message(
                         "Container groups already deleted are gone; the rest and the resource group were left in place."))
                 st.rgs.pop(key, None)
+                policy_api.recompute(st, sub)
                 st.log(sub, user, "Delete resource group", rid, "Succeeded")
                 st.save()
                 return 200, {}
@@ -793,6 +903,16 @@ class Handler(BaseHTTPRequestHandler):
                 st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
                 APP.report_refusal(user, exc)
                 return exc.status, exc.body()
+            if policy_api.active(st, sub):  # then the subscription's own assignments (none: nothing changes)
+                out = policy_api.enforce(st, sub, policy.engine.resource_view(
+                    "containerGroup", cg, location, tags, props, sub, rg))
+                if out.denied:
+                    exc = policy_api.refusal(out, cg, st, sub)
+                    st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
+                    APP.report_refusal(user, exc)
+                    return exc.status, exc.body()
+                if out.modified:
+                    tags = data["tags"] = out.resource["tags"]  # modify and append edits are what gets stored
 
             c = props["containers"][0]["properties"]
             env_pairs = [(v["name"], str(v.get("value", v.get("secureValue", "")) or ""))
@@ -837,6 +957,7 @@ class Handler(BaseHTTPRequestHandler):
             with st.lock:  # phase 3: commit
                 st.cgs[key] = {"name": cg, "rg": rg, "location": location, "tags": tags, "body": data, "spec": spec,
                                "port": port, "container": name, "dnsLabel": label, "owner": owner}
+                policy_api.recompute(st, sub)
                 st.log(sub, user, "Create/Update container group", rid, "Succeeded",
                        "" if created else ("replaced" if changed else "tags/metadata only"))
                 st.save()

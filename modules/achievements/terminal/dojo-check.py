@@ -161,6 +161,9 @@ def check(cid):
     if doc.get("passed"):
         print("\033[1;32mPassed!\033[0m %s  +%d points" % (challenge_id(cid), doc.get("points") or 0))
         return 0
+    if doc.get("step"):
+        print("\033[1;32mHalfway:\033[0m %s" % doc.get("message", ""))
+        return 1
     print("\033[1;33mNot yet:\033[0m %s" % doc.get("message", ""))
     print("(Checking again is free. Stuck? dojo-check hint %s)" % challenge_id(cid))
     return 1

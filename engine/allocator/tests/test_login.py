@@ -56,6 +56,29 @@ class CheckLoginTest(unittest.TestCase):
             self.assertIsNone(server.check_login(user, pw), (user, pw))
 
 
+class BotLoginTest(unittest.TestCase):
+    def setUp(self):
+        self.saved = server.BOT_COUNT, server.BOT_PASSWORD
+        server.BOT_COUNT, server.BOT_PASSWORD = 2, "bot-pw"
+
+    def tearDown(self):
+        server.BOT_COUNT, server.BOT_PASSWORD = self.saved
+
+    def test_a_bot_signs_in_as_itself_while_bots_run(self):
+        self.assertEqual(server.check_login("testuser2", "bot-pw"), "testuser2")
+        self.assertEqual(server.read_session(server.make_session("testuser1")), "testuser1")
+
+    def test_refused(self):
+        for user, pw in (("testuser3", "bot-pw"), ("testuser0", "bot-pw"), ("testuser01", "bot-pw"),
+                         ("testuser1", "class-pw"), ("testuser1", ""), ("student", "bot-pw")):
+            self.assertIsNone(server.check_login(user, pw), (user, pw))
+
+    def test_no_bots_no_bot_login(self):
+        server.BOT_COUNT = 0
+        self.assertIsNone(server.check_login("testuser1", "bot-pw"))
+        self.assertIsNone(server.read_session(server.make_session("testuser1")))
+
+
 class LoginGuardTest(unittest.TestCase):
     def test_blocks_after_limit_and_recovers(self):
         now = [0.0]

@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "pc0-fork",
+      "title": "Your Own Rulebook",
+      "joke": "A fork of the team's policy repo.",
+      "core": true,
+      "when": "forgejo: a fork of the team repo is created under the student's account (`{user}/cloud-policy-as-code`)",
+      "match": {
+        "source": "forgejo",
+        "event": "fork",
+        "repo": "{user}/cloud-policy-as-code"
+      }
+    },
+    {
+      "id": "pc0-clone",
+      "title": "Cloned Around",
+      "joke": "The rules are on your machine now.",
+      "core": true,
+      "when": "shell: `git clone` of the fork `<user>/cloud-policy-as-code` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git clone",
+        "exit": 0,
+        "regex": "^git clone\\s.*/cloud-policy-as-code"
+      }
+    },
+    {
+      "id": "pc0-deploy",
+      "title": "Something to Protect",
+      "joke": "The app is up. Now it needs guardrails.",
+      "core": true,
+      "when": "cloud: a container group is created in the student's subscription (the app, by `tofu apply` in `infra/`)",
+      "match": {
+        "source": "cloud",
+        "event": "container_created"
+      }
+    }
+  ]
+}

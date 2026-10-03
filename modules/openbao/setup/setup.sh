@@ -25,7 +25,8 @@
 #      the helpers below; a failing hook stops setup;
 #   4. revoke the provisioner.
 # Then forever: unseal whenever the vault is sealed (after a restart of
-# `openbao`), and renew the reset token.
+# `openbao`), and renew the reset token; and, beside that, the reset worker
+# (reset_worker below) runs the facilitator's student resets.
 #
 # Accepted (remediation D9, D11): anyone with the openbao_setup volume has the
 # unseal key and can make a root token the same way. Revoking the tokens
@@ -296,6 +297,58 @@ log "provisioner token revoked"
 
 mkdir -p "$(dirname "$ready")" && touch "$ready"
 log "ready"
+
+# reset_one PHASE USER: one student's part of every hook, with the reset
+# token. The hooks are sourced as at start, in a subshell, with DOJO_ONE_USER
+# and DOJO_RESET_PHASE (teardown|provision) set and class_users narrowed to
+# that student, so par_each runs once; each hook skips its class-wide part.
+# Teardown runs the hooks in reverse name order.
+reset_one() {
+  class_users | grep -qx -- "$2" || { echo "$2 is not an account of this class"; return 1; }
+  [ -s "$run/reset-token" ] || { echo "no reset token: the workshop has no openbao-setup.d/reset.hcl"; return 1; }
+  (
+    BAO_TOKEN="$(cat "$run/reset-token")"; export BAO_TOKEN
+    DOJO_RESET_PHASE="$1"; DOJO_ONE_USER="$2"; export DOJO_RESET_PHASE DOJO_ONE_USER
+    class_users() { printf '%s\n' "$DOJO_ONE_USER"; }
+    if [ "$1" = teardown ]; then _ro_order="sort -r"; else _ro_order="sort"; fi
+    for hook in $(ls "$hooks"/*.sh 2>/dev/null | $_ro_order); do
+      ( . "$hook" ) || { echo "hook $(basename "$hook") failed"; exit 1; }
+    done
+    echo "$1 of $2 done"
+  )
+}
+
+# reset_worker: takes the jobs openbao-reset (reset/reset.py) queues for the
+# allocator's reset hook, one at a time, and posts each result back: `ok` or
+# `fail`, then the last lines of output. It long-polls, proving itself with
+# RESET_TOKEN; the reset token itself never leaves this container.
+reset_worker() {
+  _rw_url="${OPENBAO_RESET_URL:-http://openbao-reset:8080}/_dojo/work"
+  log "reset worker: taking jobs from $_rw_url"
+  while :; do
+    _rw_job="$(wget -q -O - -T 60 --header "X-Dojo-Reset-Token: $RESET_TOKEN" "$_rw_url" 2>/dev/null)" \
+      || { sleep 5; continue; }
+    [ -n "$_rw_job" ] || continue
+    # shellcheck disable=SC2086 # "<id> <phase> <user>", checked below
+    set -- $_rw_job
+    case "${1:-}:${2:-}:${3:-}" in
+      *[!a-z0-9_:-]*) log "reset worker: refused a malformed job"; continue ;;
+      [0-9a-f]*:teardown:[a-z]*|[0-9a-f]*:provision:[a-z]*) ;;
+      *) log "reset worker: refused a malformed job"; continue ;;
+    esac
+    log "reset worker: $2 $3"
+    if _rw_out="$(reset_one "$2" "$3" 2>&1)"; then _rw_res=ok; else _rw_res=fail; fi
+    log "reset worker: $2 $3: $_rw_res"
+    wget -q -O /dev/null -T 10 --header "X-Dojo-Reset-Token: $RESET_TOKEN" \
+      --post-data "$(printf '%s\n%s' "$_rw_res" "$(printf '%s\n' "$_rw_out" | tail -n 4)")" \
+      "$_rw_url/$1" 2>/dev/null || log "reset worker: could not post the result of $2 $3"
+  done
+}
+if [ -n "${RESET_TOKEN:-}" ] && [ -s "$run/reset-token" ]; then
+  reset_worker &
+else
+  log "student resets off (no RESET_TOKEN or no reset.hcl)"
+fi
 
 # Keep the vault unsealed and the reset token alive.
 n=0

@@ -52,6 +52,7 @@ is part of the lesson and never an incident.
 | 3 | [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
 | 4 | [**OpenTofu Basics**](workshops/tofu-basics/) | The Terraform workflow (`init`, `plan`, `apply`, `destroy`) and how an IaC repo is laid out. Track A is an offline sandbox. Track B deploys real containers through the real `azurerm` provider into **Dojo Cloud**, an Azure-inspired practice cloud with a portal, policies, quotas and drift. `terraform` runs OpenTofu. | 11 | ~2¼ h |
 | 5 | [**Vault Fundamentals**](workshops/vault-fundamentals/) | Using a vault well, on a real OpenBao: get secrets out of code, git, pipelines and servers, and swap long-lived secrets for identity and short-lived credentials. Labs cover leaking and scanning, `sops` and `pass`, per-student namespaces and policies, an app and OpenBao Agent, CI that logs in with its Forgejo identity on single-use runners, deployments with a delivered secret ID or workload identity, dynamic Postgres logins and an incident drill. | 14 | ~3½ h |
+| 6 | [**Cloud-Policy-as-Code**](workshops/cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, sets, modify and remediation, exemptions, Rego and conftest checks, a CI pipeline and drift. | 13 + capstone | ~4-5 h |
 
 The numbers are a learning path: teach them in order. `0` showcases the platform and is not a course; `1` to `5`
 build on each other (DNS as Code reuses the git flow, Certificate Autorenewal's capstone drives the DNS API from
@@ -174,6 +175,7 @@ automation instead of being made by hand.
 │   ├── cert-autorenewal/     # + step-ca, PowerDNS, shared nginx demo app
 │   ├── dojo-introduction/    # Showcase: Forgejo + CI, DNS and Dojo Cloud at once
 │   ├── tofu-basics/          # + tofu toolchain; uses the dojo-cloud module; FACILITATOR.md, tests/
+│   ├── cloud-policy-as-code/ # dojo-cloud, runner-pool, sensei modules; Policy labs 0-12 + capstone
 │   └── vault-fundamentals/   # openbao + runner-pool modules, app-host and app-db; labs 0-13, tests/
 ├── ROADMAP.md                # All open work: the single list of tasks
 ├── RELEASES.md               # What shipped, newest first

@@ -300,7 +300,14 @@ class ResetHookTests(unittest.TestCase):
         out, _ = run_merge(manifest(resets=[hook()]))
         self.assertEqual(out["resets"], [{"source": "00-test.json", "id": "dojo-cloud", "label": "Dojo Cloud resources",
                                           "upstream": "cloud-api:8080", "path": "/_dojo/reset/{user}",
-                                          "timeout": 30}])
+                                          "timeout": 30, "optional": False}])
+
+    def test_optional_is_a_boolean(self):
+        out, _ = run_merge(manifest(resets=[hook(optional=True)]))
+        self.assertTrue(out["resets"][0]["optional"])
+        for bad in ("yes", 1, None):
+            with self.assertRaises(rx.ManifestError, msg=repr(bad)):
+                run_merge(manifest(resets=[hook(optional=bad)]))
 
     def test_manifest_order_kept(self):
         out, _ = run_merge(manifest(resets=[hook(id="b")]), manifest(resets=[hook(id="a")]))

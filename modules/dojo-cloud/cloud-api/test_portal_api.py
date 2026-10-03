@@ -178,6 +178,12 @@ class Reads(Base):
         self.assertEqual({c["dnsLabel"] for c in doc["containerGroups"]}, {"site-a1", "site-a2"})
         self.assertEqual(get("/cloud/api/overview?scope=class")[0], 403)
         self.assertEqual(get("/cloud/api/me")[0], 403)
+        st, doc = get("/cloud/api/policy")                     # the account's own Policy blade
+        self.assertEqual((st, doc["subscriptionId"]), (200, auth.subscription_id(A)))
+        self.assertEqual(get(f"/cloud/api/policy?subscription={auth.subscription_id(B)}")[0], 403)
+        self.assertEqual(get("/cloud/api/policy/evaluate")[0], 403)
+        self.assertEqual(get("/cloud/api/activity")[0], 200)                # its own activity log only
+        self.assertEqual(get("/cloud/api/activity?scope=all")[0], 403)
         self.assertEqual(get("/cloud/api/overview", token="wrong")[0], 401)
         self.assertEqual(get("/cloud/api/overview", user="nobody")[0], 401)
         u = urlparse(self.cg_url(A, "rg-a", "ci-a1", "/stop"))
@@ -355,6 +361,14 @@ class Writes(Base):
         self.assertEqual(self.st.data["activity"][-1]["caller"], FAC)
         self.assertEqual(self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={"subscriptionId": "nope"})[0], 404)
         self.assertEqual(self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={})[0], 404)
+
+    def test_student_reset_purges_through_purge(self):
+        self.assertEqual(self.portal.student_reset(A, "teardown"), "removed 2 container group(s), 1 resource group(s)")
+        self.assertEqual(list(self.st.cgs), [server.App.cg_key(SUB[B], "rg-b", "ci-b1")])
+        self.assertEqual(self.st.data["activity"][-1]["caller"], "student-reset")
+        self.assertEqual(self.portal.student_reset(A, "teardown"), "removed 0 container group(s), 0 resource group(s)")
+        self.assertEqual(self.portal.student_reset(A, "provision"), "nothing to do")
+        self.assertEqual(self.portal.student_reset("nobody", "teardown"), "nothing to do")
 
     def test_purge_is_facilitator_only(self):
         status, err = self.jcall("POST", "/cloud/api/admin/purge", user=A, body={"subscriptionId": SUB[B]})

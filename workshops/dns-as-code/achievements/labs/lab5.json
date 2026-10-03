@@ -17,11 +17,12 @@
       "title": "Rewind",
       "joke": "Rolled back through a pull request.",
       "core": true,
-      "when": "shell: `dnsctl.py rollback` (or `dnsc rollback`), exit 0 (opens the `dns/revert-*` PR)",
+      "when": "forgejo: a `dns/revert-*` pull request of yours is opened (by `dnsctl.py rollback`, or by `submit` after a revert conflict)",
       "match": {
-        "source": "shell",
-        "regex": "^(python3\\s+\\S*dnsctl\\.py|dnsc)\\s+rollback\\b",
-        "exit": 0
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "head_prefix": "dns/revert-"
       }
     },
     {

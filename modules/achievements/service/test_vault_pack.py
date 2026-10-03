@@ -199,9 +199,28 @@ class VaultChallenges(unittest.TestCase):
         clean = "auto_auth {\n  method jwt {}\n}\n"
         self.assertTrue(self.run_verify("capstone", tree, clean)["passed"])
         self.assertFalse(self.run_verify("capstone", tree, "secret_id = 'x'")["passed"])
-        self.assertFalse(self.run_verify("capstone", {**tree, ns + "capstone/metadata/app": {"current_version": 1}}, clean)["passed"])
+        self.assertFalse(self.run_verify("capstone", {k: v for k, v in tree.items() if "metadata" not in k}, clean)["passed"])
         wide = {**tree, ns + "sys/policies/acl/capstone-app": pol(("capstone/data/app", ["read"]), ("secret/*", ["read"]))}
         self.assertFalse(self.run_verify("capstone", wide, clean)["passed"])
+
+    def test_capstone_step_two_rotation_without_deploy(self):
+        ns = "students/amy|"
+        ch = self.cat["capstone"]
+        step2 = dict(ch, verify=ch["then"]["verify"])
+        step_at = 1_790_000_000           # 2026-09-21T14:13:20Z
+        commits = self.runner.verbs["no_push_since_step"][1]
+        orig = commits._commits
+        self.addCleanup(setattr, commits, "_commits", orig)
+
+        def run(updated, pushed):
+            self.mod._get = fake({ns + "capstone/metadata/app": {"current_version": 3, "updated_time": updated}})
+            commits._commits = lambda api, repo, branch, path=None: [{"commit": {"committer": {"date": pushed}}}]
+            return self.runner.verify(step2, "amy", step_at=step_at)
+        self.assertTrue(run("2026-09-21T14:20:00.123456789Z", "2026-09-21T14:00:00Z")["passed"])
+        self.assertFalse(run("2026-09-21T14:10:00.5Z", "2026-09-21T14:00:00Z")["passed"])      # not rotated since
+        r = run("2026-09-21T14:20:00Z", "2026-09-21T14:15:00+00:00")                            # pushed: a deploy
+        self.assertFalse(r["passed"])
+        self.assertTrue(r["restart"])
 
     def test_a_check_never_reads_another_students_namespace(self):
         f = fake({})

@@ -1752,6 +1752,15 @@ def cmd_lint(args) -> int:
     seen_exact = set()
     name_types = collections.defaultdict(lambda: collections.defaultdict(list))
 
+    # A conflict left half-resolved still parses as "not a record" and would only warn; the pre-commit hook
+    # must stop it instead, wherever it is in the file.
+    markers = set()
+    for i, line in enumerate(DNSCONFIG_FILE.read_text(encoding="utf-8").splitlines()):
+        if re.match(r"(<{7}|={7}|>{7}|\|{7})(\s|$)", line):
+            markers.add(i)
+            issues.append(("error", f"dnsconfig.js: line {i + 1} is a git conflict marker - finish resolving "
+                                    f"the conflict (keep the lines you want, delete the markers): {line.strip()}"))
+
     for zone in zones_to_check:
         try:
             start, end = find_zone_block(zone)
@@ -1760,6 +1769,8 @@ def cmd_lint(args) -> int:
             continue
         lines = DNSCONFIG_FILE.read_text(encoding="utf-8").splitlines()
         for i in range(start + 1, end):
+            if i in markers:
+                continue
             parsed, skip_reason = classify_zone_line(lines[i])
             if skip_reason:
                 issues.append((

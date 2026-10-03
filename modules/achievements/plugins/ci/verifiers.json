@@ -1,0 +1,11 @@
+{
+  "backend": "forgejo-ci",
+  "about": "Looks at Forgejo Actions runs and at files in a folder of a student's own repository (the fork), as the Forgejo admin. Reads only. `repo` must be the checking student's own ({user}/...); the runner refuses anything else, and so do these verbs.",
+  "impl": "cirun.py",
+  "verbs": {
+    "ci_run": {"args": ["repo", "workflow", "status?", "event?", "latest?", "recovered?"],
+               "does": "among the repository's last 150 Actions runs of the workflow file (e.g. pr.yml), optionally only those started by event (push, pull_request, workflow_dispatch): some run finished with status (success, the default, or failure); latest: true judges only the newest finished run; recovered: true, the newest finished run succeeded and an older one failed"},
+    "tree_file_contains": {"args": ["repo", "ref", "dir", "name_regex?", "regex", "count_regex?", "count_min?"],
+                           "does": "some file directly in dir on ref whose name matches name_regex (default any) matches every regex in regex (a string or a list, multiline) and, with count_regex, has at least count_min (default 1) matches of it; at most 40 files are read"}
+  }
+}

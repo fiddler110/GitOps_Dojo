@@ -1,0 +1,48 @@
+{
+  "milestones": [
+    {
+      "id": "pc6-set",
+      "title": "Baseline Bundle",
+      "joke": "Many rules, one name.",
+      "core": true,
+      "when": "cloud: one of the student's own policy set definitions is created or updated",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "set"
+      }
+    },
+    {
+      "id": "pc6-assigned",
+      "title": "One Assignment to Rule Them",
+      "joke": "The whole baseline, switched on at once.",
+      "core": true,
+      "when": "verify: one of the student's assignments assigns a policy set",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_policy",
+            "account": "{user}",
+            "kind": "assignment",
+            "is_set": true
+          }
+        ],
+        "requires": "pc6-set"
+      }
+    },
+    {
+      "id": "pc6-refused",
+      "title": "Refused by the Set",
+      "joke": "The baseline caught the scratch group.",
+      "core": true,
+      "when": "cloud: a write refused by one of the student's own assignments, after the student wrote a policy set",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "assignment",
+        "requires": "pc6-set"
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "id": "capstone",
+  "title": "A New Rule, Start to Finish",
+  "space": "the student's own fork `{user}/cloud-policy-as-code` (its `main`, pull requests and Actions runs) and their own Dojo Cloud subscription (`{user}`); test resources live in the scratch folder",
+  "goal": "Container groups tagged `env=prod` must run `dojo/hello:2.0`. Deliver it the way every change arrives: a Rego rule with tests, a cloud definition and a subscription-scope assignment with a `nonComplianceMessage`, a pull request with green CI, merged and applied by the pipeline, and proof that a prod group on `dojo/hello:1.0` is refused. Then leave no test resource behind.",
+  "seed": "No seed: the capstone works in the fork (`lab-prep 12` brings it to the end of Lab 12). The brief is `capstone.md` in the lab.",
+  "verify_text": "Two steps. Step 1 (`dojo-check capstone` after the merge and the refused test): on `main` of `{user}/cloud-policy-as-code`, a `*_test.rego` file in `policy/rego/` mentions `prod` and `dojo/hello:1.0` and has at least four `test_` rules, and another `.rego` file there mentions `prod` and `dojo/hello:2.0`; a merged pull request exists on the fork; the fork has a green **Policy check** (`pr.yml`) run for a pull request, and the newest finished **Apply** (`main.yml`) and **Drift** (`drift.yml`) runs are green; and Dojo Cloud Policy (own subscription, read-only) has an assignment whose definition has the literal effect `deny` and a rule mentioning `tags['env']` and `dojo/hello:2.0`, and that assignment has refused a write (Dojo Cloud counts refusals per assignment; deleting the assignment resets the count). Step 2 (`dojo-check capstone` again after cleaning up): no container group tagged `env=prod` is left in the subscription, in any state. Not checked: the narrowness tests (dev on 1.0, prod on 2.0), the message text, the pull request's description, and `git status`.",
+  "badge_tier": "capstone",
+  "hints": [
+    "Labs 10 and 9 for the Rego (tests first), Lab 5's allowed-images rule for the cloud side, Lab 11 for the pull request.",
+    "`allOf` of the type, `tags['env']` equals prod, and `not` the image alias equals `dojo/hello:2.0`; test it from ~/lab/scratch with a group named for you."
+  ],
+  "verify": [
+    {
+      "verb": "tree_file_contains",
+      "repo": "{user}/cloud-policy-as-code",
+      "ref": "main",
+      "dir": "policy/rego",
+      "name_regex": "_test\\.rego$",
+      "regex": [
+        "prod",
+        "dojo/hello:1\\.0"
+      ],
+      "count_regex": "^\\s*test_\\w+",
+      "count_min": 4
+    },
+    {
+      "verb": "tree_file_contains",
+      "repo": "{user}/cloud-policy-as-code",
+      "ref": "main",
+      "dir": "policy/rego",
+      "name_regex": "^(?!.*_test\\.rego$).*\\.rego$",
+      "regex": [
+        "prod",
+        "dojo/hello:2\\.0"
+      ]
+    },
+    {
+      "verb": "pr_exists",
+      "repo": "{user}/cloud-policy-as-code",
+      "state": "merged"
+    },
+    {
+      "verb": "ci_run",
+      "repo": "{user}/cloud-policy-as-code",
+      "workflow": "pr.yml",
+      "event": "pull_request",
+      "status": "success"
+    },
+    {
+      "verb": "ci_run",
+      "repo": "{user}/cloud-policy-as-code",
+      "workflow": "main.yml",
+      "latest": true
+    },
+    {
+      "verb": "ci_run",
+      "repo": "{user}/cloud-policy-as-code",
+      "workflow": "drift.yml",
+      "latest": true
+    },
+    {
+      "verb": "cloud_policy",
+      "account": "{user}",
+      "kind": "assignment",
+      "effect": "deny",
+      "rule_text": [
+        "tags['env']",
+        "dojo/hello:2.0"
+      ],
+      "refused": true
+    }
+  ],
+  "then": {
+    "text": "destroy every test resource (in ~/lab/scratch: `tofu destroy`), so no container group tagged env=prod is left, then run `dojo-check capstone` again.",
+    "verify": [
+      {
+        "verb": "cloud_containers",
+        "account": "{user}",
+        "tags": {
+          "env": "prod"
+        },
+        "state": "any",
+        "min": 0,
+        "max": 0
+      }
+    ]
+  },
+  "isolation": "everything read is the student's own: their fork (the runner refuses any other repo), their private subscription's Policy blade and activity log, and their own container groups; the assignment is at the student's own subscription scope, which no classmate's resource is under. No branch protection or other shared setting is changed.",
+  "answer": "Follow capstone.md's hints: `policy/rego/prod_image_test.rego` (four or more tests: prod on 2.0 passes, prod on 1.0 denied, dev on 1.0 passes, a delete ignored) and `policy/rego/prod_image.rego` (the skeleton from Hint 2 with \"prod\" and \"dojo/hello:2.0\"); `policy/cloud/rules/prod-image.json` (Hint 2's `if`, effect `deny`), an `azurerm_policy_definition` and an `azurerm_subscription_policy_assignment` with `non_compliance_message { content = \"Prod must run dojo/hello:2.0\" }`. `opa test policy/rego --ignore fixtures -v`, branch, push, open a pull request, wait for the green Policy check, merge, wait for Apply. In ~/lab/scratch apply a prod group on `dojo/hello:1.0` (refused naming the assignment), then a dev one (allowed), then `tofu destroy`. Run Drift once more, `dojo-check capstone`, and again after the clean-up."
+}

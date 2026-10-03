@@ -95,6 +95,12 @@ class StoreTests(unittest.TestCase):
         self.assertIn("cheat-forged", self.s.ledger.unlocked_ids("mallory"))
         self.assertNotIn("victim", self.s.ledger.users)
 
+    def test_refused_user_keeps_its_nonce(self):
+        with self.assertRaises(Denied):
+            self.s.event(None, self.ev(self.s.facilitator, "l1-clone", "n5"))
+        self.s.event(None, self.ev("a", "l1-clone", "n5"))      # the same nonce, now for a student
+        self.assertIn("l1-clone", self.s.ledger.unlocked_ids("a"))
+
     def test_malformed_and_replay_and_stale(self):
         with self.assertRaises(Denied):
             self.s.event(None, {"user": "a"})
@@ -755,6 +761,36 @@ class HttpTests(unittest.TestCase):
         except ValueError:
             doc = raw
         return r.status, doc, r
+
+    def test_student_reset_hooks(self):
+        st = server.store
+        st.ledger.unlock("rita", "l1-clone", 5)
+        st.seeds["rita"] = {"x.json": {"repo": "rita/x"}}
+        st.stepped["rita"] = {"capstone": 5.0}
+        hdr = {"X-Dojo-Reset-Token": "rt"}
+        server.RESET_TOKEN = "rt"
+        try:
+            self.assertEqual(self.call("POST", "/_dojo/reset/progress/rita?phase=teardown")[0], 403)
+            self.assertEqual(self.call("POST", "/_dojo/reset/progress/rita?phase=teardown",
+                                       extra={"X-Dojo-Reset-Token": "nope"})[0], 403)
+            self.assertEqual(self.call("POST", "/_dojo/reset/other/rita?phase=teardown", extra=hdr)[0], 404)
+            self.assertEqual(self.call("POST", "/_dojo/reset/progress/rita?phase=x", extra=hdr)[0], 404)
+            self.assertEqual(self.call("POST", "/_dojo/reset/progress/boss?phase=teardown", extra=hdr)[0], 400)
+            code, doc, _ = self.call("POST", "/_dojo/reset/progress/rita?phase=teardown", extra=hdr)
+            self.assertEqual((code, doc["ok"]), (200, True))
+            self.assertNotIn("rita", st.seeds)
+            self.assertNotIn("rita", st.stepped)
+            self.assertIn("l1-clone", st.ledger.unlocked_ids("rita"))           # score kept unless asked
+            self.assertEqual(self.call("POST", "/_dojo/reset/score/rita?phase=provision", extra=hdr)[0], 200)
+            self.assertIn("l1-clone", st.ledger.unlocked_ids("rita"))           # provision does nothing
+            code, doc, _ = self.call("POST", "/_dojo/reset/score/rita?phase=teardown", extra=hdr)
+            self.assertEqual(doc["detail"], "achievements and score cleared")
+            self.assertNotIn("l1-clone", st.ledger.unlocked_ids("rita"))
+            self.assertEqual(self.call("POST", "/_dojo/reset/score/rita?phase=teardown", extra=hdr)[1]["detail"],
+                             "no achievements to clear")                      # runs again safely
+        finally:
+            server.RESET_TOKEN = ""
+        self.assertEqual(self.call("POST", "/_dojo/reset/score/rita?phase=teardown", extra=hdr)[0], 403)  # unset: off
 
     def test_pages_and_headers(self):
         for path in ("/", "/widget", "/toast.js", "/widget.js", "/board.js", "/style.css"):

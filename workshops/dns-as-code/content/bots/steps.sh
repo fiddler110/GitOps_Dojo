@@ -433,10 +433,35 @@ step_dns_lab5_history() {
   fi
   run_cmd "git branch --list 'dns/revert-*' | xargs -r git branch -D"
   run_cmd "python3 scripts/dnsctl.py rollback $target --yes"
+  # A classmate's record merged next to mine makes the revert conflict (likely in a class): keep their lines,
+  # drop the ones my PR added, and submit, as dnsctl's message says.
+  if [ -n "$(git ls-files -u dnsconfig.js)" ]; then
+    narrate "the revert conflicts with a later change -- keeping theirs, dropping mine"
+    run_cmd "git diff dnsconfig.js"
+    local sha
+    sha="$(git rev-parse REVERT_HEAD)"
+    git diff "$sha^1" "$sha" -- dnsconfig.js | sed -n 's/^+\([^+]\)/\1/p' > "$HOME/.dojo-bot-revert-drop"
+    python3 - "$HOME/.dojo-bot-revert-drop" <<'PYEOF'
+import sys
+drop = set(open(sys.argv[1], encoding="utf-8").read().splitlines())
+out, side = [], None
+for line in open("dnsconfig.js", encoding="utf-8").read().splitlines():
+    if line.startswith("<<<<<<< "): side = "ours"; continue
+    if (line.startswith("=======") or line.startswith("||||||| ")) and side: side = "theirs"; continue
+    if line.startswith(">>>>>>> ") and side: side = None; continue
+    if side == "theirs" or (side == "ours" and line in drop): continue
+    out.append(line)
+open("dnsconfig.js", "w", encoding="utf-8").write("\n".join(out) + "\n")
+PYEOF
+    rm -f "$HOME/.dojo-bot-revert-drop"
+    run_cmd "git add dnsconfig.js"
+    run_cmd "python3 scripts/dnsctl.py submit \"Revert: $(git log -1 --format=%s "$sha" | tr -d '\"')\" --yes"
+  fi
   local pr branch
   pr="$(dns_pr_for_branch dns/revert-)"
   if [ -z "$pr" ]; then
     narrate "the rollback did not open a PR -- cleaning up"
+    git rev-parse -q --verify REVERT_HEAD >/dev/null && run_cmd "git revert --abort"
     run_cmd "git checkout main"
     return 0
   fi

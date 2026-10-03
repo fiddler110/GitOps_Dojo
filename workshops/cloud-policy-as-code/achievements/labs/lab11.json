@@ -1,0 +1,71 @@
+{
+  "milestones": [
+    {
+      "id": "pc11-pr",
+      "title": "Break It on a Branch",
+      "joke": "A pull request that should not merge.",
+      "core": true,
+      "when": "forgejo: a `drop-costcenter` pull request is opened in the student's fork",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "repo": "{user}/cloud-policy-as-code",
+        "head": "drop-costcenter"
+      }
+    },
+    {
+      "id": "pc11-blocked",
+      "title": "The Gate Holds",
+      "joke": "The pipeline said no before the cloud had to.",
+      "core": true,
+      "when": "verify: a **Policy check** (`pr.yml`) run for a pull request on the fork failed (checked after the pull request is opened)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "ci_run",
+            "repo": "{user}/cloud-policy-as-code",
+            "workflow": "pr.yml",
+            "status": "failure",
+            "event": "pull_request"
+          }
+        ],
+        "requires": "pc11-pr"
+      }
+    },
+    {
+      "id": "pc11-merged",
+      "title": "Fixed and Merged",
+      "joke": "Green check, then merge.",
+      "core": true,
+      "when": "forgejo: the `drop-costcenter` pull request is merged",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "{user}/cloud-policy-as-code",
+        "head": "drop-costcenter"
+      }
+    },
+    {
+      "id": "pc11-applied",
+      "title": "Main Applied",
+      "joke": "Code in, cloud changed, nobody typed apply.",
+      "core": true,
+      "when": "verify: the newest finished **Apply** (`main.yml`) run on the fork is green (checked after the merge)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "ci_run",
+            "repo": "{user}/cloud-policy-as-code",
+            "workflow": "main.yml",
+            "latest": true
+          }
+        ],
+        "requires": "pc11-merged"
+      }
+    }
+  ]
+}

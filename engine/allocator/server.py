@@ -187,15 +187,26 @@ def read_session(token, now=None):
         account = base64.urlsafe_b64decode(name + "=" * (-len(name) % 4)).decode()
     except (ValueError, UnicodeDecodeError):
         return None
-    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) else None
+    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) or is_bot_id(account) else None
+
+
+def is_bot_id(name):
+    """True for testuser1..testuserN while demo bots run (BOT_COUNT > 0)."""
+    m = re.fullmatch(re.escape(BOT_PREFIX) + r"([1-9][0-9]*)", name or "")
+    return bool(m) and BOT_COUNT > 0 and int(m.group(1)) <= BOT_COUNT
 
 
 def check_login(username, password):
     """The account this username/password opens, or None. Both accounts are
     always compared, so timing says nothing about which one was close. An
-    empty password never matches, whatever is configured."""
+    empty password never matches, whatever is configured. While bots run, a
+    bot also signs in as itself with its Forgejo password (BOT_PASSWORD), so
+    it can use identity-gated extension routes (a portal) as a student does:
+    see handle_route_check; nothing else treats a bot session as a student."""
     if not username or not password:
         return None
+    if is_bot_id(username):
+        return username if hmac.compare_digest(password.encode(), BOT_PASSWORD.encode()) else None
     ok_class = hmac.compare_digest(username.encode(), TTYD_USERNAME.encode()) & \
         hmac.compare_digest(password.encode(), TTYD_PASSWORD.encode())
     ok_fac = hmac.compare_digest(username.encode(), FACILITATOR_USERNAME.encode()) & \
@@ -300,7 +311,8 @@ BOT_WATCH_PORT_BASE = 9800
 # term_port() -- must match BOT_IDE_PORT_BASE/BOT_TERM_PORT_BASE in
 # web-terminal/workspace-control.py. Not currently reachable (resolve_identity()
 # never returns a bot id as `username` -- only a real student id or the
-# facilitator), but kept symmetric per this file's own "must match" comments.
+# facilitator; a bot's own login counts only in handle_route_check), but kept
+# symmetric per this file's own "must match" comments.
 BOT_IDE_PORT_BASE = 9700
 BOT_TERM_PORT_BASE = 9750
 
@@ -610,8 +622,9 @@ def reset_terminal(sid):
     return f"{len(result.get('steps', []))} step(s) ok"
 
 
-def reset_steps(sid):
-    """The steps of one reset, in order (reset.py's module docstring)."""
+def reset_steps(sid, optional=frozenset()):
+    """The steps of one reset, in order (reset.py's module docstring);
+    `optional` names the optional hooks the facilitator ticked."""
     fj = reset.Forgejo(GIT_SERVER_HOST, GIT_SERVER_PORT, FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD)
     password = BOT_PASSWORD if sid in BOT_IDS else forgejo_password(sid)
 
@@ -620,7 +633,7 @@ def reset_steps(sid):
             raise reset.ResetError("web-terminal did not answer")
         return "processes stopped"
 
-    hooks = EXTENSIONS["resets"]
+    hooks = [h for h in EXTENSIONS["resets"] if not h.get("optional") or h["id"] in optional]
     return [
         ("stop", "Stop VS Code and terminal", stop),
     ] + reset.hook_steps(hooks, sid, "teardown", GATEWAY_TOKEN) + [
@@ -1110,6 +1123,7 @@ ADMIN_CSS = SHELL_CSS + """
   #reset-dialog .rd-go { background: #b91c1c; color: #fff; }
   #reset-dialog .rd-go:disabled { opacity: 0.5; cursor: default; }
   #reset-dialog .rd-error { color: #b91c1c; min-height: 1.2em; }
+  #reset-dialog .rd-opt { display: block; margin: 0.4rem 0; }
   @media (prefers-color-scheme: dark) {
     #reset-dialog { background: #1e1e1e; color: #eee; }
   }
@@ -1300,6 +1314,8 @@ const RESET_WHAT = [
   'their Forgejo account, repositories and forks are deleted and the account made again',
   'their home folder and lab files are deleted and set up fresh',
 ].concat(__RESET_HOOK_LABELS__.map(l => l + ': theirs is removed and set up again'));
+// Optional hooks ({id, label}): a checkbox each, off by default.
+const RESET_OPTIONAL = __RESET_HOOK_OPTIONAL__;
 let resetDialog = null;
 
 function resetDialogFor(sid) {
@@ -1310,6 +1326,14 @@ function resetDialogFor(sid) {
     const p1 = make('p', '', 'This cannot be undone:');
     const ul = make('ul');
     RESET_WHAT.forEach(t => ul.appendChild(make('li', '', t)));
+    const opts = RESET_OPTIONAL.map(o => {
+      const label = make('label', 'rd-opt');
+      const box = make('input');
+      box.type = 'checkbox';
+      box.value = o.id;
+      label.append(box, document.createTextNode(' ' + o.label));
+      return label;
+    });
     const p2 = make('p', '', 'Their seat stays theirs; everyone else carries on. Type the id to confirm:');
     const input = make('input');
     input.autocomplete = 'off';
@@ -1320,7 +1344,7 @@ function resetDialogFor(sid) {
     const go = make('button', 'rd-go', 'Reset');
     cancel.type = go.type = 'button';
     actions.append(cancel, go);
-    d.append(h, p1, ul, p2, input, err, actions);
+    d.append(h, p1, ul, ...opts, p2, input, err, actions);
     document.body.appendChild(d);
     cancel.onclick = () => d.close();
     input.oninput = () => { go.disabled = input.value.trim() !== d.dataset.sid; };
@@ -1331,7 +1355,8 @@ function resetDialogFor(sid) {
       fetch('/admin/reset/' + encodeURIComponent(target), {
         method: 'POST',
         headers: { 'X-Requested-With': 'dojo-admin', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'confirm=' + encodeURIComponent(input.value.trim()),
+        body: 'confirm=' + encodeURIComponent(input.value.trim()) + '&optional='
+          + encodeURIComponent(opts.map(l => l.firstChild).filter(b => b.checked).map(b => b.value).join(',')),
       }).then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, j })))
         .then(({ ok, j }) => {
           if (ok) { d.close(); refresh(); return; }
@@ -1340,7 +1365,7 @@ function resetDialogFor(sid) {
         })
         .catch(() => { err.textContent = 'Reset request failed'; go.disabled = false; });
     };
-    resetDialog = { d, h, input, go, err };
+    resetDialog = { d, h, input, go, err, opts };
   }
   const rd = resetDialog;
   rd.d.dataset.sid = sid;
@@ -1348,6 +1373,7 @@ function resetDialogFor(sid) {
   rd.input.value = '';
   rd.input.placeholder = sid;
   rd.err.textContent = '';
+  rd.opts.forEach(l => { l.firstChild.checked = false; });
   rd.go.disabled = true;
   rd.d.showModal();
   rd.input.focus();
@@ -1608,7 +1634,9 @@ WORKSPACE_ASSETS = {
 ADMIN_ASSETS = {
     # Reset hook labels passed render_extensions.py's check_text; json.dumps keeps them data.
     "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS.replace(
-        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"]]))),
+        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"] if not h.get("optional")])).replace(
+        "__RESET_HOOK_OPTIONAL__", json.dumps([{"id": h["id"], "label": h["label"]}
+                                               for h in EXTENSIONS["resets"] if h.get("optional")]))),
     "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
 }
 
@@ -2253,6 +2281,8 @@ EXT_PANELS_PLACEHOLDER</main>
         upstream this workshop didn't declare."""
         route = EXT_ROUTES.get(route_id)
         username, _sid = self.resolve_identity()
+        if username is None and is_bot_id(self.session_account()):
+            username = self.session_account()  # a demo bot signed in as itself (check_login)
         denied = None
         if route is None or route["gate"] not in ("identity", "facilitator"):
             denied = 404
@@ -2581,6 +2611,11 @@ EXT_PANELS_PLACEHOLDER</main>
             self.read_form_body()  # drain body regardless
             self.send_html(self.render_facilitator_workspace())
             return
+        if sid is None and is_bot_id(self.session_account()):
+            self.read_form_body()  # a demo bot's own login never takes a student slot
+            self.send_html(page("Not for bots", "<h1>Bots don't take a student slot</h1>"), status=403,
+                           headers=NO_STORE_HEADERS)
+            return
         if sid is not None:
             self.read_form_body()  # drain body regardless
             self.send_html(self.render_confirmation(sid), headers=NO_STORE_HEADERS)
@@ -2651,10 +2686,15 @@ EXT_PANELS_PLACEHOLDER</main>
             self.send_response(404)
             self.end_headers()
             return
-        if self.read_form_body().get("confirm") != sid:
+        form = self.read_form_body()
+        if form.get("confirm") != sid:
             self.send_json({"error": "type the student id to confirm"}, status=400)
             return
-        if not RESETS.request(sid):
+        chosen = {o for o in form.get("optional", "").split(",") if o}
+        if chosen - {h["id"] for h in EXTENSIONS["resets"] if h.get("optional")}:
+            self.send_json({"error": "unknown optional reset step"}, status=400)
+            return
+        if not RESETS.request(sid, chosen):
             self.send_json({"error": "a reset of this account is already running"}, status=409)
             return
         self.send_json({"reset": sid, "state": "queued"}, status=202)

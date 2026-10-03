@@ -145,23 +145,23 @@ class Runner:
         """[(challenge id, verb)] the loaded plug-ins don't provide."""
         out = []
         for ch in catalog["challenges"] + ([catalog["capstone"]] if catalog.get("capstone") else []):
-            for a in ch.get("verify") or []:
+            for a in (ch.get("verify") or []) + ((ch.get("then") or {}).get("verify") or []):
                 if a.get("verb") not in self.verbs:
                     out.append((ch["id"], a.get("verb")))
         return out
 
     # -- checking ----------------------------------------------------------------------
-    def verify(self, ch, user, seed=None):
+    def verify(self, ch, user, seed=None, step_at=None):
         """{passed, message}. Raises NotCheckable, or the plug-in's Unavailable."""
         assertions = ch.get("verify")
         if not assertions:
             raise NotCheckable(f"{ch['id']} can't be checked yet")
         vals = self.values(ch, user)
-        ctx = {"user": user, "seed": seed or {}, "now": self.clock(), "challenge": ch["id"]}
+        ctx = {"user": user, "seed": seed or {}, "now": self.clock(), "challenge": ch["id"], "step_at": step_at}
         for a in assertions:
             if a.get("verb") not in self.verbs:
                 raise NotCheckable(f"{ch['id']}: no verifier '{a.get('verb')}' in this run")
-            args = fill_args({k: v for k, v in a.items() if k != "verb"}, vals)
+            args = fill_args({k: v for k, v in a.items() if k not in ("verb", "restart")}, vals)
             # Isolation (A20): a check reads only the checking student's own space.
             for repo in repos_in(args):
                 if not repo.startswith(user + "/"):
@@ -169,7 +169,8 @@ class Runner:
             fn, _ = self.verbs[a["verb"]]
             passed, message = fn(self.api, args, ctx)
             if not passed:
-                return {"passed": False, "message": message}
+                # restart (step 2 only): this failure can't be fixed from here, so step 1 starts over
+                return {"passed": False, "message": message, "restart": bool(a.get("restart"))}
         return {"passed": True, "message": "passed"}
 
     # -- seeding -----------------------------------------------------------------------

@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (`feat/achievements` merged to `main` in PR #6; tier 1, RV13-RV18, RV20 and RV21 done) · Working
-branch: `main`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-02 (RV19 done; Phase 10 sweep and student reset built, live checks in progress) · Working
+branch: `feat/rv19-bot-smoke-tests`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -14,9 +14,9 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume: N3 phase 9 live checks, then RV19 bot smoke tests; decisions of 2026-10-02 |
-| [Now](#now) | N3 phase 9 live checks |
-| [Next](#next) | Platform review (RV19, RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Up next](#up-next) | Where to resume; decisions of 2026-10-02 |
+| [Now](#now) | Phase 10 sweep and student reset: live checks |
+| [Next](#next) | N3 9.4 class-sized run; platform review (RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -25,27 +25,21 @@ what is left (usually the live check).
 ## Priorities
 
 Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
-platform review tier 1 and the merge to `main` (PR #6) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+platform review tier 1 and the merge to `main` (PR #6), the Phase 9 live checks apart from the class-sized run
+(PR #7) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Phase 9 live checks | L | [N3](#n3-phase-9-live-checks): cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
-| 2 | Platform review tier 2 | M each | RV19: bot smoke tests, the last of tier 2 (RV13-RV18 done) |
-| 3 | Student reset | L | Starting with the R0 spikes. Q1-Q7 are answered, so nothing blocks it |
-| 4 | Phase 10 sweep and polish | M | Achievements phase 10, dojo-introduction `--test 5` |
-| 5 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
+| 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the module hooks need their live runs ([Now](#now)) |
+| 2 | Phase 10 leftovers | S | dns-as-code slide overflow, dojo-introduction `--test 5`, two browser looks |
+| 3 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
 
 ## Up next
 
-Resume here (written 2026-10-02 after `4a10e75`: the home demo dry run passed and its fixes are committed; tier 2's
-CI and tests RV13-RV18 are done, see RELEASES; the branch reached `main` in PR #6). First
-[N3](#n3-phase-9-live-checks) (priority 1); then this. Work in this order. Each step: cheap checks per fix, then one combined live run (`podman ps` first: another session
-may be using the machine).
-
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| RV19 | Bot smoke tests | M each | The last of [tier 2](#platform-review-2026-10-01): git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal. The live scripts that moved onto `workshops/assets/test-lib.sh` (RV18) get their first live run alongside |
+Resume here (updated 2026-10-03). `feat/cloud-policy-as-code` (RV35, RV19, Phase 10 and student reset) merged to
+`main` in PR #8; cut a new branch for the next batch. Next: the live checks in [Now](#now), one stack at a time
+(`podman ps` first), starting with the first `smoke.sh --split each` run.
 
 **Answered 2026-10-02**
 
@@ -53,30 +47,41 @@ may be using the machine).
 |---|---|
 | Reset button | Yes, a full **Reset environment** button on `/admin` (RV38), with Release all as its first step. Nothing may persist past `./run.sh stop` |
 | Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied into `<context>/_shared/` at build time (`SHARED=` in `module.env`) |
-| Next workshop | Policy as code (RV35). Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md`; its three open questions are answered (full 12 labs, policy sets get a lab, named Cloud-Policy-as-Code) |
+| Shared-repo changes on reset (2026-10-03) | Left alone: a student reset never touches what they changed in a shared repo (e.g. dns-as-code `<user>-app` records in `dojo.test` stay) |
+| Next workshop | Cloud-Policy-as-Code (RV35), merged to `main` in PR #8 (2026-10-03) |
 
 ## Now
 
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| N3 | [Phase 9 live checks](#n3-phase-9-live-checks) | L | cert-autorenewal, tofu-basics, vault-fundamentals, then the class-sized run |
+Live checks for what was built 2026-10-02 (all unit-tested; nothing below has run on a stack unless it says so).
+Briefs ready to hand to an agent: `live3-brief.md` (vault + tofu) was in the old session's scratchpad, so rebuild from
+these lines.
 
-### N3: Phase 9 live checks
+| Check | Stack | What to confirm |
+|---|---|---|
+| Split smoke run | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run of `--split` (12 bots, one lab each, 6g terminal cap): every `testuserK labs N: ok`, every core milestone fires, no OOM in the terminal; note each lab's minutes to rebalance the split. The full run stays the gate before a merge |
+| DNS reset | `dns-as-code --test 3 --fast` | Reset testuser1: all steps done; the Forgejo step deletes **without purge** (detail has no "purged"), so merged PRs and comments stay (as "Ghost"); zones at/under `testuser1.dojo.test` gone; `testuser1-*` records in `dojo.test` stay; second reset passes. Also run the slide overflow check on its Marp pages (check.py below) |
+| Cert reset | `cert-autorenewal --test 3 --fast` | Reset testuser1: crontab gone (engine change), `/srv/webroot/testuser1` back empty and theirs (account.d/reset.d), `certs.dojo.test` has exactly the two seeded A records of theirs (`DNS_GATE_RESET_RECORDS`), demo-app reloads cleanly, testuser2 untouched |
+| Vault reset | `vault-fundamentals --test 2 --fast` | openbao-setup and app-db reset workers start; reset testuser1: 6 steps done; `modules/openbao/tests/setup_tokens.sh` passes; namespace and `secret/students/testuser1/` fresh, app slots empty, capstone slot locked, DB back to start; `lab_11.sh`/`lab_12.sh` pass after; second reset passes. Not covered by design: their root-namespace login tokens expire on their own |
+| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset testuser1: containers gone, testuser2's running, activity log "Purge subscription (portal)" by student-reset. Capstone two-step as a student: `dojo-check capstone` says "Halfway" while the sites run, "Passed!" after `tofu destroy` |
+| Vault capstone two-step | vault stack | `dojo-check capstone` "Halfway", rotate `capstone/app` without pushing, then "Passed!"; a push in between sends it back to step 1 |
+| dojo-introduction | `--test 5 --fast` | Runs to the end with no `FAST: ... skipping it` in `/home/testuser*/.dojo-bot.log` (usability not a goal: it's for presenting). Since 2026-10-03 each bot step checks its own result, so a failed push or apply that was hidden shows up as a skip |
+| Browser looks (user) | any | Widget frame full height on first load; the Reset dialog's "Also clear their achievements and score" checkbox |
 
-Everything in 9a is unit-tested only. Run one stack at a time (`podman ps` first; ask before `./run.sh stop`, it
-wipes volumes). Order goes from smallest blast radius to largest, so a core defect shows up on the cheapest pack.
-Each step: start with `--test --fast`, wait for the 3 `~/.dojo-bot-done` markers, then compare fired items against the pack's `ACHIEVEMENTS.md`.
-Done and in `RELEASES.md`: rebuild, git-fundamentals regression, dns-as-code (2026-10-01; leftovers and its challenges 2026-10-02), cert-autorenewal (2026-10-01; leftovers and challenges 2026-10-02), tofu-basics (2026-10-02), vault-fundamentals (2026-10-02), git-fundamentals challenges and the box with achievements off (2026-10-02).
+Slide overflow checker: `workshops/assets/slide-overflow.sh <workshop> [page.md ...]` (committed 2026-10-03, not run on a
+stack yet; the DNS reset run above is its first).
+
+After the live checks pass: move student reset R0-R4 and R3.x to RELEASES (git-fundamentals live result: steps 3-5 s,
+idempotent, a bot restarts from round 1, the optional score clear clears only that student), and delete them below.
+
+## Next
+
+### N3 9.4: class-sized run
+
+Skipped for now (user, 2026-10-02); ask before starting it. The rest of N3 (Phase 9 live checks) is in RELEASES.
 
 | Step | Work | Effort | Description |
 |---|---|---|---|
 | 9.4 | Class-sized concurrency run (last; skipped for now, 2026-10-02) | M | On dns-as-code or git-fundamentals with ~20 bots: shell hook latency, state sweep budget (`gap=20`, `budget=40`), no dropped events, `/admin` leaderboard and toasts still responsive. Also recheck the **facilitator VS Code tab "unknown error"** (seen once under load, a retry fixed it, not reproduced at 10 bots) with the `/auth-check` logging from remediation T1.4; sizing for 20-35 students is extrapolated from 10 bots until this run |
-
-Log failures per step here; when a pack passes, delete its step, add a line to `RELEASES.md`, and fix the item
-`when` text for any approximation that proved wrong.
-
-**Resume here (written 2026-10-02, branch `feat/phase9-live-checks`).** 9.0-9.3, 9.x, C6 and `--fast` bots are done (RELEASES); only 9.4 is left.
-1. **9.4, the class-sized run: skipped for now (user, 2026-10-02).** Ask before starting it.
 
 Tools (`modules/achievements/tools/`, run from the repo root): `fired.py <workshop>` lists each catalog item with who
 earned it and the never-fired ids; `botaudit.py <workshop>` runs every bot command through the real matcher (static:
@@ -84,8 +89,6 @@ runtime values, output and `requires` are not known, so its misses need a look, 
 header) counts challenge boxes on a lab page in headless Chromium. Working rules: every bot run uses `--test --fast`; long waits go to a sub-agent with a
 short brief and one blocking wait loop; bots stay lab-only (decided 2026-10-02: challenges are solved by hand, one
 solve each per pack); student commands that must reach achievements run in an interactive zsh (tmux), not `zsh -lc`.
-
-## Next
 
 ### Platform review (2026-10-01)
 
@@ -96,11 +99,7 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 **Tier 1: load and crash fixes (before the class-sized run).** The engine items (RV1, RV3-RV5, RV8-RV12) shipped
 2026-10-01 (see RELEASES); the module items RV2, RV6 and RV7 passed live 2026-10-02 (see RELEASES).
 
-**Tier 2: CI and tests.** RV13-RV18 shipped 2026-10-02 (see RELEASES).
-
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| RV19 | Bot smoke tests | M each | git-fundamentals (no `content/bots` yet), dns-as-code, cert-autorenewal |
+**Tier 2: CI and tests.** RV13-RV19 shipped 2026-10-02 (see RELEASES).
 
 **Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02 (see
 RELEASES).
@@ -121,36 +120,29 @@ RELEASES).
 | RV32 | Progress export | S | Facilitator export of progress and achievements (CSV/JSON) |
 | RV33 | Feedback survey card | M | End-of-class feedback survey card |
 | RV34 | Terminal recording | M | Terminal session recording or replay |
-| RV35 | Workshop: Cloud-Policy-as-Code | L | **Chosen as the next workshop (2026-10-02).** Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md` (Dojo Cloud Policy, built like Azure Policy: definitions, assignments, effects, compliance, written as HCL; plus Rego/Conftest on `tofu plan` JSON in PRs; reuses dojo-cloud and runner-pool). Start with spikes PC-S1..S5 |
 | RV36 | More workshops | L each | GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation |
 | RV37 | Several classes at once | L | One workshop per machine today |
 | RV38 | Reset environment button | M | Asked for 2026-10-02: a button on `/admin` that releases every slot and puts every student back to a fresh start without restarting the stack (between two sessions of a class). Build it on the student reset's per-student hook contract (`STUDENT-RESET-PLAN.md` §4.4): run the reset for every student, then module hooks clear their own state (achievements, sensei, dojo-cloud). Facilitator gate, a typed confirmation, audit line. A smaller first step, **Release all**, only clears the slot table. Rule: **nothing survives `./run.sh stop`**; every state file stays in a named volume (`allocator_state` is, verified 2026-10-01), and RV13's CI should fail any compose fragment that writes state outside one. Engine change, approved |
 
 ### Student reset
 
-The facilitator resets one student's whole environment. Design: `docs/archive/STUDENT-RESET-PLAN.md` (read §4
-design, §4.4 hook contract, §6 security); settled decisions and answers are in
-[Reference](#student-reset-decisions). Rule: **ask before editing any `engine/` file**, and before moving between
-phases. R1.1 is done (7172d9b); R0 spikes are throwaway, with no engine edits kept.
+The facilitator resets one student's whole environment. Design: `docs/archive/STUDENT-RESET-PLAN.md`; settled
+decisions in [Reference](#student-reset-decisions). **Status 2026-10-02: everything is built; engine plus achievements
+passed live on git-fundamentals; the module hooks wait for their live runs ([Now](#now)).**
 
-| ID | Work | Effort | Description |
-|---|---|---|---|
-| R0.1 | Inventory student files | S | List every student-owned file after doing all labs of one workshop |
-| R0.2 | Forgejo purge by hand | S | Purge and recreate a student through the admin API by hand; record what survives |
-| R0.3 | Manual vault reset | M | Reset one vault-fundamentals student by hand (namespace delete plus tenancy hooks) and rerun the labs |
-| R0.4 | Time each step | S | Target under 30 s |
-| R1.2-R1.4 | Engine reset machinery | S (live) | **Built 2026-10-01, unit-tested only, nothing live.** `account.d`/`reset.d` runner (entrypoint, all accounts after `start.d`) and `POST /reset/<user>` in `workspace-control.py`; `allocator/reset.py` (Forgejo teardown: close the student's open PRs and delete their branches in every org repo, then delete the account with purge; re-provision; one worker thread); `POST /admin/reset/<sid>` (facilitator, `X-Requested-With`, typed `confirm=<sid>`), fence on `/auth-check` (starting page), routes (503), `/forgejo-login`, watch; `reset` in `/admin/api/sessions`. Still to confirm live, with the R0 spikes: what purge removes in the org repo, whether the name can be recreated at once, the new token reaching git, a bot restarting from round 1 |
-| R1.5 | Roster Reset UI | S (live) | **Built 2026-10-01.** Roster tile **Reset** (red), a dialog listing what goes and enabling the button only once the id is typed, a per-step progress line (✓ ✗ …, detail on hover), the failing step's error and **Retry**; the watch view drops during a reset and reconnects after. Checked in Chromium against a local allocator with fake sessions (1400 px and 390 px, no console errors, an error with `<script>` shown as text), not on a stack |
-| R1.6 | Reset tests and live check | M | Tests in `engine/allocator/tests/` (auth, fence, idempotency, bot reset) and a live check |
-| R2 | Hook contract | S (live) | **Built 2026-10-01, unit-tested only (allocator 121 pass); no module uses it yet.** `resets` in `render_extensions.py` (`id`, `label`, `upstream`, `path` with `{user}`, `timeout` 1-120 s); the allocator runs each hook's `?phase=teardown` after `stop` and `?phase=provision` after `terminal`, as Roster steps, and the dialog lists their labels. **Changed from the plan:** no `RESET_TOKEN` secret in `env-setup.sh`; each hook's service gets its own `RESET_TOKEN_<SERVICE>` = HMAC(`GATEWAY_TOKEN`, service), written to `upstream-tokens.env` like FIND-16's gateway tokens, so existing `.env` files keep working and one service's token can't reset another's state. Author docs in `workshops/README.md`; `engine/README.md` waits for R4 |
-| R3.1 | Adopt: dojo-cloud | S-M | Reset endpoint on cloud-api, reusing `_purge`; live check on tofu-basics |
-| R3.2 | Adopt: openbao | M | `openbao` plus vault tenancy/CI/platform via `openbao-reset` (R9) |
-| R3.3 | Adopt: runners | S | `runner-pool` and `forgejo-runner` |
-| R3.4 | Adopt: vault apps | M | Vault `app-host` (both slots; the capstone slot locks again) and `app-db` |
-| R3.5 | Adopt: DNS packs | M | dns-ui, dns-as-code, cert-autorenewal per Q3 (move any per-account `start.d` work to `account.d`) |
-| R3.6 | Adopt: achievements | S | Clear or keep the student's score (A28) |
-| R4.1 | Docs | S | `engine/README.md` "Facilitator operations" · `workshops/README.md` hook contract · module READMEs |
-| R4.2 | Live pass per workshop | M | Break a student on purpose, reset, redo the first labs as them while a second student carries on |
+| ID | Work | Status |
+|---|---|---|
+| R0 | Spikes | Done live on git-fundamentals: a reset takes 3-5 s; Forgejo lets the name be made again at once; the new token reaches git; a bot restarts from round 1. Found: **purge** deleted the student's merged PRs, against Q5, so the teardown now deletes their own repos, leaves the org, and deletes the account without purge (falls back to purge if refused, and says so). Not yet live |
+| R1 | Engine machinery and Roster UI | Live on git-fundamentals. Added 2026-10-02: `resets` entries may be `"optional": true` (a checkbox in the dialog, off by default, sent as `optional=<ids>`); the terminal reset also removes the student's crontab |
+| R2 | Hook contract | Docs in `workshops/README.md` (incl. `optional`) |
+| R3.1 | dojo-cloud | Built: `/_dojo/reset/<user>` on cloud-api, teardown through `Portal._purge` (the Cloud-Policy-as-Code session will make `_purge` clear its policy state too) |
+| R3.2 | openbao | Built: `openbao-reset` relay; `openbao-setup` stays up and runs reset jobs with its own token (the token never moves, unlike R9's wording); one-user mode in `10-tenancy.sh`, `20-ci.sh`, `30-platform.sh` |
+| R3.3 | runners | Built: runner-pool stops runners busy with the student's own repos (`/spool/kill/`). `forgejo-runner` is used by no workshop: no hook |
+| R3.4 | vault apps | Built: app-host empties both slots and locks the capstone slot; app-db drops and remakes the student's database (through app-host) |
+| R3.5 | DNS packs | Built: dns-gate deletes zones at/under `<user>.<parent>` and their names in shared zones, then re-creates `DNS_GATE_RESET_RECORDS` (cert-autorenewal sets its two seeded A records); cert-autorenewal's webroot moved to `account.d`, with a `reset.d` that removes the old site. Shared-repo records stay by decision (2026-10-03) |
+| R3.6 | achievements | Built and live: `achievements-progress` (forgets seeds, watches, half-done two-step checks, Sensei activity) and optional `achievements-score` |
+| R4.1 | Docs | Done: `engine/README.md` "Reset a student", `workshops/README.md`, dns-gate and openbao READMEs |
+| R4.2 | Live pass per workshop | The [Now](#now) table |
 
 ### Achievements
 
@@ -158,22 +150,16 @@ An optional layer over the labs (`ACHIEVEMENTS_ENABLED`): toasts on every studen
 goal-only challenge per lab, a capstone, and a certificate at the end. Rule: **ask before editing any `engine/`
 file**. Done (RELEASES): phases 0-2 (design and catalogs, catalog core, engine workspace and widgets, score service
 and toasts), 4 (challenges), 5 (cheat tiers and names), 7 (Sensei), 8 (toast surfaces). Phase 9 is built and live on
-git-fundamentals and dns-as-code ([N3](#n3-phase-9-live-checks)). Design, decisions and working notes:
+git-fundamentals and dns-as-code ([N3](#n3-94-class-sized-run)). Design, decisions and working notes:
 [Reference](#achievements-design).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| Phase 3 | zsh hook with a prompt framework | S | Event sources are done, but the hook has not run with a prompt framework (oh-my-zsh, powerlevel10k) in the real terminal image |
 | Phase 6 | Certificate: one decision left | S | Certificate, badge PNG and name dialog are done; one decision is left |
-| Phase 9 | Other four packs | L | `match`, adapters, verifiers, seeds (9a build done 2026-10-01); live checks are [N3](#n3-phase-9-live-checks) |
-| Phase 10 | Sweep | S-M | Overflow screenshots for git-fundamentals and dns-as-code (cert-autorenewal done 2026-10-01; lab times re-checked the same day: 55, 102 and 80 min) |
+| Phase 9 | Other four packs | L | `match`, adapters, verifiers, seeds (9a build done 2026-10-01); live checks are [N3](#n3-94-class-sized-run) |
 | — | Browser look | S | Not looked at in a browser yet: a red negative score (board, widget, `/admin`) and a negative toast in VS Code; the badge PNG download, capstone badge tier and a typed certificate name; a real student's stale-branch roster PR |
-| — | Quirk: bot round 1 reset | S | Round 1's `git reset --hard HEAD~1` fails with "unknown revision" in `bot-runner.sh` (engine; round 2 succeeds) |
-| — | Quirk: burnt nonce | S | A signed event whose user doesn't exist burns its nonce |
-| — | Quirk: `lab0.md.txt` 404 | S | 404s in the git-fundamentals lab reader (harmless probe) |
-| — | Quirk: widget resize | S | The widget only resizes once `toast.js` has loaded |
+| — | Widget resize: browser check | S | Fixed 2026-10-02, not seen in a browser: the landing page's widget frame should have its full height on first load (`toast.js` asks the widget to report again once it listens) |
 | — | Hidden-tab toasts: browser check | S | Built 2026-10-02, not seen in a browser: with the landing page open in a background tab, an unlock in the VS Code terminal pops up in VS Code (`toast.js` skips polling while `document.hidden`), and the landing page shows queued toasts when it comes to the front |
-| — | tofu-basics checks looser than their text | S | Found 2026-10-02 (N3 9.2): c1 passes with an `output "url"` that prints a bare host name (its goal says "prints its URL"), and the capstone passes while the sites still run, so its "destroys cleanly" part is never checked (after the destroy, a re-check only says "Already cleared"). Tighten the `verify` or the goal text. Same kind, vault-fundamentals (N3 9.3): the capstone's "rotate without deploying" isn't checked, a second write of `capstone/app` passes even with a redeploy between (its `verify_text` says so) |
 
 ### `run.sh` CLI follow-ups
 

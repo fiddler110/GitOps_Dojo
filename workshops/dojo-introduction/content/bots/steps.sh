@@ -4,7 +4,9 @@
 # terminals, the Runners tab jobs, DNS Zones new records and the Dojo Cloud
 # portal a resource group to show.
 #
-# Each step is safe to run again. BOT_USER is testuserN; the my-zone folder is
+# Each step is safe to run again. The commands pipe through tail (no pipefail), so each step ends by checking
+# its result (branch on the server, record served, group in state): a failed git push, DNS push or apply then fails the
+# step, and --fast retries it or reports it skipped, instead of passing on a hidden error. BOT_USER is testuserN; the my-zone folder is
 # made for bots the same as for students.
 
 step_tour_git() {
@@ -14,6 +16,7 @@ step_tour_git() {
   run_cmd "git checkout -B tour-${BOT_USER} 2>/dev/null || git checkout tour-${BOT_USER}"
   run_cmd "git commit --allow-empty -q -m 'Tour round ${ROUND}'"
   run_cmd "git push -q -u origin tour-${BOT_USER} 2>&1 | tail -1"
+  run_cmd "git ls-remote --exit-code origin tour-${BOT_USER} | cut -c1-12" || return 1
   orient
 }
 
@@ -27,7 +30,7 @@ step_tour_dns() {
   cd "$HOME/lab/my-zone" || return 1
   run_cmd "dnscontrol preview 2>&1 | tail -3"
   run_cmd "dnscontrol push 2>&1 | tail -3"
-  run_cmd "dig @dns-server www.${BOT_USER}.dojo.test A +short"
+  run_cmd "dig @dns-server www.${BOT_USER}.dojo.test A +short | grep 203.0.113.10" || return 1
   cd "$REPO_DIR" 2>/dev/null || cd "$HOME"
 }
 
@@ -36,6 +39,7 @@ step_tour_cloud() {
   cd "$REPO_DIR/cloud" || return 1
   run_cmd ". <(dojo-env) && tofu init -input=false 2>&1 | tail -1"
   run_cmd ". <(dojo-env) && tofu apply -auto-approve -input=false 2>&1 | tail -2"
+  run_cmd "tofu state list | grep azurerm_resource_group.tour" || return 1
   cd "$REPO_DIR"
 }
 

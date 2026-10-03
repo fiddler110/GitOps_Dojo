@@ -53,9 +53,10 @@
         "mount",
         "path",
         "min_version",
+        "since_step?",
         "student?"
       ],
-      "does": "the KV v2 secret <mount>/<path> has current_version >= min_version (metadata only, never the value)"
+      "does": "the KV v2 secret <mount>/<path> has current_version >= min_version (metadata only, never the value); since_step: true (step 2 of a two-step challenge) also needs it written after step 1 passed"
     }
   }
 }

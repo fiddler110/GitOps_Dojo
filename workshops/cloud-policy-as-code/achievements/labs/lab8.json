@@ -1,0 +1,59 @@
+{
+  "milestones": [
+    {
+      "id": "pc8-merged",
+      "title": "Reviewed Waiver",
+      "joke": "An exception that went through review.",
+      "core": true,
+      "when": "forgejo: a `waive-*` pull request of the student's is merged in their fork",
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "{user}/cloud-policy-as-code",
+        "head_prefix": "waive-"
+      }
+    },
+    {
+      "id": "pc8-exempt",
+      "title": "Not Yet, With a Date",
+      "joke": "Exempt, until next week.",
+      "core": true,
+      "when": "verify: one of the student's assignments counts an exempt resource and has an unexpired Waiver exemption (checked every few seconds after the merge)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_policy",
+            "account": "{user}",
+            "kind": "assignment",
+            "exempt_min": 1,
+            "exemption": {
+              "category": "Waiver"
+            }
+          }
+        ],
+        "requires": "pc8-merged"
+      }
+    },
+    {
+      "id": "pc8-apply",
+      "title": "The Pipeline Did It",
+      "joke": "Merged, then applied by Apply, not by you.",
+      "core": true,
+      "when": "verify: an **Apply** (`main.yml`) run on the fork finished green (checked after the merge)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "ci_run",
+            "repo": "{user}/cloud-policy-as-code",
+            "workflow": "main.yml",
+            "status": "success"
+          }
+        ],
+        "requires": "pc8-merged"
+      }
+    }
+  ]
+}

@@ -44,6 +44,16 @@ Read what happens carefully — this is worth understanding, not just running:
 
 This is the DNS-as-code equivalent of `git revert` from Git Fundamentals: undo by adding a new commit, never by rewriting something that might already be shared. `dnsctl.py rollback` is that pattern, wired specifically for `dnsconfig.js`.
 
+**If it stops with `CONFLICT (content): Merge conflict in dnsconfig.js`:** a classmate's record was merged on the line next to yours, so git can't tell which lines to keep. Open `dnsconfig.js`, delete only **your** record and the three marker lines (`<<<<<<<`, `=======`, `>>>>>>>`), and leave theirs. Then finish the rollback by hand, as the error message says:
+
+```sh
+git add dnsconfig.js
+python3 scripts/dnsctl.py preview      # one DELETE: your record, nothing else
+python3 scripts/dnsctl.py submit "Revert: my Lab 3 record"
+```
+
+You're still on the `dns/revert-...` branch, so `submit` commits there and opens the rollback PR. Lab 6 goes into conflicts properly.
+
 ---
 
 ## 3. Review and merge the rollback PR

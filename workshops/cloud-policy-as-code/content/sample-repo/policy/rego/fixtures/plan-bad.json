@@ -1,0 +1,1 @@
+{"format_version":"1.2","resource_changes":[{"address":"azurerm_resource_group.app","type":"azurerm_resource_group","name":"app","change":{"actions":["create"],"after":{"name":"rg-sam-app","location":"canadacentral","tags":{"owner":"sam","env":"dev"}}}}]}

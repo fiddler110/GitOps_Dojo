@@ -25,6 +25,8 @@ import auth  # noqa: E402
 import dojo_http  # noqa: E402
 import docker_api
 import policy
+import policy_api
+import tfstate
 import state as state_mod
 
 PORTAL_DIR = "/app/portal"
@@ -139,7 +141,7 @@ class Portal:
     # ---- router --------------------------------------------------------------
     def _check_read(self, method, segs, query, headers):
         """The achievements service's read-only credential (X-Check-Token, derived by module.env): it may
-        only GET the caller's own overview, so it can't act as anyone or change anything.
+        only GET the caller's own overview, Policy blade or activity log, so it can't act as anyone or change anything.
         -> (user, response) when it applies, else None."""
         given, expected = headers.get("X-Check-Token") or "", self.env.get("CLOUD_CHECK_TOKEN") or ""
         if not given or not expected:
@@ -147,8 +149,12 @@ class Portal:
         user = headers.get("X-Auth-User") or ""
         if not dojo_http.token_ok(given, expected) or user not in self.app.auth.users:
             return user, _err(401, "Unauthenticated", "The check token or account is not valid.")
+        if method == "GET" and segs == ["policy"] and not query.get("subscription"):
+            return user, self._policy(user, {})  # the Policy blade of the account's own subscription
+        if method == "GET" and segs == ["activity"] and (query.get("scope") or ["mine"])[0] == "mine":
+            return user, self._activity(user, {"limit": query.get("limit") or []})  # its own activity log
         if method != "GET" or segs != ["overview"] or (query.get("scope") or ["mine"])[0] != "mine":
-            return user, _err(403, "Forbidden", "The check token can only read an account's own overview.")
+            return user, _err(403, "Forbidden", "The check token can only read an account's own overview, policy and activity.")
         return user, self._overview(user, query)
 
     def _api(self, method, segs, query, headers, body):
@@ -166,6 +172,10 @@ class Portal:
                 return self._only(method, "GET") or self._me(user)
             if head == "overview" and len(segs) == 1:
                 return self._only(method, "GET") or self._overview(user, query)
+            if head == "policy" and len(segs) == 1:
+                return self._only(method, "GET") or self._policy(user, query)
+            if head == "policy" and len(segs) in (2, 3, 4):
+                return self._policy_write(method, user, segs, query, body)
             if head == "activity" and len(segs) == 1:
                 return self._only(method, "GET") or self._activity(user, query)
             if head == "containers" and len(segs) in (4, 5):
@@ -283,6 +293,55 @@ class Portal:
         rgs, cgs = self._snapshot(sub, None if scope == "class" else sub)
         return _json(200, {"resourceGroups": rgs, "containerGroups": self._apply_state(cgs),
                            "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+
+    def _policy(self, user, query):
+        """The Policy blade: your own subscription's policy objects and stored compliance; the facilitator may name
+        any subscription with ?subscription=<id>, anyone else only their own (the same rule as ARM)."""
+        sub = (query.get("subscription") or [auth.subscription_id(user)])[0].lower()
+        denied = self._own_or_fac(user, sub)
+        if denied:
+            return denied
+        doc = policy_api.portal_section(self.app.state, sub)
+        doc["subscriptionId"] = sub
+        return _json(200, doc)
+
+    def _policy_write(self, method, user, segs, query, body):
+        """POST policy/evaluate, POST policy/assignments/<n>/enforcement, DELETE policy/assignments/<n>: drift made by
+        hand in the portal. Same gates as the container writes: owner or facilitator, the facilitator's write-actions
+        switch, and the cloud host's readiness. The facilitator names a student with ?subscription=<id>."""
+        rest = [s.lower() if i == 0 else s for i, s in enumerate(segs[1:])]
+        if rest == ["evaluate"]:
+            want, action, name = "POST", "evaluate", ""
+        elif len(rest) == 2 and rest[0] == "assignments" and method == "DELETE":
+            want, action, name = "DELETE", "delete", rest[1]
+        elif len(rest) == 3 and rest[0] == "assignments" and rest[2].lower() == "enforcement":
+            want, action, name = "POST", "enforcement", rest[1]
+        else:
+            return _err(404, "NotFound", f"No handler for '/cloud/api/{'/'.join(segs)}'.")
+        if method != want:
+            return _err(405, "MethodNotAllowed", method)
+        sub = (query.get("subscription") or [auth.subscription_id(user)])[0].lower()
+        denied = self._own_or_fac(user, sub)
+        if denied:
+            return denied
+        if not self._is_fac(user) and not self.write_actions():
+            return _err(403, "PortalWriteActionsDisabled", "The facilitator has switched off portal write actions.")
+        refused = self.app.readiness.refusal()
+        if refused:
+            return _err(503, "ServiceUnavailable", refused)
+        mode = ""
+        if action == "enforcement":
+            data = self._json_body(body)
+            mode = (data or {}).get("mode")
+            if not isinstance(mode, str):
+                return _err(400, "InvalidRequestContent", 'The body must be {"mode": "Default"|"DoNotEnforce"}.')
+        status, out = policy_api.portal_write(self.app.state, sub, user, action, name, mode)
+        if status >= 400:
+            return _json(status, out)
+        if action == "enforcement" and not self._is_fac(user):
+            self.app.events.emit("policy_written", user, "portal")  # hand-made drift, for the achievements service
+        self._invalidate()
+        return _json(200, out)
 
     def _activity(self, user, query):
         scope = (query.get("scope") or ["mine"])[0]
@@ -447,6 +506,20 @@ class Portal:
     def _bucket(by_sub, sub):
         return by_sub.setdefault(sub, {"rgs": 0, "cgs": []})
 
+    def student_reset(self, user, phase):
+        """The engine's student reset (extensions.json `resets`): teardown purges the student's subscription
+        through _purge, so whatever _purge clears, a reset clears; provision has nothing to set up (the
+        subscription is derived from the name). Returns a short detail; safe to run again."""
+        sub = auth.subscription_id(user)
+        if phase == "provision" or sub not in self.app.auth.by_subscription:
+            return "nothing to do"
+        status, _headers, raw = self._purge("student-reset", sub)
+        doc = json.loads(raw)
+        if status != 200 or doc.get("orphanedContainers"):
+            raise RuntimeError(f"purge left {doc.get('orphanedContainers', '?')} container(s) behind")
+        r = doc["removed"]
+        return f"removed {r['containerGroups']} container group(s), {r['resourceGroups']} resource group(s)"
+
     def _purge(self, user, sub):
         st, prefix = self.app.state, sub + "/"
         with st.lock:
@@ -454,6 +527,8 @@ class Portal:
             rg_keys = [k for k in st.rgs if k.startswith(prefix)]
             for k in rg_keys:
                 del st.rgs[k]
+            policy_objects = policy_api.purge(st, sub)  # assignments, exemptions, definitions, stored compliance
+            tf_states = tfstate.purge(st, sub)  # OpenTofu http-backend states and locks
             st.save()
         orphaned = 0
         for container in containers:  # Docker only after the lock is released
@@ -468,5 +543,7 @@ class Portal:
                    f"removed {len(containers)} container group(s), {len(rg_keys)} resource group(s)"
                    + (f"; {orphaned} container(s) could not be removed" if orphaned else ""))
             st.save()
-        removed = {"containerGroups": len(containers), "resourceGroups": len(rg_keys)}
+        removed = {"containerGroups": len(containers), "resourceGroups": len(rg_keys),
+                   **({"policyObjects": policy_objects} if policy_objects else {}),
+                   **({"tfStates": tf_states} if tf_states else {})}
         return _json(200, {"removed": removed, **({"orphanedContainers": orphaned} if orphaned else {})})

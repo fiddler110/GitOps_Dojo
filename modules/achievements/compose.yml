@@ -22,6 +22,8 @@ services:
     environment:
       # Identity headers count only with this token (derived per upstream by run.sh).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_ACHIEVEMENTS:-}
+      # The engine's student reset hooks (extensions.json `resets`) carry this.
+      - RESET_TOKEN=${RESET_TOKEN_ACHIEVEMENTS:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - WORKSHOP_DIR=/opt/workshop
       - FORGEJO_URL=http://git-server:3000

@@ -1,0 +1,29 @@
+{
+  "milestones": [
+    {
+      "id": "pc2-blank",
+      "title": "Empty Is Not Present",
+      "joke": "An empty tag is no tag.",
+      "core": true,
+      "when": "cloud: the second refusal by a built-in \"Require tag\" guardrail (Lab 1's untagged group was the first; Lab 2's case 2 has `env = \"\"`)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "tag",
+        "count": 2
+      }
+    },
+    {
+      "id": "pc2-image",
+      "title": "Unapproved Image",
+      "joke": "Version 3.0 is not on the list.",
+      "core": true,
+      "when": "cloud: a container group refused for an image the platform does not allow (Lab 2's case 3)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "image"
+      }
+    }
+  ]
+}

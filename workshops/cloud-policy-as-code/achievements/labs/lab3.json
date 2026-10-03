@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "pc3-definition",
+      "title": "Rule Writer",
+      "joke": "Your first policy definition, as code.",
+      "core": true,
+      "when": "cloud: one of the student's own policy definitions is created or updated (by `tofu apply` in `policy/cloud/`)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "definition"
+      }
+    },
+    {
+      "id": "pc3-assignment",
+      "title": "Switched On",
+      "joke": "A definition does nothing until it is assigned.",
+      "core": true,
+      "when": "cloud: one of the student's own policy assignments is created or updated",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "assignment"
+      }
+    },
+    {
+      "id": "pc3-refused",
+      "title": "Hoist by Your Own Policy",
+      "joke": "Your own rule refused your own write.",
+      "core": true,
+      "when": "cloud: a write refused by one of the student's own assignments (not a platform guardrail)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "assignment"
+      }
+    }
+  ]
+}

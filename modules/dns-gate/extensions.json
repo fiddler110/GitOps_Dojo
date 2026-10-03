@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "resets": [
+    {
+      "id": "dns",
+      "label": "DNS: their zones and names",
+      "upstream": "dns-api:8081",
+      "path": "/_dojo/reset/{user}"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "milestones": [
+    {
+      "id": "pc5-dryrun",
+      "title": "Dry Run",
+      "joke": "Evaluate everything, enforce nothing.",
+      "core": true,
+      "when": "verify: an assignment at the scope of `rg-<you>-app` is in enforcement mode `DoNotEnforce` (Lab 5's `images-strict` before it is enforced; checked every few seconds)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_policy",
+            "account": "{user}",
+            "kind": "assignment",
+            "scope_suffix": "/resourceGroups/rg-{user}-app",
+            "enforcement": "DoNotEnforce"
+          }
+        ],
+        "requires": "pc3-assignment"
+      }
+    },
+    {
+      "id": "pc5-reuse",
+      "title": "Write Once, Assign Twice",
+      "joke": "One definition, two scopes, two verdicts.",
+      "core": true,
+      "when": "verify: at least two of the student's assignments point at one and the same definition",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_policy",
+            "account": "{user}",
+            "kind": "assignment",
+            "same_definition": true,
+            "min": 2
+          }
+        ],
+        "requires": "pc3-assignment"
+      }
+    }
+  ]
+}

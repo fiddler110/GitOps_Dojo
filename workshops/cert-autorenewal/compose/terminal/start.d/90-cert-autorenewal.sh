@@ -6,7 +6,8 @@
 # 1. Starts the system cron daemon: each student's own `crontab -e` in Lab 4
 #    needs it running to fire at all, and nothing else in this image starts it.
 #
-# 2. Pre-creates every account's /srv/webroot/<user>/{conf.d,html,certs},
+# 2. Pre-creates the facilitator's /srv/webroot/<user>/{conf.d,html,certs} (every
+#    other account's comes from account.d/90-cert-autorenewal.sh, the same way),
 #    owned by that account, before anyone can log in. Without this, lab2.md's
 #    own `mkdir -p "/srv/webroot/${me}/..."` would be the *first* creation of
 #    that path, and demo-app/entrypoint.sh only chmods /srv/webroot itself
@@ -29,9 +30,5 @@ make_webroot() {
   chmod 0755 "/srv/webroot/$user" "/srv/webroot/$user/conf.d" "/srv/webroot/$user/html" "/srv/webroot/$user/certs"
 }
 
-counter=1
-while [ "$counter" -le "${STUDENT_COUNT:-30}" ]; do
-  make_webroot "$(printf '%s%02d' "${STUDENT_PREFIX:-student}" "$counter")"
-  counter=$((counter + 1))
-done
+# Students and bots: account.d/90-cert-autorenewal.sh (run after this, and again after a student reset).
 make_webroot "${FACILITATOR_USERNAME:-root}"

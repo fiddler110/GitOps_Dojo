@@ -1,0 +1,116 @@
+{
+  "answers": [
+    {
+      "id": "refused-403",
+      "title": "Why was my apply refused (403)?",
+      "match": [
+        "\\b(403|refused|disallowed|RequestDisallowedByPolicy|denied|forbidden)\\b",
+        "\\bwhy\\b.*\\b(blocked|not allowed|rejected)\\b"
+      ],
+      "markdown": "## Why was my apply refused (403)?\n\n`RequestDisallowedByPolicy` means a policy said no **before** anything was built. Read the message, it names who refused:\n\n- **A platform guardrail** (Lab 1): the region, a required tag, the size or the image. These are the platform's rules, not yours; change your resource to fit them.\n- **One of your own assignments** (Lab 3 on): the message starts `Assignment '<name>', definition '<name>':`, then the condition that matched, then your `nonComplianceMessage` if you wrote one.\n\nThen open the portal's **Policy** blade to see that assignment, its definition and its effect. If the refusal is the point of the step (it often is), you're done: the rule works. If not, fix the resource, or change the rule in git and apply it.",
+      "where": "lab1.md",
+      "section": "2. A resource group in the wrong country"
+    },
+    {
+      "id": "slow-apply",
+      "title": "Why does a policy apply take so long?",
+      "match": [
+        "\\b(slow|so long|takes? (ages|forever|minutes)|stuck|hang(ing|s)?|still creating|waiting)\\b",
+        "\\b100 ?s(ec(onds)?)?\\b"
+      ],
+      "markdown": "## Why does a policy apply take so long?\n\nAbout **100 seconds per policy definition or assignment** you create or delete, every time. That's the provider waiting for the cloud's policy service to replicate the object everywhere (eventual consistency) before it moves on. Your terminal isn't slow and nothing is stuck: `Still creating... [1m30s elapsed]` is normal.\n\nSets, exemptions and remediations have no such wait. Use the time to read the \"While it runs\" section of the lab.",
+      "where": "lab3.md",
+      "section": "Read this first: policy applies are slow"
+    },
+    {
+      "id": "state-lock",
+      "title": "Error acquiring the state lock",
+      "match": [
+        "\\b(state )?lock(ed)?\\b",
+        "\\bacquir(e|ing)\\b.*\\block"
+      ],
+      "markdown": "## Error acquiring the state lock\n\nYour state lives in Dojo Cloud, and it is **locked** while an apply runs, so two runs can't overwrite each other. Something else is applying the same folder right now: usually the pipeline (a push to `main` starts **Apply**), or a second terminal.\n\n- Wait for it to finish, then run your command again. Or let OpenTofu wait for you: `tofu apply -lock-timeout=120s`.\n- Before Lab 11, commit locally and **don't push**: a push starts `main.yml`, which races your own apply for the lock.\n- `tofu force-unlock` is only for a lock left by a run that died. Never use it while a run is still going.",
+      "where": "lab0.md",
+      "section": "Where your state lives"
+    },
+    {
+      "id": "state-401",
+      "title": "401 from the state backend",
+      "match": [
+        "\\b401\\b",
+        "\\b(requires auth|unauthori[sz]ed|TF_HTTP)\\b",
+        "\\bstate\\b.*\\b(auth|password|credential)"
+      ],
+      "markdown": "## 401 from the state backend\n\n`HTTP remote state endpoint requires auth` means OpenTofu has no credentials for the state store. Your terminal sets them from your Dojo Cloud login:\n\n```sh\necho \"$TF_HTTP_USERNAME\"     # should print your ARM_CLIENT_ID\n```\n\nIf it prints nothing, open a **new terminal** (the values are set when a shell starts), or set them yourself:\n\n```sh\nexport TF_HTTP_USERNAME=\"$ARM_CLIENT_ID\" TF_HTTP_PASSWORD=\"$ARM_CLIENT_SECRET\"\n```\n\nIn the pipeline the same values come from the CI secrets you saved in Lab 0.",
+      "where": "lab0.md",
+      "section": "Where your state lives"
+    },
+    {
+      "id": "noncompliant-existing",
+      "title": "My rule didn't remove or block what already exists",
+      "match": [
+        "\\b(non-?compliant|compliance)\\b",
+        "\\b(existing|already (exists|running))\\b.*\\b(rule|policy|deny)\\b"
+      ],
+      "markdown": "## A new rule flags what exists; it doesn't remove it\n\nPolicy judges **writes**. A `deny` rule refuses the next create or update. Resources that already break it keep running and are listed as **NonCompliant** in the Policy blade's **Compliance** view, with the reason (for example `tag 'costCenter' does not exist`).\n\nThat's the difference between *enforcement* (blocks new writes) and *compliance* (reports what exists). To bring an old resource into line, fix it in code and apply, or, for a modify rule, run a remediation (Lab 7).",
+      "where": "lab3.md",
+      "section": "5. What the policy thinks of your app"
+    },
+    {
+      "id": "modify-plan-diff",
+      "title": "Every plan wants to remove a tag the policy added",
+      "match": [
+        "\\b(modify|remediat)",
+        "\\btag\\b.*\\b(keeps?|every|again|remove|plan)\\b"
+      ],
+      "markdown": "## Every plan wants to remove a tag the policy added\n\nA **modify** rule adds the tag as the resource is written, so the cloud has a tag your code doesn't. OpenTofu sees the difference and plans to take it away, and the policy adds it back, every time.\n\nTell OpenTofu that tag isn't its business: a `lifecycle { ignore_changes = [tags[\"<name>\"]] }` block on the resource. The lab shows the exact lines.",
+      "where": "lab7.md",
+      "section": "5. Tell OpenTofu the tag is not its business"
+    },
+    {
+      "id": "rego-tests",
+      "title": "Running and fixing the Rego tests",
+      "match": [
+        "\\b(opa|rego|conftest)\\b",
+        "\\btest(s)?\\b.*\\b(fail|failing|broken)\\b"
+      ],
+      "markdown": "## Running the Rego tests\n\nFrom the repo folder:\n\n```sh\nopa test policy/rego --ignore fixtures -v\n```\n\n`-v` lists every test with PASS or FAIL. When one fails, read the test first: what input does it build, and does it expect `deny` to be empty or not? Then the rule. A rule that refuses too much is as wrong as one that refuses too little, and a test is how you prove both. Write the failing test first, then change the rule until it passes.\n\n`conftest test` runs the same rules against a real plan (`tofu show -json`), as the pipeline does.",
+      "where": "lab10.md",
+      "section": "1. Run the tests that exist"
+    },
+    {
+      "id": "exemption",
+      "title": "Exemptions: when and how",
+      "match": [
+        "\\bexempt(ion|ions|ed)?\\b",
+        "\\bwaive|waiver\\b"
+      ],
+      "markdown": "## Exemptions\n\nAn exemption lets one resource (or scope) off one assignment, on the record: a **category** (`Waiver` or `Mitigated`), a reason, and an **expiry**, so it can't quietly last for ever. It goes through git and a pull request like any other change, so someone reviews it.\n\nAfter it applies, the resource shows **Exempt** (not NonCompliant) in the Policy blade, and when the expiry passes it counts again.",
+      "where": "lab8.md",
+      "section": "2. Read the exemption"
+    },
+    {
+      "id": "drift",
+      "title": "Drift: someone changed it outside git",
+      "match": [
+        "\\bdrift(ed)?\\b",
+        "\\b(outside|behind) (git|the pipeline)\\b",
+        "\\bclicked\\b.*\\bportal\\b"
+      ],
+      "markdown": "## Drift\n\nDrift is the cloud no longer matching git: someone changed a setting by hand (in the portal, at 2 a.m.). The **Drift** workflow runs `tofu plan -detailed-exitcode`; a plan with changes fails the run, so someone finds out.\n\nTo make git win, run the apply from `main` again (re-run **Apply**, or apply locally): the hand-made change is put back to what the code says. If the hand change was right, put it in git first.",
+      "where": "lab12.md",
+      "section": "4. Let the detector find it"
+    },
+    {
+      "id": "catch-up",
+      "title": "I'm behind: catch up to a lab",
+      "match": [
+        "\\b(behind|catch ?up|skip(ped)?|start (from|at)|broken (repo|lab)|lost my work|start over)\\b",
+        "\\blab-prep\\b"
+      ],
+      "markdown": "## Catching up to a lab\n\n`lab-prep N` puts your fork and terminal where lab N expects them to be, using the solution up to the lab before:\n\n```sh\nlab-prep 5      # ready to start Lab 5\n```\n\nRun it from any folder; it is safe to run again. Applies that the lab needs still take their usual time.",
+      "where": "lab0.md",
+      "section": "1. Fork the team repo"
+    }
+  ]
+}

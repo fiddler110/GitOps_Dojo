@@ -1,0 +1,9 @@
+{
+  "if": {
+    "field": "tags['TODO']",
+    "equals": "TODO"
+  },
+  "then": {
+    "effect": "TODO"
+  }
+}

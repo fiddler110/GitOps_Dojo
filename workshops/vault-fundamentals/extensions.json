@@ -12,5 +12,13 @@
   ],
   "status_checks": [
     { "label": "App host", "url": "http://app-host:8080/healthz" }
+  ],
+  "resets": [
+    { "id": "vault-apps", "label": "Vault apps: both slots", "upstream": "app-host:8080",
+      "path": "/_dojo/reset/apps/{user}", "timeout": 60 },
+    { "id": "vault-openbao", "label": "OpenBao: namespace and secrets", "upstream": "openbao-reset:8080",
+      "path": "/_dojo/reset/{user}", "timeout": 120 },
+    { "id": "vault-app-db", "label": "Lab 12 database", "upstream": "app-host:8080",
+      "path": "/_dojo/reset/db/{user}", "timeout": 60 }
   ]
 }

@@ -52,12 +52,15 @@ RUN set -eux; \
     install -m 0755 "/tmp/step_${STEP_CLI_VERSION}/bin/step" /usr/local/bin/step; \
     rm -rf /tmp/step.tar.gz "/tmp/step_${STEP_CLI_VERSION}"
 
-# Start-up work (cron for Lab 4's renewal crontabs, per-account webroot
-# folders) runs as a start.d hook from the base entrypoint, after every
-# account exists; see start.d/90-cert-autorenewal.sh. No USER override: the
+# Start-up work (cron for Lab 4's renewal crontabs, the facilitator's webroot)
+# runs as a start.d hook from the base entrypoint, after every account exists;
+# each student's webroot folders come from the account.d hook, which a student
+# reset runs again after its reset.d partner removes the old site. No USER override: the
 # base image needs root for the whole container lifetime (dynamic useradd +
 # spawning per-student code-server/ttyd processes).
 COPY start.d/90-cert-autorenewal.sh /etc/dojo/start.d/90-cert-autorenewal.sh
+COPY account.d/90-cert-autorenewal.sh /etc/dojo/account.d/90-cert-autorenewal.sh
+COPY reset.d/90-cert-autorenewal.sh /etc/dojo/reset.d/90-cert-autorenewal.sh
 
 # `lab-prep <lab>` brings a student's workspace to where that lab starts, so
 # they can resume mid-workshop (see the script's header for what each lab needs).

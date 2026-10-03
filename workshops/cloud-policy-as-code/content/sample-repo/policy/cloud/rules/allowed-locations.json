@@ -1,0 +1,8 @@
+{
+  "if": {
+    "not": { "field": "location", "in": "[parameters('allowedLocations')]" }
+  },
+  "then": {
+    "effect": "[parameters('effect')]"
+  }
+}

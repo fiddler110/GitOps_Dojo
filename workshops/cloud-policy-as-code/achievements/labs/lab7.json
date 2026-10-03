@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "pc7-tagged",
+      "title": "Fixed for You",
+      "joke": "Policy added the tag before anyone asked.",
+      "core": true,
+      "when": "verify: the app's container group `<you>-app` carries the tag `managedBy = policy` (added by the modify effect; checked every few seconds after the student wrote a policy set)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_containers",
+            "account": "{user}",
+            "tags": {
+              "managedBy": "policy"
+            },
+            "labels": [
+              "{user}-app"
+            ],
+            "state": "any"
+          }
+        ],
+        "requires": "pc6-set"
+      }
+    },
+    {
+      "id": "pc7-remediate",
+      "title": "Remediation Crew",
+      "joke": "Fixed what was already there.",
+      "core": true,
+      "when": "cloud: one of the student's own remediation tasks is created",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "remediation"
+      }
+    }
+  ]
+}

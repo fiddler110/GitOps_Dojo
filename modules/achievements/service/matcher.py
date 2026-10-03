@@ -359,7 +359,7 @@ def _dns_match(m, ev):
 # -- cloud, bao, ca (posted by the owning module, signed; see server.py /api/adapter) -----------
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
-              "container_updated", "container_deleted", "container_replaced"),
+              "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
 }

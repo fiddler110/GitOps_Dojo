@@ -21,9 +21,10 @@ class Verifier:
         self.window = window
         self._seen = {}     # nonce -> ts
 
-    def verify(self, user, event, ts, nonce, signature, now):
+    def verify(self, user, event, ts, nonce, signature, now, record=True):
         """(ok, reason): reason is None, 'forged', 'stale' or 'replay'. Order matters: a bad
-        signature is reported as forged whatever else is wrong."""
+        signature is reported as forged whatever else is wrong. With record=False the caller
+        calls remember() once the event is accepted, so a refused one doesn't burn its nonce."""
         want = sign(self.secret, user, event, ts, nonce)
         if not isinstance(signature, str) or not hmac.compare_digest(want, signature):
             return False, "forged"
@@ -32,8 +33,12 @@ class Verifier:
         self._seen = {n: t for n, t in self._seen.items() if now - t <= self.window}
         if nonce in self._seen:
             return False, "replay"
-        self._seen[nonce] = int(ts)
+        if record:
+            self.remember(nonce, ts)
         return True, None
+
+    def remember(self, nonce, ts):
+        self._seen[nonce] = int(ts)
 
 
 class RateLimiter:

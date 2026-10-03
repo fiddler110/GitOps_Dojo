@@ -43,7 +43,7 @@
 
   // Syntax highlighting for fenced code blocks (```terraform, ```sh, ...),
   // via the vendored Prism build (hcl, bash, javascript, json, yaml,
-  // diff, gitignore, dockerfile, python). Prism
+  // diff, gitignore, dockerfile, python; rego is defined below). Prism
   // escapes the source itself, so the returned HTML is safe to insert.
   // Unknown or ```text fences return '' and markdown-it escapes them as
   // plain text.
@@ -58,6 +58,21 @@
         lookbehind: true,
         alias: 'function'
       }
+    });
+    // Rego (OPA/Conftest policies), which the vendored build doesn't ship.
+    prism.languages.rego = {
+      'comment': /#.*/,
+      'string': { pattern: /"(?:\\.|[^"\\\n])*"|`[^`]*`/, greedy: true },
+      'keyword': /\b(?:package|import|default|not|with|as|some|every|in|if|contains|else)\b/,
+      'builtin': /\b(?:input|data)\b/,
+      'boolean': /\b(?:true|false|null)\b/,
+      'function': /\b[a-z_][\w.]*(?=\()/i,
+      'number': /\b\d+(?:\.\d+)?\b/,
+      'operator': /:=|==|!=|<=|>=|[<>|&=+\-*\/%]/,
+      'punctuation': /[{}[\](),.;:]/
+    };
+    prism.languages.insertBefore('bash', 'function', {
+      'policy-command': { pattern: /(^|[\s;|&])(?:opa|conftest)(?=$|[\s;|&])/, lookbehind: true, alias: 'function' }
     });
   }
 
@@ -260,28 +275,33 @@
 
   // Header links to the neighbouring labs (labN-1 / labN+1). Numbering
   // differs per workshop (tofu-basics starts at lab0, others at lab1), so
-  // each neighbour is shown only if its generated file actually exists.
+  // the labs that exist are read from the README's links (one request that
+  // always succeeds; probing each neighbour 404'd on the missing ones).
   // README and cheat-sheet get no pager.
   function renderPager(file) {
     var match = /^lab(\d+)\.md\.txt$/.exec(file);
     if (!match) return;
     var pager = document.getElementById('lab-pager');
     var n = parseInt(match[1], 10);
-    var neighbours = [
-      { n: n - 1, text: '\u2190 Lab ' + (n - 1) },
-      { n: n + 1, text: 'Lab ' + (n + 1) + ' \u2192' }
-    ];
-    neighbours.forEach(function (item) {
-      if (item.n < 0) return;
-      var link = document.createElement('a');
-      link.href = 'lab-reader.html?file=lab' + item.n + '.md.txt';
-      link.textContent = item.text;
-      link.hidden = true;
-      pager.appendChild(link);
-      fetch('../lab/lab' + item.n + '.md.txt', { method: 'HEAD', credentials: 'same-origin' })
-        .then(function (res) { if (res.ok) link.hidden = false; })
-        .catch(function () {});
-    });
+    fetch('../lab/README.md.txt', { credentials: 'same-origin' })
+      .then(function (res) { return res.ok ? res.text() : ''; })
+      .then(function (text) {
+        var have = {};
+        (text.match(/\blab\d+\.md\b/g) || []).forEach(function (m) {
+          have[parseInt(m.slice(3), 10)] = true;
+        });
+        [
+          { n: n - 1, text: '\u2190 Lab ' + (n - 1) },
+          { n: n + 1, text: 'Lab ' + (n + 1) + ' \u2192' }
+        ].forEach(function (item) {
+          if (!have[item.n]) return;
+          var link = document.createElement('a');
+          link.href = 'lab-reader.html?file=lab' + item.n + '.md.txt';
+          link.textContent = item.text;
+          pager.appendChild(link);
+        });
+      })
+      .catch(function () {});
   }
 
   var file = labFileFromQuery();

@@ -42,6 +42,9 @@
       .then(function (d) { if (d) { draw(d); report(); } })
       .catch(function () {});
   }
+  window.addEventListener('message', function (e) {
+    if (e.origin === window.location.origin && e.source === window.parent && e.data && e.data.type === 'dojo-widget-ask') { report(); }
+  });
   load();
   setInterval(load, 5000);
 })();

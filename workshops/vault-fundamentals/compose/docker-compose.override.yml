@@ -73,6 +73,9 @@ services:
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - DEPLOY_REPO=${FORGEJO_REPO:-vault-fundamentals}
+      # Student resets (extensions.json `resets`): this service's hook token,
+      # which app-db's reset worker also uses to take its jobs from here.
+      - RESET_TOKEN=${RESET_TOKEN_APP_HOST:-}
     volumes:
       - ../workshops/vault-fundamentals/compose/app-host:/opt/app-host:ro
       # The platform's signing key.
@@ -112,7 +115,10 @@ services:
     # which on a slow start came after this chown and before init.sh wrote, so the write was denied and the
     # first-start init (which never runs twice) left /bootstrap empty. A chown can't undo a mode. Only
     # app-db and openbao-setup mount this volume.
-    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
+    # Beside Postgres, the student-reset worker (app-db/reset-worker.sh) runs as the postgres user; init
+    # (below) is PID 1, so the worker isn't Postgres's child.
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && (su-exec postgres sh /opt/app-db/reset-worker.sh &) && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
+    init: true
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -122,8 +128,11 @@ services:
       # server-wide max_connections above it is APP_DB_MAX_CONNECTIONS.
       - APP_DB_CONN_LIMIT=${APP_DB_CONN_LIMIT:-20}
       - APP_DB_MAX_CONNECTIONS=${APP_DB_MAX_CONNECTIONS:-300}
+      # Proves the reset worker to app-host (RESET_TOKEN_APP_HOST: app-host's hook token).
+      - RESET_TOKEN=${RESET_TOKEN_APP_HOST:-}
     volumes:
       - ../workshops/vault-fundamentals/compose/app-db/init.sh:/docker-entrypoint-initdb.d/10-students.sh:ro
+      - ../workshops/vault-fundamentals/compose/app-db:/opt/app-db:ro
       - app_db_data:/var/lib/postgresql/data
       - app_db_bootstrap:/bootstrap
     networks:

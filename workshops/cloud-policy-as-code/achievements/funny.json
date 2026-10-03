@@ -1,0 +1,54 @@
+{
+  "unlocks": [
+    {
+      "id": "pcf-owngoal",
+      "title": "Repeat Offender",
+      "joke": "Your own rules have refused you five times.",
+      "when": "cloud: the fifth refusal by one of the student's own assignments",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "assignment",
+        "count": 5
+      }
+    },
+    {
+      "id": "pcf-cowboy",
+      "title": "Portal Cowboy",
+      "joke": "Three clicks of drift. Git is keeping score.",
+      "when": "cloud: the third enforcement-mode change made by hand on the portal",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "portal",
+        "count": 3
+      }
+    },
+    {
+      "id": "pcf-lock",
+      "title": "Who Has the Lock?",
+      "joke": "The pipeline and you, on one state, at once.",
+      "when": "shell output: a `tofu` command that prints `Error acquiring the state lock`",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "tofu",
+          "terraform"
+        ],
+        "out_regex": "Error acquiring the state lock"
+      }
+    },
+    {
+      "id": "pcf-cleanplan",
+      "title": "Nothing to See Here",
+      "joke": "A clean plan on the first check.",
+      "when": "shell: `conftest test` passes before it has ever failed for the student",
+      "match": {
+        "source": "shell",
+        "cmd": "conftest test",
+        "exit": 0,
+        "requires_not": "pc9-red"
+      }
+    }
+  ]
+}

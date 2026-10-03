@@ -107,6 +107,40 @@ printf 'machine %s\n\tlogin %s\n\tpassword %s\n' "${GIT_SERVER%%:*}" "$BOT_USER"
 chmod 600 "$NETRC"
 api_curl() { curl -s --netrc-file "$NETRC" "$@"; }
 
+# A workshop's own portal (an extension route with the identity gate) answers a bot
+# the way it answers a student's browser once the bot signs in at the gateway as
+# itself: while bots run, the allocator's /login takes a bot's name and BOT_PASSWORD
+# (that login counts only on those routes, never for a student slot). portal_login
+# fills the cookie jar; portal_curl sends it. Bot steps call these, e.g. to click a
+# portal button that a milestone watches for. Build portal URLs on $GATEWAY_URL after
+# portal_login: the gateway's site may answer only PUBLIC_BASE_URL's host (a local
+# run serves http://localhost:8080), so when the plain address gets no cookie, the
+# login goes to PUBLIC_BASE_URL with curl's --connect-to pointing it at the gateway.
+GATEWAY_URL="${DOJO_GATEWAY_URL:-http://gateway:8080}"
+PORTAL_COOKIES="$HOME/.dojo-bot-cookies"
+PORTAL_CONNECT=""
+_portal_try() {
+  rm -f "$PORTAL_COOKIES"
+  curl -s -o /dev/null $PORTAL_CONNECT -c "$PORTAL_COOKIES" --data-urlencode "username=$BOT_USER" \
+    --data-urlencode "password=$BOT_PASSWORD" "$GATEWAY_URL/login"
+  chmod 600 "$PORTAL_COOKIES" 2>/dev/null
+  grep -q dojo_login "$PORTAL_COOKIES" 2>/dev/null
+}
+portal_login() {
+  _portal_try && return 0
+  [ -n "$PUBLIC_BASE_URL" ] && [ -z "$PORTAL_CONNECT" ] || return 1
+  local base hp
+  base="${PUBLIC_BASE_URL%/}"
+  hp="${base#*://}"; hp="${hp%%/*}"
+  case "$hp" in *:*) ;; *) case "$base" in https:*) hp="$hp:443" ;; *) hp="$hp:80" ;; esac ;; esac
+  PORTAL_CONNECT="--connect-to $hp:gateway:${hp##*:}"
+  GATEWAY_URL="$base"
+  _portal_try && return 0
+  PORTAL_CONNECT=""; GATEWAY_URL="${DOJO_GATEWAY_URL:-http://gateway:8080}"
+  return 1
+}
+portal_curl() { curl -s $PORTAL_CONNECT -b "$PORTAL_COOKIES" "$@"; }
+
 # -- persona -----------------------------------------------------------
 # Each bot plays a different skill level, so a facilitator watching all of
 # them side by side sees genuinely different pacing, command choices, and

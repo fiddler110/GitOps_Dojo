@@ -26,10 +26,12 @@ Forgejo call of their own. /healthz needs no token.
 """
 import base64
 import collections
+import hmac
 import http.server
 import json
 import math
 import os
+import re
 import secrets
 import signal
 import socketserver
@@ -37,6 +39,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -85,6 +88,8 @@ class Config:
         # from this file on every call; the password is only the fallback.
         self.forgejo_token_file = env.get("FORGEJO_TOKEN_FILE", "")
         self.spool = env.get("SPOOL_DIR") or "/spool"
+        # The engine's student reset hook (extensions.json `resets`) carries this.
+        self.reset_token = env.get("RESET_TOKEN", "")
 
 
 class ForgejoError(Exception):
@@ -170,7 +175,8 @@ class Spool:
         self.root = root
         self.start_dir = os.path.join(root, "start")
         self.stop_dir = os.path.join(root, "stop")
-        for d in (root, self.start_dir, self.stop_dir):
+        self.kill_dir = os.path.join(root, "kill")
+        for d in (root, self.start_dir, self.stop_dir, self.kill_dir):
             os.makedirs(d, exist_ok=True)
             os.chmod(d, 0o700)
 
@@ -194,6 +200,9 @@ class Spool:
 
     def write_stop(self, name):
         self._write(os.path.join(self.stop_dir, name), "")
+
+    def write_kill(self, name):
+        self._write(os.path.join(self.kill_dir, name), "")
 
     def pending(self):
         try:
@@ -508,6 +517,17 @@ class Controller:
             "updated": now,
         }
 
+    def reset_user(self, user):
+        """Student reset teardown: stop every runner busy with a job of one of the student's own repos
+        (their forks; the engine deletes the repos next, which drops their waiting jobs). A job they started
+        in a shared repo runs on: nothing ties it to them but the push. Returns a short detail."""
+        runners = (self.spool.read_state().get("runners") or {})
+        mine = sorted(n for n, s in runners.items() if isinstance(s, dict) and s.get("state") == "busy"
+                      and str(s.get("repo") or "").startswith(user + "/"))
+        for name in mine:
+            self.spool.write_kill(name)
+        return f"stopped {len(mine)} runner(s) busy with their jobs"
+
     def healthy(self):
         return self.clock() - self.last_ok < 20
 
@@ -570,8 +590,26 @@ def make_handler(ctl, static_dir=HERE):
                               "event": "runners", "account": self.headers.get("X-Auth-User"),
                               "action": action, "result": result}, separators=(",", ":")), flush=True)
 
+        def _student_reset(self, path):
+            given = self.headers.get("X-Dojo-Reset-Token", "")
+            want = ctl.cfg.reset_token
+            if not want or not hmac.compare_digest(given.encode(), want.encode()):
+                self._json(403, {"error": "reset token required"})
+                return
+            user = urllib.parse.unquote(path[len("/_dojo/reset/"):])
+            phase = urllib.parse.parse_qs(self.path.partition("?")[2]).get("phase", [""])[0]
+            if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or phase not in ("teardown", "provision"):
+                self._json(404, {"error": "not found"})
+                return
+            detail = ctl.reset_user(user) if phase == "teardown" else "nothing to set up"
+            self._audit(f"reset {user} {phase}", 200)
+            self._json(200, {"ok": True, "detail": detail})
+
         def do_POST(self):
             path = self._path()
+            if path.startswith("/_dojo/reset/"):
+                self._student_reset(path)
+                return
             if not self._facilitator():
                 self._audit(path, 403)
                 self._json(403, {"error": "facilitator only"})

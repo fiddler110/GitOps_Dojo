@@ -43,7 +43,6 @@ class DnsPack(unittest.TestCase):
             self.assertIn("d4-wizard", sh(pre + " record add u-api.dojo.test"))
             self.assertIn("d4-submit", sh(pre + ' submit "Add x"'))
             self.assertIn("d5-history", sh(pre + " history"))
-            self.assertIn("d5-rollback", sh(pre + " rollback 7"))
             self.assertNotIn("d4-wizard", sh(pre + " record add x", 1))
         self.assertEqual(sh("echo dnsc status"), [])
 
@@ -115,6 +114,15 @@ class DnsAdapterEvents(unittest.TestCase):
         self.assertIn("d5-gone", fj("pull_request", pr))
         pr["pull_request"]["head"]["ref"] = "add-www"
         self.assertNotIn("d5-gone", fj("pull_request", pr))
+
+    def test_rollback_pr_opened(self):
+        # d5-rollback is the revert PR, so a rollback that conflicted and went through `submit` counts too.
+        pr = {"action": "opened", "sender": {"login": "amy"}, "repository": {"full_name": R},
+              "pull_request": {"user": {"login": "amy"}, "base": {"ref": "main"}, "head": {"ref": "dns/revert-abc"}}}
+        self.assertIn("d5-rollback", fj("pull_request", pr))
+        pr["pull_request"]["head"]["ref"] = "dns/amy-api"
+        self.assertNotIn("d5-rollback", fj("pull_request", pr))
+        self.assertNotIn("d5-rollback", sh("python3 scripts/dnsctl.py rollback 7"))
 
 
 import importlib.util  # noqa: E402

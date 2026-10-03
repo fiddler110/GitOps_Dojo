@@ -32,7 +32,7 @@ ITEM_FIELDS = {"id", "title", "joke", "points", "core", "when", "match", "note",
 CHALLENGE_FIELDS = {
     "id", "title", "after", "space", "goal", "constraints", "seed", "verify_text", "verify",
     "hints", "answer", "isolation", "facilitator", "points", "badge_tier", "retired", "enabled",
-    "seed_plan", "watch",
+    "seed_plan", "watch", "then",
 }
 # A challenge's text and verify may use {user} and the per-student values its seed plan
 # (achievements/seeds/<seed_plan>) lists under "values".
@@ -45,7 +45,7 @@ MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ve
 ADAPTER_SOURCES = ("cloud", "bao", "ca")
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
-              "container_updated", "container_deleted", "container_replaced"),
+              "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
 }
@@ -76,8 +76,10 @@ ADAPTER_EVENTS = {
 #   cloud, bao, ca: one event posted (signed) by the module that owns the backend (dojo-cloud's
 #     cloud-api, openbao-audit, the CA tailer), credited to the student it names. All take `event`.
 #     cloud   event: portal_request | site_request | policy_denied | quota_denied | container_created |
-#             container_updated | container_deleted | container_replaced; reason (policy_denied: tag |
-#             region | size)
+#             container_updated | container_deleted | container_replaced | policy_written; reason
+#             (policy_denied: tag | region | size | image | assignment, the last a refusal by the student's own
+#             Dojo Cloud Policy assignment; policy_written: definition | set | assignment | exemption |
+#             remediation, or portal for an enforcement change made on the portal's Policy blade)
 #     bao     event: login | request | wrapping | sealed; mount (the auth mount of a login), role, ok
 #             (false = the request was refused), status (HTTP code), root (the token carried the root
 #             policy), op (read | create | update | delete | list), path_prefix (inside the student's namespace)
@@ -335,12 +337,29 @@ def _check_seed_plan(ch, where, seeds_dir, problems, warnings):
     for field in ("goal", "constraints", "answer"):
         if isinstance(ch.get(field), str):
             used |= set(PLACEHOLDER_RE.findall(ch[field]))
-    used |= set(PLACEHOLDER_RE.findall(json.dumps(ch.get("verify") or [])))
+    used |= set(PLACEHOLDER_RE.findall(json.dumps([ch.get("verify") or [], ch.get("then") or {}])))
     unknown = sorted(used - values - {"user"})
     if unknown and name is not None:
         problems.append(f"{where}: {', '.join('{' + u + '}' for u in unknown)} not in seeds/{name} values")
     elif unknown:
         warnings.append(f"{where}: uses {', '.join('{' + u + '}' for u in unknown)} but has no seed_plan to fill it")
+
+
+def _check_verify_list(verify, where, name, problems):
+    if not isinstance(verify, list) or not verify:
+        problems.append(f"{where}: '{name}' must be a non-empty list of assertions")
+        return
+    for i, a in enumerate(verify, 1):
+        if not isinstance(a, dict) or not isinstance(a.get("verb"), str):
+            problems.append(f"{where}: {name}[{i}] needs a 'verb'")
+        elif "{user}" not in json.dumps(a):
+            problems.append(f"{where}: {name}[{i}] never mentions {{user}}, so it reads shared state")
+
+
+def challenge_assertions(ch):
+    """Every assertion a challenge runs, both steps."""
+    then = ch.get("then") if isinstance(ch.get("then"), dict) else {}
+    return [a for a in (ch.get("verify") or []) + (then.get("verify") or []) if isinstance(a, dict)]
 
 
 def _check_challenge(ch, kind, where, ids, problems, warnings, seeds_dir=None):
@@ -383,14 +402,18 @@ def _check_challenge(ch, kind, where, ids, problems, warnings, seeds_dir=None):
     if verify is None:
         warnings.append(f"{where}: no structured 'verify' yet, so it can't be checked")
     else:
-        if not isinstance(verify, list) or not verify:
-            problems.append(f"{where}: 'verify' must be a non-empty list of assertions")
+        _check_verify_list(verify, where, "verify", problems)
+    # then: a second step, checked only once `verify` has passed ("deploy it, then destroy it").
+    then = ch.get("then")
+    if then is not None:
+        if not isinstance(then, dict) or set(then) - {"text", "verify"} or not verify:
+            problems.append(f"{where}: 'then' must be {{text, verify}} and needs a 'verify' before it")
+        elif ch.get("watch"):
+            problems.append(f"{where}: a watched challenge can't have a 'then' step")
         else:
-            for i, a in enumerate(verify, 1):
-                if not isinstance(a, dict) or not isinstance(a.get("verb"), str):
-                    problems.append(f"{where}: verify[{i}] needs a 'verb'")
-                elif "{user}" not in json.dumps(a):
-                    problems.append(f"{where}: verify[{i}] never mentions {{user}}, so it reads shared state")
+            if not isinstance(then.get("text"), str) or not then["text"].strip():
+                problems.append(f"{where}: then.text is required (what to do next, shown after step 1 passes)")
+            _check_verify_list(then.get("verify"), where, "then.verify", problems)
     _check_seed_plan(ch, where, seeds_dir, problems, warnings)
     if kind == "capstone" and ch.get("badge_tier") != "capstone":
         problems.append(f"{where}: capstone needs badge_tier 'capstone'")
@@ -499,7 +522,7 @@ def load(workshop_dir, shared_path=None, known_verbs=None, check_name=True):
                         if isinstance(a, dict) and a.get("verb") not in known_verbs:
                             problems.append(f"{it.get('id')}: unknown verifier verb '{a.get('verb')}'")
         for ch in challenges + ([capstone] if isinstance(capstone, dict) else []):
-            for a in (ch.get("verify") or []) if isinstance(ch, dict) else []:
+            for a in challenge_assertions(ch) if isinstance(ch, dict) else []:
                 if isinstance(a, dict) and a.get("verb") not in known_verbs:
                     problems.append(f"challenge {ch.get('id')}: unknown verifier verb '{a.get('verb')}'")
 

@@ -1,0 +1,43 @@
+{
+  "milestones": [
+    {
+      "id": "pc10-red",
+      "title": "Red First",
+      "joke": "A test that fails for the right reason.",
+      "core": true,
+      "when": "shell: `opa test` fails (non-zero exit)",
+      "match": {
+        "source": "shell",
+        "cmd": "opa test",
+        "exit": "nonzero"
+      }
+    },
+    {
+      "id": "pc10-green",
+      "title": "Then Green",
+      "joke": "The rule is fixed and proven.",
+      "core": true,
+      "when": "shell: `opa test` passes (exit 0) after it failed once",
+      "match": {
+        "source": "shell",
+        "cmd": "opa test",
+        "exit": 0,
+        "requires": "pc10-red"
+      }
+    },
+    {
+      "id": "pc10-push",
+      "title": "Tested and Shipped",
+      "joke": "The fix is on main.",
+      "core": true,
+      "when": "forgejo: a push to `main` of the fork after the tests went green",
+      "match": {
+        "source": "forgejo",
+        "event": "push",
+        "repo": "{user}/cloud-policy-as-code",
+        "branch": "main",
+        "requires": "pc10-green"
+      }
+    }
+  ]
+}
