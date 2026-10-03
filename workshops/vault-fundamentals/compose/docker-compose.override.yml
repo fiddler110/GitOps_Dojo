@@ -117,7 +117,7 @@ services:
     # app-db and openbao-setup mount this volume.
     # Beside Postgres, the student-reset worker (app-db/reset-worker.sh) runs as the postgres user; init
     # (below) is PID 1, so the worker isn't Postgres's child.
-    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && (su-exec postgres sh /opt/app-db/reset-worker.sh &) && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
+    entrypoint: ["sh", "-c", "chown postgres /bootstrap && chmod 1777 /bootstrap && (gosu postgres sh /opt/app-db/reset-worker.sh &) && export POSTGRES_PASSWORD=$$(head -c 24 /dev/urandom | base64) && exec docker-entrypoint.sh postgres -c max_connections=$${APP_DB_MAX_CONNECTIONS:-300}"]
     init: true
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
