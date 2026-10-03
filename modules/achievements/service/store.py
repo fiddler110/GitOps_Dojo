@@ -88,6 +88,10 @@ class Store:
         # state sweep re-checks them until they pass.
         self.watching = {u: [c for c in ids if isinstance(c, str)] for u, ids in (state.get("watching") or {}).items()
                          if isinstance(ids, list)}
+        # Two-step challenges ("then"): user -> {id: when step 1 passed}; the next check runs step 2, whose
+        # verbs can compare against that time (ctx "step_at": "rotated since", "no push since").
+        self.stepped = {u: {c: t for c, t in ids.items() if isinstance(c, str) and isinstance(t, (int, float))}
+                        for u, ids in (state.get("stepped") or {}).items() if isinstance(ids, dict)}
         self.busy = set()                           # users whose seed is being built right now
         self._state_at = {}                         # user -> when their `verify` milestones last ran
         # Per-student terminal activity for Sensei's stuck radar: times and exit codes only, never the command
@@ -120,7 +124,7 @@ class Store:
         return json.dumps({"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
                            "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
                            "checks": self.checks[-500:], "activity": self.activity,
-                           "watching": self.watching})
+                           "watching": self.watching, "stepped": self.stepped})
 
     def _write(self, text):
         path = self._path()
@@ -335,12 +339,13 @@ class Store:
                 return self._forged(caller, now, "malformed")
             if caller is not None and caller != user:
                 return self._forged(caller, now, "claims to be someone else")
-            ok, why = self.verifier.verify(user, item, ts, nonce, sig, now)
+            ok, why = self.verifier.verify(user, item, ts, nonce, sig, now, record=False)
             if not ok:
                 if why == "forged":
                     return self._forged(caller, now, why)
                 raise Denied(409 if why == "replay" else 400, why)
-            self._student(user)
+            self._student(user)     # refuses the facilitator before the nonce is spent
+            self.verifier.remember(nonce, ts)
             self._throttle(user, now)
             pts = self._award(user, item, now)
             self._save()
@@ -570,12 +575,31 @@ class Store:
                 return {"passed": True, "already": True, "points": None,
                         "message": "already cleared; points are earned once"}
             seed = dict(self._seed_of(user, ch))
+            then = ch.get("then")
+            step_at = self.stepped.get(user, {}).get(cid) if then else None
         try:
-            res = runner.verify(ch, user, seed)
+            if step_at is not None:
+                res = runner.verify(dict(ch, verify=then["verify"]), user, seed, step_at=step_at)
+            else:
+                res = runner.verify(ch, user, seed)
         except unavailable as exc:
             raise Denied(503, f"couldn't check right now ({exc}); try again in a moment")
+        if then and step_at is None and res["passed"]:
+            # Step 1 passed: remember it and say what's next; nothing is scored until step 2.
+            with self.lock:
+                self.stepped.setdefault(user, {})[cid] = now
+                self.checks.append({"user": user, "id": cid, "at": now, "passed": False, "step": 1,
+                                    "hints": self.ledger.hints_used(user, cid), "points": None})
+                self._save()
+            return {"passed": False, "already": False, "points": None, "step": 1,
+                    "message": "step 1 of 2 passed. Next: " + runner.render(ch, user, then["text"])
+                               + " Then run the check again."}
         with self.lock:
             pts = self.ledger.clear(user, cid, self.clock()) if res["passed"] else None
+            if res["passed"] or (step_at is not None and res.get("restart")):
+                self.stepped.get(user, {}).pop(cid, None)
+            if step_at is not None and res.get("restart") and not res["passed"]:
+                res = dict(res, message=res["message"] + ". Back to step 1: put it right and check again.")
             mine = self.watching.setdefault(user, [])
             if ch.get("watch") and not res["passed"] and cid not in mine:
                 mine.append(cid)
@@ -612,6 +636,8 @@ class Store:
             except unavailable as exc:
                 raise Denied(503, f"couldn't build the challenge repo ({exc}); try again")
             with self.lock:
+                if action == "reset":
+                    self.stepped.get(user, {}).pop(cid, None)       # a fresh space starts again at step 1
                 mine = self.seeds.setdefault(user, {})
                 old = mine.get(res["plan"], {})
                 if res["created"]:
@@ -657,6 +683,21 @@ class Store:
             if not self.ledger.set_complete(user, bool(on), self.clock()):
                 raise Denied(404, "no such student")
             self._save()
+
+    def student_reset(self, user, scores=False):
+        """The facilitator's student reset (engine Roster, `resets` hooks): forget the student's
+        in-flight challenge state (their repos go with their Forgejo account), and with `scores`
+        their achievements too. Safe to run again. Returns a short detail."""
+        with self.lock:
+            for table in (self.seeds, self.watching, self.stepped, self.activity):
+                table.pop(user, None)
+            self.busy.discard(user)
+            self._state_at.pop(user, None)
+            cleared = scores and self.ledger.reset(user, self.clock(), by="student reset")
+            self._save()
+        if scores:
+            return "achievements and score cleared" if cleared else "no achievements to clear"
+        return "challenge progress forgotten; achievements kept"
 
     def admin_reset(self, user):
         with self.lock:

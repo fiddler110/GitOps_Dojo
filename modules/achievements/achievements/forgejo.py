@@ -115,6 +115,22 @@ def _commits(api, repo, branch, path=None):
 
 
 # -- verbs -----------------------------------------------------------------------------
+def no_push_since_step(api, a, ctx):
+    """Nothing reached the branch after step 1 of a two-step challenge passed (on main, a push deploys).
+    Goes by the newest commit's committer date: the API keeps no push times."""
+    commits = _commits(api, a["repo"], a["ref"])
+    if not commits:
+        return False, f"no branch {a['ref']} in {a['repo']}"
+    stamp = ((commits[0].get("commit") or {}).get("committer") or {}).get("date") or ""
+    try:
+        at = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return False, f"can't read the date of the newest commit on {a['ref']}"
+    if ctx.get("step_at") is None or at > ctx["step_at"]:
+        return False, f"{a['ref']} of {a['repo']} changed after step 1 passed (a push deploys)"
+    return True, f"nothing pushed to {a['ref']} since step 1"
+
+
 def repo_exists(api, a, ctx):
     if _get(api, repo_path(a["repo"])) is None:
         return False, f"{a['repo']} doesn't exist yet (dojo-challenge start first)"
@@ -299,6 +315,7 @@ VERBS = {
     "answer_names_commit": answer_names_commit,
     "commit_reverted": commit_reverted,
     "history_absent": history_absent,
+    "no_push_since_step": no_push_since_step,
 }
 
 

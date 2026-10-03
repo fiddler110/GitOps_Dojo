@@ -37,9 +37,10 @@ import re
 import threading
 import time
 import urllib.request
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import events
+import reset as student_reset
 
 REPORTER = events.Reporter(os.environ.get("ACHIEVEMENTS_ADAPTER_URL", ""),
                            os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET", ""))
@@ -127,6 +128,9 @@ class Config:
         self.ci_audience = env.get("DNS_GATE_CI_AUDIENCE", "dns-api")
         self.ci_issuer = env.get("PUBLIC_BASE_URL", "").rstrip("/") + "/git/api/actions"
         self.jwks_url = env.get("FORGEJO_JWKS_URL") or "http://git-server:3000/api/actions/.well-known/keys"
+        # Student reset (engine `resets` hook, reset.py): its token, and the records to seed again.
+        self.reset_token = env.get("RESET_TOKEN", "")
+        self.reset_records = student_reset.parse_records(env.get("DNS_GATE_RESET_RECORDS", ""))
 
 
 # --- who is asking -------------------------------------------------------------
@@ -332,6 +336,22 @@ KEYS = ForgejoKeys(CFG.jwks_url)
 LIMIT = RateLimit(CFG.rate_burst, CFG.rate_per_sec)
 
 
+def pdns(method, path, doc):
+    """One PowerDNS API call with the upstream key (student reset): (status, parsed JSON or None)."""
+    conn = http.client.HTTPConnection(CFG.upstream.hostname, CFG.upstream.port or 80, timeout=30)
+    try:
+        body = json.dumps(doc).encode() if doc is not None else None
+        conn.request(method, path, body=body, headers={"X-API-Key": CFG.upstream_key, "Content-Type": "application/json"})
+        resp = conn.getresponse()
+        raw = resp.read()
+    finally:
+        conn.close()
+    try:
+        return resp.status, json.loads(raw) if raw else None
+    except ValueError:
+        return resp.status, None
+
+
 def _zone_of(path):
     m = ZONE_PATH.match(path)
     return unquote(m.group(1)) if m else ""
@@ -372,6 +392,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == "/healthz":
             return self.send_json(200, "") if method == "GET" else self.send_json(405, "GET only")
+        if path.startswith("/_dojo/reset/"):
+            return self.student_reset(method, path)
         try:
             caller = identify(self.headers.get("X-API-Key", ""), CFG, KEYS)
         except ValueError as e:
@@ -415,6 +437,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         for k, v in resp.getheaders():
             if k.lower() not in HOP_BY_HOP:
                 self.send_header(k, v)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def student_reset(self, method, path):
+        given = self.headers.get("X-Dojo-Reset-Token", "")
+        if method != "POST" or not CFG.reset_token or not hmac.compare_digest(given.encode(), CFG.reset_token.encode()):
+            return self.send_json(403, "reset token required")
+        user = unquote(path[len("/_dojo/reset/"):])
+        phase = parse_qs(urlsplit(self.path).query).get("phase", [""])[0]
+        if not USER_NAME.match(user) or user == CFG.facilitator or phase not in ("teardown", "provision"):
+            return self.send_json(404, "not found")
+        try:
+            detail = student_reset.run(pdns, user, phase, CFG)
+        except (RuntimeError, OSError) as e:
+            self.audit("reset", "RESET", user, 500, str(e))
+            return self.send_json(500, str(e)[:200])
+        self.audit("reset", "RESET", user, "allow", f"{phase}: {detail}")
+        data = json.dumps({"ok": True, "detail": detail}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

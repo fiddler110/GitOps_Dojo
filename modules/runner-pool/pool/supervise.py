@@ -31,6 +31,8 @@ import time
 SPOOL = os.environ.get("SPOOL_DIR", "/spool")
 START_DIR = os.path.join(SPOOL, "start")
 STOP_DIR = os.path.join(SPOOL, "stop")
+# /spool/kill/<name>: stop a runner even mid-job (a student reset, for jobs of that student's repos).
+KILL_DIR = os.path.join(SPOOL, "kill")
 STATE_FILE = os.path.join(SPOOL, "state.json")
 # Runner names come from the controller; they become Linux user names, so
 # only this shape is accepted.
@@ -210,6 +212,19 @@ def stop(name):
     log(f"{name} stop requested")
 
 
+def kill(name):
+    """Stop a runner whatever it is doing (the controller asks for this only for a reset student's jobs).
+    watch() then cleans up as after any job."""
+    with lock:
+        r = runners.get(name)
+        if r is None or r.proc is None or r.state not in ("starting", "idle", "busy"):
+            return
+        r.stop_requested = True
+        r.detail = "stopped by a student reset"
+    run(["su", name, "-s", "/bin/sh", "-c", "kill -9 -1"])
+    log(f"{name} killed for a student reset")
+
+
 def shim_ca_ready():
     """On an https:// name, jobs reach Forgejo through the shim, which serves
     with its own CA: trust it before starting any runner."""
@@ -272,13 +287,13 @@ def clean_leftovers():
         if NAME_RE.match(pw.pw_name):
             err = remove_user(pw.pw_name)
             log(f"removed leftover runner user {pw.pw_name}" + (f" ({err})" if err else ""))
-    for _, path in take_files(STOP_DIR):
+    for _, path in take_files(STOP_DIR) + take_files(KILL_DIR):
         os.unlink(path)
 
 
 def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    for d in (SPOOL, START_DIR, STOP_DIR):
+    for d in (SPOOL, START_DIR, STOP_DIR, KILL_DIR):
         os.makedirs(d, exist_ok=True)
         os.chmod(d, 0o700)
     # The runner image's working directory belongs to uid 1000; a volume
@@ -301,6 +316,9 @@ def main():
         for name, path in take_files(STOP_DIR):
             os.unlink(path)
             stop(name)
+        for name, path in take_files(KILL_DIR):
+            os.unlink(path)
+            kill(name)
         write_state(ca_ready)
         time.sleep(1)
 

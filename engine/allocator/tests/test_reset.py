@@ -31,6 +31,7 @@ class FakeForgejo:
         self.pulls = [dict(p) for p in pulls]
         self.branches = [dict(b) for b in branches]
         self.calls = []
+        self.plain_delete = 204     # what DELETE /admin/users/<u> without purge answers while the user exists
 
     def call(self, method, path, body=None):
         bare = path.split("?")[0]
@@ -55,8 +56,16 @@ class FakeForgejo:
             before = len(self.branches)
             self.branches = [b for b in self.branches if b["name"] != name]
             return (204 if len(self.branches) < before else 404), None
+        if bare.startswith("/users/") and bare.endswith("/repos"):
+            user = bare.split("/")[2]
+            return 200, ([{"name": "fork", "owner": {"login": user}}, {"name": "other", "owner": {"login": "x"}}]
+                         if "page=1" in path and user in self.users else [])
+        if method == "DELETE" and (bare.startswith("/repos/student") or bare.startswith("/orgs/training/members/")):
+            return 204, None
         if bare.startswith("/admin/users/") and method == "DELETE":
             user = bare.rsplit("/", 1)[1]
+            if user in self.users and "purge=true" not in path and self.plain_delete != 204:
+                return self.plain_delete, {"message": "user still has packages"}
             if user in self.users:
                 self.users.discard(user)
                 return 204, None
@@ -97,13 +106,21 @@ class ForgejoStepsTest(unittest.TestCase):
 
     def test_teardown_closes_prs_and_deletes_only_their_branches(self):
         detail = reset.forgejo_teardown(self.fj, "training", "student01")
-        self.assertEqual(detail, "2 PR(s) closed, 2 branch(es) deleted, account deleted")
+        self.assertEqual(detail, "2 PR(s) closed, 2 branch(es) deleted, 1 repo(s) and the account deleted")
         self.assertEqual({p["number"] for p in self.fj.pulls if p["state"] == "closed"}, {1, 3})
         # main (default), shared (another student's open PR), guarded (protected) and
         # student02's branch all stay.
         self.assertEqual([b["name"] for b in self.fj.branches], ["main", "shared", "guarded", "student02/x"])
         self.assertNotIn("student01", self.fj.users)
-        self.assertIn(("DELETE", "/admin/users/student01", None), self.fj.calls)
+        # no purge: their merged PRs and comments stay (Q5); own repos and the org membership go first
+        self.assertEqual([c[1] for c in self.fj.calls if c[0] == "DELETE" and "branches" not in c[1]],
+                         ["/repos/student01/fork", "/orgs/training/members/student01", "/admin/users/student01"])
+
+    def test_teardown_purges_when_plain_delete_is_refused(self):
+        self.fj.plain_delete = 422
+        detail = reset.forgejo_teardown(self.fj, "training", "student01")
+        self.assertIn("purged: plain delete answered 422", detail)
+        self.assertNotIn("student01", self.fj.users)
 
     def test_teardown_is_idempotent(self):
         reset.forgejo_teardown(self.fj, "training", "student01")
@@ -131,7 +148,7 @@ class ResetManagerTest(unittest.TestCase):
     def manager(self, fail_at=None, seen=None):
         log = []
 
-        def steps_for(sid):
+        def steps_for(sid, optional=frozenset()):
             def step(name):
                 def run():
                     if seen is not None:
@@ -181,7 +198,7 @@ class ResetManagerTest(unittest.TestCase):
     def test_runs_the_steps_it_showed(self):
         calls = []
 
-        def steps_for(sid):
+        def steps_for(sid, optional=frozenset()):
             calls.append(sid)
             return [("x", "X", lambda: "ok")]
         mgr = reset.ResetManager(steps_for, lambda *a, **k: None)
@@ -211,7 +228,7 @@ class ResetManagerTest(unittest.TestCase):
         self.assertFalse(mgr.fenced("student01"))
 
     def test_long_detail_is_cut(self):
-        mgr = reset.ResetManager(lambda sid: [("x", "X", lambda: "y" * 500)], lambda *a, **k: None)
+        mgr = reset.ResetManager(lambda sid, optional=frozenset(): [("x", "X", lambda: "y" * 500)], lambda *a, **k: None)
         mgr.request("student01")
         mgr.run_one(mgr.queue.get_nowait())
         self.assertEqual(len(mgr.snapshot("student01")["steps"][0]["detail"]), reset.DETAIL_MAX)
@@ -332,6 +349,18 @@ class ServiceHookTest(unittest.TestCase):
         self.assertEqual([i for i, _l, _f in server.reset_steps("student01")],
                          ["stop", "forgejo-teardown", "forgejo-provision", "terminal"])
 
+    def test_optional_hook_runs_only_when_ticked(self):
+        hooks = [{"id": "app-host", "label": "App slot", "upstream": "app-host:8080", "path": "/r/{user}",
+                  "timeout": 30, "optional": False},
+                 {"id": "scores", "label": "Also clear achievements", "upstream": "achievements:8080",
+                  "path": "/r/{user}", "timeout": 30, "optional": True}]
+        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
+            plain = [i for i, _l, _f in server.reset_steps("student01")]
+            ticked = [i for i, _l, _f in server.reset_steps("student01", frozenset({"scores"}))]
+        self.assertNotIn("scores-teardown", plain)
+        self.assertEqual(ticked[2], "scores-teardown")
+        self.assertEqual(ticked[-1], "scores-provision")
+
     def test_dialog_lists_hook_labels_as_data(self):
         js = server.ADMIN_JS.replace("__RESET_HOOK_LABELS__", json.dumps(["Dojo \"Cloud\""]))
         self.assertIn('.concat(["Dojo \\"Cloud\\""].map(', js)
@@ -342,7 +371,9 @@ class HttpTest(unittest.TestCase):
     """The admin endpoint, the fence and the sessions field over real HTTP."""
 
     def setUp(self):
-        self.resets = reset.ResetManager(lambda sid: [("a", "A", lambda: "ok")], lambda *a, **k: None)
+        self.asked = []
+        self.resets = reset.ResetManager(lambda sid, optional: self.asked.append(optional) or [("a", "A", lambda: "ok")],
+                                         lambda *a, **k: None)
         self.patches = [mock.patch.object(server, "RESETS", self.resets),
                         mock.patch.object(server, "control_request", return_value=None)]
         for p in self.patches:
@@ -396,6 +427,14 @@ class HttpTest(unittest.TestCase):
         status, body = self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}", self.ADMIN)
         self.assertEqual((status, json.loads(body)), (202, {"reset": sid, "state": "queued"}))
         self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}", self.ADMIN)[0], 409)
+
+    def test_reset_optional_steps_must_be_declared(self):
+        sid = server.STUDENT_IDS[0]
+        hooks = [{"id": "scores", "label": "Clear", "upstream": "a:1", "path": "/{user}", "timeout": 30, "optional": True}]
+        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
+            self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}&optional=nope", self.ADMIN)[0], 400)
+            self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}&optional=scores", self.ADMIN)[0], 202)
+        self.assertEqual(self.asked, [frozenset({"scores"})])
 
     def test_fenced_student_gets_the_starting_page_and_progress_shows(self):
         sid, token = server.claim_slot("Ada", "10.0.0.1")

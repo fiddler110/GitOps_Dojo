@@ -483,6 +483,9 @@ HOOK_DIRS = {"reset": "/etc/dojo/reset.d", "account": "/etc/dojo/account.d"}
 HOOK_TIMEOUT = 60
 PROVISION_TIMEOUT = 120  # provision-account.sh waits up to 60 s for Forgejo
 TEMP_DIRS = ("/tmp", "/var/tmp", "/dev/shm")
+# Where cron keeps each account's crontab (Debian's cron; busybox crond uses the same path). A
+# student's job (cert-autorenewal's Lab 4 renewal) would otherwise keep running after a reset.
+CRON_SPOOLS = ("/var/spool/cron/crontabs",)
 resetting = set()  # accounts with a reset in progress; guarded by running_lock
 
 
@@ -522,14 +525,21 @@ def run_account_hooks(kind, username):
 
 
 def remove_account_files(username):
-    """The home, and whatever the account owns at the top of the shared temp
-    directories (tmux sockets, vault lab 6's /dev/shm files). rmtree never
-    follows symlinks, and the student's processes are already gone."""
+    """The home, the account's crontab, and whatever it owns at the top of
+    the shared temp directories (tmux sockets, vault lab 6's /dev/shm files).
+    rmtree never follows symlinks, and the student's processes are already
+    gone."""
     uid = pwd.getpwnam(username).pw_uid
     removed = 0
     if os.path.lexists(f"/home/{username}"):
         shutil.rmtree(f"/home/{username}")
         removed += 1
+    for spool in CRON_SPOOLS:
+        tab = os.path.join(spool, username)
+        if os.path.isfile(tab) and not os.path.islink(tab):
+            os.unlink(tab)
+            os.utime(spool)     # cron re-reads the spool when its mtime changes
+            removed += 1
     for top in TEMP_DIRS:
         try:
             entries = list(os.scandir(top))

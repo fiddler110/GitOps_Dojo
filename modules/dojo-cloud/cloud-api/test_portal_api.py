@@ -356,6 +356,14 @@ class Writes(Base):
         self.assertEqual(self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={"subscriptionId": "nope"})[0], 404)
         self.assertEqual(self.jcall("POST", "/cloud/api/admin/purge", user=FAC, body={})[0], 404)
 
+    def test_student_reset_purges_through_purge(self):
+        self.assertEqual(self.portal.student_reset(A, "teardown"), "removed 2 container group(s), 1 resource group(s)")
+        self.assertEqual(list(self.st.cgs), [server.App.cg_key(SUB[B], "rg-b", "ci-b1")])
+        self.assertEqual(self.st.data["activity"][-1]["caller"], "student-reset")
+        self.assertEqual(self.portal.student_reset(A, "teardown"), "removed 0 container group(s), 0 resource group(s)")
+        self.assertEqual(self.portal.student_reset(A, "provision"), "nothing to do")
+        self.assertEqual(self.portal.student_reset("nobody", "teardown"), "nothing to do")
+
     def test_purge_is_facilitator_only(self):
         status, err = self.jcall("POST", "/cloud/api/admin/purge", user=A, body={"subscriptionId": SUB[B]})
         self.assertEqual((status, err["error"]["code"]), (403, "Forbidden"))

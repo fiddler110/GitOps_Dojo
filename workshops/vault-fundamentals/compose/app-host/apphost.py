@@ -30,7 +30,10 @@ What the platform gives each slot, and what it asks of a deploy:
   runs as that user with $PORT, $SLOT and $BAO_ADDR set.
 
 HTTP on :8080. Direct (workshop_lab, runner_net): /healthz, the JWKS,
-/deploy, and /<slot>/... proxied to that slot's app. Apps are public in the
+/deploy, and /<slot>/... proxied to that slot's app. Student resets (the
+allocator, with X-Dojo-Reset-Token): /_dojo/reset/apps/<name> empties and
+re-makes a student's two slots, /_dojo/reset/db/<name> hands app-db's half to
+its reset worker, which takes it from /_dojo/db-work. Apps are public in the
 class, like any web app; their pages are sandboxed (CSP) and get none of the
 caller's cookies or headers. Through the gateway's /apps route (identity gate,
 prefix stripped, X-Gateway-Token checked here): a page with your slot's state
@@ -46,6 +49,7 @@ import json
 import os
 import pwd
 import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -80,6 +84,9 @@ RESTART_LIMIT = 5
 RESTART_WINDOW = 120
 CAPSTONE_CHECK = 10  # seconds between a student's checks for their capstone repo
 CAPSTONE_SUFFIX = "-capstone"
+# How long a db reset waits for app-db's worker: under the manifest's timeout.
+DB_JOB_TIMEOUT = 50
+DB_POLL_WAIT = 25
 CLEAN_ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}
 # What a slot's app may connect to (remediation T2.2b, FIND-04): DNS,
 # OpenBao and app-db, by port. Nothing else on these networks listens on
@@ -112,6 +119,8 @@ class Config:
         self.slots = ([f"{prefix}{n:02d}" for n in range(1, count("STUDENT_COUNT") + 1)]
                       + [f"{bots}{n}" for n in range(1, count("BOT_COUNT") + 1)])
         self.gateway_token = env.get("GATEWAY_TOKEN", "")
+        # The allocator's token for this service's reset hooks (empty: refuse them all).
+        self.reset_token = env.get("RESET_TOKEN", "")
         self.facilitator = env.get("FACILITATOR_USERNAME") or "root"
         self.repo = env.get("DEPLOY_REPO") or "vault-fundamentals"
         # Each student's second, locked slot for the capstone (empty: none).
@@ -377,6 +386,10 @@ class Platform:
                 self.slots[s.name] = self.capstone_of[owner] = s
         self.forgejo_keys = ForgejoKeys(cfg.forgejo_jwks)
         self.jwk = None
+        # Students whose slots a reset has emptied, until its provision: no
+        # deploys, unlocks or platform tokens for them meanwhile.
+        self.resetting = set()
+        self.db_jobs = Relay()  # app-db's half of a reset, for its worker
 
     # set-up
     def prepare(self):
@@ -396,15 +409,7 @@ class Platform:
         if os.environ.get("APPHOST_ISOLATED") != "1":
             isolate_slots(*slot_uid_range(self.cfg))
         for s in self.slots.values():
-            try:
-                pwd.getpwnam(s.name)
-            except KeyError:
-                run(["useradd", "-M", "-d", s.home, "-s", "/usr/sbin/nologin", "-u", str(s.uid), "-U", s.name],
-                    check=True)
-            for d in (s.home, s.token_dir):
-                os.makedirs(d, exist_ok=True)
-                os.chown(d, s.uid, s.uid)
-                os.chmod(d, 0o700)
+            self.prepare_slot(s)
             self.kill_all(s)
             try:
                 with open(os.path.join(META_DIR, s.name + ".json")) as f:
@@ -418,6 +423,18 @@ class Platform:
             if s.deployed and os.path.exists(os.path.join(s.home, "app", "start.sh")):
                 self.start(s, "the platform restarted")
         log(f"{len(self.slots)} slots ready")
+
+    def prepare_slot(self, s):
+        """The slot's user, and its home and token folders (0700, its own)."""
+        try:
+            pwd.getpwnam(s.name)
+        except KeyError:
+            run(["useradd", "-M", "-d", s.home, "-s", "/usr/sbin/nologin", "-u", str(s.uid), "-U", s.name],
+                check=True)
+        for d in (s.home, s.token_dir):
+            os.makedirs(d, exist_ok=True)
+            os.chown(d, s.uid, s.uid)
+            os.chmod(d, 0o700)
 
     # platform identity
     def write_token(self, s):
@@ -437,7 +454,7 @@ class Platform:
         while True:
             time.sleep(15)
             with self.lock:
-                due = [s for s in self.slots.values() if s.state != "locked"]
+                due = [s for s in self.slots.values() if s.state != "locked" and s.owner not in self.resetting]
             for s in due:
                 if time.time() - s.token_written >= TOKEN_REFRESH:
                     try:
@@ -461,7 +478,7 @@ class Platform:
 
     def unlock(self, s, why):
         with self.lock:
-            if s.state != "locked":
+            if s.state != "locked" or s.owner in self.resetting:
                 return
             s.state, s.since = "empty", time.time()
         self.write_token(s)
@@ -474,7 +491,8 @@ class Platform:
         the lock."""
         s = self.capstone_of.get(owner)
         with self.lock:
-            if s is None or s.state != "locked" or time.time() - s.checked < CAPSTONE_CHECK:
+            if (s is None or s.state != "locked" or owner in self.resetting
+                    or time.time() - s.checked < CAPSTONE_CHECK):
                 return
             s.checked = time.time()
         repo = f"{owner}/{self.cfg.capstone_repo}"
@@ -571,15 +589,12 @@ class Platform:
     # deploys
     def deploy(self, s, bundle, claims):
         with s.deploy_lock:
+            if s.owner in self.resetting:  # a reset began while this deploy waited for the lock
+                return 409, {"error": f"{s.owner}'s slots are being reset; deploy again in a minute"}
             self.stop(s)
             # A deploy starts from an empty home: nothing the last version
             # wrote (rendered secrets, a stale database login) outlives it.
-            for name in os.listdir(s.home):
-                p = os.path.join(s.home, name)
-                if os.path.isdir(p) and not os.path.islink(p):
-                    shutil.rmtree(p, ignore_errors=True)
-                else:
-                    os.unlink(p)
+            empty_dir(s.home)
             app, tmp = os.path.join(s.home, "app"), os.path.join(s.home, "tmp")
             for d in (app, tmp):
                 os.makedirs(d)
@@ -629,6 +644,122 @@ class Platform:
             if s.state != "running":
                 doc["log"] = list(s.log)[-15:]
         return (200 if doc["state"] == "running" else 502), doc
+
+
+    # student resets
+    def owned_slots(self, owner):
+        """The student's lab slot and, if there is one, their capstone slot."""
+        return [s for s in (self.slots.get(owner), self.capstone_of.get(owner)) if s is not None]
+
+    def reset_teardown(self, owner):
+        """Stops both of the student's slots and empties them: no app, files,
+        platform token or deploy record; the capstone slot locks again. Until
+        reset_provision, nothing deploys to them or gets a token."""
+        with self.lock:
+            self.resetting.add(owner)
+        for s in self.owned_slots(owner):
+            with s.deploy_lock:
+                self.stop(s)
+                for d in (s.home, s.token_dir):
+                    empty_dir(d)
+                try:
+                    os.unlink(os.path.join(META_DIR, s.name + ".json"))
+                except FileNotFoundError:
+                    pass
+                with self.lock:
+                    s.state = "locked" if s is self.capstone_of.get(owner) else "empty"
+                    s.since, s.checked, s.deployed = time.time(), 0.0, None
+                    s.token_exp = s.token_written = 0
+                    s.log.clear()
+                    s.restarts.clear()
+            log(f"{s.name}: emptied by a student reset")
+        return " and ".join(s.name for s in self.owned_slots(owner)) + " stopped and emptied"
+
+    def reset_provision(self, owner):
+        """The student's slots as at the platform's start: their users and
+        folders, the lab slot's platform token, the capstone slot locked."""
+        slots = self.owned_slots(owner)
+        for s in slots:
+            with s.deploy_lock:
+                self.prepare_slot(s)
+        with self.lock:
+            self.resetting.discard(owner)
+        for s in slots:
+            if s.state != "locked":
+                self.write_token(s)
+        return f"{owner}'s slots are ready" + (" (capstone locked)" if len(slots) > 1 else "")
+
+
+def empty_dir(path):
+    """Removes everything in path (not path itself); a symlink is removed, not followed."""
+    try:
+        names = os.listdir(path)
+    except FileNotFoundError:
+        return
+    for name in names:
+        p = os.path.join(path, name)
+        if os.path.isdir(p) and not os.path.islink(p):
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            os.unlink(p)
+
+
+class Relay:
+    """Jobs for a worker that can't take HTTP calls itself (app-db's
+    reset-worker.sh): run() queues one and waits for its result; the worker
+    take()s it and finish()es it. The same as the openbao module's
+    reset/reset.py Relay."""
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.cond = threading.Condition()
+        self.pending = collections.deque()
+        self.jobs = {}  # id -> job, while its run() waits
+
+    def _wait(self, until, done):
+        while not done():
+            left = until - self.clock()
+            if left <= 0:
+                return False
+            self.cond.wait(left)
+        return True
+
+    def run(self, phase, user, timeout):
+        """(ok, detail) once the worker answers, or (False, why) after timeout seconds."""
+        job = {"id": secrets.token_hex(8), "phase": phase, "user": user,
+               "taken": False, "done": False, "ok": False, "detail": ""}
+        with self.cond:
+            self.jobs[job["id"]] = job
+            self.pending.append(job)
+            self.cond.notify_all()
+            self._wait(self.clock() + timeout, lambda: job["done"])
+            self.jobs.pop(job["id"], None)
+            if job in self.pending:
+                self.pending.remove(job)
+        if job["done"]:
+            return job["ok"], job["detail"]
+        if job["taken"]:
+            return False, f"app-db's reset worker did not finish within {timeout:g}s"
+        return False, "app-db's reset worker is not running (is app-db up?)"
+
+    def take(self, wait):
+        """The oldest queued job, or None after wait seconds."""
+        with self.cond:
+            if not self._wait(self.clock() + wait, lambda: bool(self.pending)):
+                return None
+            job = self.pending.popleft()
+            job["taken"] = True
+            return job
+
+    def finish(self, job_id, ok, detail):
+        """False when no run() is waiting for that job any more."""
+        with self.cond:
+            job = self.jobs.get(job_id)
+            if job is None or job["done"]:
+                return False
+            job.update(done=True, ok=bool(ok), detail=detail)
+            self.cond.notify_all()
+            return True
 
 
 # --- HTTP -----------------------------------------------------------------------
@@ -685,6 +816,12 @@ def make_handler(platform):
                 return self._json(200, {"ok": True})
             if path == "/.well-known/jwks.json":
                 return self._json(200, {"keys": [platform.jwk]})
+            if path == "/_dojo/db-work":
+                if not self._reset_authorised():
+                    return self._json(403, {"error": "reset token required"})
+                job = platform.db_jobs.take(DB_POLL_WAIT)
+                line = f"{job['id']} {job['phase']} {job['user']}\n" if job else ""
+                return self._send(200, line.encode(), "text/plain; charset=utf-8")
             slot, _rest = self._slot_path()
             if slot is not None:
                 return self._proxy()
@@ -704,9 +841,51 @@ def make_handler(platform):
         def do_POST(self):
             if self.path.split("?", 1)[0] == "/deploy":
                 return self._deploy()
+            if self.path.startswith("/_dojo/"):
+                return self._dojo_post()
             if self._slot_path()[0] is not None:
                 return self._proxy()
             self._json(404, {"error": "not found"})
+
+        def _reset_authorised(self):
+            given = self.headers.get("X-Dojo-Reset-Token") or ""
+            return bool(cfg.reset_token) and hmac.compare_digest(given.encode(), cfg.reset_token.encode())
+
+        def _dojo_post(self):
+            """/_dojo/reset/{apps,db}/<name>?phase=teardown|provision (the
+            allocator), /_dojo/db-work/<id> (app-db's worker answering)."""
+            parts = urllib.parse.urlsplit(self.path)
+            segs = parts.path.split("/")  # ["", "_dojo", "reset", what, name] or ["", "_dojo", "db-work", id]
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = 0
+            body = self.rfile.read(min(max(length, 0), 4096)) if length else b""
+            if not self._reset_authorised():
+                return self._json(403, {"error": "reset token required"})
+            if len(segs) == 4 and segs[2] == "db-work":
+                text = body.decode("utf-8", "replace")
+                first, _, rest = text.partition("\n")
+                if not platform.db_jobs.finish(segs[3], first.strip() == "ok", " ".join(rest.split())[-300:]):
+                    return self._json(404, {"error": "no such job (it timed out?)"})
+                return self._json(200, {"ok": True})
+            phase = (urllib.parse.parse_qs(parts.query).get("phase") or [""])[0]
+            if len(segs) != 5 or segs[2] != "reset" or segs[3] not in ("apps", "db") \
+                    or phase not in ("teardown", "provision"):
+                return self._json(404, {"error": "not found"})
+            owner = urllib.parse.unquote(segs[4])
+            if owner not in cfg.slots:
+                return self._json(400, {"ok": False, "detail": "no such student"})
+            if segs[3] == "db":
+                ok, detail = platform.db_jobs.run(phase, owner, DB_JOB_TIMEOUT)
+            else:
+                try:
+                    ok = True
+                    detail = (platform.reset_teardown if phase == "teardown" else platform.reset_provision)(owner)
+                except (OSError, subprocess.SubprocessError) as e:
+                    ok, detail = False, f"{type(e).__name__}: {e}"
+            log(f"reset {segs[3]} {phase} {owner}: {'ok' if ok else 'FAILED'}: {detail}")
+            return self._json(200 if ok else 502, {"ok": ok, "detail": detail or ("done" if ok else "failed")})
 
         def _status(self, user):
             facilitator = user == cfg.facilitator
@@ -737,6 +916,8 @@ def make_handler(platform):
             except OSError as e:
                 return self._json(503, {"error": f"could not fetch Forgejo's keys: {e}"})
             slot = platform.slots[name]
+            if slot.owner in platform.resetting:
+                return self._json(409, {"error": f"{slot.owner}'s slots are being reset; deploy again in a minute"})
             platform.unlock(slot, f"a deploy from {claims.get('repository')}")
             code, doc = platform.deploy(slot, bundle, claims)
             self._json(code, doc)

@@ -14,5 +14,7 @@ ci_one() {
   retry 10 enable_once auth enable -path=jwt-ci -description="Forgejo Actions job tokens (lab 9)" jwt
   retry 10 bao write auth/jwt-ci/config jwks_url="$jwks" bound_issuer="$issuer" >/dev/null
 }
+# Teardown: nothing of its own (10-tenancy.sh deletes the namespace, and this with it).
+[ "${DOJO_RESET_PHASE:-}" != teardown ] || return 0
 par_each ci_one || exit 1
 log "ci: auth/jwt-ci in $(class_users | wc -l) namespaces, trusting $issuer"

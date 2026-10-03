@@ -500,6 +500,20 @@ class Portal:
     def _bucket(by_sub, sub):
         return by_sub.setdefault(sub, {"rgs": 0, "cgs": []})
 
+    def student_reset(self, user, phase):
+        """The engine's student reset (extensions.json `resets`): teardown purges the student's subscription
+        through _purge, so whatever _purge clears, a reset clears; provision has nothing to set up (the
+        subscription is derived from the name). Returns a short detail; safe to run again."""
+        sub = auth.subscription_id(user)
+        if phase == "provision" or sub not in self.app.auth.by_subscription:
+            return "nothing to do"
+        status, _headers, raw = self._purge("student-reset", sub)
+        doc = json.loads(raw)
+        if status != 200 or doc.get("orphanedContainers"):
+            raise RuntimeError(f"purge left {doc.get('orphanedContainers', '?')} container(s) behind")
+        r = doc["removed"]
+        return f"removed {r['containerGroups']} container group(s), {r['resourceGroups']} resource group(s)"
+
     def _purge(self, user, sub):
         st, prefix = self.app.state, sub + "/"
         with st.lock:

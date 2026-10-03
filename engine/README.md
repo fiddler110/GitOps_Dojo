@@ -771,6 +771,21 @@ account; their next visit to `/` gets reassigned automatically (the same
 account if it's still free, otherwise the next open one). Your own
 workspace never consumes a student slot.
 
+**Reset a student.** A roster tile's red **Reset** puts one student (or bot) back as they were at stack start,
+keeping their seat, while everyone else carries on (`allocator/reset.py`). The dialog lists what goes; type the
+account id to enable the button. A module's *optional* steps show as checkboxes, off by default (achievements:
+**Also clear their achievements and score**). The steps, shown live on the tile (✓ ✗ …, the detail on hover):
+stop their VS Code and terminal; each module's reset hook, teardown (their Dojo Cloud subscription, DNS zones and
+names, busy CI runners, vault namespace and app slots, challenge progress); Forgejo (close their open pull
+requests and delete their branches in the org repo, then delete the account with its repos and forks, and make it
+again with the same password); the terminal (`reset.d` hooks, then their home, crontab and temp files go, the
+account is provisioned again with a fresh Forgejo token, then `account.d` hooks); each hook again, provision.
+While it runs their browser gets the starting page, and they come back to a fresh workspace. A failed step stops
+the reset and shows its error; **Retry** runs it all again (every step is safe to repeat). Shared state stays:
+comments and merged history in the org repo, and DNS records they added to a CI zone through the shared repo (the
+next pipeline run would only put them back). A module declares its hook in `extensions.json` (`resets`; see
+`workshops/README.md`). Audit-logged as `reset-requested` and per step.
+
 **Release unused.** The button above the Roster grid frees, in one click,
 every slot that was taken over 2 minutes ago and has no VS Code or terminal
 process running (someone who opened the landing page and wandered off). It asks
@@ -921,12 +936,8 @@ Podman — `podman-compose` re-derives the whole pod from whatever you list
 and silently removes any running container you *didn't* name, which takes
 down the rest of the stack as a side effect.
 
-**Reset a student's terminal home** without a full teardown:
-
-```sh
-docker compose exec web-terminal sh -c 'rm -rf /home/student01/* /home/student01/.[!.]*'
-docker compose up -d --force-recreate web-terminal
-```
+**Reset a student**: use the Roster's **Reset** (see [Facilitator operations](#facilitator-operations)), which
+also resets their Forgejo account and every module's state for them.
 
 **Inspect provisioned accounts:**
 

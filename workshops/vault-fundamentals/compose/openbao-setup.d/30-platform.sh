@@ -35,5 +35,7 @@ platform_one() {
     retry 10 bao write -f database/rotate-root/app-db >/dev/null
   fi
 }
+# Teardown: nothing of its own (10-tenancy.sh deletes the namespace, and this with it).
+[ "${DOJO_RESET_PHASE:-}" != teardown ] || return 0
 par_each platform_one || exit 1
 log "platform: auth/jwt-platform and database/ in $(class_users | wc -l) namespaces"

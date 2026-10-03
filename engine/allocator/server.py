@@ -610,8 +610,9 @@ def reset_terminal(sid):
     return f"{len(result.get('steps', []))} step(s) ok"
 
 
-def reset_steps(sid):
-    """The steps of one reset, in order (reset.py's module docstring)."""
+def reset_steps(sid, optional=frozenset()):
+    """The steps of one reset, in order (reset.py's module docstring);
+    `optional` names the optional hooks the facilitator ticked."""
     fj = reset.Forgejo(GIT_SERVER_HOST, GIT_SERVER_PORT, FORGEJO_ADMIN_USER, FORGEJO_ADMIN_PASSWORD)
     password = BOT_PASSWORD if sid in BOT_IDS else forgejo_password(sid)
 
@@ -620,7 +621,7 @@ def reset_steps(sid):
             raise reset.ResetError("web-terminal did not answer")
         return "processes stopped"
 
-    hooks = EXTENSIONS["resets"]
+    hooks = [h for h in EXTENSIONS["resets"] if not h.get("optional") or h["id"] in optional]
     return [
         ("stop", "Stop VS Code and terminal", stop),
     ] + reset.hook_steps(hooks, sid, "teardown", GATEWAY_TOKEN) + [
@@ -1110,6 +1111,7 @@ ADMIN_CSS = SHELL_CSS + """
   #reset-dialog .rd-go { background: #b91c1c; color: #fff; }
   #reset-dialog .rd-go:disabled { opacity: 0.5; cursor: default; }
   #reset-dialog .rd-error { color: #b91c1c; min-height: 1.2em; }
+  #reset-dialog .rd-opt { display: block; margin: 0.4rem 0; }
   @media (prefers-color-scheme: dark) {
     #reset-dialog { background: #1e1e1e; color: #eee; }
   }
@@ -1300,6 +1302,8 @@ const RESET_WHAT = [
   'their Forgejo account, repositories and forks are deleted and the account made again',
   'their home folder and lab files are deleted and set up fresh',
 ].concat(__RESET_HOOK_LABELS__.map(l => l + ': theirs is removed and set up again'));
+// Optional hooks ({id, label}): a checkbox each, off by default.
+const RESET_OPTIONAL = __RESET_HOOK_OPTIONAL__;
 let resetDialog = null;
 
 function resetDialogFor(sid) {
@@ -1310,6 +1314,14 @@ function resetDialogFor(sid) {
     const p1 = make('p', '', 'This cannot be undone:');
     const ul = make('ul');
     RESET_WHAT.forEach(t => ul.appendChild(make('li', '', t)));
+    const opts = RESET_OPTIONAL.map(o => {
+      const label = make('label', 'rd-opt');
+      const box = make('input');
+      box.type = 'checkbox';
+      box.value = o.id;
+      label.append(box, document.createTextNode(' ' + o.label));
+      return label;
+    });
     const p2 = make('p', '', 'Their seat stays theirs; everyone else carries on. Type the id to confirm:');
     const input = make('input');
     input.autocomplete = 'off';
@@ -1320,7 +1332,7 @@ function resetDialogFor(sid) {
     const go = make('button', 'rd-go', 'Reset');
     cancel.type = go.type = 'button';
     actions.append(cancel, go);
-    d.append(h, p1, ul, p2, input, err, actions);
+    d.append(h, p1, ul, ...opts, p2, input, err, actions);
     document.body.appendChild(d);
     cancel.onclick = () => d.close();
     input.oninput = () => { go.disabled = input.value.trim() !== d.dataset.sid; };
@@ -1331,7 +1343,8 @@ function resetDialogFor(sid) {
       fetch('/admin/reset/' + encodeURIComponent(target), {
         method: 'POST',
         headers: { 'X-Requested-With': 'dojo-admin', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'confirm=' + encodeURIComponent(input.value.trim()),
+        body: 'confirm=' + encodeURIComponent(input.value.trim()) + '&optional='
+          + encodeURIComponent(opts.map(l => l.firstChild).filter(b => b.checked).map(b => b.value).join(',')),
       }).then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, j })))
         .then(({ ok, j }) => {
           if (ok) { d.close(); refresh(); return; }
@@ -1340,7 +1353,7 @@ function resetDialogFor(sid) {
         })
         .catch(() => { err.textContent = 'Reset request failed'; go.disabled = false; });
     };
-    resetDialog = { d, h, input, go, err };
+    resetDialog = { d, h, input, go, err, opts };
   }
   const rd = resetDialog;
   rd.d.dataset.sid = sid;
@@ -1348,6 +1361,7 @@ function resetDialogFor(sid) {
   rd.input.value = '';
   rd.input.placeholder = sid;
   rd.err.textContent = '';
+  rd.opts.forEach(l => { l.firstChild.checked = false; });
   rd.go.disabled = true;
   rd.d.showModal();
   rd.input.focus();
@@ -1608,7 +1622,9 @@ WORKSPACE_ASSETS = {
 ADMIN_ASSETS = {
     # Reset hook labels passed render_extensions.py's check_text; json.dumps keeps them data.
     "/admin/admin.js": ("text/javascript; charset=utf-8", ADMIN_JS.replace(
-        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"]]))),
+        "__RESET_HOOK_LABELS__", json.dumps([h["label"] for h in EXTENSIONS["resets"] if not h.get("optional")])).replace(
+        "__RESET_HOOK_OPTIONAL__", json.dumps([{"id": h["id"], "label": h["label"]}
+                                               for h in EXTENSIONS["resets"] if h.get("optional")]))),
     "/admin/admin.css": ("text/css; charset=utf-8", ADMIN_CSS),
 }
 
@@ -2651,10 +2667,15 @@ EXT_PANELS_PLACEHOLDER</main>
             self.send_response(404)
             self.end_headers()
             return
-        if self.read_form_body().get("confirm") != sid:
+        form = self.read_form_body()
+        if form.get("confirm") != sid:
             self.send_json({"error": "type the student id to confirm"}, status=400)
             return
-        if not RESETS.request(sid):
+        chosen = {o for o in form.get("optional", "").split(",") if o}
+        if chosen - {h["id"] for h in EXTENSIONS["resets"] if h.get("optional")}:
+            self.send_json({"error": "unknown optional reset step"}, status=400)
+            return
+        if not RESETS.request(sid, chosen):
             self.send_json({"error": "a reset of this account is already running"}, status=409)
             return
         self.send_json({"reset": sid, "state": "queued"}, status=202)

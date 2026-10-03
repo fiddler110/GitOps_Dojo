@@ -172,6 +172,16 @@ class Stop(SupervisorTest):
         self.assertEqual([r.stop_requested for r in (idle, busy, starting, nostart)], [True, False, True, False])
 
 
+    def test_kill_stops_a_busy_runner_too(self):
+        busy, done = self.runner("pool-b2"), self.runner("pool-e5")
+        busy.state, done.state = "busy", "done"
+        with mock.patch.object(s, "run") as run:
+            s.kill("pool-b2")
+            s.kill("pool-e5")
+        self.assertEqual([call[0][0][1] for call in run.call_args_list], ["pool-b2"])
+        self.assertTrue(busy.stop_requested)
+        self.assertEqual(busy.detail, "stopped by a student reset")
+
 class RemoveUser(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

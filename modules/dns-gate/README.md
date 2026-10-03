@@ -31,8 +31,13 @@ Add it with `MODULES="dns-gate"` in a `workshop.env`. The workshop runs PowerDNS
 Server config, TSIG keys and zones outside the lab are refused to everyone. Without `STUDENT_PASSWORD_SEED` no
 account key works (reads and CI only), and the gate says so at start.
 
+**Student reset** (`extensions.json` `resets`, `gate/reset.py`): teardown deletes every zone at or under
+`<user>.<parent>` and the student's names in the shared zones (exactly what their own key may change); names they
+added to a CI zone through the shared repo stay, since the next pipeline run would put them back. Provision puts
+back `DNS_GATE_RESET_RECORDS`, the records the workshop seeds per account. The hook checks `X-Dojo-Reset-Token`.
+
 **Settings** (`module.env`; set them in `workshop.env`): `DNS_GATE_USER_PARENTS` (`dojo.test`),
-`DNS_GATE_SHARED_ZONES`, `DNS_GATE_CI_ZONES`, `DNS_GATE_CI_REPO` (`org/repo`), `DNS_GATE_READ_KEY`.
+`DNS_GATE_SHARED_ZONES`, `DNS_GATE_CI_ZONES`, `DNS_GATE_CI_REPO` (`org/repo`), `DNS_GATE_READ_KEY`, `DNS_GATE_RESET_RECORDS`.
 
 A CI job fetches its token like this (the runner-pool shim fixes the token URL Forgejo builds under `/git/`):
 

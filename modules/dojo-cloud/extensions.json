@@ -10,6 +10,15 @@
   "routes": [
     { "id": "cloud", "path": "/cloud", "upstream": "cloud-api:8080", "gate": "identity" }
   ],
+  "resets": [
+    {
+      "id": "dojo-cloud",
+      "label": "Dojo Cloud: their subscription",
+      "upstream": "cloud-api:8080",
+      "path": "/_dojo/reset/{user}",
+      "timeout": 60
+    }
+  ],
   "status_checks": [
     { "label": "Dojo Cloud", "url": "http://cloud-api:8080/readyz" }
   ]

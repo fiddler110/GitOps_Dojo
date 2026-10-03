@@ -119,7 +119,7 @@ def own(label, cid, **kw):
     return cg(label, {"owner": "amy", "env": "dev", "challenge": cid}, **kw)
 
 
-MAIN = "output \"url\" {\n  value = \"x\"\n}\n"
+MAIN = "output \"url\" {\n  description = \"site\"\n  value = \"${var.portal_base_url}/site/amy-second/\"\n}\n"
 
 
 class Challenges(unittest.TestCase):
@@ -136,14 +136,14 @@ class Challenges(unittest.TestCase):
     def tearDown(self):
         self.cloud._overview, self.forgejo._raw = self.orig
 
-    def check(self, cid, groups, files=None):
+    def check(self, cid, groups, files=None, step=1):
         def overview(user):
             self.asked.append(user)
             return None if groups is None else {"containerGroups": groups}
         self.cloud._overview = overview
         self.forgejo._raw = lambda api, repo, ref, path: (files or {}).get((repo, path))
         ch = next(c for c in self.cat["challenges"] + [self.cat["capstone"]] if c["id"] == cid)
-        return self.runner.verify(ch, "amy")
+        return self.runner.verify(dict(ch, verify=ch["then"]["verify"]) if step == 2 else ch, "amy")
 
     def test_no_unknown_verbs(self):
         self.assertEqual(self.runner.unknown_verbs(self.cat), [])
@@ -161,6 +161,10 @@ class Challenges(unittest.TestCase):
         self.assertFalse(self.check("c1", good + [own("amy-second2", "c1")], f)["passed"])      # only one expected
         self.assertFalse(self.check("c1", good, {("amy/challenge-c1", "main.tf"): "resource x {}"})["passed"])
         self.assertFalse(self.check("c1", good, {})["passed"])                                  # not pushed
+        bare = {("amy/challenge-c1", "main.tf"): 'output "url" {\n  value = azurerm_container_group.s.fqdn\n}\n'}
+        self.assertFalse(self.check("c1", good, bare)["passed"])                                # a host, not a URL
+        https = {("amy/challenge-c1", "main.tf"): 'output "url" { value = "https://${azurerm_container_group.s.fqdn}" }'}
+        self.assertTrue(self.check("c1", good, https)["passed"])
         # lab leftovers never count (other tag)
         self.assertTrue(self.check("c1", good + [own("hello-dev-amy", "lab")], f)["passed"])
 
@@ -183,6 +187,11 @@ class Challenges(unittest.TestCase):
         self.assertFalse(self.check("capstone", two + [own("amy-c", "capstone")], f)["passed"])
         self.assertFalse(self.check("capstone", two, {("amy/site-factory", "main.tf"): "resource x {}"})["passed"])
         self.assertFalse(self.check("capstone", [], f)["passed"])
+        # step 2: destroyed, nothing of the capstone left in any state; lab sites don't matter
+        self.assertTrue(self.check("capstone", [], step=2)["passed"])
+        self.assertTrue(self.check("capstone", [own("hello-dev-amy", "lab")], step=2)["passed"])
+        self.assertFalse(self.check("capstone", two[:1], step=2)["passed"])
+        self.assertFalse(self.check("capstone", [own("amy-a", "capstone", state="Terminated")], step=2)["passed"])
 
     def test_an_unreachable_cloud_is_not_a_failure_of_the_student(self):
         self.cloud._overview = lambda user: (_ for _ in ()).throw(cloudstate.Unavailable("down"))

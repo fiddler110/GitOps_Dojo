@@ -77,6 +77,11 @@
       if (frames[i].contentWindow === e.source) { frames[i].style.height = Math.min(h + 4, 2000) + 'px'; }
     }
   });
+  // A widget that loaded first reported its height before anyone listened: ask it again.
+  var frames = document.getElementsByTagName('iframe');
+  for (var f = 0; f < frames.length; f++) {
+    try { frames[f].contentWindow.postMessage({ type: 'dojo-widget-ask' }, window.location.origin); } catch (err) { /* not ours */ }
+  }
   poll();
   setInterval(poll, 4000);
   document.addEventListener('visibilitychange', poll);

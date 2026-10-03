@@ -14,6 +14,8 @@ Add it with `MODULES="openbao"` in a `workshop.env`. Built for `vault-fundamenta
 | `audit/audit.py` | `openbao-audit` (stdlib Python on the allocator image, `workshop_lab`, as OpenBao's uid so the shared logs volume stays OpenBao's): follows the audit file (`openbao_logs`, read-only) and answers `GET /entries?ns=<namespace>` to a caller who sends their own vault token as `X-Vault-Token`. OpenBao says what the token may do (`sys/capabilities-self`): the admin of a namespace (`update` on its `sys/policies/acl/*`) reads that namespace's entries, a token with `sudo` on `sys/audit` (the facilitator) every one (`ns=*`). Filters: `accessor` (also matches the entry that made the token), `path`, `limit`. It also serves the facilitator's **Audit** tab in `/admin` (`audit/panel.*`, route `/vault-audit`, `facilitator` gate): every namespace, newest first, filtered by student (their namespace, plus their requests on the shared `secret/`), operation, path, accessor (click one to follow a token) and errors; it checks `X-Gateway-Token` and `X-Auth-User`, as the Runners panel does. |
 | `tests/setup_tokens.sh` | The token check (`sh modules/openbao/tests/setup_tokens.sh`, stack up): `/setup` holds no live token, and the reset token reaches the student namespaces but is refused on the root namespace's `sys/`, identities and the shared `secret/`. `--recreate student01` also deletes and re-creates that namespace (destructive). |
 | `tests/cli_login.sh` | The CLI login check (`sh modules/openbao/tests/cli_login.sh`, stack up): a new shell for two students and the facilitator is signed in to its own entity, and one account can't get another's JWT, token or the broker key. |
+| `reset/reset.py` | `openbao-reset`: the student-reset hook, a relay to `openbao-setup`'s reset worker holding no vault token (see **Reset token**). |
+| `tests/test_reset.py` | Unit tests, no stack: `openbao-reset`'s token checks and relay, and `setup.sh`'s `reset_one` with vault-fundamentals' hooks against a stub `bao` (one student only, the reset token, nothing class-wide). |
 | `tests/test_audit.py` | Unit tests for `openbao-audit` and the Audit tab, no stack needed (`python3 -B -m unittest discover -s modules/openbao/tests -p 'test_*.py'`); a temporary file stands in for OpenBao's audit log. |
 | `tests/sso_browser.py` | The SSO check in a real browser (Playwright's image; the command is in its header): a student through the card, the facilitator through the `/admin` tab, each landing in their own entity and policy. |
 | `extensions.json` | Landing card and `/admin` tab **Vault**, both through `/forgejo-login?next=/ui/vault/auth?with=oidc`, so the browser is signed in to Forgejo before the UI's "sign in with OIDC" page; the `/ui` and `/v1` routes on the `shared` gate (which strips the gate's `Authorization` header, which OpenBao would read as a token); the status-strip check on `sys/health`, which is 200 only when the vault is unsealed. |
@@ -71,7 +73,15 @@ which grants the per-student paths only (vault-fundamentals: delete and re-creat
 hooks put there; not the namespace `students`, policies, auth methods, identities or the shared `secret/` data). It is
 periodic (24h), kept in memory only at `/run/openbao-setup/reset-token` (the container's tmpfs) and renewed hourly by
 `openbao-setup`; its accessor is on `/setup/reset-accessor`, so the next start revokes it before minting a new one.
-Handing it to a resident `openbao-reset` service is the reset plan's R3.2.
+It never leaves that container: for a student reset, `openbao-reset` (`reset/reset.py`, stdlib Python on the
+allocator image) takes the allocator's hook call and only relays it. `openbao-setup`'s reset worker (`setup.sh`
+`reset_worker`) long-polls `openbao-reset` for jobs, both proving themselves with `RESET_TOKEN_OPENBAO_RESET`, and runs
+`reset_one`: every `openbao-setup.d/*.sh` hook again with the reset token, `DOJO_ONE_USER=<name>` and
+`DOJO_RESET_PHASE=teardown|provision` (teardown in reverse name order), `class_users` narrowed to that one account. A
+hook must therefore skip its class-wide part when `DOJO_ONE_USER` is set (the reset token may not do it) and do its
+per-student teardown or provision. The workshop declares the `resets` entry (`openbao-reset:8080`,
+`/_dojo/reset/{user}`) in its own `extensions.json`, where it can order it against its other hooks; without a
+`reset.hcl` the worker doesn't start and a reset call fails with "worker is not running".
 
 `/setup` keeps the unseal key, the accessors above and SSO's OAuth2 app, and no live token:
 `sh modules/openbao/tests/setup_tokens.sh` checks it.

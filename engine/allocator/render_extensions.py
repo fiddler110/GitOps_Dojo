@@ -108,7 +108,7 @@ KINDS = {
     "scripts": {"required": ("id", "src"), "optional": ()},
     "routes": {"required": ("id", "path", "upstream", "gate"), "optional": ("strip_prefix", "host")},
     "status_checks": {"required": ("label", "url"), "optional": ()},
-    "resets": {"required": ("id", "label", "upstream", "path"), "optional": ("timeout",)},
+    "resets": {"required": ("id", "label", "upstream", "path"), "optional": ("timeout", "optional")},
 }
 
 
@@ -289,7 +289,11 @@ def merge(manifests, services):
                     lo, hi = RESET_TIMEOUT
                     if isinstance(timeout, bool) or not isinstance(timeout, int) or not lo <= timeout <= hi:
                         raise ManifestError(f"{where}: timeout must be whole seconds, {lo}-{hi}, got {timeout!r}")
-                    entry.update(path=path, timeout=timeout)
+                    # optional: the Reset dialog shows it as a checkbox, off by default, and runs it only if ticked
+                    optional = item.get("optional", False)
+                    if not isinstance(optional, bool):
+                        raise ManifestError(f"{where}: optional must be true or false, got {optional!r}")
+                    entry.update(path=path, timeout=timeout, optional=optional)
 
                 out[kind].append(entry)
 
