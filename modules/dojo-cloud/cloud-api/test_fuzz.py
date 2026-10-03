@@ -1548,7 +1548,7 @@ class FramingFuzz(Stack):
     def test_unknown_methods_are_refused_without_side_effects(self):
         """http.server answers 501 itself for a method with no do_* handler; that is a refusal (RFC 9110), not a
         crash, so 405 and 501 are both accepted here, and only here. Nothing may change."""
-        for method in ("OPTIONS", "TRACE", "CONNECT", "PROPFIND", "MKCOL", "COPY", "MOVE", "LOCK", "BREW", "LINK", "UNLINK", "PURGE", "get", "Put"):
+        for method in ("OPTIONS", "TRACE", "CONNECT", "PROPFIND", "MKCOL", "COPY", "MOVE", "LOCKED", "BREW", "LINK", "UNLINK", "PURGE", "get", "Put"):
             for path in (self.rg_path(), self.cg_path(), "/cloud/api/me", "/cloud/", "/healthz", "/metadata/endpoints", "/cloud/site/x-y/"):
                 self.reset()
                 before, mark = self.snapshot(), len(self.lines)

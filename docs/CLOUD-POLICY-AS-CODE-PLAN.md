@@ -1,6 +1,6 @@
 # Cloud-Policy-as-Code workshop: plan
 
-Status: **scaffold, nothing built yet** (written 2026-10-02). Roadmap item RV35. Decisions are numbered PC-D*,
+Status: **P0 done; P1-P4 built offline, not yet live** (written 2026-10-02; updated the same day). Roadmap item RV35. Decisions are numbered PC-D*,
 spikes PC-S*, phases PC-P*. Once the workshop ships, freeze this file in `docs/archive/` like the other plans.
 
 ## 1. The idea in one paragraph
@@ -140,6 +140,53 @@ an engine file, so ask first) and a Prism one for the lab reader.
   secret into the repo (fork Actions secrets set at setup, or a broker endpoint like the terminal's).
 - **PC-S5, compliance cost.** A class of 30 with about 10 resources and 5 assignments each: evaluation must stay
   well under the portal's poll interval; evaluate on writes and on demand, never on every poll.
+
+## 8a. Spike answers (2026-10-02)
+
+- **PC-S1, provider wire calls** (azurerm 5.6.0, tofu 1.12.6, against a logging stub; detail in the spike notes):
+  - Definitions `policyDefinitions` [2021-06-01] and sets `policySetDefinitions` [2025-01-01] at
+    `{sub}/providers/Microsoft.Authorization/...`. The provider first GETs the built-in path
+    `/providers/Microsoft.Authorization/policyDefinitions/{n}` (no subscription), then the subscription path.
+  - Assignments `policyAssignments` [2022-06-01] at subscription and RG scope. **PUT must return 201 on create**
+    (a 200 fails). `identity { type = "SystemAssigned" }` sends top-level `identity`; answer with `principalId`
+    and `tenantId`.
+  - Exemptions `policyExemptions` [2020-07-01-preview] (Waiver or Mitigated, `expiresOn`).
+  - Remediation exists: `azurerm_resource_group_policy_remediation` →
+    `{sub}/resourceGroups/{rg}/providers/Microsoft.PolicyInsights/remediations/{n}` [2021-10-01].
+  - The data source by `display_name` lists `{sub}/providers/Microsoft.Authorization/policyDefinitions`; the list
+    must include built-ins.
+  - Responses need id, name and type plus the echoed properties.
+  - Plan-time checks: `policy_rule` must be a JSON string; mode must be All or Indexed; assignment names are 1-64
+    characters. The assignment's definition id isn't checked, so our API must reject a missing definition.
+  - **Speed:** each definition and assignment took about 1m41 to create (provider-side consistency polling). See
+    PC-S1b.
+- **PC-S2, grammar:** the §4 condition list covers labs 1-8 (location `in`, tag `exists`, image `in` on
+  `containers[*]`, modify on `tags['x']`). Two Dojo extensions: `inExact` and the alias
+  `containers[*].environmentVariableCount` (we have no `count`).
+- **PC-S3, binaries:** opa v1.21.1 (static), conftest v0.71.0, sha256 pinned for amd64 and arm64; both run on Alpine
+  and in the terminal image. They are installed in the workshop terminal Dockerfile and reach jobs through
+  runner-pool `JOB_TOOLS: "opa conftest tofu"` in the workshop overlay.
+- **PC-S4, CI credentials:** `lab-prep 0` (run as the student) asks the dojo-broker for the student's ARM_* values
+  and PUTs them as Actions secrets on their fork through the Forgejo API (the vault labs already PUT secrets this
+  way). cloud-api auth needs no change. **Needed:** the workshop overlay puts cloud-api on `runner_net`, with the
+  `*.dojo.cloud` aliases, and gives jobs the Dojo Cloud CA (`SSL_CERT_FILE`). Verify live.
+- **PC-S5, compliance cost:** evaluate on writes and on demand (trigger, or a portal button), never on a poll.
+  30 students × 10 resources × 5 assignments is ~1,500 pure-Python evaluations: milliseconds.
+- **PC-S1b, speed:** a fixed consistency wait inside azurerm 5.6.0; no API response shortens it. A definition
+  create polls 10 × 10 s (~100 s); an assignment create or delete polls 20 × 5 s (~100 s). Sets, exemptions and
+  remediations take 0 s. The waits run in parallel for independent resources, so one apply that creates
+  definitions and then assignments costs ~200 s however many there are. **Open question for the user:** accept
+  ~3.5 min policy applies (labs are written so each lab has one apply, and students read while it runs), or
+  switch policy objects to `azapi_resource` (untested; adds a provider to the mirror and teaches a less common
+  provider).
+
+**Decisions added 2026-10-02 (build):**
+- **PC-D8:** we accept azurerm's fixed consistency wait (PC-S1b); labs are written around one policy apply each.
+- **PC-D9:** the terminal and CI share OpenTofu state through a Dojo Cloud `http` backend
+  (`/_dojo/tfstate/<name>`, Basic auth with the student's ARM client id and secret, LOCK/UNLOCK, purged by
+  `stop` and student reset). It's dojo-cloud module code, not engine.
+- **PC-D10:** built-in guardrails for location and tags answer 403 RequestDisallowedByPolicy; image, cpu,
+  memory, ports and env-var limits keep their 400 errors so tofu-basics is byte-identical.
 
 ## 9. Decisions so far
 

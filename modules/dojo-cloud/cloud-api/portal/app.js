@@ -381,7 +381,7 @@
       showError(e);
     } finally {
       if (inflight === ctrl) inflight = null;
-      if (token === routeToken) schedule();
+      if (token === routeToken && !view.noPoll) schedule();
     }
   }
   /** Drop any in-flight request and reload now (after a user action). */
@@ -987,6 +987,160 @@
     };
   }
 
+
+  // ---- policy blade (Dojo Cloud Policy). Never polls: it loads on open, after an action, and on Refresh. ----
+  function policyView(subParam) {
+    let root, host, picker, last = null, note, students = null;
+    const open = new Set();   // assignment names whose failing resources are expanded
+    const shown = new Set();  // definition ids whose JSON is shown
+    const qs = () => (subParam ? '?subscription=' + enc(subParam) : '');
+    const act = async (path, opts, msg) => {
+      await api('policy/' + path + qs(), opts);
+      announce(msg);
+      reload();
+    };
+    function countCell(n, cls) { return h('td', { class: 'nowrap' }, n > 0 && cls ? h('span', { class: 'pill ' + cls }, String(n)) : String(n)); }
+    function assignmentRows(a) {
+      const enforced = a.enforcementMode !== 'DoNotEnforce';
+      const isOpen = open.has(a.name);
+      const exp = h('button', { type: 'button', class: 'btn btn-small pol-exp-btn', 'aria-expanded': String(isOpen),
+        'aria-label': (isOpen ? 'Hide' : 'Show') + ' non-compliant resources for ' + a.name, disabled: a.resources.length === 0 }, isOpen ? '−' : '+');
+      exp.addEventListener('click', () => { if (open.has(a.name)) open.delete(a.name); else open.add(a.name); render(last); });
+      const base = 'assignments/' + enc(a.name);
+      const toggle = h('button', { type: 'button', class: 'btn btn-small' }, enforced ? 'Disable enforcement' : 'Enforce');
+      toggle.addEventListener('click', () => confirmDialog({
+        title: enforced ? 'Disable enforcement?' : 'Enforce this assignment?', confirmLabel: enforced ? 'Disable enforcement' : 'Enforce',
+        body: [h('p', null, enforced
+          ? 'Assignment ' + a.name + ' will switch to DoNotEnforce: deny and modify effects stop applying, but compliance is still reported. This creates drift from your OpenTofu code.'
+          : 'Assignment ' + a.name + ' will switch back to Default and enforce again.')],
+        run: () => act(base + '/enforcement', { method: 'POST', body: { mode: enforced ? 'DoNotEnforce' : 'Default' } },
+          (enforced ? 'Disabled' : 'Enabled') + ' enforcement on ' + a.name),
+      }));
+      const del = h('button', { type: 'button', class: 'btn btn-small btn-danger' }, 'Delete');
+      del.addEventListener('click', () => confirmDialog({
+        title: 'Delete policy assignment?', danger: true, confirmLabel: 'Delete assignment',
+        body: [h('p', null, 'You are about to delete ', h('strong', null, a.name), '. Its exemptions go with it.'),
+          h('p', null, 'This creates drift: your OpenTofu code and state still describe this assignment, so the next plan will offer to create it again.')],
+        run: () => act(base, { method: 'DELETE' }, 'Deleted policy assignment ' + a.name),
+      }));
+      const rows = [h('tr', null,
+        h('td', null, exp),
+        h('th', { scope: 'row' }, a.displayName && a.displayName !== a.name ? [a.name, h('div', { class: 'muted small' }, a.displayName)] : a.name),
+        h('td', null, dash(a.definitionName), h('span', { class: 'muted small pol-note' }, a.isSet ? '(set)' : '')),
+        h('td', { class: 'mono' }, a.scope ? shortResource(a.scope) : '—'),
+        h('td', { class: 'nowrap' }, dash(a.effect)),
+        h('td', { class: 'nowrap' }, h('span', { class: 'pill ' + (enforced ? 'pill-ok' : 'pill-warn') }, enforced ? 'Default' : 'DoNotEnforce')),
+        h('td', { class: 'nowrap' }, String(a.compliant)),
+        countCell(a.nonCompliant, 'pill-err'),
+        countCell(a.exempt, 'pill-neutral'),
+        h('td', { class: 'pol-actions' }, toggle, del))];
+      if (isOpen) {
+        rows.push(h('tr', { class: 'pol-detail' }, h('td', { colspan: '10' },
+          h('strong', null, 'Non-compliant resources'),
+          h('ul', null, a.resources.map((r) => h('li', null, h('span', { class: 'mono', title: r.resourceId }, r.name),
+            r.definitionReferenceId ? ' (' + r.definitionReferenceId + ')' : '', ' – ', dash(r.reason)))))));
+      }
+      return rows;
+    }
+    function assignmentsCard(d) {
+      const evalBtn = h('button', { type: 'button', class: 'btn btn-primary btn-small' }, 'Evaluate now');
+      evalBtn.addEventListener('click', async () => {
+        evalBtn.disabled = true;
+        try { await act('evaluate', { method: 'POST', body: {} }, 'Policy compliance evaluated'); }
+        catch (e) { note.textContent = errText(e); note.hidden = false; evalBtn.disabled = false; }
+      });
+      const head = h('div', { class: 'card-head' }, h('h2', null, 'Assignments'),
+        h('span', null, h('span', { class: 'muted small' }, d.evaluatedAt ? 'Evaluated ' + d.evaluatedAt + ' ' : ''), evalBtn));
+      if (!d.assignments.length) return card(null, head, h('p', { class: 'muted' }, 'No policy assignments in this subscription yet. Assign one with OpenTofu and it appears here.'));
+      const cols = ['', 'Name', 'Definition', 'Scope', 'Effect', 'Enforcement mode', 'Compliant', 'Non-compliant', 'Exempt', 'Actions'];
+      const table = h('table', { class: 'grid' },
+        h('thead', null, h('tr', null, cols.map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', null, d.assignments.map(assignmentRows)));
+      return card(null, head, h('div', { class: 'table-wrap', role: 'region', 'aria-label': 'Policy assignments', tabindex: '0' }, table));
+    }
+    function exemptionsCard(d) {
+      if (!d.exemptions.length) return card('Exemptions', h('p', { class: 'muted' }, 'No exemptions.'));
+      return card('Exemptions', h('ul', null, d.exemptions.map((e) => h('li', { class: e.expired ? 'pol-expired' : null },
+        h('strong', null, e.name), e.displayName && e.displayName !== e.name ? ' (' + e.displayName + ')' : '',
+        ' – ', dash(e.category), ', assignment ', h('span', { class: 'mono' }, e.policyAssignmentId ? shortResource(e.policyAssignmentId) : '—'),
+        e.expiresOn ? ', expires ' + e.expiresOn : '', e.expired ? ' (expired)' : ''))));
+    }
+    function defBlock(o, builtIn) {
+      const isShown = shown.has(o.id);
+      const btn = h('button', { type: 'button', class: 'btn btn-small', 'aria-expanded': String(isShown) }, isShown ? 'Hide JSON' : 'View JSON');
+      btn.addEventListener('click', () => { if (shown.has(o.id)) shown.delete(o.id); else shown.add(o.id); render(last); });
+      return h('div', { class: 'pol-def' },
+        h('div', { class: 'toolbar' },
+          h('strong', null, o.displayName || o.name), h('span', { class: 'muted small mono' }, o.name),
+          builtIn ? h('span', { class: 'pill pill-neutral' }, 'Built-in, read only') : null,
+          builtIn && o.effect ? h('span', { class: 'muted small' }, 'Effect: ' + o.effect) : null, btn),
+        o.description || o.message ? h('p', { class: 'muted small' }, o.description || o.message) : null,
+        isShown ? h('pre', { class: 'code', tabindex: '0', 'aria-label': 'Rule JSON for ' + o.name }, JSON.stringify({ policyRule: o.rule, parameters: o.parameters }, null, 2)) : null);
+    }
+    function definitionsCard(d) {
+      const custom = d.definitions.map((o) => defBlock(o, false)).concat(d.sets.map((o) => defBlock(o, false)));
+      return card('Definitions',
+        h('h3', null, 'Custom definitions and sets'),
+        custom.length ? custom : h('p', { class: 'muted' }, 'None yet.'),
+        h('h3', null, 'Built-in'),
+        d.builtIns.map((o) => defBlock(o, true)));
+    }
+    function norm(o) {
+      const j = (v) => (v && typeof v === 'object' ? v : null);
+      return {
+        subscriptionId: str(o.subscriptionId, 64), evaluatedAt: str(o.evaluatedAt, 64),
+        assignments: objs(o.assignments).map((a) => ({
+          name: str(a.name, 100), displayName: str(a.displayName, 200), scope: str(a.scope, 300), enforcementMode: str(a.enforcementMode, 20),
+          definitionName: str(a.definitionName, 200), isSet: a.isSet === true, effect: str(a.effect, 40),
+          compliant: num(a.compliant) || 0, nonCompliant: num(a.nonCompliant) || 0, exempt: num(a.exempt) || 0,
+          resources: objs(a.resources).map((r) => ({ resourceId: str(r.resourceId, 400), name: str(r.name, 200), definitionReferenceId: str(r.definitionReferenceId, 200), reason: str(r.reason, 600) })) })),
+        exemptions: objs(o.exemptions).map((e) => ({ name: str(e.name, 100), displayName: str(e.displayName, 200), policyAssignmentId: str(e.policyAssignmentId, 400),
+          category: str(e.category, 30), expiresOn: str(e.expiresOn, 40), expired: e.expired === true })),
+        definitions: objs(o.definitions).map(normDef), sets: objs(o.sets).map(normDef),
+        builtIns: objs(o.builtIns).map((b) => Object.assign(normDef(b), { effect: str(b.effect, 40), message: str(b.message, 600) })),
+      };
+      function normDef(x) { return { id: str(x.id, 400), name: str(x.name, 100), displayName: str(x.displayName, 200), description: str(x.description, 600), rule: x.rule === undefined ? null : x.rule, parameters: j(x.parameters) || {} }; }
+    }
+    function render(d) {
+      if (!d) return;
+      host.replaceChildren(assignmentsCard(d), exemptionsCard(d), definitionsCard(d));
+    }
+    return {
+      title: 'Policy', nav: 'policy', noPoll: true,
+      isEditing() { return false; },
+      mount(r) {
+        root = r;
+        r.append(pageHeader('Policy', { subtitle: 'Dojo Cloud Policy: the rules assigned to this subscription and how your resources measure up. Loads when opened; use Refresh to update.' }).el);
+        picker = h('div', { class: 'toolbar', hidden: true });
+        note = h('p', { class: 'form-error', role: 'alert', hidden: true });
+        host = h('div');
+        r.append(picker, note, loadingNode(), host);
+      },
+      async load(signal) {
+        const me = await loadMe(signal);
+        if (subParam && !me.isFacilitator) { const e = new ApiError(403, 'Forbidden', 'Only the facilitator can view another subscription.'); throw e; }
+        if (me.isFacilitator && !students) {
+          try { students = normProgress(await api('admin/progress', { signal })).students; } catch (e) { if (isAbort(e)) throw e; students = []; }
+        }
+        return { me, doc: norm(await api('policy' + qs(), { signal })) };
+      },
+      update(d) {
+        clearLoading(root);
+        note.hidden = true;
+        if (d.me.isFacilitator && !picker.childElementCount) {
+          const sel = h('select', { id: 'pol-student' }, h('option', { value: '' }, 'My subscription'),
+            students.map((s) => h('option', { value: s.subscriptionId }, s.user + ' — ' + s.subscriptionId.slice(0, 8))));
+          sel.value = subParam && students.some((s) => s.subscriptionId === subParam) ? subParam : '';
+          sel.addEventListener('change', () => { location.hash = sel.value ? '#/policy/' + enc(sel.value) : '#/policy'; });
+          picker.append(h('label', { for: 'pol-student' }, 'Viewing '), sel);
+          picker.hidden = false;
+        }
+        last = d.doc;
+        render(last);
+      },
+    };
+  }
+
   // ---- home ----
   function homeView() {
     let root, refs = {}, recentTable, actTable, fac;
@@ -1520,6 +1674,7 @@
     if (a === 'resources' && parts.length === 1) return resourcesView();
     if (a === 'containers' && parts.length === 1) return containersView();
     if (a === 'containers' && parts.length === 4 && !bad(b) && !bad(c) && !bad(d)) return containerView({ sub: b, rg: c, name: d });
+    if (a === 'policy' && parts.length <= 2 && (parts.length === 1 || !bad(b))) return policyView(b || '');
     if (a === 'activity' && parts.length === 1) return activityView();
     if (a === 'class' && parts.length === 1) return classView();
     if (a === 'progress' && parts.length === 1) return progressView();

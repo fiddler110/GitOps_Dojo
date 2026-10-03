@@ -5,7 +5,7 @@
 //   - bash/sh with command names and flags coloured. Stock highlight.js
 //     colours only strings, comments and $VARS, so `git checkout -b x`
 //     rendered as one flat colour.
-//   - gitignore and cron, which highlight.js doesn't ship either.
+//   - gitignore, cron and Rego (OPA policies), which highlight.js doesn't ship either.
 // The lab reader (workshops/assets/lab-reader.js) uses Prism for the same
 // fences, which already colours commands; this keeps slides close to it.
 //
@@ -116,6 +116,26 @@ function cron(hljs) {
   };
 }
 
+function rego(hljs) {
+  return {
+    name: 'Rego',
+    keywords: {
+      keyword: 'package import default not with as some every in if contains else',
+      literal: 'true false null',
+      built_in: 'input data count sum max min sort concat startswith endswith contains lower upper ' +
+        'sprintf split trim object array json regex glob time walk union intersection'
+    },
+    contains: [
+      hljs.HASH_COMMENT_MODE,
+      hljs.QUOTE_STRING_MODE,
+      { scope: 'string', begin: /`/, end: /`/ },
+      hljs.NUMBER_MODE,
+      { scope: 'title.function', begin: /^[a-zA-Z_][\w]*(?=[^\n]*(?::=|=|\{| if | contains ))/ }, // rule heads
+      { scope: 'operator', begin: /:=|==|!=|<=|>=|\|/ }
+    ]
+  };
+}
+
 // Every page gets the manifest `scripts` loader (engine/allocator/server.py, /workspace/extra.js):
 // a module such as achievements adds its toast script through it, and with none it is empty.
 function extraScripts(md) {
@@ -133,5 +153,6 @@ module.exports = ({ marp }) => {
   marp.highlightjs.registerLanguage('bash', shell);
   marp.highlightjs.registerLanguage('gitignore', gitignore);
   marp.highlightjs.registerLanguage('cron', cron);
+  marp.highlightjs.registerLanguage('rego', rego);
   return marp;
 };

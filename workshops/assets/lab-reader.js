@@ -43,7 +43,7 @@
 
   // Syntax highlighting for fenced code blocks (```terraform, ```sh, ...),
   // via the vendored Prism build (hcl, bash, javascript, json, yaml,
-  // diff, gitignore, dockerfile, python). Prism
+  // diff, gitignore, dockerfile, python; rego is defined below). Prism
   // escapes the source itself, so the returned HTML is safe to insert.
   // Unknown or ```text fences return '' and markdown-it escapes them as
   // plain text.
@@ -58,6 +58,21 @@
         lookbehind: true,
         alias: 'function'
       }
+    });
+    // Rego (OPA/Conftest policies), which the vendored build doesn't ship.
+    prism.languages.rego = {
+      'comment': /#.*/,
+      'string': { pattern: /"(?:\\.|[^"\\\n])*"|`[^`]*`/, greedy: true },
+      'keyword': /\b(?:package|import|default|not|with|as|some|every|in|if|contains|else)\b/,
+      'builtin': /\b(?:input|data)\b/,
+      'boolean': /\b(?:true|false|null)\b/,
+      'function': /\b[a-z_][\w.]*(?=\()/i,
+      'number': /\b\d+(?:\.\d+)?\b/,
+      'operator': /:=|==|!=|<=|>=|[<>|&=+\-*\/%]/,
+      'punctuation': /[{}[\](),.;:]/
+    };
+    prism.languages.insertBefore('bash', 'function', {
+      'policy-command': { pattern: /(^|[\s;|&])(?:opa|conftest)(?=$|[\s;|&])/, lookbehind: true, alias: 'function' }
     });
   }
 

@@ -465,3 +465,15 @@ dialog.dialog h2 { font-size: 1.15rem; margin-bottom: 0.6rem; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
   overflow: hidden; overflow-wrap: anywhere; word-break: break-word;
 }
+
+/* Policy blade */
+table.grid .pol-actions { min-width: 9rem; }
+table.grid .pol-actions .btn { margin-right: 0.35rem; }
+table.grid tr.pol-detail > td { background: var(--hover-bg); }
+table.grid tr.pol-detail ul { margin: 0.25rem 0 0.25rem 1.1rem; padding: 0; }
+.pol-exp-btn { min-width: 1.85rem; }
+tr.pol-expired > *, li.pol-expired { opacity: 0.55; }
+.pol-def { border-top: 1px solid var(--border, currentColor); padding: 0.6rem 0; }
+.pol-def:first-of-type { border-top: 0; }
+.pol-def pre.code { margin-top: 0.5rem; }
+.pol-note { margin-left: 0.4rem; }
