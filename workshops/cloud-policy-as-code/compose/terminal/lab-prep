@@ -13,7 +13,8 @@
 #         (policy/cloud and infra files, stacked in lab order, then applied:
 #         infra first, then policy/cloud, which takes about 3.5 minutes)
 #   11+   the fixed regions.rego and its tests (Lab 10)
-#   12    that work committed and pushed to main
+#   8+    the stacked state committed and pushed to main: from Lab 8, CI plans main
+#         against the cloud
 set -euo pipefail
 USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
 
@@ -194,10 +195,12 @@ if [ "$lab" -ge 4 ] && [ -z "${policy_done:-}" ]; then
   say "Policy: apply policy/cloud to the end of lab $((lab - 1)) (slow: about 3.5 minutes)"
   tofu_apply policy/cloud
 fi
-if [ "$lab" -ge 12 ] && [ -n "$(git -C "$REPO_DIR" status --short)" ]; then
-  say "Lab 11: commit the pipeline work to main"
+# From Lab 8 on, CI plans the fork's main against the cloud: main must hold the policy just applied, or every check
+# shows the whole policy as drift ("10 to destroy"). A student who did the labs merged it there through their PRs.
+if [ "$lab" -ge 8 ] && [ -n "$(git -C "$REPO_DIR" status --short)" ]; then
+  say "Commit the state at the end of lab $((lab - 1)) to main (CI compares main with the cloud)"
   git -C "$REPO_DIR" add infra policy
-  git -C "$REPO_DIR" commit -q -m "lab-prep: state at the end of lab 11" || true
+  git -C "$REPO_DIR" commit -q -m "lab-prep: state at the end of lab $((lab - 1))" || true
   git -C "$REPO_DIR" push -q origin HEAD:main || true
 fi
 
