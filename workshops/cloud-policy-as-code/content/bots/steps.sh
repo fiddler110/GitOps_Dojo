@@ -43,6 +43,10 @@ except Exception:
 
 cpc_max_id() { local l; l="$(cpc_run_line "$1" 0)"; echo "${l%% *}" | grep -E '^[0-9]+$' || echo 0; }
 
+# cpc_commented 'resource "type" "name"': true while that block is still commented out in ./main.tf. Uncomment steps
+# check it first, so a retried step doesn't strip a second '#' and turn a "# # note" into bare text.
+cpc_commented() { grep -qF "# $1" main.tf && ! grep -qxF "$1 {" main.tf; }
+
 # cpc_wait_run WORKFLOW MINID SECONDS: wait (bounded) for a run above MINID to finish; sets CPC_STATUS
 # (success, failure, cancelled, skipped, or timeout) and prints it.
 cpc_wait_run() {
@@ -79,16 +83,26 @@ cpc_merge_pr() {
   run_cmd "curl -s -o /dev/null -w 'merge: HTTP %{http_code}\\n' --netrc-file ~/.dojo-bot-netrc -X POST -H 'Content-Type: application/json' -d '{\"Do\":\"merge\"}' $API/repos/$CPC_FORK/pulls/$CPC_PR/merge"
 }
 
-# cpc_portal_enforcement MODE: what the portal's "Disable enforcement" button calls, through the gateway as this bot.
-cpc_portal_enforcement() {
-  local pw jar="$HOME/.cpc-portal-jar" body
-  pw="$(awk '{for (i = 1; i < NF; i++) if ($i == "password") print $(i + 1)}' "$HOME/.dojo-bot-netrc" | head -1)"
-  curl -s -o /dev/null -c "$jar" --data-urlencode "username=$BOT_USER" --data-urlencode "password=$pw" "$CPC_GW/login"
-  for body in "{\"mode\":\"$1\"}"; do
-    run_cmd "curl -s -o /dev/null -w 'portal: HTTP %{http_code}\\n' -b '$jar' -X POST -H 'Content-Type: application/json' -d '$body' $CPC_GW/cloud/api/policy/assignments/team-baseline/enforcement" || true
-    [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -X POST -H 'Content-Type: application/json' -d "$body" "$CPC_GW/cloud/api/policy/assignments/team-baseline/enforcement")" -lt 300 ] && return 0
-  done
-  return 1
+# cpc_set_enforcement MODE: set team-baseline's enforcementMode outside git, as Lab 12's 2 a.m. engineer does. A student
+# clicks it on the portal's Policy blade; a bot can't sign in to the portal (class login + a workspace slot, which bots
+# don't have), so it makes the same change through the ARM API with its own Dojo Cloud credentials. The drift is the
+# same either way; only the portal-only milestone (pc12-drift) can't fire for a bot.
+cpc_set_enforcement() {
+  local tok url
+  tok="$(curl -s "https://login.dojo.cloud/$ARM_TENANT_ID/oauth2/v2.0/token" --data-urlencode grant_type=client_credentials \
+    --data-urlencode "client_id=$ARM_CLIENT_ID" --data-urlencode "client_secret=$ARM_CLIENT_SECRET" \
+    --data-urlencode "scope=https://management.dojo.cloud/.default" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin).get("access_token", ""))')"
+  [ -n "$tok" ] || { narrate "no Dojo Cloud token for $BOT_USER"; return 1; }
+  url="https://management.dojo.cloud/subscriptions/$ARM_SUBSCRIPTION_ID/providers/Microsoft.Authorization/policyAssignments/team-baseline?api-version=2022-06-01"
+  curl -s -H "Authorization: Bearer $tok" "$url" | python3 -c '
+import json, sys
+a = json.load(sys.stdin)
+a["properties"]["enforcementMode"] = sys.argv[1]
+print(json.dumps({k: a[k] for k in ("properties", "identity", "location") if a.get(k)}))' "$1" > "$HOME/.cpc-enforcement.json" || return 1
+  narrate "PUT team-baseline with enforcementMode=$1 (the ARM call behind the portal's button)"
+  [ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' \
+    -d @"$HOME/.cpc-enforcement.json" "$url")" -lt 300 ]
 }
 
 # cpc_scratch_init: ~/lab/scratch with the app's provider setup (Labs 1, 2, 3, 5, 6).
@@ -156,7 +170,7 @@ step_cpc_reset() {
   cpc_ready || return 0
   narrate "round $ROUND -- undoing last round: destroy, then the fork's main back to the team's"
   run_cmd "rm -rf ~/lab/scratch; rm -f infra/drift-demo.tf"
-  cpc_portal_enforcement Default || true
+  cpc_set_enforcement Default || true
   run_cmd "(cd policy/cloud && tofu destroy -auto-approve -lock-timeout=120s $CPC_TF)"
   run_cmd "(cd infra && tofu destroy -auto-approve -lock-timeout=120s $CPC_TF)"
   run_cmd "git checkout -q -f main && git fetch -q upstream"
@@ -171,7 +185,10 @@ step_cpc_reset() {
 step_cpc_lab0() {
   cpc_ready || return 0
   narrate "Lab 0 -- lab-prep saves the cloud login as Actions secrets and protects main"
-  run_cmd "lab-prep 0"
+  # lab-prep calls the Forgejo API with `curl --netrc`. A student's ~/.netrc comes from forgejo-token.py; a bot has
+  # only its own netrc (same machine, password instead of a token), so give lab-prep that.
+  [ -e "$HOME/.netrc" ] || install -m 600 "$HOME/.dojo-bot-netrc" "$HOME/.netrc"
+  run_cmd "lab-prep 0" || return 1
   run_cmd "ls infra policy/cloud policy/cloud/rules policy/rego .forgejo/workflows"
   run_cmd "cat infra/main.tf | head -20"
   narrate "Lab 0 -- first apply: the app"
@@ -231,7 +248,7 @@ step_cpc_lab3() {
   narrate "Lab 3 -- first policy as code: require a costCenter tag"
   cd policy/cloud || return 1
   run_cmd "cat rules/require-costcenter-tag.json"
-  run_cmd "sed -i '5,27s/^# \\{0,1\\}//' main.tf"
+  cpc_commented 'resource "azurerm_policy_definition" "require_costcenter"' && run_cmd "sed -i '5,27s/^# \\{0,1\\}//' main.tf"
   run_cmd "tofu fmt"
   run_cmd "tofu init $CPC_TF >/dev/null && tofu plan $CPC_TF | tail -4"
   run_cmd "$CPC_APPLY"
@@ -284,7 +301,7 @@ step_cpc_lab5() {
   narrate "Lab 5 -- allowed images: a definition and two assignments"
   cd policy/cloud || return 1
   run_cmd "cat rules/allowed-images.json | head -12"
-  run_cmd "sed -i '/^# Lab 5:/,/^# Lab 6:/{/^# Lab [56]:/!s/^# \\{0,1\\}//}' main.tf"
+  cpc_commented 'data "azurerm_resource_group" "infra"' && run_cmd "sed -i '/^# Lab 5:/,/^# Lab 6:/{/^# Lab [56]:/!s/^# \\{0,1\\}//}' main.tf"
   run_cmd "tofu fmt && tofu plan $CPC_TF | tail -3"
   run_cmd "$CPC_APPLY"
   narrate "the app still runs 1.0, which images-strict would refuse: move it to 2.0"
@@ -346,7 +363,7 @@ step_cpc_lab6() {
   cpc_ready || return 0
   narrate "Lab 6 -- the team baseline policy set"
   cd policy/cloud || return 1
-  run_cmd "sed -i '/^# Lab 6:/,/^# Lab 7:/{/^# Lab [67]:/!s/^# \\{0,1\\}//}' main.tf"
+  cpc_commented 'resource "azurerm_policy_definition" "allowed_locations"' && run_cmd "sed -i '/^# Lab 6:/,/^# Lab 7:/{/^# Lab [67]:/!s/^# \\{0,1\\}//}' main.tf"
   python3 - <<'EOT'
 import re
 s = open("main.tf").read()
@@ -355,7 +372,7 @@ for name in ("require_costcenter", "images_subscription"):
 open("main.tf", "w").write(s)
 EOT
   narrate "removed the two assignments the set replaces"
-  run_cmd "tofu fmt && tofu validate $CPC_TF"
+  run_cmd "tofu fmt && tofu validate -no-color"
   run_cmd "tofu plan $CPC_TF | tail -3"
   run_cmd "$CPC_APPLY"
   narrate "a group without costCenter is refused through the set"
@@ -373,7 +390,7 @@ step_cpc_lab7() {
   narrate "Lab 7 -- modify: the cloud adds managedBy for you"
   cd policy/cloud || return 1
   run_cmd "cat rules/add-managedby-tag.json | head -12"
-  python3 - <<'EOT'
+  cpc_commented 'resource "azurerm_policy_definition" "add_managedby_tag"' && python3 - <<'EOT'
 # Uncomment Lab 7 up to (not including) the remediation block, which comes in step 6 of the lab.
 lines = open("main.tf").read().split("\n")
 out, sec, rem = [], False, False
@@ -389,7 +406,7 @@ for l in lines:
     out.append(l)
 open("main.tf", "w").write("\n".join(out))
 EOT
-  run_cmd "tofu fmt && tofu validate $CPC_TF"
+  run_cmd "tofu fmt && tofu validate -no-color"
   run_cmd "$CPC_APPLY"
   narrate "a second container group: accepted, then modified on the way in"
   cat >> ../../infra/main.tf <<'EOT'
@@ -432,7 +449,7 @@ open("main.tf", "w").write(s)
 EOT
   run_cmd "tofu fmt && tofu plan $CPC_TF | tail -3"
   narrate "remediate what already exists"
-  run_cmd "cd ../policy/cloud && sed -i '/^# Lab 7:/,/^# Lab 8:/{/^# Lab [78]:/!s/^# \\{0,1\\}//}' main.tf && tofu fmt"
+  run_cmd "cd ../policy/cloud && sed -i '/^# resource \"azurerm_resource_group_policy_remediation\"/,/^# Lab 8:/{/^# Lab 8:/!s/^# \\{0,1\\}//}' main.tf && tofu fmt"
   run_cmd "$CPC_APPLY"
   narrate "tidy up: delete the second group (keep the lifecycle on app)"
   python3 - <<'EOT'
@@ -451,9 +468,9 @@ step_cpc_lab8() {
   cpc_ready || return 0
   narrate "Lab 8 -- a waiver for the legacy group, reviewed as code"
   cd policy/cloud || return 1
-  run_cmd "sed -i '/^# Lab 8:/,\$ {/^# Lab 8:/!s/^# \\{0,1\\}//}' main.tf"
+  cpc_commented 'data "azurerm_resource_group" "legacy"' && run_cmd "sed -i '/^# Lab 8:/,\$ {/^# Lab 8:/!s/^# \\{0,1\\}//}' main.tf"
   run_cmd "d=\$(date -u -d '+7 days' +%Y-%m-%dT00:00:00Z); sed -i \"s/^\\( *expires_on *= \\).*/\\1\\\"\$d\\\"/\" main.tf; grep expires_on main.tf"
-  run_cmd "tofu fmt && tofu validate $CPC_TF && cd $CPC_LAB"
+  run_cmd "tofu fmt && tofu validate -no-color && cd $CPC_LAB"
   run_cmd "git checkout -q -B waive-legacy-costcenter"
   run_cmd "git add policy/cloud/main.tf && git commit -q -m 'Waive costCenter on the legacy resource group (OPS-123)'"
   local min; min="$(cpc_max_id pr.yml)"
@@ -491,6 +508,7 @@ EOT
   narrate "conftest says no; the cloud says no too"
   run_cmd "cd infra && $CPC_APPLY"
   narrate "add the tag and the plan passes"
+  cd "$CPC_LAB" || return 1   # the refused apply above left the shell in infra/
   python3 - <<'EOT'
 p = "infra/main.tf"
 s = open(p).read()
@@ -500,6 +518,7 @@ open(p, "w").write(s)
 EOT
   run_cmd "cd $CPC_LAB/infra && tofu fmt && tofu plan -out=plan.out $CPC_TF >/dev/null && tofu show -json plan.out > plan.json && cd .. && conftest test --policy policy/rego --namespace main infra/plan.json"
   narrate "drop the scratch block again"
+  cd "$CPC_LAB" || return 1
   python3 - <<'EOT'
 p = "infra/main.tf"
 s = open(p).read()
@@ -565,8 +584,8 @@ step_cpc_lab12() {
   run_cmd "curl -s -o /dev/null -w 'dispatch drift: HTTP %{http_code}\\n' --netrc-file ~/.dojo-bot-netrc -X POST -H 'Content-Type: application/json' -d '{\"ref\":\"main\"}' $API/repos/$CPC_FORK/actions/workflows/drift.yml/dispatches"
   cpc_wait_run drift.yml "$min" 600 || return 1
   [ "$CPC_STATUS" = success ] || narrate "baseline is not green; the policy apply below puts git back"
-  narrate "2 a.m.: disable enforcement of team-baseline in the portal"
-  cpc_portal_enforcement DoNotEnforce || { narrate "the portal did not accept the change (see HTTP codes above)"; return 1; }
+  narrate "2 a.m.: someone disables enforcement of team-baseline outside git"
+  cpc_set_enforcement DoNotEnforce || { narrate "the enforcement change was refused"; return 1; }
   cat > infra/drift-demo.tf <<'EOT'
 resource "azurerm_resource_group" "drift_demo" {
   name     = "rg-${var.owner}-drift"

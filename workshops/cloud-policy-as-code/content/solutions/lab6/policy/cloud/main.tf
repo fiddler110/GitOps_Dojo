@@ -117,3 +117,50 @@ resource "azurerm_subscription_policy_assignment" "team_baseline" {
     allowedLocations = { value = ["canadacentral", "canadaeast"] }
   })
 }
+
+# Lab 7: modify and remediation. Needs the Lab 5 data source.
+# resource "azurerm_policy_definition" "add_managedby_tag" {
+#   name         = "add-managedby-tag"
+#   policy_type  = "Custom"
+#   mode         = "Indexed"
+#   display_name = "Add managedBy = policy tag"
+#
+#   policy_rule = file("${path.module}/rules/add-managedby-tag.json")
+# }
+#
+# # Modify needs an identity (the real thing uses it to write to resources) and a
+# # location for that identity. The role GUID in the rule is not checked by Dojo Cloud.
+# resource "azurerm_subscription_policy_assignment" "add_managedby_tag" {
+#   name                 = "add-managedby-tag"
+#   subscription_id      = data.azurerm_subscription.current.id
+#   policy_definition_id = azurerm_policy_definition.add_managedby_tag.id
+#   location             = "canadacentral"
+#
+#   identity {
+#     type = "SystemAssigned"
+#   }
+# }
+#
+# # New resources get the tag at once. Existing ones only when remediated.
+# resource "azurerm_resource_group_policy_remediation" "managedby" {
+#   name                 = "managedby"
+#   resource_group_id    = data.azurerm_resource_group.infra.id
+#   policy_assignment_id = azurerm_subscription_policy_assignment.add_managedby_tag.id
+# }
+
+# Lab 8: exemptions. Needs the Lab 6 set assignment and the Lab 4 legacy resource group.
+# data "azurerm_resource_group" "legacy" {
+#   name = "rg-${var.owner}-legacy"
+# }
+#
+# # A waiver is a reviewed, dated exception. Set expires_on to a date about a week away.
+# resource "azurerm_resource_group_policy_exemption" "legacy_costcenter" {
+#   name                            = "legacy-costcenter"
+#   resource_group_id               = data.azurerm_resource_group.legacy.id
+#   policy_assignment_id            = azurerm_subscription_policy_assignment.team_baseline.id
+#   policy_definition_reference_ids = ["costcenter"]
+#   exemption_category              = "Waiver"
+#   display_name                    = "Legacy RG costCenter waiver"
+#   description                     = "Legacy resource group predates the tagging rule; migration ticket OPS-123."
+#   expires_on                      = "2026-10-09T00:00:00Z"
+# }

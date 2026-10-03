@@ -31,7 +31,7 @@ test_delete_ignored if {
 }
 
 test_near_misses_denied if {
-	every loc in ["eastus", "westeurope", "canada", "canadacentral2", ""] {
+	every loc in ["eastus", "westeurope", "canada", "canadacentral2"] {
 		count(deny) == 1 with input as rc(loc)
 	}
 }

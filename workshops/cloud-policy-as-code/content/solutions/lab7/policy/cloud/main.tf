@@ -146,3 +146,20 @@ resource "azurerm_resource_group_policy_remediation" "managedby" {
   resource_group_id    = data.azurerm_resource_group.infra.id
   policy_assignment_id = azurerm_subscription_policy_assignment.add_managedby_tag.id
 }
+
+# Lab 8: exemptions. Needs the Lab 6 set assignment and the Lab 4 legacy resource group.
+# data "azurerm_resource_group" "legacy" {
+#   name = "rg-${var.owner}-legacy"
+# }
+#
+# # A waiver is a reviewed, dated exception. Set expires_on to a date about a week away.
+# resource "azurerm_resource_group_policy_exemption" "legacy_costcenter" {
+#   name                            = "legacy-costcenter"
+#   resource_group_id               = data.azurerm_resource_group.legacy.id
+#   policy_assignment_id            = azurerm_subscription_policy_assignment.team_baseline.id
+#   policy_definition_reference_ids = ["costcenter"]
+#   exemption_category              = "Waiver"
+#   display_name                    = "Legacy RG costCenter waiver"
+#   description                     = "Legacy resource group predates the tagging rule; migration ticket OPS-123."
+#   expires_on                      = "2026-10-09T00:00:00Z"
+# }

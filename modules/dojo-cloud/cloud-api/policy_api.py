@@ -21,6 +21,9 @@ QUOTA = 50  # objects of each kind per subscription
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._()-]{0,63}\Z")
 AUTHZ, INSIGHTS = "microsoft.authorization", "microsoft.policyinsights"
 BUCKETS = ("definitions", "sets", "assignments", "exemptions", "remediations")
+# ARM answers a PUT of these with 201 on update too, and azurerm 5.6.0 accepts only 201 for them (a 200 fails the
+# apply with "unexpected status 200"). Exemptions and remediations answer 200 on update, like the real API.
+ALWAYS_201 = ("definitions", "sets", "assignments")
 # URL segment (lower case) -> (bucket, ARM type, label for the activity log, error code when missing)
 KINDS = {
     "policydefinitions": ("definitions", "Microsoft.Authorization/policyDefinitions", "policy definition",
@@ -292,7 +295,7 @@ def _object(app, method, sub, user, rg, typ, name, body):
         st.save()
         out = copy.deepcopy(obj)
     _report(app, user, bucket)
-    return (200 if existing is not None else 201), out
+    return (200 if existing is not None and bucket not in ALWAYS_201 else 201), out
 
 
 KIND_EVENT = {"definitions": "definition", "sets": "set", "assignments": "assignment", "exemptions": "exemption",

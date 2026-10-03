@@ -9,6 +9,7 @@ deny contains msg if {
 	some action in rc.change.actions
 	action in {"create", "update"}
 	loc := rc.change.after.location
+	loc != "" # only things that have a region: policy objects come through with ""
 	not startswith(loc, "canada")
 	msg := sprintf("%s uses region %s; allowed: %s", [rc.address, loc, concat(", ", sort(allowed_regions))])
 }

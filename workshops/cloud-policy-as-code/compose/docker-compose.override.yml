@@ -49,6 +49,10 @@ services:
     volumes:
       - tofu_mirror:/providers
     restart: "no"
+    # A one-shot copy: without this it inherits the terminal image's HEALTHCHECK, stays "starting" after it exits,
+    # and run.sh waits its whole timeout for it (as runner-pool's one-shot does, see its compose.yml).
+    healthcheck:
+      disable: true
 
 volumes:
   tofu_mirror:

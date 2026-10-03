@@ -87,6 +87,7 @@ deny contains msg if {
 	some action in rc.change.actions
 	action in {"create", "update"}
 	loc := rc.change.after.location
+	loc != "" # only things that have a region: policy objects come through with ""
 	not startswith(loc, "canada")
 	msg := sprintf("%s uses region %s; allowed: %s", [rc.address, loc, concat(", ", sort(allowed_regions))])
 }
@@ -147,7 +148,7 @@ A bug like this hides at the boundary between "obviously fine" and "obviously wr
 
 ```rego
 test_near_misses_denied if {
-	every loc in ["eastus", "westeurope", "canada", "canadacentral2", ""] {
+	every loc in ["eastus", "westeurope", "canada", "canadacentral2"] {
 		count(deny) == 1 with input as rc(loc)
 	}
 }

@@ -158,7 +158,7 @@ class Definitions(Base):
         self.assertEqual(out["properties"]["provisioningState"], "Succeeded")
         self.assertEqual(out["properties"]["policyType"], "Custom")
         self.assertEqual(out["properties"]["policyRule"], body["properties"]["policyRule"])
-        self.assertEqual(self.arm("PUT", self.sub_path("policyDefinitions", "no-prod"), body)[0], 200)
+        self.assertEqual(self.arm("PUT", self.sub_path("policyDefinitions", "no-prod"), body)[0], 201)  # ARM and azurerm: 201 on update too
         self.assertEqual(self.arm("GET", self.sub_path("policyDefinitions", "no-prod"))[1]["id"], out["id"])
 
     def test_builtins_by_the_global_path_and_in_the_list(self):
@@ -234,7 +234,7 @@ class Sets(Base):
         did = self.make_def("no-prod", definition(when_env("prod")))
         status, out = self.arm("PUT", self.sub_path("policySetDefinitions", "s1"), self.set_body(("r1", did)))
         self.assertEqual(status, 201)
-        self.assertEqual(self.arm("PUT", self.sub_path("policySetDefinitions", "s1"), self.set_body(("r1", did)))[0], 200)
+        self.assertEqual(self.arm("PUT", self.sub_path("policySetDefinitions", "s1"), self.set_body(("r1", did)))[0], 201)
         status, out = self.arm("DELETE", self.sub_path("policyDefinitions", "no-prod"))
         self.assertEqual((status, out["error"]["code"]), (400, "PolicyDefinitionInUse"))  # a set includes it
         self.make_assignment("sa", f"/subscriptions/{SUB[A]}/{AUTHZ}/policySetDefinitions/s1",
@@ -251,7 +251,7 @@ class Sets(Base):
 
 
 class Assignments(Base):
-    def test_create_201_update_200_identity_and_scopes(self):
+    def test_create_and_update_201_identity_and_scopes(self):
         did = self.make_def("no-prod", definition(when_env("prod")))
         body = assignment(did)
         body.update({"identity": {"type": "SystemAssigned"}, "location": "canadacentral"})
@@ -263,7 +263,7 @@ class Assignments(Base):
         principal = out["identity"]["principalId"]
         self.assertEqual(out["location"], "canadacentral")
         status, out = self.arm("PUT", self.assign_path("a1"), body)
-        self.assertEqual((status, out["identity"]["principalId"]), (200, principal))  # stable
+        self.assertEqual((status, out["identity"]["principalId"]), (201, principal))  # stable; 201 on update too, which azurerm requires
         status, out = self.arm("PUT", self.assign_path("a2", rg="rg-aaa"), assignment(did))  # on a resource group
         self.assertEqual((status, out["properties"]["scope"]), (201, f"/subscriptions/{SUB[A]}/resourceGroups/rg-aaa"))
         self.assertEqual(self.arm("PUT", self.assign_path("a3", rg="rg-none"), assignment(did))[0], 404)
