@@ -9,7 +9,7 @@ style: |
 footer: '[&larr; Hub](index.md)'
 ---
 
-<!-- _class: lead -->
+<!-- _class: lead lab-index -->
 
 <style scoped>
 .lab-links { columns: 3; font-size: 19px; margin-top: 12px; }

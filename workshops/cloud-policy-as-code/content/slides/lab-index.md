@@ -6,6 +6,8 @@ size: 16:9
 html: true
 style: |
   @import url('assets/themes/labs.css');
+  /* 13 labs + the cheat sheet: four columns keep the list on the slide. */
+  section.lab-index .lab-links { columns: 4 !important; }
 footer: '[&larr; Hub](index.md)'
 ---
 
