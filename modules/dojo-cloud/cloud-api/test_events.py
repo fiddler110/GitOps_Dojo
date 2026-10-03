@@ -67,7 +67,11 @@ class ReporterTest(unittest.TestCase):
         self.assertEqual(events.denial(err("RequestDisallowedByPolicy", "Allowed locations")), ("policy_denied", "region"))
         self.assertEqual(events.denial(err("InvalidResourceRequest")), ("policy_denied", "size"))
         self.assertEqual(events.denial(err("QuotaExceeded")), ("quota_denied", None))
-        self.assertIsNone(events.denial(err("InvalidImage")))
+        self.assertEqual(events.denial(err("InvalidImage")), ("policy_denied", "image"))
+        self.assertIsNone(events.denial(err("InvalidRequestContent")))
+        own = err("RequestDisallowedByPolicy", "Require tag 'env'")  # a student's assignment with a lookalike name
+        own.assignment = "require-env"
+        self.assertEqual(events.denial(own), ("policy_denied", "assignment"))
 
     def test_replace_after_delete_within_the_window(self):
         now = [0.0]

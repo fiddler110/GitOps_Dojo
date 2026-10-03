@@ -123,7 +123,8 @@ class Save(Base):
         text = snapshot(self.root)[rel]
         self.assertEqual(len(text.splitlines()), len(self.before[rel].splitlines()) + 1)
         fresh = ce.load_all(self.root, "all")
-        self.assertFalse(next(r for g in fresh["workshops"][2]["groups"] for r in g["rows"]
+        gf = next(w for w in fresh["workshops"] if w["name"] == "git-fundamentals")
+        self.assertFalse(next(r for g in gf["groups"] for r in g["rows"]
                               if r["id"] == "l1-clone")["fields"]["enabled"])
         ce.save(self.root, "all", [{"file": rel, "id": "l1-clone", "set": {"enabled": True}}], fresh["bases"])
         self.assertEqual(self.changed_files(), [])      # byte for byte back where it started

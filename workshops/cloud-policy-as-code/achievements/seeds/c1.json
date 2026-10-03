@@ -1,0 +1,44 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-c1",
+  "description": "{user}'s own challenge c1 (Cloud-Policy-as-Code): parameterised audit",
+  "private": false,
+  "values": {},
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 2,
+      "message": "Start the challenge: brief and starter files",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "c1/README.md"
+        },
+        {
+          "path": "main.tf",
+          "from": "c1/main.tf"
+        },
+        {
+          "path": "providers.tf",
+          "from": "c1/providers.tf"
+        },
+        {
+          "path": "versions.tf",
+          "from": "c1/versions.tf"
+        },
+        {
+          "path": "variables.tf",
+          "from": "c1/variables.tf"
+        },
+        {
+          "path": ".gitignore",
+          "from": "c1/.gitignore"
+        },
+        {
+          "path": "rules/allowed-envs.json",
+          "from": "c1/rules/allowed-envs.json"
+        }
+      ]
+    }
+  ]
+}

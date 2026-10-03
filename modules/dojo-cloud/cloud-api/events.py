@@ -5,9 +5,13 @@ Off unless ACHIEVEMENTS_ADAPTER_URL and ACHIEVEMENTS_ADAPTER_SECRET are both set
 header X-Adapter-Signature) through the shared adapter_client (one bounded queue, one worker that swallows
 every error): reporting must never slow down or break an ARM or portal request. Stdlib only.
 
-Events: portal_request, site_request, policy_denied (reason tag | region | size), quota_denied,
-container_created, container_updated, container_deleted, container_replaced. For updated, deleted and
-replaced, `reason` says how it was done: "portal" (the Dojo Portal) or "arm" (the API, so tofu).
+Events: portal_request, site_request, policy_denied (reason tag | region | size | image | assignment), quota_denied,
+container_created, container_updated, container_deleted, container_replaced, policy_written. For updated,
+deleted and replaced, `reason` says how it was done: "portal" (the Dojo Portal) or "arm" (the API, so tofu).
+policy_denied "assignment" is a refusal by one of the student's own policy assignments (not a platform
+guardrail). policy_written is a successful create or update of one of the student's own Dojo Cloud Policy
+objects, `reason` its kind: definition | set | assignment | exemption | remediation, or "portal" for an
+enforcement-mode change made by hand on the portal's Policy blade.
 """
 import os
 import sys
@@ -25,6 +29,8 @@ REPLACE_WINDOW = 120.0  # a create of a group this user deleted within this many
 def denial(exc):
     """(event, reason) for a policy.PolicyError worth reporting, else None."""
     code, pol = getattr(exc, "code", ""), getattr(exc, "policy", None) or ""
+    if code == "RequestDisallowedByPolicy" and getattr(exc, "assignment", None):
+        return "policy_denied", "assignment"   # the student's own assignment (policy_api.refusal marks it)
     if code == "QuotaExceeded":
         return "quota_denied", None
     if code == "RequestDisallowedByPolicy":
@@ -34,6 +40,8 @@ def denial(exc):
             return "policy_denied", "region"
     if code == "InvalidResourceRequest":
         return "policy_denied", "size"
+    if code == "InvalidImage":
+        return "policy_denied", "image"
     return None
 
 

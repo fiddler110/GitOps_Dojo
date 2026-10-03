@@ -1,0 +1,55 @@
+{
+  "id": "c2",
+  "title": "Waiver With a Deadline",
+  "after": "after Lab 8 (exemptions); one resource group, no container group",
+  "space": "the student's own Dojo Cloud subscription (`{user}`), its resource group `rg-{user}-c2` (the only assignment and exemption scope), and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, local state)",
+  "goal": "Assign the seeded `deny` rule (every resource group needs a `reviewedBy` tag) at the scope of `rg-{user}-c2` only, then waive the existing group with a `Waiver` exemption that expires within 14 days, all as code. Then destroy it and leave nothing assigned there.",
+  "constraints": "Resource-group scope only; the exemption must carry an expiry date (a waiver without a deadline is a permanent hole).",
+  "verify_text": "Two steps. Step 1 (`dojo-check c2` while it is applied): Dojo Cloud Policy (own subscription, read-only) has an assignment at the scope of `rg-{user}-c2` whose definition has the literal effect `deny` and mentions `reviewedBy`, with at least one exempt resource, no non-compliant one, and an unexpired `Waiver` exemption on it that expires within 14 days; and `main.tf` on `main` of `{user}/challenge-c2` declares an `azurerm_resource_group_policy_exemption`. Step 2 (after `tofu destroy`, `dojo-check c2` again): no assignment is left at the scope of `rg-{user}-c2`. The description text is not checked.",
+  "isolation": "the assignment and the exemption are scoped to the student's own resource group `rg-{user}-c2` in their private subscription; the cloud check reads only the checking student's own Policy blade and the repo is their own.",
+  "hints": [
+    "Lab 8's exemption is the shape; only the scope and the assignment differ.",
+    "Apply the starter first so the group exists before the deny does; `expires_on` wants an RFC 3339 time such as 2026-10-15T00:00:00Z."
+  ],
+  "seed": "`dojo-challenge start c2` creates `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`): a `main.tf` with the resource group `rg-{user}-c2` (no `reviewedBy` tag) and the `deny` definition `require-reviewedby-c2`, two TODOs, the rule in `rules/require-reviewedby.json`, provider files with local state, and a README with the brief.",
+  "seed_plan": "c2.json",
+  "verify": [
+    {
+      "verb": "cloud_policy",
+      "account": "{user}",
+      "kind": "assignment",
+      "scope_suffix": "/resourceGroups/rg-{user}-c2",
+      "effect": "deny",
+      "rule_text": [
+        "reviewedBy"
+      ],
+      "exempt_min": 1,
+      "noncompliant_max": 0,
+      "exemption": {
+        "category": "Waiver",
+        "expires_within_days": 14
+      }
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/challenge-c2",
+      "ref": "main",
+      "path": "main.tf",
+      "regex": "^\\s*resource\\s+\"azurerm_resource_group_policy_exemption\""
+    }
+  ],
+  "then": {
+    "text": "run `tofu destroy` in ~/lab/challenge-c2 so nothing of the challenge is left assigned at rg-{user}-c2, then `dojo-check c2` again.",
+    "verify": [
+      {
+        "verb": "cloud_policy",
+        "account": "{user}",
+        "kind": "assignment",
+        "scope_suffix": "/resourceGroups/rg-{user}-c2",
+        "min": 0,
+        "max": 0
+      }
+    ]
+  },
+  "answer": "`dojo-challenge start c2`, `cd ~/lab/challenge-c2`, `tofu init && tofu apply` (the starter). Then add `resource \"azurerm_resource_group_policy_assignment\" \"reviewedby\" { name = \"require-reviewedby-c2\", resource_group_id = azurerm_resource_group.c2.id, policy_definition_id = azurerm_policy_definition.require_reviewedby.id }` and `resource \"azurerm_resource_group_policy_exemption\" \"waiver\" { name = \"c2-waiver\", resource_group_id = azurerm_resource_group.c2.id, policy_assignment_id = azurerm_resource_group_policy_assignment.reviewedby.id, exemption_category = \"Waiver\", description = \"Owner adds reviewedBy within two weeks (ticket OPS-123)\", expires_on = \"<today + 7 days>T00:00:00Z\" }`. `tofu apply`, push `main.tf`, `dojo-check c2`; then `tofu destroy` and `dojo-check c2` again."
+}

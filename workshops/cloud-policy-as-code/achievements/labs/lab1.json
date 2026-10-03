@@ -1,0 +1,40 @@
+{
+  "milestones": [
+    {
+      "id": "pc1-region",
+      "title": "Wrong Country",
+      "joke": "Policy said no. Politely, with a 403.",
+      "core": true,
+      "when": "cloud: a write refused by the built-in \"Allowed locations\" guardrail",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "region"
+      }
+    },
+    {
+      "id": "pc1-tag",
+      "title": "Tagless Wonder",
+      "joke": "No tags, no entry.",
+      "core": true,
+      "when": "cloud: a write refused by a built-in \"Require tag\" guardrail",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "tag"
+      }
+    },
+    {
+      "id": "pc1-size",
+      "title": "Too Big to Run",
+      "joke": "Asked for a bigger container than the platform allows.",
+      "core": true,
+      "when": "cloud: a container group refused for its CPU or memory request (a 400, not a 403)",
+      "match": {
+        "source": "cloud",
+        "event": "policy_denied",
+        "reason": "size"
+      }
+    }
+  ]
+}

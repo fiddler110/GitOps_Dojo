@@ -178,6 +178,12 @@ class Reads(Base):
         self.assertEqual({c["dnsLabel"] for c in doc["containerGroups"]}, {"site-a1", "site-a2"})
         self.assertEqual(get("/cloud/api/overview?scope=class")[0], 403)
         self.assertEqual(get("/cloud/api/me")[0], 403)
+        st, doc = get("/cloud/api/policy")                     # the account's own Policy blade
+        self.assertEqual((st, doc["subscriptionId"]), (200, auth.subscription_id(A)))
+        self.assertEqual(get(f"/cloud/api/policy?subscription={auth.subscription_id(B)}")[0], 403)
+        self.assertEqual(get("/cloud/api/policy/evaluate")[0], 403)
+        self.assertEqual(get("/cloud/api/activity")[0], 200)                # its own activity log only
+        self.assertEqual(get("/cloud/api/activity?scope=all")[0], 403)
         self.assertEqual(get("/cloud/api/overview", token="wrong")[0], 401)
         self.assertEqual(get("/cloud/api/overview", user="nobody")[0], 401)
         u = urlparse(self.cg_url(A, "rg-a", "ci-a1", "/stop"))

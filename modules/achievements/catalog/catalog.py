@@ -45,7 +45,7 @@ MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ve
 ADAPTER_SOURCES = ("cloud", "bao", "ca")
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
-              "container_updated", "container_deleted", "container_replaced"),
+              "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
 }
@@ -76,8 +76,10 @@ ADAPTER_EVENTS = {
 #   cloud, bao, ca: one event posted (signed) by the module that owns the backend (dojo-cloud's
 #     cloud-api, openbao-audit, the CA tailer), credited to the student it names. All take `event`.
 #     cloud   event: portal_request | site_request | policy_denied | quota_denied | container_created |
-#             container_updated | container_deleted | container_replaced; reason (policy_denied: tag |
-#             region | size)
+#             container_updated | container_deleted | container_replaced | policy_written; reason
+#             (policy_denied: tag | region | size | image | assignment, the last a refusal by the student's own
+#             Dojo Cloud Policy assignment; policy_written: definition | set | assignment | exemption |
+#             remediation, or portal for an enforcement change made on the portal's Policy blade)
 #     bao     event: login | request | wrapping | sealed; mount (the auth mount of a login), role, ok
 #             (false = the request was refused), status (HTTP code), root (the token carried the root
 #             policy), op (read | create | update | delete | list), path_prefix (inside the student's namespace)

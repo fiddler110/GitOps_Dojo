@@ -1,0 +1,54 @@
+{
+  "milestones": [
+    {
+      "id": "pc12-drift",
+      "title": "2 a.m. Engineer",
+      "joke": "Clicked it in the portal. Told nobody.",
+      "core": true,
+      "when": "cloud: the student changes an assignment's enforcement mode by hand on the portal's Policy blade",
+      "match": {
+        "source": "cloud",
+        "event": "policy_written",
+        "reason": "portal"
+      }
+    },
+    {
+      "id": "pc12-caught",
+      "title": "Drift Detected",
+      "joke": "Git and the cloud disagree, and now everyone knows.",
+      "core": true,
+      "when": "verify: a **Drift** (`drift.yml`) run on the fork failed (checked after the portal change)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "ci_run",
+            "repo": "{user}/cloud-policy-as-code",
+            "workflow": "drift.yml",
+            "status": "failure"
+          }
+        ],
+        "requires": "pc12-drift"
+      }
+    },
+    {
+      "id": "pc12-fixed",
+      "title": "Git Wins",
+      "joke": "The code said so.",
+      "core": true,
+      "when": "verify: the newest finished **Drift** run on the fork is green and an older one failed",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "ci_run",
+            "repo": "{user}/cloud-policy-as-code",
+            "workflow": "drift.yml",
+            "recovered": true
+          }
+        ],
+        "requires": "pc12-caught"
+      }
+    }
+  ]
+}

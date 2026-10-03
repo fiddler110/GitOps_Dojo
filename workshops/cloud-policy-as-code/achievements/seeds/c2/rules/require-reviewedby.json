@@ -1,0 +1,9 @@
+{
+  "if": {
+    "field": "tags['reviewedBy']",
+    "exists": false
+  },
+  "then": {
+    "effect": "deny"
+  }
+}

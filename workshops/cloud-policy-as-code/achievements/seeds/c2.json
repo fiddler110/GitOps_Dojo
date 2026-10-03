@@ -1,0 +1,44 @@
+{
+  "builder": "forgejo-repo",
+  "repo": "{user}/challenge-c2",
+  "description": "{user}'s own challenge c2 (Cloud-Policy-as-Code): a dated waiver",
+  "private": false,
+  "values": {},
+  "commits": [
+    {
+      "author": "Alice Engineer",
+      "days_ago": 2,
+      "message": "Start the challenge: brief and starter files",
+      "files": [
+        {
+          "path": "README.md",
+          "from": "c2/README.md"
+        },
+        {
+          "path": "main.tf",
+          "from": "c2/main.tf"
+        },
+        {
+          "path": "providers.tf",
+          "from": "c2/providers.tf"
+        },
+        {
+          "path": "versions.tf",
+          "from": "c2/versions.tf"
+        },
+        {
+          "path": "variables.tf",
+          "from": "c2/variables.tf"
+        },
+        {
+          "path": ".gitignore",
+          "from": "c2/.gitignore"
+        },
+        {
+          "path": "rules/require-reviewedby.json",
+          "from": "c2/rules/require-reviewedby.json"
+        }
+      ]
+    }
+  ]
+}

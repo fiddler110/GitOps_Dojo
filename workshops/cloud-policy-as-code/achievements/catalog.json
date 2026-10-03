@@ -1,0 +1,60 @@
+{
+  "workshop": "cloud-policy-as-code",
+  "title": "Cloud-Policy-as-Code",
+  "intro": "**Where challenges run.** Each student has a private Dojo Cloud subscription (\"nobody else can touch yours\"), so policy objects, compliance and resources are already isolated: a definition, assignment or exemption written by one student can never refuse, exempt or audit a classmate's resource. Nothing in a challenge or the capstone is shared: no platform-scope assignment (the built-in guardrails are read-only), no branch protection or other Forgejo settings, and no shared runner configuration (CI runs on runner-pool's single-use runners, for the student's own fork only). Inside one subscription a challenge still stays out of the labs' way: it works in a resource group of its own (`rg-{user}-c1`, `rg-{user}-c2`), assigns at that resource group's scope only, and keeps its own state in its own repo. Triggers here: `shell:` (conftest and opa in the terminal), `cloud:` (what cloud-api reports: refusals, policy writes, the portal's enforcement switch), `forgejo:` (fork, pull requests, pushes) and `verify:` (`cloud_policy`, `cloud_containers`, `ci_run`, `tree_file_contains`, `file_contains`, `pr_exists`).",
+  "challenges_intro": "Each challenge starts in a repo of its own (`dojo-challenge start cN` creates `{user}/challenge-cN` and clones it to `~/lab/challenge-cN`, with its own OpenTofu state `challenge-cN`), so it never changes the fork or the labs' policy state. Everything it creates lives in its own resource group and is assigned at that scope only, and the checks look only at those, so the labs' assignments never fail a check. A pass is recorded when checked; destroying it afterwards does not undo it.",
+  "labs": [
+    {
+      "id": "lab0",
+      "title": "fork, clone, deploy the app"
+    },
+    {
+      "id": "lab1",
+      "title": "your first refusal"
+    },
+    {
+      "id": "lab2",
+      "title": "anatomy of a policy"
+    },
+    {
+      "id": "lab3",
+      "title": "your first policy as code"
+    },
+    {
+      "id": "lab4",
+      "title": "audit before you deny"
+    },
+    {
+      "id": "lab5",
+      "title": "parameters and reuse"
+    },
+    {
+      "id": "lab6",
+      "title": "policy sets"
+    },
+    {
+      "id": "lab7",
+      "title": "modify and remediation"
+    },
+    {
+      "id": "lab8",
+      "title": "exemptions"
+    },
+    {
+      "id": "lab9",
+      "title": "shift left with Rego"
+    },
+    {
+      "id": "lab10",
+      "title": "testing policies"
+    },
+    {
+      "id": "lab11",
+      "title": "policy in the pipeline"
+    },
+    {
+      "id": "lab12",
+      "title": "drift"
+    }
+  ]
+}

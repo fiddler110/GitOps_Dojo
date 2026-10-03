@@ -1,0 +1,41 @@
+{
+  "id": "c1",
+  "title": "Allowed Environments",
+  "after": "after Lab 5 (parameters); one resource group, no container group",
+  "space": "the student's own Dojo Cloud subscription (`{user}`), its resource group `rg-{user}-c1` (the only assignment scope), and their own repo `{user}/challenge-c1` (cloned to `~/lab/challenge-c1`, local state)",
+  "goal": "Write a parameterised `audit` definition that flags any resource whose `env` tag is not in the array parameter `allowedEnvs`, assign it at the scope of `rg-{user}-c1` only with `allowedEnvs = [\"dev\", \"test\"]`, and see the seeded group (tagged `env = \"sandbox\"`) reported non-compliant.",
+  "constraints": "Assign at the resource group's scope, never the subscription: the lab's own assignments must not change. The effect is the literal `audit`, so nothing is refused.",
+  "verify_text": "Dojo Cloud Policy (the student's own subscription, read-only): an assignment whose scope is `rg-{user}-c1`, in enforcement mode `Default`, whose definition has the literal effect `audit`, declares the parameter `allowedEnvs` and whose rule mentions `tags['env']`, lists `rg-{user}-c1` as non-compliant; and `main.tf` on `main` of `{user}/challenge-c1` declares an `azurerm_resource_group_policy_assignment` (push it). Not checked: the exact parameter value.",
+  "isolation": "the assignment's scope is the student's own resource group `rg-{user}-c1` in their private subscription, so it can only ever judge that group; the cloud check reads only the checking student's own Policy blade (no account argument), and the repo is their own.",
+  "hints": [
+    "Lab 5's allowed-images rule already compares a field with an array parameter.",
+    "`notIn` with \"[parameters('allowedEnvs')]\", and the assignment's `parameters = jsonencode({ allowedEnvs = { value = [...] } })`."
+  ],
+  "seed": "`dojo-challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a `main.tf` with the resource group `rg-{user}-c1` tagged `env = \"sandbox\"` and two TODOs, a starter `rules/allowed-envs.json` full of `TODO`s, provider files with local state, and a README with the brief.",
+  "seed_plan": "c1.json",
+  "verify": [
+    {
+      "verb": "cloud_policy",
+      "account": "{user}",
+      "kind": "assignment",
+      "scope_suffix": "/resourceGroups/rg-{user}-c1",
+      "enforcement": "Default",
+      "effect": "audit",
+      "parameters": [
+        "allowedEnvs"
+      ],
+      "rule_text": [
+        "tags['env']"
+      ],
+      "noncompliant_resource": "rg-{user}-c1"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/challenge-c1",
+      "ref": "main",
+      "path": "main.tf",
+      "regex": "^\\s*resource\\s+\"azurerm_resource_group_policy_assignment\""
+    }
+  ],
+  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-c1`. Rule: `{\"if\": {\"field\": \"tags['env']\", \"notIn\": \"[parameters('allowedEnvs')]\"}, \"then\": {\"effect\": \"audit\"}}`. In `main.tf`: `resource \"azurerm_policy_definition\" \"allowed_envs\" { name = \"allowed-envs-c1\", policy_type = \"Custom\", mode = \"All\", display_name = \"Allowed env tags (c1)\", policy_rule = file(\"${path.module}/rules/allowed-envs.json\"), parameters = jsonencode({ allowedEnvs = { type = \"Array\" } }) }` and `resource \"azurerm_resource_group_policy_assignment\" \"allowed_envs\" { name = \"allowed-envs-c1\", resource_group_id = azurerm_resource_group.c1.id, policy_definition_id = azurerm_policy_definition.allowed_envs.id, parameters = jsonencode({ allowedEnvs = { value = [\"dev\", \"test\"] } }) }`. `tofu init && tofu apply`, `git add . && git commit -m 'c1' && git push origin main`, `dojo-check c1`, then `tofu destroy`."
+}

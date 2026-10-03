@@ -590,5 +590,43 @@ class PortalWrites(Base):
                                           query=f"subscription={SUB[A]}")[0], 200)
 
 
+class EventsReported(Base):
+    """What policy work tells the achievements service (events.py): writes of the student's own policy objects,
+    refusals by their own assignments, and a hand-made enforcement change on the portal; never the facilitator's."""
+
+    portal_call = PortalWrites.portal_call
+
+    def seen(self):
+        return [e for e in self.rec.seen() if e[0] != "portal_request"]
+
+    def setUp(self):
+        super().setUp()
+        from test_events import Recorder
+        self.rec = Recorder()
+        self.app.events = self.rec
+
+    def test_writes_denials_and_portal_drift(self):
+        did = self.make_def("no-prod", definition(when_env("prod")))
+        self.make_assignment("block-prod", did)
+        self.assertEqual(self.put_cg(env="prod")[0], 403)
+        self.assertEqual(self.portal_call(A, "POST", "/cloud/api/policy/assignments/block-prod/enforcement",
+                                          {"mode": "DoNotEnforce"})[0], 200)
+        self.assertEqual(self.seen(), [("policy_written", A, "definition"), ("policy_written", A, "assignment"),
+                                           ("policy_denied", A, "assignment"), ("policy_written", A, "portal")])
+
+    def test_failed_writes_and_platform_refusals_are_not_policy_writes(self):
+        self.assertEqual(self.arm("PUT", self.sub_path("policyDefinitions", "bad"), {"properties": {}})[0], 400)
+        body = self.cg_body()
+        body["location"] = "westus"
+        self.assertEqual(self.arm("PUT", self.cg_path(), body)[0], 403)
+        self.assertEqual(self.seen(), [("policy_denied", A, "region")])
+
+    def test_the_facilitator_is_not_reported(self):
+        st, _ = self.arm("PUT", self.sub_path("policyDefinitions", "f1", user=FAC), definition(when_env("prod")),
+                         user=FAC)
+        self.assertIn(st, (200, 201))
+        self.assertEqual(self.seen(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

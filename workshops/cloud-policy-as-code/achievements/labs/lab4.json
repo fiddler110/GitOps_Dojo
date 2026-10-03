@@ -1,0 +1,23 @@
+{
+  "milestones": [
+    {
+      "id": "pc4-noncompliant",
+      "title": "Audited",
+      "joke": "Allowed in, written up.",
+      "core": true,
+      "when": "verify: the Policy blade lists `rg-<you>-legacy` as non-compliant for one of the student's assignments (checked every few seconds once the student has written an assignment)",
+      "match": {
+        "source": "verify",
+        "verify": [
+          {
+            "verb": "cloud_policy",
+            "account": "{user}",
+            "kind": "assignment",
+            "noncompliant_resource": "rg-{user}-legacy"
+          }
+        ],
+        "requires": "pc3-assignment"
+      }
+    }
+  ]
+}

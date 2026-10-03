@@ -115,7 +115,9 @@ def refusal(outcome, name):
     v = outcome.denied[0]
     detail = (f"Assignment '{v.assignmentName}', definition '{v.displayName}': {v.reason}."
               + (f" {v.message}" if v.message else ""))
-    return policy._disallowed(name, v.assignmentDisplayName, detail)
+    exc = policy._disallowed(name, v.assignmentDisplayName, detail)
+    exc.assignment = v.assignmentName  # a student's own assignment, not a platform guardrail (events.denial)
+    return exc
 
 
 def _view(sub, kind, rec):
@@ -288,7 +290,21 @@ def _object(app, method, sub, user, rg, typ, name, body):
         recompute(st, sub)
         st.log(sub, user, op, rid, "Succeeded")
         st.save()
-        return (200 if existing is not None else 201), copy.deepcopy(obj)
+        out = copy.deepcopy(obj)
+    _report(app, user, bucket)
+    return (200 if existing is not None else 201), out
+
+
+KIND_EVENT = {"definitions": "definition", "sets": "set", "assignments": "assignment", "exemptions": "exemption",
+              "remediations": "remediation"}
+
+
+def _report(app, user, what):
+    """Tell the achievements service (events.py) a student wrote a policy object; never the facilitator."""
+    reporter, auth_ = getattr(app, "events", None), getattr(app, "auth", None)
+    if reporter is None or (auth_ is not None and auth_.is_facilitator(user)):
+        return
+    reporter.emit("policy_written", user, KIND_EVENT.get(what, what))
 
 
 def _breaks(pol, lookup):

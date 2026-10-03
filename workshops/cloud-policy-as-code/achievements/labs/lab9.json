@@ -1,0 +1,29 @@
+{
+  "milestones": [
+    {
+      "id": "pc9-red",
+      "title": "Caught at Plan Time",
+      "joke": "Refused before the cloud even heard of it.",
+      "core": true,
+      "when": "shell: `conftest test` fails (non-zero exit)",
+      "match": {
+        "source": "shell",
+        "cmd": "conftest test",
+        "exit": "nonzero"
+      }
+    },
+    {
+      "id": "pc9-green",
+      "title": "Plan Passes",
+      "joke": "Same check, now clean.",
+      "core": true,
+      "when": "shell: `conftest test` succeeds (exit 0) after it failed once",
+      "match": {
+        "source": "shell",
+        "cmd": "conftest test",
+        "exit": 0,
+        "requires": "pc9-red"
+      }
+    }
+  ]
+}
