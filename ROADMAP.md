@@ -174,7 +174,7 @@ None are Critical or Important.
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| FIND-11 | PowerDNS keys | M | Partial: the keys are still derived from the shared token |
+| FIND-11 | PowerDNS keys | — | Partial, accepted (2026-10-03): per-student DNS keys and the gate's ownership checks are in; PowerDNS's own key stays a one-way hash of `GATEWAY_TOKEN`, which students never see and which already opens the whole lab |
 | FIND-17 | Unseal share | — | Partial, accepted (D9): the single unseal share stays on the setup volume |
 | FIND-15 | dojo-cloud socket | — | Accepted, no work: socket `0660 root:cloud`; privileged DinD stays |
 | FIND-19 | Plaintext backends | — | Accepted, no work: plaintext to OpenBao and Postgres, documented |
