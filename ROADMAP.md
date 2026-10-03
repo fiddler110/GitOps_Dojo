@@ -37,9 +37,9 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 ## Up next
 
-Resume here (updated 2026-10-03). All open work is on one branch, `feat/cloud-policy-as-code` (RV19, Phase 10 and
-student reset merged into it from `feat/rv19-bot-smoke-tests`, which is deleted). Next: the live checks in [Now](#now),
-one stack at a time (`podman ps` first), and the RV35 to-do list (achievements live checks, then merge).
+Resume here (updated 2026-10-03). `feat/cloud-policy-as-code` (RV35, RV19, Phase 10 and student reset) merged to
+`main` in PR #8; cut a new branch for the next batch. Next: the live checks in [Now](#now), one stack at a time
+(`podman ps` first), starting with the first `smoke.sh --split each` run.
 
 **Answered 2026-10-02**
 
@@ -48,7 +48,7 @@ one stack at a time (`podman ps` first), and the RV35 to-do list (achievements l
 | Reset button | Yes, a full **Reset environment** button on `/admin` (RV38), with Release all as its first step. Nothing may persist past `./run.sh stop` |
 | Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied into `<context>/_shared/` at build time (`SHARED=` in `module.env`) |
 | Shared-repo changes on reset (2026-10-03) | Left alone: a student reset never touches what they changed in a shared repo (e.g. dns-as-code `<user>-app` records in `dojo.test` stay) |
-| Next workshop | Cloud-Policy-as-Code (RV35), **in progress on `feat/cloud-policy-as-code`**. Resume with the RV35 row in [Next](#next): the clean smoke run, then the to-do list there |
+| Next workshop | Cloud-Policy-as-Code (RV35), merged to `main` in PR #8 (2026-10-03) |
 
 ## Now
 
@@ -58,6 +58,7 @@ these lines.
 
 | Check | Stack | What to confirm |
 |---|---|---|
+| Split smoke run | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run of `--split` (12 bots, one lab each, 6g terminal cap): every `testuserK labs N: ok`, every core milestone fires, no OOM in the terminal; note each lab's minutes to rebalance the split. The full run stays the gate before a merge |
 | DNS reset | `dns-as-code --test 3 --fast` | Reset testuser1: all steps done; the Forgejo step deletes **without purge** (detail has no "purged"), so merged PRs and comments stay (as "Ghost"); zones at/under `testuser1.dojo.test` gone; `testuser1-*` records in `dojo.test` stay; second reset passes. Also run the slide overflow check on its Marp pages (check.py below) |
 | Cert reset | `cert-autorenewal --test 3 --fast` | Reset testuser1: crontab gone (engine change), `/srv/webroot/testuser1` back empty and theirs (account.d/reset.d), `certs.dojo.test` has exactly the two seeded A records of theirs (`DNS_GATE_RESET_RECORDS`), demo-app reloads cleanly, testuser2 untouched |
 | Vault reset | `vault-fundamentals --test 2 --fast` | openbao-setup and app-db reset workers start; reset testuser1: 6 steps done; `modules/openbao/tests/setup_tokens.sh` passes; namespace and `secret/students/testuser1/` fresh, app slots empty, capstone slot locked, DB back to start; `lab_11.sh`/`lab_12.sh` pass after; second reset passes. Not covered by design: their root-namespace login tokens expire on their own |
@@ -119,7 +120,6 @@ RELEASES).
 | RV32 | Progress export | S | Facilitator export of progress and achievements (CSV/JSON) |
 | RV33 | Feedback survey card | M | End-of-class feedback survey card |
 | RV34 | Terminal recording | M | Terminal session recording or replay |
-| RV35 | Workshop: Cloud-Policy-as-Code | L | Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md` (spike answers in §8a, decisions PC-D8..D10). Done and in RELEASES: cloud-api policy engine, the pack (labs 0-12 + capstone), achievements (PC-P5/P6), the first live run's fixes, `retest.sh`. **Smoke run 2026-10-03 (after the bot near-miss, assignment displayName drift and bot exit-code fixes):** every lab passes and every core milestone fires (pc12-* after the bot login fix, `retest.sh ... 12 --only`). **To do, in order:** (1) achievements live: Forgejo run fields, the modify tag in the overview, CI attribution; (2) merge |
 | RV36 | More workshops | L each | GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation |
 | RV37 | Several classes at once | L | One workshop per machine today |
 | RV38 | Reset environment button | M | Asked for 2026-10-02: a button on `/admin` that releases every slot and puts every student back to a fresh start without restarting the stack (between two sessions of a class). Build it on the student reset's per-student hook contract (`STUDENT-RESET-PLAN.md` §4.4): run the reset for every student, then module hooks clear their own state (achievements, sensei, dojo-cloud). Facilitator gate, a typed confirmation, audit line. A smaller first step, **Release all**, only clears the slot table. Rule: **nothing survives `./run.sh stop`**; every state file stays in a named volume (`allocator_state` is, verified 2026-10-01), and RV13's CI should fail any compose fragment that writes state outside one. Engine change, approved |
