@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-03 (RV35 merged in PR #8, pids cap in PR #9; split smoke run being fixed) · Working
-branch: `fix/lab-prep-ci-main`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-03 (lab-prep fix in PR #10, split smoke run parked; RV22 allocator split) · Working
+branch: `feat/rv22-allocator-split`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -16,7 +16,7 @@ what is left (usually the live check).
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
 | [Up next](#up-next) | Where to resume; decisions of 2026-10-02 and 2026-10-03 |
 | [Now](#now) | Split smoke run, student reset and Phase 10: live checks |
-| [Next](#next) | N3 9.4 class-sized run; platform review (RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Next](#next) | N3 9.4 class-sized run; platform review (RV25-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -34,7 +34,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 |---|---|---|---|
 | 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
 | 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
-| 3 | Platform review tiers 3-4 | L | RV35, RV23, RV24, RV28 and RV31 done; left RV22, RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
+| 3 | Platform review tiers 3-4 | L | RV35, RV22, RV23, RV24, RV28 and RV31 done; left RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
 
 ## Up next
 
@@ -106,7 +106,6 @@ RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV22 | Split the allocator server | L | `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler |
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
 | RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
 | RV27 | Unused `forgejo-runner` module | S | All packs use `runner-pool`: mark it legacy or delete it, and update `build.py` and CLAUDE.md |

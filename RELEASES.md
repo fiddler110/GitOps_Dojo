@@ -7,6 +7,10 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `feat/rv22-allocator-split`
+
+**RV22: allocator split into modules (2026-10-03, unit tests plus an image check, locally).** `engine/allocator/server.py` (2,751 lines) is now `config`, `accounts`, `allocation`, `probes`, `pages`, `handler`, `views` (mixin) and `api` (mixin), with `server.py` (wiring plus the locking rules) at about 80 lines and the page CSS/JS in `static/` (read once at start-up, like `login/`). Tests patch the module that owns a name (`allocation.control_request`, `config.BOT_IDS`). Checks: all allocator tests pass (169, including a new `/login` test that found a missed import), the engine tests pass, and both images (old and new) were built and served the same bytes on every page and asset; only `/admin/api/status` differed, by its timestamps. Not yet started on a full stack.
+
 ## `feat/cloud-policy-as-code` (merged to `main` in PR #8, 2026-10-03; `feat/rv19-bot-smoke-tests` merged into it)
 
 **RV35: clean smoke run, achievements live (2026-10-03, locally, `smoke.sh cloud-policy-as-code --bots 1`, fresh image build).** Every lab 0-12 runs, no step skipped, and every core milestone fires in one run of about 30 min, including the CI milestones (pc8, pc11, pc12: run fields from the student's own fork) and pc7-tagged (the modify tag on the app's container group). Also on the branch, not run yet: `smoke.sh --split` with `retest.sh --to` (a slow pack's labs side by side; check in ROADMAP Now), the pack's `WEB_TERMINAL_MEM_LIMIT=6g` (one apply is ~275 MB in the terminal), `workshops/assets/slide-overflow.sh`, and dojo-introduction bot steps that check their results.

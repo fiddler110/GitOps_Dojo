@@ -51,7 +51,7 @@ class Parity(unittest.TestCase):
         users = auth.roster(env)
         self.assertEqual(users[:11], [f"student{n:02d}" for n in range(1, 12)])  # students: padded
         self.assertEqual(users[11:], [f"testuser{n}" for n in range(1, 13)])     # bots: testuser9, testuser10
-        allocator = os.path.join(ENGINE, "allocator", "server.py")
+        allocator = os.path.join(ENGINE, "allocator", "config.py")
         entrypoint = os.path.join(ENGINE, "web-terminal", "entrypoint.sh")
         if not (os.path.exists(allocator) and os.path.exists(entrypoint)):
             self.skipTest("engine sources not next to this workshop")

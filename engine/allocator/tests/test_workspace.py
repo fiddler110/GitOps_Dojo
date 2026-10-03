@@ -16,7 +16,10 @@ for _k, _v in {"FORGEJO_ADMIN_USER": "admin", "FORGEJO_ADMIN_PASSWORD": "x",
                "CONTROL_TOKEN": "control-test", "GATEWAY_TOKEN": "gateway-test",
                "EXTENSIONS_FILE": os.path.join(HERE, "no-such-file.json")}.items():
     os.environ.setdefault(_k, _v)
-import server  # noqa: E402
+import allocation  # noqa: E402
+import config  # noqa: E402
+import handler  # noqa: E402
+import pages  # noqa: E402
 
 CARD = {"id": "demo", "label": "Demo Site", "desc": "Your site.", "href": "/demo/", "icon": "cloud"}
 WIDGET = {"id": "score", "src": "/achievements/widget/", "size": "medium"}
@@ -29,15 +32,15 @@ def ext(**over):
 
 
 def workspace(extensions=None, sid="student01"):
-    with mock.patch.dict(server.EXTENSIONS, extensions or ext(), clear=True):
-        return server.Handler.render_workspace(None, sid)
+    with mock.patch.dict(config.EXTENSIONS, extensions or ext(), clear=True):
+        return handler.Handler.render_workspace(None, sid)
 
 
 def landing(extensions=None, sid="student01", name="Ada"):
     slot = {"name": name, "ip": None, "token": None, "tool": None, "assigned_at": None}
-    with mock.patch.dict(server.EXTENSIONS, extensions or ext(), clear=True), \
-            mock.patch.dict(server.slots, {sid: slot}):
-        return server.Handler.render_confirmation(None, sid)
+    with mock.patch.dict(config.EXTENSIONS, extensions or ext(), clear=True), \
+            mock.patch.dict(allocation.slots, {sid: slot}):
+        return handler.Handler.render_confirmation(None, sid)
 
 
 class WorkspacePage(unittest.TestCase):
@@ -93,10 +96,10 @@ class WorkspacePage(unittest.TestCase):
         self.assertIn("&lt;img", page)
 
     def test_scripts_and_styles_are_served(self):
-        self.assertEqual(set(server.WORKSPACE_ASSETS), {"/workspace/workspace.css", "/workspace/workspace.js",
+        self.assertEqual(set(pages.WORKSPACE_ASSETS), {"/workspace/workspace.css", "/workspace/workspace.js",
                                                         "/workspace/mode.js", "/workspace/extra.js"})
         page = workspace()
-        for path in server.WORKSPACE_ASSETS:
+        for path in pages.WORKSPACE_ASSETS:
             if not path.endswith("workspace.css"):
                 self.assertIn(f'src="{path}"', page)
         self.assertIn('href="/workspace/workspace.css"', page)
@@ -106,24 +109,24 @@ class SharedShell(unittest.TestCase):
     """/admin and /workspace share one layout and tab script; splitting them lost nothing."""
 
     def test_admin_keeps_its_roster_rules(self):
-        self.assertTrue(server.ADMIN_CSS.startswith(server.SHELL_CSS))
+        self.assertTrue(pages.ADMIN_CSS.startswith(pages.SHELL_CSS))
         for rule in (".tile", "#grid", "#roster-bar", ".tab.active", ".panel iframe"):
-            self.assertIn(rule, server.ADMIN_CSS)
-        self.assertTrue(server.ADMIN_JS.startswith(server.TABS_JS))
-        self.assertIn("roster grid", server.ADMIN_JS)
+            self.assertIn(rule, pages.ADMIN_CSS)
+        self.assertTrue(pages.ADMIN_JS.startswith(pages.TABS_JS))
+        self.assertIn("roster grid", pages.ADMIN_JS)
 
     def test_workspace_gets_only_the_shell(self):
         for rule in (".tab.active", ".panel iframe", "#side"):
-            self.assertIn(rule, server.WORKSPACE_CSS)
+            self.assertIn(rule, pages.WORKSPACE_CSS)
         for rule in (".tile", "#grid", "#roster-bar"):
-            self.assertNotIn(rule, server.WORKSPACE_CSS)
-        self.assertNotIn("roster", server.WORKSPACE_JS)
-        self.assertIn("activateTab(tabs[0]", server.WORKSPACE_JS)
+            self.assertNotIn(rule, pages.WORKSPACE_CSS)
+        self.assertNotIn("roster", pages.WORKSPACE_JS)
+        self.assertIn("activateTab(tabs[0]", pages.WORKSPACE_JS)
 
 
 class ModeScript(unittest.TestCase):
     def test_remembers_the_choice_per_browser(self):
-        js = server.WORKSPACE_MODE_JS
+        js = pages.WORKSPACE_MODE_JS
         self.assertIn("localStorage", js)
         self.assertIn("'dojo-mode'", js)
         # Storage can be blocked (private window): every access is guarded.
@@ -164,7 +167,7 @@ class LandingPage(unittest.TestCase):
 
     def test_widget_sizes_have_css_classes(self):
         for size in ("small", "medium", "large"):
-            self.assertIn(f".widget-{size} {{", server.CONFIRM_CSS)
+            self.assertIn(f".widget-{size} {{", pages.CONFIRM_CSS)
 
     def test_student_name_is_escaped(self):
         page = landing(name="<b>x</b>")
@@ -173,14 +176,14 @@ class LandingPage(unittest.TestCase):
 
     def test_csp_covers_the_landing_stylesheet(self):
         # The page's one inline <style> is allowed by hash; if CONFIRM_CSS changes the hash follows.
-        self.assertIn(server._style_hash(server.CONFIRM_CSS), server.CSP)
-        self.assertIn("script-src 'self'", server.CSP)
-        self.assertIn("frame-ancestors 'self'", server.CSP)
+        self.assertIn(pages._style_hash(pages.CONFIRM_CSS), pages.CSP)
+        self.assertIn("script-src 'self'", pages.CSP)
+        self.assertIn("frame-ancestors 'self'", pages.CSP)
 
 
 class LoadExtensions(unittest.TestCase):
     def test_widgets_key_defaults_to_empty(self):
-        self.assertEqual(server.load_extensions(os.path.join(HERE, "no-such-file.json"))["widgets"], [])
+        self.assertEqual(config.load_extensions(os.path.join(HERE, "no-such-file.json"))["widgets"], [])
 
     def test_widgets_are_read_from_the_rendered_manifest(self):
         import json
@@ -188,7 +191,7 @@ class LoadExtensions(unittest.TestCase):
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump({"version": 1, "widgets": [WIDGET]}, f)
         self.addCleanup(os.unlink, f.name)
-        self.assertEqual(server.load_extensions(f.name)["widgets"], [WIDGET])
+        self.assertEqual(config.load_extensions(f.name)["widgets"], [WIDGET])
 
 
 class ExtraScripts(unittest.TestCase):
@@ -197,20 +200,20 @@ class ExtraScripts(unittest.TestCase):
         self.assertIn('<script src="/workspace/extra.js" data-surface="workspace"></script>', workspace())
 
     def test_loader_lists_only_the_manifest_scripts(self):
-        self.assertIn("[].forEach", server.build_extra_js([]))
-        js = server.build_extra_js([{"src": "/achievements/toast.js"}, {"src": "/x/y.js"}])
+        self.assertIn("[].forEach", pages.build_extra_js([]))
+        js = pages.build_extra_js([{"src": "/achievements/toast.js"}, {"src": "/x/y.js"}])
         self.assertIn('["/achievements/toast.js", "/x/y.js"].forEach', js)
 
     def test_loader_passes_the_surface_on(self):
-        self.assertIn("setAttribute('data-surface', surface)", server.build_extra_js([]))
+        self.assertIn("setAttribute('data-surface', surface)", pages.build_extra_js([]))
 
     def test_loader_is_served(self):
-        ctype, body = server.WORKSPACE_ASSETS["/workspace/extra.js"]
+        ctype, body = pages.WORKSPACE_ASSETS["/workspace/extra.js"]
         self.assertTrue(ctype.startswith("text/javascript"))
         self.assertIn("document.currentScript", body)
 
     def test_default_is_no_scripts(self):
-        self.assertEqual(server.load_extensions(os.path.join(HERE, "nope.json"))["scripts"], [])
+        self.assertEqual(config.load_extensions(os.path.join(HERE, "nope.json"))["scripts"], [])
 
 
 if __name__ == "__main__":

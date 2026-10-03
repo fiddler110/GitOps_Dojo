@@ -2,7 +2,7 @@
 start, while everyone else carries on (docs/archive/STUDENT-RESET-PLAN.md,
 §4.2; decisions R2-R8, Q1-Q7).
 
-The facilitator asks for it from the Roster (server.py, POST
+The facilitator asks for it from the Roster (api.py, POST
 /admin/reset/<sid>). One worker thread runs resets one at a time (R8), each
 as a list of steps:
 
@@ -23,7 +23,7 @@ as a list of steps:
 
 A step that fails stops the reset there; Retry runs the whole list again
 (every step is idempotent, R5). While a reset is queued or running the
-student is fenced: server.py serves the starting page (or 503) for their
+student is fenced: the allocator serves the starting page (or 503) for their
 routes instead of proxying. The seat is kept (R4).
 
 Locking: `ResetManager.lock` guards `state` only, never held across a step.

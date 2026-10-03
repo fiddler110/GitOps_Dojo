@@ -32,7 +32,7 @@
 #     actually holds a student/facilitator slot before proxying to that
 #     student's own code-server/ttyd process (dynamic port, injected via
 #     the X-Upstream-Port response header -- see engine/allocator/
-#     server.py's /auth-check). This is what stops a released or
+#     allocator/api.py's /auth-check). This is what stops a released or
 #     never-assigned student from reaching a workspace directly.
 # Signing into Forgejo is a separate, deliberate step with each student's
 # own credentials, same as before.
@@ -95,7 +95,7 @@
 	header @public_https Strict-Transport-Security "max-age=86400"
 
 	# The front door. Open to everyone: the allocator itself checks the
-	# password (and limits wrong guesses per address, see server.py).
+	# password (and limits wrong guesses per address, see allocator/accounts.py).
 	@login path /login /login/* /logout
 	handle @login {
 		reverse_proxy allocator:8080 {
@@ -168,7 +168,7 @@
 		# /ide and /term are written out longhand (what forward_auth is sugar
 		# for) instead of using the forward_auth directive itself, so a 202
 		# from /auth-check -- code-server/ttyd just spawned and isn't
-		# listening yet, see allocator/server.py's handle_auth_check -- can
+		# listening yet, see allocator/api.py's handle_auth_check -- can
 		# serve the self-refreshing starting page below instead of Caddy
 		# immediately dialing a port nothing is listening on yet (that race
 		# used to surface to the student as a 502). Any other non-2xx
@@ -241,7 +241,7 @@
 			# it with whichever account the session cookie proves.
 			# X-Gateway-Token, added the same way, is the allocator-side
 			# proof that this request actually came through Caddy (see
-			# allocator/server.py's gateway_authorized()) -- a plain client
+			# allocator/handler.py's gateway_authorized()) -- a plain client
 			# has no way to set it either, for the same reason.
 			reverse_proxy allocator:8080 {
 				import allocator_timeouts

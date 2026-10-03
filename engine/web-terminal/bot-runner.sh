@@ -5,7 +5,7 @@
 # mechanism workspace-control.py already uses for a real student's `term`
 # tool -- see workspace-control.py's TMUX_SESSION -- so the facilitator's
 # existing /admin/watch/<id> tile works on a bot with no special-casing on
-# that side beyond allocator/server.py's BOT_IDS).
+# that side beyond allocator/config.py's BOT_IDS).
 #
 # By default works through the git-fundamentals labs (clone, branch, edit, commit,
 # push, PR, plus the lab2-5 review/stash/history/conflict/undo exercises)

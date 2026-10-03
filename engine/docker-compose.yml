@@ -183,7 +183,7 @@ services:
       # Shared secret workspace-control.py checks on every request -- proves
       # a start/stop/status call actually came from the allocator, not some
       # other container on this internal network. Must match allocator's
-      # own CONTROL_TOKEN below (allocator/server.py's control_request()).
+      # own CONTROL_TOKEN below (allocator/allocation.py's control_request()).
       - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in engine/.env}
     volumes:
       - terminal_home:/home
@@ -222,7 +222,7 @@ services:
   # 5a. Allocator: assigns each browser session a student01..NN account
   # (or the facilitator's own), tracks name/IP for the facilitator
   # dashboard, and gates /ide + /term via Caddy's forward_auth (see
-  # gateway/Caddyfile and allocator/server.py). Internal-only, like
+  # gateway/Caddyfile and allocator/api.py). Internal-only, like
   # dns-server in the dns-as-code overlay -- no published port, no
   # docker.sock, no persistent storage (in-memory, resets with the
   # container like everything else in this stack).
@@ -238,7 +238,7 @@ services:
     init: true  # PID 1 is python; see presentation's note
     environment:
       # Read only to decide whether the session cookie should be marked
-      # Secure (see allocator/server.py's COOKIE_SECURE) -- allocator never
+      # Secure (see allocator/config.py's COOKIE_SECURE) -- allocator never
       # constructs a URL from this itself, gateway already owns routing.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
       # The Slides status check calls the gateway at this address when set.
@@ -252,7 +252,7 @@ services:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
-      # How fast new slots go out (allocator/server.py AssignLimit).
+      # How fast new slots go out (allocator/allocation.py AssignLimit).
       - ASSIGN_BURST=${ASSIGN_BURST:-10}
       - ASSIGN_PER_MINUTE=${ASSIGN_PER_MINUTE:-20}
       # Demo/test bots (--test): included as always-on roster rows (see
@@ -269,7 +269,7 @@ services:
       # FORGEJO_REPO defaults below.
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
-      # SSO into Forgejo (see /forgejo-login in allocator/server.py): the
+      # SSO into Forgejo (see /forgejo-login in allocator/handler.py): the
       # allocator logs the browser straight into the Forgejo account
       # matching whatever identity it already resolved (studentNN or the
       # facilitator's own admin account) by POSTing Forgejo's login form
@@ -330,7 +330,7 @@ services:
       - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
       # Shared secret the Caddyfile sends as X-Gateway-Token on every block
       # that proxies to allocator:8080 -- must match allocator's own
-      # GATEWAY_TOKEN above (allocator/server.py's gateway_authorized()).
+      # GATEWAY_TOKEN above (allocator/handler.py's gateway_authorized()).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
     # Same port on both sides: Caddy listens on whatever port PUBLIC_BASE_URL
     # names (e.g. http://localhost:8080 -> :8080 inside the container), and

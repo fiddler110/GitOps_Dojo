@@ -214,7 +214,7 @@ still sign in. `/logout` clears the cookie. The login page shows
 Whichever account the cookie proves is forwarded to `allocator` on every
 request as `X-Auth-User` (Caddy copies the check's `X-Session-User` and
 sends it with `header_up`, which always *overwrites* any client-supplied
-header of the same name, so it can't be spoofed). `allocator/server.py`
+header of the same name, so it can't be spoofed). `allocator/handler.py`
 trusts this to recognize the facilitator immediately, on the very first
 request — no dependency on the slot cookie existing yet. This is
 also what stops a facilitator from ever being accidentally assigned a

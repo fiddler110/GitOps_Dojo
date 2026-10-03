@@ -21,13 +21,16 @@ for _k, _v in {"FORGEJO_ADMIN_USER": "admin", "FORGEJO_ADMIN_PASSWORD": "x",
                "CONTROL_TOKEN": "control-test", "GATEWAY_TOKEN": "gateway-test",
                "STUDENT_COUNT": "30", "EXTENSIONS_FILE": os.path.join(HERE, "no-such-file.json")}.items():
     os.environ.setdefault(_k, _v)
+import allocation  # noqa: E402
+import config  # noqa: E402
+import handler  # noqa: E402
 import server  # noqa: E402
 
 
 def _free_all():
-    with server._state_lock:
-        server.token_index.clear()
-        for slot in server.slots.values():
+    with allocation._state_lock:
+        allocation.token_index.clear()
+        for slot in allocation.slots.values():
             slot.update(name=None, ip=None, token=None, tool=None, assigned_at=None)
 
 
@@ -49,7 +52,7 @@ class IdleSocketsTest(unittest.TestCase):
             self.idle.append(socket.create_connection(("127.0.0.1", self.port)))
         time.sleep(0.2)  # let the server accept them
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/auth-check?tool=ide",
-                                     headers={"X-Gateway-Token": server.GATEWAY_TOKEN})
+                                     headers={"X-Gateway-Token": config.GATEWAY_TOKEN})
 
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *a, **k):
@@ -75,8 +78,8 @@ class HandlerCrashTest(unittest.TestCase):
         httpd.handle_error = lambda *a: None  # keep the traceback out of the test output
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
-            with mock.patch.object(server.Handler, "do_GET", side_effect=ValueError("boom")), \
-                    mock.patch("server.audit") as audit:
+            with mock.patch.object(handler.Handler, "do_GET", side_effect=ValueError("boom")), \
+                    mock.patch("config.audit") as audit:
                 with self.assertRaises(Exception):
                     urllib.request.urlopen(f"http://127.0.0.1:{httpd.server_address[1]}/x?secret=1", timeout=5)
             audit.assert_called_once_with("error", method="GET", path="/x", exc="ValueError", detail="boom")
@@ -93,33 +96,33 @@ class ClaimSlotTest(unittest.TestCase):
         _free_all()
 
     def test_parallel_claims_get_distinct_slots(self):
-        n = len(server.STUDENT_IDS) + 10  # more callers than slots
+        n = len(config.STUDENT_IDS) + 10  # more callers than slots
         barrier = threading.Barrier(n)
 
         def claim(i):
             barrier.wait()
-            return server.claim_slot(f"name{i}", "127.0.0.1")
+            return allocation.claim_slot(f"name{i}", "127.0.0.1")
 
         with ThreadPoolExecutor(max_workers=n) as pool:
             results = list(pool.map(claim, range(n)))
         sids = [sid for sid, _ in results if sid is not None]
-        self.assertEqual(len(sids), len(server.STUDENT_IDS))
+        self.assertEqual(len(sids), len(config.STUDENT_IDS))
         self.assertEqual(len(set(sids)), len(sids), "a slot was handed out twice")
         self.assertEqual(sum(1 for sid, _ in results if sid is None), 10)
         for sid, token in results:
             if sid is not None:
-                self.assertEqual(server.token_index[token], sid)
+                self.assertEqual(allocation.token_index[token], sid)
 
     def test_stale_release_leaves_new_holder(self):
-        server.control_request = lambda *a, **k: None  # no web-terminal here
-        sid, old = server.claim_slot("first", "127.0.0.1")
-        self.assertEqual(server.release_slot(sid), "first")
-        sid2, new = server.claim_slot("second", "127.0.0.1")
+        allocation.control_request = lambda *a, **k: None  # no web-terminal here
+        sid, old = allocation.claim_slot("first", "127.0.0.1")
+        self.assertEqual(allocation.release_slot(sid), "first")
+        sid2, new = allocation.claim_slot("second", "127.0.0.1")
         self.assertEqual(sid2, sid)
         # A release decided against the first holder must not free the second.
-        self.assertIsNone(server.release_slot(sid, token=old))
-        self.assertEqual(server.slot_snapshot(sid)["name"], "second")
-        self.assertEqual(server.token_index[new], sid)
+        self.assertIsNone(allocation.release_slot(sid, token=old))
+        self.assertEqual(allocation.slot_snapshot(sid)["name"], "second")
+        self.assertEqual(allocation.token_index[new], sid)
 
 
 class SlotPersistenceTest(unittest.TestCase):
@@ -130,45 +133,45 @@ class SlotPersistenceTest(unittest.TestCase):
         _free_all()
         self.dir = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.dir.name, "slots.json")
-        server.STATE_FILE = self.path
-        server.control_request = lambda *a, **k: None
+        allocation.STATE_FILE = self.path
+        allocation.control_request = lambda *a, **k: None
 
     def tearDown(self):
-        server.STATE_FILE = ""
+        allocation.STATE_FILE = ""
         _free_all()
         self.dir.cleanup()
 
     def test_claims_and_releases_survive_a_restart(self):
-        sid1, tok1 = server.claim_slot("ada", "127.0.0.1")
-        sid2, tok2 = server.claim_slot("bob", "127.0.0.1")
-        server.release_slot(sid1)
+        sid1, tok1 = allocation.claim_slot("ada", "127.0.0.1")
+        sid2, tok2 = allocation.claim_slot("bob", "127.0.0.1")
+        allocation.release_slot(sid1)
         self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o600)
         _free_all()  # what a restart starts from
-        self.assertEqual(server.load_slots(), 1)
-        self.assertIsNone(server.slot_snapshot(sid1)["name"])
-        self.assertEqual(server.slot_snapshot(sid2)["name"], "bob")
-        self.assertEqual(server.token_index, {tok2: sid2})
+        self.assertEqual(allocation.load_slots(), 1)
+        self.assertIsNone(allocation.slot_snapshot(sid1)["name"])
+        self.assertEqual(allocation.slot_snapshot(sid2)["name"], "bob")
+        self.assertEqual(allocation.token_index, {tok2: sid2})
 
     def test_bad_or_missing_file_starts_empty(self):
-        self.assertEqual(server.load_slots(), 0)
+        self.assertEqual(allocation.load_slots(), 0)
         with open(self.path, "w") as f:
             f.write("{not json")
-        self.assertEqual(server.load_slots(), 0)
+        self.assertEqual(allocation.load_slots(), 0)
         with open(self.path, "w") as f:
             f.write('{"slots": {"student99": {"name": "x", "token": "t"}, "student01": {"name": "y"}}}')
-        self.assertEqual(server.load_slots(), 0)  # unknown slot, missing token
-        self.assertEqual(server.token_index, {})
+        self.assertEqual(allocation.load_slots(), 0)  # unknown slot, missing token
+        self.assertEqual(allocation.token_index, {})
 
     def test_parallel_claims_leave_the_latest_snapshot(self):
         with ThreadPoolExecutor(max_workers=8) as pool:
-            list(pool.map(lambda i: server.claim_slot(f"n{i}", "127.0.0.1"), range(12)))
+            list(pool.map(lambda i: allocation.claim_slot(f"n{i}", "127.0.0.1"), range(12)))
         _free_all()
-        self.assertEqual(server.load_slots(), 12)
+        self.assertEqual(allocation.load_slots(), 12)
 
 
 class AssignLimitTest(unittest.TestCase):
     def test_parallel_take_respects_burst(self):
-        limit = server.AssignLimit(10, 1)
+        limit = allocation.AssignLimit(10, 1)
         barrier = threading.Barrier(40)
 
         def take(_):

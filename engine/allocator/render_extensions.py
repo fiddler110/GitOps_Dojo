@@ -7,7 +7,7 @@ merges every manifest run.sh hands it, rejects anything unsafe or colliding,
 and writes the two files the stack reads:
 
   <out>/gateway/extensions.caddy     imported by gateway/Caddyfile
-  <out>/allocator/extensions.json    read by allocator/server.py at start
+  <out>/allocator/extensions.json    read by allocator/config.py at start
   <out>/upstream-tokens.env          GATEWAY_TOKEN_<SERVICE>=... and
                                      RESET_TOKEN_<SERVICE>=..., sourced by
                                      run.sh so compose can hand each upstream
@@ -63,7 +63,7 @@ VERSION = 1
 ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/workspace")
 ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch")
 
-# Built-in /admin tab ids (allocator/server.py render_facilitator_workspace).
+# Built-in /admin tab ids (allocator/views.py render_facilitator_workspace).
 ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")
 
 # Icons the allocator has inline SVG for; a manifest picks one by name.
