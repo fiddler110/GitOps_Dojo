@@ -1,0 +1,50 @@
+name: Policy check
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: host
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_METADATA_HOSTNAME: management.dojo.cloud
+      ARM_RESOURCE_PROVIDER_REGISTRATIONS: none
+      ARM_USE_CLI: "false"
+      TF_HTTP_USERNAME: ${{ secrets.ARM_CLIENT_ID }}
+      TF_HTTP_PASSWORD: ${{ secrets.ARM_CLIENT_SECRET }}
+      # The Dojo Cloud CA is mounted into runner-pool; the provider mirror and tofurc come from the overlay.
+      SSL_CERT_FILE: /run/cloud-pki/dojo-cloud-ca.pem
+      TF_CLI_CONFIG_FILE: /providers/tofurc
+      TF_VAR_owner: ${{ github.repository_owner }}
+    steps:
+      - name: Checkout
+        run: |
+          set -eu
+          rm -rf repo
+          git clone --quiet "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout --quiet "$GITHUB_SHA"
+
+      - name: Plan infra and policy/cloud
+        run: |
+          set -eu
+          cd repo
+          for d in infra policy/cloud; do
+            (cd "$d" && tofu init -input=false && tofu plan -input=false -out=plan.out && tofu show -json plan.out > plan.json)
+          done
+
+      - name: Conftest
+        run: |
+          set -eu
+          cd repo
+          for d in infra policy/cloud; do
+            conftest test --policy policy/rego --namespace main "$d/plan.json"
+          done
+
+      - name: Rego unit tests
+        run: |
+          cd repo
+          opa test policy/rego --ignore fixtures -v

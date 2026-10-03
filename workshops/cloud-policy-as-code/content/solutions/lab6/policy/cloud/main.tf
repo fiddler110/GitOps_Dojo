@@ -1,0 +1,119 @@
+data "azurerm_subscription" "current" {}
+
+data "azurerm_resource_group" "infra" {
+  name = "rg-${var.owner}-app"
+}
+
+# Lab 3: require a costCenter tag. The rule is JSON in rules/; the effect is a
+# parameter, so the same rule can audit or deny.
+resource "azurerm_policy_definition" "require_costcenter" {
+  name         = "require-costcenter-tag"
+  policy_type  = "Custom"
+  mode         = "All"
+  display_name = "Require a costCenter tag"
+
+  policy_rule = file("${path.module}/rules/require-costcenter-tag.json")
+
+  parameters = jsonencode({
+    effect = {
+      type          = "String"
+      allowedValues = ["audit", "deny", "disabled"]
+      defaultValue  = "deny"
+    }
+  })
+}
+
+
+resource "azurerm_policy_definition" "allowed_images" {
+  name         = "allowed-images"
+  policy_type  = "Custom"
+  mode         = "Indexed"
+  display_name = "Allowed container images"
+
+  policy_rule = file("${path.module}/rules/allowed-images.json")
+
+  parameters = jsonencode({
+    allowedImages = {
+      type = "Array"
+    }
+    effect = {
+      type         = "String"
+      defaultValue = "deny"
+    }
+  })
+}
+
+resource "azurerm_resource_group_policy_assignment" "images_strict" {
+  name                 = "images-strict"
+  resource_group_id    = data.azurerm_resource_group.infra.id
+  policy_definition_id = azurerm_policy_definition.allowed_images.id
+  parameters = jsonencode({
+    allowedImages = { value = ["dojo/hello:2.0"] }
+  })
+}
+
+resource "azurerm_policy_definition" "allowed_locations" {
+  name         = "allowed-locations"
+  policy_type  = "Custom"
+  mode         = "Indexed"
+  display_name = "Allowed locations"
+
+  policy_rule = file("${path.module}/rules/allowed-locations.json")
+
+  parameters = jsonencode({
+    allowedLocations = {
+      type = "Array"
+    }
+    effect = {
+      type         = "String"
+      defaultValue = "deny"
+    }
+  })
+}
+
+resource "azurerm_policy_set_definition" "team_baseline" {
+  name         = "team-baseline"
+  policy_type  = "Custom"
+  display_name = "Team baseline"
+
+  # Set parameters: what the assignment supplies, passed down to the members.
+  parameters = jsonencode({
+    effect           = { type = "String", defaultValue = "deny" }
+    allowedImages    = { type = "Array" }
+    allowedLocations = { type = "Array" }
+  })
+
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.require_costcenter.id
+    reference_id         = "costcenter"
+    parameter_values     = jsonencode({ effect = { value = "[parameters('effect')]" } })
+  }
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.allowed_images.id
+    reference_id         = "images"
+    parameter_values = jsonencode({
+      allowedImages = { value = "[parameters('allowedImages')]" }
+      effect        = { value = "[parameters('effect')]" }
+    })
+  }
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.allowed_locations.id
+    reference_id         = "locations"
+    parameter_values = jsonencode({
+      allowedLocations = { value = "[parameters('allowedLocations')]" }
+      effect           = { value = "[parameters('effect')]" }
+    })
+  }
+}
+
+# One assignment for the whole baseline replaces the separate subscription assignments.
+resource "azurerm_subscription_policy_assignment" "team_baseline" {
+  name                 = "team-baseline"
+  subscription_id      = data.azurerm_subscription.current.id
+  policy_definition_id = azurerm_policy_set_definition.team_baseline.id
+  parameters = jsonencode({
+    effect           = { value = "deny" }
+    allowedImages    = { value = ["dojo/hello:1.0", "dojo/hello:2.0"] }
+    allowedLocations = { value = ["canadacentral", "canadaeast"] }
+  })
+}

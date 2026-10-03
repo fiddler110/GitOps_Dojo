@@ -1,0 +1,54 @@
+# Overlay for cloud-policy-as-code, layered on engine/docker-compose.yml and the
+# dojo-cloud, runner-pool and sensei modules by engine/run.sh. Relative paths
+# resolve against engine/, not this folder.
+#
+# CI jobs (labs 11-12) run inside runner-pool and must do what a student's terminal
+# does: run tofu against Dojo Cloud, then opa and conftest. That needs
+#   1. the binaries: JOB_TOOLS copies tofu, opa and conftest (static, so they run on
+#      runner-pool's Alpine) from the terminal image run.sh just built;
+#   2. the offline provider mirror: tofu-mirror-init copies /opt/tofu-providers from
+#      the terminal image into a named volume that runner-pool mounts read-only, with
+#      a tofurc pointing at it (workflows set TF_CLI_CONFIG_FILE=/providers/tofurc);
+#   3. a route to Dojo Cloud: cloud-api gets runner_net aliases for the names the
+#      azurerm provider uses (ARM_METADATA_HOSTNAME=management.dojo.cloud);
+#   4. its CA: the cloud_pki volume, read-only, so a job can set
+#      SSL_CERT_FILE=/run/cloud-pki/dojo-cloud-ca.pem.
+
+services:
+  runner-pool:
+    image: gitopsdojo/runner-pool:cloud-policy-as-code
+    build:
+      args:
+        JOB_TOOLS: "tofu opa conftest"
+    volumes:
+      - cloud_pki:/run/cloud-pki:ro
+      - tofu_mirror:/providers:ro
+
+  # Same form as the dojo-cloud module declares cloud-api's networks (map), so the
+  # two merge; a list here would fail under podman-compose.
+  cloud-api:
+    networks:
+      runner_net:
+        aliases:
+          - management.dojo.cloud
+          - login.dojo.cloud
+          - cloud-api
+
+  # One-shot: fills tofu_mirror from the terminal image, then exits.
+  tofu-mirror-init:
+    image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    container_name: workshop_tofu_mirror_init
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        rm -rf /providers/mirror &&
+        cp -a /opt/tofu-providers /providers/mirror &&
+        sed 's#/opt/tofu-providers#/providers/mirror#' /etc/tofu/tofurc > /providers/tofurc &&
+        chmod -R a+rX /providers
+    volumes:
+      - tofu_mirror:/providers
+    restart: "no"
+
+volumes:
+  tofu_mirror:

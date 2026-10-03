@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# from, so someone joining late (or coming back another day) can resume there
+# instead of redoing every earlier lab. Each step checks before it acts, so
+# running it twice is safe. It only moves forward: it never runs destroy.
+#
+# What each lab needs (keep in step with content/lab/*.md when a lab changes):
+#   0     your fork of platform-team/cloud-policy-as-code (you make it in the
+#         UI), then `lab-prep 0` saves your Dojo Cloud login as CI secrets on the
+#         fork and protects main (the pr.yml check is required to merge)
+#   1-3   the fork cloned to ~/lab/cloud-policy-as-code, infra/ applied (Lab 0)
+#   4+    the end state of each earlier lab, from /opt/workshop-content/solutions
+#         (policy/cloud and infra files, stacked in lab order, then applied:
+#         infra first, then policy/cloud, which takes about 3.5 minutes)
+#   11+   the fixed regions.rego and its tests (Lab 10)
+#   12    that work committed and pushed to main
+set -euo pipefail
+USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
+
+GIT_SERVER=http://git-server:3000
+API=$GIT_SERVER/api/v1
+TEAM_REPO=platform-team/cloud-policy-as-code
+FORK=$USER/cloud-policy-as-code
+REPO_DIR=$HOME/lab/cloud-policy-as-code
+SOLUTIONS=${LAB_SOLUTIONS:-/opt/workshop-content/solutions}
+CHECK_CONTEXT="Policy check / check (pull_request)"
+LAST_LAB=12
+
+say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+done_() { printf '    already done: %s\n' "$*"; }
+run()  { printf '    $ %s\n' "$*"; "$@"; }
+die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOT
+Usage: lab-prep <lab>       (0-$LAST_LAB)
+
+lab-prep 0    after you fork the repo in the UI: save your Dojo Cloud login as
+              CI secrets on your fork, and protect main
+lab-prep 4    clone the fork, apply the app, and bring policy to where lab 4 starts
+lab-prep 9    ...everything up to the end of lab 8 (the applies are slow)
+
+Safe to run more than once. It never runs destroy.
+EOT
+}
+
+ensure_cloud_creds() {
+  if [ -z "${ARM_CLIENT_ID:-}" ] && [ -x /usr/local/bin/dojo-env ]; then
+    eval "$(/usr/local/bin/dojo-env 2>/dev/null)" || true
+  fi
+  [ -n "${ARM_CLIENT_ID:-}" ] ||
+    die "no Dojo Cloud credentials for $USER yet. Wait a minute and try again, or ask the facilitator."
+  export TF_HTTP_USERNAME=$ARM_CLIENT_ID TF_HTTP_PASSWORD=$ARM_CLIENT_SECRET
+  export TF_VAR_owner=${TF_VAR_owner:-$USER}
+}
+
+fork_exists() { [ "$(curl -s -o /dev/null -w '%{http_code}' --netrc "$API/repos/$FORK")" = 200 ]; }
+
+# -- Lab 0: the fork, its CI secrets, branch protection -------------------------
+need_fork() {
+  say "Lab 0: your fork $FORK"
+  fork_exists || die "no fork yet. In Forgejo, open $TEAM_REPO and press Fork (Lab 0 step 1), then run lab-prep 0 again."
+  done_ "fork exists"
+}
+
+put_secret() {   # name value
+  local tmp code
+  tmp=$(mktemp)
+  python3 -c 'import json,sys; print(json.dumps({"data": sys.argv[1]}))' "$2" > "$tmp"
+  code=$(curl -s -o /dev/null -w '%{http_code}' --netrc -X PUT -H 'Content-Type: application/json' \
+    -d @"$tmp" "$API/repos/$FORK/actions/secrets/$1")
+  rm -f "$tmp"
+  case "$code" in 201|204) echo "    secret $1 saved" ;; *) die "saving secret $1 failed (HTTP $code)" ;; esac
+}
+
+ci_secrets() {
+  say "Lab 0: save your Dojo Cloud login as Actions secrets on $FORK"
+  ensure_cloud_creds
+  for n in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_SUBSCRIPTION_ID ARM_TENANT_ID; do
+    put_secret "$n" "${!n}"
+  done
+}
+
+protect_main() {
+  say "Lab 0: protect main on $FORK (merging needs the '$CHECK_CONTEXT' check)"
+  local tmp code
+  tmp=$(mktemp)
+  # Pushes stay open (labs 3-10 push to main); a pull request cannot merge until pr.yml is green.
+  cat > "$tmp" <<JSON
+{
+  "rule_name": "main",
+  "enable_push": true,
+  "enable_status_check": true,
+  "status_check_contexts": ["$CHECK_CONTEXT"],
+  "required_approvals": 0
+}
+JSON
+  curl -s -o /dev/null --netrc -X DELETE "$API/repos/$FORK/branch_protections/main" || true
+  code=$(curl -s -o /dev/null -w '%{http_code}' --netrc -X POST -H 'Content-Type: application/json' \
+    -d @"$tmp" "$API/repos/$FORK/branch_protections")
+  rm -f "$tmp"
+  case "$code" in 200|201) echo "    main protected" ;; *) die "protecting main failed (HTTP $code)" ;; esac
+}
+
+# -- Labs 1+: clone and apply ---------------------------------------------------
+clone() {
+  say "Lab 0: clone the fork to ~/lab/cloud-policy-as-code"
+  if [ -d "$REPO_DIR/.git" ]; then done_ "$REPO_DIR exists"; return; fi
+  fork_exists || die "no fork yet. Fork $TEAM_REPO in the UI first (Lab 0 step 1)."
+  mkdir -p "$HOME/lab"
+  (cd "$HOME/lab" && run git clone "$GIT_SERVER/$FORK.git")
+}
+
+tofu_apply() {   # dir
+  ( cd "$REPO_DIR/$1"
+    [ -d .terraform ] || run tofu init -input=false
+    run tofu apply -auto-approve -input=false )
+}
+
+# Stack the end state of labs 3..$1 (highest lab last, so later files win).
+stack_solutions() {
+  local k
+  for k in $(seq 3 "$1"); do
+    [ -d "$SOLUTIONS/lab$k" ] && cp -r "$SOLUTIONS/lab$k/." "$REPO_DIR/"
+  done
+  # Lab 8's waiver must expire a week from now, not on the date the solution was written.
+  if [ "$1" -ge 8 ] && [ -f "$REPO_DIR/policy/cloud/main.tf" ]; then
+    sed -i -E "s/(expires_on[[:space:]]*=[[:space:]]*\")[0-9T:Z-]+(\")/\1$(date -u -d '+7 days' +%Y-%m-%dT00:00:00Z)\2/" \
+      "$REPO_DIR/policy/cloud/main.tf"
+  fi
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+case "${1:-}" in -h|--help|"") usage; exit 0 ;; esac
+lab=$1
+[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+
+if [ "$lab" -eq 0 ]; then
+  need_fork
+  ci_secrets
+  protect_main
+  echo; echo "    Lab 0 is set up: open lab0.md and carry on from step 2."
+  exit 0
+fi
+
+need_fork
+ci_secrets
+protect_main
+clone
+ensure_cloud_creds
+
+if [ "$lab" -ge 1 ]; then
+  say "Lab 0: apply infra/ (the app)"
+  # Infra first: later policy would deny the legacy resource group.
+  prev=$((lab - 1))
+  [ "$prev" -gt 10 ] && prev=10
+  stack_solutions "$prev"
+  tofu_apply infra
+fi
+if [ "$lab" -ge 4 ]; then
+  say "Policy: apply policy/cloud to the end of lab $((lab - 1)) (slow: about 3.5 minutes)"
+  tofu_apply policy/cloud
+fi
+if [ "$lab" -ge 12 ] && [ -n "$(git -C "$REPO_DIR" status --short)" ]; then
+  say "Lab 11: commit the pipeline work to main"
+  git -C "$REPO_DIR" add infra policy
+  git -C "$REPO_DIR" commit -q -m "lab-prep: state at the end of lab 11" || true
+  git -C "$REPO_DIR" push -q origin HEAD:main || true
+fi
+
+cd "$REPO_DIR"
+say "Ready for Lab $lab"
+echo "    cd ~/lab/cloud-policy-as-code    then open lab$lab.md"
+if [ -n "$(git status --short)" ]; then
+  echo "    Files changed so far (git status):"
+  git status --short | sed 's/^/      /'
+fi

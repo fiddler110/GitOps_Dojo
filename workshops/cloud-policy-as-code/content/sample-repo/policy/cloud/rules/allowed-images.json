@@ -1,0 +1,11 @@
+{
+  "if": {
+    "allOf": [
+      { "field": "type", "equals": "Microsoft.ContainerInstance/containerGroups" },
+      { "not": { "field": "Microsoft.ContainerInstance/containerGroups/containers[*].image", "in": "[parameters('allowedImages')]" } }
+    ]
+  },
+  "then": {
+    "effect": "[parameters('effect')]"
+  }
+}

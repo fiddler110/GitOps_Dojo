@@ -1,0 +1,9 @@
+{
+  "if": {
+    "field": "tags['costCenter']",
+    "exists": false
+  },
+  "then": {
+    "effect": "[parameters('effect')]"
+  }
+}

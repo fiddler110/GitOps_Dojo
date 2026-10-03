@@ -1,0 +1,44 @@
+name: Apply
+on:
+  push:
+    branches: [main]
+
+jobs:
+  apply:
+    runs-on: host
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_METADATA_HOSTNAME: management.dojo.cloud
+      ARM_RESOURCE_PROVIDER_REGISTRATIONS: none
+      ARM_USE_CLI: "false"
+      TF_HTTP_USERNAME: ${{ secrets.ARM_CLIENT_ID }}
+      TF_HTTP_PASSWORD: ${{ secrets.ARM_CLIENT_SECRET }}
+      # The Dojo Cloud CA is mounted into runner-pool; the provider mirror and tofurc come from the overlay.
+      SSL_CERT_FILE: /run/cloud-pki/dojo-cloud-ca.pem
+      TF_CLI_CONFIG_FILE: /providers/tofurc
+      TF_VAR_owner: ${{ github.repository_owner }}
+    steps:
+      - name: Checkout main
+        run: |
+          set -eu
+          rm -rf repo
+          git clone --quiet --branch main "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout --quiet "$GITHUB_SHA"
+
+      - name: Apply policy/cloud
+        run: |
+          set -eu
+          cd repo/policy/cloud
+          tofu init -input=false
+          tofu apply -input=false -auto-approve -lock-timeout=60s
+
+      - name: Apply infra
+        run: |
+          set -eu
+          cd repo/infra
+          tofu init -input=false
+          tofu apply -input=false -auto-approve -lock-timeout=60s
