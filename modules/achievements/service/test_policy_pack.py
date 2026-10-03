@@ -471,6 +471,17 @@ class CloudPolicyVerb(Fakes):
         self.assertTrue(self.verb({"refused": True, "max": 1})[0])
         self.assertEqual(self.asked, ["amy", "amy"])                              # the blade, then the log once
 
+    def test_refused_prefers_the_assignments_own_count(self):
+        x, y = a("x"), a("y")
+        x["refusals"], y["refusals"] = 0, 2
+        self.policy["assignments"] = [x, y]
+        self.activity = [refusal("x")]                                          # the log is not read
+        self.asked.clear()
+        self.assertTrue(self.verb({"refused": True, "max": 1})[0])
+        self.assertEqual(self.asked, ["amy"])                                     # the blade only
+        y["refusals"] = 0
+        self.assertFalse(self.verb({"refused": True})[0])
+
     def test_the_requests_name_the_student_and_carry_the_token(self):
         self.restore()
         seen = []

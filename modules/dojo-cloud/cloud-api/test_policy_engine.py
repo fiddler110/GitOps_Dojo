@@ -961,7 +961,12 @@ class ReasonTests(unittest.TestCase):
         return out.denied[0].reason
 
     def test_simple_reason(self):
-        self.assertEqual(self.reason(cond("tags.env", "equals", "dev")), "tag 'env' 'dev' is dev")
+        self.assertEqual(self.reason(cond("tags.env", "equals", "dev")), "tag 'env' is 'dev'")
+
+    def test_reason_names_the_value_then_the_rule(self):
+        self.assertEqual(self.reason({"not": cond("location", "in", ["x", "y"])}, cgres(location="z")),
+                         "location is 'z', which is not in [x, y]")
+        self.assertEqual(self.reason(cond("tags.env", "notEquals", "prod"), cgres(tags={"team": "a"})), "tag 'env' is not set, which is not prod")
 
     def test_negated_reason_flips_wording(self):
         self.assertIn("is not in", self.reason({"not": cond("location", "in", ["x", "y"])}))

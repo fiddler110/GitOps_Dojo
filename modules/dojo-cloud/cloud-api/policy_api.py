@@ -1,7 +1,7 @@
 """Dojo Cloud's fake Azure Policy API (the azurerm provider's policy resources) and its compliance state.
 
 Everything lives in the subscription's state: State.data["policy"][sub] = {"definitions", "sets", "assignments",
-"exemptions", "remediations": {key: ARM object}, "states": [...], "evaluatedAt": ...}. It is saved with the rest of the
+"exemptions", "remediations": {key: ARM object}, "states": [...], "refused": {assignment id: {count, last}}, "evaluatedAt": ...}. It is saved with the rest of the
 state and removed by Portal._purge (so a student reset clears it). Rules are judged by policy_engine; this module is
 the wire shape, the fail-closed checks on every write, and the stored compliance.
 
@@ -113,9 +113,17 @@ def enforce(st, sub, resource):
                                              list(pol["exemptions"].values()))
 
 
-def refusal(outcome, name):
-    """The 403 for the first denial, in the shape every built-in refusal has (naming assignment and definition)."""
+def refusal(outcome, name, st=None, sub=None):
+    """The 403 for the first denial, in the shape every built-in refusal has (naming assignment and definition).
+    With st and sub, also counts the refusal on that assignment: the activity log is one capped list for the whole
+    class, so a check that "your rule refused something" reads this count, which classmates can't push out."""
     v = outcome.denied[0]
+    if st is not None:
+        with st.lock:
+            seen = _pol(st, sub).setdefault("refused", {}).setdefault(v.assignmentId.lower(), {"count": 0})
+            seen["count"] += 1
+            seen["last"] = _stamp()
+        st.save()
     detail = (f"Assignment '{v.assignmentName}', definition '{v.displayName}': {v.reason}."
               + (f" {v.message}" if v.message else ""))
     exc = policy._disallowed(name, v.assignmentDisplayName, detail)
@@ -346,6 +354,7 @@ def _delete(app, sub, user, bucket, label, key, rid):
                 return _err(400, "PolicyDefinitionInUse", msg)
         del pol[bucket][key]
         if bucket == "assignments":  # what hangs off an assignment goes with it
+            pol.get("refused", {}).pop(obj["id"].lower(), None)
             for b in ("exemptions", "remediations"):
                 for k in [k for k, o in pol[b].items()
                           if str(o["properties"].get("policyAssignmentId", "")).lower() == obj["id"].lower()]:
@@ -579,6 +588,8 @@ def portal_section(st, sub):
             "compliant": sum(1 for r in rows if r["complianceState"] == "Compliant"),
             "nonCompliant": sum(1 for r in rows if r["complianceState"] == "NonCompliant"),
             "exempt": sum(1 for r in rows if r["complianceState"] == "Exempt"),
+            "refusals": (pol.get("refused", {}).get(a["id"].lower()) or {}).get("count", 0),
+            "lastRefusal": (pol.get("refused", {}).get(a["id"].lower()) or {}).get("last"),
             "resources": [{"resourceId": r["resourceId"], "name": r["resourceId"].rsplit("/", 1)[-1],
                            "definitionReferenceId": r["policyDefinitionReferenceId"], "reason": r["reason"]}
                           for r in rows if r["complianceState"] == "NonCompliant"]})

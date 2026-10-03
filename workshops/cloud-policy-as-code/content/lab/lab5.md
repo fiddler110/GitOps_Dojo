@@ -156,7 +156,7 @@ Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
 Your app was running `dojo/hello:1.0` the whole time, and it is untouched: nothing was refused, and no write was attempted. Open the **Compliance** view in the portal:
 
 - `ci-<you>-app` is **Compliant** with `images-subscription` (1.0 is on that list).
-- `ci-<you>-app` is **NonCompliant** with `images-strict`. The reason lists the conditions that matched, ending (abridged) in `containers[*].image 'dojo/hello:1.0' is not in [dojo/hello:2.0]`.
+- `ci-<you>-app` is **NonCompliant** with `images-strict`. The reason lists the conditions that matched, ending (abridged) in `containers[*].image is 'dojo/hello:1.0', which is not in [dojo/hello:2.0]`.
 
 That second line is the whole value of DoNotEnforce: before blocking anyone, you can see exactly which of your existing resources the stricter rule would catch. Here it catches one, and it is yours.
 

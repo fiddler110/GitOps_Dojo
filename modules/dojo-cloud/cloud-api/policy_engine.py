@@ -357,7 +357,10 @@ def _describe(cond, res, params, neg=False):
     if op == "isBlank":
         return f"{name} {'is blank' if _truthy(operand) != neg else 'is not blank'}"
     word = _WORDS[op][1 if neg else 0]
-    return f"{name} '{shown}' {word} {_fmt(operand)}"
+    value = f"'{shown}'" if present else "not set"
+    if word == "is":  # the condition matched, so the value is the operand: "tag 'env' is 'dev'"
+        return f"{name} is {value}"
+    return f"{name} is {value}, which {word} {_fmt(operand)}"
 
 
 # ---------------------------------------------------------------- validation

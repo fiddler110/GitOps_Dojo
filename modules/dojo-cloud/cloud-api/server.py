@@ -253,7 +253,7 @@ class App:
                         "containerGroup", cg, rec["location"], tags, (rec.get("body") or {}).get("properties"),
                         sub, rg))
                     if out.denied:
-                        raise policy_api.refusal(out, cg)
+                        raise policy_api.refusal(out, cg, st, sub)
                     tags = out.resource["tags"]
             except policy.PolicyError as exc:
                 st.log(sub, user, op, rid, "Failed", f"{exc.code}: {exc.message}")
@@ -737,7 +737,7 @@ class Handler(BaseHTTPRequestHandler):
                     out = policy_api.enforce(st, sub, policy.engine.resource_view(
                         "resourceGroup", rg, data.get("location"), tags, {}, sub, "-"))
                     if out.denied:
-                        exc = policy_api.refusal(out, rg)
+                        exc = policy_api.refusal(out, rg, st, sub)
                         st.log(sub, user, "Create/Update resource group", rid, "Failed", f"{exc.code}: {exc.message}")
                         APP.report_refusal(user, exc)
                         return exc.status, exc.body()
@@ -766,7 +766,7 @@ class Handler(BaseHTTPRequestHandler):
                     out = policy_api.enforce(st, sub, policy.engine.resource_view(
                         "resourceGroup", rg, rec["location"], tags, {}, sub, "-"))
                     if out.denied:
-                        exc = policy_api.refusal(out, rg)
+                        exc = policy_api.refusal(out, rg, st, sub)
                         st.log(sub, user, "Update resource group tags", rid, "Failed", f"{exc.code}: {exc.message}")
                         APP.report_refusal(user, exc)
                         return exc.status, exc.body()
@@ -907,7 +907,7 @@ class Handler(BaseHTTPRequestHandler):
                 out = policy_api.enforce(st, sub, policy.engine.resource_view(
                     "containerGroup", cg, location, tags, props, sub, rg))
                 if out.denied:
-                    exc = policy_api.refusal(out, cg)
+                    exc = policy_api.refusal(out, cg, st, sub)
                     st.log(sub, user, "Create/Update container group", rid, "Failed", f"{exc.code}: {exc.message}")
                     APP.report_refusal(user, exc)
                     return exc.status, exc.body()

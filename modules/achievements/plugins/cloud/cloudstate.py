@@ -110,6 +110,14 @@ def _rule_of(obj, doc):
     return json.dumps(obj.get("rule"), sort_keys=True), obj.get("parameters") or {}
 
 
+def _has_refused(a, log):
+    """Has the student's own assignment `a` refused a write? cloud-api counts refusals per assignment (`refusals`);
+    an older cloud-api without the count is read from the activity log (`log()`), which is capped class-wide."""
+    if "refusals" in a:
+        return (a.get("refusals") or 0) > 0
+    return _refused_by(str(a.get("name") or ""), log())
+
+
 def _refused_by(name, events):
     """Does the student's activity log (`events`) hold a write refused by their own assignment `name`?"""
     marker = f"assignment '{name.lower()}'"
@@ -206,8 +214,8 @@ def cloud_policy(api, args, ctx):
          "with an exemption" + (f" ({args['exemption'].get('category')})"
                                 if isinstance(args.get("exemption"), dict) and args["exemption"].get("category")
                                 else "")),
-        ("refused", lambda o: _refused_by(str(o.get("name") or ""), log()) == bool(args["refused"]),
-         "that has refused a write of yours (the activity log)"),
+        ("refused", lambda o: _has_refused(o, log) == bool(args["refused"]),
+         "that has refused a write of yours"),
     ]
     if kind == "exemption" and "active" not in args:
         args = dict(args, active=True)

@@ -196,10 +196,16 @@
     if (cg.cpu == null && cg.memoryGb == null) return '\u2014';
     return (cg.cpu == null ? '?' : cg.cpu) + ' vCPU / ' + (cg.memoryGb == null ? '?' : cg.memoryGb) + ' GB';
   }
+  // A full ARM id is too long for a table cell: show "rg / name", "rg", the object's own name, or the subscription
+  // (cells using this keep the full id in a title).
   function shortResource(id) {
     const m = /\/resourceGroups\/([^/]+)(?:\/providers\/[^/]+\/[^/]+\/([^/]+))?/i.exec(id);
-    if (!m) return id;
-    return m[2] ? m[1] + ' / ' + m[2] : m[1];
+    if (m) return m[2] ? m[1] + ' / ' + m[2] : m[1];
+    const own = /\/providers\/[^/]+\/[^/]+\/([^/]+)\/?$/i.exec(id);
+    if (own) return own[1];
+    const sub = /^\/subscriptions\/([^/]+)\/?$/i.exec(id);
+    if (sub) return 'Subscription ' + (sub[1].length > 13 ? sub[1].slice(0, 8) + '\u2026' : sub[1]);
+    return id;
   }
   const hashCG = (cg) => '#/containers/' + enc(cg.subscriptionId) + '/' + enc(cg.resourceGroup) + '/' + enc(cg.name);
   const hashRG = (rg) => '#/rg/' + enc(rg.subscriptionId) + '/' + enc(rg.name);
@@ -1027,7 +1033,7 @@
         h('td', null, exp),
         h('th', { scope: 'row' }, a.displayName && a.displayName !== a.name ? [a.name, h('div', { class: 'muted small' }, a.displayName)] : a.name),
         h('td', null, dash(a.definitionName), h('span', { class: 'muted small pol-note' }, a.isSet ? '(set)' : '')),
-        h('td', { class: 'mono' }, a.scope ? shortResource(a.scope) : '—'),
+        h('td', { class: 'mono', title: a.scope || null }, a.scope ? shortResource(a.scope) : '—'),
         h('td', { class: 'nowrap' }, dash(a.effect)),
         h('td', { class: 'nowrap' }, h('span', { class: 'pill ' + (enforced ? 'pill-ok' : 'pill-warn') }, enforced ? 'Default' : 'DoNotEnforce')),
         h('td', { class: 'nowrap' }, String(a.compliant)),
@@ -1062,7 +1068,7 @@
       if (!d.exemptions.length) return card('Exemptions', h('p', { class: 'muted' }, 'No exemptions.'));
       return card('Exemptions', h('ul', null, d.exemptions.map((e) => h('li', { class: e.expired ? 'pol-expired' : null },
         h('strong', null, e.name), e.displayName && e.displayName !== e.name ? ' (' + e.displayName + ')' : '',
-        ' – ', dash(e.category), ', assignment ', h('span', { class: 'mono' }, e.policyAssignmentId ? shortResource(e.policyAssignmentId) : '—'),
+        ' – ', dash(e.category), ', assignment ', h('span', { class: 'mono', title: e.policyAssignmentId || null }, e.policyAssignmentId ? shortResource(e.policyAssignmentId) : '—'),
         e.expiresOn ? ', expires ' + e.expiresOn : '', e.expired ? ' (expired)' : ''))));
     }
     function defBlock(o, builtIn) {

@@ -517,6 +517,18 @@ class PurgeAndPortal(Base):
         self.assertEqual(a["resources"][0]["name"], "ci-a1")
         self.assertTrue(a["resources"][0]["reason"])
 
+    def test_portal_counts_refusals_per_assignment_until_it_is_deleted(self):
+        self.make_assignment("block-prod", self.make_def("no-prod", definition(when_env("prod"))))
+        self.assertEqual(self.portal_get(A)[1]["assignments"][0]["refusals"], 0)
+        self.assertEqual(self.put_cg(env="prod")[0], 403)
+        self.assertEqual(self.put_cg(env="prod")[0], 403)
+        a = self.portal_get(A)[1]["assignments"][0]
+        self.assertEqual(a["refusals"], 2)
+        self.assertTrue(a["lastRefusal"])
+        self.assertEqual(self.arm("DELETE", self.sub_path("policyAssignments", "block-prod"))[0], 200)
+        self.make_assignment("block-prod", self.make_def("no-prod", definition(when_env("prod"))))
+        self.assertEqual(self.portal_get(A)[1]["assignments"][0]["refusals"], 0)
+
     def test_portal_access_follows_arm(self):
         self.assertEqual(self.portal_get(B, f"subscription={SUB[A]}")[0], 403)
         self.assertEqual(self.portal_get(FAC, f"subscription={SUB[A]}")[0], 200)
