@@ -64,11 +64,13 @@ with sync_playwright() as p:
     page.goto(base + "/login")
     page.fill("input[name=username]", os.environ["LOGIN_USER"])
     page.fill("input[name=password]", os.environ["LOGIN_PASSWORD"])
-    page.press("input[name=password]", "Enter")
-    page.wait_for_load_state("networkidle")
+    # Not "networkidle": the portal polls every few seconds, so it never goes idle.
+    with page.expect_navigation():
+        page.press("input[name=password]", "Enter")
     for name in pages:
         resp = page.goto(f"{base}/slides/{name}")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("load")
+        page.wait_for_timeout(1500)  # Marp lays out and highlight.js colours after load
         if not resp or resp.status != 200 or "/login" in page.url:
             print(f"  FAIL: {name}: not served (status {resp.status if resp else None}, {page.url})"); bad += 1; continue
         count, out = page.evaluate(CHECK)
