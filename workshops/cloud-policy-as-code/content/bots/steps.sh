@@ -23,6 +23,9 @@ cpc_ready() {
     eval "$(/usr/local/bin/dojo-env 2>/dev/null)"
   fi
   [ -n "${ARM_CLIENT_ID:-}" ] || { narrate "no Dojo Cloud credentials for $BOT_USER yet (dojo-env/broker not ready) -- skipping this step"; return 1; }
+  # The http state backend signs in with the same client id/secret. A terminal's zshenv maps them at shell start, but a
+  # bot that started before the broker was ready only has them from the eval above.
+  export TF_HTTP_USERNAME="$ARM_CLIENT_ID" TF_HTTP_PASSWORD="$ARM_CLIENT_SECRET"
   cd "$CPC_LAB" 2>/dev/null || return 1
 }
 
