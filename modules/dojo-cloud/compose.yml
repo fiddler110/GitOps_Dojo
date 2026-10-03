@@ -71,6 +71,8 @@ services:
       # Dojo Portal API trusts X-Auth-User only together with this token (the
       # gateway sets both; students on workshop_lab can reach :8080 directly).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CLOUD_API:-}
+      # The engine's student reset hook (extensions.json `resets`) carries this.
+      - RESET_TOKEN=${RESET_TOKEN_CLOUD_API:-}
       - CLOUD_CHECK_TOKEN=${CLOUD_CHECK_TOKEN:-}
       # What students did, for the achievements module (off unless it is in this run; no `:?`, see CLAUDE.md).
       - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}

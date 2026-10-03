@@ -3,6 +3,7 @@
 
 Own-space rule: the namespace is `students/<ctx user>`, built here, never taken from an argument, so a
 check can only read the namespace of the student it is checking."""
+import datetime
 import json
 import os
 import re
@@ -193,7 +194,20 @@ def kv_version(api, args, ctx):
         return False, f"there is no secret at {mount}/{path} yet"
     if int(doc.get("current_version") or 0) < int(args.get("min_version", 1)):
         return False, f"{mount}/{path} is still at version {doc.get('current_version')}"
+    if args.get("since_step"):
+        at = _epoch(doc.get("updated_time"))
+        if ctx.get("step_at") is None or at is None or at <= ctx["step_at"]:
+            return False, f"{mount}/{path} hasn't been written since step 1 passed"
     return True, "ok"
+
+
+def _epoch(stamp):
+    """RFC 3339 from OpenBao (nanoseconds, Z) -> epoch seconds, or None."""
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?(Z|[+-]\d\d:\d\d)$", stamp or "")
+    if not m:
+        return None
+    t = datetime.datetime.fromisoformat(m.group(1) + (m.group(3).replace("Z", "+00:00")))
+    return t.timestamp() + float("0" + (m.group(2) or ""))
 
 
 VERBS = {"policy_grants": policy_grants, "role_policy_grants": role_policy_grants, "auth_role": auth_role,

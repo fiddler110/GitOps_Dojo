@@ -211,7 +211,7 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 | `scripts` | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it |
 | `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
 | `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
-| `resets` | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30); a student reset hook, see below |
+| `resets` | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30), `optional` (default false: true shows it as a checkbox in the dialog, off by default, and runs it only when ticked); a student reset hook, see below |
 
 **Student reset hooks.** When the facilitator resets one student from the Roster, the allocator calls each `resets`
 entry twice, in manifest order: `POST <upstream><path>?phase=teardown` before the student's Forgejo account is deleted,

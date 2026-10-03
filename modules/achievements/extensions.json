@@ -44,6 +44,21 @@
       "gate": "facilitator"
     }
   ],
+  "resets": [
+    {
+      "id": "achievements-progress",
+      "label": "Achievements: challenge progress",
+      "upstream": "achievements:8080",
+      "path": "/_dojo/reset/progress/{user}"
+    },
+    {
+      "id": "achievements-score",
+      "label": "Also clear their achievements and score",
+      "upstream": "achievements:8080",
+      "path": "/_dojo/reset/score/{user}",
+      "optional": true
+    }
+  ],
   "status_checks": [
     {
       "label": "Achievements",

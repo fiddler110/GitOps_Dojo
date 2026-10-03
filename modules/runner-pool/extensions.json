@@ -7,6 +7,10 @@
     { "id": "runners", "path": "/runners", "upstream": "runner-controller:8080", "gate": "facilitator",
       "strip_prefix": true }
   ],
+  "resets": [
+    { "id": "runners", "label": "CI runners: their running jobs", "upstream": "runner-controller:8080",
+      "path": "/_dojo/reset/{user}" }
+  ],
   "status_checks": [
     { "label": "Runners", "url": "http://runner-controller:8080/healthz" }
   ]

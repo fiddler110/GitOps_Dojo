@@ -164,7 +164,7 @@ keeps running.
 Only when your class has achievements on (you see a score on your landing page).
 Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/capstone` and
 clones it to `~/lab/capstone`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-check capstone` twice: once it's built, then again after you rotate `capstone/app` without pushing (the first check says what's next). A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
 `dojo-challenge reset capstone` starts you over from a fresh copy.
 
 <!-- dojo-challenge: capstone -->

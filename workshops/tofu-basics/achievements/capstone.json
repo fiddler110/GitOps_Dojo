@@ -4,7 +4,7 @@
   "space": "the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/site-factory` (cloned to `~/lab/site-factory`, own state); resources tagged `challenge=capstone`",
   "goal": "Build, from scratch, one module-like layout that deploys **two** differently named sites from one `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing running.",
   "seed": "`dojo-challenge start capstone` creates `{user}/site-factory` (cloned to `~/lab/site-factory`): a README with the brief, `providers.tf`, `versions.tf`, `variables.tf` (`owner`) and a `.gitignore`. All names use `{user}`.",
-  "verify_text": "while the sites run (`dojo-check` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`; the output map is not checked. Not checked yet (one check can't be two phases): the clean state after `destroy` (see the report's proposal for a `phase`).",
+  "verify_text": "Two steps. Step 1, while the sites run (`dojo-check capstone` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`. Step 2, after `tofu destroy` (`dojo-check capstone` again): no `challenge=capstone` container group is left in any state. The output map is not checked.",
   "badge_tier": "capstone",
   "hints": [
     "Lab 9 plus Lab 10, in one go.",
@@ -37,6 +37,21 @@
       "regex": "for_each"
     }
   ],
+  "then": {
+    "text": "run `tofu destroy` in ~/lab/site-factory so nothing tagged `challenge=capstone` is left.",
+    "verify": [
+      {
+        "verb": "cloud_containers",
+        "tags": {
+          "challenge": "capstone"
+        },
+        "state": "any",
+        "name_prefix": "{user}-",
+        "min": 0,
+        "max": 0
+      }
+    ]
+  },
   "isolation": "names carry `{user}`; the cloud check reads only the checking student's own subscription and the repo is their own; needs the 2 groups of the quota, so old lab sites must be destroyed first.",
-  "answer": "`dojo-challenge start capstone`, `cd ~/lab/site-factory`, write `main.tf` (one `azurerm_container_group` with `for_each = toset([\"a\", \"b\"])`, `dns_name_label = \"{user}-${each.key}\"`, tags `owner`, `env`, `challenge = \"capstone\"`, canadacentral, `cpu = 0.25`), `outputs.tf` (`output \"urls\" { value = { for k, g in azurerm_container_group.site : k => g.fqdn } }`), `tofu init && tofu apply`, push to `main`, `dojo-check capstone`, then `tofu destroy`."
+  "answer": "`dojo-challenge start capstone`, `cd ~/lab/site-factory`, write `main.tf` (one `azurerm_container_group` with `for_each = toset([\"a\", \"b\"])`, `dns_name_label = \"{user}-${each.key}\"`, tags `owner`, `env`, `challenge = \"capstone\"`, canadacentral, `cpu = 0.25`), `outputs.tf` (`output \"urls\" { value = { for k, g in azurerm_container_group.site : k => g.fqdn } }`), `tofu init && tofu apply`, push to `main`, `dojo-check capstone`, then `tofu destroy` and `dojo-check capstone` again."
 }

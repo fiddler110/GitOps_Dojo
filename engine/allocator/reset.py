@@ -153,8 +153,21 @@ def forgejo_teardown(fj, org, user):
     for repo in fj.pages(f"/orgs/{q(org)}/repos"):
         c, d = clean_org_repo(fj, org, repo, user)
         closed, deleted = closed + c, deleted + d
-    status, _ = fj.expect("DELETE", f"/admin/users/{q(user)}?purge=true", (204, 404))
-    gone = "account deleted" if status == 204 else "no account"
+    # Q5: their merged pull requests and comments stay (shown as Forgejo's "Ghost"), so the account is
+    # deleted without purge, which Forgejo allows only once it owns no repos and belongs to no org.
+    status, _ = fj.call("GET", f"/users/{q(user)}")
+    if status == 404:
+        return f"{closed} PR(s) closed, {deleted} branch(es) deleted, no account"
+    repos = [r["name"] for r in fj.pages(f"/users/{q(user)}/repos")
+             if (r.get("owner") or {}).get("login") == user]
+    for name in repos:
+        fj.expect("DELETE", f"/repos/{q(user)}/{q(name)}", (204, 404))
+    fj.expect("DELETE", f"/orgs/{q(org)}/members/{q(user)}", (204, 404))
+    status, _ = fj.call("DELETE", f"/admin/users/{q(user)}")
+    gone = f"{len(repos)} repo(s) and the account deleted"
+    if status != 204:   # something else still ties the account down (packages, another org): purge instead
+        fj.expect("DELETE", f"/admin/users/{q(user)}?purge=true", (204, 404))
+        gone += f" (purged: plain delete answered {status}, so their PRs and comments went too)"
     return f"{closed} PR(s) closed, {deleted} branch(es) deleted, {gone}"
 
 
@@ -229,12 +242,13 @@ class ResetManager:
         self.plans = {}  # sid -> the [(id, label, fn)] request() built, so run_one runs exactly what was shown
         self.queue = queue.Queue()
 
-    def request(self, sid):
-        """Queue a reset. False when one is already queued or running."""
+    def request(self, sid, optional=frozenset()):
+        """Queue a reset, with the ids of the optional hooks the facilitator
+        ticked. False when one is already queued or running."""
         with self.lock:
             if self._busy(sid):
                 return False
-            plan = self.steps_for(sid)
+            plan = self.steps_for(sid, frozenset(optional))
             self.plans[sid] = plan
             self.state[sid] = {
                 "state": "queued", "started": None, "finished": None,

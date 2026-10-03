@@ -1,6 +1,7 @@
 """Phase 4: the verifier runner, the seed builder and the git-fundamentals challenges c1 and c2,
 against an in-memory Forgejo (fake_forgejo.py). No containers."""
 
+import copy
 import os
 import sys
 import threading
@@ -496,3 +497,51 @@ class ClassWide(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TwoStep(unittest.TestCase):
+    """A challenge with `then`: step 1 passing only records progress; step 2 clears it."""
+
+    class Runner:
+        def __init__(self):
+            self.ok = {"one": True, "two": False}
+            self.restart = False
+
+        def verify(self, ch, user, seed=None, step_at=None):
+            step = ch["verify"][0]["step"]
+            assert (step_at is not None) == (step == "two")
+            return {"passed": self.ok[step], "message": f"{step} failed", "restart": self.restart}
+
+        def render(self, ch, user, text):
+            return text.replace("{user}", user)
+
+    def setUp(self):
+        cat = copy.deepcopy(CATALOG)
+        cap = cat["capstone"]
+        cap["verify"] = [{"verb": "x", "step": "one"}]
+        cap["then"] = {"text": "destroy it, {user}.", "verify": [{"verb": "x", "step": "two"}]}
+        self.store = Store(cat, lg.Config(), None, "s" * 32, facilitator="boss", clock=Clock(), rate=(1000, 10))
+        self.runner = self.Runner()
+
+    def check(self):
+        return self.store.check("amy", "capstone", self.runner)
+
+    def test_steps(self):
+        r = self.check()
+        self.assertFalse(r["passed"])
+        self.assertEqual(r["step"], 1)
+        self.assertIn("destroy it, amy.", r["message"])
+        self.assertNotIn("capstone", self.store.ledger.unlocked_ids("amy"))
+        self.assertEqual(self.check()["message"], "two failed")       # now runs step 2 only
+        self.runner.ok = {"one": False, "two": True}                  # step 1 is not re-checked
+        self.assertTrue(self.check()["passed"])
+        self.assertIn("capstone", self.store.ledger.unlocked_ids("amy"))
+        self.assertEqual(self.store.stepped["amy"], {})
+
+    def test_restart_goes_back_to_step_one(self):
+        self.check()
+        self.runner.restart = True
+        r = self.check()
+        self.assertIn("Back to step 1", r["message"])
+        self.assertEqual(self.store.stepped["amy"], {})
+        self.assertEqual(self.check()["step"], 1)

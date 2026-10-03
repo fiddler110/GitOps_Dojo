@@ -365,6 +365,23 @@ class TestHTTP(Base):
 
     FAC = {"X-Gateway-Token": TOKEN, "X-Auth-User": "root"}
 
+    def test_student_reset_kills_only_their_busy_runners(self):
+        self.sup = {"pool-a": {"state": "busy", "repo": "student01/vault-ci"},
+                    "pool-b": {"state": "busy", "repo": "student011/vault-ci"},
+                    "pool-c": {"state": "busy", "repo": "vault-team/app"},
+                    "pool-d": {"state": "idle"}}
+        self.write_state()
+        url = "/_dojo/reset/student01?phase=teardown"
+        self.assertEqual(self.req("POST", url)[0], 403)                                     # no token configured
+        self.ctl.cfg.reset_token = "rt"
+        self.assertEqual(self.req("POST", url, {"X-Dojo-Reset-Token": "nope"})[0], 403)
+        self.assertEqual(self.req("POST", "/_dojo/reset/student01?phase=x", {"X-Dojo-Reset-Token": "rt"})[0], 404)
+        status, _, data = self.req("POST", url, {"X-Dojo-Reset-Token": "rt"})
+        self.assertEqual((status, json.loads(data)["detail"]), (200, "stopped 1 runner(s) busy with their jobs"))
+        self.assertEqual(os.listdir(self.spool.kill_dir), ["pool-a"])
+        status, _, data = self.req("POST", "/_dojo/reset/student01?phase=provision", {"X-Dojo-Reset-Token": "rt"})
+        self.assertEqual(json.loads(data)["detail"], "nothing to set up")
+
     def test_healthz_needs_no_token(self):
         self.assertEqual(self.req("GET", "/healthz")[0], 200)
 

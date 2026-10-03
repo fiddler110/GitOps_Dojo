@@ -14,6 +14,8 @@
                       "does": "the file on a branch, tag or commit contains the text or matches the regex; absent: true inverts"},
     "no_direct_push": {"args": ["repo", "branch"],
                        "does": "every commit on the branch came from the seed or through a merged pull request into it"},
+    "no_push_since_step": {"args": ["repo", "ref"],
+                           "does": "step 2 of a two-step challenge (`then`): the newest commit on the branch is no newer than when step 1 passed (committer date; on a deploy branch, no deploy since)"},
     "answer_names_commit": {"args": ["repo", "ref", "path", "search"],
                             "does": "the file names the short hash (7+ hex characters) and the author of the oldest commit on search.branch whose diff adds a line equal to search.text in search.path"},
     "commit_reverted": {"args": ["repo", "branch?", "message"],

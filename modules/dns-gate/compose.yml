@@ -30,6 +30,9 @@ services:
       - DNS_GATE_SHARED_ZONES=${DNS_GATE_SHARED_ZONES:-}
       - DNS_GATE_CI_ZONES=${DNS_GATE_CI_ZONES:-}
       - DNS_GATE_CI_REPO=${DNS_GATE_CI_REPO:-}
+      # Student reset (extensions.json `resets`, gate/reset.py): the hook's token, and what to seed again.
+      - RESET_TOKEN=${RESET_TOKEN_DNS_API:-}
+      - DNS_GATE_RESET_RECORDS=${DNS_GATE_RESET_RECORDS:-}
       - DNS_API_RATE_BURST=${DNS_API_RATE_BURST:-200}
       - DNS_API_RATE_PER_SEC=${DNS_API_RATE_PER_SEC:-50}
       # Optional: tells the achievements module what a student did to their zone (gate/events.py).

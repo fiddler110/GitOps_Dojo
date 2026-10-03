@@ -3,6 +3,8 @@
 # module.env derives from this install's GATEWAY_TOKEN so the service can be given the same value.
 # Safe to re-run: a token that already exists is left alone.
 
+# Class-wide only: nothing to do for one student's reset (DOJO_ONE_USER).
+[ -z "${DOJO_ONE_USER:-}" ] || return 0
 [ -n "${BAO_CHECK_TOKEN:-}" ] || { log "achievements: no BAO_CHECK_TOKEN, skipping"; return 0 2>/dev/null || exit 0; }
 retry 30 bao policy write check /etc/openbao-setup.d/check.hcl >/dev/null \
   || { log "achievements: could not write the check policy"; exit 1; }

@@ -31,6 +31,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import signal
 import sys
 import threading
@@ -52,6 +53,8 @@ from store import Denied, Store  # noqa: E402
 
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
+# The engine's student reset calls /_dojo/reset/... with this (render_extensions.py derives it per service).
+RESET_TOKEN = os.environ.get("RESET_TOKEN", "")
 ADMIN_PREFIX = "/achievements-admin"
 MAX_BODY = 8192
 SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); every widget polls
@@ -291,6 +294,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._webhook()
         if path == "/api/adapter":
             return self._adapter()
+        if path.startswith("/_dojo/reset/"):
+            return self._student_reset(path)
         if path == "/api/shell":
             # The terminal only: its Forgejo token, and the shipped client (a wrong one is -1).
             user = self._caller(mutating=True) if not self._gateway_user() else None
@@ -339,6 +344,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return runner.render(entry["item"], user, text) if entry else text
         except challenges.NotCheckable:
             return text
+
+    # -- student reset (engine `resets` hooks) -------------------------------------------
+    def _student_reset(self, path):
+        given = self.headers.get("X-Dojo-Reset-Token") or ""
+        if not RESET_TOKEN or not hmac.compare_digest(given.encode(), RESET_TOKEN.encode()):
+            raise Denied(403, "reset token required")
+        parts = path.split("/")      # ["", "_dojo", "reset", what, user]
+        phase = (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("phase") or [""])[0]
+        if len(parts) != 5 or parts[3] not in ("progress", "score") or phase not in ("teardown", "provision"):
+            raise Denied(404, "not found")
+        user = urllib.parse.unquote(parts[4])
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", user) or user == FACILITATOR:
+            raise Denied(400, "no such student")
+        if phase == "provision":
+            return self._json(200, {"ok": True, "detail": "nothing to set up"})
+        self._json(200, {"ok": True, "detail": store.student_reset(user, scores=parts[3] == "score")})
 
     # -- facilitator -------------------------------------------------------------------
     def _facilitator(self):

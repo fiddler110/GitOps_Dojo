@@ -11,6 +11,7 @@ student sites at /cloud/site/<label>/ (reverse proxy to cloud-host).
 Stdlib only, single file per concern, same spirit as engine/allocator.
 """
 import copy
+import hmac
 import http.client
 import json
 import os
@@ -22,7 +23,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import auth
 import docker_api
@@ -469,6 +470,8 @@ class Handler(BaseHTTPRequestHandler):
         if low.endswith("/.well-known/openid-configuration"):
             return self._send(200, {"token_endpoint": f"{LOGIN}/{auth.TENANT_ID}/oauth2/v2.0/token",
                                     "issuer": f"{LOGIN}/{auth.TENANT_ID}/v2.0"})
+        if low.startswith("/_dojo/reset/"):
+            return self.student_reset(path)
         if low.startswith("/subscriptions"):
             return self._send_pair(self.arm(low, path, body))
         if low.startswith("/cloud/site/") or low == "/cloud/site":
@@ -478,6 +481,23 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(*arm_error(404, "NotFound", f"No route for '{path}'."))
 
     do_GET = do_PUT = do_POST = do_DELETE = do_PATCH = do_HEAD = handle_any
+
+    def student_reset(self, path):
+        """POST /_dojo/reset/<user>?phase=teardown|provision from the engine's student reset, with the
+        service's own X-Dojo-Reset-Token (students can reach this port, so nothing works without it)."""
+        want = ENV.get("RESET_TOKEN", "")
+        given = self.headers.get("X-Dojo-Reset-Token", "")
+        if self.command != "POST" or not want or not hmac.compare_digest(given.encode(), want.encode()):
+            return self._send(403, {"error": "reset token required"})
+        user = unquote(path[len("/_dojo/reset/"):])
+        phase = (parse_qs(urlparse(self.path).query).get("phase") or [""])[0]
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or phase not in ("teardown", "provision"):
+            return self._send(404, {"error": "not found"})
+        try:
+            detail = APP.portal.student_reset(user, phase)
+        except (RuntimeError, docker_api.DockerError) as exc:
+            return self._send(500, {"ok": False, "detail": str(exc)[:200]})
+        return self._send(200, {"ok": True, "detail": detail})
 
     # ---- discovery + auth -------------------------------------------------
     def metadata(self):
