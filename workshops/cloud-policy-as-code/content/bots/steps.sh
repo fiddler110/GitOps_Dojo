@@ -118,6 +118,7 @@ print(json.dumps({k: a[k] for k in ("properties", "identity", "location") if a.g
 cpc_scratch_init() {
   run_cmd "rm -rf ~/lab/scratch && mkdir -p ~/lab/scratch && cd ~/lab/scratch"
   run_cmd "cp $CPC_LAB/infra/{providers,versions,variables}.tf ."
+  run_cmd "sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf"
   run_cmd "tofu init -no-color -input=false >/dev/null && echo init ok"
 }
 

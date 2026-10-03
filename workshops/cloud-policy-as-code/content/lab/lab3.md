@@ -142,6 +142,7 @@ Your app was created before the rule existed, so the rule has not touched it. Ma
 ```bash
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
+sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
 cat > main.tf <<'EOT'
 resource "azurerm_resource_group" "scratch" {
@@ -159,7 +160,7 @@ tofu apply -auto-approve
 The group has `owner` and `env`, so it satisfies every built-in. Expected (abridged):
 
 ```text
-Error: creating/updating Resource Group "rg-student01-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-student01-scratch' was disallowed by policy.
 Policy: 'Require a costCenter tag'. Assignment 'require-costcenter', definition 'Require a costCenter tag':
 tag 'costCenter' does not exist.

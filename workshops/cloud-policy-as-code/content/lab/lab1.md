@@ -22,10 +22,11 @@ You are going to try things that fail. Do it in a throwaway folder with its own 
 ```bash
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
+sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
 ```
 
-This reuses the same provider setup and login as the app. `TF_VAR_owner` is already set, so the scratch resources are named `rg-<you>-scratch`.
+This reuses the same provider setup and login as the app. The `sed` points the copied backend at a state named `scratch`: left on `infra`, the scratch folder would share your app's state, and its first apply would destroy the app. `TF_VAR_owner` is already set, so the scratch resources are named `rg-<you>-scratch`.
 
 ## 2. A resource group in the wrong country
 
@@ -48,7 +49,7 @@ tofu apply -auto-approve
 `tofu plan` is happy: it only checks that your configuration is valid. The refusal comes when the write reaches the cloud, so you see it at `apply`. Expected (abridged):
 
 ```text
-Error: creating/updating Resource Group "rg-student01-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-student01-scratch' was disallowed by policy.
 Policy: 'Allowed locations'. Location 'eastus' is not allowed; use one of: canadacentral, canadaeast.
 ```
@@ -80,7 +81,7 @@ tofu apply -auto-approve
 ```
 
 ```text
-Error: creating/updating Resource Group "rg-student01-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-student01-scratch' was disallowed by policy.
 Policy: 'Require tag 'env''. The resource is missing the required tag 'env'.
 ```
@@ -139,7 +140,9 @@ tofu apply -auto-approve
 ```
 
 ```text
-Error: creating/updating Container Group "ci-student01-scratch": unexpected status 400 (400 Bad Request) with error:
+Error: creating Container Group (Subscription: "<your subscription id>"
+Resource Group Name: "rg-student01-scratch"
+Container Group Name: "ci-student01-scratch"): performing ContainerGroupsCreateOrUpdate: unexpected status 400 (400 Bad Request) with error:
 InvalidResourceRequest: Requested 0.5 vCPU / 0.125 GB exceeds the per-container limit of 0.25 vCPU / 0.125 GB.
 ```
 

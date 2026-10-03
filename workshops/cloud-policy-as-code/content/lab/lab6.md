@@ -198,6 +198,7 @@ Prove the set denies. The platform's built-ins already stop a bad region, so tes
 ```bash
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
+sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
 cat > main.tf <<'EOT'
 resource "azurerm_resource_group" "scratch" {
@@ -213,9 +214,10 @@ tofu apply -auto-approve
 ```
 
 ```text
-Error: creating/updating Resource Group "rg-student01-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-student01-scratch' was disallowed by policy.
-Policy: 'Team baseline'. Assignment 'team-baseline', definition 'Require a costCenter tag': ...
+Policy: 'Require a costCenter tag'. Assignment 'team-baseline', definition 'Require a costCenter tag':
+tag 'costCenter' does not exist.
 ```
 
 (abridged.) The refusal names the **set assignment** and the **member's definition** that fired, which is how you find the right rule inside a bundle. Nothing was created, so there is nothing to clean up.

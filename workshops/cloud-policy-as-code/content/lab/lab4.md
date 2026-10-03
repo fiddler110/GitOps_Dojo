@@ -39,7 +39,7 @@ tofu apply -auto-approve
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
 
-Error: creating/updating Resource Group "rg-student01-legacy": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-legacy\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-student01-legacy' was disallowed by policy.
 Policy: 'Require a costCenter tag'. Assignment 'require-costcenter', definition 'Require a costCenter tag':
 tag 'costCenter' does not exist.

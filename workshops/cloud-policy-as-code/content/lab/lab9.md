@@ -135,9 +135,10 @@ tofu apply
 ```
 
 ```text
-Error: creating Resource Group "rg-sam-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-sam-scratch\")": unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'rg-sam-scratch' was disallowed by policy.
-  ...policy assignment 'team-baseline' ... 'require-costcenter-tag' ...
+Policy: 'Require a costCenter tag'. Assignment 'team-baseline', definition 'Require a costCenter tag':
+tag 'costCenter' does not exist.
 ```
 
 (Answer `yes` when asked; it fails.) Compare the two refusals:

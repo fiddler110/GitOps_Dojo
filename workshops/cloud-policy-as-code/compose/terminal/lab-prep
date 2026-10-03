@@ -111,10 +111,34 @@ clone() {
   (cd "$HOME/lab" && run git clone "$GIT_SERVER/$FORK.git")
 }
 
-tofu_apply() {   # dir
+tofu_apply() {   # dir [try: return 1 instead of stopping]
   ( cd "$REPO_DIR/$1"
     [ -d .terraform ] || run tofu init -input=false
-    run tofu apply -auto-approve -input=false )
+    log=$(mktemp)
+    apply() { run tofu apply -auto-approve -input=false -no-color -lock-timeout=60s 2>&1 | tee "$log"; }
+    # An interrupted apply (Ctrl-C, a closed terminal) leaves a lock, or resources created in the cloud but not saved
+    # to state ("already exists"). Recover from both, a few rounds at most. A lock is broken only when it is this
+    # user's and no tofu of theirs is running; a lock from anyone else (a CI job) is left alone.
+    for _ in 1 2 3; do
+      apply && { rm -f "$log"; exit 0; }
+      fixed=""
+      id=$(sed -n 's/^.*ID:[[:space:]]*//p' "$log" | head -1)
+      who=$(sed -n 's/^.*Who:[[:space:]]*//p' "$log" | head -1)
+      if [ -n "$id" ] && [ "$who" = "$(id -un)@${HOSTNAME:-$(hostname)}" ] && ! pgrep -u "$(id -un)" -x tofu >/dev/null; then
+        run tofu force-unlock -force "$id" && fixed=1
+      fi
+      while read -r addr rid; do
+        run tofu import -input=false -lock-timeout=60s "$addr" "$rid" && fixed=1
+      done < <(awk '/already exists/ { if (match($0, /ID "[^"]+"/)) rid = substr($0, RSTART + 4, RLENGTH - 5) }
+                    /^[[:space:]]*with [^ ]+,$/ && rid { a = $2; sub(/,$/, "", a); print a, rid; rid = "" }' "$log")
+      [ -n "$fixed" ] || break
+    done
+    rm -f "$log"
+    [ -n "${2:-}" ] && exit 1
+    die "tofu apply failed in $1. If it was interrupted:
+  stale lock:              cd $REPO_DIR/$1 && tofu force-unlock -force <ID from the error above>
+  'already exists' error:  cd $REPO_DIR/$1 && tofu import <resource address> <id from the error above>
+then run lab-prep again." )
 }
 
 # Stack the end state of labs 3..$1 (highest lab last, so later files win).
@@ -156,9 +180,17 @@ if [ "$lab" -ge 1 ]; then
   prev=$((lab - 1))
   [ "$prev" -gt 10 ] && prev=10
   stack_solutions "$prev"
-  tofu_apply infra
+  if [ "$lab" -lt 4 ]; then
+    tofu_apply infra
+  elif ! tofu_apply infra try; then
+    # Going back to an earlier lab: the cloud still has a later lab's policy, which denies this lab's infra
+    say "Policy from a later lab denied that: apply policy/cloud for lab $prev first, then infra again"
+    tofu_apply policy/cloud
+    policy_done=1
+    tofu_apply infra
+  fi
 fi
-if [ "$lab" -ge 4 ]; then
+if [ "$lab" -ge 4 ] && [ -z "${policy_done:-}" ]; then
   say "Policy: apply policy/cloud to the end of lab $((lab - 1)) (slow: about 3.5 minutes)"
   tofu_apply policy/cloud
 fi

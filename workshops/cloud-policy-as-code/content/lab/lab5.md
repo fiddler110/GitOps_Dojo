@@ -227,6 +227,7 @@ Prove the scope works. In the scratch folder, try to start a container group run
 ```bash
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
+sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
 cat > main.tf <<'EOT'
 data "azurerm_resource_group" "rg" {
@@ -269,7 +270,9 @@ tofu apply -auto-approve
 ```
 
 ```text
-Error: creating/updating Container Group "ci-student01-scratch": unexpected status 403 (403 Forbidden) with error:
+Error: creating Container Group (Subscription: "<your subscription id>"
+Resource Group Name: "rg-student01-app"
+Container Group Name: "ci-student01-scratch"): performing ContainerGroupsCreateOrUpdate: unexpected status 403 (403 Forbidden) with error:
 RequestDisallowedByPolicy: Resource 'ci-student01-scratch' was disallowed by policy.
 Policy: 'Allowed container images'. Assignment 'images-strict', definition 'Allowed container images': ...
 ```
