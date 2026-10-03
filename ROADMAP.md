@@ -41,16 +41,13 @@ Resume here (updated 2026-10-03). All open work is on one branch, `feat/cloud-po
 student reset merged into it from `feat/rv19-bot-smoke-tests`, which is deleted). Next: the live checks in [Now](#now),
 one stack at a time (`podman ps` first), and the RV35 to-do list (achievements live checks, then merge).
 
-**Open question for the user:** dns-as-code records a student added through the shared repo (`<user>-app` in
-`dojo.test`) survive a reset: removing them in DNS alone is undone by the next pipeline run, and removing them for
-good means the reset commits to the protected `main`. Leave them (current), or commit a removal?
-
 **Answered 2026-10-02**
 
 | Question | Answer |
 |---|---|
 | Reset button | Yes, a full **Reset environment** button on `/admin` (RV38), with Release all as its first step. Nothing may persist past `./run.sh stop` |
 | Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied into `<context>/_shared/` at build time (`SHARED=` in `module.env`) |
+| Shared-repo changes on reset (2026-10-03) | Left alone: a student reset never touches what they changed in a shared repo (e.g. dns-as-code `<user>-app` records in `dojo.test` stay) |
 | Next workshop | Cloud-Policy-as-Code (RV35), **in progress on `feat/cloud-policy-as-code`**. Resume with the RV35 row in [Next](#next): the clean smoke run, then the to-do list there |
 
 ## Now
@@ -66,14 +63,11 @@ these lines.
 | Vault reset | `vault-fundamentals --test 2 --fast` | openbao-setup and app-db reset workers start; reset testuser1: 6 steps done; `modules/openbao/tests/setup_tokens.sh` passes; namespace and `secret/students/testuser1/` fresh, app slots empty, capstone slot locked, DB back to start; `lab_11.sh`/`lab_12.sh` pass after; second reset passes. Not covered by design: their root-namespace login tokens expire on their own |
 | Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset testuser1: containers gone, testuser2's running, activity log "Purge subscription (portal)" by student-reset. Capstone two-step as a student: `dojo-check capstone` says "Halfway" while the sites run, "Passed!" after `tofu destroy` |
 | Vault capstone two-step | vault stack | `dojo-check capstone` "Halfway", rotate `capstone/app` without pushing, then "Passed!"; a push in between sends it back to step 1 |
-| dojo-introduction | `--test 5 --fast` | Runs to the end (usability not a goal: it's for presenting) |
-| dns-as-code `my-zone` hook | dns-as-code | Found 2026-10-02: `~/lab/my-zone` has no `.githooks`, so lint (and the new conflict-marker error) doesn't run on commit there, only in `~/lab/dns-as-code` after `dnsctl.py setup`. Decide whether Lab 6 should set it up |
+| dojo-introduction | `--test 5 --fast` | Runs to the end with no `FAST: ... skipping it` in `/home/testuser*/.dojo-bot.log` (usability not a goal: it's for presenting). Since 2026-10-03 each bot step checks its own result, so a failed push or apply that was hidden shows up as a skip |
 | Browser looks (user) | any | Widget frame full height on first load; the Reset dialog's "Also clear their achievements and score" checkbox |
 
-Slide overflow checker (Playwright in `mcr.microsoft.com/playwright/python:v1.55.0-noble`, `--network host`): log in
-at `/login` with the class login, open `/slides/<page>.md`, and for every `section` compare each h1-h3/p/li/pre/table/
-img/blockquote's box with the section (or its footer's top); report > 2 px. Worth committing as a tool next time
-(it only lived in the scratchpad).
+Slide overflow checker: `workshops/assets/slide-overflow.sh <workshop> [page.md ...]` (committed 2026-10-03, not run on a
+stack yet; the DNS reset run above is its first).
 
 After the live checks pass: move student reset R0-R4 and R3.x to RELEASES (git-fundamentals live result: steps 3-5 s,
 idempotent, a bot restarts from round 1, the optional score clear clears only that student), and delete them below.
@@ -145,7 +139,7 @@ passed live on git-fundamentals; the module hooks wait for their live runs ([Now
 | R3.2 | openbao | Built: `openbao-reset` relay; `openbao-setup` stays up and runs reset jobs with its own token (the token never moves, unlike R9's wording); one-user mode in `10-tenancy.sh`, `20-ci.sh`, `30-platform.sh` |
 | R3.3 | runners | Built: runner-pool stops runners busy with the student's own repos (`/spool/kill/`). `forgejo-runner` is used by no workshop: no hook |
 | R3.4 | vault apps | Built: app-host empties both slots and locks the capstone slot; app-db drops and remakes the student's database (through app-host) |
-| R3.5 | DNS packs | Built: dns-gate deletes zones at/under `<user>.<parent>` and their names in shared zones, then re-creates `DNS_GATE_RESET_RECORDS` (cert-autorenewal sets its two seeded A records); cert-autorenewal's webroot moved to `account.d`, with a `reset.d` that removes the old site. Shared-repo records: open question in [Up next](#up-next) |
+| R3.5 | DNS packs | Built: dns-gate deletes zones at/under `<user>.<parent>` and their names in shared zones, then re-creates `DNS_GATE_RESET_RECORDS` (cert-autorenewal sets its two seeded A records); cert-autorenewal's webroot moved to `account.d`, with a `reset.d` that removes the old site. Shared-repo records stay by decision (2026-10-03) |
 | R3.6 | achievements | Built and live: `achievements-progress` (forgets seeds, watches, half-done two-step checks, Sensei activity) and optional `achievements-score` |
 | R4.1 | Docs | Done: `engine/README.md` "Reset a student", `workshops/README.md`, dns-gate and openbao READMEs |
 | R4.2 | Live pass per workshop | The [Now](#now) table |
