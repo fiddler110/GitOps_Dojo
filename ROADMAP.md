@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-02 (RV19 done; Phase 10 sweep and student reset built, live checks in progress) · Working
-branch: `feat/rv19-bot-smoke-tests`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-03 (RV35 merged in PR #8, pids cap in PR #9; split smoke run being fixed) · Working
+branch: `fix/lab-prep-ci-main`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -14,8 +14,8 @@ what is left (usually the live check).
 | Section | What it holds |
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
-| [Up next](#up-next) | Where to resume; decisions of 2026-10-02 |
-| [Now](#now) | Phase 10 sweep and student reset: live checks |
+| [Up next](#up-next) | Where to resume; decisions of 2026-10-02 and 2026-10-03 |
+| [Now](#now) | Split smoke run, student reset and Phase 10: live checks |
 | [Next](#next) | N3 9.4 class-sized run; platform review (RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
@@ -26,20 +26,22 @@ what is left (usually the live check).
 
 Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
 platform review tier 1 and the merge to `main` (PR #6), the Phase 9 live checks apart from the class-sized run
-(PR #7) (2026-10-02, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+(PR #7) (2026-10-02), Cloud-Policy-as-Code (RV35) with RV19, the Phase 10 sweep and the student reset build (PR #8)
+and the pack's pids cap (PR #9) (2026-10-03, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the module hooks need their live runs ([Now](#now)) |
-| 2 | Phase 10 leftovers | S | dns-as-code slide overflow, dojo-introduction `--test 5`, two browser looks |
-| 3 | Platform review tiers 3-4 | L | RV22-RV38: refactors, then new features and workshops |
+| 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
+| 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
+| 3 | Platform review tiers 3-4 | L | RV35, RV23, RV24, RV28 and RV31 done; left RV22, RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
 
 ## Up next
 
 Resume here (updated 2026-10-03). `feat/cloud-policy-as-code` (RV35, RV19, Phase 10 and student reset) merged to
-`main` in PR #8; cut a new branch for the next batch. Next: the live checks in [Now](#now), one stack at a time
-(`podman ps` first), starting with the first `smoke.sh --split each` run.
+`main` in PR #8, and the pids cap in PR #9. The split smoke run is parked (see [Later](#later)); the full-stack
+smoke loop is paused. Next: the student reset live checks and the Phase 10 leftovers, one stack at a time
+(`podman ps` first).
 
 **Answered 2026-10-02**
 
@@ -52,17 +54,15 @@ Resume here (updated 2026-10-03). `feat/cloud-policy-as-code` (RV35, RV19, Phase
 
 ## Now
 
-Live checks for what was built 2026-10-02 (all unit-tested; nothing below has run on a stack unless it says so).
-Briefs ready to hand to an agent: `live3-brief.md` (vault + tofu) was in the old session's scratchpad, so rebuild from
-these lines.
+Live checks for what was built 2026-10-02 and 2026-10-03 (all unit-tested; nothing below has run on a stack unless
+it says so). A brief for an agent is built from these lines.
 
 | Check | Stack | What to confirm |
 |---|---|---|
-| Split smoke run | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run 2026-10-03: labs 2, 4-7 and 12 ok in 9-18 min. Failed: 3, 9, 10 in lab-prep (provider "Plugin did not respond": the 320 pids cap was hit 333 times; the pack now sets `WEB_TERMINAL_PIDS_LIMIT=1024`); 0-1 (retest.sh killed the bot mid lab 0 apply, leaving a state lock lab-prep 0 never clears: a range starting at 0 should only be watched, not parked and re-prepped); 8 and 11 (pr.yml red: load or a lab-prep gap, being rerun alone). Then rerun the split |
 | DNS reset | `dns-as-code --test 3 --fast` | Reset testuser1: all steps done; the Forgejo step deletes **without purge** (detail has no "purged"), so merged PRs and comments stay (as "Ghost"); zones at/under `testuser1.dojo.test` gone; `testuser1-*` records in `dojo.test` stay; second reset passes. Also run the slide overflow check on its Marp pages (check.py below) |
 | Cert reset | `cert-autorenewal --test 3 --fast` | Reset testuser1: crontab gone (engine change), `/srv/webroot/testuser1` back empty and theirs (account.d/reset.d), `certs.dojo.test` has exactly the two seeded A records of theirs (`DNS_GATE_RESET_RECORDS`), demo-app reloads cleanly, testuser2 untouched |
 | Vault reset | `vault-fundamentals --test 2 --fast` | openbao-setup and app-db reset workers start; reset testuser1: 6 steps done; `modules/openbao/tests/setup_tokens.sh` passes; namespace and `secret/students/testuser1/` fresh, app slots empty, capstone slot locked, DB back to start; `lab_11.sh`/`lab_12.sh` pass after; second reset passes. Not covered by design: their root-namespace login tokens expire on their own |
-| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset testuser1: containers gone, testuser2's running, activity log "Purge subscription (portal)" by student-reset. Capstone two-step as a student: `dojo-check capstone` says "Halfway" while the sites run, "Passed!" after `tofu destroy` |
+| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset testuser1: containers gone, testuser2's running, activity log "Purge subscription (portal)" by student-reset. On cloud-policy-as-code too: the purge also clears policy assignments, exemptions, definitions and compliance (`policyObjects` in the log line). Capstone two-step as a student: `dojo-check capstone` says "Halfway" while the sites run, "Passed!" after `tofu destroy` |
 | Vault capstone two-step | vault stack | `dojo-check capstone` "Halfway", rotate `capstone/app` without pushing, then "Passed!"; a push in between sends it back to step 1 |
 | dojo-introduction | `--test 5 --fast` | Runs to the end with no `FAST: ... skipping it` in `/home/testuser*/.dojo-bot.log` (usability not a goal: it's for presenting). Since 2026-10-03 each bot step checks its own result, so a failed push or apply that was hidden shows up as a skip |
 | Browser looks (user) | any | Widget frame full height on first load; the Reset dialog's "Also clear their achievements and score" checkbox |
@@ -135,7 +135,7 @@ passed live on git-fundamentals; the module hooks wait for their live runs ([Now
 | R0 | Spikes | Done live on git-fundamentals: a reset takes 3-5 s; Forgejo lets the name be made again at once; the new token reaches git; a bot restarts from round 1. Found: **purge** deleted the student's merged PRs, against Q5, so the teardown now deletes their own repos, leaves the org, and deletes the account without purge (falls back to purge if refused, and says so). Not yet live |
 | R1 | Engine machinery and Roster UI | Live on git-fundamentals. Added 2026-10-02: `resets` entries may be `"optional": true` (a checkbox in the dialog, off by default, sent as `optional=<ids>`); the terminal reset also removes the student's crontab |
 | R2 | Hook contract | Docs in `workshops/README.md` (incl. `optional`) |
-| R3.1 | dojo-cloud | Built: `/_dojo/reset/<user>` on cloud-api, teardown through `Portal._purge` (the Cloud-Policy-as-Code session will make `_purge` clear its policy state too) |
+| R3.1 | dojo-cloud | Built: `/_dojo/reset/<user>` on cloud-api, teardown through `Portal._purge` and its policy objects (`policy_api.purge`, added with RV35; live check in [Now](#now)) |
 | R3.2 | openbao | Built: `openbao-reset` relay; `openbao-setup` stays up and runs reset jobs with its own token (the token never moves, unlike R9's wording); one-user mode in `10-tenancy.sh`, `20-ci.sh`, `30-platform.sh` |
 | R3.3 | runners | Built: runner-pool stops runners busy with the student's own repos (`/spool/kill/`). `forgejo-runner` is used by no workshop: no hook |
 | R3.4 | vault apps | Built: app-host empties both slots and locks the capstone slot; app-db drops and remakes the student's database (through app-host) |
@@ -156,7 +156,7 @@ git-fundamentals and dns-as-code ([N3](#n3-94-class-sized-run)). Design, decisio
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | Phase 6 | Certificate: one decision left | S | Certificate, badge PNG and name dialog are done; one decision is left |
-| Phase 9 | Other four packs | L | `match`, adapters, verifiers, seeds (9a build done 2026-10-01); live checks are [N3](#n3-94-class-sized-run) |
+| Phase 9 | Class-sized run | M | Built and live on all packs, cloud-policy-as-code included (RELEASES); only the class-sized run is left ([N3](#n3-94-class-sized-run)) |
 | — | Browser look | S | Not looked at in a browser yet: a red negative score (board, widget, `/admin`) and a negative toast in VS Code; the badge PNG download, capstone badge tier and a typed certificate name; a real student's stale-branch roster PR |
 | — | Widget resize: browser check | S | Fixed 2026-10-02, not seen in a browser: the landing page's widget frame should have its full height on first load (`toast.js` asks the widget to report again once it listens) |
 | — | Hidden-tab toasts: browser check | S | Built 2026-10-02, not seen in a browser: with the landing page open in a background tab, an unlock in the VS Code terminal pops up in VS Code (`toast.js` skips polling while `document.hidden`), and the landing page shows queued toasts when it comes to the front |
@@ -180,7 +180,6 @@ None are Critical or Important.
 | FIND-15 | dojo-cloud socket | — | Accepted, no work: socket `0660 root:cloud`; privileged DinD stays |
 | FIND-19 | Plaintext backends | — | Accepted, no work: plaintext to OpenBao and Postgres, documented |
 | — | Not exercised in P4/P5 | M | 300 app-db connections · the app-host shim on 443 (base URL was plain `http://localhost:8080`) · a real-browser "Release unused" |
-| — | `dojo-introduction` live check | S | Not re-run since P4, and slimmed to Forgejo + CI, DNS and Dojo Cloud (2026-10-01): run `./run.sh dojo-introduction --test 5` once and walk FACILITATOR.md. (git-fundamentals and dns-as-code were re-run live 2026-10-01; cert-autorenewal `--test 1` passed after P4) |
 
 ## Manual checks
 
@@ -219,6 +218,12 @@ the facilitator.
 | tofu-basics | **Dojo Cloud** card and tab; the portal opens on the student's subscription; the facilitator's tab shows the progress view; after a Track B `apply` the resource shows in both |
 
 ## Later
+
+### Smoke run
+
+| Check | Stack | Where it stands |
+|---|---|---|
+| Split smoke run (parked 2026-10-03) | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run 2026-10-03: labs 2, 4-7 and 12 ok in 9-18 min. Failed: 3, 9, 10 in lab-prep (provider "Plugin did not respond": the 320 pids cap was hit 333 times; the pack now sets `WEB_TERMINAL_PIDS_LIMIT=1024`); 0-1 (retest.sh killed the bot mid lab 0 apply, leaving a state lock lab-prep 0 never clears: a range starting at 0 should only be watched, not parked and re-prepped); 8 and 11 (pr.yml red: a lab-prep gap. From Lab 8, CI plans the fork's `main` against the cloud, and `lab-prep` pushed the rebuilt state to `main` only from Lab 12, so CI saw the whole policy as drift. Fixed (PR #10): push it from Lab 8. Rerun alone with the fix: labs 8 and 11 PASS). When picked up: a watch-only mode in `retest.sh` for a range starting at 0, then `./run.sh stop` (image rebuild for lab-prep and the caps) and rerun the split |
 
 ### vault-fundamentals follow-ups
 
