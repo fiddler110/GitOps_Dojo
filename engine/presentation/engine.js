@@ -136,7 +136,7 @@ function rego(hljs) {
   };
 }
 
-// Every page gets the manifest `scripts` loader (engine/allocator/server.py, /workspace/extra.js):
+// Every page gets the manifest `scripts` loader (engine/allocator/pages.py, /workspace/extra.js):
 // a module such as achievements adds its toast script through it, and with none it is empty.
 function extraScripts(md) {
   md.core.ruler.push('dojo_extra_scripts', (state) => {

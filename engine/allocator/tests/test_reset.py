@@ -1,4 +1,4 @@
-"""Student reset (reset.py and its wiring in server.py). Run from
+"""Student reset (reset.py and its wiring in allocation.py and api.py). Run from
 engine/allocator:
 
   python3 -B -m unittest discover -s tests -v
@@ -20,6 +20,9 @@ for _k, _v in {"FORGEJO_ADMIN_USER": "admin", "FORGEJO_ADMIN_PASSWORD": "x",
                "EXTENSIONS_FILE": os.path.join(HERE, "no-such-file.json")}.items():
     os.environ.setdefault(_k, _v)
 import reset  # noqa: E402
+import allocation  # noqa: E402
+import config  # noqa: E402
+import pages  # noqa: E402
 import server  # noqa: E402
 
 
@@ -238,27 +241,27 @@ class TerminalStepTest(unittest.TestCase):
     def test_failed_hook_fails_the_step(self):
         body = json.dumps({"ok": False, "steps": [{"id": "files", "ok": True, "detail": ""},
                                                   {"id": "reset.d/50-x.sh", "ok": False, "detail": "nope"}]})
-        with mock.patch.object(server, "control_request", return_value=body.encode()):
+        with mock.patch.object(allocation, "control_request", return_value=body.encode()):
             with self.assertRaisesRegex(reset.ResetError, r"reset.d/50-x.sh: nope"):
-                server.reset_terminal("student01")
+                allocation.reset_terminal("student01")
 
     def test_no_answer_fails_the_step(self):
-        with mock.patch.object(server, "control_request", return_value=None):
+        with mock.patch.object(allocation, "control_request", return_value=None):
             with self.assertRaises(reset.ResetError):
-                server.reset_terminal("student01")
+                allocation.reset_terminal("student01")
 
     def test_uses_the_long_timeout(self):
         body = json.dumps({"ok": True, "steps": [{"id": "files", "ok": True}]}).encode()
-        with mock.patch.object(server, "control_request", return_value=body) as call:
-            self.assertEqual(server.reset_terminal("student01"), "1 step(s) ok")
-        call.assert_called_once_with("POST", "/reset/student01", timeout=server.RESET_TERMINAL_TIMEOUT)
+        with mock.patch.object(allocation, "control_request", return_value=body) as call:
+            self.assertEqual(allocation.reset_terminal("student01"), "1 step(s) ok")
+        call.assert_called_once_with("POST", "/reset/student01", timeout=allocation.RESET_TERMINAL_TIMEOUT)
 
     def test_bot_gets_the_bot_password(self):
-        with mock.patch.object(server, "BOT_IDS", ["testuser1"]), \
+        with mock.patch.object(config, "BOT_IDS", ["testuser1"]), \
                 mock.patch.object(reset, "forgejo_provision", return_value="ok") as provision:
-            steps = dict((i, fn) for i, _label, fn in server.reset_steps("testuser1"))
+            steps = dict((i, fn) for i, _label, fn in allocation.reset_steps("testuser1"))
             steps["forgejo-provision"]()
-        self.assertEqual(provision.call_args[0][3], server.BOT_PASSWORD)
+        self.assertEqual(provision.call_args[0][3], config.BOT_PASSWORD)
 
 
 class FakeHookService:
@@ -332,8 +335,8 @@ class ServiceHookTest(unittest.TestCase):
                   "path": "/r/{user}", "timeout": 30},
                  {"id": "app-host", "label": "App slot", "upstream": "app-host:8080",
                   "path": "/r/{user}", "timeout": 30}]
-        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
-            steps = server.reset_steps("student01")
+        with mock.patch.dict(config.EXTENSIONS, resets=hooks):
+            steps = allocation.reset_steps("student01")
         self.assertEqual([i for i, _l, _f in steps],
                          ["stop", "dojo-cloud-teardown", "app-host-teardown", "forgejo-teardown",
                           "forgejo-provision", "terminal", "dojo-cloud-provision", "app-host-provision"])
@@ -346,7 +349,7 @@ class ServiceHookTest(unittest.TestCase):
         self.assertEqual(call.call_args_list[1].args[0]["id"], "app-host")
 
     def test_no_hooks_no_extra_steps(self):
-        self.assertEqual([i for i, _l, _f in server.reset_steps("student01")],
+        self.assertEqual([i for i, _l, _f in allocation.reset_steps("student01")],
                          ["stop", "forgejo-teardown", "forgejo-provision", "terminal"])
 
     def test_optional_hook_runs_only_when_ticked(self):
@@ -354,17 +357,17 @@ class ServiceHookTest(unittest.TestCase):
                   "timeout": 30, "optional": False},
                  {"id": "scores", "label": "Also clear achievements", "upstream": "achievements:8080",
                   "path": "/r/{user}", "timeout": 30, "optional": True}]
-        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
-            plain = [i for i, _l, _f in server.reset_steps("student01")]
-            ticked = [i for i, _l, _f in server.reset_steps("student01", frozenset({"scores"}))]
+        with mock.patch.dict(config.EXTENSIONS, resets=hooks):
+            plain = [i for i, _l, _f in allocation.reset_steps("student01")]
+            ticked = [i for i, _l, _f in allocation.reset_steps("student01", frozenset({"scores"}))]
         self.assertNotIn("scores-teardown", plain)
         self.assertEqual(ticked[2], "scores-teardown")
         self.assertEqual(ticked[-1], "scores-provision")
 
     def test_dialog_lists_hook_labels_as_data(self):
-        js = server.ADMIN_JS.replace("__RESET_HOOK_LABELS__", json.dumps(["Dojo \"Cloud\""]))
+        js = pages.ADMIN_JS.replace("__RESET_HOOK_LABELS__", json.dumps(["Dojo \"Cloud\""]))
         self.assertIn('.concat(["Dojo \\"Cloud\\""].map(', js)
-        self.assertNotIn("__RESET_HOOK_LABELS__", server.ADMIN_ASSETS["/admin/admin.js"][1])
+        self.assertNotIn("__RESET_HOOK_LABELS__", pages.ADMIN_ASSETS["/admin/admin.js"][1])
 
 
 class HttpTest(unittest.TestCase):
@@ -374,8 +377,8 @@ class HttpTest(unittest.TestCase):
         self.asked = []
         self.resets = reset.ResetManager(lambda sid, optional: self.asked.append(optional) or [("a", "A", lambda: "ok")],
                                          lambda *a, **k: None)
-        self.patches = [mock.patch.object(server, "RESETS", self.resets),
-                        mock.patch.object(server, "control_request", return_value=None)]
+        self.patches = [mock.patch.object(allocation, "RESETS", self.resets),
+                        mock.patch.object(allocation, "control_request", return_value=None)]
         for p in self.patches:
             p.start()
         self.httpd = server.make_server(("127.0.0.1", 0))
@@ -387,13 +390,13 @@ class HttpTest(unittest.TestCase):
         self.httpd.server_close()
         for p in self.patches:
             p.stop()
-        with server._state_lock:
-            server.token_index.clear()
-            for slot in server.slots.values():
+        with allocation._state_lock:
+            allocation.token_index.clear()
+            for slot in allocation.slots.values():
                 slot.update(name=None, ip=None, token=None, tool=None, assigned_at=None)
 
     def request(self, method, path, body=None, headers=None):
-        h = {"X-Gateway-Token": server.GATEWAY_TOKEN}
+        h = {"X-Gateway-Token": config.GATEWAY_TOKEN}
         h.update(headers or {})
         data = body.encode() if body is not None else None
         if data is not None:
@@ -414,7 +417,7 @@ class HttpTest(unittest.TestCase):
     ADMIN = {"X-Auth-User": "root", "X-Requested-With": "dojo-admin"}
 
     def test_reset_needs_header_facilitator_and_typed_id(self):
-        sid = server.STUDENT_IDS[0]
+        sid = config.STUDENT_IDS[0]
         self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}",
                                       {"X-Auth-User": "root"})[0], 403)
         self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}",
@@ -429,16 +432,16 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}", self.ADMIN)[0], 409)
 
     def test_reset_optional_steps_must_be_declared(self):
-        sid = server.STUDENT_IDS[0]
+        sid = config.STUDENT_IDS[0]
         hooks = [{"id": "scores", "label": "Clear", "upstream": "a:1", "path": "/{user}", "timeout": 30, "optional": True}]
-        with mock.patch.dict(server.EXTENSIONS, resets=hooks):
+        with mock.patch.dict(config.EXTENSIONS, resets=hooks):
             self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}&optional=nope", self.ADMIN)[0], 400)
             self.assertEqual(self.request("POST", f"/admin/reset/{sid}", f"confirm={sid}&optional=scores", self.ADMIN)[0], 202)
         self.assertEqual(self.asked, [frozenset({"scores"})])
 
     def test_fenced_student_gets_the_starting_page_and_progress_shows(self):
-        sid, token = server.claim_slot("Ada", "10.0.0.1")
-        cookie = {"Cookie": f"{server.COOKIE_NAME}={token}"}
+        sid, token = allocation.claim_slot("Ada", "10.0.0.1")
+        cookie = {"Cookie": f"{config.COOKIE_NAME}={token}"}
         self.resets.request(sid)
         self.assertEqual(self.request("GET", "/auth-check?tool=ide", headers=cookie)[0], 202)
         self.assertEqual(self.request("GET", "/forgejo-login", headers=cookie)[0], 503)
@@ -448,7 +451,7 @@ class HttpTest(unittest.TestCase):
         self.resets.run_one(self.resets.queue.get_nowait())
         # Unfenced: back to asking web-terminal (patched to no answer, so 202 again,
         # but through control_request this time).
-        with mock.patch.object(server, "control_request", return_value=b'{"ready": true}') as call:
+        with mock.patch.object(allocation, "control_request", return_value=b'{"ready": true}') as call:
             self.assertEqual(self.request("GET", "/auth-check?tool=ide", headers=cookie)[0], 200)
         call.assert_called_once()
 

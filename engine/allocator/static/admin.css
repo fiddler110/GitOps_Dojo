@@ -1,0 +1,69 @@
+
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+  .tile { border: 1px solid #333; border-radius: 0.5rem; overflow: hidden; background: #000;
+           display: flex; flex-direction: column; height: 280px; }
+  .tile-head { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.3rem 0.6rem 0.4rem;
+                font-size: 0.8rem; background: #111; color: #ccc; flex-shrink: 0; }
+  .tile-title { display: flex; align-items: center; justify-content: space-between; }
+  .tile-label { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .tile-reload { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; flex-shrink: 0; }
+  .tile-reload:hover { color: #fff; }
+  .tile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; font-size: 0.72rem; opacity: 0.85; }
+  .tile-ip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-status { white-space: nowrap; }
+  .tile-status.st-on { color: #16a34a; }
+  .tile-status.st-off { color: #dc2626; }
+  .tile-release, .tile-pw-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #6b7280; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-pw { margin-left: auto; font-size: 0.72rem; user-select: all; }
+  .tile-pw:empty { display: none; }
+  .tile-pw:empty + .tile-pw-btn, .tile-pw:empty + .tile-release { margin-left: auto; }
+  .tile-release:hover, .tile-pw-btn:hover { background: #7c8494; }
+  .tile-release:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset-btn { padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 0.35rem;
+          border: none; background: #b91c1c; color: white; cursor: pointer; flex-shrink: 0; }
+  .tile-reset-btn:hover { background: #dc2626; }
+  .tile-reset-btn:disabled { opacity: 0.6; cursor: default; }
+  .tile-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; font-size: 0.72rem; }
+  .tile-reset:empty { display: none; }
+  .tile-reset .rs-done { color: #16a34a; }
+  .tile-reset .rs-failed { color: #f87171; }
+  .tile-reset .rs-running { color: #facc15; }
+  .tile-reset .rs-pending { color: #888; }
+  .tile-reset .rs-error { flex-basis: 100%; color: #f87171; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile-reset button { padding: 0.1rem 0.5rem; font-size: 0.7rem; border-radius: 0.3rem; border: none;
+          background: #6b7280; color: white; cursor: pointer; }
+  #reset-dialog { max-width: 28rem; border: 1px solid #444; border-radius: 0.5rem; padding: 1rem 1.2rem;
+          background: #fff; color: #111; }
+  #reset-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+  #reset-dialog h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+  #reset-dialog p { margin: 0.4rem 0; font-size: 0.85rem; line-height: 1.4; }
+  #reset-dialog ul { margin: 0.3rem 0 0.6rem 1.1rem; padding: 0; font-size: 0.82rem; }
+  #reset-dialog input { width: 100%; box-sizing: border-box; padding: 0.35rem 0.5rem; font: inherit; margin: 0.3rem 0; }
+  #reset-dialog .rd-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem; }
+  #reset-dialog .rd-actions button { padding: 0.35rem 0.9rem; border-radius: 0.35rem; border: 0; cursor: pointer; }
+  #reset-dialog .rd-go { background: #b91c1c; color: #fff; }
+  #reset-dialog .rd-go:disabled { opacity: 0.5; cursor: default; }
+  #reset-dialog .rd-error { color: #b91c1c; min-height: 1.2em; }
+  #reset-dialog .rd-opt { display: block; margin: 0.4rem 0; }
+  @media (prefers-color-scheme: dark) {
+    #reset-dialog { background: #1e1e1e; color: #eee; }
+  }
+  #roster-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+  #release-unused { padding: 0.3rem 0.8rem; font-size: 0.8rem; border-radius: 0.35rem; border: 0;
+    background: #64748b; color: #fff; cursor: pointer; }
+  #release-unused:hover { background: #7c8494; }
+  #release-unused:disabled { opacity: 0.6; cursor: default; }
+  /* The iframe is laid out at a fixed, generous pixel size (see
+     FRAME_W/H below), then CSS-transformed to fill whatever size the
+     tile wrapper actually is, enlarged or not -- see that comment and
+     updateScale's for why. */
+  .tile-frame-wrap { position: relative; flex: 1; overflow: hidden; background: #000; }
+  .tile-waiting { position: absolute; inset: 0; display: flex; align-items: center;
+          justify-content: center; text-align: center; padding: 1rem;
+          font-size: 0.78rem; color: #888; }
+  .tile.watching .tile-waiting { display: none; }
+  .tile iframe { position: absolute; top: 0; left: 0; border: 0; border-radius: 0;
+          background: #000; transform-origin: top left; }
+  #grid.has-enlarged .tile { display: none; }
+  #grid.has-enlarged .tile.enlarged { display: flex; grid-column: 1 / -1; height: calc(100vh - 1.5rem); }

@@ -3,7 +3,7 @@
 # Runs as root, backgrounded by entrypoint.sh (only when BOT_COUNT > 0),
 # alongside the workspace-control.py foreground process.
 #
-# Why this exists: a facilitator's "Release" button (see allocator/server.py
+# Why this exists: a facilitator's "Release" button (see allocator/api.py
 # and workspace-control.py's /stop/<username>) does `pkill -KILL -u
 # <username>` -- for a bot account that kills its tmux server and, with it,
 # the bot-runner.sh process inside. Without something to notice and restart

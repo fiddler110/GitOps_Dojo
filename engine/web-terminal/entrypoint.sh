@@ -349,6 +349,6 @@ done
 # engine/allocator/) assigns each browser session an account and tells
 # workspace-control.py (over the internal workshop_lab network only, never
 # published through the gateway) to spawn that account's code-server/ttyd
-# process on demand -- see engine/allocator/server.py and
+# process on demand -- see engine/allocator/api.py and
 # engine/web-terminal/workspace-control.py.
 exec python3 /usr/local/bin/workspace-control.py

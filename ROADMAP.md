@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-03 (RV35 merged in PR #8, pids cap in PR #9; split smoke run being fixed) · Working
-branch: `fix/lab-prep-ci-main`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-03 (lab-prep fix in PR #10, split smoke run parked; RV22 allocator split) · Working
+branch: `feat/rv22-allocator-split`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -16,7 +16,7 @@ what is left (usually the live check).
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
 | [Up next](#up-next) | Where to resume; decisions of 2026-10-02 and 2026-10-03 |
 | [Now](#now) | Split smoke run, student reset and Phase 10: live checks |
-| [Next](#next) | N3 9.4 class-sized run; platform review (RV22-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Next](#next) | N3 9.4 class-sized run; platform review (RV25-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -34,7 +34,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 |---|---|---|---|
 | 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
 | 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
-| 3 | Platform review tiers 3-4 | L | RV35, RV23, RV24, RV28 and RV31 done; left RV22, RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
+| 3 | Platform review tiers 3-4 | L | RV35, RV22, RV23, RV24, RV28 and RV31 done; left RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
 
 ## Up next
 
@@ -59,16 +59,16 @@ it says so). A brief for an agent is built from these lines.
 
 | Check | Stack | What to confirm |
 |---|---|---|
-| DNS reset | `dns-as-code --test 3 --fast` | Reset testuser1: all steps done; the Forgejo step deletes **without purge** (detail has no "purged"), so merged PRs and comments stay (as "Ghost"); zones at/under `testuser1.dojo.test` gone; `testuser1-*` records in `dojo.test` stay; second reset passes. Also run the slide overflow check on its Marp pages (check.py below) |
-| Cert reset | `cert-autorenewal --test 3 --fast` | Reset testuser1: crontab gone (engine change), `/srv/webroot/testuser1` back empty and theirs (account.d/reset.d), `certs.dojo.test` has exactly the two seeded A records of theirs (`DNS_GATE_RESET_RECORDS`), demo-app reloads cleanly, testuser2 untouched |
-| Vault reset | `vault-fundamentals --test 2 --fast` | openbao-setup and app-db reset workers start; reset testuser1: 6 steps done; `modules/openbao/tests/setup_tokens.sh` passes; namespace and `secret/students/testuser1/` fresh, app slots empty, capstone slot locked, DB back to start; `lab_11.sh`/`lab_12.sh` pass after; second reset passes. Not covered by design: their root-namespace login tokens expire on their own |
-| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset testuser1: containers gone, testuser2's running, activity log "Purge subscription (portal)" by student-reset. On cloud-policy-as-code too: the purge also clears policy assignments, exemptions, definitions and compliance (`policyObjects` in the log line). Capstone two-step as a student: `dojo-check capstone` says "Halfway" while the sites run, "Passed!" after `tofu destroy` |
+| Vault reset | `vault-fundamentals --test 2 --fast` | **Failed 2026-10-03.** (1) The app-db reset worker was not running after start, so the first reset stopped at vault-app-db-teardown ("HTTP 502 app-db's reset worker is not running"); the openbao-setup worker likewise did not start cleanly. (2) Not idempotent: the retry failed at vault-openbao-teardown because the first try had already deleted the namespace ("could not list secret/students/testuser1/ ... hook 10-tenancy.sh failed"). With the worker started by hand, testuser2 reset fully (14 steps) twice; setup_tokens.sh, lab_11.sh and lab_12.sh passed after. Fix both, then rerun |
+| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset passed 2026-10-03 (8 steps, "Purge subscription (portal)" by student-reset) but testuser1 had no containers (bots end empty). Left: give testuser1 a running container first so "containers gone, testuser2's running" is shown; the capstone two-step as a student ("Halfway" while the sites run, "Passed!" after `tofu destroy`); on cloud-policy-as-code, `policyObjects` in the purge log line |
 | Vault capstone two-step | vault stack | `dojo-check capstone` "Halfway", rotate `capstone/app` without pushing, then "Passed!"; a push in between sends it back to step 1 |
-| dojo-introduction | `--test 5 --fast` | Runs to the end with no `FAST: ... skipping it` in `/home/testuser*/.dojo-bot.log` (usability not a goal: it's for presenting). Since 2026-10-03 each bot step checks its own result, so a failed push or apply that was hidden shows up as a skip |
 | Browser looks (user) | any | Widget frame full height on first load; the Reset dialog's "Also clear their achievements and score" checkbox |
 
-Slide overflow checker: `workshops/assets/slide-overflow.sh <workshop> [page.md ...]` (committed 2026-10-03, not run on a
-stack yet; the DNS reset run above is its first).
+Slide overflow checker: `workshops/assets/slide-overflow.sh <workshop> [page.md ...]`. It timed out after login on dns-as-code (it waited for
+`networkidle`, but the portal polls); fixed 2026-10-03 and clean on git-fundamentals (5 pages). Left: run it on dns-as-code.
+
+Passed 2026-10-03: DNS reset (no purge, PRs kept as Ghost, zone gone, shared records kept, second reset ok), cert reset
+(crontab gone, two seeded records, clean reload; the pre-state was not captured) and dojo-introduction `--test 5 --fast` (no skips).
 
 After the live checks pass: move student reset R0-R4 and R3.x to RELEASES (git-fundamentals live result: steps 3-5 s,
 idempotent, a bot restarts from round 1, the optional score clear clears only that student), and delete them below.
@@ -106,7 +106,6 @@ RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV22 | Split the allocator server | L | `engine/allocator/server.py` (2.5k lines, ~1,000 of embedded HTML/CSS/JS) into static files + slots/status/pages/handler |
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
 | RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
 | RV27 | Unused `forgejo-runner` module | S | All packs use `runner-pool`: mark it legacy or delete it, and update `build.py` and CLAUDE.md |
@@ -175,7 +174,7 @@ None are Critical or Important.
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| FIND-11 | PowerDNS keys | M | Partial: the keys are still derived from the shared token |
+| FIND-11 | PowerDNS keys | — | Partial, accepted (2026-10-03): per-student DNS keys and the gate's ownership checks are in; PowerDNS's own key stays a one-way hash of `GATEWAY_TOKEN`, which students never see and which already opens the whole lab |
 | FIND-17 | Unseal share | — | Partial, accepted (D9): the single unseal share stays on the setup volume |
 | FIND-15 | dojo-cloud socket | — | Accepted, no work: socket `0660 root:cloud`; privileged DinD stays |
 | FIND-19 | Plaintext backends | — | Accepted, no work: plaintext to OpenBao and Postgres, documented |

@@ -76,7 +76,7 @@ BOT_PREFIX = os.environ.get("BOT_PREFIX", "testuser")
 # other container reachable on the internal workshop_lab network (e.g. a
 # workshop's own Forgejo Actions runner executing student-authored CI --
 # see docker-compose.yml). Required, no default -- fail fast at startup if
-# unset, same pattern as allocator/server.py's own required secrets.
+# unset, same pattern as allocator/config.py's own required secrets.
 CONTROL_TOKEN = os.environ["CONTROL_TOKEN"]
 
 USERNAME_RE = re.compile(
@@ -421,7 +421,7 @@ def start_watch(username):
     False if there's nothing to watch yet.
 
     Re-evaluates the most-active session on every call (i.e. every time a
-    facilitator (re)opens the watch tile -- see allocator/server.py's
+    facilitator (re)opens the watch tile -- see allocator/api.py's
     /auth-check-watch) and restarts the mirror if the student has since
     switched to a different terminal. This does not follow a switch that
     happens while the tile is already open and connected -- reopen it to
@@ -680,7 +680,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 start_workspace(tool, username)
                 # Reported straight back to the allocator's /auth-check,
                 # which proxies once this is true and shows a starting page
-                # (that reloads itself) otherwise -- see server.py's
+                # (that reloads itself) otherwise -- see allocator/api.py's
                 # handle_auth_check. Checked fresh every call (not just
                 # right after a spawn) since this same endpoint is hit on
                 # every /ide or /term request, not only the first.

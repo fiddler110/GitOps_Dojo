@@ -1,0 +1,10 @@
+
+  .tab.indent { margin-left: 1rem; font-size: 0.88rem; }
+  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #topbar { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 1.1rem;
+             padding: 0.4rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #ddd; background: #f3f3f3; }
+  @media (prefers-color-scheme: dark) { #topbar { border-bottom-color: #333; background: #121212; } }
+  #topbar .who { margin-right: auto; opacity: 0.7; }
+  #content #main { flex: 1; }
+  .panel iframe { height: calc(100vh - 3.6rem); }
+  @media (max-width: 700px) { #content { display: block; } .panel iframe { height: calc(100vh - 1.5rem); } }
