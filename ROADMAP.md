@@ -37,13 +37,9 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 ## Up next
 
-Resume here (written 2026-10-02 at the end of a session). Everything built that day is committed on
-`feat/rv19-bot-smoke-tests` (not merged). Left over in git: the lint commit landed by mistake on
-`feat/cloud-policy-as-code` as `305f62b` too (it's on this branch as its cherry-pick); that branch's owner should drop
-it (`git branch -f feat/cloud-policy-as-code 9d4aea7` before it gains commits, or `git rebase --onto 9d4aea7 305f62b`
-after). The main tree was left on `feat/cloud-policy-as-code` with that session's uncommitted work; this branch was
-committed from a separate worktree. Then the live checks in [Now](#now), one stack at a time (`podman ps` first). **Machine slot promised:** after the
-tofu-basics and dojo-introduction runs, the Cloud-Policy-as-Code session gets 1-2 h of stack time; message it.
+Resume here (updated 2026-10-03). All open work is on one branch, `feat/cloud-policy-as-code` (RV19, Phase 10 and
+student reset merged into it from `feat/rv19-bot-smoke-tests`, which is deleted). Next: the live checks in [Now](#now),
+one stack at a time (`podman ps` first), and the RV35 live run.
 
 **Open question for the user:** dns-as-code records a student added through the shared repo (`<user>-app` in
 `dojo.test`) survive a reset: removing them in DNS alone is undone by the next pipeline run, and removing them for
@@ -55,7 +51,7 @@ good means the reset commits to the protected `main`. Leave them (current), or c
 |---|---|
 | Reset button | Yes, a full **Reset environment** button on `/admin` (RV38), with Release all as its first step. Nothing may persist past `./run.sh stop` |
 | Shared helpers (RV20/RV21) | One copy in `modules/_shared/`, copied into `<context>/_shared/` at build time (`SHARED=` in `module.env`) |
-| Next workshop | Cloud-Policy-as-Code (RV35), **in progress on `feat/cloud-policy-as-code`**. Resume with the RV35 row in [Next](#next): restore the pack (lost with the scratchpad), then the live run (`./run.sh cloud-policy-as-code --dry-run`, then `--test 1 --fast`) |
+| Next workshop | Cloud-Policy-as-Code (RV35), **in progress on `feat/cloud-policy-as-code`**. Resume with the RV35 row in [Next](#next): the live run (`./run.sh cloud-policy-as-code --dry-run`, then `--test 1 --fast`) |
 
 ## Now
 
@@ -129,7 +125,7 @@ RELEASES).
 | RV32 | Progress export | S | Facilitator export of progress and achievements (CSV/JSON) |
 | RV33 | Feedback survey card | M | End-of-class feedback survey card |
 | RV34 | Terminal recording | M | Terminal session recording or replay |
-| RV35 | Workshop: Cloud-Policy-as-Code | L | Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md` (spike answers in §8a, decisions PC-D8..D10). **Committed (2026-10-02), not yet run live:** spikes PC-S1..S5 done; cloud-api policy engine + ARM policy endpoints (definitions, sets, assignments, exemptions, remediations, compliance) + portal Policy blade + shared OpenTofu http state backend (`/_dojo/tfstate/<name>`), all unit-tested; Rego grammar for slides and lab reader. Three cloud-api tests (`student_reset` purge, `/_dojo/reset` 403) need the student-reset commit on `feat/rv19-bot-smoke-tests`; they pass once this branch is rebased onto it. **The pack itself is not in git:** `workshops/cloud-policy-as-code/` (labs 0-12 + capstone, slides, cheat sheet, seed repo, solutions, `lab-prep`, bot steps) was built in the session scratchpad, which `/tmp` cleanup wiped on 2026-10-03. It can be rebuilt by replaying the sub-agents' commands from session `fb049c61` transcripts (`~/.claude/projects/-home-scott-Development-GitOps-Dojo/fb049c61-*/subagents/*.jsonl`; needs the user's OK), or rewritten from `docs/CLOUD-POLICY-AS-CODE-PLAN.md`. **To do, in order:** (0) restore the pack; (1) `--dry-run`, then a live run with `--test 1 --fast`; check a real `tofu apply` of each policy resource, CI on runner-pool reaching cloud-api (runner_net aliases, CA, `/providers/tofurc` from `tofu-mirror-init`), the branch-protection check name (`Policy check / check (pull_request)` is a guess), the bot's Forgejo Actions API calls, the Policy blade (clipped Delete button, reason wording, long scope ids) and slide overflow; (2) fix what turns up; (3) achievements catalog and capstone verifier (PC-P5/P6); (4) README/RELEASES |
+| RV35 | Workshop: Cloud-Policy-as-Code | L | Plan: `docs/CLOUD-POLICY-AS-CODE-PLAN.md` (spike answers in §8a, decisions PC-D8..D10). **Committed (2026-10-02), not yet run live:** spikes PC-S1..S5 done; cloud-api policy engine + ARM policy endpoints (definitions, sets, assignments, exemptions, remediations, compliance) + portal Policy blade + shared OpenTofu http state backend (`/_dojo/tfstate/<name>`), all unit-tested; Rego grammar for slides and lab reader. The pack (`workshops/cloud-policy-as-code/`) is committed; `--dry-run` passes. **To do, in order:** (1) `--dry-run`, then a live run with `--test 1 --fast`; check a real `tofu apply` of each policy resource, CI on runner-pool reaching cloud-api (runner_net aliases, CA, `/providers/tofurc` from `tofu-mirror-init`), the branch-protection check name (`Policy check / check (pull_request)` is a guess), the bot's Forgejo Actions API calls, the Policy blade (clipped Delete button, reason wording, long scope ids) and slide overflow; (2) fix what turns up; (3) achievements catalog and capstone verifier (PC-P5/P6); (4) README/RELEASES |
 | RV36 | More workshops | L each | GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation |
 | RV37 | Several classes at once | L | One workshop per machine today |
 | RV38 | Reset environment button | M | Asked for 2026-10-02: a button on `/admin` that releases every slot and puts every student back to a fresh start without restarting the stack (between two sessions of a class). Build it on the student reset's per-student hook contract (`STUDENT-RESET-PLAN.md` §4.4): run the reset for every student, then module hooks clear their own state (achievements, sensei, dojo-cloud). Facilitator gate, a typed confirmation, audit line. A smaller first step, **Release all**, only clears the slot table. Rule: **nothing survives `./run.sh stop`**; every state file stays in a named volume (`allocator_state` is, verified 2026-10-01), and RV13's CI should fail any compose fragment that writes state outside one. Engine change, approved |
