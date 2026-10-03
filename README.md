@@ -150,7 +150,7 @@ automation instead of being made by hand.
 | OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain (see [`ROADMAP.md`](ROADMAP.md)). |
 | Vault Fundamentals (OpenBao) | Ready. Merged to `main` (PR #3): labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs. Live-tested with demo bots (10 students, about 2 GiB); a person walking labs 7-9 in the browser remains ([`ROADMAP.md`](ROADMAP.md)). |
 | Dojo Introduction | Built and tested locally; a showcase, not a lab. |
-| Threat-model remediation | 15 of 19 findings fixed, 2 partial, 2 accepted, on `feat/remediation` and not yet merged to `main`; see [`RELEASES.md`](RELEASES.md). |
+| Threat-model remediation | 15 of 19 findings fixed, 2 partial, 2 accepted; merged to `main` (PR #4). See [`RELEASES.md`](RELEASES.md). |
 | Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
 
 ## Repository layout
