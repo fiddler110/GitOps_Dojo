@@ -115,6 +115,7 @@ BOT_FAST=${BOT_FAST:-0}
 FORGEJO_ORG=$forgejo_org
 FORGEJO_REPO=$forgejo_repo
 FORGEJO_FORK_WORKFLOW=$forgejo_fork_workflow
+PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
 EOF
   chmod 600 "/home/$username/.dojo-bot.env"
 

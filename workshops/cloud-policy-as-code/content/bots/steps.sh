@@ -14,7 +14,6 @@
 
 CPC_LAB="$HOME/lab/$FORGEJO_REPO"
 CPC_FORK="$BOT_USER/$FORGEJO_REPO"
-CPC_GW="${DOJO_GATEWAY_URL:-http://gateway:8080}"   # the portal API is reached through the gateway, signed in as this bot
 CPC_TF="-no-color -input=false"
 CPC_APPLY="tofu apply -auto-approve -lock-timeout=120s $CPC_TF"
 
@@ -95,7 +94,7 @@ cpc_set_enforcement() {
   if portal_login 2>/dev/null; then
     narrate "Policy blade: team-baseline -> enforcement $1 (the portal's button)"
     code="$(portal_curl -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
-      -d "{\"mode\":\"$1\"}" "$CPC_GW/cloud/api/policy/assignments/team-baseline/enforcement")"
+      -d "{\"mode\":\"$1\"}" "$GATEWAY_URL/cloud/api/policy/assignments/team-baseline/enforcement")"
     [ "$code" = 200 ] && return 0
     narrate "the portal answered HTTP $code; making the change through the ARM API instead"
   fi
