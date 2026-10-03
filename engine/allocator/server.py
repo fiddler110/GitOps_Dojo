@@ -187,15 +187,26 @@ def read_session(token, now=None):
         account = base64.urlsafe_b64decode(name + "=" * (-len(name) % 4)).decode()
     except (ValueError, UnicodeDecodeError):
         return None
-    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) else None
+    return account if account in (TTYD_USERNAME, FACILITATOR_USERNAME) or is_bot_id(account) else None
+
+
+def is_bot_id(name):
+    """True for testuser1..testuserN while demo bots run (BOT_COUNT > 0)."""
+    m = re.fullmatch(re.escape(BOT_PREFIX) + r"([1-9][0-9]*)", name or "")
+    return bool(m) and BOT_COUNT > 0 and int(m.group(1)) <= BOT_COUNT
 
 
 def check_login(username, password):
     """The account this username/password opens, or None. Both accounts are
     always compared, so timing says nothing about which one was close. An
-    empty password never matches, whatever is configured."""
+    empty password never matches, whatever is configured. While bots run, a
+    bot also signs in as itself with its Forgejo password (BOT_PASSWORD), so
+    it can use identity-gated extension routes (a portal) as a student does:
+    see handle_route_check; nothing else treats a bot session as a student."""
     if not username or not password:
         return None
+    if is_bot_id(username):
+        return username if hmac.compare_digest(password.encode(), BOT_PASSWORD.encode()) else None
     ok_class = hmac.compare_digest(username.encode(), TTYD_USERNAME.encode()) & \
         hmac.compare_digest(password.encode(), TTYD_PASSWORD.encode())
     ok_fac = hmac.compare_digest(username.encode(), FACILITATOR_USERNAME.encode()) & \
@@ -300,7 +311,8 @@ BOT_WATCH_PORT_BASE = 9800
 # term_port() -- must match BOT_IDE_PORT_BASE/BOT_TERM_PORT_BASE in
 # web-terminal/workspace-control.py. Not currently reachable (resolve_identity()
 # never returns a bot id as `username` -- only a real student id or the
-# facilitator), but kept symmetric per this file's own "must match" comments.
+# facilitator; a bot's own login counts only in handle_route_check), but kept
+# symmetric per this file's own "must match" comments.
 BOT_IDE_PORT_BASE = 9700
 BOT_TERM_PORT_BASE = 9750
 
@@ -2269,6 +2281,8 @@ EXT_PANELS_PLACEHOLDER</main>
         upstream this workshop didn't declare."""
         route = EXT_ROUTES.get(route_id)
         username, _sid = self.resolve_identity()
+        if username is None and is_bot_id(self.session_account()):
+            username = self.session_account()  # a demo bot signed in as itself (check_login)
         denied = None
         if route is None or route["gate"] not in ("identity", "facilitator"):
             denied = 404
@@ -2596,6 +2610,11 @@ EXT_PANELS_PLACEHOLDER</main>
         if username == FACILITATOR_USERNAME:
             self.read_form_body()  # drain body regardless
             self.send_html(self.render_facilitator_workspace())
+            return
+        if sid is None and is_bot_id(self.session_account()):
+            self.read_form_body()  # a demo bot's own login never takes a student slot
+            self.send_html(page("Not for bots", "<h1>Bots don't take a student slot</h1>"), status=403,
+                           headers=NO_STORE_HEADERS)
             return
         if sid is not None:
             self.read_form_body()  # drain body regardless

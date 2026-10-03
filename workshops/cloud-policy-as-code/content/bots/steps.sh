@@ -86,12 +86,19 @@ cpc_merge_pr() {
   run_cmd "curl -s -o /dev/null -w 'merge: HTTP %{http_code}\\n' --netrc-file ~/.dojo-bot-netrc -X POST -H 'Content-Type: application/json' -d '{\"Do\":\"merge\"}' $API/repos/$CPC_FORK/pulls/$CPC_PR/merge"
 }
 
-# cpc_set_enforcement MODE: set team-baseline's enforcementMode outside git, as Lab 12's 2 a.m. engineer does. A student
-# clicks it on the portal's Policy blade; a bot can't sign in to the portal (class login + a workspace slot, which bots
-# don't have), so it makes the same change through the ARM API with its own Dojo Cloud credentials. The drift is the
-# same either way; only the portal-only milestone (pc12-drift) can't fire for a bot.
+# cpc_set_enforcement MODE: set team-baseline's enforcementMode outside git, as Lab 12's 2 a.m. engineer does: the
+# portal's Policy blade button, signed in at the gateway as this bot (bot-runner.sh's portal_login), so pc12-drift fires
+# as it does for a student. If the portal won't take it (an older engine without bot logins), the same change goes
+# through the ARM API with the bot's own Dojo Cloud credentials: the drift is the same, only pc12-drift can't fire.
 cpc_set_enforcement() {
-  local tok url
+  local tok url code
+  if portal_login 2>/dev/null; then
+    narrate "Policy blade: team-baseline -> enforcement $1 (the portal's button)"
+    code="$(portal_curl -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+      -d "{\"mode\":\"$1\"}" "$CPC_GW/cloud/api/policy/assignments/team-baseline/enforcement")"
+    [ "$code" = 200 ] && return 0
+    narrate "the portal answered HTTP $code; making the change through the ARM API instead"
+  fi
   tok="$(curl -s "https://login.dojo.cloud/$ARM_TENANT_ID/oauth2/v2.0/token" --data-urlencode grant_type=client_credentials \
     --data-urlencode "client_id=$ARM_CLIENT_ID" --data-urlencode "client_secret=$ARM_CLIENT_SECRET" \
     --data-urlencode "scope=https://management.dojo.cloud/.default" \

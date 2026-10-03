@@ -71,7 +71,8 @@ fi
 if [ "$kind" = bot ]; then
   # Demo/test bot: a home, lab copy and git identity like a student, plus a
   # small credentials file bot-runner.sh reads at startup (see that script)
-  # -- there's no browser login for these, so there's no other way to hand
+  # -- there's no browser for these (portal_login there signs in with curl),
+  # so there's no other way to hand
   # them BOT_PASSWORD/FORGEJO_ORG/FORGEJO_REPO that survives this process
   # being killed and restarted by bot-supervisor.sh.
   echo "$username:$bot_password" | chpasswd
