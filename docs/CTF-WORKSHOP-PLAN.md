@@ -291,8 +291,11 @@ flowchart LR
   2. **Dwell time.** No persona attempts the real exploit before a fixed minimum has elapsed (session-configured,
      see spike CTF-S9) — this is the "appropriate amount of time" the target stays merely *probed* before it's
      actually at risk, giving every student a real window to find and ship a fix before anything can land.
-  3. **Escalating**, independently per persona once the dwell time passes: each persona starts trying its own
-     exploit attempt on its own delay schedule.
+  3. **Escalating**, independently per persona once the dwell time passes, and **ramping**, not flat: a persona's
+     effective delay narrows from its original draw toward the tight end of the 30-180s range the longer a target
+     stays open, and the mix of its requests shifts from mostly benign probes toward mostly the real payload, so
+     the traffic visibly concentrates — more frequent, more pointed at the exact vulnerable endpoint — the closer
+     the target gets to being exploited. Full mechanics in 8.11.
   4. **Exploited or contained**, per attempt: if the vulnerability is still live when a persona's attempt lands,
      that persona succeeds and reports a breach (never anything destructive — for the GitOps targets, "succeeds"
      means recovering the same credential/token the attack-phase session had the student recover). If the
@@ -343,6 +346,15 @@ lobby screen, built here from entirely synthetic data for engagement, not attrib
 - **Build size.** A world outline, a handful of origin points, and arc animation is a small, mostly client-side
   job (an SVG or `<canvas>` map plus a short poll of the `soc` events) — no mapping service, no real geo database,
   no internet access needed at runtime, consistent with the pinned-tools/no-internet rule in section 9.
+- **"Top 10 under siege" list, alongside the map.** A live-ranked list of the (student, target) pairs currently
+  taking the most traffic — exactly the targets whose ramp (8.11) has pushed them hottest right now — with a
+  rising hit count next to each. As the ramp pushes a target toward exploitation its count climbs and it moves up
+  the list; the moment it's exploited or patched, 8.11's pivot rule moves the swarm's attention elsewhere and that
+  entry falls off, making room for the next hottest target to surface. This is the room-wide version of exactly
+  the "increasing number of attacks… until suddenly the target is exploited and the traffic pivots" effect, read
+  as a leaderboard instead of only as arcs. Whether entries should name the student or stay anonymized (just
+  "target type + an anonymous id") ties directly to the existing competition-versus-collaboration open question
+  (#3) — a named top-10 list is a very different room than an anonymized one.
 
 ### 8.4 What creates the urgency, concretely
 
@@ -464,6 +476,40 @@ design) — further breaches don't move the light anywhere it hasn't already bee
   isn't ambiguous. Both belong in **spike CTF-S9** alongside the existing timing questions, since they're the
   same "what exactly triggers a state change, and when does the clock stop" family of question.
 
+### 8.11 Traffic shaping: the ramp, and pivoting attention across a student's four targets
+
+A student runs all four CTF-4 targets at once (section 8, series table), and the swarm should feel like it's
+working all four, not four independent, identically-paced sieges that happen to share a terminal. Two mechanics
+make that work, both built on 8.2's existing per-persona delay/style machinery — no new bot architecture, just a
+weighting function on top of it.
+
+- **The ramp, per target.** Once a target passes its dwell time (8.2) and enters escalating, its personas don't
+  jump straight to full intensity — the effective delay narrows continuously from the wide end of 30-180s toward
+  the tight end, and the probability that an attempt is the real exploit payload (rather than a probe variant of
+  the same traffic style) climbs alongside it, both as a function of how long that target has been in escalating.
+  A target that's been open for one minute looks like light, mostly-benign probing; one open for ten minutes
+  looks like a tight, almost-continuous drumbeat squarely on the vulnerable endpoint. This is what makes the
+  pressure *mean* something — the room doesn't just hear noise, it hears noise that's visibly closing in.
+- **The attention budget, across targets.** The 4-6 personas split their collective attention across the
+  student's four targets rather than giving each a fixed, independent quarter. Weight goes toward whichever
+  targets are still open (not yet yellow or green — see 8.10) and have been in escalating longest, i.e. closest
+  to their own next exploit attempt; a target that's already resolved keeps only a trickle of baseline recon (for
+  realism and so the map never shows a target going completely dark) instead of the ramp traffic it had before.
+  The practical effect: fix the thing the swarm is leaning on hardest, and the room visibly watches the remaining
+  heat redistribute onto whatever's left — the "traffic pivots to the next one" behavior, achieved by
+  reallocating existing attention rather than literally moving bots between targets.
+- **Why this doesn't need anything adaptive.** Both the ramp and the pivot are pure functions of elapsed time and
+  current status (8.10) — inputs the system already has from 8.2 and 8.10 — not of anything the student does or
+  any real traffic analysis. It reads as responsive without needing to actually watch the student's behavior,
+  which keeps it deterministic and fair across a room of students moving at different speeds, the same design
+  principle section 8.2 already commits to.
+- **Spike CTF-S13, the ramp and weighting functions.** The actual curve (linear vs. exponential ramp, over what
+  duration), the attention-split formula across up to four open targets at once, and how the live "Top 10 under
+  siege" list (8.3) computes a rising count cheaply across a full room (a short rolling window of recent hits per
+  (student, target) pair, most likely, rather than a cumulative total that only ever grows) all belong to one
+  spike, since they're the same underlying "how hot is this target right now" calculation read three different
+  ways (bot behavior, map arcs, and the top-10 list).
+
 Each student's target source lives in their Forgejo repo; they fix the vulnerability in a branch, open a PR, and a
 runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: the PR passes only if the exploit
 now fails. Whether CTF-4 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
@@ -492,7 +538,7 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S11 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S13 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P3 | Targets 0-7 and 12 (low/medium + the mass-assignment API target) and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand |
@@ -591,6 +637,11 @@ None yet.
   then fixed, breached and still open), one-way (green → red → yellow, never back to green), shown per student
   and room-wide, with **points attached to the status at session end** rather than only to whether the flag was
   ever recovered (section 8.10). This replaces the earlier "no points lost either way" framing in 8.4.
+- **CTF-D11 (user, 2026-10-03):** CTF-4's traffic **ramps and pivots** (8.11): probe frequency and the
+  probe-versus-real-exploit mix both climb the longer a target's been in its escalating phase, and the swarm's
+  attention concentrates on whichever of the student's four targets is closest to exploitation, shifting away
+  once a target resolves. The cyber map (8.3) gets a **"Top 10 under siege" list** of the hottest
+  (student, target) pairs in the room right now, driven by the same heat calculation.
 
 ## 14. Open questions for the user
 
@@ -627,6 +678,10 @@ None yet.
 12. **Second vulnerabilities, how often.** Section 8.7 proposes a second latent flaw per defend target as
     optional. All four GitOps targets, a couple as a taste of it, or none for the first run of CTF-4 and add it
     once the single-flaw version has actually been taught once?
+13. **Ramp duration and top-10 list size.** Section 8.11's ramp needs a concrete duration (how many minutes from
+    "just entered escalating" to "fully ramped"), and the cyber map's "Top 10" (8.3) needs to decide whether it's
+    always exactly ten regardless of class size, or scales with the number of students (so a small class doesn't
+    see a half-empty top-10 that never changes).
 
 ## Appendix: the HTB reference list, corrected
 
