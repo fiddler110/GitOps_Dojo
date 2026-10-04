@@ -116,9 +116,12 @@ targets reach nothing outbound, and each student's firewall rule permits exactly
     "queued, position N" and then "starting". A student can cancel while queued. A student has at most one request
     in the queue, so repeated clicks don't stack. Stops skip the queue, because they free resources.
   - **Limits.** Auto-stop after about 20 min with no traffic. Reset is rate-limited per student.
-  - **Controller.** Starting and stopping needs Docker access, which the allocator never has. A separate
-    `ctf-controller` in the module, unreachable from students, talks to a socket proxy that permits only
-    start, stop and recreate on containers carrying the `ctf-range` label (spike CTF-S14).
+  - **Controller and `ctf-host` (CTF-D21).** Starting and stopping needs a container daemon, which the allocator never
+    has and which must not be the host's. A privileged `docker:dind` container, `ctf-host`, sits on an internal
+    network and holds the slot containers; a separate `ctf-controller`, unreachable from students, is its only client
+    over a unix socket in a shared volume. This is the `cloud-host`/`cloud-api` pattern from `dojo-cloud`. No host
+    socket is mounted anywhere. Each slot is an IP alias on `ctf-host` with the target's ports published on it; the
+    controller creates the slot containers itself from `STUDENT_COUNT` (spike CTF-S1, S14).
   - **Exception: CTF-5.** Defend needs all four targets live at once, so it keeps one always-on target per
     target per student (160 at 40 students) and has no toggle. Reset there is a facilitator action only, since a
     reset would wipe the student's patch.
@@ -606,7 +609,7 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S14 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S16 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
@@ -673,10 +676,284 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
   control port (`engine/README.md`). Whether that same shape (an internal-only control port, called only by the
   allocator or the admin tab's backend) fits the bot, or a simpler signal (a file the bot polls, written by a
   `start.d`-style hook) is enough for something this infrequent.
+- **CTF-S15, terminal footprint (CTF-D22).** Per-student memory with code-server open is about 260MB
+  (`engine/README.md`, Capacity), which at 40 students is likely the largest memory line in a CTF session. Confirm
+  code-server only starts on the first `/ide` request, so a pack whose students stay in the terminal never pays for
+  it; measure a terminal-only student against the 260MB figure with `./run.sh capacity` and a `--test` bot; and check
+  whether a pack can hide the VS Code tab without an engine change (the workspace page comes from the allocator, so it
+  may not be possible, which would be a separate engine proposal per CTF-D15). Also decide how CTF-5, where students
+  patch YAML, Rego and workflows, sizes for IDE use.
+- **CTF-S16, the CTF terminal workspace (CTF-D22).** One ttyd window holding a file browser, an editor and a shell,
+  built in a terminal link (`/etc/tmux.conf` and the shared zshrc are layered over, not edited). Candidates: `yazi`
+  (browser), `micro` (editor), and a multiplexer chosen by a bake-off between tmux alone, Zellij nested in tmux, and
+  Zellij's own web client. The facilitator watch tiles must keep working: today that is `tmux attach -r`
+  (`workspace-control.py`). Still to check: whether `yazi` follows the shell's `cd` through a `chpwd` hook; whether
+  the tmux `session-created` hook fires for the first session; mouse, OSC52 clipboard, file drop and sixel in ttyd;
+  Chrome and Firefox capturing Ctrl-T, Ctrl-N and Ctrl-W (Zellij's default tab and resize modes use the first two);
+  a read-only Zellij watcher attach working end to end; and a pass by someone who has never used a multiplexer.
 
 ## 12. Spike answers
 
-None yet.
+Run 2026-10-04 on macOS, Podman 6.1.3 (rootful `applehv` machine, netavark 1.17.2), podman-compose 1.6.0. **Docker
+and rootless Podman were not available, so every "works on both runtimes" claim below is Podman-rootful only and
+still needs a Linux/Docker pass (CTF-P4).** Throwaway test scripts were not kept. Status key: **proven** (ran it),
+**read** (settled from the repo's code), **open** (needs a decision or a live number).
+
+| Spike | Status | One-line answer |
+|---|---|---|
+| S1 | proven + read | No existing step emits compose, and `deploy.replicas` is ignored. Don't generate N services; let the controller own the containers (S14) |
+| S2 | proven | Firewall *inside each target* isolates targets from each other, with no network tricks. Per-target networks also work to 160 |
+| S3 | proven | Owner-matched `OUTPUT` plus source-matched `INPUT` gives the return path and isolates listeners. Rules need re-applying at container start |
+| S4 | read | A `ctf` event source is about 6 one-line edits in 2 files plus tests; a verifier plugin needs none but polls |
+| S5 | read | All three GitOps targets live in Forgejo, `runner-pool` and OpenBao on `workshop_lab`, not in a `ctf_net` slot; only small additions needed |
+| S6 | open | Not run; see below |
+| S7 | proven | The old box builds only after two fixes and runs hardened at about 13 MB |
+| S8 | open | Not run; see below |
+| S9 | open | Numbers are proposals; only a live class settles them |
+| S10 | read | Poll every 4-5 s, the engine-wide pattern |
+| S11 | read | A map is its own facilitator-gated route, not a `widgets` entry |
+| S12 | read | Spool directory in a volume the terminal never mounts, as `runner-pool` does |
+| S13 | open | Not defined in section 11; defined and left open below |
+| S14 | proven in part, **changes the plan** | The host-socket proxy has no precedent and is the riskiest piece; a boxed Docker-in-Docker host works and matches `dojo-cloud` |
+| S15 | read + open | Code-server is lazy per the README (about 260 MB when open); terminal-only cost is in S16. Hiding the VS Code tab is untested |
+| S16 | proven in part | tmux + yazi + micro is about 23 MB per student; adding Zellij adds 40-50 MB. Watcher attach unconfirmed |
+
+### S1, N targets from `STUDENT_COUNT`
+
+- `engine/dojo/stack.py:extra_files` returns a static list: each module's `compose.yml` in `MODULES` order, then the
+  overlay. The only generating step is `_render_extensions` in `start.py`, and it renders `extensions.json` into
+  `.generated/`, never compose. So no existing step can emit a compose fragment.
+- `deploy.replicas: 3` under podman-compose 1.6.0 started **one** container. Replicas and `--scale` are not an option,
+  because `run.sh` doesn't pass a scale flag.
+- A fleet container (one container, N target processes) gives up per-slot addresses and per-target hardening.
+- **Answer:** don't make Compose own the fleet. D20 already needs a controller that starts and stops slots, so the
+  controller creates the slot containers itself, from `STUDENT_COUNT`, when it starts. This needs no engine change,
+  so CTF-D15 does not trigger. It makes S14 the load-bearing spike.
+
+### S2, target-to-target isolation
+
+- Baseline on one internal bridge: container A reaches B on TCP and ICMP. Isolation does not come for free.
+- **Firewall inside the target (recommended).** The target's entrypoint runs with `NET_ADMIN`, sets `INPUT` and `OUTPUT`
+  to `DROP`, accepts loopback and only the terminal's address, then `exec`s the service through
+  `setpriv --bounding-set=-all --inh-caps=-all --ambient-caps=-all`. Result: terminal to target worked, sibling
+  target to target timed out on TCP and ICMP, and the service's `CapEff` and `CapBnd` were all zero, so even a root
+  shell in the target cannot flush the rules. Needs `iptables` and `util-linux` (real `setpriv`; busybox's has no
+  `--bounding-set`) in the target image, which must be built with network access, since `ctf_net` has none. Works
+  with any runtime that honours `cap_add`.
+- **Per-target networks.** 160 `--internal` /29 networks were created in 13 s, one container attached to all 160
+  started instantly (161 interfaces), and removal took 16 s. It works, but joining the terminal to N networks at
+  compose time is exactly the generated-fragment problem S1 rules out. Keep as a fallback.
+- **`enable_icc=false`.** netavark's `network create` offers no ICC option, so it isn't available under Podman. The
+  nested Docker option (S14) does use `dockerd --icc=false` and blocked lateral traffic (rc=1; the baseline for that
+  exact pair was not re-run).
+- Not tested: rootless Podman, Docker, and the terminal joining 160 networks.
+
+### S3, listener return path
+
+Mock terminal with `NET_ADMIN`, two uids (ranges 4010-4019 and 4020-4029), two targets, one service on 9000:
+
+- Target 1 reached uid 1's listener on 4011; target 2 could not (`INPUT` is `-i <ctf if> -s <target> --dport <range>`).
+- Target 1 could not reach a service on port 9000 on the terminal.
+- uid 2 could not reach uid 1's listener over `127.0.0.1` or over the terminal's own `ctf_net` address; uid 1 reached
+  its own over loopback. The rules are one owner-matched `OUTPUT` chain, evaluated for local delivery too.
+- Packet counters showed uid 1's traffic to its own target hit the `ACCEPT` rule and to the other target hit the
+  `DROP` rule. (Wall-clock timings of a refused versus dropped connect were unusable: even root took about 3 s here,
+  which looks like a harness quirk. Use counters, not timings, in the isolation tests.)
+- **Rules do not survive a container restart** (`OUTPUT` policy was back to `ACCEPT`). Apply them from
+  `start.d/50-ctf-range.sh`, as `DOJO_ISOLATION` is applied by the entrypoint. A student reset does not touch them,
+  since they live in the container's netns, not in the student's account.
+- **Residual risk:** iptables cannot stop another uid *binding* a classmate's listener port first, which would sabotage
+  that classmate's `ncat`. The test for it was inconclusive. It is self-contained (no data exposed), so accept it and
+  say so in the labs, or reserve ports at start.
+
+### S4, achievements `ctf` source
+
+- **Event source (recommended).** Add `ctf` to `ADAPTER_SOURCES`, `ADAPTER_EVENTS` and `MATCH_FIELDS` in
+  `modules/achievements/catalog/catalog.py`, and to `ADAPTER_EVENTS` plus the tuple at `matcher.py:428` and the
+  dispatch table at `matcher.py:450`, with tests. No new field is needed: send `{source:"ctf", event:"flag", user,
+  reason:"<challenge>", op:"user|root"}` and match with the existing `reason`/`op` text fields. Posting uses
+  `modules/_shared/adapter_client.py` as the other modules do. This touches the achievements module only.
+- **No core change (fallback).** A plugin in a folder named in `ACHIEVEMENTS_PLUGIN_DIRS`
+  (`verifiers.json` plus a Python file with `VERBS`) adding a `flag_solved` verb that asks `ctf-flags`, used by
+  `verify` milestones. Cost: it is state-polled (`ACHIEVEMENTS_STATE_SECONDS`, default 20, at most 40 backend checks
+  per pass), so with about 28 milestones per student at 40 students the unlock latency is **unmeasured** and may be
+  minutes. Fine for correctness, poor for a live leaderboard.
+- Verbs alone can cover validity (the service checks the flag), but not immediacy.
+
+### S5, GitOps targets
+
+All three run on `workshop_lab` services the terminal can already reach; none belongs in a `ctf_net` slot, and
+`ctf_net` must still never reach Forgejo (section 6).
+
+- `git-secrets`: the Forgejo seed builder (`forgejo-repo` in `achievements/forgejo.py`, per-student values by hash)
+  makes the repo with the leaked commit. The verifier verbs `history_absent` and plugin `repo_secret` exist. New: the
+  second target the recovered token opens, a tiny token-gated image on `ctf_net`.
+- `runner-escape`: `runner-pool` already gives single-use runners with a per-job user and PID namespace, and "expected
+  to fail" needs no new image, only a seed repo and workflow. Concurrency is capped (`RUNNER_MAX`, default
+  `ceil(STUDENT_COUNT/3)`), so 40 students share about 14 runners; that is a class-size risk for CTF-3/4 and belongs in
+  CTF-P4.
+- `tfstate-treasure`: a seed repo holding the state file, plus a credential written under OpenBao `students/<user>`
+  by a setup step, the same shape `vault-fundamentals` uses (`modules/openbao/setup`, `reset`). The `bao` source and
+  `plugins/bao` verbs already exist for the debrief. New: the seed and the setup script, no image.
+
+### S6, defend loop
+
+Not run. Constraint found while reading S14: with no host socket, "a student's patched source reaches a running
+target" must go through the same controller, which then needs a **build** capability (build the image from the
+student's pushed branch), the most dangerous call of all. Recommended direction, unproven: the CI job in Forgejo
+(`runner-pool`) builds and pushes the image to a registry on `ctf_ops`, and the controller only restarts the slot
+from a pre-approved image name. This must be settled before CTF-P6 and depends on the S14 decision.
+
+### S7, the old SQLi box
+
+Built and ran it in `scratchpad/s7`, as written, then hardened:
+
+1. `docker-php-ext-install sqlite3` **fails** the build (the official image already bundles `sqlite3`, `pdo_sqlite`;
+   confirmed with `php -m`). Delete the whole `RUN apt-get ...` step; nothing else needs installing.
+2. The `/var/lib/lists` typo is real (`/var/lib/apt/lists`), moot once step 1 is deleted.
+3. Hardened run works: `--read-only --cap-drop ALL --no-new-privileges --pids-limit 100 --memory 128m`, `tmpfs` on
+   `/var/run/apache2`, `/var/lock/apache2`, `/var/log/apache2` (and `/tmp`), `USER www-data`, and Apache moved to
+   port 8081 (it cannot bind 80 without `NET_BIND_SERVICE`; with `cap_drop ALL` and root it also fails with `AH00072`).
+   Root Apache would additionally need `SETUID`/`SETGID`, so run as `www-data`.
+4. `flag.txt` at `640 root:www-data` is readable by the Apache worker; the SQLi (`admin'--`) returned the flag.
+5. Idle memory was 12.75 MB. Per-student flags: the read-only root means the flag must arrive by env or a tmpfs file
+   written at start, not baked into the image. Not yet built.
+
+### S8, the seven new targets
+
+Not run. Suggested minimal builds, unproven: plain Flask for `weak-auth-portal`, `ssrf-fetcher`, `api-mass-assignment`,
+`api-bfla` (target 13's safe proof: a `HEAD`/`OPTIONS` on the route that returns 200 vs 403 without running it);
+a small nginx/openssl front for `cert-trust-bypass`. `dns-resolver-cve` needs a CVE chosen and built from source
+before any claim; do not pick one from memory here.
+
+### S9, persona swarm numbers
+
+Proposals only (nothing here has been run): 5 personas fixed per student, per-persona delay 30-180 s, dwell 8 minutes
+at base delay before any ramp (D18), and the bot stops at the wall-clock end with the debrief showing any breach still
+open (so an unfinished fix is part of the lesson). Bot isolation is the S12 answer. These need one real class
+(CTF-P7) to tune, so S9 stays open.
+
+### S10, live SOC feed
+
+Poll. Every existing live UI in the engine does: `achievements` board, widget and admin poll every 5 s, its toast every
+4 s, the Runners panel every 2.5 s. A 4-5 s poll gives "new alert within a few seconds" with nothing new to build.
+
+### S11, the cyber map
+
+`widgets` entries are same-origin pages framed at the top of each **student's** landing page, with a size of small,
+medium or large. Technically a page can render persistently inside one, but a room-wide projector view is a facilitator
+screen, so as D18 says: its own route (gate `facilitator`) plus an `/admin` tab with the same `id`. Fake-origin
+weighting lives in the event payload from `soc-feed`, not in the page, so it can be tuned without a front-end change.
+
+### S12, facilitator to bot channel
+
+The terminal and the students sit on `ctf_net` and `workshop_lab`, so a bot cannot rely on either for secrecy. Use the
+`runner-pool` shape: the controller (reachable only by the allocator or the facilitator-gated admin tab, checking
+`X-Gateway-Token` and `X-Auth-User`) writes a small file into a named volume that only the bot mounts, and the bot
+polls it (`runner-pool`'s controller drops configs in `/spool/start/`). No listener on the bot at all. This is infrequent
+enough for a file. The bots themselves must not be on a network a student's rule permits; student `OUTPUT` rules drop
+everything in the `ctf_net` subnet except the own target, which covers a bot placed there.
+
+### S13, ramp floor (referenced in section 14 but missing from section 11)
+
+Open. Suggested to measure: fully ramped delay of 5-10 s per persona, as guessed in open question 2, with the check
+that 160 targets at that rate do not exceed the host's CPU budget. Needs CTF-P4's `--test N` run.
+
+### S14, student-controlled targets: the controller and its socket
+
+**Do not build the label-restricted host-socket proxy.** Findings:
+
+- Nothing in this repo mounts the host `docker.sock` (`engine/docker-compose.yml` says "no docker.sock"; `dojo-cloud`
+  boxes a privileged Docker-in-Docker daemon on an internal network instead). A proxy would be the first such
+  exposure, and the host socket is root on the host.
+- Recreate means the **create** call, and a proxy cannot judge a create body by container label alone: a body with
+  `Privileged` or a host bind mount would pass a label filter and give a controller compromise full host control.
+  Filtering start/stop/restart by name is easy; filtering create safely means validating the body against an
+  allow-list, which is bespoke security code.
+- **Boxed `ctf-host` (recommended).** A privileged `docker:dind` container on an internal network, the controller its
+  only client over a unix socket in a shared volume, exactly as `cloud-host`/`cloud-api`. Tested with
+  `docker:29.8.1-dind`, `dockerd --icc=false`:
+  - IP aliases on the host's `eth0` (one per slot), with inner targets published on that alias: a probe on the
+    outer network reached each slot's service on its own address (TARGET-A, TARGET-B).
+  - Reverse shell: a target reached a listener on the outer network (`REVSHELL-LISTENER`).
+  - Lateral target to target: blocked under `--icc=false` (rc=1).
+  - The inner bridge address was not routable from the outer network (rc=1).
+  - Restart of a target took 261 ms and kept the slot address and port; so Reset is fast.
+- **Source address (proven rootless, 2026-10-04).** Inner targets are masqueraded to the host's one address by
+  default, which would break "`INPUT` only from target-NN". A per-target `iptables -t nat -I POSTROUTING -s <inner ip>
+  -d <ctf_net> -j SNAT --to-source <slot ip>` inside `ctf-host` fixes it: counters on the terminal side showed 5
+  packets from the host's address before the rule and 5 from the slot address after it. The inner address stays
+  stable across a restart, so the rule can be written once per slot.
+
+- **Not measured:** cold-start time at 40 students (needs the real CTF-4 images), queue concurrency of about 10, the
+  idle timeout, and the worst-case wait when all 40 press Start. Only the trivial 261 ms restart exists.
+- A nested Docker daemon also changes S1 for the better: the controller can `docker run` 160 containers from its own
+  loop. CTF-5's 160 always-on targets need a memory figure for the nested daemon (it ran at 12.75 MB per Apache target
+  plus the daemon itself; the daemon's own overhead was not measured).
+
+### S15, terminal footprint
+
+- **Read (`engine/README.md`, Capacity):** code-server is spawned lazily on the first `/ide` visit and released on
+  Release or after the idle timeout, at about 260 MB per student with a session open (about 200 MB of that is the
+  extension host, pty host and language servers; the engine already trimmed it from about 480 MB). A student who never
+  opens `/ide` should never pay for it.
+- **Open:** whether anything else starts code-server eagerly; whether a pack can hide the VS Code tab (the workspace
+  page is allocator-served, so possibly not without an engine change, which would be its own proposal); and how
+  CTF-5 sizes for IDE use. Measure with `./run.sh capacity` and a `--test` bot when the stack is next up.
+
+### S16, the CTF terminal workspace: first measurements
+
+A throwaway bake-off on 2026-10-04 (rootless Podman, Debian bookworm, arm64; scripts not kept): 5 users each
+running a file browser (`yazi` 26.9.1) and an editor (`micro` 2.0.11) in a 200x50 pty, sampled 75 s in with
+simulated keystrokes. Per student:
+
+| Setup | PSS | Anonymous (private) |
+|---|---|---|
+| tmux 3.3a + yazi + micro | 23 MB | 18 MB |
+| tmux + Zellij 0.45.1, tab and status bars | 74 MB | 62 MB |
+| tmux + Zellij, no bars (plain layout) | 65 MB | 53 MB |
+| tmux + Zellij `no-web` build, bars | 76 MB | 65 MB |
+
+- The tmux server is about 1 MB per student; `yazi` and `micro` are about 10 MB each.
+- Zellij adds roughly 40-50 MB per student whatever the layout, and the `no-web` build saves nothing. That is over
+  the 30 MB threshold agreed for choosing it. It is still about 3.5x lighter than code-server (260 MB); tmux is about
+  11x lighter.
+- `zellij web --start` is a separate process of about 4 MB per student. A non-loopback bind without a certificate is
+  refused ("Cannot bind to non-loopback IP ... without an SSL certificate"). A read-only token is documented as able to
+  "only attach to existing sessions as watcher", which would suit the facilitator tile. I created the token but did
+  **not** get a watcher attach to show a screen in this harness, so that is **unconfirmed**.
+- **Not measured:** a real ttyd client, hours of runtime (one report has Zellij growing over days), a second tab,
+  the facilitator mirror, and x86_64. Downloads used (arm64): `zellij-aarch64-unknown-linux-musl.tar.gz` sha256
+  `05f0802afadd53f8db9514e7cae53c9ae8432fed1b35b8294aa816ee3044a16b`, `yazi-aarch64-unknown-linux-musl.zip` sha256
+  `dd569daecaae914185f295634109295ccd25c1b42b02eb89a74f651970024f2e`.
+- **Provisional reading:** tmux with a friendly status line, mouse mode and a popup cheat sheet meets the efficiency
+  goal. Zellij costs about three times as much and needs either nesting inside tmux (which keeps the existing
+  `tmux attach -r` watch tiles) or an engine change to keep the facilitator view. Decide after the remaining checks
+  in section 11.
+
+### What this changes in the plan
+
+1. Decided (CTF-D21): the boxed Docker-in-Docker `ctf-host` replaces the host-socket proxy; section 4 is updated.
+   The S14 tests ran on rootful Podman, and **were repeated rootless with the same results** (see "Rootless re-run").
+2. S1 is solved by the controller creating containers, so CTF-D15 (engine change) does not apply.
+3. Open before CTF-P1: the defend-loop build path (S6). The rootless re-run and SNAT are done (see "Rootless re-run").
+4. Open until a live class: S9, S13, and the cold-start and queue numbers in S14.
+
+### Rootless re-run (2026-10-04)
+
+Repeated S2, S3 and S14 as the unprivileged `core` user in the same machine: rootless Podman 5.8.1, netavark, own
+storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 for `core` and 6.1.3 on the Mac client.
+
+- **S2** (in-target firewall): identical. Terminal to target worked, sibling to target failed, caps all zero.
+- **S3** (return path, owner and source rules): identical on every line; the mock terminal needs only `NET_ADMIN`.
+- **S14** (boxed `ctf-host`): a **privileged `docker:dind` container works rootless** (overlayfs storage, up in about 1 s).
+  Alias addresses, published ports on an alias, the reverse path, `--icc=false` lateral blocking, no route to the inner
+  address, 187 ms restart that keeps slot address and port, and per-target SNAT all behaved as in the rootful run.
+  This also settles the earlier SNAT question.
+- **Still not covered:** Docker (as a runtime), the macOS-native rootless path (the check ran inside the Podman
+  machine's Linux VM, which is how the Mac setup runs it anyway), the lateral test has no no-`icc=false` control
+  (it was blocked, but I did not show it would pass without the flag), and the cold-start and queue numbers at 40.
+- A leftover `localhost/s2base` image (alpine plus iptables) remains in `core`'s storage; harmless.
 
 ## 13. Decisions so far
 
@@ -740,6 +1017,17 @@ None yet.
   order, **one live at a time**, Start/Stop, a per-target **Reset** to the starting state, and a flag box under
   each card. The card shows the slot IP only and never the ports, and targets may expose several ports (some
   decoys) so `nmap` is useful. CTF-5 is exempt (all four targets always live). Needs a `ctf-controller` (spike S14).
+
+- **CTF-D21 (user, 2026-10-04):** The range runs its targets in a **boxed Docker-in-Docker `ctf-host`** driven by a
+  `ctf-controller`, not behind a host-socket proxy. Rootless Podman is the preferred runtime, so nothing may need the
+  host's container socket. Supersedes the socket-proxy wording in CTF-D20's implementation note (spike S14).
+
+- **CTF-D22 (user, 2026-10-04):** No VPN or SSH access path: students stay in the browser. CTF packs get a
+  **terminal-native workspace** from one shared terminal link: a file browser, an editor and a shell in one ttyd
+  window, plus a status line (target, flags, hints), with every CTF tool installed once so it is not rebuilt per
+  session. VS Code stays lazy and opt-in, and CTF-5 may still want it. The multiplexer (tmux or Zellij) is chosen by the
+  S16 bake-off, with the facilitator's read-only view of each student kept either way, and resource footprint a
+  first-order criterion (S15).
 
 ## 14. Open questions
 
