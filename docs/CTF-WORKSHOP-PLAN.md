@@ -38,14 +38,27 @@ re-run as the **CTF-D19 gate** (PR passes only when the dump returns nothing), `
 `ctf-controller` to redeploy the slot in place on merge. Verified: SAST flags vuln / clears patched / `--strict`
 exits 1; the PR gate's exit-code mapping (vuln→fail, patched→pass, unreachable→error) is unit-tested.
 
-**👉 Next step (do this next):** the parts of the S6 loop that need **range infra not yet built** — `defend-main.yml`'s
-build→push→redeploy tail is written as the faithful S6 contract but needs the boxed `ctf-host` build (CTF-D21), the
-in-lab registry, and `ctf-controller` (S14); and the **wall of shame** (§8.12, `LIVE → DISCONNECTED`,
-`CTF_WALL_OF_SHAME`) needs the SOC/CTF event contract (spike CTF-S11), the attacker bots, and the presentation
-widget route. Then the rest of the range infra the scaffold stubs: the `STUDENT_COUNT` target fan-out (CTF-S1), the
-`ctf-flags` service (§5), per-uid isolation (CTF-S2/S3) and `ctf-controller` (S14). Still open for the SAST side:
-the IaC/secret/SCA scanners for targets 8-11 (§12 S17). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**,
-the **S6/S14/S17 bullets** in §12.
+**Also finished — the range control plane `ctf-host` + `ctf-controller`** (2026-10-04, spike S14 / CTF-D21). The boxed
+privileged Docker-in-Docker `ctf-host` (`modules/ctf-range/ctf-host/`, the `cloud-host` pattern: `internal`-only,
+publishes nothing, target image baked in and imported offline at start) and its single unprivileged client
+`ctf-controller` (`modules/ctf-range/ctf-controller/`: stdlib Python; its whole reach is a fixed-template
+pull/create/start/stop/rm executor over the shared socket — never build). The controller reconciles one always-on
+slot per student (CTF-5 model), renders the §5 per-slot flag inline (seed stays in the controller, never in a
+target), and serves `POST /redeploy` — the **live tail of the S6 loop** `defend-main.yml` calls. 30 unit tests, and
+verified **live** under podman (`STUDENT_COUNT=2`): base import → one hardened slot per student each with its own
+flag → exploit dumps the flag from a managed slot → `/redeploy` recreates the slot in place from a parameterized
+image (~0.5 s) → the same published port returns zero rows / no flag (CTF-D19 green) while an un-redeployed slot
+still leaks (in-place + per-slot proven). See the S14 "Built" note in §12.
+
+**👉 Next step (do this next):** what the control plane still depends on — the **in-lab registry** + CI build that
+`defend-main.yml` pushes patched images to (spike S6; the controller's pull-by-name path is coded and unit-tested,
+but no registry is stood up, so the live flip above used an offline image swap as the stand-in). Then the **wall of
+shame** (§8.12, `LIVE → DISCONNECTED`, `CTF_WALL_OF_SHAME`), which needs the SOC/CTF event contract (spike CTF-S11),
+the attacker bots, and the presentation widget route. Then the rest of the range infra: the `STUDENT_COUNT` fan-out
+for the attack ladder (CTF-S1 — answered for CTF-5 by the controller, still open for CTF-1 to CTF-4's start/stop
+toggle + queue, CTF-D20), the standalone `ctf-flags` submission service (§5), and per-uid isolation + SNAT
+(CTF-S2/S3). Still open for the SAST side: the IaC/secret/SCA scanners for targets 8-11 (§12 S17). Spec: **§7.3
+(row 14)**, **§8 (CTF-5 scope)**, **§8.12**, the **S6/S14/S17 bullets** in §12.
 
 **Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
 TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
@@ -830,7 +843,7 @@ still needs a Linux/Docker pass (CTF-P4).** Throwaway test scripts were not kept
 | S11 | read | A map is its own facilitator-gated route, not a `widgets` entry |
 | S12 | read | Spool directory in a volume the terminal never mounts, as `runner-pool` does |
 | S13 | proven in part | CPU budget for the 5-10s ramp floor is fine (well under 1 core); curve shape, attention-split and top-10 formula still open, see below |
-| S14 | proven in part, **changes the plan** | The host-socket proxy has no precedent and is the riskiest piece; a boxed Docker-in-Docker host works and matches `dojo-cloud` |
+| S14 | **built** (CTF-5 scope), was proven in part | The host-socket proxy has no precedent and is the riskiest piece; a boxed Docker-in-Docker host works and matches `dojo-cloud`. `ctf-host` + `ctf-controller` now built and verified live (see the S14 "Built" note); warm figures and the CTF-1 to CTF-4 toggle/queue remain |
 | S15 | read + open | Code-server is lazy per the README (about 260 MB when open); terminal-only cost is in S16. Hiding the VS Code tab is untested |
 | S16 | proven in part | tmux + yazi + micro is about 23 MB per student; adding Zellij adds 40-50 MB. Watcher attach unconfirmed |
 | S17 | open | Not run; see below |
@@ -1148,6 +1161,21 @@ need a live class — they can be settled on paper (or with the same synthetic h
 - A nested Docker daemon also changes S1 for the better: the controller can `docker run` 160 containers from its own
   loop. CTF-5's 160 always-on targets need a memory figure for the nested daemon (it ran at 12.75 MB per Apache target
   plus the daemon itself; the daemon's own overhead was not measured).
+
+**Built (2026-10-04).** `modules/ctf-range/ctf-host/` (the boxed dind, the `cloud-host` pattern: patched to drop the
+tcp listener, `--icc=false`, DROP new outbound from slots, target image baked in and imported offline at start) and
+`modules/ctf-range/ctf-controller/` (stdlib Python; `docker_api.Executor` is the whole reach into ctf-host — a
+fixed-template create with read-only root, tmpfs-only writable paths, `CapDrop: ALL`, `no-new-privileges`, an image
+allow-list, and never a build; `flags.py` renders the §5 per-slot flag with the seed kept controller-side;
+`controller.py` reconciles one always-on slot per student and serves `GET /slots` + `POST /redeploy` behind a
+control token). Wired into `compose.yml` on the internal `ctf_ops` network, controller `group_add`'d into the
+socket group exactly as cloud-api is for cloud-host. 30 unit tests (`ctf-controller/tests/`). Verified live under
+podman (`STUDENT_COUNT=2`): import → a hardened slot per student with its own flag → exploit dumps the flag from a
+managed slot → `/redeploy` recreates the slot in place from a parameterized image in ~0.5 s (the stand-in for a
+registry pull; still offline) → the same published port returns no flag (CTF-D19 green) while an un-redeployed slot
+still leaks. **Still open:** the warm figures S14 already lists (cold-start at 40 students, queue concurrency, idle
+timeout) and the registry/CI push half of S6; the CTF-1 to CTF-4 start/stop toggle, queue and per-uid SNAT are a
+later step, not needed for CTF-5.
 
 ### S15, terminal footprint
 

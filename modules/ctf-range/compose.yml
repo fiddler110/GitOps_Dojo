@@ -2,18 +2,27 @@
 # engine/run.sh when a workshop.env lists it in MODULES (see README.md).
 # Relative paths resolve against engine/, NOT this folder.
 #
-# SCOPE TODAY: the ctf_net isolation network and a SINGLE dev instance of
-# target 14 (customer-portal), enough to build and exercise the target image
-# locally. The real range is a target per student slot (target-01..target-NN)
-# generated from STUDENT_COUNT — Compose cannot loop, so that fleet comes from
-# a generated fragment (spike CTF-S1), not from this file. The web-terminal
-# join, per-uid OUTPUT firewall rules and target-to-target isolation (spikes
-# CTF-S2/S3) are also not wired here yet.
+# TWO PATHS live here:
+#
+#   * The DEV path — a single standalone `customer-portal` service on ctf_net,
+#     enough to build and exercise the target image directly. Dev only.
+#
+#   * The RANGE path (CTF-D21/S14) — the boxed `ctf-host` Docker-in-Docker
+#     daemon plus its one client `ctf-controller`, which creates and replaces
+#     the real per-student target slots INSIDE ctf-host. This is how the slots
+#     are owned, which is why Compose does not need to loop to make N of them
+#     (spike CTF-S1 is answered by the controller, not a generated fragment).
+#
+# STILL NOT WIRED: the in-lab registry + CI build that defend-main.yml pushes
+# to (spike S6), the web-terminal join to ctf_net, the per-uid OUTPUT firewall
+# rules and target-to-target isolation / SNAT (spikes CTF-S2/S3), and the CTF-1
+# to CTF-4 start/stop toggle + queue (CTF-D20). The controller here implements
+# the CTF-5 always-on model and the redeploy-in-place endpoint.
 
 services:
-  # One standalone instance of target 14 for development. In a real range this
-  # becomes target-NN, one per slot, with CTF_STUDENT/CTF_FLAG rendered per
-  # student (§5) by the CTF-S1 fan-out.
+  # One standalone instance of target 14 for development (NOT the range path;
+  # the range runs its slots inside ctf-host, below). Handy for building and
+  # curling the target image on its own.
   customer-portal:
     build:
       context: ../modules/ctf-range/targets/customer-portal
@@ -54,12 +63,100 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # --- the range path (CTF-D21 / spike S14) ---------------------------------
+  # ctf-host: a boxed privileged Docker-in-Docker daemon that holds the target
+  # slots. Privileged is acceptable ONLY because of how it is boxed in, exactly
+  # as dojo-cloud's cloud-host: it is on the `internal: true` ctf_ops network
+  # with no route to the internet, the gateway, Forgejo, workshop_lab or any
+  # student; it publishes nothing to the host; and its only listener is the
+  # unix socket it shares with ctf-controller. The target image is baked in at
+  # build time and imported at start (offline). See modules/ctf-range/ctf-host.
+  ctf-host:
+    build:
+      # Context is the module root so the build can reach targets/; the
+      # Dockerfile lives under ctf-host/.
+      context: ../modules/ctf-range
+      dockerfile: ctf-host/Dockerfile
+    image: gitopsdojo/ctf-host:local
+    container_name: workshop_ctf_host
+    privileged: true
+    environment:
+      - CTF_GID=1901
+    volumes:
+      - ctf_run:/run/ctf
+      # docker:dind keeps images/containers in /var/lib/docker (an anonymous
+      # volume in its base image). Name it so `./run.sh stop` removes it too.
+      - ctf_docker:/var/lib/docker
+    networks:
+      - ctf_ops
+    healthcheck:
+      test: ["CMD-SHELL", "docker image inspect ctf-customer-portal:base >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    mem_limit: ${CTF_HOST_MEM_LIMIT:-2g}
+    pids_limit: ${CTF_HOST_PIDS_LIMIT:-4096}
+    restart: unless-stopped
+
+  # ctf-controller: the single, unprivileged client of ctf-host. Stdlib Python,
+  # no capability of its own except membership in the socket group (group_add
+  # 1901, the CTF_GID ctf-host sets). Reachable only on ctf_ops — never by a
+  # student. The defend pipeline's merge job (defend-main.yml) POSTs /redeploy
+  # here; the allocator/admin can read /slots.
+  ctf-controller:
+    build:
+      context: ../modules/ctf-range/ctf-controller
+    image: gitopsdojo/ctf-controller:local
+    container_name: workshop_ctf_controller
+    depends_on:
+      ctf-host:
+        condition: service_started
+    environment:
+      - CTF_SOCKET=/run/ctf/docker.sock
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      # The range-wide flag seed (§5). Lives ONLY here; the rendered per-slot
+      # value is injected into each target, the seed never is. Dev fallback if
+      # unset (no `:?`, so the stack still comes up — see CLAUDE.md).
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+      # The in-lab registry defend-main.yml pushes patched images to (spike S6;
+      # not stood up yet). Empty = only the baked base image may run.
+      - CTF_REGISTRY=${CTF_REGISTRY:-}
+      - CTF_BASE_IMAGE=ctf-customer-portal:base
+      - CTF_TARGET_PORT=5000
+      - CTF_TARGET_MEM_LIMIT=${CTF_TARGET_MEM_LIMIT:-128m}
+      - CTF_TARGET_PIDS_LIMIT=${CTF_TARGET_PIDS_LIMIT:-256}
+      # The control token the allocator / defend pipeline authenticate with.
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+    volumes:
+      - ctf_run:/run/ctf
+    # The ctf-host socket is 0660 root:ctf (gid 1901); the controller is the
+    # only member — exactly cloud-api's group_add of cloud-host's gid.
+    group_add:
+      - "1901"
+    networks:
+      - ctf_ops
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_CONTROLLER_MEM_LIMIT:-128m}
+    pids_limit: 128
+    restart: unless-stopped
+
 volumes:
   ctf_customer_portal_data:
+  ctf_run:
+  ctf_docker:
 
 networks:
   # The range network: internal, no route to the internet, the gateway,
   # Forgejo or workshop_lab (§4, §6). The real range adds per-student firewall
   # rules so each uid reaches exactly its own target; that is spike CTF-S2.
   ctf_net:
+    internal: true
+  # The control-plane network: ctf-host and ctf-controller only, internal, no
+  # student ever on it. The cloud_net precedent from dojo-cloud.
+  ctf_ops:
     internal: true
