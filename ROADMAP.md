@@ -4,8 +4,8 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-03 (lab-prep fix in PR #10, split smoke run parked; RV22 allocator split) · Working
-branch: `feat/rv22-allocator-split`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-04 (RV29 pack consistency, RV30 docs drift, RV27 forgejo-runner retired, RV25 tool-pin drift check) · Working
+branch: `feat/zellij-terminal`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -34,7 +34,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 |---|---|---|---|
 | 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
 | 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
-| 3 | Platform review tiers 3-4 | L | RV35, RV22, RV23, RV24, RV28, RV29 and RV31 done; left RV25-RV27, RV30, RV32-RV34, RV36-RV38 |
+| 3 | Platform review tiers 3-4 | L | RV35, RV22-RV25, RV27-RV31 done; left RV26, RV32-RV34, RV36-RV38 |
 
 ## Up next
 
@@ -112,15 +112,12 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 
 **Tier 2: CI and tests.** RV13-RV19 shipped 2026-10-02 (see RELEASES).
 
-**Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02 (see
-RELEASES).
+**Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02; RV25
+(tool-pin drift check) and RV27 (`forgejo-runner` deleted) 2026-10-04 (see RELEASES). RV26 is all that is left.
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
 | RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
-| RV27 | Unused `forgejo-runner` module | S | All packs use `runner-pool`: mark it legacy or delete it, and update `build.py` and CLAUDE.md |
-| RV30 | Docs drift | S-M | `workshops/README.md:19` says vault is "in progress"; trim the root README's duplicated tables; `DURATION=` in `workshop.env` feeding `./run.sh list` |
 
 **Tier 4: new features and workshops.**
 
@@ -146,7 +143,7 @@ passed live on git-fundamentals; the module hooks wait for their live runs ([Now
 | R2 | Hook contract | Docs in `workshops/README.md` (incl. `optional`) |
 | R3.1 | dojo-cloud | Built: `/_dojo/reset/<user>` on cloud-api, teardown through `Portal._purge` and its policy objects (`policy_api.purge`, added with RV35; live check in [Now](#now)) |
 | R3.2 | openbao | Built: `openbao-reset` relay; `openbao-setup` stays up and runs reset jobs with its own token (the token never moves, unlike R9's wording); one-user mode in `10-tenancy.sh`, `20-ci.sh`, `30-platform.sh` |
-| R3.3 | runners | Built: runner-pool stops runners busy with the student's own repos (`/spool/kill/`). `forgejo-runner` is used by no workshop: no hook |
+| R3.3 | runners | Built: runner-pool stops runners busy with the student's own repos (`/spool/kill/`) |
 | R3.4 | vault apps | Built: app-host empties both slots and locks the capstone slot; app-db drops and remakes the student's database (through app-host) |
 | R3.5 | DNS packs | Built: dns-gate deletes zones at/under `<user>.<parent>` and their names in shared zones, then re-creates `DNS_GATE_RESET_RECORDS` (cert-autorenewal sets its two seeded A records); cert-autorenewal's webroot moved to `account.d`, with a `reset.d` that removes the old site. Shared-repo records stay by decision (2026-10-03) |
 | R3.6 | achievements | Built and live: `achievements-progress` (forgets seeds, watches, half-done two-step checks, Sensei activity) and optional `achievements-score` |

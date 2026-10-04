@@ -9,6 +9,73 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## `feat/zellij-terminal`
 
+**The CTF range's three Python bases are pinned by digest (2026-10-04, committed on the branch, every
+pack's `--dry-run`, locally).** The `ctf-range` module (spike S14 / CTF-D21, commits 72feff2, 20efb6e,
+00f6c99) built three images `FROM python:3.12-slim`, a bare tag, which `check-pins.sh` rejects — and because
+that check runs inside `./run.sh <workshop> --dry-run`, it failed the dry run of *every* workshop, not just
+the CTF one, so `.github/scripts/dry-runs.sh` was red on the whole branch. All three now use
+`docker.io/library/python:3.12-slim@sha256:02108f...9155d`, the registry's `Docker-Content-Digest` for the
+tag: a multi-arch OCI index (amd64 and arm64/v8 both present, body verified to hash to the digest), which is
+what the check's remediation text asks for and what keeps the build working on Apple Silicon and on x86 CI.
+`targets/customer-portal/Dockerfile`'s comment, which had said a bare tag was fine for a scaffold, now says
+instead that `ctf-host`'s `portal` stage mirrors that file and the two digests must be bumped together --
+nothing enforces that pairing, since `check-pins.sh` only requires *a* digest and RV25's
+`check-tool-pins.sh` deliberately covers `ARG <TOOL>_VERSION` rather than `FROM` lines. Only the three `FROM`
+lines and that comment changed; the module's own code, compose and docs are the CTF work's own.
+
+**RV25: one shared tool pin can no longer drift (2026-10-04, committed on the branch, unit tests plus every
+pack's `--dry-run`, locally).** Three packs install OpenTofu and two install dnscontrol, each with the version
+and the per-arch tarball checksums written out again in its own terminal Dockerfile, so a bump in one copy and
+not the others was silent: every pack still builds, and the labs quietly stop matching. New
+`engine/scripts/check-tool-pins.sh` reads every Dockerfile under `engine/`, `modules/` and `workshops/`, treats
+each `ARG <TOOL>_VERSION=` as a tool whose install block runs to the next such `ARG`, and fails when a tool two
+or more Dockerfiles install disagrees on the version or on the checksums under it. A tool only one Dockerfile
+installs is never reported, and image digests stay `check-pins.sh`'s job. It is data-free — no workshop or tool
+is named in it — and currently reports 3 shared pins agreeing (`TOFU_VERSION` ×3, `DNSCONTROL_VERSION` ×2,
+`OPENTOFU_VSCODE_VERSION` ×3). `dojo/start.py` runs it as a "Checking tool pins" step in every `--dry-run`
+(so CI runs it too), and the closing line now names which of the two pin problems it found. Verified against
+synthetic drift in all three shapes: a version bumped in one copy, a checksum changed under an agreeing
+version, and three copies with one adrift (it names the odd one out and the two that agree). Alongside it,
+`workshops/dojo-introduction/check-pins-sync.sh` — which existed but was wired into nothing, so it had never
+run in CI — lost its version/checksum logic to the generic check and keeps only what that cannot see, the
+files copied byte-for-byte from tofu-basics; `cloud-policy-as-code` gained the same check (minus `mirror.tf`,
+which it deliberately differs on), having had none; and `.github/scripts/dry-runs.sh` now runs every
+`workshops/*/check-pins-sync.sh`.
+
+**RV27: the `forgejo-runner` module is gone (2026-10-04, committed on the branch, unit tests plus
+`--dry-run`, locally).** No pack had listed it in `MODULES` since dns-as-code moved to the single-use
+`runner-pool` (remediation T3.1), and its own README already said to prefer `runner-pool` for anything running
+student code — so it was a second runner module that could only ever be listed by mistake (both define
+`runner_net` and turn on Actions). Deleted `modules/forgejo-runner/` (README, compose fragment, runner
+Dockerfile and `register.sh`); recover it from git history if the long-lived-runner pattern is ever wanted
+again. `./run.sh modules` reads the directory, so it dropped out with no code change; the stale references
+did need fixing, in `dojo/build.py`'s docstring, `engine/README.md`'s rebuild-detection note,
+`modules/runner-pool/{README.md,compose.yml}` (both told the reader not to list the two together),
+`workshops/README.md` (the `MODULES=` example, the `build.context` pointer — now `runner-pool`'s README and
+dns-as-code's override, a live example — and the module list, which now points at `./run.sh modules` for the
+live one), the root README's layout tree, dns-as-code's override comment and ROADMAP's R3.3 row. References in
+`modules/runner-pool/` to the `forgejo-runner` *binary* (which the pool still runs as `one-job`) are untouched,
+as are `docs/archive/` and this file's history.
+
+**RV30: docs drift, and a workshop's length is now data (2026-10-04, committed on the branch, unit tests plus
+`./run.sh list`/`config`, locally).** New `WORKSHOP_DURATION` in every `workshop.env`, read by
+`dojo/workshops.py` and shown by `./run.sh list` beside the name (dim, aligned; a pack without one still
+lists). Each value comes from that pack's own `FACILITATOR.md` "session at a glance" line, so one source
+stays authoritative — which caught three stale figures in the root README: dns-as-code is ~2 h, not 45-60
+min; cert-autorenewal ~1¾ h, not ~75 min; dojo-introduction ~35 min. `new-workshop` takes `--duration` and
+writes a TODO without it (the scaffold's `Scaffold` is built by keyword, and `duration` is checked for shell
+metacharacters like the title and description). Docs: `workshops/README.md` dropped the "(in progress)" on
+vault-fundamentals, gained the missing `cloud-policy-as-code` row in both its tables (the learning path now
+runs 0-6) and documents `WORKSHOP_DURATION`; the root README lost its "Status and roadmap" table (ten rows
+restating ROADMAP/RELEASES, already missing cloud-policy-as-code — now a pointer to both files) and the
+stale per-module "used by" lists in the layout tree (`./run.sh modules` prints them), and gained
+`cloud-policy-as-code` in the summary, reachability and `/admin` tab lists plus its own "what it adds"
+section. Also corrected: the macOS host row said "Not yet tested on a Mac" (C5 tested it), and the `/admin`
+tab bullet, rebuilt from the real `extensions.json` manifests. Docs and the CLI only; no stack change.
+Unrelated pre-existing failure on this box: `tests/lib.sh` needs bash 5 (macOS has 3.2), so run the
+suites with `PATH="/opt/homebrew/bin:$PATH"`. (`modules/ctf-range/`'s unpinned `python:3.12-slim`, also
+noted here when this was written, is fixed in the entry below.)
+
 **RV29: pack consistency (2026-10-04, committed on the branch, docs only).** Every workshop pack now has the
 same baseline file set. Added `FACILITATOR.md` to the four packs that lacked one (git-fundamentals,
 dns-as-code, cert-autorenewal, vault-fundamentals), each modeled on the cloud-policy-as-code guide
