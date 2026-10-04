@@ -79,6 +79,30 @@ services, a `compose/terminal/` Dockerfile for extra tools, and an
 lab genuinely needs something no module provides. If a second workshop would
 want the same thing, make it a module instead.
 
+## What a pack contains
+
+Every pack has the **required** set below; the **optional** files appear only for the kind of workshop
+that needs them (above). `./run.sh new-workshop <name>` scaffolds the required set plus the common
+optional ones, each with TODOs.
+
+| Path | Required? | What it is |
+| ---- | --------- | ---------- |
+| `workshop.env` | **Required** | Identity picked up by `run.sh`: `WORKSHOP_NAME`, `WORKSHOP_DESCRIPTION`, `WORKSHOP_ORDER`, `WORKSHOP_CONTENT_DIR`, `FORGEJO_ORG`/`FORGEJO_REPO`, and the optional `MODULES`, `COMPOSE_OVERLAY`, `TERMINAL_FLAVOR` |
+| `README.md` | **Required** | The pack's technical reference: what it teaches, how to run it, what's in the folder |
+| `FACILITATOR.md` | **Required** | The guide for whoever runs the session: before / during / after and troubleshooting. Model a new one on an existing pack's |
+| `content/slides/presentation.md` | **Required** | The deck (Marp, on the shared theme) |
+| `content/lab/README.md` | **Required** | Lab instructions, seeded into every student's `~/lab` |
+| `content/sample-repo/` | **Required** | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO` by the `bootstrap` service |
+| `content/lab/cheat-sheet.md` | Optional | A condensed command reference students keep open beside the labs |
+| `MODULES=` (in `workshop.env`) | Optional | Opt into reusable services/tools from `modules/` (`./run.sh modules`) |
+| `compose/docker-compose.override.yml` | Optional | Extra services, pointed at by `COMPOSE_OVERLAY` — only when no module provides them |
+| `compose/terminal/Dockerfile` | Optional | Extra terminal tools, found by convention; stacks on the base/module image |
+| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional | Start-up hooks, per-account setup, student-reset hooks, and the `lab-prep N` helper |
+| `extensions.json` | Optional | A front door: landing cards, `/admin` tabs, routes and status checks (see [Front door](#front-door-extensionsjson)) |
+| `content/bots/steps.sh` | Optional | Demo-bot steps so `--test` walks *this* workshop's labs, not the default git ones |
+| `achievements/` + `ACHIEVEMENTS.md` | Optional | The achievements catalog (labs, challenges, capstone, funny unlocks, seeds), loaded when `ACHIEVEMENTS_ENABLED` |
+| `tests/` | Optional | Scripted lab tests run from the repo root against the running stack (source `workshops/assets/test-lib.sh`) |
+
 ## Adding a new workshop
 
 1. `./run.sh new-workshop <name>` (`--title`, `--description`, `--modules "a b"`,
