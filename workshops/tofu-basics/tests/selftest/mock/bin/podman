@@ -64,7 +64,16 @@ case ${1:-} in
     echo mock-ca > "$MOCK_ROOT/ca.pem"
     export MOCK_USER=$user MOCK_STATE_DIR=$MOCK_ROOT/state HOME=$home
     export ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000 ARM_CLIENT_SECRET=dojo~0123456789abcdef0123456789abcdef01234567 ARM_SUBSCRIPTION_ID=sub SSL_CERT_FILE=$MOCK_ROOT/ca.pem
-    export PATH="$HERE:$PATH"
+    # The real web-terminal is Debian (GNU sed 4.9, GNU coreutils) and the labs are written
+    # for it: 19 `sed -i` uses and a `readlink -f`. This mock runs those commands on the HOST,
+    # so on a BSD userland (macOS) they fail for a reason the real stack never has -- BSD `sed -i`
+    # takes the backup suffix as its argument, so `sed -i '/x/a\ y' f` reads f as the script
+    # ("extra characters at the end of l command"). Put any Homebrew GNU userland ahead of the
+    # BSD one so the fake container's tools match the real container's. Finds nothing on Linux.
+    for gnubin in /opt/homebrew/opt/*/libexec/gnubin /usr/local/opt/*/libexec/gnubin; do
+      [ -d "$gnubin" ] && PATH="$gnubin:$PATH"
+    done
+    export PATH="$HERE:$PATH"   # the fake terraform/git/curl must still win
     exec bash -c "$cmd" ;;
 esac
 echo "mock cli: unsupported exec in $ctr: $*" >&2
