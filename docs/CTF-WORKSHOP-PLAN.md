@@ -359,6 +359,75 @@ lobby screen, built here from entirely synthetic data for engagement, not attrib
   **(spike CTF-S6)**, now with one more consumer: the live target the bot is hitting has to be *the same* running
   container the pipeline redeploys, not a separate copy, or patching never stops the bot.
 
+### 8.5 Facilitator controls: inject and hint probes
+
+Two distinct admin-tab actions, both firing extra, short-lived bot activity on demand. They look similar from the
+feed's point of view but mean different things:
+
+- **Inject (escalation).** Fires one additional, real exploit attempt immediately, for one chosen student,
+  bypassing that persona's current delay — for re-engaging someone who's stalled, or for a dramatic moment for
+  the whole room. Its result is identical in kind to any regular persona's scheduled attempt: fails if patched,
+  a real (non-destructive) breach if not.
+- **Hint probe (a kinetic hint, not a spoiler).** Fires a short burst of 3-6 **non-exploiting** probes at the
+  specific vulnerable endpoint or parameter the target teaches, each separated by its own short random delay
+  (tighter than the regular 30-180s range — something like Uniform(10s, 60s) so the burst reads within a couple
+  of minutes), drawn from the same fake-origin pool as every other persona. A probe only touches the area — a
+  benign parameter, a request that triggers an error message and nothing more — never the real payload. The
+  resulting `soc-feed` alert is tagged and displayed exactly like any other `WARN`-level recon alert; **nothing
+  marks it as a hint to the student.** The only signal is pattern: that one path or parameter is suddenly getting
+  hit far more than the rest of the swarm — on the student's own feed, and as a visible cluster on the cyber map
+  (8.3) if several students get hint probes at once. That's the whole mechanism: noticing the cluster *is* the
+  hint. This is the existing two-hint rule (section 5, "hints, no answers") delivered as lived pressure instead of
+  a line of text, not a third hinting system — the facilitator still decides when and for whom to spend a hint,
+  same as unlocking a text hint today.
+- **Either control can target one student, a chosen group, or everyone**, each getting their own independent
+  burst with its own random timing — firing a hint probe at several stalled students simultaneously is what
+  produces the "wide sweep across many targets at once" look on the room-wide cyber map, rather than one obvious
+  isolated incident.
+- Both reuse the exact persona-scheduler machinery from 8.2: a hint probe is a short-lived, fixed-count,
+  non-exploiting persona spun up on demand, not new infrastructure. They need a facilitator → bot control path
+  that doesn't exist yet — **spike CTF-S12** — since every bot in 8.2 is deliberately unreachable from the
+  student's side; the control channel has to come from somewhere the student can't also reach (the allocator's
+  existing admin-only path into `web-terminal`'s control port, section architecture, is the closest precedent).
+
+### 8.6 A benign persona: teaching triage, not just reaction
+
+One of the 4-6 personas (8.2) is deliberately not a threat: a misconfigured health-checker or a legitimate-looking
+crawler whose traffic resembles recon but never escalates to an exploit attempt, no matter how much dwell time
+passes or what the patch state is. It exists so the feed and the cyber map always carry some noise a sharp student
+should learn to set aside — the same signal-versus-noise judgment a real SOC analyst makes constantly, and the
+opposite failure mode from "the exploit landed because nobody looked." No new mechanism: it's one more persona
+template that's simply never allowed into the escalating phase.
+
+### 8.7 A second, latent vulnerability: defense in depth
+
+Some or all of the defend targets (8-11) could ship a second, smaller flaw that only becomes reachable once the
+first is fixed — for example, the SQL injection is gone, but the now-working login reveals a debug route that
+wasn't reachable before; or the leaked secret is rotated, but the pipeline that rotated it still logs the old one
+in plaintext for one more run. A PR that closes the first hole still leaves a persona winning on its next attempt.
+This reuses the bot/CI-gate machinery entirely — a second exploit payload and a second CI assertion on the same
+target, nothing new structurally — and it's the strongest lesson in the series for "the first fix you find usually
+isn't the last one you need." Whether every target gets a second flaw or only some (to avoid a session running
+even longer) belongs with the session-length open question (#6).
+
+### 8.8 Mean-time-to-patch, next to the map
+
+Every `soc` event (first probe, dwell-time end, first exploit attempt, the moment the CI gate goes green) already
+carries a timestamp once 8.2 exists, so a "time to patch" per student is close to free to compute and show next to
+the cyber map (8.3) and on the facilitator's admin tab — not as a punitive leaderboard column (open question #7
+already asks how harsh a breach should feel), just a number the whole room sees, because that's the metric a real
+security team actually gets judged on, and it gives the debrief something concrete to compare.
+
+### 8.9 An auto-built incident summary, for the debrief
+
+At session end (or on Reset), pull one student's own `soc` event timeline and their winning PR's diff into a
+single one-page artifact — what came in, when, what the fix was, how long it took. It's the "write it up" step
+that's usually the part a lab skips, and it's the actual deliverable after a real incident. The achievements
+module's existing per-student `space` and event history (section 5) likely already hold everything this needs;
+whether it needs new rendering or can lean on `render_md.py`-style tooling the achievements module already has is
+worth a quick look before assuming a new build — flag during CTF-P6 rather than CTF-P0, since it depends on the
+SOC feed already existing.
+
 Each student's target source lives in their Forgejo repo; they fix the vulnerability in a branch, open a PR, and a
 runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: the PR passes only if the exploit
 now fails. Whether CTF-4 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
@@ -443,6 +512,12 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
   versus its own route — open question in section 14), and confirming the fake-origin weighting lives entirely in
   `soc-feed`'s event payload, not hardcoded in the widget, so the weighting can be tuned without a front-end
   change.
+- **CTF-S12, a facilitator-to-bot control channel.** Every `attacker-bot-NN` (8.2) is deliberately unreachable
+  from the student's side, which means "inject" and "hint probe" (8.5) need a path in from somewhere the student
+  can't also reach — closest existing precedent is the allocator's admin-only path into `web-terminal`'s internal
+  control port (`engine/README.md`). Whether that same shape (an internal-only control port, called only by the
+  allocator or the admin tab's backend) fits the bot, or a simpler signal (a file the bot polls, written by a
+  `start.d`-style hook) is enough for something this infrequent.
 
 ## 12. Spike answers
 
@@ -470,6 +545,12 @@ None yet.
   (section 8.1-8.4), to create real-time pressure during the session instead of relying on the CI
   gate alone. The CI gate (pipeline rebuilds, re-runs the exploit, PR passes only if it now fails) stays as the
   actual proof that a fix works; the bot and feed are the pressure layered on top of it, not a replacement for it.
+- **CTF-D9 (user, 2026-10-03):** CTF-4 additionally gets: a facilitator-fired **hint probe** (a short,
+  non-exploiting burst at the vulnerable area, firing on one student, a group, or everyone at once, each with
+  independent random timing so it reads as a wide sweep — section 8.5), a facilitator **inject** control for a
+  real extra attempt, a **benign persona** for triage practice (8.6), an optional **second latent vulnerability**
+  per target (8.7), a **mean-time-to-patch** figure shown with the map (8.8), and an **auto-built incident
+  summary** for the debrief (8.9).
 
 ## 14. Open questions for the user
 
@@ -499,6 +580,12 @@ None yet.
 10. **Where the cyber map lives.** A big, always-on room display (projector, second monitor) the facilitator
     controls, a widget on each student's own hub, or both? That changes whether it needs a dedicated route
     (section 8.3) versus just another `extensions.json` widget on an existing page.
+11. **Should hint probes ever fire automatically**, not just on a facilitator's button (8.5) — for example, after
+    N minutes of a student's dwell time with no PR opened — or should every hint stay a deliberate facilitator
+    call so the room's pacing is always a human decision?
+12. **Second vulnerabilities, how often.** Section 8.7 proposes a second latent flaw per defend target as
+    optional. All four GitOps targets, a couple as a taste of it, or none for the first run of CTF-4 and add it
+    once the single-flaw version has actually been taught once?
 
 ## Appendix: the HTB reference list, corrected
 
