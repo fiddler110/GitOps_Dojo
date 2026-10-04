@@ -51,12 +51,12 @@ services:
     # and the slots' files need (T4.1). Podman's default seccomp profile
     # applies and is not pinned here.
     user: "0:0"
-    # The two extra slots default to the same option (a harmless repeat); same opt-in as
+    # The two extra slots default to other spellings of no-new-privileges (Compose rejects equal items); same opt-in as
     # runner-pool (modules/runner-pool/README.md), for hosts that block the apps' own /proc mount.
     security_opt:
       - no-new-privileges:true
-      - ${RUNNER_POOL_SECURITY_OPT_1:-no-new-privileges:true}
-      - ${RUNNER_POOL_SECURITY_OPT_2:-no-new-privileges:true}
+      - ${RUNNER_POOL_SECURITY_OPT_1:-no-new-privileges=true}
+      - ${RUNNER_POOL_SECURITY_OPT_2:-no-new-privileges}
     cap_drop:
       - ALL
     cap_add:

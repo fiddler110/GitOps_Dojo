@@ -41,13 +41,13 @@ services:
     # Only what useradd/userdel, su, chown and killing a job's processes need
     # (T4.1); podman's default seccomp profile applies and is not pinned here.
     user: "0:0"
-    # The two extra slots default to the same option (a harmless repeat). A host whose
+    # The two extra slots default to other spellings of no-new-privileges (Compose rejects equal items). A host whose
     # container runtime masks /proc or confines the pool with SELinux (rootful Podman on
     # macOS) sets them in engine/.env so the runners can mount their own /proc; see README.
     security_opt:
       - no-new-privileges:true
-      - ${RUNNER_POOL_SECURITY_OPT_1:-no-new-privileges:true}
-      - ${RUNNER_POOL_SECURITY_OPT_2:-no-new-privileges:true}
+      - ${RUNNER_POOL_SECURITY_OPT_1:-no-new-privileges=true}
+      - ${RUNNER_POOL_SECURITY_OPT_2:-no-new-privileges}
     cap_drop:
       - ALL
     cap_add:

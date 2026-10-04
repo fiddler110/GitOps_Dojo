@@ -34,7 +34,7 @@ thrown away after one job. Hosts that block unprivileged user namespaces (e.g. U
 **Rootful Podman with SELinux (e.g. Podman on macOS)** stops them too (`unshare: mount /proc failed`): the runtime masks
 parts of `/proc`, and SELinux denies the mount. Both must be lifted, only for the pool, by setting
 `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t` in
-`engine/.env` (gitignored, so per machine). Unset, both repeat `no-new-privileges:true` and nothing changes. Docker
+`engine/.env` (gitignored, so per machine). Unset, they default to `no-new-privileges=true` and bare `no-new-privileges` (Compose rejects two equal items), so nothing changes. Docker
 doesn't accept `unmask=`; leave them unset there.
 
 **Settings** (`module.env`; set them in `workshop.env` or `engine/.env`): `RUNNER_MIN_IDLE` (2), `RUNNER_MAX` (empty:
