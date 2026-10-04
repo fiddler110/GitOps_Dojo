@@ -413,6 +413,18 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
         return self.rfile.read(min(n, 1_000_000)) if n > 0 else b""
 
+    def end_headers(self):
+        """A sender that is about to close SHOULD say so (RFC 9112 s9.6). Every path that closes --
+        the 1 MB body cap, a Content-Length that is not a number, send_error -- sets
+        close_connection before its headers go out, so announcing it here covers all of them at
+        once (_send, send_error, the portal, the redirect) instead of in each. Caddy keeps its
+        connection to cloud-api open between requests; without this header it finds out the
+        connection is gone only by trying to reuse it and failing.
+        """
+        if self.close_connection and self.request_version != "HTTP/0.9":
+            self.send_header("Connection", "close")
+        super().end_headers()
+
     def _send(self, status, body=None, headers=None):
         raw = b"" if body is None else json.dumps(body).encode()
         self.send_response(status)
