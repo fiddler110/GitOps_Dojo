@@ -97,7 +97,34 @@ targets reach nothing outbound, and each student's firewall rule permits exactly
   one code-server.
 - **Reset.** A `resets` entry (`phase=teardown`/`provision`) recreates `target-NN` from its image and re-issues its
   flags. It checks `X-Dojo-Reset-Token` in constant time like every reset hook, because students can reach the
-  service on `workshop_lab`.
+  service on `workshop_lab`. The same path backs the per-target **Reset** button on the landing card (CTF-D20): it
+  recreates the live target from its pristine image, restoring the starting state, and does not touch solved status
+  or the student's flags.
+- **Student-controlled targets, one live per slot (CTF-D20, CTF-1 to CTF-4 only).** A student picks which of their
+  session's targets to run from a card on the landing page. At most one is live per student, so the room never
+  exceeds N attack containers.
+  - **Stable slot address.** `slot-NN` keeps one address on `ctf_net`; starting a target recreates the slot's
+    container from that target's image. The per-uid firewall rule therefore never changes when a student switches.
+  - **Card.** One per target: state (stopped, starting, live, solved), the slot **IP only, never the ports** (students
+    find those with `nmap`), a short briefing, **Start/Stop**, **Reset**, and a flag text box under it.
+    Starting a second target stops the first, after a confirmation. Targets are listed in the suggested order but
+    none is locked.
+  - **Flags and state.** HMAC flags derive from student and target, so they survive stop, start and reset. A solved
+    target stays solved. Stop and reset both return a target to its clean state (nothing persists, deliberately).
+  - **Start queue.** Start and Reset requests go into one FIFO queue in the controller, and at most about 10 run at
+    once (tuned in S14), so a room that all clicks Start together doesn't spike the host. A queued card shows
+    "queued, position N" and then "starting". A student can cancel while queued. A student has at most one request
+    in the queue, so repeated clicks don't stack. Stops skip the queue, because they free resources.
+  - **Limits.** Auto-stop after about 20 min with no traffic. Reset is rate-limited per student.
+  - **Controller.** Starting and stopping needs Docker access, which the allocator never has. A separate
+    `ctf-controller` in the module, unreachable from students, talks to a socket proxy that permits only
+    start, stop and recreate on containers carrying the `ctf-range` label (spike CTF-S14).
+  - **Exception: CTF-5.** Defend needs all four targets live at once, so it keeps one always-on target per
+    target per student (160 at 40 students) and has no toggle. Reset there is a facilitator action only, since a
+    reset would wipe the student's patch.
+- **Multi-port targets.** The slot may expose several services so `nmap` is useful: the lab service on a non-default
+  port, plus decoys or supporting services. Each target's spec lists its ports and marks which are decoys and
+  which are on the path. Web-app lessons with nothing to discover say so in the briefing and may use one port.
 - **Hardening for every target:** read-only root with only the tmpfs mounts the service needs (Apache, for one, needs
   writable `/var/run/apache2`, `/var/lock/apache2`, `/var/log/apache2`; **verify**), `cap_drop: ALL` plus only what
   the service needs, `no-new-privileges` unless the box's privesc is the point, never `privileged`, never the
@@ -543,6 +570,8 @@ Per session pack, from `./run.sh new-workshop`:
 - `content/slides/presentation.md` (Marp): the technique, the legal boundary, one example solved live.
 - `content/lab/README.md` and lab files: seeded into `~/lab`; each target has a briefing (what the box is, which
   ports are yours, no answers), a hint ladder and a debrief page unlocked after the flag.
+- **Target cards (CTF-D20, CTF-1 to CTF-4).** One card per target with state, slot IP, Start/Stop, Reset and a flag
+  box (section 4). The facilitator `/admin` tab shows every student's live target and can stop or reset any of them.
 - `extensions.json`: cards `{id, label, desc, href, icon}` for the briefing and flag submission; a matching `/admin`
   tab per card (the renderer warns otherwise). No `/guide/` or `/terminal/` routes: the Labs and Terminal tabs
   already exist.
@@ -577,7 +606,7 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S13 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S14 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
@@ -599,6 +628,10 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 - **CTF-S2, target-to-target isolation on both runtimes.** Which of per-target networks, `enable_icc=false` or a
   sidecar firewall works under Docker and rootless Podman (`netavark`), and what `web-terminal` joining N networks
   costs.
+- **CTF-S14, student-controlled targets.** The `ctf-controller` and its label-restricted socket proxy under Docker and
+  rootless Podman; cold-start time per target (CTF-4's DNS, policy and `runner-pool` stacks especially) at 40
+  students; that recreating the slot keeps its address and firewall rule; the queue's concurrency and the idle timeout
+  values, including the worst-case wait when all 40 students press Start at once.
 - **CTF-S3, listener return path.** Port ranges, `INPUT` rules by source, and survival across container restart and
   student reset; also that other uids cannot reach a student's listener over loopback.
 - **CTF-S4, achievements `ctf` source.** Smallest change to add a signed `ctf` event source (as `cloud`, `bao`, `ca`
@@ -703,6 +736,10 @@ None yet.
   nears exploitation (8.11). Adopted defaults: no extra retry penalty; flatter
   region-level origin mix; one projector route for the cyber map; facilitator-only hint probes; linear 10 min ramp;
   top-10 always up to ten entries from hot pairs. Bot-pacing numbers still come from spike S9.
+- **CTF-D20 (user, 2026-10-03):** In CTF-1 to CTF-4 the student controls their targets from landing-page cards: free
+  order, **one live at a time**, Start/Stop, a per-target **Reset** to the starting state, and a flag box under
+  each card. The card shows the slot IP only and never the ports, and targets may expose several ports (some
+  decoys) so `nmap` is useful. CTF-5 is exempt (all four targets always live). Needs a `ctf-controller` (spike S14).
 
 ## 14. Open questions
 
