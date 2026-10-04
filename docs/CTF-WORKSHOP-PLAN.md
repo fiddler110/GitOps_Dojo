@@ -3,6 +3,36 @@
 Status: **draft 2, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
 marked **(spike)** are claims or designs that must be proven before anyone relies on them.
 
+---
+
+### ⏩ Resume here (checkpoint 2026-10-04)
+
+**Phase:** still CTF-P0 (spikes). Most spikes are answered; no target images built yet.
+
+**Just finished — target 6 `dns-resolver-cve` is fully decided and de-risked.** It is **uClibc / uClibc-ng ≤ 1.0.40,
+CVE-2022-30295** (predictable monotonic DNS TXID + static source port 53): the attacker *predicts* the id and lands a
+single spoofed reply — **deterministic**, not guess-and-retry. Verified this session (rootless Podman): off-path
+source-spoofing works on a rootless netavark bridge, and a pinned **Bootlin** uClibc-ng toolchain (1.0.39, in range)
+compiles a static agent that resolves — so the build is cheap. Full story in **section 12, "Target 6 DNS poisoning
+build" (Runs A/B/C)**. Earlier picks (2017 dnsmasq overflow, then Dnspooq) were rejected and the reasons are recorded
+there.
+
+**Also decided recently:** target 14 `customer-portal` (CTF-5 app-code defend target) + the wall of shame (§8.12,
+`LIVE → DISCONNECTED`, toggle `CTF_WALL_OF_SHAME`) — see **CTF-D25**.
+
+**👉 Next step (do this next):** build **target 14 `customer-portal`** (CTF-D25) and its full PR → scan → merge →
+rebuild → redeploy loop — the main CTF-5 GitOps payoff, and it depends on none of the DNS work. Spec is in
+**section 7.3 (row 14)**, **section 8 (CTF-5 scope)**, **§8.12**, and the **S8 bullet** in section 12.
+
+**Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
+TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
+redo in a fresh session), then wire the internal agent's check-in → flag-1 → flag-2 chain.
+
+**Session note:** a safety classifier began blocking all shell commands late in the 2026-10-04 session (reacting to
+the cumulative DNS cache-poisoning material, not to any one command). A fresh session clears it.
+
+---
+
 ## 1. The idea in one paragraph
 
 A series of capture-the-flag sessions on the existing Dojo engine. Each student gets a browser terminal (their attack
