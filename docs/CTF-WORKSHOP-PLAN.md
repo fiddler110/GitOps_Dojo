@@ -1,6 +1,6 @@
 # CTF workshop series: plan
 
-Status: **draft 1, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
+Status: **draft 2, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
 marked **(spike)** are claims or designs that must be proven before anyone relies on them.
 
 ## 1. The idea in one paragraph
@@ -15,7 +15,7 @@ The last session turns it around: students defend their own target with git and 
 ## 2. Where it sits
 
 - **A new module, `ctf-range`, plus one thin workshop pack per session.** The range (targets, firewall rules, flag
-  service, terminal tools, and for CTF-4 the attacker bots and SOC feed — section 8.2) is reusable, so by the rule
+  service, terminal tools, and for CTF-5 the attacker bots and SOC feed — section 8.2) is reusable, so by the rule
   in `workshops/README.md` it is a module. Each session is a workshop pack that lists `MODULES="ctf-range ..."`,
   names which targets it uses and ships its labs and slides.
 - **No engine changes.** Everything below is expressed as module compose, terminal image links, `start.d` hooks,
@@ -221,28 +221,32 @@ broken image is caught before a class sees it.
 
 | Session | Theme | Tier | Targets | Length |
 |---|---|---|---|---|
-| CTF-1 | Web foothold | Low | 0, 1, 2, 3 | ~130 min |
-| CTF-2 | Linux privesc, misconfiguration & APIs | Medium | 4, 5, 6, 7, 12 | ~160 min |
-| CTF-3 | Attack the GitOps pipeline | Hard | 8, 9, 10, 11, 13 | ~190 min |
-| CTF-4 | Defend: patch it with git | targets 8-11, source in a Forgejo repo | ~120 min |
+| CTF-1 | **Access and identity**: getting in when auth or access checks are weak | Low | 0, 2, 1, 3 | ~150 min (~130 + ~20 min Linux/`nmap` primer) |
+| CTF-2 | **Server-side trust and APIs**: the server trusts input or the caller | Medium/Hard | 4, 7, 12, 13 | ~150 min |
+| CTF-3 | **Secrets and misconfiguration**: leaked credentials and their reach | Medium/Hard | 5, 8, 11 | ~115 min |
+| CTF-4 | **Trusting the wrong thing**: a component, a rule or a pipeline | Medium/Hard | 6, 9, 10 | ~115 min |
+| CTF-5 | **Defend**: patch it with git | Hard | 8-11, source in a Forgejo repo | ~120 min |
 
-Each session is its own workshop pack (`workshops/ctf-web/`, `ctf-privesc/`, `ctf-pipeline/`, `ctf-defend/`; names
-are open) with `FORGEJO_ORG`/`FORGEJO_REPO` for its seed content. Packs differ only in content and in which target
-images and flags they enable, so a new session is content work, not infrastructure work. Four to five targets per
-session at ~130-190 minutes is long for a lunch-and-learn slot; splitting any of CTF-1/2/3 into two shorter
-sessions, or carving the two API-only targets (12, 13) into their own short `ctf-api` session, is an open question
-(section 14).
+The attack sessions were grouped by how the exploit works, not by tier, so each stays inside a 2-3 hour window
+(decision CTF-D12). The defend session is not split. CTF-5 expects CTF-3 and CTF-4 as prerequisites, because targets
+8-11 are spread across them. Dependencies are confined: CTF-3 needs Forgejo and `openbao`; CTF-4 needs the DNS
+stack, the policy engine and `runner-pool`; CTF-1 and CTF-2 need nothing beyond `ctf-range`.
 
-**CTF-4 (defend)** is the GitOps payoff, scoped to targets 8-11 because those are the ones with pipeline-adjacent
+Each session is its own workshop pack (`workshops/ctf-access/`, `ctf-server-trust/`, `ctf-secrets/`, `ctf-trust/`,
+`ctf-defend/`; names are open) with `FORGEJO_ORG`/`FORGEJO_REPO` for its seed content. Packs differ only in content
+and in which target images and flags they enable, so a new session is content work, not infrastructure work. Every
+pack ships the same **Lab Info** library (section 9).
+
+**CTF-5 (defend)** is the GitOps payoff, scoped to targets 8-11 because those are the ones with pipeline-adjacent
 fixes (a secret to rotate, a policy to correct, a workflow trigger to lock down, a state backend to move). Target
-13 (`api-bfla`) is deliberately left out of CTF-4: its "exploit" is calling a destructive admin route, and the
+13 (`api-bfla`) is deliberately left out of CTF-5: its "exploit" is calling a destructive admin route, and the
 defend loop must never re-run that against the live range (see target 13's note in section 7.3).
 
 ### 8.1 Why a CI gate alone isn't enough
 
-The original design for CTF-4 was: student opens a PR, a pipeline rebuilds the target, re-runs the exploit once,
+The original design for CTF-5 was: student opens a PR, a pipeline rebuilds the target, re-runs the exploit once,
 and the PR passes only if the exploit now fails. That's a correct *gate*, but it has no pressure in it — a student
-can take as long as they like, and nothing happens in the room while they think. The ask is to make CTF-4 feel
+can take as long as they like, and nothing happens in the room while they think. The ask is to make CTF-5 feel
 like defending a live incident: probing noise in the background, a rising sense that something is actively
 happening to *your* system, and a race to patch and ship before it's exploited for real. The CI gate stays (it's
 still how a fix is proven), but it stops being the only thing creating pressure.
@@ -319,7 +323,7 @@ flowchart LR
   admin tab in section 5, just more columns. The room-wide "Cyber Map" (8.4) is the dramatized version of this
   same feed.
 - **Why this is also the A09 lesson, room-wide.** Target 9 `tfstate-treasure`'s debrief already asks a student to
-  find their own breach after the fact in Vault's audit log (section 7.3). CTF-4's SOC feed is the same idea live
+  find their own breach after the fact in Vault's audit log (section 7.3). CTF-5's SOC feed is the same idea live
   and ahead of the breach instead of after it — the two reinforce each other rather than being two unrelated
   feature builds.
 
@@ -331,7 +335,7 @@ lobby screen, built here from entirely synthetic data for engagement, not attrib
 
 - **It's a widget, not a card.** `extensions.json`'s `widgets` entry (distinct from a `cards` entry — see
   `workshops/README.md`'s schema) fits a room-wide, always-on visual better than a per-student nav card; it can
-  live on the Workshop Library hub or get its own route, open question in section 14.
+  live on the Workshop Library hub or get its own route (decided: one projector route, CTF-D18).
 - **Data in:** the same `soc` achievement events as 8.2, with the fake origin field already attached. The map
   widget doesn't invent anything itself — it only renders what `soc-feed` already tagged.
 - **What it shows:** a steady trickle of small, low-severity arcs (recon, from the weighted-but-mixed origin set)
@@ -410,16 +414,29 @@ should learn to set aside — the same signal-versus-noise judgment a real SOC a
 opposite failure mode from "the exploit landed because nobody looked." No new mechanism: it's one more persona
 template that's simply never allowed into the escalating phase.
 
-### 8.7 A second, latent vulnerability: defense in depth
+### 8.7 A second, bonus vulnerability: defense in depth
 
-Some or all of the defend targets (8-11) could ship a second, smaller flaw that only becomes reachable once the
-first is fixed — for example, the SQL injection is gone, but the now-working login reveals a debug route that
-wasn't reachable before; or the leaked secret is rotated, but the pipeline that rotated it still logs the old one
-in plaintext for one more run. A PR that closes the first hole still leaves a persona winning on its next attempt.
-This reuses the bot/CI-gate machinery entirely — a second exploit payload and a second CI assertion on the same
-target, nothing new structurally — and it's the strongest lesson in the series for "the first fix you find usually
-isn't the last one you need." Whether every target gets a second flaw or only some (to avoid a session running
-even longer) belongs with the session-length open question (#6).
+Each defend target (8-11) ships a second, smaller flaw, a **bonus** the swarm never exploits (decision CTF-D17):
+
+- **Never exploited by the bots.** No persona ever sends a real payload at the bonus flaw, so it can never turn a
+  light red and never affects the red/yellow/green status (8.10). The required fix still carries the whole
+  race-against-the-bot pressure; the bonus adds no session-length pressure, because students can ignore it.
+- **Still probed.** Personas send ordinary `WARN`-level probe variants (8.5's non-exploiting style) at the bonus
+  area, mixed in with everything else. Nothing marks it as a bonus. A student who notices an odd cluster of hits on
+  a path the main fix never touched has found a lead, the same "noticing the pattern is the hint" device as 8.5.
+- **Scored in the same units.** A second flaw found and fixed is +1 unit (status is green 2 / yellow 1 / red 0, see
+  8.10), proven by a second CI assertion on the same target. It counts only when the main CI gate has gone green on
+  that target, so a red target can't bank it. Same pipeline, a second check, nothing new structurally.
+- **Where the second flaws go** (best fits first):
+
+| Target | Required flaw | Bonus flaw | Why it fits |
+|---|---|---|---|
+| 9 `policy-bypass` | The missing `deny` case | A second gap on a different match path (a wildcard or case-sensitivity hole) that the existing `opa test` cases never cover | Fixing it means writing the test that was missing, which is the lesson |
+| 8 `git-secrets` | A token deleted from `main` but live in history | The same token still reachable from a stale branch or tag, so purging `main` alone is not enough | "Deleting is not revoking" has a second layer: rotate it, then purge every ref |
+| 10 `runner-escape` | An untrusted fork runs code on a shared runner | The workflow's job token is broader than it needs (default `permissions:`), or a step echoes a secret to the log | Least privilege in CI, and a direct reuse of the A09 logging theme |
+| 11 `tfstate-treasure` | State with credentials in a share or repo | The pipeline that moves the state logs the old credential once more in plaintext | Smallest and least natural of the four, so the first to cut if CTF-5 runs long |
+
+The first-fix-isn't-the-last lesson survives, but it is now a reward for thoroughness instead of a trap.
 
 ### 8.8 Mean-time-to-patch, next to the map
 
@@ -441,7 +458,7 @@ SOC feed already existing.
 
 ### 8.10 Per-target status — red, yellow, green — and how it adds up to points
 
-Every target in CTF-4 carries its own status light, visible on the student's own board and on the facilitator's
+Every target in CTF-5 carries its own status light, visible on the student's own board and on the facilitator's
 admin tab (one more column next to the existing per-target rows in section 5's "CTF Range" tab), and it moves
 through exactly one of three states:
 
@@ -461,11 +478,11 @@ yellow target can still be re-exploited later (its personas keep retrying per 8.
 design) — further breaches don't move the light anywhere it hasn't already been, but the debrief/incident summary
 (8.9) can still show the retry count as its own detail, separate from the status tier.
 
-- **Scoring at session end.** Each target's final light carries a point value — a reasonable starting split is
-  full points for green, partial credit for yellow (the fix is real, it just came after the fact), and little or
-  nothing for red — summed across all of CTF-4's targets into that session's score, on the achievements
-  leaderboard alongside the flag points from the attack-phase sessions (section 5). The exact numbers are open
-  question #7 rather than something to lock in here.
+- **Scoring at session end (decision CTF-D19).** Each target's final light is worth units: green 2, yellow 1,
+  red 0, plus 1 per bonus flaw fixed (8.7, only once the main gate is green). Units are summed across the session's
+  four targets (max 12) and multiplied by one configured factor into achievements points, on the leaderboard
+  alongside the attack-session flag points (section 5). At x5 that is 10/5/0 per target and +5 per bonus. Retries
+  after a fix cost nothing; they show only in the debrief.
 - **A room-wide view, not just a personal one.** Because every student's status board exists at once, the
   facilitator's admin tab and the cyber map (8.3) can both show the whole room's reds turning to yellows over the
   course of the session — which is the visual version of exactly what was asked for: being able to watch the room
@@ -478,7 +495,7 @@ design) — further breaches don't move the light anywhere it hasn't already bee
 
 ### 8.11 Traffic shaping: the ramp, and pivoting attention across a student's four targets
 
-A student runs all four CTF-4 targets at once (section 8, series table), and the swarm should feel like it's
+A student runs all four CTF-5 targets at once (section 8, series table), and the swarm should feel like it's
 working all four, not four independent, identically-paced sieges that happen to share a terminal. Two mechanics
 make that work, both built on 8.2's existing per-persona delay/style machinery — no new bot architecture, just a
 weighting function on top of it.
@@ -498,6 +515,10 @@ weighting function on top of it.
   The practical effect: fix the thing the swarm is leaning on hardest, and the room visibly watches the remaining
   heat redistribute onto whatever's left — the "traffic pivots to the next one" behavior, achieved by
   reallocating existing attention rather than literally moving bots between targets.
+- **Pacing in one line (decision CTF-D18).** Before dwell ends, each persona holds its base delay X, drawn once from
+  Uniform(30s, 180s) and held. From dwell end, the delay shrinks linearly over a 10 min ramp window toward a floor
+  well below 30s (starting guess 5-10s, set in S13), so the traffic speeds up as the target gets closer to being
+  exploited. A resolved target drops back to base-delay recon.
 - **Why this doesn't need anything adaptive.** Both the ramp and the pivot are pure functions of elapsed time and
   current status (8.10) — inputs the system already has from 8.2 and 8.10 — not of anything the student does or
   any real traffic analysis. It reads as responsive without needing to actually watch the student's behavior,
@@ -512,8 +533,8 @@ weighting function on top of it.
 
 Each student's target source lives in their Forgejo repo; they fix the vulnerability in a branch, open a PR, and a
 runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: the PR passes only if the exploit
-now fails. Whether CTF-4 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
-their own attacker-bot, is an open question (section 14).
+now fails. Whether CTF-5 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
+their own attacker-bot, is a later iteration.
 
 ## 9. Content and front door
 
@@ -532,6 +553,24 @@ Per session pack, from `./run.sh new-workshop`:
   12 and 13 — `curl -s | jq` works too, but a dedicated API client is worth having), a wordlist subset. Every tool
   pinned with a sha256 per architecture (no internet at runtime). Metasploit is out of scope: too large for the
   terminal image.
+- **Lab Info: one shared tool library (decision CTF-D16).** The students are new to security tooling, so every
+  pack ships the same Lab Info section: a Linux and shell primer, then one primer per tool installed in the terminal
+  link. It lives once in the `ctf-range` module (`content/lab-info/`, seeded to `~/lab-info`) with its own
+  `extensions.json` card and matching `/admin` tab.
+  - **Same for every session.** Each pack gets the whole library, covering tools it never uses (for example
+    `dnsrecon` appears in sessions with no DNS target). A tool's presence in the help says nothing about what any
+    lab needs, so it can't leak the technique. Labs never say which tool to use, and the library never says which
+    lab a tool fits.
+  - **Per tool:** what it is, how to read its output, the common flags, and a worked example against a neutral
+    target (`$TARGET`, the student's own box, or a local file). `nmap` gets the fullest treatment: host and port
+    discovery, service versions, reading the results.
+  - **Mechanics, not exploits.** Examples show how a tool behaves, never a working payload for a lab: no injection
+    strings, no reverse-shell one-liners, no cracked-hash walkthroughs, no CVE steps. Where a tool is inherently
+    offensive (`sqlmap`, `john`), the primer covers flags and output and uses a toy input.
+  - **Linux primer** (CTF-1's extra ~20 min): shell navigation, pipes, `grep`/`jq`, file permissions, processes,
+    networking basics (IP, port, TCP vs UDP), HTTP request anatomy, and the legal boundary.
+  - **Reference, not a walkthrough.** A hint ladder per target is separate (above), unlocked per the two-hint rule.
+  - Pinned tool versions are recorded in the library so the help matches the installed binary.
 - Sensei patterns for common errors (connection refused to the wrong port, a listener on a blocked port).
 
 ## 10. Phases
@@ -541,10 +580,11 @@ Per session pack, from `./run.sh new-workshop`:
 | CTF-P0 | Spikes S1-S13 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
-| CTF-P3 | Targets 0-7 and 12 (low/medium + the mass-assignment API target) and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand |
-| CTF-P4 | Class-size checks | `--test N` at full class size; target-to-target and listener isolation tests pass; memory sized |
-| CTF-P5 | GitOps targets 8-11 and 13 (the BFLA API target) and the CTF-3 pack | Solved by script; rung 10's failure case documented; target 13's solve script never actually fires its destructive route against the live range |
-| CTF-P6 | CTF-4 defend: CI gate first, then the live bot and SOC feed | A fixed PR passes the pipeline; the unfixed one fails; separately, the live bot's next attempt fails only after that same PR is live |
+| CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
+| CTF-P3 | Targets 0-4, 7, 12 and 13 and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand; target 13's solve script never actually fires its destructive route against the live range |
+| CTF-P4 | Class-size checks | `--test N` at 40 students (CTF-5 means 160 targets); target-to-target and listener isolation tests pass; memory sized |
+| CTF-P5 | Targets 5, 6, 8-11 and the CTF-3/CTF-4 packs | Solved by script; rung 10's failure case documented |
+| CTF-P6 | CTF-5 defend: CI gate first, then the live bot and SOC feed | A fixed PR passes the pipeline; the unfixed one fails; separately, the live bot's next attempt fails only after that same PR is live |
 | CTF-P7 | Live checks | One real class on the Azure path; results in `RELEASES.md` |
 
 Isolation tests are acceptance tests, not nice-to-haves: one script per rule (can reach own target; cannot reach
@@ -555,7 +595,7 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 - **CTF-S1, N targets from `STUDENT_COUNT`.** Compose cannot loop. Options: a generated compose fragment written by a
   module step before `up`; `deploy.replicas` plus a name scheme; one fleet container running N target processes.
   Establish whether any existing module step can emit compose files without touching `engine/run.sh`. If none can,
-  that is a question for the user (an engine change needs approval).
+  that is a separate engine-change proposal, not a design workaround (decision CTF-D15).
 - **CTF-S2, target-to-target isolation on both runtimes.** Which of per-target networks, `enable_icc=false` or a
   sidecar firewall works under Docker and rootless Podman (`netavark`), and what `web-terminal` joining N networks
   costs.
@@ -591,7 +631,7 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 - **CTF-S11, the cyber map widget.** Whether `extensions.json`'s `widgets` entry can actually host a persistent,
   always-rendering, room-wide visual the way a per-student `cards` entry hosts a nav link (check the schema and
   the renderer's rules in `workshops/README.md` before assuming it fits), where it lives (Workshop Library hub
-  versus its own route — open question in section 14), and confirming the fake-origin weighting lives entirely in
+  versus its own route — decided: its own route, CTF-D18), and confirming the fake-origin weighting lives entirely in
   `soc-feed`'s event payload, not hardcoded in the widget, so the weighting can be tuned without a front-end
   change.
 - **CTF-S12, a facilitator-to-bot control channel.** Every `attacker-bot-NN` (8.2) is deliberately unreachable
@@ -614,7 +654,7 @@ None yet.
 - **CTF-D3 (user, 2026-10-03):** Flags are validated through the **achievements module with per-student flags**. No
   CTFd.
 - **CTF-D4 (user, 2026-10-03):** Scope is a **multi-session series**, not a single session. "Attack-Defend" is
-  included as the final session (CTF-4).
+  included as the final session (CTF-5).
 - **CTF-D5:** The range is a **module** (`ctf-range`) and each session a thin workshop pack, per the repo rule that
   anything a second workshop would want becomes a module.
 - **CTF-D6:** Targets are **original builds** inspired by the HTB techniques, not copies of HTB machines, and
@@ -622,66 +662,56 @@ None yet.
 - **CTF-D7 (user, 2026-10-03):** The ladder is **not capped at ten**. It grew to fourteen targets so the OWASP Top
   10 (2021), the OWASP API Security Top 10 (2023), and every workshop with an attackable concept each get their
   own target instead of sharing one to hit a round number.
-- **CTF-D8 (user, 2026-10-03):** CTF-4 (defend) gets a **live attacker bot per student plus a simulated SOC/SIEM
+- **CTF-D8 (user, 2026-10-03):** CTF-5 (defend) gets a **live attacker bot per student plus a simulated SOC/SIEM
   alert feed, with the bot as 4-6 randomly-timed personas and a room-wide synthetic "cyber map" dashboard**
   (section 8.1-8.4), to create real-time pressure during the session instead of relying on the CI
   gate alone. The CI gate (pipeline rebuilds, re-runs the exploit, PR passes only if it now fails) stays as the
   actual proof that a fix works; the bot and feed are the pressure layered on top of it, not a replacement for it.
-- **CTF-D9 (user, 2026-10-03):** CTF-4 additionally gets: a facilitator-fired **hint probe** (a short,
+- **CTF-D9 (user, 2026-10-03):** CTF-5 additionally gets: a facilitator-fired **hint probe** (a short,
   non-exploiting burst at the vulnerable area, firing on one student, a group, or everyone at once, each with
   independent random timing so it reads as a wide sweep — section 8.5), a facilitator **inject** control for a
   real extra attempt, a **benign persona** for triage practice (8.6), an optional **second latent vulnerability**
   per target (8.7), a **mean-time-to-patch** figure shown with the map (8.8), and an **auto-built incident
   summary** for the debrief (8.9).
-- **CTF-D10 (user, 2026-10-03):** Each CTF-4 target carries a **red/yellow/green status** (never breached, breached
+- **CTF-D10 (user, 2026-10-03):** Each CTF-5 target carries a **red/yellow/green status** (never breached, breached
   then fixed, breached and still open), one-way (green → red → yellow, never back to green), shown per student
   and room-wide, with **points attached to the status at session end** rather than only to whether the flag was
   ever recovered (section 8.10). This replaces the earlier "no points lost either way" framing in 8.4.
-- **CTF-D11 (user, 2026-10-03):** CTF-4's traffic **ramps and pivots** (8.11): probe frequency and the
+- **CTF-D11 (user, 2026-10-03):** CTF-5's traffic **ramps and pivots** (8.11): probe frequency and the
   probe-versus-real-exploit mix both climb the longer a target's been in its escalating phase, and the swarm's
   attention concentrates on whichever of the student's four targets is closest to exploitation, shifting away
   once a target resolves. The cyber map (8.3) gets a **"Top 10 under siege" list** of the hottest
   (student, target) pairs in the room right now, driven by the same heat calculation.
+- **CTF-D12 (user, 2026-10-03):** Five sessions: CTF-1 access and identity (0, 2, 1, 3), CTF-2 server-side trust and
+  APIs (4, 7, 12, 13), CTF-3 secrets and misconfiguration (5, 8, 11), CTF-4 trusting the wrong thing (6, 9, 10),
+  CTF-5 defend (8-11, unsplit, needs CTF-3 and CTF-4 first). Packs: `ctf-access`, `ctf-server-trust`, `ctf-secrets`,
+  `ctf-trust`, `ctf-defend`.
+- **CTF-D13 (user, 2026-10-03):** The leaderboard is public in CTF-1 to CTF-4. In CTF-5 the "Top 10 under siege"
+  list is anonymized ("target type + anonymous id").
+- **CTF-D14 (user, 2026-10-03):** Design and test for about **40 students**. CTF-5 then needs 160 targets (four per
+  student), which spike S2 must prove.
+- **CTF-D15 (user, 2026-10-03):** If generating N targets needs an engine change (S1), it is proposed as a
+  **separate change**, not designed around.
+- **CTF-D16 (user, 2026-10-03):** Students need a Linux/`nmap` primer. A shared **Lab Info** library (section 9)
+  ships in every pack: tool primers with neutral examples, no lab-specific payloads, identical across sessions so it
+  can't hint at what a lab needs.
+- **CTF-D17 (user, 2026-10-03):** Each defend target carries a **bonus second flaw** that bots probe but never
+  exploit, scored separately and never affecting the status light (8.7).
+- **CTF-D19 (user, 2026-10-03):** Defend scoring is **units**: green 2 / yellow 1 / red 0, bonus +1 (gated on the
+  main fix), times one configurable multiplier into achievements points. This replaces the 10/5/0 and +3 guesses.
+- **CTF-D18 (user, 2026-10-03):** Bot delay is held at a base value X until dwell ends, then shrinks as the target
+  nears exploitation (8.11). Adopted defaults: no extra retry penalty; flatter
+  region-level origin mix; one projector route for the cyber map; facilitator-only hint probes; linear 10 min ramp;
+  top-10 always up to ten entries from hot pairs. Bot-pacing numbers still come from spike S9.
 
-## 14. Open questions for the user
+## 14. Open questions
 
-1. **Series order and naming.** Is CTF-1 web, CTF-2 privesc, CTF-3 pipeline, CTF-4 defend the right order? Names for
-   the packs (`ctf-web` etc.)?
-2. **Audience level.** Do these students have any command-line security background, or does CTF-1 need a Linux
-   and `nmap` primer first?
-3. **Competition or collaboration.** Public leaderboard with points, or private progress with a facilitator debrief?
-   (The achievements module supports both; the tone of the room differs.)
-4. **Scale.** Largest class you expect? It sets target count, firewall rule count and whether spike S2 is
-   comfortable or hard.
-5. **S1 fallback.** If generating N targets turns out to need an engine change, do you want it proposed as a
-   separate change, or should the design bend to avoid it (a fleet container, for instance)?
-6. **Session shape at fourteen targets.** CTF-2 and CTF-3 are now four to five targets and 160-190 minutes — long
-   for a lunch-and-learn. Keep four sessions at that length, split into more/shorter sessions (section 8 suggests
-   up to eight), or carve the two API-only targets (12, 13) into their own short `ctf-api` session?
-7. **The red/yellow/green point split.** Section 8.10 proposes full points for green, partial for yellow, little
-   or nothing for red, summed per student across all of CTF-4's targets. What's the actual split (for example,
-   green=10/yellow=5/red=0 per target, or some other ratio), and should a yellow that got re-exploited multiple
-   times (the light doesn't change, but the retry count in the debrief does) ever cost anything extra?
-8. **Bot pacing.** Section 8.2's dwell time and 30-180s per-persona delay range need real numbers (how long the
-   dwell time is, how many students in the room, how fast the fastest student is expected to patch). Is there a
-   target "time to patch" in mind, or should CTF-S9 propose one from scratch?
-9. **The origin-weighting list, specifically.** Section 8.2 proposes weighting fake origins toward China, Russia
-   and Eastern Europe with some US/other noise, on the theory that it reads as a recognizable "threat map" trope
-   rather than a real claim. Confirm that's the list you want (add/drop countries, or make the distribution flatter
-   so it's less about specific countries and more about volume/intensity).
-10. **Where the cyber map lives.** A big, always-on room display (projector, second monitor) the facilitator
-    controls, a widget on each student's own hub, or both? That changes whether it needs a dedicated route
-    (section 8.3) versus just another `extensions.json` widget on an existing page.
-11. **Should hint probes ever fire automatically**, not just on a facilitator's button (8.5) — for example, after
-    N minutes of a student's dwell time with no PR opened — or should every hint stay a deliberate facilitator
-    call so the room's pacing is always a human decision?
-12. **Second vulnerabilities, how often.** Section 8.7 proposes a second latent flaw per defend target as
-    optional. All four GitOps targets, a couple as a taste of it, or none for the first run of CTF-4 and add it
-    once the single-flaw version has actually been taught once?
-13. **Ramp duration and top-10 list size.** Section 8.11's ramp needs a concrete duration (how many minutes from
-    "just entered escalating" to "fully ramped"), and the cyber map's "Top 10" (8.3) needs to decide whether it's
-    always exactly ten regardless of class size, or scales with the number of students (so a small class doesn't
-    see a half-empty top-10 that never changes).
+Questions 1-13 of draft 1 are resolved in section 13 (CTF-D12 to D18). What remains:
+
+1. **Multiplier.** Start at x5 (10/5/0, bonus +5), or lower the bonus to 0.5 unit if it feels too large?
+2. **Ramp floor.** The fully ramped delay (5-10s guess) is set in spike S13.
+3. **Lab Info ownership.** Who reviews the primers for leaked payloads? Proposed: a checklist in CTF-P2b, checked
+   against every solve script.
 
 ## Appendix: the HTB reference list, corrected
 
