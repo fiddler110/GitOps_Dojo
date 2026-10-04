@@ -7,11 +7,17 @@ payoff of the series: the student fixes application *source*, opens a PR, the
 pipeline scans and re-runs the exploit as the gate (CTF-D19), and merging to
 main rebuilds the image and redeploys it in place.
 
-> **Built here (scaffold):** the vulnerable app, its seed data, the container
-> image, and the reference exploit/gate. **Not here yet:** the PR → scan →
-> merge → rebuild → redeploy loop against `runner-pool`/registry (spike S6),
-> the SAST stage (CTF-S17/D23/D24), and the wall of shame (§8.12). Those are
-> the deferred follow-up.
+> **Built here:** the vulnerable app, its seed data, the container image, the
+> reference exploit/gate, the **informational SAST stage** (`sast/scan.py`,
+> CWE-89, CTF-S17/D23/D24), and the **defend pipeline** definition
+> (`.forgejo/workflows/`, the S6 scan + exploit-gate on PR and the
+> rebuild→redeploy on merge). **Not here yet, and why:** the pipeline's build →
+> push → *live* redeploy-in-place tail needs range infra that the scaffold
+> stubs — the boxed `ctf-host` build (CTF-D21), the in-lab registry, and
+> `ctf-controller` (S14); and the **wall of shame** (§8.12) needs the SOC/CTF
+> event contract (spike CTF-S11), the attacker bots, and the presentation
+> widget route, none of which exist yet. `defend-main.yml` carries those two
+> steps as the documented S6 contract, marked, not faked.
 
 ## The flaw (graded)
 
@@ -82,10 +88,25 @@ python3 exploit/dump.py --url http://127.0.0.1:5000
 = still vulnerable (red), exit 1 = patched (green), exit 2 = couldn't reach the
 target.
 
+```sh
+# SAST (informational, CTF-D23): points at the flaw, never gates. Finds the two
+# string-built queries on the vulnerable source; silent once parameterized.
+python3 sast/scan.py app.py            # exit 0 even with findings
+python3 sast/scan.py --strict app.py   # exit 1 if any finding (human spot-check)
+```
+
+The defend pipeline (`.forgejo/workflows/`) chains these: `defend-pr.yml` runs
+the SAST (informational) then the exploit re-run as the CTF-D19 gate — a PR
+passes only when the dump returns nothing; `defend-main.yml` rebuilds and asks
+`ctf-controller` to redeploy the slot in place on merge to main.
+
 ## Files
 
 - `app.py` — the vulnerable Flask app (the source students edit).
 - `seed.py` — builds the synthetic SQLite DB from the handle.
 - `entrypoint.sh` — seed (idempotent) then run.
 - `exploit/dump.py` — reference SQLi dump + CTF-D19 gate check.
+- `sast/scan.py` — pinned, no-network CWE-89 SAST (informational, CTF-D23/D24).
+- `.forgejo/workflows/defend-pr.yml` — PR gate: SAST + exploit re-run (CTF-D19).
+- `.forgejo/workflows/defend-main.yml` — merge: rebuild + redeploy (S6 contract).
 - `Dockerfile`, `requirements.txt` — the image.

@@ -9,11 +9,16 @@ shame. Each CTF session is a thin workshop pack (`workshops/ctf-*`) that lists
 labs and slides.
 
 > **Status: scaffold.** Only **target 14 `customer-portal`** (CTF-5's app-code
-> defend target, decision CTF-D25) is built so far. The per-slot target
-> fan-out (spike CTF-S1), the `ctf-flags` service (§5), the `ctf-controller`
-> (spike S14), the firewall/isolation hooks (spikes CTF-S2/S3) and the CTF-5
-> live bots / SOC feed / wall of shame (§8) are **not built yet**. Do not wire
-> a workshop to this module expecting a full range.
+> defend target, decision CTF-D25) is built so far — now including its
+> informational **SAST stage** (CWE-89, CTF-S17/D23/D24) and its **defend
+> pipeline** definition (the S6 scan + exploit-gate on PR, rebuild→redeploy on
+> merge). The per-slot target fan-out (spike CTF-S1), the `ctf-flags` service
+> (§5), the `ctf-controller` that the pipeline's redeploy step calls (spike
+> S14), the in-lab registry + boxed `ctf-host` build (CTF-D21), the
+> firewall/isolation hooks (spikes CTF-S2/S3) and the CTF-5 live bots / SOC
+> feed / wall of shame (§8) are **not built yet** — so the pipeline's live
+> build→push→redeploy tail is the documented S6 contract, not yet runnable. Do
+> not wire a workshop to this module expecting a full range.
 
 ## Layout
 
@@ -32,7 +37,7 @@ labs and slides.
 
 | # | Name | Tier | Built | Notes |
 |---|------|------|-------|-------|
-| 14 | `customer-portal` | Hard | ✅ scaffold | CTF-5 app-code defend target (CTF-D25): SQL injection dumps a plaintext SQLite `customers` table; fix is to parameterize the query. |
+| 14 | `customer-portal` | Hard | ✅ app + SAST + pipeline | CTF-5 app-code defend target (CTF-D25): SQL injection dumps a plaintext SQLite `customers` table; fix is to parameterize the query. Ships the CWE-89 SAST (informational) and the `.forgejo/workflows/` defend pipeline (CTF-D19 gate on PR; redeploy on merge needs `ctf-controller`). |
 
 Targets 0–13 (the attack ladder, §7.3) are not built yet.
 

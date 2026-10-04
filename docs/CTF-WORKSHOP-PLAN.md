@@ -30,11 +30,22 @@ Docker: the `%' OR '1'='1' -- ` payload dumps all rows incl. the flag; the param
 rows; normal search and idempotent re-seed work. The module is a **scaffold** — `README.md` lists what is and isn't
 built.
 
-**👉 Next step (do this next):** the deferred rest of target 14 — the full **PR → scan → merge → rebuild → redeploy**
-loop against `runner-pool`/registry (spike S6), the informational **SAST/SCA** stage (CTF-S17/D23/D24), and the
-**wall of shame** (§8.12, `LIVE → DISCONNECTED`, `CTF_WALL_OF_SHAME`). Then the range infra the scaffold stubs: the
-`STUDENT_COUNT` target fan-out (CTF-S1), the `ctf-flags` service (§5), per-uid isolation (CTF-S2/S3) and the
-`ctf-controller` (S14). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**, the **S8 bullet** in §12.
+**Also finished — target 14's SAST stage and defend pipeline** (2026-10-04). Added the informational **CWE-89 SAST**
+(`targets/customer-portal/sast/scan.py`: pinned, stdlib-only `ast` detector, CTF-D23/D24 — flags both string-built
+queries on the vulnerable source, silent once parameterized, never gates) and the **defend pipeline**
+(`targets/customer-portal/.forgejo/workflows/`): `defend-pr.yml` runs the SAST (informational) then the exploit
+re-run as the **CTF-D19 gate** (PR passes only when the dump returns nothing), `defend-main.yml` rebuilds and asks
+`ctf-controller` to redeploy the slot in place on merge. Verified: SAST flags vuln / clears patched / `--strict`
+exits 1; the PR gate's exit-code mapping (vuln→fail, patched→pass, unreachable→error) is unit-tested.
+
+**👉 Next step (do this next):** the parts of the S6 loop that need **range infra not yet built** — `defend-main.yml`'s
+build→push→redeploy tail is written as the faithful S6 contract but needs the boxed `ctf-host` build (CTF-D21), the
+in-lab registry, and `ctf-controller` (S14); and the **wall of shame** (§8.12, `LIVE → DISCONNECTED`,
+`CTF_WALL_OF_SHAME`) needs the SOC/CTF event contract (spike CTF-S11), the attacker bots, and the presentation
+widget route. Then the rest of the range infra the scaffold stubs: the `STUDENT_COUNT` target fan-out (CTF-S1), the
+`ctf-flags` service (§5), per-uid isolation (CTF-S2/S3) and `ctf-controller` (S14). Still open for the SAST side:
+the IaC/secret/SCA scanners for targets 8-11 (§12 S17). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**,
+the **S6/S14/S17 bullets** in §12.
 
 **Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
 TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
@@ -1205,12 +1216,19 @@ recognizing *this lab's* known-embedded vulnerabilities (SQLi, hardcoded creds, 
 versions, etc.) with a frozen ruleset/DB chosen to cover them — not currency against newly-disclosed CVEs, which
 this focused, disconnected instance has no need for and should not depend on.
 
-Still open: concrete tool choice per language for targets 8-11 (a no-network SAST tool whose default/OSS ruleset
-already covers common injection/secrets patterns, e.g. Semgrep, plus an SCA tool that can run fully offline against
-a vendored advisory DB, e.g. `grype`/`pip-audit` in offline mode, snapshotted once to cover the specific outdated
-packages the lab deliberately ships); whether findings show unconditionally every run or sit behind the two-hint
-ladder (section 9), given a scan finding is more specific than today's hints; where they render (status strip
-versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
+**Built for target 14 (2026-10-04).** The app-side CWE-89 SAST is implemented as
+`modules/ctf-range/targets/customer-portal/sast/scan.py`: pinned, stdlib-only `ast` analysis (the single
+`DOJO-PY-SQLI` rule is the frozen ruleset), no network, informational (exits 0 even with findings; `--strict` for a
+human spot-check). It flags `cursor.execute(<dynamic SQL>)` — resolving one level of `sql = ... ; execute(sql)`
+indirection — and clears once the query is parameterized. Wired into the defend pipeline as the non-gating scan step
+(`.forgejo/workflows/defend-pr.yml`); when `runner-pool` is wired it travels baked into the runner image (CTF-D24).
+
+Still open: concrete tool choice for the **other-language / non-app scanners on targets 8-11** (a no-network SAST
+whose default/OSS ruleset covers common injection/secrets patterns, e.g. Semgrep, plus an SCA tool that runs fully
+offline against a vendored advisory DB, e.g. `grype`/`pip-audit` in offline mode, snapshotted once to cover the
+specific outdated packages the lab deliberately ships); whether findings show unconditionally every run or sit
+behind the two-hint ladder (section 9), given a scan finding is more specific than today's hints; where they render
+(status strip versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
 
 ### What this changes in the plan
 
@@ -1223,11 +1241,15 @@ versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
 4. S13's CPU-budget question is answered (synthetic swarm, well under an 8-vCPU budget); its curve-shape,
    attention-split and top-10 formula are open design choices, not blocked on a live class. Open until a live
    class: S9 and the cold-start/queue numbers in S14.
-5. Open before CTF-P6: building the new app-code defend target 14 `customer-portal` (CTF-D25) with its full
-   PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (uClibc / uClibc-ng ≤ 1.0.40 / CVE-2022-30295, predictable TXID —
+5. Target 14 `customer-portal` (CTF-D25) is **built**: the vulnerable app, seed, image, exploit/gate, the CWE-89
+   SAST, and the defend pipeline (`.forgejo/workflows/`). The CTF-D19 gate (SAST + exploit re-run on PR) is wired
+   and verified; what remains for the **full** PR → scan → merge → redeploy loop is only the merge-side
+   build→push→*live* redeploy, which needs the boxed `ctf-host` build (CTF-D21), the in-lab registry, and
+   `ctf-controller` (S14) — `defend-main.yml` already carries that as the documented contract.
+   S8's `dns-resolver-cve` is now chosen (uClibc / uClibc-ng ≤ 1.0.40 / CVE-2022-30295, predictable TXID —
    deterministic; rootless spoofing verified and the uClibc build confirmed cheap via a pinned Bootlin toolchain; see "Target 6 DNS poisoning build"), leaving only an end-to-end TXID-predictability check and the internal-agent flag wiring at CTF-P5. S17's app-side tool
-   is now fixed (a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open piece is only the
-   IaC/secret scanners for targets 8-11.
+   is now **built** (`sast/scan.py`, a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open
+   piece is only the IaC/secret scanners for targets 8-11.
 
 ### Rootless re-run (2026-10-04)
 
