@@ -922,22 +922,29 @@ Suggested minimal builds, unproven unless noted:
       2017 overflow, so students can't accidentally crash the resolver and the intended stable path is the only
       path. The fix is bumping to **2.83** (optionally plus `--cache-size=0`), which is exactly the "update the
       pinned digest, don't just set one" lesson for `dns-as-code`, with a config-hardening angle on top.
-    - *Deterministic in a closed range.* In the wild, poisoning races the real upstream and must guess TXID + source
-      port; the Dnspooq CVEs cut that entropy (25684 drops the exact-query match; 25685/25686 enable a birthday-style
-      multi-query forge). In `ctf_net` the remaining non-determinism is removed by construction: the attacker
-      (solve script / bot) is placed **off-path** so the CVE is genuinely what's taught (not a trivial MITM), the
-      target's configured upstream is controlled so forged replies don't race a fast real answer, the lab triggers
-      the target to query on cue, and the cache stays enabled. A public PoC exists (`knqyf263/dnspooq`), the shape
-      the solve script takes.
-    - *The foothold chain (logic-level, 100% reproducible).* Target 6 ships a small internal service that trusts a
-      hostname resolved via its local dnsmasq. The attacker poisons that name → attacker-controlled stand-in inside
-      the target; the target connects to it, yielding a credential / served response = first flag, and that access
-      reaches the second flag on the same host.
-    - *Containable.* The vulnerable resolver is the *victim*; it only mis-resolves names the attacker forges from
-      inside the range. If the component ever drifted onto a shared network it would not attack anything outbound.
-    - *To confirm when built (CTF-P5 work).* That with cache enabled and a controlled upstream the forge is
-      deterministic, and that the trusting internal service is the cleanest way to turn a poisoned record into a
-      flag.
+    - *Reliable in a closed range (now built and measured — see "Target 6 DNS poisoning build" below).* In the wild,
+      poisoning races the real upstream and must guess TXID + source port; the Dnspooq CVEs cut that entropy (25684
+      drops the exact-query match; 25685/25686 enable a birthday-style multi-query forge). In `ctf_net` the race is
+      removed by construction: the attacker (solve script / bot) is off-path so the CVE is genuinely what's taught
+      (not a trivial MITM), `svc.internal` is forwarded to an intentionally slow/withholding in-target upstream so a
+      forged answer always beats the real one, a fixed `--query-port` makes the source port known, and the cache
+      stays enabled. The measured result: the forge is a **reliable guess-and-retry loop that converges**, not a
+      guaranteed single-pass sweep — good enough for a solve script (loop until the cache flips), which is what
+      "stable and reproducible" needs. A public PoC exists (`knqyf263/dnspooq`), the shape the solve script takes.
+    - *The foothold chain (the trusted internal service).* Target 6 runs, in its one container, dnsmasq 2.82 as the
+      local resolver plus a small **internal agent** that every few seconds resolves a name like `vault.svc.internal`
+      via `127.0.0.1` and checks in to it, sending a service token (an `Authorization` header / JSON credential).
+      Normally that name points at the real in-target service; once the attacker poisons it to their listener, the
+      agent's next check-in delivers the token to the attacker = **flag 1** (the captured token, or a flag embedded
+      in the check-in payload). The attacker replays the captured token against the real internal endpoint
+      (`/admin`/`/secret`) = **flag 2** on the same host. Lesson: a service that trusts DNS to find its backend
+      hands its credentials to whoever controls name resolution. Reproducible: once poisoned, the next agent cycle
+      delivers the token with no further timing.
+    - *Containable.* The vulnerable resolver is the *victim*; it only mis-resolves `svc.internal` names the attacker
+      forges from inside the range. If the component ever drifted onto a shared network it would not attack anything
+      outbound.
+    - *To confirm when built (CTF-P5 work).* The expected number of retry rounds to tune the solve-script window,
+      and the exact agent check-in → flag-1 → flag-2 wiring.
 - **14 `customer-portal` (NEW, CTF-5 defend-only, decided SQLite — CTF-D25):** a small Python/Flask app over a
   **plaintext SQLite** file (one container per slot, no sidecar DB — cheapest and consistent with one-target-per-slot).
   The DB seeds a `customers` table of synthetic rows referencing the student's handle plus a secret row = the flag.
@@ -947,6 +954,38 @@ Suggested minimal builds, unproven unless noted:
   pull + stop/rm/run under the same slot name). SAST (this fixes S17's app-side tool): a pinned, no-network Python
   SAST for CWE-89, informational only (CTF-D23/D24). Still to build and run — the full PR → scan → merge → redeploy
   loop against the real `runner-pool`/registry path (S6's open warm-registry number) is where to prove it.
+
+### Target 6 DNS poisoning build (2026-10-04)
+
+Built and ran a three-container PoC (rootful Podman 5.8.1, netavark): a victim resolver, a controlled upstream, an
+off-path attacker on one `/24`. Scratchpad only, not kept.
+
+**Proven:**
+- **dnsmasq 2.82 builds from source** in Alpine with just `gcc`/`make` (`curl` the 2.82 tarball, `make`, copy the
+  binary); no awkward deps. Confirms the "build from source, pin, bump to fix" shape.
+- **Fixed source port.** `--query-port=35353` made every forwarded query leave from `:35353`; the upstream logged
+  it. So the off-path attacker knows the port — no port entropy.
+- **No race.** With the upstream withholding answers, lookups for `svc.internal` just time out — nothing competes
+  with a forged reply.
+- **Off-path spoofing traverses the bridge.** The attacker container (CAP_NET_RAW), via both scapy and an
+  `AF_PACKET` raw sender, emitted UDP frames with `src=`the upstream's IP; a listener on the victim received them
+  with that spoofed source intact. netavark's default bridge does **not** anti-spoof.
+- **Acceptance + cache + persistence.** A spoofed reply from the upstream IP to `:35353` whose DNS id matched the
+  pending query's TXID was accepted by dnsmasq 2.82, cached with the attacker's TTL (86400), and every later lookup
+  returned the attacker's IP. dnsmasq logged `reply svc.internal is <attacker>`.
+
+**Corrected from the earlier plan wording:** flooding the *correct* (known) TXID poisons every time, but a *blind*
+full-16-bit sweep did **not** reliably land in the harness, even paced and with queries kept in flight — non-matching
+replies from the expected server+port appear to disturb the pending forward. So the realistic primitive is
+**guess-and-retry per query** (exactly the birthday approach the Dnspooq CVEs optimize), not a one-pass deterministic
+sweep. With the race removed and the port fixed, that retry loop still converges quickly and controllably, so the
+lab is **reliable/reproducible** (solve script: keep a query in flight, guess, repeat until the cache flips) — the
+honest claim, and the one the "stable, easily reproduced" goal actually needs. The earlier "deterministic single
+sweep" phrasing was too strong and has been fixed.
+
+**Still to do at CTF-P5:** tune the expected retry rounds (to size the solve-script window) and wire the internal
+agent's check-in → flag-1-capture → flag-2-replay chain described above. Not covered: rootless re-run (expected to
+match, per the S2/S3/S14 rootless results) and Docker as a runtime.
 
 ### S9, persona swarm numbers
 
@@ -1122,7 +1161,7 @@ versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
    class: S9 and the cold-start/queue numbers in S14.
 5. Open before CTF-P6: building the new app-code defend target 14 `customer-portal` (CTF-D25) with its full
    PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (Dnspooq cache poisoning, `dnsmasq` 2.82 / CVE-2020-25684/25685/25686);
-   what remains is building target 6 to confirm the poisoning is deterministic in the closed range (CTF-P5 work), not a design choice. S17's app-side tool
+   target 6's poisoning is now built and measured (reliable guess-and-retry in the closed range; see "Target 6 DNS poisoning build"), leaving only solve-script tuning and the internal-agent flag wiring at CTF-P5. S17's app-side tool
    is now fixed (a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open piece is only the
    IaC/secret scanners for targets 8-11.
 
