@@ -743,7 +743,7 @@ web-terminal/allocator/gateway build contexts individually (only rebuilding
 the ones that actually changed — see `build_if_changed` in `run.sh`), and
 hashes every module folder plus the workshop's `compose/` overlay directory
 as one unit to catch changes to any module or workshop service beyond that
-(the `forgejo-runner` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
+(the `runner-pool` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
 see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
 way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
