@@ -1,7 +1,8 @@
 # customer-portal — CTF target 14. A minimal Flask + plaintext SQLite app,
-# built from original source in this repo (§6). Pin by digest when hardening
-# for a real run; a version tag is fine for the scaffold.
-FROM python:3.12-slim
+# built from original source in this repo (§6). The base is pinned by digest
+# like every other external image here (check-pins.sh); ctf-host's `portal`
+# stage mirrors this file, so bump both digests together.
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
 # Flask only; sqlite3 is stdlib. --no-cache-dir keeps the layer small, and the
 # image does no network at run time (§6) — only here at build.

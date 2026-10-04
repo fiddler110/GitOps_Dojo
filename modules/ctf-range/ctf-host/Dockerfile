@@ -15,7 +15,7 @@
 # --- the target's filesystem: a ready-to-run customer-portal rootfs ----------
 # Mirrors targets/customer-portal/Dockerfile (same deps, same non-root user) so
 # the imported image behaves like the standalone one.
-FROM python:3.12-slim AS portal
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS portal
 COPY targets/customer-portal/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/customer-portal/app.py targets/customer-portal/seed.py targets/customer-portal/entrypoint.sh /app/
