@@ -231,7 +231,7 @@ original draft's warm-ups.
 | 3 | Low | `cert-trust-bypass` (NEW, ties `cert-autorenewal`) | An internal API meant to require a client certificate accepts an expired or self-signed one because it skips chain/revocation checks | The accepted identity unlocks a second endpoint | Certificate chains, expiry and revocation, why "it has a cert" isn't "it has a *valid* cert" |
 | 4 | Medium | `ping-tool` | Command injection in a "network diagnostics" page, reverse shell | `sudo -l` shows a passwordless GTFOBins binary | Reverse shells and the return-path ports, `sudo` audit, GTFOBins |
 | 5 | Medium | `leaky-config` | A web admin panel exposes logs and a config backup holding credentials | Credentials reused for a local service | Post-exploitation enumeration, credential hygiene, log reading |
-| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | A `dnsmasq` 2.77 resolver pinned to an old version with **CVE-2017-14491** (2-byte heap overflow in the DNS reply path): the target's resolver forwards to an attacker-controlled authoritative server inside `ctf_net`, which returns a crafted response that overflows the heap | Access gained through the resolver reaches a second flag on the same host | Why resolver software is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the digest (bump 2.77 → 2.78), not just set one |
+| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | A `dnsmasq` 2.82 resolver pinned just before the fix, vulnerable to the **Dnspooq cache-poisoning set (CVE-2020-25684/25685/25686)**: an off-path attacker inside `ctf_net` forges a reply and poisons the cache so a hostname the target's own internal service trusts resolves to the attacker's stand-in | The poisoned name makes the target connect to the attacker (credential capture / served response), reaching a second flag on the same host | Why resolver software is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the digest (bump 2.82 → 2.83), not just set one; and that a config choice (`--cache-size=0`) is part of the fix |
 | 7 | Medium | `ssrf-fetcher` (NEW) | A "preview this URL" feature fetches server-side and can be pointed at `ctf_net`'s internal addresses instead of the internet | Reaches an internal-only admin endpoint on another service in the same target, not another student's target | Why outbound requests from a server are a trust boundary, allow-lists versus deny-lists, cloud-metadata-style SSRF without needing a real cloud metadata endpoint |
 | 12 | Medium | `api-mass-assignment` (NEW, API-only) | A JSON `PATCH /users/me` endpoint binds the whole request body to the user object, so adding `"role":"admin"` to the payload sets it | The elevated token reaches a second, admin-only route | API1/API3-style mass assignment, why a JSON body isn't automatically a trusted struct, allow-listing bindable fields |
 | 8 | Hard | `git-secrets` (GitOps, ties `git-fundamentals`) | A seed repo in Forgejo with a secret removed in a later commit but still in history | The recovered token reaches a second target | `git log -p`, `git secrets`-style scanning, why deleting a file is not revoking a secret |
@@ -912,24 +912,32 @@ Suggested minimal builds, unproven unless noted:
 - **3 `cert-trust-bypass`:** a small nginx/openssl front that accepts a cert it should reject.
 - **9 `policy-bypass`:** Rego on the existing policy engine; dual-use (attacked in CTF-4, defended in CTF-5), with a
   default-allow fallthrough that still passes `opa test`.
-- **6 `dns-resolver-cve`:** CVE chosen — **`dnsmasq` 2.77 / CVE-2017-14491** (researched 2026-10-04). Why it fits
-  the target-6 criteria:
-    - *Buildable from source here.* dnsmasq is a small single-tree C codebase that builds with just `gcc` + `make`;
-      `dbus`/`libidn` are optional and compiled out, so no awkward dependencies. Pin 2.77 (vulnerable); the fix is
-      bumping to 2.78 — exactly the "update the pinned digest, don't just set one" lesson for `dns-as-code`.
-    - *Deterministic trigger, not a race.* It's a 2-byte heap overflow in the **DNS reply-building path**, triggered
-      when the resolver forwards a query and processes a crafted response from an upstream/authoritative server the
-      attacker controls — not the DHCP CVEs in the sibling set (…14492/93/94), and not a cache-poisoning race. A
-      public PoC exists in the form of a malicious DNS server (Python), which is the shape the solve script takes.
-    - *Containable.* The vulnerable resolver is the *victim*; it only overflows when it queries the planted
-      malicious name on the attacker server that lives inside the target on `ctf_net`. If the component ever drifted
-      onto a shared network it would not attack anything outbound — the risk is only to itself, and only when
-      pointed at the malicious zone, which doesn't exist outside the range.
-    - *To confirm when built (CTF-P5 work).* A reliable crash/DoS foothold is straightforward; **reliable RCE** on
-      modern libc/heap is not, so building the target decides whether the foothold is a controlled-build RCE (no
-      ASLR/hardening, known libc + heap layout, so the shipped PoC fires every time) or a crash-to-info path to the
-      second flag. Backup if RCE proves impractical in the time budget: the 2021 "Dnspooq" set
-      (CVE-2020-25681…25687) offers overflow + cache-poisoning variants in the same codebase.
+- **6 `dns-resolver-cve`:** CVE chosen — the **Dnspooq cache-poisoning set, `dnsmasq` < 2.83
+  (CVE-2020-25684/25685/25686)** (researched 2026-10-04). A deliberate swap away from the first pick, the 2017 heap
+  overflow CVE-2017-14491: a 2-byte overflow → reliable RCE is fragile and breaks on any glibc/heap/base-image
+  change, which is the wrong property for a lab that must fire every run and be rebuilt for years. The poisoning
+  path is logic-level and reproducible. Why it fits the target-6 criteria:
+    - *Buildable from source here.* dnsmasq is a small single-tree C codebase that builds with just `gcc` + `make`
+      (`dbus`/`libidn` optional and compiled out). Pin **2.82** — vulnerable to Dnspooq poisoning but *not* to the
+      2017 overflow, so students can't accidentally crash the resolver and the intended stable path is the only
+      path. The fix is bumping to **2.83** (optionally plus `--cache-size=0`), which is exactly the "update the
+      pinned digest, don't just set one" lesson for `dns-as-code`, with a config-hardening angle on top.
+    - *Deterministic in a closed range.* In the wild, poisoning races the real upstream and must guess TXID + source
+      port; the Dnspooq CVEs cut that entropy (25684 drops the exact-query match; 25685/25686 enable a birthday-style
+      multi-query forge). In `ctf_net` the remaining non-determinism is removed by construction: the attacker
+      (solve script / bot) is placed **off-path** so the CVE is genuinely what's taught (not a trivial MITM), the
+      target's configured upstream is controlled so forged replies don't race a fast real answer, the lab triggers
+      the target to query on cue, and the cache stays enabled. A public PoC exists (`knqyf263/dnspooq`), the shape
+      the solve script takes.
+    - *The foothold chain (logic-level, 100% reproducible).* Target 6 ships a small internal service that trusts a
+      hostname resolved via its local dnsmasq. The attacker poisons that name → attacker-controlled stand-in inside
+      the target; the target connects to it, yielding a credential / served response = first flag, and that access
+      reaches the second flag on the same host.
+    - *Containable.* The vulnerable resolver is the *victim*; it only mis-resolves names the attacker forges from
+      inside the range. If the component ever drifted onto a shared network it would not attack anything outbound.
+    - *To confirm when built (CTF-P5 work).* That with cache enabled and a controlled upstream the forge is
+      deterministic, and that the trusting internal service is the cleanest way to turn a poisoned record into a
+      flag.
 - **14 `customer-portal` (NEW, CTF-5 defend-only, decided SQLite — CTF-D25):** a small Python/Flask app over a
   **plaintext SQLite** file (one container per slot, no sidecar DB — cheapest and consistent with one-target-per-slot).
   The DB seeds a `customers` table of synthetic rows referencing the student's handle plus a secret row = the flag.
@@ -1113,8 +1121,8 @@ versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
    attention-split and top-10 formula are open design choices, not blocked on a live class. Open until a live
    class: S9 and the cold-start/queue numbers in S14.
 5. Open before CTF-P6: building the new app-code defend target 14 `customer-portal` (CTF-D25) with its full
-   PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (`dnsmasq` 2.77 / CVE-2017-14491);
-   what remains is building target 6 to settle RCE-vs-crash (CTF-P5 work), not a design choice. S17's app-side tool
+   PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (Dnspooq cache poisoning, `dnsmasq` 2.82 / CVE-2020-25684/25685/25686);
+   what remains is building target 6 to confirm the poisoning is deterministic in the closed range (CTF-P5 work), not a design choice. S17's app-side tool
    is now fixed (a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open piece is only the
    IaC/secret scanners for targets 8-11.
 
