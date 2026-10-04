@@ -38,10 +38,21 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 ## Up next
 
-Resume here (updated 2026-10-03). `feat/cloud-policy-as-code` (RV35, RV19, Phase 10 and student reset) merged to
-`main` in PR #8, and the pids cap in PR #9. The split smoke run is parked (see [Later](#later)); the full-stack
-smoke loop is paused. Next: the student reset live checks and the Phase 10 leftovers, one stack at a time
-(`podman ps` first).
+Resume here (updated 2026-10-04). The vault reset fix merged to `main` in PR #12: `lab_11.sh` and `lab_12.sh` pass after
+a reset, and `main` is the only branch left locally (delete `origin/feat/rv22-allocator-split` by hand, it is merged).
+The split smoke run is parked (see [Later](#later)); the full-stack smoke loop is paused. Next, one stack at a time
+(`podman ps` first):
+1. **Vault capstone two-step** on the vault stack (the [Now](#now) table). The stack may still be up from 2026-10-04.
+2. **Cloud reset + capstone** on `tofu-basics --test 2 --fast`, then the Phase 10 leftovers and the browser looks.
+3. **One run on the Ubuntu WSL/Docker host** with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
+   (`no-new-privileges=true`, bare `no-new-privileges`) change nothing there.
+
+On the Mac (rootful Podman + SELinux) `engine/.env` must carry `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and
+`RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`, or no runner or app can start (`unshare: mount /proc
+failed`); `./run.sh setup --default --force` overwrites it. Details in `modules/runner-pool/README.md`. The Mac's
+published port 8080 can reset connections from the host; reach the gateway from inside the lab network instead, with
+`Host: localhost:8080` (the facilitator login is the `/login` cookie, and Reset needs `X-Requested-With: dojo-admin`).
+Every `--test` run uses `--fast`.
 
 **Answered 2026-10-02**
 
