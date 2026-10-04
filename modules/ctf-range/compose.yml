@@ -1,0 +1,65 @@
+# ctf-range module (scaffold). Layered onto engine/docker-compose.yml by
+# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+# Relative paths resolve against engine/, NOT this folder.
+#
+# SCOPE TODAY: the ctf_net isolation network and a SINGLE dev instance of
+# target 14 (customer-portal), enough to build and exercise the target image
+# locally. The real range is a target per student slot (target-01..target-NN)
+# generated from STUDENT_COUNT — Compose cannot loop, so that fleet comes from
+# a generated fragment (spike CTF-S1), not from this file. The web-terminal
+# join, per-uid OUTPUT firewall rules and target-to-target isolation (spikes
+# CTF-S2/S3) are also not wired here yet.
+
+services:
+  # One standalone instance of target 14 for development. In a real range this
+  # becomes target-NN, one per slot, with CTF_STUDENT/CTF_FLAG rendered per
+  # student (§5) by the CTF-S1 fan-out.
+  customer-portal:
+    build:
+      context: ../modules/ctf-range/targets/customer-portal
+    image: gitopsdojo/ctf-customer-portal:local
+    container_name: workshop_ctf_customer_portal
+    environment:
+      # Which student this slot's data references, and the flag it yields when
+      # dumped. module.env ships dev defaults; the engine renders these per
+      # slot at start (the seed never reaches the target).
+      - CTF_STUDENT=${CTF_STUDENT:-student07}
+      - CTF_FLAG=${CTF_FLAG:-flag{customer-portal-dev0000000000}}
+      # The app listens here inside the container; nothing is published to the
+      # host — the student's terminal reaches it over ctf_net only.
+      - PORT=5000
+    networks:
+      - ctf_net
+    # Hardening: the app needs no privileges and writes only its SQLite file
+    # under a declared volume. read_only root keeps a popped app from editing
+    # its own code at runtime (the fix must come through the GitOps loop, not
+    # an in-container edit).
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # The plaintext SQLite DB. Named so ./run.sh stop removes it; seeded on
+      # first start from an empty volume (entrypoint.sh).
+      - ctf_customer_portal_data:/data
+    mem_limit: ${CTF_TARGET_MEM_LIMIT:-128m}
+    pids_limit: ${CTF_TARGET_PIDS_LIMIT:-256}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,os; urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('PORT','5000')).read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ctf_customer_portal_data:
+
+networks:
+  # The range network: internal, no route to the internet, the gateway,
+  # Forgejo or workshop_lab (§4, §6). The real range adds per-student firewall
+  # rules so each uid reaches exactly its own target; that is spike CTF-S2.
+  ctf_net:
+    internal: true

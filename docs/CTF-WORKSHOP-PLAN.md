@@ -7,7 +7,8 @@ marked **(spike)** are claims or designs that must be proven before anyone relie
 
 ### ⏩ Resume here (checkpoint 2026-10-04)
 
-**Phase:** still CTF-P0 (spikes). Most spikes are answered; no target images built yet.
+**Phase:** CTF-P0 (spikes), now also starting CTF-P1 build. Most spikes are answered; the **first target image is
+built** — target 14 `customer-portal` (scaffold). No other target images built yet.
 
 **Just finished — target 6 `dns-resolver-cve` is fully decided and de-risked.** It is **uClibc / uClibc-ng ≤ 1.0.40,
 CVE-2022-30295** (predictable monotonic DNS TXID + static source port 53): the attacker *predicts* the id and lands a
@@ -20,9 +21,20 @@ there.
 **Also decided recently:** target 14 `customer-portal` (CTF-5 app-code defend target) + the wall of shame (§8.12,
 `LIVE → DISCONNECTED`, toggle `CTF_WALL_OF_SHAME`) — see **CTF-D25**.
 
-**👉 Next step (do this next):** build **target 14 `customer-portal`** (CTF-D25) and its full PR → scan → merge →
-rebuild → redeploy loop — the main CTF-5 GitOps payoff, and it depends on none of the DNS work. Spec is in
-**section 7.3 (row 14)**, **section 8 (CTF-5 scope)**, **§8.12**, and the **S8 bullet** in section 12.
+**Just finished — target 14 `customer-portal` scaffold is built** (2026-10-04) in a new **`ctf-range` module**
+(`modules/ctf-range/`): the vulnerable Flask app over plaintext SQLite (`targets/customer-portal/app.py`), the
+synthetic per-handle seed (`seed.py`, a `customers` table whose `portal-service` row's password is the flag), the
+container image (`Dockerfile`, read-only root + `/data` volume), a single dev instance + `ctf_net` in the module
+`compose.yml`, and a reference SQLi dump that doubles as the **CTF-D19 gate** (`exploit/dump.py`). Verified without
+Docker: the `%' OR '1'='1' -- ` payload dumps all rows incl. the flag; the parameterized (fixed) query returns zero
+rows; normal search and idempotent re-seed work. The module is a **scaffold** — `README.md` lists what is and isn't
+built.
+
+**👉 Next step (do this next):** the deferred rest of target 14 — the full **PR → scan → merge → rebuild → redeploy**
+loop against `runner-pool`/registry (spike S6), the informational **SAST/SCA** stage (CTF-S17/D23/D24), and the
+**wall of shame** (§8.12, `LIVE → DISCONNECTED`, `CTF_WALL_OF_SHAME`). Then the range infra the scaffold stubs: the
+`STUDENT_COUNT` target fan-out (CTF-S1), the `ctf-flags` service (§5), per-uid isolation (CTF-S2/S3) and the
+`ctf-controller` (S14). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**, the **S8 bullet** in §12.
 
 **Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
 TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
