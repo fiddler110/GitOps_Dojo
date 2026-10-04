@@ -1,7 +1,7 @@
 # CTF workshop series: plan
 
-Status: **draft 1, 2026-10-03.** Replaces `dojo_ctf_planning.md` once agreed. Nothing here is built. Items marked
-**(spike)** are claims or designs that must be proven before anyone relies on them.
+Status: **draft 1, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
+marked **(spike)** are claims or designs that must be proven before anyone relies on them.
 
 ## 1. The idea in one paragraph
 
@@ -15,8 +15,9 @@ The last session turns it around: students defend their own target with git and 
 ## 2. Where it sits
 
 - **A new module, `ctf-range`, plus one thin workshop pack per session.** The range (targets, firewall rules, flag
-  service, terminal tools) is reusable, so by the rule in `workshops/README.md` it is a module. Each session is a
-  workshop pack that lists `MODULES="ctf-range ..."`, names which targets it uses and ships its labs and slides.
+  service, terminal tools, and for CTF-4 the attacker bots and SOC feed — section 8.2) is reusable, so by the rule
+  in `workshops/README.md` it is a module. Each session is a workshop pack that lists `MODULES="ctf-range ..."`,
+  names which targets it uses and ships its labs and slides.
 - **No engine changes.** Everything below is expressed as module compose, terminal image links, `start.d` hooks,
   `extensions.json` and the achievements catalog. If a step seems to need an engine edit, stop and re-check (see
   section 11, S1).
@@ -236,12 +237,132 @@ sessions, or carving the two API-only targets (12, 13) into their own short `ctf
 fixes (a secret to rotate, a policy to correct, a workflow trigger to lock down, a state backend to move). Target
 13 (`api-bfla`) is deliberately left out of CTF-4: its "exploit" is calling a destructive admin route, and the
 defend loop must never re-run that against the live range (see target 13's note in section 7.3).
+
+### 8.1 Why a CI gate alone isn't enough
+
+The original design for CTF-4 was: student opens a PR, a pipeline rebuilds the target, re-runs the exploit once,
+and the PR passes only if the exploit now fails. That's a correct *gate*, but it has no pressure in it — a student
+can take as long as they like, and nothing happens in the room while they think. The ask is to make CTF-4 feel
+like defending a live incident: probing noise in the background, a rising sense that something is actively
+happening to *your* system, and a race to patch and ship before it's exploited for real. The CI gate stays (it's
+still how a fix is proven), but it stops being the only thing creating pressure.
+
+### 8.2 A swarm of attacker personas, not one bot, and a feed that reacts to them
+
+```mermaid
+flowchart LR
+    bot["attacker-bot-NN\n(one container; 4-6 persona\nschedulers inside, own random\ndelay seed each, 30-180s)"]
+    tgt["target-NN\n(student's own, pre-patch)"]
+    soc["soc-feed\n(log tailer + formatter\n+ fake-origin tagger)"]
+    ach["achievements\nsigned 'soc' events"]
+    card["'SOC Alerts' card\n(student) + 'Cyber Map'\nwidget (room-wide)"]
+
+    bot -->|"recon, then exploit\nattempts, independently timed\nper persona"| tgt
+    tgt -->|"real access/error log lines"| soc
+    bot -->|"self-reported persona id,\nfake origin, phase"| soc
+    soc -->|"severity-tagged,\norigin-tagged alert"| ach
+    ach --> card
+
+    style bot fill:#2d1b1b,stroke:#c0392b
+```
+
+- **`attacker-bot-NN`**, one container per student (not 4-6 containers per student — see the resource note below),
+  added to `ctf-range/compose.yml` alongside `target-NN`, scoped by the same static per-slot pattern as everything
+  else in section 4: it only ever talks to its own `target-NN`, never another student's. It is **our** code, not
+  something the student can reach or redirect; it needs no firewall carve-out for the student because the student
+  never gets a shell on it.
+- **Inside that one container, 4-6 independent persona schedulers**, not one timer. Each persona gets its own:
+  - **Random delay seed**, drawn once at bot start from Uniform(30s, 180s), redrawn after every attempt — so one
+    persona might probe every ~40 seconds while another is closer to every ~2.5 minutes, and the room hears a
+    constant, uneven drumbeat instead of a synchronized chorus.
+  - **Fake origin label** (country + a made-up ASN/IP block) for display only, drawn from a weighted list — more
+    weight on a short set of commonly-cited threat-actor regions (China, Russia, Eastern Europe, with some US and
+    other noise so it doesn't read as a single-country pile-on), **never derived from a real IP or real
+    geolocation** — everything on `ctf_net` is internal, so there is nothing real to geolocate. This is flavor
+    data for the map (8.4), not a claim about who's attacking; the slides/debrief say so explicitly, the same
+    honesty the appendix already applies to the HTB reference list.
+  - **A traffic style**, so personas don't all look alike: one leans recon-heavy (scanning, header-grabbing), one
+    repeats the same exploit payload on a short fuse, one tries the exploit with small variations, and so on —
+    variety comes from a handful of fixed style templates, not from anything adaptive.
+- **Phases, gated by an elapsed-time floor so the session stays predictable in a room full of students moving at
+  different speeds, not by traffic-dependent "AI" detection:**
+  1. **Recon** (every persona, from session start): read-only probes — hitting known paths, grabbing headers.
+     Harmless, but genuine traffic landing in the target's real access log.
+  2. **Dwell time.** No persona attempts the real exploit before a fixed minimum has elapsed (session-configured,
+     see spike CTF-S9) — this is the "appropriate amount of time" the target stays merely *probed* before it's
+     actually at risk, giving every student a real window to find and ship a fix before anything can land.
+  3. **Escalating**, independently per persona once the dwell time passes: each persona starts trying its own
+     exploit attempt on its own delay schedule.
+  4. **Exploited or contained**, per attempt: if the vulnerability is still live when a persona's attempt lands,
+     that persona succeeds and reports a breach (never anything destructive — for the GitOps targets, "succeeds"
+     means recovering the same credential/token the attack-phase session had the student recover). If the
+     student's fix has already shipped, the attempt just fails like any other patched request, and that persona
+     keeps retrying on its own schedule for the rest of the session, building a visible "N attempts blocked" count
+     per persona.
+- **Resource note.** Literally running 4-6 containers per student would multiply the fleet-sizing math in section
+  4 by 4-6x for no benefit the student can see — the student experiences "several attackers," not "several
+  containers." One `attacker-bot-NN` process multiplexing 4-6 lightweight persona schedulers gets the same felt
+  effect at the same resource cost as today's single bot. If a later cycle wants personas to be genuinely separate
+  processes (for fault isolation, say), that's a small change inside the same container, not a compose change.
+- **`soc-feed`** tails the target's own log plus each persona's self-reported id/origin/phase, and turns both into
+  severity-tagged, origin-tagged alerts (`INFO` recon, `WARN` repeated probing, `CRITICAL` an exploit attempt
+  landed) posted through `modules/_shared/adapter_client.py` as a new signed event source — call it `soc`, sibling
+  to the `dns-gate`, `cloud-api` and `openbao-audit` sources the achievements module already has (folds into the
+  same **spike CTF-S4** work on adding an event source, not a second mechanism).
+- **Front end:** an `extensions.json` card, "SOC Alerts," shows the student their own feed in something close to
+  real time (a short poll is enough; it doesn't need to be a websocket). The matching `/admin` tab shows the whole
+  room at once — every student's current phase, persona count, and a running breach/contained count — so the
+  facilitator can see who's under pressure and who's already patched, the same shape as the existing "CTF Range"
+  admin tab in section 5, just more columns. The room-wide "Cyber Map" (8.4) is the dramatized version of this
+  same feed.
+- **Why this is also the A09 lesson, room-wide.** Target 9 `tfstate-treasure`'s debrief already asks a student to
+  find their own breach after the fact in Vault's audit log (section 7.3). CTF-4's SOC feed is the same idea live
+  and ahead of the breach instead of after it — the two reinforce each other rather than being two unrelated
+  feature builds.
+
+### 8.3 Cyber map: a room-wide dashboard
+
+The SOC feed's events are enough to drive a classic "attack map" visual — arcs sweeping in from fake origin points
+on a world map toward dots representing each student's target — the kind of dashboard real SOC vendors use on a
+lobby screen, built here from entirely synthetic data for engagement, not attribution.
+
+- **It's a widget, not a card.** `extensions.json`'s `widgets` entry (distinct from a `cards` entry — see
+  `workshops/README.md`'s schema) fits a room-wide, always-on visual better than a per-student nav card; it can
+  live on the Workshop Library hub or get its own route, open question in section 14.
+- **Data in:** the same `soc` achievement events as 8.2, with the fake origin field already attached. The map
+  widget doesn't invent anything itself — it only renders what `soc-feed` already tagged.
+- **What it shows:** a steady trickle of small, low-severity arcs (recon, from the weighted-but-mixed origin set)
+  that visibly thickens once the dwell time (8.2) passes and personas start their exploit attempts, with a
+  distinct marker (color, a brief flash, a toast) the moment any student's target reports a breach — visible to
+  the whole room, not just that student, which is exactly the "sense of activity" being asked for.
+- **Keep the fiction legible as fiction.** The origin weighting toward a handful of commonly-cited
+  threat-actor regions is a deliberate dramatization, the same device real-world threat-map products use — the
+  slides and debrief say plainly that this is flavor on top of entirely synthetic, internal-only traffic, not a
+  claim about real attacker geography, so nobody leaves the session having learned a wrong lesson about
+  attribution (which is genuinely hard and rarely resembles a live map in practice).
+- **Build size.** A world outline, a handful of origin points, and arc animation is a small, mostly client-side
+  job (an SVG or `<canvas>` map plus a short poll of the `soc` events) — no mapping service, no real geo database,
+  no internet access needed at runtime, consistent with the pinned-tools/no-internet rule in section 9.
+
+### 8.4 What creates the urgency, concretely
+
+- A visible **countdown or phase indicator** per student ("recon" → "escalating" → a clock to the next attempt),
+  not just a wall of log lines, so the pressure is legible at a glance.
+- **Scoring reacts to the race, not just to the eventual fix.** A "contained it" achievement for patching before
+  any attempt lands; a smaller one for patching after some attempts fail but before a breach; a logged incident
+  (no points lost — this is a lab, not a punishment) if the bot's exploit lands before the fix ships. The point is
+  to make "we got breached" a visible, discussed-in-the-debrief event, not a quiet failure.
+- **The fix path is unchanged and still the real proof.** Patching only stops the *live* bot if the running
+  `target-NN` is actually updated — which still means: branch, PR, `runner-pool` pipeline rebuilds/redeploys,
+  pipeline re-runs the exploit once as the CI gate. The live bot is additional pressure during the session; the
+  CI gate is still what proves the fix is real. This needs the same rebuild-without-`docker.sock` path as before
+  **(spike CTF-S6)**, now with one more consumer: the live target the bot is hitting has to be *the same* running
+  container the pipeline redeploys, not a separate copy, or patching never stops the bot.
+
 Each student's target source lives in their Forgejo repo; they fix the vulnerability in a branch, open a PR, and a
 runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: the PR passes only if the exploit
-now fails. This needs a rebuild path for a student's own target without `docker.sock`, which is the hardest open
-item in the series **(spike CTF-S6**; likely answer: defend targets are interpreted-language apps that reload
-from a volume the pipeline writes, not rebuilt images). Whether CTF-4 should also cover the low/medium/API targets
-(0-7, 12) in a later iteration is an open question (section 14).
+now fails. Whether CTF-4 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
+their own attacker-bot, is an open question (section 14).
 
 ## 9. Content and front door
 
@@ -266,13 +387,13 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S8 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S11 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P3 | Targets 0-7 and 12 (low/medium + the mass-assignment API target) and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand |
 | CTF-P4 | Class-size checks | `--test N` at full class size; target-to-target and listener isolation tests pass; memory sized |
 | CTF-P5 | GitOps targets 8-11 and 13 (the BFLA API target) and the CTF-3 pack | Solved by script; rung 10's failure case documented; target 13's solve script never actually fires its destructive route against the live range |
-| CTF-P6 | CTF-4 defend | A fixed PR passes the pipeline; the unfixed one fails |
+| CTF-P6 | CTF-4 defend: CI gate first, then the live bot and SOC feed | A fixed PR passes the pipeline; the unfixed one fails; separately, the live bot's next attempt fails only after that same PR is live |
 | CTF-P7 | Live checks | One real class on the Azure path; results in `RELEASES.md` |
 
 Isolation tests are acceptance tests, not nice-to-haves: one script per rule (can reach own target; cannot reach
@@ -305,6 +426,23 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
   to anything outside `ctf_net` if the same component ever drifted onto a shared network by mistake. For target 13,
   confirm the solve script can prove the route is callable (for example a HEAD request or a dry-run flag on the
   target's own API) without ever executing the destructive reset against the live range.
+- **CTF-S9, the persona swarm's schedule and dwell time.** Concrete numbers for the 30-180 second per-persona
+  delay range, how many personas (4, 5 or 6 — fixed or itself randomized per student), and how long the dwell
+  time (8.2) needs to be so the fastest reasonable student still has a real window to patch before any exploit
+  attempt is live. Also what happens to a student who's still mid-fix when the session's wall-clock simply ends —
+  does the bot stop, or does the debrief treat an in-progress breach as part of the lesson. And: confirming the
+  bot container truly cannot be reached or redirected by the student (no shell, no exposed control port on
+  `ctf_net`), since it's the one range component the student must never be able to influence.
+- **CTF-S10, the SOC feed as a live-updating UI, not just stored events.** The achievements module's event sources
+  (section 5, spike CTF-S4) are built to be queried, not necessarily pushed in real time to a card or a map
+  widget. Smallest way to get a "new alert" to show up within a few seconds — short polling on the existing card
+  is the safe default; confirm there's no cheaper option already in the engine before reaching for anything more.
+- **CTF-S11, the cyber map widget.** Whether `extensions.json`'s `widgets` entry can actually host a persistent,
+  always-rendering, room-wide visual the way a per-student `cards` entry hosts a nav link (check the schema and
+  the renderer's rules in `workshops/README.md` before assuming it fits), where it lives (Workshop Library hub
+  versus its own route — open question in section 14), and confirming the fake-origin weighting lives entirely in
+  `soc-feed`'s event payload, not hardcoded in the widget, so the weighting can be tuned without a front-end
+  change.
 
 ## 12. Spike answers
 
@@ -327,6 +465,11 @@ None yet.
 - **CTF-D7 (user, 2026-10-03):** The ladder is **not capped at ten**. It grew to fourteen targets so the OWASP Top
   10 (2021), the OWASP API Security Top 10 (2023), and every workshop with an attackable concept each get their
   own target instead of sharing one to hit a round number.
+- **CTF-D8 (user, 2026-10-03):** CTF-4 (defend) gets a **live attacker bot per student plus a simulated SOC/SIEM
+  alert feed, with the bot as 4-6 randomly-timed personas and a room-wide synthetic "cyber map" dashboard**
+  (section 8.1-8.4), to create real-time pressure during the session instead of relying on the CI
+  gate alone. The CI gate (pipeline rebuilds, re-runs the exploit, PR passes only if it now fails) stays as the
+  actual proof that a fix works; the bot and feed are the pressure layered on top of it, not a replacement for it.
 
 ## 14. Open questions for the user
 
@@ -343,6 +486,19 @@ None yet.
 6. **Session shape at fourteen targets.** CTF-2 and CTF-3 are now four to five targets and 160-190 minutes — long
    for a lunch-and-learn. Keep four sessions at that length, split into more/shorter sessions (section 8 suggests
    up to eight), or carve the two API-only targets (12, 13) into their own short `ctf-api` session?
+7. **How harsh should a breach feel?** Section 8.4 proposes no points lost for a live breach, just a logged
+   incident discussed in the debrief — keep CTF-4 low-stakes that way, or should an uncontained breach cost
+   points/leaderboard position to make the pressure mean something competitively?
+8. **Bot pacing.** Section 8.2's dwell time and 30-180s per-persona delay range need real numbers (how long the
+   dwell time is, how many students in the room, how fast the fastest student is expected to patch). Is there a
+   target "time to patch" in mind, or should CTF-S9 propose one from scratch?
+9. **The origin-weighting list, specifically.** Section 8.2 proposes weighting fake origins toward China, Russia
+   and Eastern Europe with some US/other noise, on the theory that it reads as a recognizable "threat map" trope
+   rather than a real claim. Confirm that's the list you want (add/drop countries, or make the distribution flatter
+   so it's less about specific countries and more about volume/intensity).
+10. **Where the cyber map lives.** A big, always-on room display (projector, second monitor) the facilitator
+    controls, a widget on each student's own hub, or both? That changes whether it needs a dedicated route
+    (section 8.3) versus just another `extensions.json` widget on an existing page.
 
 ## Appendix: the HTB reference list, corrected
 
