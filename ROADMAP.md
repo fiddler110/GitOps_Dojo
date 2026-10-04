@@ -34,7 +34,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 |---|---|---|---|
 | 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
 | 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
-| 3 | Platform review tiers 3-4 | L | RV35, RV22, RV23, RV24, RV28 and RV31 done; left RV25-RV27, RV29, RV30, RV32-RV34, RV36-RV38 |
+| 3 | Platform review tiers 3-4 | L | RV35, RV22, RV23, RV24, RV28, RV29 and RV31 done; left RV25-RV27, RV30, RV32-RV34, RV36-RV38 |
 
 ## Up next
 
@@ -120,7 +120,6 @@ RELEASES).
 | RV25 | Duplicated tool pins | M | dnscontrol and OpenTofu pins are duplicated in two Dockerfiles each: terminal-tool modules or a pins drift check |
 | RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
 | RV27 | Unused `forgejo-runner` module | S | All packs use `runner-pool`: mark it legacy or delete it, and update `build.py` and CLAUDE.md |
-| RV29 | Pack consistency | S-M | Required/optional file matrix in `workshops/README.md`, FACILITATOR.md for every pack, a cert-autorenewal README, remove `vault-fundamentals/spike/` |
 | RV30 | Docs drift | S-M | `workshops/README.md:19` says vault is "in progress"; trim the root README's duplicated tables; `DURATION=` in `workshop.env` feeding `./run.sh list` |
 
 **Tier 4: new features and workshops.**

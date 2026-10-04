@@ -7,6 +7,18 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `feat/zellij-terminal`
+
+**RV29: pack consistency (2026-10-04, committed on the branch, docs only).** Every workshop pack now has the
+same baseline file set. Added `FACILITATOR.md` to the four packs that lacked one (git-fundamentals,
+dns-as-code, cert-autorenewal, vault-fundamentals), each modeled on the cloud-policy-as-code guide
+(honest status, before/during/after, a per-pack troubleshooting table drawn from that pack's modules and
+real failure modes). Added the missing `workshops/cert-autorenewal/README.md` — the only pack without one.
+Added a "What a pack contains" required/optional file matrix to `workshops/README.md`. Removed
+`workshops/vault-fundamentals/spike/` (the throwaway P0 `t09-sops.sh`, already became Lab 6). Docs only,
+no stack change; the guides were written from each pack's real `workshop.env`/compose/labs, not yet walked
+with a room.
+
 ## `feat/rv22-allocator-split`
 
 **RV22: allocator split into modules (2026-10-03, unit tests plus an image check, locally).** `engine/allocator/server.py` (2,751 lines) is now `config`, `accounts`, `allocation`, `probes`, `pages`, `handler`, `views` (mixin) and `api` (mixin), with `server.py` (wiring plus the locking rules) at about 80 lines and the page CSS/JS in `static/` (read once at start-up, like `login/`). Tests patch the module that owns a name (`allocation.control_request`, `config.BOT_IDS`). Checks: all allocator tests pass (169, including a new `/login` test that found a missed import), the engine tests pass, and both images (old and new) were built and served the same bytes on every page and asset; only `/admin/api/status` differed, by its timestamps. Then started on a full stack (git-fundamentals, locally): an admin sign-in, every page and asset, a student sign-in, a slot claimed and VS Code opened, no tracebacks.
