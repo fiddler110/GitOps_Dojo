@@ -1,0 +1,50 @@
+
+# ---- Zellij terminal flavor (appended to /opt/dojo-shell/zshrc by the zellij-terminal image) ----
+# Runs last, after the shared prompt and aliases above, and only inside a Zellij pane.
+if [ -n "$ZELLIJ" ]; then
+  # Colour: one palette (One Dark) in Zellij, the browser terminal, bat and micro.
+  export COLORTERM=truecolor BAT_THEME=OneHalfDark
+  alias micro='micro -colorscheme one-dark'
+
+  # Modern prompt: directory, git branch and state, then a coloured arrow.
+  export STARSHIP_CONFIG=/etc/starship.toml
+  eval "$(starship init zsh)"
+
+  # Tell the side pane (dojo-sidebar) which directory this shell is in.
+  autoload -Uz add-zsh-hook
+  _dojo_record_cwd() { print -rn -- "$PWD" > "$HOME/.dojo-cwd" }
+  add-zsh-hook chpwd _dojo_record_cwd
+  _dojo_record_cwd
+
+  # Zellij-style helpers: open things in a pane instead of taking over the shell.
+  #   e [-s] <file>     edit a file in a floating pane over your work (-s: a pane beside it)
+  #   show [-s] <file>  read a file in a floating pane; q closes it
+  #   guide [name]      list the guides, or read one
+  _dojo_float="--floating --width 92% --height 90% --x 4% --y 5%"
+  e() {
+    if [ "$1" = "-s" ]; then shift; zellij edit --direction right "$@"
+    else zellij edit ${=_dojo_float} "$@"; fi
+  }
+  show() {
+    local side=0 f viewer
+    [ "$1" = "-s" ] && { side=1; shift; }
+    f="$1"
+    [ -n "$f" ] || { print "usage: show [-s] <file>"; return 1; }
+    [ -f "$f" ] || { print "show: no such file: $f"; return 1; }
+    case "$f" in *.md) viewer=(glow -p) ;; *) viewer=(bat --paging=always) ;; esac
+    if [ $side = 1 ]; then zellij run -c --cwd "$PWD" --direction right -- "${viewer[@]}" "$f"
+    else zellij run -c --cwd "$PWD" ${=_dojo_float} -- "${viewer[@]}" "$f"; fi
+  }
+  guide() {
+    local d=/usr/share/dojo-guides f g
+    if [ -z "$1" ]; then
+      print "Guides (open one with: guide <name>):"
+      for f in $d/*.md(N) $HOME/lab/*-guide.md(N); do g=${f:t:r}; g=${g%-guide}; [ "$g" = tmux ] || print "  $g"; done
+      return
+    fi
+    for f in "$d/$1.md" "$HOME/lab/$1-guide.md" "$HOME/lab/$1.md"; do
+      [ -f "$f" ] && { show "$f"; return; }
+    done
+    print "No guide called '$1'. Run: guide"
+  }
+fi

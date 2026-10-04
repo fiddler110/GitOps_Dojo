@@ -1,0 +1,19 @@
+// System-wide Zellij config for the Zellij terminal flavor (/etc/zellij/config.kdl).
+// A student's session is created on their first connect (workspace-control.py
+// runs `zellij attach --create main`) and uses the "dojo" layout below.
+default_layout "dojo"
+pane_frames false
+// One palette (One Dark, Zed's default) across Zellij, the browser terminal, bat and micro.
+theme "onedark"
+// Locked by default: Zellij's own shortcuts (Ctrl+q quits and kills the session, Ctrl+s scrolls,
+// Ctrl+g, Ctrl+p, Ctrl+t ...) would otherwise swallow the keys micro and the shell need, so a
+// student pressing Ctrl+q to leave the editor would end their whole session. In locked mode every key
+// goes to the program in the pane; Ctrl+g unlocks Zellij's shortcuts (the bar shows them) and
+// Ctrl+g again locks them. The mouse works either way.
+default_mode "locked"
+show_startup_tips false
+show_release_notes false
+// Nothing persists in this platform, and serializing every session to disk is
+// wasted work (and memory) for a lab that is torn down afterwards.
+session_serialization false
+scroll_buffer_size 10000

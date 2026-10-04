@@ -41,5 +41,6 @@ cd sample-training-repo
 <li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Investigating history: log, blame, show</span></li>
 <li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">Merge conflicts and safely undoing a shared change</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
-<li><a href="assets/lab-reader.html?file=tmux-guide.md.txt">tmux guide</a><span class="topic">Splitting panes, switching focus</span></li>
+<li><a href="assets/lab-reader.html?file=tmux-guide.md.txt">tmux guide</a><span class="topic">Splitting panes, switching focus (VS Code setup)</span></li>
+<li><a href="assets/lab-reader.html?file=zellij-guide.md.txt">Zellij guide</a><span class="topic">The terminal workspace: panes, file list, editor</span></li>
 </ul>

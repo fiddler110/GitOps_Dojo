@@ -34,6 +34,13 @@ WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "Workshop Lab")
 # it has to come from the same env var, never be hardcoded here.
 FACILITATOR_USERNAME = os.environ.get("FACILITATOR_USERNAME", "root")
 
+# "web" (VS Code in the browser plus a tmux terminal) or "zellij" (a Zellij terminal
+# only). Must match web-terminal's own TERMINAL_FLAVOR (docker-compose.yml passes the
+# same value to both). With "zellij" there is no IDE, so its tab, landing card and
+# /ide route are not offered.
+TERMINAL_FLAVOR = os.environ.get("TERMINAL_FLAVOR", "web")
+HAS_IDE = TERMINAL_FLAVOR != "zellij"
+
 
 _audit_lock = threading.Lock()
 

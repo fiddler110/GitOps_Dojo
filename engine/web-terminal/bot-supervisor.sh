@@ -28,7 +28,16 @@ while true; do
     # A student reset (workspace-control.py) marks the bot while it removes
     # and rebuilds its home; restarting it then would write into that home.
     if id "$user" >/dev/null 2>&1 && [ ! -e "/run/dojo-reset/$user" ]; then
-      if ! su - "$user" -c 'tmux has-session -t main' >/dev/null 2>&1; then
+      if [ "${TERMINAL_FLAVOR:-web}" = zellij ]; then
+        # Same `main` session, running the "bot" layout
+        # (/etc/zellij/layouts/bot.kdl), so the watch tile's `zellij watch
+        # main` has something to show. Zellij needs a terminal client for its
+        # layout, and a detached tmux session provides one (its background
+        # sessions ignore the layout); it ends with Zellij, so it never lingers.
+        if ! su - "$user" -c 'zellij list-sessions --short 2>/dev/null | grep -qx main' >/dev/null 2>&1; then
+          su - "$user" -c 'tmux new-session -d -s zbot -x 100 -y 30 "zellij --new-session-with-layout /etc/zellij/layouts/bot.kdl --session main"' >/dev/null 2>&1
+        fi
+      elif ! su - "$user" -c 'tmux has-session -t main' >/dev/null 2>&1; then
         su - "$user" -c 'tmux new-session -d -s main /opt/dojo-shell/bot-runner.sh' >/dev/null 2>&1
       fi
     fi

@@ -105,6 +105,7 @@ want the same thing, make it a module instead.
    FORGEJO_REPO=<repo name>
    MODULES=""            # e.g. "forgejo-runner dojo-cloud"; see ./run.sh modules
    COMPOSE_OVERLAY=      # only if step 4 adds one
+   TERMINAL_FLAVOR=web   # optional: "zellij" for a terminal-only workspace (no VS Code); see engine/README.md
    ```
    Paths are relative to `engine/`, not to the workshop folder — Compose
    resolves every relative path in a multi-file `-f ... -f ...` merge

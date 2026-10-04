@@ -1,0 +1,5 @@
+// A demo bot's session (bot-supervisor.sh): just the bot runner, full screen, so
+// a facilitator's watch tile shows what it types.
+layout {
+    pane command="/opt/dojo-shell/bot-runner.sh"
+}

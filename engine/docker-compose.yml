@@ -168,6 +168,14 @@ services:
       # sudo, so a missing value must fail closed instead of defaulting to
       # a guessable password. Set a real value in .env.
       - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
+      # "web" (VS Code + tmux) or "zellij" (a Zellij terminal, no IDE) -- see
+      # engine/zellij-terminal/ and workspace-control.py. run.sh also builds the
+      # matching image; allocator gets the same value (it hides the VS Code tab).
+      - TERMINAL_FLAVOR=${TERMINAL_FLAVOR:-web}
+      # Zellij flavor only: the browser terminal's font (a CSS font-family list) and size.
+      # Empty = the built-in system monospace stack and 14; see workspace-control.py.
+      - TERMINAL_FONT_FAMILY=${TERMINAL_FONT_FAMILY:-}
+      - TERMINAL_FONT_SIZE=${TERMINAL_FONT_SIZE:-}
       # Per-process V8 heap cap for each spawned code-server -- see
       # workspace-control.py. A safety net under mem_limit below, not a
       # replacement for it.
@@ -261,6 +269,9 @@ services:
       # studentNN slot -- see README.md's "Demo bots (--test)" section.
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
+      # Must match web-terminal's TERMINAL_FLAVOR: "zellij" has no IDE, so the VS
+      # Code tab, landing card and /ide route are not offered.
+      - TERMINAL_FLAVOR=${TERMINAL_FLAVOR:-web}
       # Must match web-terminal's FACILITATOR_USERNAME below -- used to
       # recognize the facilitator's own (non-student-slot) sessions.
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}

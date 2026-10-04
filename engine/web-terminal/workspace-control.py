@@ -59,6 +59,42 @@ BOT_TERM_PORT_BASE = 9750
 # collides between students.
 TMUX_SESSION = "main"
 
+# "web" (VS Code in the browser plus a tmux terminal) or "zellij" (a Zellij
+# terminal only: no code-server is ever started). Set by TERMINAL_FLAVOR in
+# engine/.env or a workshop.env; the zellij-terminal image also bakes it in.
+# The Zellij session name is the same fixed "main", per-uid like tmux's.
+TERMINAL_FLAVOR = os.environ.get("TERMINAL_FLAVOR", "web")
+if TERMINAL_FLAVOR not in ("web", "zellij"):
+    raise SystemExit(f"TERMINAL_FLAVOR must be 'web' or 'zellij', got {TERMINAL_FLAVOR!r}")
+ZELLIJ = TERMINAL_FLAVOR == "zellij"
+ZELLIJ_SESSION = "main"
+# How the browser terminal looks in the Zellij flavor, passed to ttyd as client options: the
+# One Dark palette (Zed's default terminal colours, and what Zellij's "onedark" theme, bat and
+# micro are set to match), a modern monospace stack (the browser falls back to any monospace it has) and a bar cursor. The
+# watch tiles get the same look without the larger font. The font is whatever good monospace
+# the viewer's machine has (the browser has no internet at runtime to fetch one), in the
+# order terminal apps prefer; TERMINAL_FONT_FAMILY and TERMINAL_FONT_SIZE override it.
+ZELLIJ_FONT_FAMILY = os.environ.get("TERMINAL_FONT_FAMILY") or (
+    "ui-monospace,'SF Mono',SFMono-Regular,Menlo,Monaco,'Cascadia Mono','Cascadia Code',"
+    "Consolas,'DejaVu Sans Mono','Liberation Mono',monospace")
+ZELLIJ_FONT_SIZE = os.environ.get("TERMINAL_FONT_SIZE") or "14"
+if not (ZELLIJ_FONT_SIZE.isascii() and ZELLIJ_FONT_SIZE.isdigit() and 8 <= int(ZELLIJ_FONT_SIZE) <= 40):
+    raise SystemExit(f"TERMINAL_FONT_SIZE must be a whole number from 8 to 40, got {ZELLIJ_FONT_SIZE!r}")
+ZELLIJ_TTYD_LOOK = [
+    "-t", f"fontFamily={ZELLIJ_FONT_FAMILY}",
+    "-t", "cursorStyle=bar",
+    "-t", "cursorBlink=true",
+    "-t", "theme=" + json.dumps({
+        "background": "#282c34", "foreground": "#abb2bf", "cursor": "#528bff",
+        "cursorAccent": "#282c34", "selectionBackground": "#3e4451",
+        "black": "#282c34", "red": "#e06c75", "green": "#98c379", "yellow": "#e5c07b",
+        "blue": "#61afef", "magenta": "#c678dd", "cyan": "#56b6c2", "white": "#abb2bf",
+        "brightBlack": "#636d83", "brightRed": "#ea858b", "brightGreen": "#aad581",
+        "brightYellow": "#ffd885", "brightBlue": "#73b8f1", "brightMagenta": "#d391e2",
+        "brightCyan": "#6ac5d1", "brightWhite": "#c8ccd4",
+    }),
+]
+
 # Must match the allocator's view of these same values -- entrypoint.sh and
 # docker-compose.yml default FACILITATOR_USERNAME to "root", not
 # "facilitator", and STUDENT_PREFIX/BOT_PREFIX are configurable too, so none
@@ -359,6 +395,17 @@ def start_workspace(tool, username):
                 f"{code_server_lifecycle_flags()} "
                 f"--extensions-dir {CODE_SERVER_EXTENSIONS_DIR} {home}/lab",
             ]
+        elif ZELLIJ:
+            # Same reasoning as the tmux branch below: ttyd execs this per
+            # websocket connection, and `attach --create` makes the session
+            # (the "dojo" layout from /etc/zellij) on the first connect and
+            # reattaches on every one after. cd first: the layout's panes
+            # start in the directory the session is created from.
+            # `su --pty`, not plain `su -c`: without it su starts the command in a
+            # new session, so the browser window's later resizes (ttyd resizes
+            # this pty) never reach Zellij and the layout stays at its first size.
+            cmd = ["ttyd", "-p", str(port), "-W", "-t", f"fontSize={ZELLIJ_FONT_SIZE}", *ZELLIJ_TTYD_LOOK, "su", "--pty", "-", username,
+                   "-c", f"cd \"$HOME/lab\" && exec {nproc_prefix(username)}{ns}zellij attach --create {ZELLIJ_SESSION}"]
         else:
             # Wrapped in tmux, not a bare login shell: ttyd execs this
             # command fresh for every websocket connection, so without
@@ -386,7 +433,19 @@ def list_sessions(username):
     -- `main` from the standalone Terminal tool, plus one `vscode-<pid>`
     per VS Code terminal (task, split, or extra tab; see
     tmux-terminal.sh). Empty if the account has never opened a terminal at
-    all."""
+    all.
+
+    The Zellij flavor has the one `main` session per student and Zellij
+    reports no activity time, so each live session counts as active now."""
+    if ZELLIJ:
+        result = subprocess.run(
+            ["su", "-", username, "-c", "zellij list-sessions --short"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return []
+        now = int(time.time())
+        return [(name, now) for name in result.stdout.split()]
     result = subprocess.run(
         ["su", "-", username, "-c", "tmux list-sessions -F '#{session_name} #{session_activity}'"],
         capture_output=True, text=True,
@@ -447,8 +506,11 @@ def start_watch(username):
             proc.wait()
 
         port = watch_port(username)
-        cmd = ["ttyd", "-p", str(port), "su", "-", username,
-               "-c", f"tmux attach -t {session} -r"]
+        # `zellij watch` is Zellij's own read-only client, the equivalent of
+        # `tmux attach -r`; ttyd still has no -W.
+        watch_cmd = f"zellij watch {session}" if ZELLIJ else f"tmux attach -t {session} -r"
+        su_cmd = ["su", "--pty"] if ZELLIJ else ["su"]  # --pty relays tile resizes to zellij watch
+        cmd = ["ttyd", "-p", str(port), *(ZELLIJ_TTYD_LOOK if ZELLIJ else []), *su_cmd, "-", username, "-c", watch_cmd]
         running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         watch_target[username] = session
     audit("watch-start", target=username, session=session, port=port)
@@ -663,6 +725,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_response(400)
                 self.end_headers()
                 return
+            if tool == "ide" and ZELLIJ:
+                self.send_response(404)  # this flavor has no IDE; code-server is never started
+                self.end_headers()
+                return
             if tool == "watch":
                 # No facilitator self-watch -- watch_port()/student_number()
                 # assume a studentNN account, and it wouldn't mean anything
@@ -719,6 +785,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    if ZELLIJ and shutil.which("zellij") is None:
+        raise SystemExit("TERMINAL_FLAVOR=zellij but this image has no zellij: build the "
+                         "zellij-terminal image (run.sh does when the flavor is set).")
+    print(f"terminal flavor: {TERMINAL_FLAVOR}", flush=True)
     threading.Thread(target=reap_children, daemon=True).start()
     print(f"per-student process limit (RLIMIT_NPROC): "
           f"{TERMINAL_NPROC_LIMIT or 'off'}", flush=True)

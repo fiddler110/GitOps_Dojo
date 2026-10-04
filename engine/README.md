@@ -624,6 +624,23 @@ assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
+**Terminal flavor** (`TERMINAL_FLAVOR`): `web` (the default) gives each student VS Code
+in the browser plus a tmux terminal. `zellij` gives a terminal only: a Zellij
+session with a read-only listing of the shell's directory (`dojo-sidebar`), the
+shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it in `engine/.env`
+or a workshop's `workshop.env` (which wins). `run.sh` then builds
+`gitopsdojo/zellij-terminal:base` (`engine/zellij-terminal/`) on top of
+`web-terminal:base` and chains every module and workshop terminal link on it, so
+those links need no change. The same `workspace-control.py` runs in both: with
+`zellij` it starts `zellij attach --create main` instead of tmux, the
+facilitator's watch tile runs `zellij watch main` (Zellij's read-only client), and
+`/start/ide` answers 404. The allocator gets the same value and drops the VS Code
+tab, landing card and `/ide` route; the service name, the control port and the
+port ranges are unchanged, so the diagrams above still hold. Demo bots run in a
+Zellij background session (`bot-supervisor.sh`, `layouts/bot.kdl`). Zellij costs
+more than tmux per student (about 50 MB measured, docs/CTF-WORKSHOP-PLAN.md S16),
+far less than code-server's ~260 MB.
+
 **Capacity**: code-server instances run meaningfully heavier than a bare
 shell. Measured natively on amd64 with 3 students connected at once (a
 fresh session with README.md and its preview, a `.yaml` and a `.tf` open):

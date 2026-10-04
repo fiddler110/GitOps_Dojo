@@ -31,6 +31,11 @@ class ApiMixin:
             self.send_response(400)
             self.end_headers()
             return
+        if tool == "ide" and not config.HAS_IDE:
+            self.send_response(404)  # the Zellij flavor has no IDE (web-terminal refuses it too)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
 
         # The page or asset the browser asked for (gateway/Caddyfile sends
         # it), without the query string, to tell a page load from an asset.

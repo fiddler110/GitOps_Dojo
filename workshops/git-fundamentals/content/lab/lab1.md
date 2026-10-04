@@ -40,11 +40,14 @@ Open `roster/team.yaml` and add yourself to the team list:
 
 Pick whichever of these suits you. All three give the same result.
 
-### Option 1: VS Code (recommended)
+### Option 1: your editor (recommended)
 
-In the VS Code tab, open `sample-training-repo/roster/team.yaml` from the file explorer on the left, add your
-entry at the bottom, and save with `Ctrl+S` (`Cmd+S` on a Mac). Keep the same indentation as the entries above
-yours.
+Open `sample-training-repo/roster/team.yaml` in your editor, add your entry at the bottom, and save with `Ctrl+S`
+(`Cmd+S` on a Mac in VS Code). Keep the same indentation as the entries above yours.
+
+- **Terminal workspace** (a file list on the left of your terminal): run `e roster/team.yaml`. It opens a simple
+  editor in a floating pane: paste or type, `Ctrl+S` saves, `Ctrl+Q` quits.
+- **VS Code:** open the file from the explorer on the left.
 
 ### Option 2: nano, in the terminal
 
@@ -141,7 +144,7 @@ ls -l ~/.git-credentials
 
 ## 7. Open a pull request
 
-Go back to the workshop landing page (the tab or window where you clicked **Open VS Code** or **Open Terminal**) and click **Open Forgejo**. It opens a new tab, already signed in as you — no separate login.
+Go back to the workshop landing page (the tab or window where you opened your terminal) and click **Open Forgejo**. It opens a new tab, already signed in as you — no separate login.
 
 Find your `add-yourname` branch (Forgejo usually prompts you with a banner offering to open a pull request for a recently-pushed branch) and open a pull request into `main`. Sensei, the class review bot, looks at it within a few seconds and, if your roster entry follows the format, rubber-stamps it and merges it for you. If something is off, Sensei leaves a comment saying what and flags your facilitator, who will take a look.
 

@@ -1,0 +1,28 @@
+# Prompt for the Zellij terminal flavor (STARSHIP_CONFIG in zshrc-zellij). Plain Unicode
+# only: no icon-font glyphs, since the browser terminal has no icon font.
+add_newline = true
+format = "$directory$git_branch$git_status$cmd_duration$line_break$character"
+
+[directory]
+style = "bold cyan"
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+
+[git_branch]
+symbol = ""
+style = "bold purple"
+format = "on [$branch]($style) "
+
+[git_status]
+style = "bold yellow"
+format = "([\\[$all_status$ahead_behind\\]]($style) )"
+
+[cmd_duration]
+min_time = 2000
+style = "dimmed white"
+format = "took [$duration]($style) "
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

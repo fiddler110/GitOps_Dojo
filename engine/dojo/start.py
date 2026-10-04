@@ -33,6 +33,10 @@ from .stack import compose_args, extra_files, services
 from .ui import bad, changed, console, fail, ok, step
 
 MAX_BOTS = 35
+# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one
+# (engine/zellij-terminal/, built on top of the web-terminal base).
+TERMINAL_FLAVORS = ("web", "zellij")
+ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
 
 
 class StartError(Exception):
@@ -263,12 +267,21 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     else:
         ca = ""
 
-    # The terminal image chain: :base -> each module's terminal/ -> the workshop's.
-    links = [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
-             for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
+    # The terminal image chain: :base -> (the Zellij flavor) -> each module's
+    # terminal/ -> the workshop's. TERMINAL_FLAVOR comes from engine/.env or the
+    # workshop's workshop.env (the latter wins); "zellij" inserts the
+    # zellij-terminal layer on top of :base, so every later link builds FROM it.
+    flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
+    if flavor not in TERMINAL_FLAVORS:
+        raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
+    env["TERMINAL_FLAVOR"] = flavor
+    base_image = ZELLIJ_BASE_IMAGE if flavor == "zellij" else "gitopsdojo/web-terminal:base"
+    links = [(ZELLIJ_BASE_IMAGE, "./zellij-terminal")] if flavor == "zellij" else []
+    links += [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
+              for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
         links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
-    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else "gitopsdojo/web-terminal:base"
+    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else base_image
 
     files = extra_files(res)
     overlay_dirs = [f"../modules/{m}" for m in res.modules if (paths.MODULES / m / "compose.yml").is_file()]
