@@ -348,10 +348,9 @@ lobby screen, built here from entirely synthetic data for engagement, not attrib
 
 - A visible **countdown or phase indicator** per student ("recon" → "escalating" → a clock to the next attempt),
   not just a wall of log lines, so the pressure is legible at a glance.
-- **Scoring reacts to the race, not just to the eventual fix.** A "contained it" achievement for patching before
-  any attempt lands; a smaller one for patching after some attempts fail but before a breach; a logged incident
-  (no points lost — this is a lab, not a punishment) if the bot's exploit lands before the fix ships. The point is
-  to make "we got breached" a visible, discussed-in-the-debrief event, not a quiet failure.
+- **Scoring reacts to the race, not just to the eventual fix** — formalized as the red/yellow/green status model
+  in 8.10, which replaces the looser "no points lost either way" idea this bullet originally had: status, and the
+  points behind it, now really do depend on whether the fix landed before or after the bot did.
 - **The fix path is unchanged and still the real proof.** Patching only stops the *live* bot if the running
   `target-NN` is actually updated — which still means: branch, PR, `runner-pool` pipeline rebuilds/redeploys,
   pipeline re-runs the exploit once as the CI gate. The live bot is additional pressure during the session; the
@@ -427,6 +426,43 @@ module's existing per-student `space` and event history (section 5) likely alrea
 whether it needs new rendering or can lean on `render_md.py`-style tooling the achievements module already has is
 worth a quick look before assuming a new build — flag during CTF-P6 rather than CTF-P0, since it depends on the
 SOC feed already existing.
+
+### 8.10 Per-target status — red, yellow, green — and how it adds up to points
+
+Every target in CTF-4 carries its own status light, visible on the student's own board and on the facilitator's
+admin tab (one more column next to the existing per-target rows in section 5's "CTF Range" tab), and it moves
+through exactly one of three states:
+
+- 🟢 **Green — never breached.** No persona's exploit attempt has landed against this target, whether because it
+  was already patched in time or the bot simply hasn't gotten there yet. Green is provisional until the session
+  ends: it's "clean so far," not "safe forever."
+- 🟡 **Yellow — breached, then fixed.** A persona's exploit landed at some point, *and* the CI gate has since gone
+  green on a later commit. The light can only reach yellow by having been red first — there's no shortcut back to
+  green.
+- 🔴 **Red — breached, still open.** A persona's exploit has landed and no fix has shipped since. This is also
+  the status of a target the student never touched at all once the session ends, if the bot got there first.
+
+**The transition is one-way per breach: green → red → yellow, never back to green.** That's deliberate, not a
+simplification — it's the same lesson as target 6 (`git-secrets`, section 7.3): a breach that's since been fixed
+is not the same as a breach that never happened, and the status board should say so rather than erase it. A
+yellow target can still be re-exploited later (its personas keep retrying per 8.2 even after a fix lands, by
+design) — further breaches don't move the light anywhere it hasn't already been, but the debrief/incident summary
+(8.9) can still show the retry count as its own detail, separate from the status tier.
+
+- **Scoring at session end.** Each target's final light carries a point value — a reasonable starting split is
+  full points for green, partial credit for yellow (the fix is real, it just came after the fact), and little or
+  nothing for red — summed across all of CTF-4's targets into that session's score, on the achievements
+  leaderboard alongside the flag points from the attack-phase sessions (section 5). The exact numbers are open
+  question #7 rather than something to lock in here.
+- **A room-wide view, not just a personal one.** Because every student's status board exists at once, the
+  facilitator's admin tab and the cyber map (8.3) can both show the whole room's reds turning to yellows over the
+  course of the session — which is the visual version of exactly what was asked for: being able to watch the room
+  go from a field of red dots to mostly yellow and green as people patch.
+- **What "fixed" means for the status check has to be unambiguous** — the CI gate going green on a specific
+  commit, not just a PR being opened (same requirement 8.1/8.4 already place on the fix path) — and "session end"
+  needs a precise cutoff (wall-clock, or whenever the facilitator ends the session) so a target's final color
+  isn't ambiguous. Both belong in **spike CTF-S9** alongside the existing timing questions, since they're the
+  same "what exactly triggers a state change, and when does the clock stop" family of question.
 
 Each student's target source lives in their Forgejo repo; they fix the vulnerability in a branch, open a PR, and a
 runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: the PR passes only if the exploit
@@ -551,6 +587,10 @@ None yet.
   real extra attempt, a **benign persona** for triage practice (8.6), an optional **second latent vulnerability**
   per target (8.7), a **mean-time-to-patch** figure shown with the map (8.8), and an **auto-built incident
   summary** for the debrief (8.9).
+- **CTF-D10 (user, 2026-10-03):** Each CTF-4 target carries a **red/yellow/green status** (never breached, breached
+  then fixed, breached and still open), one-way (green → red → yellow, never back to green), shown per student
+  and room-wide, with **points attached to the status at session end** rather than only to whether the flag was
+  ever recovered (section 8.10). This replaces the earlier "no points lost either way" framing in 8.4.
 
 ## 14. Open questions for the user
 
@@ -567,9 +607,10 @@ None yet.
 6. **Session shape at fourteen targets.** CTF-2 and CTF-3 are now four to five targets and 160-190 minutes — long
    for a lunch-and-learn. Keep four sessions at that length, split into more/shorter sessions (section 8 suggests
    up to eight), or carve the two API-only targets (12, 13) into their own short `ctf-api` session?
-7. **How harsh should a breach feel?** Section 8.4 proposes no points lost for a live breach, just a logged
-   incident discussed in the debrief — keep CTF-4 low-stakes that way, or should an uncontained breach cost
-   points/leaderboard position to make the pressure mean something competitively?
+7. **The red/yellow/green point split.** Section 8.10 proposes full points for green, partial for yellow, little
+   or nothing for red, summed per student across all of CTF-4's targets. What's the actual split (for example,
+   green=10/yellow=5/red=0 per target, or some other ratio), and should a yellow that got re-exploited multiple
+   times (the light doesn't change, but the retry count in the debrief does) ever cost anything extra?
 8. **Bot pacing.** Section 8.2's dwell time and 30-180s per-persona delay range need real numbers (how long the
    dwell time is, how many students in the room, how fast the fastest student is expected to patch). Is there a
    target "time to patch" in mind, or should CTF-S9 propose one from scratch?
