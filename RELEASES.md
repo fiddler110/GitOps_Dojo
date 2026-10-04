@@ -86,6 +86,23 @@ Added a "What a pack contains" required/optional file matrix to `workshops/READM
 no stack change; the guides were written from each pack's real `workshop.env`/compose/labs, not yet walked
 with a room.
 
+**Zellij terminal flavor (2026-10-04 recorded; built earlier on the branch, `fb4d399`, by a parallel session —
+allocator and workspace unit tests, per its commit).** A selectable alternative to the VS Code + tmux terminal,
+chosen with `TERMINAL_FLAVOR=zellij` in `engine/.env` or a `workshop.env` (the workshop wins): each student gets a
+Zellij session (shell, a read-only directory listing, a `micro` editor) and **no code-server**, which is the
+largest per-student cost — about 260 MB, measured down to about 112 MB RSS for a Zellij student. New
+`engine/zellij-terminal/` image layered on `web-terminal:base` (zellij and starship pinned by sha256, plus micro,
+less, file, the config, layouts, `dojo-sidebar` listing and quick-start/micro guides); `dojo/start.py` splices that
+layer into the terminal image chain so module and workshop `terminal/` links need no change; one shared
+`workspace-control.py` runs Zellij instead of tmux behind a flavor flag, uses `zellij watch` for the facilitator
+tile and `su --pty` so browser resizes reach it, and answers `/start/ide` 404; the allocator hides the VS Code tab,
+landing card and `/ide` route when the flavor has no IDE (tests added); demo bots run in Zellij
+(`bot-supervisor.sh`, `layouts/bot.kdl`); git-fundamentals' labs were reworded to work in either flavor and gained
+a Zellij guide. Known-not-done, from the commit: the tmux flavor still keeps its first window size; labs for the
+other five packs; Zellij memory growth over hours; browser key conflicts. **Open:** the same work is committed on
+`feat/zellij-terminal-flavor` as `cc189e3` (identical patch-id) — the two branches must be reconciled and one
+deleted; see the ROADMAP housekeeping row.
+
 ## `feat/rv22-allocator-split`
 
 **RV22: allocator split into modules (2026-10-03, unit tests plus an image check, locally).** `engine/allocator/server.py` (2,751 lines) is now `config`, `accounts`, `allocation`, `probes`, `pages`, `handler`, `views` (mixin) and `api` (mixin), with `server.py` (wiring plus the locking rules) at about 80 lines and the page CSS/JS in `static/` (read once at start-up, like `login/`). Tests patch the module that owns a name (`allocation.control_request`, `config.BOT_IDS`). Checks: all allocator tests pass (169, including a new `/login` test that found a missed import), the engine tests pass, and both images (old and new) were built and served the same bytes on every page and asset; only `/admin/api/status` differed, by its timestamps. Then started on a full stack (git-fundamentals, locally): an admin sign-in, every page and asset, a student sign-in, a slot claimed and VS Code opened, no tracebacks.

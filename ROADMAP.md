@@ -4,8 +4,9 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-04 (RV29 pack consistency, RV30 docs drift, RV27 forgejo-runner retired, RV25 tool-pin drift check) · Working
-branch: `feat/zellij-terminal`; cut a feature branch for each new batch of work.
+Last updated: 2026-10-04 (RV25/RV27/RV30 done and the ctf-range Python bases pinned; roadmap refreshed to add the
+CTF workshop series, the Zellij flavor and the branch state). RV29 pack consistency landed earlier the same day. ·
+Working branch: `feat/zellij-terminal`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
 RV efforts come from the platform review; the rest are estimates. Where something is already built, the effort is
@@ -15,8 +16,8 @@ what is left (usually the live check).
 |---|---|
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
 | [Up next](#up-next) | Where to resume; decisions of 2026-10-02 and 2026-10-03 |
-| [Now](#now) | Split smoke run, student reset and Phase 10: live checks |
-| [Next](#next) | N3 9.4 class-sized run; platform review (RV25-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
+| [Now](#now) | Student reset and Phase 10 live checks (the split smoke run is parked in [Later](#later)) |
+| [Next](#next) | CTF workshop series; N3 9.4 class-sized run; platform review (RV26-RV38); student reset; achievements leftovers; `run.sh` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -27,7 +28,7 @@ what is left (usually the live check).
 Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
 platform review tier 1 and the merge to `main` (PR #6), the Phase 9 live checks apart from the class-sized run
 (PR #7) (2026-10-02), Cloud-Policy-as-Code (RV35) with RV19, the Phase 10 sweep and the student reset build (PR #8)
-and the pack's pids cap (PR #9) (2026-10-03, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+and the pack's pids cap (PR #9) (2026-10-03), then on `feat/zellij-terminal` (unpushed): the Zellij flavor, the CTF range scaffold/SAST/control plane, RV29/RV30/RV25/RV27 and the ctf-range digest pins (2026-10-04, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
@@ -39,7 +40,10 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 ## Up next
 
 Resume here (updated 2026-10-04). The vault reset fix merged to `main` in PR #12: `lab_11.sh` and `lab_12.sh` pass after
-a reset, and `main` is the only branch left locally (delete `origin/feat/rv22-allocator-split` by hand, it is merged).
+a reset. Branch state 2026-10-04: current work is on `feat/zellij-terminal`, **7 commits ahead of `main` and unpushed**
+(CTF range, the Zellij flavor, RV25/RV27/RV30 and the ctf-range pins); `feat/zellij-terminal-flavor` carries a duplicate
+of the Zellij flavor commit (same patch-id — see [Housekeeping](#housekeeping)); the merged `origin/feat/rv22-allocator-split`
+and `origin/docs/roadmap-resume` can be deleted by hand.
 The split smoke run is parked (see [Later](#later)); the full-stack smoke loop is paused. Next, one stack at a time
 (`podman ps` first):
 1. **Vault capstone two-step** on the vault stack (the [Now](#now) table). The stack may still be up from 2026-10-04.
@@ -85,6 +89,20 @@ After the live checks pass: move student reset R0-R4 and R3.x to RELEASES (git-f
 idempotent, a bot restarts from round 1, the optional score clear clears only that student), and delete them below.
 
 ## Next
+
+### CTF workshop series
+
+A five-session capture-the-flag series building on the platform (the GitOps targets lean on `runner-pool`, `openbao`,
+the DNS stack and the policy engine). **In flight on `feat/zellij-terminal`; the live, authoritative plan is
+[`docs/CTF-WORKSHOP-PLAN.md`](docs/CTF-WORKSHOP-PLAN.md)** — it is a working plan with its own phases (CTF-P0..P5),
+spikes and a "Resume here" checkpoint, is *not* archived, and is owned by the session driving the CTF build; do not
+edit it from here, and treat its checkpoint as the current truth over this summary.
+
+| Area | Where it stands (2026-10-04) |
+|---|---|
+| Phase | CTF-P0 spikes mostly answered; CTF-P1 build started |
+| Built | The `ctf-range` module: target 14 `customer-portal` scaffold (vulnerable Flask + SQLite, SQLi flag), its CWE-89 SAST stage and Forgejo defend pipeline, and the range control plane — boxed privileged DinD `ctf-host` + unprivileged `ctf-controller` (spike S14 / CTF-D21). Target 6 (`dns-resolver`, uClibc CVE-2022-30295) decided and de-risked. Its three Python base images are pinned by digest (this branch; see RELEASES) |
+| Next (per the plan) | The in-lab registry + CI build that `defend-main.yml` pushes patched images to (spike S6), then the wall of shame, the `STUDENT_COUNT` fan-out, the `ctf-flags` submission service and per-uid isolation/SNAT; on the SAST side, the IaC/secret/SCA scanners for targets 8-11 |
 
 ### N3 9.4: class-sized run
 
@@ -173,7 +191,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Watch for a flaky allocator handler test (one `ConnectionResetError` in 161 on the Mac). Steps: [`C5-guide.md`](C5-guide.md) |
+| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Steps: [`C5-guide.md`](C5-guide.md). (The flaky allocator test first seen here is now diagnosed — see [Housekeeping](#housekeeping).) |
 
 ### Remediation leftovers
 
@@ -222,6 +240,9 @@ the facilitator.
 | dns-as-code | `dnscontrol version`; push a branch and open a PR; Actions shows **DNS Preview** green; merge and **DNS Apply** goes green; `dig` shows the record |
 | cert-autorenewal | **Site Inspector** card and tab; after Lab 2 step 6 a student's visit shows `http://` → 301 → `https://` with a verified certificate, the second visit is upgraded by HSTS; the facilitator's tab can visit any student's name |
 | tofu-basics | **Dojo Cloud** card and tab; the portal opens on the student's subscription; the facilitator's tab shows the progress view; after a Track B `apply` the resource shows in both |
+
+This per-workshop table predates three packs and still needs rows for **vault-fundamentals** (its own browser notes are
+in [Manual checks](#manual-checks) above), **dojo-introduction** and **cloud-policy-as-code** before the pass is complete.
 
 ## Later
 
@@ -279,6 +300,8 @@ the facilitator.
 | Work | Effort | Description |
 |---|---|---|
 | Take-home handouts and PowerPoint decks | M | Parked: `handouts/` (lab handouts, starter repos, deck export script), the `.githooks` pre-commit and the CI `handouts` checks were all deleted because they had drifted from the labs. Recover from git history if wanted again |
+| Reconcile the two Zellij branches | S | The Zellij-flavor work is committed twice: `fb4d399` on `feat/zellij-terminal` and `cc189e3` on `feat/zellij-terminal-flavor`, identical patch-id on different bases. Pick the branch that goes forward, delete the other, and make sure whichever lands carries the RELEASES entry (already written) |
+| Flaky allocator test: undrained request body | S | `engine/allocator/tests/test_reset.py::test_reset_needs_header_facilitator_and_typed_id` fails intermittently (reproduced 3/6 runs at HEAD and at `00f6c99`, so it predates this branch's work) with `ConnectionResetError [Errno 54]` while handling the expected 403. The early-rejection paths in `engine/allocator/api.py` answer `Content-Length: 0` without draining the POST body, so the close races the client's write — the same undrained-body class the cloud-api `end_headers` fix (RELEASES) addressed. It makes `unit-tests.sh` red at random. **`engine/` change: ask before editing** (CLAUDE.md) |
 
 ## Reference
 
