@@ -231,7 +231,7 @@ original draft's warm-ups.
 | 3 | Low | `cert-trust-bypass` (NEW, ties `cert-autorenewal`) | An internal API meant to require a client certificate accepts an expired or self-signed one because it skips chain/revocation checks | The accepted identity unlocks a second endpoint | Certificate chains, expiry and revocation, why "it has a cert" isn't "it has a *valid* cert" |
 | 4 | Medium | `ping-tool` | Command injection in a "network diagnostics" page, reverse shell | `sudo -l` shows a passwordless GTFOBins binary | Reverse shells and the return-path ports, `sudo` audit, GTFOBins |
 | 5 | Medium | `leaky-config` | A web admin panel exposes logs and a config backup holding credentials | Credentials reused for a local service | Post-exploitation enumeration, credential hygiene, log reading |
-| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | A `dnsmasq` 2.82 resolver pinned just before the fix, vulnerable to the **Dnspooq cache-poisoning set (CVE-2020-25684/25685/25686)**: an off-path attacker inside `ctf_net` forges a reply and poisons the cache so a hostname the target's own internal service trusts resolves to the attacker's stand-in | The poisoned name makes the target connect to the attacker (credential capture / served response), reaching a second flag on the same host | Why resolver software is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the digest (bump 2.82 → 2.83), not just set one; and that a config choice (`--cache-size=0`) is part of the fix |
+| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | The target's internal agent is linked against **uClibc-ng ≤ 1.0.40 with CVE-2022-30295**: its stub resolver uses **monotonically increasing transaction IDs and a static source port 53**, so an off-path attacker inside `ctf_net` observes one lookup, **predicts** the next TXID, and lands a *single* spoofed reply (no brute force) that answers `vault.svc.internal` with the attacker's address | The spoofed answer makes the agent connect to the attacker and hand over its service token (credential capture); replaying the token against the real internal endpoint reaches a second flag on the same host | Why the resolver (here the libc stub) is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the pin (bump uClibc-ng past 1.0.40), not just set one; why TXID + source-port randomization exist |
 | 7 | Medium | `ssrf-fetcher` (NEW) | A "preview this URL" feature fetches server-side and can be pointed at `ctf_net`'s internal addresses instead of the internet | Reaches an internal-only admin endpoint on another service in the same target, not another student's target | Why outbound requests from a server are a trust boundary, allow-lists versus deny-lists, cloud-metadata-style SSRF without needing a real cloud metadata endpoint |
 | 12 | Medium | `api-mass-assignment` (NEW, API-only) | A JSON `PATCH /users/me` endpoint binds the whole request body to the user object, so adding `"role":"admin"` to the payload sets it | The elevated token reaches a second, admin-only route | API1/API3-style mass assignment, why a JSON body isn't automatically a trusted struct, allow-listing bindable fields |
 | 8 | Hard | `git-secrets` (GitOps, ties `git-fundamentals`) | A seed repo in Forgejo with a secret removed in a later commit but still in history | The recovered token reaches a second target | `git log -p`, `git secrets`-style scanning, why deleting a file is not revoking a secret |
@@ -912,39 +912,39 @@ Suggested minimal builds, unproven unless noted:
 - **3 `cert-trust-bypass`:** a small nginx/openssl front that accepts a cert it should reject.
 - **9 `policy-bypass`:** Rego on the existing policy engine; dual-use (attacked in CTF-4, defended in CTF-5), with a
   default-allow fallthrough that still passes `opa test`.
-- **6 `dns-resolver-cve`:** CVE chosen — the **Dnspooq cache-poisoning set, `dnsmasq` < 2.83
-  (CVE-2020-25684/25685/25686)** (researched 2026-10-04). A deliberate swap away from the first pick, the 2017 heap
-  overflow CVE-2017-14491: a 2-byte overflow → reliable RCE is fragile and breaks on any glibc/heap/base-image
-  change, which is the wrong property for a lab that must fire every run and be rebuilt for years. The poisoning
-  path is logic-level and reproducible. Why it fits the target-6 criteria:
-    - *Buildable from source here.* dnsmasq is a small single-tree C codebase that builds with just `gcc` + `make`
-      (`dbus`/`libidn` optional and compiled out). Pin **2.82** — vulnerable to Dnspooq poisoning but *not* to the
-      2017 overflow, so students can't accidentally crash the resolver and the intended stable path is the only
-      path. The fix is bumping to **2.83** (optionally plus `--cache-size=0`), which is exactly the "update the
-      pinned digest, don't just set one" lesson for `dns-as-code`, with a config-hardening angle on top.
-    - *Reliable in a closed range (now built and measured — see "Target 6 DNS poisoning build" below).* In the wild,
-      poisoning races the real upstream and must guess TXID + source port; the Dnspooq CVEs cut that entropy (25684
-      drops the exact-query match; 25685/25686 enable a birthday-style multi-query forge). In `ctf_net` the race is
-      removed by construction: the attacker (solve script / bot) is off-path so the CVE is genuinely what's taught
-      (not a trivial MITM), `svc.internal` is forwarded to an intentionally slow/withholding in-target upstream so a
-      forged answer always beats the real one, a fixed `--query-port` makes the source port known, and the cache
-      stays enabled. The measured result: the forge is a **reliable guess-and-retry loop that converges**, not a
-      guaranteed single-pass sweep — good enough for a solve script (loop until the cache flips), which is what
-      "stable and reproducible" needs. A public PoC exists (`knqyf263/dnspooq`), the shape the solve script takes.
-    - *The foothold chain (the trusted internal service).* Target 6 runs, in its one container, dnsmasq 2.82 as the
-      local resolver plus a small **internal agent** that every few seconds resolves a name like `vault.svc.internal`
-      via `127.0.0.1` and checks in to it, sending a service token (an `Authorization` header / JSON credential).
-      Normally that name points at the real in-target service; once the attacker poisons it to their listener, the
-      agent's next check-in delivers the token to the attacker = **flag 1** (the captured token, or a flag embedded
-      in the check-in payload). The attacker replays the captured token against the real internal endpoint
-      (`/admin`/`/secret`) = **flag 2** on the same host. Lesson: a service that trusts DNS to find its backend
-      hands its credentials to whoever controls name resolution. Reproducible: once poisoned, the next agent cycle
-      delivers the token with no further timing.
-    - *Containable.* The vulnerable resolver is the *victim*; it only mis-resolves `svc.internal` names the attacker
-      forges from inside the range. If the component ever drifted onto a shared network it would not attack anything
-      outbound.
-    - *To confirm when built (CTF-P5 work).* The expected number of retry rounds to tune the solve-script window,
-      and the exact agent check-in → flag-1 → flag-2 wiring.
+- **6 `dns-resolver-cve`:** CVE chosen — **uClibc / uClibc-ng ≤ 1.0.40, CVE-2022-30295** (predictable DNS
+  transaction IDs), after two earlier picks were rejected. First was the 2017 dnsmasq heap overflow
+  (CVE-2017-14491): a 2-byte overflow → reliable RCE is fragile and breaks on any libc/heap/base-image change —
+  wrong for a lab rebuilt for years. Second was the Dnspooq cache-poisoning set (dnsmasq < 2.83,
+  CVE-2020-25684/25685/25686): built and measured, but it reduces to **guess-and-retry** (off-path poisoning is a
+  TXID brute-force by nature), which is not "stable," and it needed a withholding-upstream contrivance to remove the
+  race. CVE-2022-30295 removes the guess at the source: uClibc's stub resolver assigns **monotonically increasing
+  TXIDs** and uses a **static source port 53**, defeating both randomizations, so an off-path attacker who sees one
+  lookup can **predict** the next TXID and land a *single* spoofed reply. Why it fits the target-6 criteria:
+    - *Deterministic, not a retry loop.* Predict the next TXID (the counter is monotonic), spoof one reply from the
+      nameserver's IP:53 to the agent's port 53 — it is accepted. No brute force, no race-removal contrivance. This
+      is the "more stable than guess-and-retry" the design called for.
+    - *Rootless — verified (2026-10-04, see "Target 6 DNS poisoning build").* The one open risk was whether an
+      off-path attacker can put a spoofed-source frame on the bridge under **rootless** Podman (the range's runtime,
+      CTF-D21). Tested on a rootless netavark bridge: a container with only `--cap-add NET_RAW` emitted frames with a
+      forged source IP and a sibling received them with that source intact. So the spoofing the attack needs works
+      rootless; no rootful path required.
+    - *Buildable from source, pin-and-bump fix.* uClibc-ng builds from source; the target's internal agent is linked
+      against a pinned ≤ 1.0.40 and the fix is bumping uClibc-ng past 1.0.40 — the "update the pin, don't just set
+      one" lesson for `dns-as-code`. Preserves A06 (real CVE in an outdated component) and the DNS theme: the
+      *resolver* here is the libc stub the app trusts.
+    - *The foothold chain (the trusted internal service).* Target 6 runs, in its one container, a small **internal
+      agent** (linked against vulnerable uClibc-ng) that every few seconds resolves `vault.svc.internal` and checks
+      in to it, sending a service token (an `Authorization` header / JSON credential). The attacker predicts the
+      TXID and spoofs the answer → the agent connects to the attacker and hands over the token = **flag 1** (the
+      captured token, or a flag embedded in the check-in). The attacker replays the token against the real internal
+      endpoint (`/admin`/`/secret`) = **flag 2** on the same host. A stub resolver doesn't cache, so this is
+      per-lookup answer spoofing — but each lookup is deterministically winnable, so the next agent cycle delivers.
+      Lesson: a service that trusts DNS to find its backend hands its credentials to whoever controls resolution.
+    - *Containable.* The vulnerable component only mis-resolves names the attacker forges from inside the range;
+      drifting onto a shared network would not make it attack anything outbound.
+    - *To confirm when built (CTF-P5 work).* Build uClibc-ng ≤ 1.0.40, confirm the stub emits a monotonic TXID the
+      attacker can predict end-to-end, and wire the agent check-in → flag-1 → flag-2 chain.
 - **14 `customer-portal` (NEW, CTF-5 defend-only, decided SQLite — CTF-D25):** a small Python/Flask app over a
   **plaintext SQLite** file (one container per slot, no sidecar DB — cheapest and consistent with one-target-per-slot).
   The DB seeds a `customers` table of synthetic rows referencing the student's handle plus a secret row = the flag.
@@ -957,10 +957,18 @@ Suggested minimal builds, unproven unless noted:
 
 ### Target 6 DNS poisoning build (2026-10-04)
 
-Built and ran a three-container PoC (rootful Podman 5.8.1, netavark): a victim resolver, a controlled upstream, an
-off-path attacker on one `/24`. Scratchpad only, not kept.
+Two runs. Run A (rootful) explored dnsmasq cache poisoning and proved the forge mechanism; it exposed that off-path
+poisoning is guess-and-retry, so target 6 was **re-chosen** to CVE-2022-30295 (uClibc predictable TXID) for
+determinism. Run B (rootless) verified the one open risk of that choice — spoofing under the range's actual runtime.
 
-**Proven:**
+**Run B — rootless spoofing (the deciding test).** On a **rootless** netavark bridge (`core` user, Podman 5.8.1,
+`rootless=true`), an attacker container with only `--cap-add NET_RAW` sent `AF_PACKET` frames carrying a forged
+source IP; a sibling listener received them reporting that forged source (`RECV src=10.99.9.10` while the attacker's
+real IP was `10.99.9.30`). **So off-path source spoofing works rootless — no rootful path needed**, which is what
+makes the predictable-TXID attack viable as the range runs it. Torn down after.
+
+**Run A — dnsmasq PoC (rootful; kept as mechanism evidence).** Three containers (victim resolver, controlled
+upstream, off-path attacker on one `/24`), scratchpad only. Proven:
 - **dnsmasq 2.82 builds from source** in Alpine with just `gcc`/`make` (`curl` the 2.82 tarball, `make`, copy the
   binary); no awkward deps. Confirms the "build from source, pin, bump to fix" shape.
 - **Fixed source port.** `--query-port=35353` made every forwarded query leave from `:35353`; the upstream logged
@@ -974,18 +982,18 @@ off-path attacker on one `/24`. Scratchpad only, not kept.
   pending query's TXID was accepted by dnsmasq 2.82, cached with the attacker's TTL (86400), and every later lookup
   returned the attacker's IP. dnsmasq logged `reply svc.internal is <attacker>`.
 
-**Corrected from the earlier plan wording:** flooding the *correct* (known) TXID poisons every time, but a *blind*
-full-16-bit sweep did **not** reliably land in the harness, even paced and with queries kept in flight — non-matching
-replies from the expected server+port appear to disturb the pending forward. So the realistic primitive is
-**guess-and-retry per query** (exactly the birthday approach the Dnspooq CVEs optimize), not a one-pass deterministic
-sweep. With the race removed and the port fixed, that retry loop still converges quickly and controllably, so the
-lab is **reliable/reproducible** (solve script: keep a query in flight, guess, repeat until the cache flips) — the
-honest claim, and the one the "stable, easily reproduced" goal actually needs. The earlier "deterministic single
-sweep" phrasing was too strong and has been fixed.
+**Why this forced the re-choice.** In Run A, flooding the *correct* (known) TXID poisoned every time, but a *blind*
+full-16-bit sweep did **not** reliably land — non-matching replies from the expected server+port appear to disturb
+the pending forward. So Dnspooq off-path poisoning is **guess-and-retry per query** (the birthday approach), which is
+reliable-ish but not "stable," and it leaned on a withholding-upstream contrivance to remove the race. That is why
+target 6 moved to **CVE-2022-30295**: uClibc's monotonic TXID + static source port 53 let the attacker *predict*
+the id and land one spoofed reply — deterministic, and (per Run B) rootless. Run A still stands as proof that a
+spoofed reply with the matching TXID from the expected source is accepted and used, which is the same acceptance the
+uClibc attack relies on.
 
-**Still to do at CTF-P5:** tune the expected retry rounds (to size the solve-script window) and wire the internal
-agent's check-in → flag-1-capture → flag-2-replay chain described above. Not covered: rootless re-run (expected to
-match, per the S2/S3/S14 rootless results) and Docker as a runtime.
+**Still to do at CTF-P5:** build uClibc-ng ≤ 1.0.40, confirm end-to-end that its stub emits a predictable monotonic
+TXID the off-path attacker can compute, and wire the agent check-in → flag-1-capture → flag-2-replay chain. Not
+covered yet: Docker as a runtime (the range targets rootless Podman).
 
 ### S9, persona swarm numbers
 
@@ -1160,8 +1168,8 @@ versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
    attention-split and top-10 formula are open design choices, not blocked on a live class. Open until a live
    class: S9 and the cold-start/queue numbers in S14.
 5. Open before CTF-P6: building the new app-code defend target 14 `customer-portal` (CTF-D25) with its full
-   PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (Dnspooq cache poisoning, `dnsmasq` 2.82 / CVE-2020-25684/25685/25686);
-   target 6's poisoning is now built and measured (reliable guess-and-retry in the closed range; see "Target 6 DNS poisoning build"), leaving only solve-script tuning and the internal-agent flag wiring at CTF-P5. S17's app-side tool
+   PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (uClibc / uClibc-ng ≤ 1.0.40 / CVE-2022-30295, predictable TXID —
+   deterministic, and rootless spoofing verified; see "Target 6 DNS poisoning build"), leaving only the uClibc-ng build and the internal-agent flag wiring at CTF-P5. S17's app-side tool
    is now fixed (a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open piece is only the
    IaC/secret scanners for targets 8-11.
 
