@@ -609,7 +609,7 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S16 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S17 | Each has a written answer in section 12 |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
@@ -691,6 +691,17 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
   the tmux `session-created` hook fires for the first session; mouse, OSC52 clipboard, file drop and sixel in ttyd;
   Chrome and Firefox capturing Ctrl-T, Ctrl-N and Ctrl-W (Zellij's default tab and resize modes use the first two);
   a read-only Zellij watcher attach working end to end; and a pass by someone who has never used a multiplexer.
+- **CTF-S17, a SAST/SCA scan step in the defend pipeline.** CTF-5's pipeline (spike CTF-S6) already builds the
+  student's branch and re-runs the exploit as the CI gate; the ask is one more stage in that same job, not a new
+  mechanism, that runs a static-analysis and dependency-scan tool over the student's pushed source and surfaces
+  real findings (CWE category and file:line) as pointer noise toward the flaw, matching "a real team would have
+  this." It does **not** gate pass/fail — only the exploit re-check decides red/yellow/green (CTF-D19); the scan is
+  informational so an unrelated finding in a scanner can never flip a correct fix to red. To settle: which tool(s)
+  for whatever language targets 8-11 ship in (a no-network SAST tool and a dependency/SCA tool, both pinned per
+  CTF-D16), whether findings surface unconditionally every run or sit behind the existing two-hint ladder (section
+  9) given that a scan finding is more specific than today's hints, where they render (the status strip next to
+  red/yellow/green, or the SOC feed), and the smallest way to add this stage to `runner-pool`'s job without a new
+  `JOB_TOOLS` entry per target image.
 
 ## 12. Spike answers
 
@@ -706,17 +717,18 @@ still needs a Linux/Docker pass (CTF-P4).** Throwaway test scripts were not kept
 | S3 | proven | Owner-matched `OUTPUT` plus source-matched `INPUT` gives the return path and isolates listeners. Rules need re-applying at container start |
 | S4 | read | A `ctf` event source is about 6 one-line edits in 2 files plus tests; a verifier plugin needs none but polls |
 | S5 | read | All three GitOps targets live in Forgejo, `runner-pool` and OpenBao on `workshop_lab`, not in a `ctf_net` slot; only small additions needed |
-| S6 | open | Not run; see below |
+| S6 | proven in part | Registry-based rebuild/redeploy works with no `docker.sock` anywhere; cold-registry timing only, see below |
 | S7 | proven | The old box builds only after two fixes and runs hardened at about 13 MB |
 | S8 | open | Not run; see below |
 | S9 | open | Numbers are proposals; only a live class settles them |
 | S10 | read | Poll every 4-5 s, the engine-wide pattern |
 | S11 | read | A map is its own facilitator-gated route, not a `widgets` entry |
 | S12 | read | Spool directory in a volume the terminal never mounts, as `runner-pool` does |
-| S13 | open | Not defined in section 11; defined and left open below |
+| S13 | proven in part | CPU budget for the 5-10s ramp floor is fine (well under 1 core); curve shape, attention-split and top-10 formula still open, see below |
 | S14 | proven in part, **changes the plan** | The host-socket proxy has no precedent and is the riskiest piece; a boxed Docker-in-Docker host works and matches `dojo-cloud` |
 | S15 | read + open | Code-server is lazy per the README (about 260 MB when open); terminal-only cost is in S16. Hiding the VS Code tab is untested |
 | S16 | proven in part | tmux + yazi + micro is about 23 MB per student; adding Zellij adds 40-50 MB. Watcher attach unconfirmed |
+| S17 | open | Not run; see below |
 
 ### S1, N targets from `STUDENT_COUNT`
 
@@ -798,11 +810,26 @@ All three run on `workshop_lab` services the terminal can already reach; none be
 
 ### S6, defend loop
 
-Not run. Constraint found while reading S14: with no host socket, "a student's patched source reaches a running
-target" must go through the same controller, which then needs a **build** capability (build the image from the
-student's pushed branch), the most dangerous call of all. Recommended direction, unproven: the CI job in Forgejo
-(`runner-pool`) builds and pushes the image to a registry on `ctf_ops`, and the controller only restarts the slot
-from a pre-approved image name. This must be settled before CTF-P6 and depends on the S14 decision.
+Run 2026-10-04 (scratchpad, not kept). Constraint found while reading S14: with no host socket, "a student's
+patched source reaches a running target" must go through the same controller, which then needs a **build**
+capability (build the image from the student's pushed branch), the most dangerous call of all.
+
+Built and ran the recommended direction with a stand-in registry on a local network (not the real `runner-pool`
+pipeline or `ctf_ops`):
+
+1. A CI step (standing in for the Forgejo job) builds "student source" and pushes it to the registry under an
+   approved name:tag.
+2. The controller's entire capability is pull-by-name, then stop/rm/run — no Dockerfile, no build context, no
+   `docker.sock`, ever. This confirms the S14 finding that the controller itself stays unprivileged.
+3. Recreating under the **same** slot name is what makes "patch stops the live bot" true: the bot's next probe
+   hits the new container because the address/name didn't move, not because anything redirects it.
+4. Pull + stop + rm + run measured about 10.5 s end to end against a cold local registry.
+
+**Answer:** the direction holds; adopt it (no change to the recommendation). **Not measured:** the real
+`runner-pool`/Forgejo registry path, and a warm-registry number — 10.5 s is a cold-registry upper bound, not a
+real figure. This recreate time has to be shorter than the gap between two bot attempts (S9's dwell/retry
+numbers), or a patch can land between attempts and still read as having missed the window; re-measure for real
+before CTF-P6 and check it against whatever S9 settles on.
 
 ### S7, the old SQLi box
 
@@ -854,10 +881,32 @@ polls it (`runner-pool`'s controller drops configs in `/spool/start/`). No liste
 enough for a file. The bots themselves must not be on a network a student's rule permits; student `OUTPUT` rules drop
 everything in the `ctf_net` subnet except the own target, which covers a bot placed there.
 
-### S13, ramp floor (referenced in section 14 but missing from section 11)
+### S13, the ramp and weighting functions
 
-Open. Suggested to measure: fully ramped delay of 5-10 s per persona, as guessed in open question 2, with the check
-that 160 targets at that rate do not exceed the host's CPU budget. Needs CTF-P4's `--test N` run.
+Scope per section 11: the ramp curve shape, the attention-split formula across up to four open targets, and the
+cheap top-10-under-siege computation, plus the CPU-budget check for the proposed 5-10 s ramp floor.
+
+**CPU budget: proven, synthetic (2026-10-04).** The real CTF workshop and its persona-swarm driver don't exist in the repo yet
+(CTF-P4), so this couldn't be a `--test N` run against it — the engine's existing `--test` bots are the unrelated
+git-fundamentals demo bots (CLAUDE.md: "bots only exercise git"). Stood in a throwaway driver instead (scratchpad,
+not kept): 160 `asyncio` persona loops, each sleeping a random 5-10 s then issuing one HTTP GET, round-robined
+across 10 lightweight target containers, run for 75 s inside the Podman VM (8 vCPU, matching `podman machine
+inspect`).
+
+- The driver itself (160 concurrent loops) cost 2.5-3.1% of **one** core throughout the run — the sleeping/scheduling
+  overhead of 160 personas is negligible on any machine this workshop would run on.
+- Each target container held steady at about 0.3% CPU and 11.8 MB RAM under its share of probe traffic (roughly
+  2 req/s each, consistent with 16 personas/target at a 7.5 s average delay) — in line with S14's existing ~12.75 MB
+  idle figure, so probing adds almost nothing on top.
+- Extrapolated to 160 targets: about 0.3% x 160 ≈ 48% of one core and about 1.9 GB RAM for the targets, plus well
+  under one core for the driver — comfortably inside an 8-vCPU budget with headroom for everything else running.
+- Caveat: this used trivial Python HTTP targets, not the real CTF-4/5 app images, and a synthetic driver, not the
+  real persona-swarm code (S9, still open and needs CTF-P7). The *rate* and *concurrency* shape is validated; the
+  per-target cost will shift once real (heavier) target images replace this stand-in — re-check then, not before
+  CTF-P6.
+
+**Curve shape, attention-split formula, top-10 computation: still open.** These are design choices, not numbers that
+need a live class — they can be settled on paper (or with the same synthetic harness) without CTF-P7.
 
 ### S14, student-controlled targets: the controller and its socket
 
@@ -931,13 +980,41 @@ simulated keystrokes. Per student:
   `tmux attach -r` watch tiles) or an engine change to keep the facilitator view. Decide after the remaining checks
   in section 11.
 
+### S17, a SAST/SCA scan step
+
+Not run. User decision (2026-10-04): the scan is informational only, never a CI gate — only the exploit re-check
+(S6) decides red/yellow/green (CTF-D19) — but its findings should surface as a pointer toward the flaw, the way a
+real team's pipeline output would.
+
+**Offline posture decided (CTF-D24, 2026-10-04).** Both tools are self-contained: baked into the `runner-pool`
+runner image with a pinned ruleset/vulnerability-DB snapshot at build time, never fetched at run time — matching
+the engine's "nothing reaches outward except `gateway`" network model and CTF-D16's pinned-version precedent. A
+pull-through-proxy/mirror approach was considered and rejected: it adds a new always-on service for no real benefit
+here, since the targets are a closed, deliberately-planted set of flaws, not a moving target. The goal is
+recognizing *this lab's* known-embedded vulnerabilities (SQLi, hardcoded creds, intentionally outdated dependency
+versions, etc.) with a frozen ruleset/DB chosen to cover them — not currency against newly-disclosed CVEs, which
+this focused, disconnected instance has no need for and should not depend on.
+
+Still open: concrete tool choice per language for targets 8-11 (a no-network SAST tool whose default/OSS ruleset
+already covers common injection/secrets patterns, e.g. Semgrep, plus an SCA tool that can run fully offline against
+a vendored advisory DB, e.g. `grype`/`pip-audit` in offline mode, snapshotted once to cover the specific outdated
+packages the lab deliberately ships); whether findings show unconditionally every run or sit behind the two-hint
+ladder (section 9), given a scan finding is more specific than today's hints; where they render (status strip
+versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
+
 ### What this changes in the plan
 
 1. Decided (CTF-D21): the boxed Docker-in-Docker `ctf-host` replaces the host-socket proxy; section 4 is updated.
    The S14 tests ran on rootful Podman, and **were repeated rootless with the same results** (see "Rootless re-run").
 2. S1 is solved by the controller creating containers, so CTF-D15 (engine change) does not apply.
-3. Open before CTF-P1: the defend-loop build path (S6). The rootless re-run and SNAT are done (see "Rootless re-run").
-4. Open until a live class: S9, S13, and the cold-start and queue numbers in S14.
+3. S6's direction is confirmed (registry-based rebuild/redeploy, no `docker.sock`); only a warm-registry recreate
+   time against the real `runner-pool` pipeline remains, needed before CTF-P6. The rootless re-run and SNAT are
+   done (see "Rootless re-run").
+4. S13's CPU-budget question is answered (synthetic swarm, well under an 8-vCPU budget); its curve-shape,
+   attention-split and top-10 formula are open design choices, not blocked on a live class. Open until a live
+   class: S9 and the cold-start/queue numbers in S14.
+5. Open before CTF-P6: S17 (SAST/SCA scan step) and S8 (the seven new targets, including the `dns-resolver-cve`
+   choice).
 
 ### Rootless re-run (2026-10-04)
 
@@ -1028,6 +1105,16 @@ storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 fo
   session. VS Code stays lazy and opt-in, and CTF-5 may still want it. The multiplexer (tmux or Zellij) is chosen by the
   S16 bake-off, with the facilitator's read-only view of each student kept either way, and resource footprint a
   first-order criterion (S15).
+
+- **CTF-D23 (user, 2026-10-04):** CTF-5's pipeline (spike CTF-S6) gets a SAST/SCA scan stage. It is **informational,
+  not a gate** — only the exploit re-check decides red/yellow/green (CTF-D19) — but its findings point the student
+  toward the flaw, the way a real team's pipeline output would (spike CTF-S17).
+
+- **CTF-D24 (user, 2026-10-04):** CTF-S17's SAST and SCA tools are **self-contained**: baked into the `runner-pool`
+  runner image with a pinned ruleset/vulnerability-DB snapshot at build time, never reaching outward at run time
+  (matching the engine's network model and CTF-D16's pinned-version precedent). They only need to catch this lab's
+  own deliberately-planted flaws, not track newly-disclosed CVEs — this is a closed, disconnected instance, not a
+  moving target, so DB currency is a non-goal.
 
 ## 14. Open questions
 
