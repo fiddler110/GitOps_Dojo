@@ -28,6 +28,7 @@ class Workshop:
     dir: Path
     title: str
     order: Optional[int]   # WORKSHOP_ORDER: 0 = showcase, 1.. = the learning path
+    duration: str = ""     # WORKSHOP_DURATION: how long a session takes, free text ("~2 h"); "" = unset
 
     @property
     def env_file(self) -> Path:
@@ -47,7 +48,8 @@ def workshops() -> List[Workshop]:
         if not env.is_file():
             continue
         order = read_var(env, "WORKSHOP_ORDER")
-        found.append(Workshop(d.name, d, read_var(env, "WORKSHOP_NAME"), int(order) if order.isdigit() else None))
+        found.append(Workshop(d.name, d, read_var(env, "WORKSHOP_NAME"),
+                              int(order) if order.isdigit() else None, read_var(env, "WORKSHOP_DURATION")))
     return sorted(found, key=lambda w: (w.order is None, w.order or 0, w.name))
 
 
