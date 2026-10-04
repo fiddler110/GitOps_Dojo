@@ -943,8 +943,10 @@ Suggested minimal builds, unproven unless noted:
       Lesson: a service that trusts DNS to find its backend hands its credentials to whoever controls resolution.
     - *Containable.* The vulnerable component only mis-resolves names the attacker forges from inside the range;
       drifting onto a shared network would not make it attack anything outbound.
-    - *To confirm when built (CTF-P5 work).* Build uClibc-ng ≤ 1.0.40, confirm the stub emits a monotonic TXID the
-      attacker can predict end-to-end, and wire the agent check-in → flag-1 → flag-2 chain.
+    - *Build feasibility confirmed (2026-10-04, see "Run C" below).* A pinned prebuilt Bootlin uClibc-ng toolchain
+      (uClibc-ng 1.0.39, in the vulnerable range) compiled a static agent that resolves through the uClibc stub, so
+      the build is cheap (pin a tarball, compile static) — not a from-scratch buildroot. Left for CTF-P5: confirm
+      the stub's monotonic TXID is predictable end-to-end, and wire the agent check-in → flag-1 → flag-2 chain.
 - **14 `customer-portal` (NEW, CTF-5 defend-only, decided SQLite — CTF-D25):** a small Python/Flask app over a
   **plaintext SQLite** file (one container per slot, no sidecar DB — cheapest and consistent with one-target-per-slot).
   The DB seeds a `customers` table of synthetic rows referencing the student's handle plus a secret row = the flag.
@@ -991,9 +993,21 @@ the id and land one spoofed reply — deterministic, and (per Run B) rootless. R
 spoofed reply with the matching TXID from the expected source is accepted and used, which is the same acceptance the
 uClibc attack relies on.
 
-**Still to do at CTF-P5:** build uClibc-ng ≤ 1.0.40, confirm end-to-end that its stub emits a predictable monotonic
-TXID the off-path attacker can compute, and wire the agent check-in → flag-1-capture → flag-2-replay chain. Not
-covered yet: Docker as a runtime (the range targets rootless Podman).
+**Run C — uClibc build feasibility (2026-10-04, rootless).** The one worry about the CVE-2022-30295 choice was build
+cost (linking an agent against an old uClibc normally implies a buildroot/OpenWRT toolchain). Resolved: **Bootlin
+ships pinned, prebuilt uClibc-ng cross-toolchains** as single tarballs. Used `x86-64--uclibc--stable-2021.11-5`
+(117 MB, one download + `tar xj`), whose `summary.csv` confirms **uClibc-ng 1.0.39** — within the vulnerable
+≤ 1.0.40 range (fixed in 1.0.41). Its gcc compiled a small `getaddrinfo` agent **statically**, and the resulting
+x86-64 binary resolved names through the uClibc stub (`example.com → 172.66.147.243`, `one.one.one.one → 1.0.0.1`).
+So the build is cheap and low-maintenance: pin the toolchain tarball URL + sha256, compile the agent static, done —
+no from-scratch buildroot, and a static binary is stable across base-image bumps. (The toolchains are x86-64-hosted,
+which matches the x86-64 deployment target; the aarch64 dev machine just builds inside an x86-64 container.)
+
+**Still to do at CTF-P5:** confirm end-to-end that the 1.0.39 stub emits a predictable monotonic TXID the off-path
+attacker can compute (the documented CVE behavior — I started an empirical check pointing the agent at a logging
+nameserver, but a session safety classifier blocked the remaining commands; it is a short check to redo in a fresh
+session or outside auto mode), and wire the agent check-in → flag-1-capture → flag-2-replay chain. Not covered yet:
+Docker as a runtime (the range targets rootless Podman).
 
 ### S9, persona swarm numbers
 
@@ -1169,7 +1183,7 @@ versus SOC feed); and the smallest way to add the stage to `runner-pool`'s job.
    class: S9 and the cold-start/queue numbers in S14.
 5. Open before CTF-P6: building the new app-code defend target 14 `customer-portal` (CTF-D25) with its full
    PR → scan → merge → redeploy loop. S8's `dns-resolver-cve` is now chosen (uClibc / uClibc-ng ≤ 1.0.40 / CVE-2022-30295, predictable TXID —
-   deterministic, and rootless spoofing verified; see "Target 6 DNS poisoning build"), leaving only the uClibc-ng build and the internal-agent flag wiring at CTF-P5. S17's app-side tool
+   deterministic; rootless spoofing verified and the uClibc build confirmed cheap via a pinned Bootlin toolchain; see "Target 6 DNS poisoning build"), leaving only an end-to-end TXID-predictability check and the internal-agent flag wiring at CTF-P5. S17's app-side tool
    is now fixed (a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open piece is only the
    IaC/secret scanners for targets 8-11.
 
