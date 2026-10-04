@@ -124,7 +124,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 60
-    mem_limit: 64m
+    mem_limit: 256m
     restart: unless-stopped
 
   # The audit trail for students (audit/audit.py): each namespace's admin

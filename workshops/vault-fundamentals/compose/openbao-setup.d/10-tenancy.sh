@@ -54,7 +54,7 @@ tenancy_one() {
 # reset policy allows; `bao kv` would first ask sys/internal/ui/mounts.
 kv_wipe() {
   _kw_keys="$(bao list -format=json "secret/metadata/$1/" 2>&1)" || case "$_kw_keys" in
-    *"No value found"*) return 0 ;; # nothing there
+    *"No value found"*|"{}") return 0 ;; # nothing there (-format=json says only {}, a retried teardown)
     *) log "tenancy: could not list secret/$1/: $_kw_keys"; return 1 ;;
   esac
   printf '%s\n' "$_kw_keys" | sed -n 's/^ *"\(.*\)",* *$/\1/p' | sed 's/\\"/"/g; s/\\\\/\\/g' \
