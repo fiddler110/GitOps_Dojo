@@ -437,9 +437,20 @@ def _dry_run_checks(p: Plan) -> int:
             bad(line)
         bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
     console.print()
+    step("Checking tool pins")
+    tools = subprocess.run(["sh", "scripts/check-tool-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
+    if tools.returncode == 0:
+        ok("every shared tool pin agrees across its Dockerfiles")
+    else:
+        for line in (tools.stdout + tools.stderr).strip().splitlines()[:-1]:
+            bad(line)
+        bad("pin drift: bump every copy of a shared pin together (see scripts/check-tool-pins.sh)")
+    console.print()
     console.print(f"Would run: compose {' '.join(compose_args(p.files))} up -d")
-    if pins.returncode != 0:
-        fail("Dry run complete: nothing was built or started, but unpinned images were found.")
+    if pins.returncode != 0 or tools.returncode != 0:
+        found = " and ".join(w for w in ("unpinned images" if pins.returncode != 0 else "",
+                                        "drifted tool pins" if tools.returncode != 0 else "") if w)
+        fail(f"Dry run complete: nothing was built or started, but {found} were found.")
         return 1
     console.print("Dry run complete: nothing was built or started.")
     return 0

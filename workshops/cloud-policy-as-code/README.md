@@ -54,6 +54,7 @@ assignments with `depends_on`: that serialises the waits.
 | Path | What it is |
 | ---- | ---------- |
 | `workshop.env` | Identity; `MODULES="dojo-cloud runner-pool sensei"`; points at the overlay |
+| `check-pins-sync.sh` | Fails if a terminal file copied from `tofu-basics` has drifted (not `mirror.tf`: this pack mirrors its own providers) |
 | `compose/docker-compose.override.yml` | CI jobs get tofu, opa, conftest, the offline provider mirror (`tofu_mirror` volume, filled by `tofu-mirror-init`), the Dojo Cloud CA, and runner_net aliases on `cloud-api` |
 | `compose/terminal/` | Terminal image: OpenTofu, azurerm 5.6.0 offline mirror, opa 1.21.1, conftest 0.71.0, `lab-prep` |
 | `content/slides/`, `content/lab/` | Deck, labs and cheat sheet |
@@ -90,6 +91,8 @@ The `sensei` module serves ready answers (`sensei/answers.json`) for the labs.
 ## Known limits
 
 - Not yet run end to end with a class; timings are estimates.
+- OpenTofu and the VS Code extension are pinned here and in `tofu-basics`/`dojo-introduction`;
+  `engine/scripts/check-tool-pins.sh` (every `--dry-run`) fails if the copies disagree, so bump them together.
 - arm64 checksums are pinned, but only amd64 has been built and tested. Student terminals have no internet: tools and the provider are baked in.
 - The built-in guardrails are fixed; students cannot change platform-scope policy.
 - Dojo Cloud is Azure-inspired practice software, not a real cloud.

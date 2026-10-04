@@ -1,7 +1,8 @@
 #!/bin/sh
 # `./run.sh <workshop> --dry-run` for every pack, with achievements off and on
 # (RV13). That checks the Compose config, every extensions.json, the
-# achievements catalog and the image pins, and starts nothing. Needs podman
+# achievements catalog, the image pins and the shared tool pins, and starts
+# nothing. It also runs each pack's own check-pins-sync.sh (RV25). Needs podman
 # (+ podman-compose) or docker, and the allocator image, which the manifest
 # and catalog checks run in; this script builds it if it is missing.
 #   sh .github/scripts/dry-runs.sh
@@ -21,6 +22,17 @@ fi
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
 failed=""
+
+# Each pack that copies terminal files from another pack checks its own
+# copies; a shared ARG <TOOL>_VERSION is checked repo-wide by every --dry-run
+# below (engine/scripts/check-tool-pins.sh).
+for sync in workshops/*/check-pins-sync.sh; do
+  [ -f "$sync" ] || continue
+  w="$(basename "$(dirname "$sync")")"
+  echo "==> $w (copied terminal files)"
+  sh "$sync" || failed="$failed $w/pins-sync"
+done
+
 for env_file in workshops/*/workshop.env; do
   w="$(basename "$(dirname "$env_file")")"
   modes=0
