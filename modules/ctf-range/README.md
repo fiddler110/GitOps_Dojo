@@ -37,10 +37,15 @@ it enables, and ships its own labs and slides.
 > event yet except a manual stand-in**
 > (`modules/ctf-range/tools/simulate-dump.py`) — the real attacker-bot
 > persona swarm and SOC feed it should be driven by (§8.2-8.11) are a
-> separate, larger task, not built; see "Wall of shame" below. The CTF-1 to
-> CTF-4 start/stop toggle + queue (CTF-D20) and the offensive tool suite +
-> Lab Info library (§9, CTF-P2b/P3) are also **not built yet**. Do not
-> wire a workshop to this module expecting a full range, and note
+> separate, larger task, not built; see "Wall of shame" below. Also now: the
+> **offensive tool suite** (plan §9) in `terminal/Dockerfile` — `nmap`/`ncat`,
+> `tcpdump`/`tshark`, `sqlmap`, `jq`, `john`, `dnsutils`/`dnsrecon`, `httpie`,
+> `whois`, plus `ffuf` and `opa` (sha256-pinned static binaries) and a small
+> generic wordlist subset. **The Lab Info library content itself (the primer
+> each tool needs, CTF-P2b) is not written yet** — the tools are installed
+> but undocumented for a student. The CTF-1 to CTF-4 start/stop toggle +
+> queue (CTF-D20) is also **not built yet**. Do not wire a workshop to this
+> module expecting a full range, and note
 > `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
 > anything once a workshop pack also lists `runner-pool` in `MODULES` (see
 > "Range control plane" below) — no such pack exists yet.
@@ -99,13 +104,19 @@ it enables, and ships its own labs and slides.
   the real secret is the flag value, not the identity claim (see the
   service's header). Unit tests in `ctf-flags/tests/`.
 - `terminal/` — this module's link in the terminal build chain
-  (`engine/run.sh`). Ships `dojo-flag` (the CLI for `ctf-flags`) and
-  `start.d/50-ctf-range.sh`, the per-uid firewall hook that restricts each
-  student's uid to exactly their own slot's published port on `ctf-host`
-  (spikes CTF-S2/S3). Deliberately does **not** yet carry the offensive tool
-  suite (`nmap`, `sqlmap`, …) or the Lab Info library — separate, larger work
-  (plan §9, CTF-P2b/P3); a pack needing those adds its own
-  `compose/terminal/Dockerfile` link on top of this one meanwhile.
+  (`engine/run.sh`). Ships `dojo-flag` (the CLI for `ctf-flags`),
+  `start.d/50-ctf-range.sh` (the per-uid firewall hook, spikes CTF-S2/S3),
+  and the offensive tool suite (plan §9): apt-installed `nmap`/`ncat`,
+  `tcpdump`/`tshark`, `sqlmap`, `jq`, `john`, `dnsutils`/`dnsrecon`,
+  `httpie`, `whois` (apt's own signature check is the trust basis, same as
+  every other apt install in this repo); sha256-pinned static binaries
+  `ffuf` (content discovery) and `opa` (policy evaluation, for target 9);
+  and `wordlist-common.txt`, a short generic path/name list with nothing
+  lab-specific in it. One shared image for every session (CTF-D16: the Lab
+  Info library, and so the tools it documents, is the same regardless of
+  which targets a pack enables). **Not built yet**: the Lab Info library's
+  actual primers (plan §9, CTF-P2b) — the tools above are installed but a
+  student has no in-lab documentation for any of them yet.
 
 ## Range control plane (CTF-D21 / spike S14, build/push half spike S6)
 

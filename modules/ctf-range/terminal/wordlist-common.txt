@@ -1,0 +1,65 @@
+# Small curated path/name subset for gobuster/ffuf/dirb-style discovery
+# labs (plan §9's "a wordlist subset"). Deliberately short and generic -
+# common web paths and usernames only, nothing lab-specific (no challenge
+# names, no target hints) - so it teaches the mechanic without leaking any
+# answer. Students can always add their own words; this just means a tool
+# primer has something to point at without an internet fetch.
+admin
+administrator
+api
+app
+assets
+backup
+backups
+bin
+config
+dashboard
+data
+db
+debug
+dev
+docs
+download
+downloads
+images
+img
+include
+index
+internal
+js
+login
+logout
+logs
+old
+panel
+private
+public
+register
+reset
+scripts
+secret
+secrets
+server-status
+settings
+signin
+signup
+src
+staging
+static
+status
+tmp
+test
+upload
+uploads
+user
+users
+v1
+v2
+web
+www
+admin123
+administrator1
+guest
+root
+test1
+user1
