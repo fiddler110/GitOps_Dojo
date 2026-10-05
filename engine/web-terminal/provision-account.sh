@@ -134,6 +134,22 @@ EOF
 EOF
   fi
 
+  # ...and the same credential helper. A bot's own git commands get their
+  # password from GIT_ASKPASS (bot-runner.sh exports it; see
+  # bot-askpass.sh), so the bot run itself never needed this -- but anything
+  # else acting as a bot does: the achievements module writes a real Forgejo
+  # token to ~/.git-credentials so `dojo-check` can prove who the bot is
+  # (modules/achievements/terminal/dojo-achievements-bot.sh), and without
+  # `store` configured git ignores that file. A facilitator or a test
+  # driving git as a bot then hits "could not read Username for
+  # 'http://git-server:3000'", which is what dns-as-code and
+  # dojo-introduction work around with a system-wide `credential.helper
+  # cache` in their terminal images. Set with `git config` rather than in
+  # the heredoc above so an existing bot home (kept across a restart) is
+  # repaired too. With no ~/.git-credentials the store helper simply
+  # returns nothing and git falls through to GIT_ASKPASS as before.
+  git config --file "/home/$username/.gitconfig" credential.helper store
+
   chown -R "$username:$username" "/home/$username"
   chmod 700 "/home/$username"
   exit 0
