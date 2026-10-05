@@ -22,7 +22,7 @@ still needs a Linux/Docker pass (CTF-P4).** Throwaway test scripts were not kept
 | S3 | proven | Owner-matched `OUTPUT` plus source-matched `INPUT` gives the return path and isolates listeners. Rules need re-applying at container start |
 | S4 | read | A `ctf` event source is about 6 one-line edits in 2 files plus tests; a verifier plugin needs none but polls |
 | S5 | read | All three GitOps targets live in Forgejo, `runner-pool` and OpenBao on `workshop_lab`, not in a `ctf_net` slot; only small additions needed |
-| S6 | proven in part | Registry-based rebuild/redeploy works with no `docker.sock` anywhere; cold-registry timing only, see below |
+| S6 | **built and proven end to end, no known open items** | Registry-based rebuild/redeploy works with no `docker.sock` anywhere; PR gate proven live (Run B); both offline-rebuild blockers (`FROM` resolution, Run C; `pip install`, Run D) fixed and live-verified; real number: **83s** push-to-redeployed (Run D, 2026-10-05). Both optimization follow-ups (startup-time regression, start-order race) fixed and live-verified in Run E |
 | S7 | proven | The old box builds only after two fixes and runs hardened at about 13 MB |
 | S8 | open | Not run; see below |
 | S9 | open | Numbers are proposals; only a live class settles them |
@@ -130,11 +130,166 @@ pipeline or `ctf_ops`):
    hits the new container because the address/name didn't move, not because anything redirects it.
 4. Pull + stop + rm + run measured about 10.5 s end to end against a cold local registry.
 
-**Answer:** the direction holds; adopt it (no change to the recommendation). **Not measured:** the real
+**Answer:** the direction holds; adopt it (no change to the recommendation). **Not measured (at the time):** the real
 `runner-pool`/Forgejo registry path, and a warm-registry number — 10.5 s is a cold-registry upper bound, not a
 real figure. This recreate time has to be shorter than the gap between two bot attempts (S9's dwell/retry
 numbers), or a patch can land between attempts and still read as having missed the window; re-measure for real
 before CTF-P6 and check it against whatever S9 settles on.
+
+**Built (2026-10-05).** The build/push half above is no longer a stand-in: `modules/ctf-range/ctf-builder/` (stdlib
+Python, same shape as `ctf-controller`) is the one thing allowed to ask `ctf-host` to build. It clones the student's
+own repo itself (from `git-server`, never a tar/context handed to it by the caller), tars that clone, and
+builds+pushes through `ctf-host`'s Engine API under one fixed tag — the slot's own name under the approved registry
+prefix (`docker_build.image_tag_for`, mirroring `ctf-controller`'s `allowed_image`). `modules/ctf-range/compose.yml`
+adds the in-lab `registry` (`registry:2`, pinned by digest, `ctf_ops`-only, no published port, no auth) and
+`ctf-builder` itself (member of `runner_net` only — never `ctf_ops` — so only a Forgejo Actions job in the runner
+pool can ever reach its `/build`; it shares `ctf-host`'s socket over the same volume `ctf-controller` already
+uses, group_add, not network). `ctf-controller` is now additionally on `runner_net` so `defend-main.yml` can POST
+`/redeploy` to it directly too — widening reachability only, since every mutating route still fails closed on its
+own control-token check regardless of which network the call arrives on, and `ctf-builder` holds a **separate**
+token (`CTF_BUILD_TOKEN` ≠ `CTF_CONTROL_TOKEN`). `defend-main.yml` now makes both real calls instead of the old
+commented-out buildah/curl lines (see modules/ctf-range/README.md's "Range control plane" for the full design
+writeup, including why a separate `ctf-builder` was chosen over a second network interface on `ctf-host` itself).
+26 new unit tests (`ctf-builder/tests/`): pure argv/tagging/stream-parsing functions, auth rejection, bad-ref/bad-user
+rejection (git option-injection patterns like `--upload-pack=...` are refused before any subprocess runs), and an
+oversized request body — plus the existing 30 `ctf-controller` tests still pass unchanged.
+
+**Run A (2026-10-05, live, kept only as this note).** Brought up `ctf-host` + the in-lab `registry` + `ctf-builder`
+in isolation (a throwaway compose file in scratchpad, not the real `ctf_ops`/`runner_net`, and not through
+`git-server` — no Forgejo in this isolated check) and drove `ctf-builder`'s own `docker_build.Executor` directly
+(standing in for its `/build` handler, which only adds the clone step): built a trivial one-layer image
+(`FROM scratch` + one file) via `ctf-host`'s Engine API `/build`, pushed it to the registry as
+`registry:5000/ctf-customer-portal:student01` — exactly the tag `ctf-controller`'s `allowed_image` accepts — then,
+from `ctf-host`'s own dockerd (the same client `ctf-controller.pull()` drives), deleted the local copy and pulled
+the tag back from the registry and confirmed the file inside matched. This is the missing proof: build → push →
+pull round-trips through the in-lab registry with **no `docker.sock` ever handed to a caller** — `ctf-builder`'s
+only reach is the Engine API, same shape as `ctf-controller`'s. Timed (trivial image, not the real app, so this is
+a mechanism/overhead floor, not the real build time): build 3.95 s + push 2.60 s ≈ 6.55 s, then a pull of that same
+(already-local-layer) tag back at 0.97 s. **Not tested live:** `ctf-builder` cloning a real student repo from a real
+`git-server` (no Forgejo instance stood up for this check — `gitref.py`'s argv/validation are unit-tested, but the
+actual `git clone`/`checkout` subprocess calls against Forgejo are not), the real `customer-portal` app image's
+build time (bigger than the trivial test image — a Python base plus `pip install`), and the two services' real
+network placement (`runner_net`/dual-homed `ctf-controller`) — this check used a single flat test network instead,
+since no `runner-pool` module/workshop exists yet to test against. `podman-compose -f modules/ctf-range/compose.yml
+config` (run from `engine/`) was also checked: it renders with no structural errors, `ctf-builder` on `runner_net`
+only, `ctf-controller` on both `ctf_ops` and `runner_net`, and all new volumes/services present.
+
+**Run B (2026-10-05, live, on the real stack).** Built `workshops/ctf-defend-test/` — a new, minimal, uncommitted,
+facilitator-only harness pack (`MODULES="ctf-range runner-pool"`, `STUDENT_COUNT=2`; explicitly not a real lesson,
+not the CTF-5 pack) to run the actual S6 loop through the real `./run.sh`, `runner_net` and a real seeded Forgejo
+repo per student, instead of the isolated check in Run A. `--dry-run` passed; the stack came up with both slots
+reconciled and the pre-patch SQLi exploit dumping real rows against a live slot through `ctf-host`. The real PR-gate
+half of the loop is now proven, not stubbed: cloned a student's seeded repo, applied the real parameterized-query
+fix, pushed, opened a PR via Forgejo's API, `defend-pr.yml`'s gate re-ran the exploit and went **green in 6 s**,
+merged. The merge → rebuild half then hit a real blocker (next paragraph), so no end-to-end build-time number came
+out of Run B. Two small real bugs found and fixed live (not stubs, not hypothetical): `ctf-builder/gitref.py`'s
+`checkout_argv()` put the ref after `--`, so git read every real commit as a pathspec and failed on all of them
+(fixed: ref before `--`, matching unit test corrected, 26/26 still pass); `runner-pool/pool/Dockerfile` was missing
+`py3-flask`, which `defend-pr.yml`'s own comment already said the image needed to run the app for the exploit
+re-run. Also found: each student needs their **own** `<student>/customer-portal` repo, not the shared
+`FORGEJO_ORG`/`FORGEJO_REPO`, because `defend-main.yml` keys the slot off `github.repository_owner` — provisioned
+via a new `start.d` hook in the test pack (per-student repo creation, Actions secrets, and the `CTF_FLAG` secret
+computed to match `ctf-controller`'s own HMAC exactly, verified against the live controller's rendered value).
+
+**The merge→rebuild blocker Run B exposed:** `ctf-host`'s `import_target()` only ever `docker import`s a flattened,
+single-layer snapshot of the pre-built target as `ctf-customer-portal:base` — it never loads the actual upstream
+base image (`python:3.12-slim@sha256:0210...`) into the inner dockerd. So `ctf-builder`'s real `docker build` of the
+patched source (Engine API, `pull=0` — CTF-D24's offline posture) can't resolve its own `FROM` line, and fails with
+`dial tcp ... no such host`. Not fixable as a one-line patch without either breaking the offline posture or adding
+real base-image-seeding — scoped as a redesign rather than patched in place.
+
+**Run C (2026-10-05, live, the base-image fix).** Fixed by fetching the base image at `ctf-host`'s own image BUILD
+time (network available then, same as the target's own `pip install`) and loading it into the inner dockerd at
+container start — never at lab runtime (`modules/ctf-range/ctf-host/Dockerfile`, `entrypoint.sh`). **A real gotcha,
+verified live, not assumed:** a plain `docker-archive` + `docker image load` does NOT satisfy a `FROM
+image@sha256:<digest>` pin when that digest is a multi-arch index digest (the normal case for a Hub pin) —
+`docker-archive` flattens to one platform, producing a different content digest; `docker tag`/`ctr images tag`
+aliasing can't fake a sha256 match either. Fix: `skopeo copy --multi-arch all docker://... oci-archive:...` with an
+explicit destination name, so `docker image load` registers it at the real index digest. Verified inside `ctf-host`:
+`docker image inspect python:3.12-slim@sha256:0210...` resolves to that exact Id, and a real `docker build
+--network=none` with that `FROM` line succeeds with zero network calls. **Trade-off found, not yet fixed:** fetching
+all 16 platform variants costs ~370 MB at build time (fine) but makes `docker image load` take **~3 min at every
+`ctf-host` container start** (confirmed: ~1 min before this fix, ~3:02 after) — a real lab-startup-time regression;
+trimming to the index + amd64-only variant is the obvious follow-up, not done yet.
+
+With that fix, Run C's rebuild got past the original `FROM`-resolution failure entirely (confirmed in the build log:
+no more "no such host" for the base image) — then hit a **second, different, pre-existing** offline-posture gap one
+step later: `pip install -r requirements.txt` inside the rebuild has no route to PyPI either (`ctf_ops` is
+`internal: true`, by design), so the app's own dependencies (Flask, etc.) can't be fetched during a rebuild. Stopped
+here rather than attempting a second redesign in the same pass, per this session's own token-budget rule. **Still
+no real end-to-end build+push+redeploy wall-clock number** — the thing S6 has needed since 2026-10-04 — because the
+rebuild still doesn't complete.
+
+**Scoped (2026-10-05, design): the pip-install-offline fix.** Same family as the base-image fix — fetch at
+`ctf-host`'s own image build time (network available then), load it into the inner dockerd at container start,
+resolve offline at rebuild time. Two shapes considered:
+
+- *A build-time-only package mirror* (devpi/pypiserver as a new always-on service on `ctf_ops`). Rejected: a new
+  service, a new thing to pin/patch/monitor, and network surface to justify under CTF-D24 — bought for a capability
+  (students pulling arbitrary new packages mid-challenge) this target doesn't need. `requirements.txt` isn't part of
+  the SQLi fix; students edit `app.py`'s query logic, not their dependency list.
+- *Vendor the deps into a custom locally-tagged base image* (chosen, built). A new `portal-deps` stage in
+  `ctf-host/Dockerfile` (`FROM python:3.12-slim@<digest>` → `COPY requirements.txt` → `pip install`), its rootfs
+  `docker import`-ed into a local tag at container start (`entrypoint.sh`'s `import_portal_deps_base()`, same
+  mechanism as the existing `import_target()` — no skopeo needed here, since this is a locally-built image, not a
+  Hub pull, so there's no multi-arch index digest to match). `targets/customer-portal/Dockerfile`'s `FROM` now
+  points at that baked tag instead of installing Flask itself.
+
+**Run D (2026-10-05, live, built and verified end to end).** Built as scoped above, with one real naming wrinkle not
+in the design: the tag needed a `gitopsdojo/` prefix (`gitopsdojo/ctf-customer-portal-base:pinned`) so
+`engine/scripts/check-pins.sh` (which exempts this project's own images) doesn't flag it as an unpinned external
+image. **DESIGN CHANGE FROM BRIEF, found live:** `modules/ctf-range/compose.yml` also has a standalone dev-convenience
+`customer-portal` service that builds the same Dockerfile directly on the *outer* host engine (real network, no
+access to the tag that only ever exists inside `ctf-host`'s *inner*, offline dockerd) — this broke `./run.sh` outright
+(`short-name ... did not resolve`). Fixed with the project's existing `ARG BASE=... / FROM ${BASE}` convention: a
+`deps` stage mirroring `portal-deps` was added directly to `targets/customer-portal/Dockerfile`, defaulted to the
+real local tag via `ARG BASE`, with the dev-path compose service overriding `args: [BASE=deps]` — the default
+(offline, in-lab) path never builds that stage, so it costs nothing there.
+
+Verified live, not just reasoned about: `check-pins.sh` passes; the full `workshops/ctf-defend-test/` stack started
+clean; `docker image ls` inside `ctf-host`'s inner dockerd showed the new tag with Flask 3.0.3 actually importable
+inside it; a real student (`student01`, real Forgejo account, real git push) patched the SQLi, and Forgejo Actions'
+`defend-main.yml` ran `ctf-builder`'s build+push and `ctf-controller`'s redeploy for real — **past the `pip install`
+step that failed in Run C** — confirmed functionally by curling the redeployed slot (SQLi payload now returns
+`{"results":[]}`) against the still-vulnerable control slot (`student02`, unpatched, still leaks rows). Stack
+stopped afterward, nothing committed.
+
+**The real number, finally (S6 has needed this since 2026-10-04): 83 seconds**, push to redeploy-done, from
+Forgejo's own run timestamps (`14:56:15` → `14:57:38`) — build+push took 73s of that, redeploy the remaining 9s.
+
+One design trade-off still worth naming: `requirements.txt` changing would require a new `portal-deps`/`deps` image
+rebuild of `ctf-host` itself, same as any other base-image bump — fine for this target, a real constraint if a
+future target wants students adding dependencies as their fix.
+
+**Run E (2026-10-05, live, both follow-ups from Run D closed).**
+
+- *Start-order race, fixed inline (no live-stack re-run needed — compose-only change).* `ctf-host`'s healthcheck
+  now checks for both baked images (`ctf-customer-portal:base` AND `gitopsdojo/ctf-customer-portal-base:pinned`,
+  Run D's), and `ctf-controller`/`ctf-builder` now `depends_on: ctf-host: condition: service_healthy` instead of
+  `service_started`. Closes the window where a build request could reach `ctf-builder` before `ctf-host` finished
+  importing either image.
+- *The ~3-minute startup regression, fixed and live-verified.* `base-image-fetch`'s single `skopeo copy --multi-arch
+  all` (all 16 platforms, needed only to preserve the exact index digest) is replaced with a hand-merged OCI layout:
+  `skopeo copy --multi-arch index-only` (the real multi-arch `index.json`, unmodified bytes, so the digest is
+  untouched) merged with `skopeo copy --multi-arch system` (amd64-only manifest + blobs) — same index, same digest,
+  but blob data for only the one platform that ever actually gets loaded. **Verified live, not assumed:** rebuilt
+  the real `base-image-fetch` stage (not a standalone replica) with `podman build --target base-image-fetch`,
+  extracted its output tar, loaded it into a scratch `docker:29.8.1-dind` container (same engine version as the
+  real stage) — `docker image inspect python:3.12-slim` reports the exact original index digest
+  (`sha256:02108f5d...`) unchanged, and `docker build --network=none` with that `FROM` pin still resolves with zero
+  network calls, same correctness bar Run C used. Real measured numbers (this standalone dind, not the full
+  compose stack — nothing about the load mechanism differs, so this is the real cost): archive size 384MB → 46MB;
+  `docker image load` wall-clock ~58s → ~6–17s. The full `workshops/ctf-defend-test/` stack wasn't re-run end to end
+  after this change (not needed — `entrypoint.sh`'s load step and the tar's path/format are unchanged; only the
+  stage that produces the tar's *contents* changed, and that was verified directly).
+
+**One caveat carried forward, not widened in scope:** the index digest `sha256:02108f5d...` now appears four times
+by hand in `ctf-host/Dockerfile` (two `FROM` lines, two `skopeo copy` invocations) plus once in
+`targets/customer-portal/Dockerfile` — the same manual-sync risk the file's own comment already flags for RV25's
+`check-tool-pins.sh`; still not wired in, still a known follow-up, not this run's job.
+
+With Run E, S6 has no known open items: PR gate proven (Run B), both offline-rebuild blockers fixed (Runs C/D), and
+both optimization follow-ups closed (Run E).
 
 ### S7, the old SQLi box
 
@@ -205,10 +360,11 @@ Suggested minimal builds, unproven unless noted:
   The DB seeds a `customers` table of synthetic rows referencing the student's handle plus a secret row = the flag.
   Vuln: SQL injection in a login/search field; the exploit dumps the table ("data stolen") and posts the rows to the
   wall of shame (8.12). Fix: parameterize the query. Gate (CTF-D19): the exploit re-run dumps nothing →
-  green. Deploy: merge to main rebuilds the image and the controller recreates the slot in place (S6's proven
-  pull + stop/rm/run under the same slot name). SAST (this fixes S17's app-side tool): a pinned, no-network Python
-  SAST for CWE-89, informational only (CTF-D23/D24). Still to build and run — the full PR → scan → merge → redeploy
-  loop against the real `runner-pool`/registry path (S6's open warm-registry number) is where to prove it.
+  green. Deploy: merge to main asks `ctf-builder` to build+push and `ctf-controller` to recreate the slot in place
+  (S6, now built end-to-end: see S6's 2026-10-05 note). SAST (this fixes S17's app-side tool): a pinned, no-network
+  Python SAST for CWE-89, informational only (CTF-D23/D24). Still open: running the full PR → scan → merge → redeploy
+  loop against a real `runner-pool` and a real `git-server` clone (this was proven with a trivial stand-in build and
+  a direct, non-cloned context — see S6), and the real app image's build time (bigger than the trivial test image).
 
 ### Target 6 DNS poisoning build (2026-10-04)
 
@@ -361,8 +517,8 @@ podman (`STUDENT_COUNT=2`): import → a hardened slot per student with its own 
 managed slot → `/redeploy` recreates the slot in place from a parameterized image in ~0.5 s (the stand-in for a
 registry pull; still offline) → the same published port returns no flag (CTF-D19 green) while an un-redeployed slot
 still leaks. **Still open:** the warm figures S14 already lists (cold-start at 40 students, queue concurrency, idle
-timeout) and the registry/CI push half of S6; the CTF-1 to CTF-4 start/stop toggle, queue and per-uid SNAT are a
-later step, not needed for CTF-5.
+timeout); the CTF-1 to CTF-4 start/stop toggle, queue and per-uid SNAT are a later step, not needed for CTF-5. The
+registry/CI push half of S6 is no longer open — see S6's 2026-10-05 "Built" note below.
 
 ### S15, terminal footprint
 
@@ -450,17 +606,20 @@ behind the two-hint ladder (section 9), given a scan finding is more specific th
 1. Decided (CTF-D21): the boxed Docker-in-Docker `ctf-host` replaces the host-socket proxy; section 4 is updated.
    The S14 tests ran on rootful Podman, and **were repeated rootless with the same results** (see "Rootless re-run").
 2. S1 is solved by the controller creating containers, so CTF-D15 (engine change) does not apply.
-3. S6's direction is confirmed (registry-based rebuild/redeploy, no `docker.sock`); only a warm-registry recreate
-   time against the real `runner-pool` pipeline remains, needed before CTF-P6. The rootless re-run and SNAT are
-   done (see "Rootless re-run").
+3. S6's direction is confirmed and now **built**: `ctf-builder` + the in-lab registry (registry-based
+   rebuild/redeploy, no `docker.sock` ever handed to a caller), with the build→push→pull round trip verified live
+   (2026-10-05, see S6). What remains is running it against the real `runner-pool` pipeline and a real `git-server`
+   clone, and a warm-registry number for the real app image (not the trivial test image), needed before CTF-P6. The
+   rootless re-run and SNAT are done (see "Rootless re-run").
 4. S13's CPU-budget question is answered (synthetic swarm, well under an 8-vCPU budget); its curve-shape,
    attention-split and top-10 formula are open design choices, not blocked on a live class. Open until a live
    class: S9 and the cold-start/queue numbers in S14.
 5. Target 14 `customer-portal` (CTF-D25) is **built**: the vulnerable app, seed, image, exploit/gate, the CWE-89
    SAST, and the defend pipeline (`.forgejo/workflows/`). The CTF-D19 gate (SAST + exploit re-run on PR) is wired
-   and verified; what remains for the **full** PR → scan → merge → redeploy loop is only the merge-side
-   build→push→*live* redeploy, which needs the boxed `ctf-host` build (CTF-D21), the in-lab registry, and
-   `ctf-controller` (S14) — `defend-main.yml` already carries that as the documented contract.
+   and verified; the merge-side build→push→*live* redeploy is now also wired for real in `defend-main.yml`
+   (`ctf-builder` + `ctf-controller`, S6) and build→push→pull was verified live against the boxed `ctf-host`
+   (CTF-D21) and the in-lab registry; what remains for the **full** loop is running it against a real `git-server`
+   clone and the real `runner-pool`.
    S8's `dns-resolver-cve` is now chosen (uClibc / uClibc-ng ≤ 1.0.40 / CVE-2022-30295, predictable TXID —
    deterministic; rootless spoofing verified and the uClibc build confirmed cheap via a pinned Bootlin toolchain; see "Target 6 DNS poisoning build"), leaving only an end-to-end TXID-predictability check and the internal-agent flag wiring at CTF-P5. S17's app-side tool
    is now **built** (`sast/scan.py`, a pinned, no-network Python SAST for CWE-89, by target 14); its remaining open

@@ -13,11 +13,12 @@
 #     are owned, which is why Compose does not need to loop to make N of them
 #     (spike CTF-S1 is answered by the controller, not a generated fragment).
 #
-# STILL NOT WIRED: the in-lab registry + CI build that defend-main.yml pushes
-# to (spike S6), the web-terminal join to ctf_net, the per-uid OUTPUT firewall
-# rules and target-to-target isolation / SNAT (spikes CTF-S2/S3), and the CTF-1
-# to CTF-4 start/stop toggle + queue (CTF-D20). The controller here implements
-# the CTF-5 always-on model and the redeploy-in-place endpoint.
+# STILL NOT WIRED: the web-terminal join to ctf_net, the per-uid OUTPUT
+# firewall rules and target-to-target isolation / SNAT (spikes CTF-S2/S3),
+# and the CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20). The controller
+# here implements the CTF-5 always-on model and the redeploy-in-place
+# endpoint; the in-lab registry + the build/push half of spike S6 are below
+# (`registry`, `ctf-builder`).
 
 services:
   # One standalone instance of target 14 for development (NOT the range path;
@@ -26,6 +27,14 @@ services:
   customer-portal:
     build:
       context: ../modules/ctf-range/targets/customer-portal
+      # This builds on the OUTER host engine, which has real network but no
+      # local copy of gitopsdojo/ctf-customer-portal-base:pinned (that tag
+      # only ever exists inside ctf-host's INNER dockerd, imported offline at
+      # container start — see that Dockerfile's `deps` stage). Override BASE
+      # to the local `deps` stage so this dev-only service installs Flask
+      # itself instead.
+      args:
+        - BASE=deps
     image: gitopsdojo/ctf-customer-portal:local
     container_name: workshop_ctf_customer_portal
     environment:
@@ -64,6 +73,35 @@ services:
     restart: unless-stopped
 
   # --- the range path (CTF-D21 / spike S14) ---------------------------------
+  # registry: the in-lab image registry a redeploy pulls from and ctf-builder
+  # pushes to (spike S6). internal-only, on ctf_ops ONLY — not ctf_net, not
+  # workshop_lab, no published port, so it is unreachable from students or the
+  # internet (confirmed live; see docs/CTF-SPIKES.md S6). No auth: the only
+  # two things that can ever reach it are ctf-host's dockerd (the pull side,
+  # for a redeploy) and ctf-builder (the push side), both on ctf_ops, and
+  # neither is student-reachable.
+  registry:
+    image: docker.io/library/registry:2@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+    container_name: workshop_ctf_registry
+    networks:
+      - ctf_ops
+    volumes:
+      # Named so ./run.sh stop removes pushed images with the rest of the range.
+      - ctf_registry_data:/var/lib/registry
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_REGISTRY_MEM_LIMIT:-256m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5000/v2/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
   # ctf-host: a boxed privileged Docker-in-Docker daemon that holds the target
   # slots. Privileged is acceptable ONLY because of how it is boxed in, exactly
   # as dojo-cloud's cloud-host: it is on the `internal: true` ctf_ops network
@@ -82,6 +120,10 @@ services:
     privileged: true
     environment:
       - CTF_GID=1901
+      # Lets the inner dockerd pull/push a plaintext (no-TLS) registry; the
+      # in-lab registry below has no TLS because it is internal-only and
+      # never reaches outside ctf_ops (spike S6).
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
     volumes:
       - ctf_run:/run/ctf
       # docker:dind keeps images/containers in /var/lib/docker (an anonymous
@@ -89,8 +131,16 @@ services:
       - ctf_docker:/var/lib/docker
     networks:
       - ctf_ops
+    depends_on:
+      registry:
+        condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "docker image inspect ctf-customer-portal:base >/dev/null 2>&1"]
+      # Both baked images have to be imported before anything may ask ctf-host
+      # to build (spike S6 Run D): the target rootfs (ctf-customer-portal:base)
+      # AND the vendored deps base (gitopsdojo/ctf-customer-portal-base:pinned,
+      # Run D) that a rebuild's own FROM line now resolves against. ctf-builder
+      # and ctf-controller key their own `depends_on: service_healthy` off this.
+      test: ["CMD-SHELL", "docker image inspect ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -101,9 +151,13 @@ services:
 
   # ctf-controller: the single, unprivileged client of ctf-host. Stdlib Python,
   # no capability of its own except membership in the socket group (group_add
-  # 1901, the CTF_GID ctf-host sets). Reachable only on ctf_ops — never by a
-  # student. The defend pipeline's merge job (defend-main.yml) POSTs /redeploy
-  # here; the allocator/admin can read /slots.
+  # 1901, the CTF_GID ctf-host sets). On `ctf_ops` for ctf-host and the
+  # allocator/admin, and ALSO on `runner_net` so the defend pipeline's merge
+  # job (defend-main.yml, running in the runner pool, spike S6) can POST
+  # /redeploy directly — never by a student either way. Dual-homing widens
+  # only reachability, not capability: every mutating route still fails
+  # closed on the same constant-time control-token check regardless of which
+  # network a request arrives on.
   ctf-controller:
     build:
       context: ../modules/ctf-range/ctf-controller
@@ -111,7 +165,7 @@ services:
     container_name: workshop_ctf_controller
     depends_on:
       ctf-host:
-        condition: service_started
+        condition: service_healthy
     environment:
       - CTF_SOCKET=/run/ctf/docker.sock
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
@@ -120,9 +174,10 @@ services:
       # value is injected into each target, the seed never is. Dev fallback if
       # unset (no `:?`, so the stack still comes up — see CLAUDE.md).
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
-      # The in-lab registry defend-main.yml pushes patched images to (spike S6;
-      # not stood up yet). Empty = only the baked base image may run.
-      - CTF_REGISTRY=${CTF_REGISTRY:-}
+      # The in-lab registry ctf-builder pushes patched images to, and the
+      # prefix a redeploy's image name must carry (spike S6). Empty = only
+      # the baked base image may run.
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
       - CTF_BASE_IMAGE=ctf-customer-portal:base
       - CTF_TARGET_PORT=5000
       - CTF_TARGET_MEM_LIMIT=${CTF_TARGET_MEM_LIMIT:-128m}
@@ -137,6 +192,7 @@ services:
       - "1901"
     networks:
       - ctf_ops
+      - runner_net
     cap_drop:
       - ALL
     security_opt:
@@ -145,10 +201,74 @@ services:
     pids_limit: 128
     restart: unless-stopped
 
+  # ctf-builder: the ONLY thing allowed to ask ctf-host to build (spike S6).
+  # Shares ctf-host's socket exactly as ctf-controller does (same volume,
+  # same group_add gid), but is deliberately NOT on `ctf_ops`: it is a member
+  # of `runner_net` only, so the only thing that can reach its /build endpoint
+  # is a Forgejo Actions job in the runner pool (modules/runner-pool) — never
+  # a student. It reaches the registry only INDIRECTLY, by asking ctf-host's
+  # dockerd to push over the shared socket — dockerd is the one that is on
+  # `ctf_ops`, not ctf-builder (see README.md "Why a separate service, and
+  # runner_net only"). It never creates/starts/stops/removes a container; see
+  # ctf-controller/docker_api.py's docstring for why that stays out of reach
+  # here too. ctf-controller is also on `runner_net` (above), so ctf-builder
+  # and ctf-controller now share that one network — but ctf-builder holds no
+  # credential for ctf-controller's control API and never calls it; the CI
+  # job itself sequences build-then-redeploy as two separate authenticated
+  # calls (defend-main.yml).
+  #
+  # Needs `runner-pool` also listed in this workshop's MODULES to be reachable
+  # by a real CI job (that module owns `runner_net`); without it this service
+  # still starts, just with no caller able to reach it.
+  ctf-builder:
+    build:
+      context: ../modules/ctf-range/ctf-builder
+    image: gitopsdojo/ctf-builder:local
+    container_name: workshop_ctf_builder
+    depends_on:
+      ctf-host:
+        condition: service_healthy
+    environment:
+      - CTF_SOCKET=/run/ctf/docker.sock
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      - CTF_GIT_SERVER=${CTF_GIT_SERVER:-git-server:3000}
+      - CTF_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
+      - CTF_IMAGE=ctf-customer-portal
+      # Its OWN token, deliberately different from CTF_CONTROL_TOKEN (a
+      # leaked build-trigger credential should never also grant /redeploy).
+      - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+    volumes:
+      - ctf_run:/run/ctf
+      # A clone is tiny (one Flask app); tmpfs keeps the read-only root happy
+      # without ever touching a real disk path.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    read_only: true
+    # Same socket group as ctf-controller (CTF_GID 1901) — both are clients
+    # of ctf-host's dockerd, neither can reach the other over it.
+    group_add:
+      - "1901"
+    networks:
+      - runner_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_BUILDER_MEM_LIMIT:-256m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9100/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   ctf_customer_portal_data:
   ctf_run:
   ctf_docker:
+  ctf_registry_data:
 
 networks:
   # The range network: internal, no route to the internet, the gateway,
@@ -156,7 +276,16 @@ networks:
   # rules so each uid reaches exactly its own target; that is spike CTF-S2.
   ctf_net:
     internal: true
-  # The control-plane network: ctf-host and ctf-controller only, internal, no
-  # student ever on it. The cloud_net precedent from dojo-cloud.
+  # The control-plane network: ctf-host, ctf-controller and the in-lab
+  # registry only, internal, no student ever on it. The cloud_net precedent
+  # from dojo-cloud. ctf-builder is deliberately NOT a member (see its
+  # comment above) — it never shares a network with ctf-controller/ctf-host.
   ctf_ops:
+    internal: true
+  # Owned by modules/runner-pool; declared here too (identical: internal,
+  # same name) so this module validates and runs standalone (no orphaned
+  # caller — see README.md). When a workshop also lists runner-pool,
+  # compose merges both declarations and the pool's CI jobs can reach
+  # ctf-builder on it; without runner-pool, ctf-builder simply has no caller.
+  runner_net:
     internal: true

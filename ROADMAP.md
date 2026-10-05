@@ -117,11 +117,12 @@ the DNS stack and the policy engine). **In flight on `feat/zellij-terminal`; the
 spikes and a "Resume here" checkpoint, is *not* archived, and is owned by the session driving the CTF build; do not
 edit it from here, and treat its checkpoint as the current truth over this summary.
 
-| Area | Where it stands (2026-10-04) |
+| Area | Where it stands (2026-10-05) |
 |---|---|
-| Phase | CTF-P0 spikes mostly answered; CTF-P1 build started |
-| Built | The `ctf-range` module: target 14 `customer-portal` scaffold (vulnerable Flask + SQLite, SQLi flag), its CWE-89 SAST stage and Forgejo defend pipeline, and the range control plane — boxed privileged DinD `ctf-host` + unprivileged `ctf-controller` (spike S14 / CTF-D21). Target 6 (`dns-resolver`, uClibc CVE-2022-30295) decided and de-risked. Its three Python base images are pinned by digest (this branch; see RELEASES) |
-| Next (per the plan) | The in-lab registry + CI build that `defend-main.yml` pushes patched images to (spike S6), then the wall of shame, the `STUDENT_COUNT` fan-out, the `ctf-flags` submission service and per-uid isolation/SNAT; on the SAST side, the IaC/secret/SCA scanners for targets 8-11 |
+| Phase | CTF-P0 spikes mostly answered; CTF-P1 build in progress, S6's full defend loop now proven end to end with a real number |
+| Built | The `ctf-range` module: target 14 `customer-portal` scaffold (vulnerable Flask + SQLite, SQLi flag), its CWE-89 SAST stage and Forgejo defend pipeline, and the range control plane — boxed privileged DinD `ctf-host` + unprivileged `ctf-controller` (spike S14 / CTF-D21). **Spike S6 is now fully built and live-verified**: a `ctf-builder` service (builds/pushes only, never create/start/stop/rm) and an in-lab `registry:2`; `ctf-host` seeds both the rebuild's base image (`python:3.12-slim`, multi-arch index digest via `skopeo`, Run C) and the app's own dependency (`Flask`, vendored into a locally-tagged `gitopsdojo/ctf-customer-portal-base:pinned` image via `docker import`, Run D) into its inner dockerd, so a real offline `docker build` now succeeds end to end. A facilitator-only harness pack, `workshops/ctf-defend-test/`, proved the whole loop live: real student push → Forgejo Actions PR gate → merge → real rebuild+push+redeploy, confirmed functionally (patched slot's SQLi payload returns no rows; an unpatched control slot still leaks them). Real wall-clock number: **83s, push to redeployed**. Target 6 (`dns-resolver`, uClibc CVE-2022-30295) decided and de-risked. Four Python/skopeo base images pinned by digest (this branch; see RELEASES) |
+| Closed since (Run E, 2026-10-05) | Both of S6's non-blocking follow-ups, fixed and live-verified: `ctf-host`'s base-image load (was ~3 min/start, all 16 platforms) is now ~6-17s via a hand-merged OCI layout that keeps the real multi-arch index digest but only the one platform's blob data (384MB → 46MB); `ctf-controller`/`ctf-builder` now `depends_on: ctf-host: condition: service_healthy` (was `service_started`) against a healthcheck that confirms both baked images are imported, closing the start-order race. S6 has no known open items |
+| Next (per the plan) | Wire the digest sync into RV25's `check-tool-pins.sh` (currently a hand-kept comment, now duplicated 5 places across two Dockerfiles — this follow-up matters more than before); then the wall of shame, the `STUDENT_COUNT` fan-out, the `ctf-flags` submission service and per-uid isolation/SNAT; on the SAST side, the IaC/secret/SCA scanners for targets 8-11. `workshops/ctf-defend-test/` and the ctf-range/ctf-builder code are all still uncommitted on `feat/zellij-terminal` — review and commit before it's lost |
 
 ### N3 9.4: class-sized run
 
@@ -313,6 +314,13 @@ in [Manual checks](#manual-checks) above), **dojo-introduction** and **cloud-pol
 |---|---|---|
 | tofu-basics e2e | S | `tests/e2e.sh` on the new web-terminal image |
 | Capacity "Left out N" | S | `./run.sh capacity` printing "Left out N" for a closed tab (dry-run only) |
+
+### Tech to revisit
+
+| Tech | Why parked | Revisit when |
+|---|---|---|
+| [Keyorix](https://github.com/keyorixhq/keyorix) | Lightweight, self-hosted, AGPL secrets manager (EU-compliance/NIS2 framing, air-gap friendly, two-binary deploy) evaluated 2026-10-05 against OpenBao for the vault lab. Deliberately skips Vault's PKI/dynamic-secrets/auth-method breadth for operational simplicity, so it's not a fit for `secrets-workshop-plan`'s teaching surface — and at ~20 GitHub stars it's too early to build any lab on. Positioning (self-hosted, EU-compliant, air-gapped, fully open source) is attractive and worth a second look once the project has real adoption | It picks up meaningfully more stars/contributors/production users, or a second project with the same positioning (self-hosted + AGPL/OSS + EU-compliance framing) appears and is more mature |
+| [Infisical](https://infisical.com/) | Considered as a more mature open-source alternative to Keyorix for a possible "lightweight secrets management" lab (pre-Vault, no dynamic secrets/PKI needed). Its OSS edition's team/org features sit behind commercial billing, which cuts against this platform's preference for fully open, self-hostable tooling | A fully-open tier covers team/org features, or the gap stops mattering for how the platform would use it |
 
 ## Housekeeping
 
