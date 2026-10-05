@@ -308,6 +308,48 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # ctf-lab-info: static file server for the Lab Info library (plan §9,
+  # CTF-D16/P2b) - the same content/lab-info the terminal image bakes into
+  # every account's ~/lab-info, now also reachable in the browser
+  # (extensions.json's "lab-info" card/route/admin tab, gate "shared" - one
+  # copy, identical for every student, no identity hop needed). Stock Caddy
+  # (the gateway's own image, already pulled) with `file_server`, nothing
+  # built. read-only mount of the same directory the Dockerfile COPYs from,
+  # so the two can never drift apart.
+  ctf-lab-info:
+    image: gitopsdojo/gateway:local
+    container_name: workshop_ctf_lab_info
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ../modules/ctf-range/terminal/content/lab-info:/srv/lab-info:ro
+      - ../modules/ctf-range/lab-info/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - workshop_lab
+    read_only: true
+    # caddy:*-alpine's binary carries a cap_net_bind_service FILE capability
+    # (gateway/Dockerfile's comment) so it can bind low ports as non-root;
+    # dropping every capability from the bounding set makes the kernel
+    # refuse that exec outright ("Operation not permitted"), even though we
+    # only bind :8080. Same fix as runner-pool-shim/openbao-sso-shim: add
+    # the one capability back.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_LAB_INFO_MEM_LIMIT:-32m}
+    pids_limit: 32
+    # The image's own HEALTHCHECK asks Caddy's admin API, which this
+    # Caddyfile turns off; ask the site itself instead.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/README.md"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
   # The terminal's client side (dojo-flag, the ctf_net firewall hook) is
   # terminal/, a link in the terminal build chain (engine/run.sh). web-terminal's
   # base `networks:` uses the MAP form (engine/docker-compose.yml, for the

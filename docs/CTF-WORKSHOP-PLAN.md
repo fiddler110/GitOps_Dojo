@@ -7,68 +7,43 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ---
 
-### ⏩ Resume here (checkpoint 2026-10-04)
+### ⏩ Resume here (checkpoint 2026-10-05b)
 
-**Phase:** CTF-P0 (spikes), now also starting CTF-P1 build. Most spikes are answered; the **first target image is
-built** — target 14 `customer-portal` (scaffold). No other target images built yet.
+**Phase:** CTF-P0 spikes mostly answered; CTF-P1 build well underway on `feat/zellij-terminal`. Target 14
+`customer-portal` is the only target image built; target 6 `dns-resolver-cve` is fully decided and de-risked (see
+`CTF-SPIKES.md`) but not yet built.
 
-**Just finished — target 6 `dns-resolver-cve` is fully decided and de-risked.** It is **uClibc / uClibc-ng ≤ 1.0.40,
-CVE-2022-30295** (predictable monotonic DNS TXID + static source port 53): the attacker *predicts* the id and lands a
-single spoofed reply — **deterministic**, not guess-and-retry. Verified this session (rootless Podman): off-path
-source-spoofing works on a rootless netavark bridge, and a pinned **Bootlin** uClibc-ng toolchain (1.0.39, in range)
-compiles a static agent that resolves — so the build is cheap. Full story in
-[`CTF-SPIKES.md`](CTF-SPIKES.md), "Target 6 DNS poisoning build" (Runs A/B/C). Earlier picks (2017 dnsmasq overflow,
-then Dnspooq) were rejected and the reasons are recorded there.
+**Built and live-verified, in order:** target 14 `customer-portal` scaffold + its informational SAST stage and
+defend pipeline; the range control plane (`ctf-host` + `ctf-controller`, CTF-D21/S14); spike S6's full defend loop —
+an in-lab registry + `ctf-builder` so a real merge rebuilds and redeploys a student's target in place, proven end to
+end on `workshops/ctf-defend-test` at **83s push-to-redeployed**, with both of S6's follow-on perf/race issues closed
+same day; the digest-sync check (`check-pins.sh`); the `ctf-flags` submission service (§5) and per-uid target
+isolation (CTF-S2/S3), live-verified with real submissions and firewall checks; the wall of shame (§8.12) **minimal
+slice** — event, storage, route — scoped down since the bot swarm/SOC feed it needs to mean anything isn't built
+yet; the offensive tool suite in the terminal image (§9); the **Lab Info library content** (CTF-D16, CTF-P2b) — the
+Linux/shell primer plus one primer per installed tool, baked into every account's `~/lab-info` with no engine
+change; and now **CTF-P2b's other half, the browser route**: a new `ctf-lab-info` service (stock Caddy, `file_server`,
+read-only mount of the same `content/lab-info` directory) plus `modules/ctf-range/extensions.json` (card, `/admin`
+tab, `gate: "shared"` route, status check). Live-verified on `workshops/ctf-defend-test`: logged in as a real
+assigned student and as the facilitator, both reached `/lab-info/` (directory listing) and individual primers
+(`nmap.md`, `opa.md`) over the real gateway route with a 200, and the facilitator's `/admin` page renders the
+matching "Lab Info" tab. One build snag worth remembering for the next Caddy-as-static-server service: `caddy`'s
+binary carries a `cap_net_bind_service` *file* capability (so it can bind low ports non-root), and `cap_drop: ALL`
+with no `cap_add` makes the kernel refuse to exec it at all ("Operation not permitted"), even on an unprivileged
+port — same fix as `runner-pool-shim`/`openbao-sso-shim`, add `NET_BIND_SERVICE` back. Full detail in `ROADMAP.md`'s
+CTF row and in git history; this checkpoint only tracks what's next.
 
-**Also decided recently:** target 14 `customer-portal` (CTF-5 app-code defend target) + the wall of shame (§8.12,
-`LIVE → DISCONNECTED`, toggle `CTF_WALL_OF_SHAME`) — see **CTF-D25**.
+**👉 Next step (do this next):** no single next step dominates — two independent threads are open:
 
-**Just finished — target 14 `customer-portal` scaffold is built** (2026-10-04) in a new **`ctf-range` module**
-(`modules/ctf-range/`): the vulnerable Flask app over plaintext SQLite (`targets/customer-portal/app.py`), the
-synthetic per-handle seed (`seed.py`, a `customers` table whose `portal-service` row's password is the flag), the
-container image (`Dockerfile`, read-only root + `/data` volume), a single dev instance + `ctf_net` in the module
-`compose.yml`, and a reference SQLi dump that doubles as the **CTF-D19 gate** (`exploit/dump.py`). Verified without
-Docker: the `%' OR '1'='1' -- ` payload dumps all rows incl. the flag; the parameterized (fixed) query returns zero
-rows; normal search and idempotent re-seed work. The module is a **scaffold** — `README.md` lists what is and isn't
-built.
+1. The CTF-1 to CTF-4 student-controlled start/stop toggle + queue (CTF-D20) — CTF-5's always-on model is done;
+   the attack-ladder sessions still need it.
+2. The attacker-bot persona swarm + SOC event feed (§8.2-8.11) — what the wall of shame needs to mean anything live.
 
-**Also finished — target 14's SAST stage and defend pipeline** (2026-10-04). Added the informational **CWE-89 SAST**
-(`targets/customer-portal/sast/scan.py`: pinned, stdlib-only `ast` detector, CTF-D23/D24 — flags both string-built
-queries on the vulnerable source, silent once parameterized, never gates) and the **defend pipeline**
-(`targets/customer-portal/.forgejo/workflows/`): `defend-pr.yml` runs the SAST (informational) then the exploit
-re-run as the **CTF-D19 gate** (PR passes only when the dump returns nothing), `defend-main.yml` rebuilds and asks
-`ctf-controller` to redeploy the slot in place on merge. Verified: SAST flags vuln / clears patched / `--strict`
-exits 1; the PR gate's exit-code mapping (vuln→fail, patched→pass, unreachable→error) is unit-tested.
+Also open: the IaC/secret/SCA scanners for targets 8-11 on the SAST side (S17 in `CTF-SPIKES.md`), and the seven
+not-yet-built target images (S8).
 
-**Also finished — the range control plane `ctf-host` + `ctf-controller`** (2026-10-04, spike S14 / CTF-D21). The boxed
-privileged Docker-in-Docker `ctf-host` (`modules/ctf-range/ctf-host/`, the `cloud-host` pattern: `internal`-only,
-publishes nothing, target image baked in and imported offline at start) and its single unprivileged client
-`ctf-controller` (`modules/ctf-range/ctf-controller/`: stdlib Python; its whole reach is a fixed-template
-pull/create/start/stop/rm executor over the shared socket — never build). The controller reconciles one always-on
-slot per student (CTF-5 model), renders the §5 per-slot flag inline (seed stays in the controller, never in a
-target), and serves `POST /redeploy` — the **live tail of the S6 loop** `defend-main.yml` calls. 30 unit tests, and
-verified **live** under podman (`STUDENT_COUNT=2`): base import → one hardened slot per student each with its own
-flag → exploit dumps the flag from a managed slot → `/redeploy` recreates the slot in place from a parameterized
-image (~0.5 s) → the same published port returns zero rows / no flag (CTF-D19 green) while an un-redeployed slot
-still leaks (in-place + per-slot proven). See the S14 "Built" note in [`CTF-SPIKES.md`](CTF-SPIKES.md).
-
-**👉 Next step (do this next):** what the control plane still depends on — the **in-lab registry** + CI build that
-`defend-main.yml` pushes patched images to (spike S6; the controller's pull-by-name path is coded and unit-tested,
-but no registry is stood up, so the live flip above used an offline image swap as the stand-in). Then the **wall of
-shame** (§8.12, `LIVE → DISCONNECTED`, `CTF_WALL_OF_SHAME`), which needs the SOC/CTF event contract (spike CTF-S11),
-the attacker bots, and the presentation widget route. Then the rest of the range infra: the `STUDENT_COUNT` fan-out
-for the attack ladder (CTF-S1 — answered for CTF-5 by the controller, still open for CTF-1 to CTF-4's start/stop
-toggle + queue, CTF-D20), the standalone `ctf-flags` submission service (§5), and per-uid isolation + SNAT
-(CTF-S2/S3). Still open for the SAST side: the IaC/secret/SCA scanners for targets 8-11 (S17 in
-[`CTF-SPIKES.md`](CTF-SPIKES.md)). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**, the **S6/S14/S17
-bullets** in [`CTF-SPIKES.md`](CTF-SPIKES.md).
-
-**Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
-TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
-redo in a fresh session), then wire the internal agent's check-in → flag-1 → flag-2 chain.
-
-**Session note:** a safety classifier began blocking all shell commands late in the 2026-10-04 session (reacting to
-the cumulative DNS cache-poisoning material, not to any one command). A fresh session clears it.
+**Still open at CTF-P5 for target 6:** confirm end-to-end that the pinned uClibc stub's transaction-ID behavior
+matches the documented CVE before wiring the internal agent's check-in → flag chain.
 
 ---
 

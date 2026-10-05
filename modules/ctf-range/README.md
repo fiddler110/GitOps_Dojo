@@ -41,10 +41,21 @@ it enables, and ships its own labs and slides.
 > **offensive tool suite** (plan §9) in `terminal/Dockerfile` — `nmap`/`ncat`,
 > `tcpdump`/`tshark`, `sqlmap`, `jq`, `john`, `dnsutils`/`dnsrecon`, `httpie`,
 > `whois`, plus `ffuf` and `opa` (sha256-pinned static binaries) and a small
-> generic wordlist subset. **The Lab Info library content itself (the primer
-> each tool needs, CTF-P2b) is not written yet** — the tools are installed
-> but undocumented for a student. The CTF-1 to CTF-4 start/stop toggle +
-> queue (CTF-D20) is also **not built yet**. Do not wire a workshop to this
+> generic wordlist subset. Also now: the **Lab Info library content**
+> (plan §9, CTF-D16, phase CTF-P2b) — a Linux/shell primer plus one primer
+> per tool above (`terminal/content/lab-info/`), each covering mechanics
+> only (what the tool is, its common flags, reading its output, a worked
+> example against a toy/neutral target) and never a lab-specific payload,
+> answer or hint. Baked into the image at `/etc/skel/lab-info`, so every
+> account `provision-account.sh` creates — student, bot, or a reset
+> rebuilding a home — gets its own `~/lab-info` copy for free, with no
+> engine change; the facilitator gets one at `/root/lab-info` directly. Also
+> now: that same content read in the browser — `compose.yml`'s
+> `ctf-lab-info` (stock Caddy, `file_server`, mounting `terminal/content/lab-info`
+> read-only) plus this module's `extensions.json` (a "Lab Info" card,
+> `/admin` tab, and `gate: "shared"` route — one copy, identical for every
+> student). The CTF-1 to CTF-4 start/stop toggle + queue
+> (CTF-D20) is also **not built yet**. Do not wire a workshop to this
 > module expecting a full range, and note
 > `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
 > anything once a workshop pack also lists `runner-pool` in `MODULES` (see
@@ -111,12 +122,18 @@ it enables, and ships its own labs and slides.
   `httpie`, `whois` (apt's own signature check is the trust basis, same as
   every other apt install in this repo); sha256-pinned static binaries
   `ffuf` (content discovery) and `opa` (policy evaluation, for target 9);
-  and `wordlist-common.txt`, a short generic path/name list with nothing
-  lab-specific in it. One shared image for every session (CTF-D16: the Lab
-  Info library, and so the tools it documents, is the same regardless of
-  which targets a pack enables). **Not built yet**: the Lab Info library's
-  actual primers (plan §9, CTF-P2b) — the tools above are installed but a
-  student has no in-lab documentation for any of them yet.
+  `wordlist-common.txt`, a short generic path/name list with nothing
+  lab-specific in it; and `content/lab-info/` (plan §9, CTF-D16, CTF-P2b),
+  the Linux/shell primer plus one primer per tool above, baked into
+  `/etc/skel/lab-info` so every account gets its own `~/lab-info` for free.
+  One shared image for every session (CTF-D16: the Lab Info library, and so
+  the tools it documents, is the same regardless of which targets a pack
+  enables).
+- `lab-info/Caddyfile` — config for `compose.yml`'s `ctf-lab-info` service: a
+  stock Caddy `file_server` over the same `terminal/content/lab-info`
+  directory, so a student can read the library in the browser (this
+  module's `extensions.json` card/route/admin tab) as well as at
+  `~/lab-info` in the terminal or VS Code.
 
 ## Range control plane (CTF-D21 / spike S14, build/push half spike S6)
 

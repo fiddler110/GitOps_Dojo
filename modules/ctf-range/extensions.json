@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "lab-info", "label": "Lab Info", "icon": "terminal",
+      "desc": "Reference for every tool in your terminal -- mechanics, not answers.",
+      "href": "/lab-info/" }
+  ],
+  "admin_tabs": [
+    { "id": "lab-info", "label": "Lab Info", "src": "/lab-info/" }
+  ],
+  "routes": [
+    { "id": "lab-info", "path": "/lab-info", "upstream": "ctf-lab-info:8080", "gate": "shared",
+      "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "Lab Info", "url": "http://ctf-lab-info:8080/README.md" }
+  ]
+}

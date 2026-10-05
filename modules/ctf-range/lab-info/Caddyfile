@@ -1,0 +1,13 @@
+# Static file server for the Lab Info library (plan §9, CTF-D16/P2b). Plain
+# HTTP on an internal-only port; the gateway's own Caddy terminates the
+# public side and reverse-proxies to this one (extensions.json's "lab-info"
+# route, gate "shared" - the content is identical for every student, so no
+# identity hop is needed here). No TLS, no admin API, nothing to persist.
+{
+	admin off
+}
+
+:8080 {
+	root * /srv/lab-info
+	file_server browse
+}

@@ -1,13 +1,13 @@
 # ctf-range module's link in the terminal build chain (engine/run.sh sets
 # BASE to the image below this one; see workshops/README.md). Adds
-# `dojo-flag` (plan §5), the per-uid ctf_net firewall hook (CTF-S2/S3) and
-# the offensive tool suite (plan §9) - one shared set installed once here
-# because CTF-D16 ships the same Lab Info library, and so the same tools,
-# to every session pack regardless of which targets it uses.
+# `dojo-flag` (plan §5), the per-uid ctf_net firewall hook (CTF-S2/S3), the
+# offensive tool suite and the Lab Info library that documents it (plan §9,
+# CTF-D16, CTF-P2b) - one shared set installed once here because CTF-D16
+# ships the same tools and the same primers to every session pack
+# regardless of which targets it uses.
 #
-# Deliberately NOT here yet: the Lab Info library content itself (the
-# primers each tool below needs - plan §9, CTF-P2b) and metasploit, which
-# the plan explicitly keeps out of the terminal image as too large.
+# Deliberately NOT here: metasploit, which the plan explicitly keeps out of
+# the terminal image as too large.
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
@@ -86,10 +86,30 @@ RUN set -eux; \
 
 # A small, generic path/name subset for ffuf-style discovery labs (plan
 # §9's "a wordlist subset") - no lab-specific words, so it can't leak which
-# target a given word is for. ~/lab-info links here once the Lab Info
-# library exists (CTF-P2b); for now it's just the file the ffuf primer will
-# point at.
+# target a given word is for. Referenced from lab-info/ffuf.md below.
 COPY wordlist-common.txt /usr/local/share/wordlists/common.txt
+
+# Lab Info library (plan §9, decision CTF-D16, phase CTF-P2b): the Linux
+# primer plus one primer per tool above, reviewed for "mechanics, not
+# exploits" (no injection strings, no reverse-shell one-liners, no cracked-
+# hash walkthroughs, no CVE steps, no lab-specific hints). Same content for
+# every CTF session pack, baked in here rather than mounted, since nothing
+# about it varies per workshop.
+#
+# Seeded via /etc/skel so every account provision-account.sh creates (a
+# student, a bot, or a reset rebuilding a home from /etc/skel) gets its own
+# writable ~/lab-info copy for free, with no change to engine/ needed -
+# provision-account.sh's useradd --create-home and its "cp -a /etc/skel/."
+# reset path both already populate a new home from here. The facilitator
+# (root) doesn't go through useradd, so its copy is seeded explicitly below.
+#
+# Also served read-only in the browser: compose.yml's ctf-lab-info (a stock
+# Caddy mounting this same content/lab-info directory) plus this module's
+# extensions.json card/route/admin tab (plan §9's "its own extensions.json
+# card and matching /admin tab") - the two can't drift since both read from
+# here.
+COPY content/lab-info /etc/skel/lab-info
+RUN cp -a /etc/skel/lab-info /root/lab-info
 
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't
