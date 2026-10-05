@@ -1,0 +1,41 @@
+{
+  "milestones": [
+    {
+      "id": "m-opened",
+      "title": "Filed",
+      "joke": "A pull request. Against your own app. Welcome to the job.",
+      "when": "forgejo: you opened a PR against your own customer-portal repo",
+      "core": false,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "repo": "{user}/customer-portal"
+      }
+    },
+    {
+      "id": "m-shipped",
+      "title": "Shipped It",
+      "joke": "Merged to main. The gate only let it through clean.",
+      "when": "forgejo: your PR against your own customer-portal repo was merged",
+      "core": true,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "{user}/customer-portal"
+      }
+    },
+    {
+      "id": "m-contained",
+      "title": "Contained",
+      "joke": "The next probe comes back with nothing. That's the whole job, done.",
+      "when": "soc: the bot's live re-probe against your slot comes back empty",
+      "core": true,
+      "match": {
+        "source": "soc",
+        "event": "contained"
+      }
+    }
+  ]
+}

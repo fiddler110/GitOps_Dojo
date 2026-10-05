@@ -1,0 +1,77 @@
+# CTF-5 defend pipeline — merge job for target 14 `customer-portal`.
+#
+# The "rebuild → redeploy" half of the S6 loop. Runs when the student's fix
+# merges to main: ask ctf-builder to build the now-patched source and push it
+# under the slot's approved name:tag, then ask ctf-controller to redeploy it
+# in place so the *same* running container the attacker bot is hitting is
+# replaced (plan §8.12 "Containment is the reward", spike S6). The bot's next
+# dump then returns nothing and the wall-of-shame entry flips LIVE →
+# DISCONNECTED.
+#
+# Both calls land on `runner_net` (modules/runner-pool), which is why this
+# job needs `runs-on: host` (the pool's label) and why the workshop pack must
+# list both `ctf-range` and `runner-pool` in MODULES (modules/ctf-range's
+# compose.yml wires ctf-builder onto runner_net only, and ctf-controller onto
+# both runner_net and ctf_ops — see its comments for why dual-homing the
+# controller is safe: every mutating route still fails closed on its own
+# control-token check regardless of which network the call arrives on).
+#
+# Neither ctf-builder nor ctf-controller is reachable with no token: both
+# secrets below must be set on this repo (Forgejo Actions secrets), matching
+# CTF_FLAG in defend-pr.yml. Offline posture (CTF-D24): the registry is
+# in-lab; nothing here is fetched from outside ctf_ops.
+name: Defend — rebuild and redeploy
+on:
+  push:
+    branches: [main]
+
+env:
+  # One running target per slot: the repo owner IS the slot name.
+  CTF_SLOT: ${{ github.repository_owner }}
+  CTF_REF: ${{ github.sha }}
+  CTF_BUILDER_URL: http://ctf-builder:9100/build
+  CTF_CONTROLLER_URL: http://ctf-controller:9000/redeploy
+  # In-lab registry + the slot's approved image name:tag — must match
+  # docker_build.image_tag_for (ctf-builder) and docker_api.allowed_image
+  # (ctf-controller), or the controller refuses to pull what was just built.
+  CTF_REGISTRY: ${{ vars.CTF_REGISTRY }}          # e.g. registry:5000
+  CTF_IMAGE: ctf-customer-portal
+
+jobs:
+  rebuild-and-redeploy:
+    runs-on: host
+    steps:
+      - name: Build and push the patched image (ctf-builder)
+        # ctf-builder clones ${CTF_SLOT}'s own repo itself (from git-server)
+        # at ${CTF_REF}, builds it server-side via ctf-host's Engine API, and
+        # pushes it under ${CTF_REGISTRY}/${CTF_IMAGE}:${CTF_SLOT} — the only
+        # tag it is ever allowed to produce for this slot. This job hands it
+        # nothing but the ref; no tar, no Dockerfile, no build context ever
+        # crosses this step.
+        run: |
+          set -eu
+          body=$(printf '{"user":"%s","ref":"%s"}' "$CTF_SLOT" "$CTF_REF")
+          resp=$(curl -fsS -X POST "$CTF_BUILDER_URL" \
+            -H "Authorization: Bearer ${CTF_BUILD_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$body")
+          echo "ctf-builder: $resp"
+        env:
+          CTF_BUILD_TOKEN: ${{ secrets.CTF_BUILD_TOKEN }}
+
+      - name: Redeploy in place via ctf-controller
+        # The controller pulls name:tag and recreates the slot's container
+        # under the same name, so the attacker bot's next probe hits the
+        # patched app without anything being redirected (S6 step 3).
+        run: |
+          set -eu
+          tag="${CTF_REGISTRY}/${CTF_IMAGE}:${CTF_SLOT}"
+          echo "requesting redeploy of slot ${CTF_SLOT} -> ${tag}"
+          body=$(printf '{"user":"%s","image":"%s"}' "$CTF_SLOT" "$tag")
+          resp=$(curl -fsS -X POST "$CTF_CONTROLLER_URL" \
+            -H "Authorization: Bearer ${CTF_CONTROL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$body")
+          echo "ctf-controller: $resp"
+        env:
+          CTF_CONTROL_TOKEN: ${{ secrets.CTF_CONTROL_TOKEN }}
