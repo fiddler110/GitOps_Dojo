@@ -33,7 +33,7 @@ modules/achievements/catalog/shared.json   cheating tiers and cross-workshop unl
   command's first words, a string or a list), `flags` / `flags_none`, `regex` (on the command segment, redirects
   kept), `exit` (a code, a list, `"nonzero"` or `"any"`), `branch` / `branch_before` (`"HEAD"` when detached),
   `in_repo`, `merging`, `merging_after`, `out_regex` (searched in the last lines the command printed, read from
-  the tmux pane; matched and dropped). `forgejo`: `event` (push, create, delete, fork, pull_request,
+  the pane -- tmux or Zellij, see "Shell output" below; matched and dropped). `forgejo`: `event` (push, create, delete, fork, pull_request,
   pull_request_review), `action` (opened, merged, approved, ...), `ref_type`, `branch`, `tag`, `repo` (`{user}`
   allowed). `branch_not` and similar negate. `{"any": [...]}` fires on any one. `{"source": "service"}` marks
   items the service fires itself (the cheating tiers). Every source takes `requires` / `requires_not` (ids the
@@ -153,10 +153,14 @@ token plus the shipped client); a burst over 40 commands in 10 s is dropped with
 block is not cheating). A student can still post their own shell events by hand: that only earns what typing the
 command would.
 
-**Shell output.** Under tmux (every web and VS Code terminal) the hook also reads back the last 40 lines a command
-printed, from the pane (`#{history_size}` and `#{cursor_y}` before and after the command give its line range), and
-sends the last 4000 characters as `out`, so an item can match an error message with `out_regex`. Like the command
-it is matched and dropped, never stored. A full-screen program (vim, less) or a `clear` leaves nothing to read.
+**Shell output.** The hook also reads back the last 40 lines a command printed and sends the last 4000 characters as
+`out`, so an item can match an error message with `out_regex` -- only ever used by a workshop's optional "funny"
+easter-egg catalog, never a core/challenge milestone. Under tmux (the web/VS Code flavor) it reads an exact range
+from the pane (`#{history_size}` and `#{cursor_y}` before and after the command). Under Zellij (`TERMINAL_FLAVOR=
+zellij`, which has no code-server and so no `tmux` either) it instead dumps the current viewport
+(`zellij action dump-screen`), since Zellij's CLI has no range query -- good enough for an optional easter egg,
+though output taller than the viewport is simply missed. Either way it is matched and dropped, never stored. A
+full-screen program (vim, less) or a `clear` leaves nothing to read.
 
 **Adapter events.** A module that owns a backend posts what happened, signed with `ACHIEVEMENTS_ADAPTER_SECRET`
 (HMAC-SHA256 of the raw body, header `X-Adapter-Signature`) to `POST /api/adapter`, best effort and never slowing the

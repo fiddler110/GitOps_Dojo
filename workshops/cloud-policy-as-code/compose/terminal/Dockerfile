@@ -74,23 +74,29 @@ RUN printf '\n# cloud-policy-as-code: http state backend credentials = the ARM s
 # and bracket matching don't need it). Students can still switch it on in
 # Settings. disable-tofu-ls.py fails the build if a future version renames
 # that setting, instead of silently shipping with the server running.
+# Guarded by `command -v code-server`: the Zellij flavor's leaf has no
+# code-server at all (a sibling of the vscode leaf, not built on top of it
+# — see engine/README.md's "Terminal flavor" section), so there's nothing
+# to install the extension into.
 ARG OPENTOFU_VSCODE_VERSION=0.6.3
 COPY disable-tofu-ls.py /tmp/disable-tofu-ls.py
 RUN set -eux; \
-    case "${TARGETARCH}" in \
-    amd64) ext_target="linux-x64"; ext_sha256="ed0cbd5b8869b7adcc5f1d8fcec5ce573b9e46f4e57ecc66c3d535763a3a85fd" ;; \
-    arm64) ext_target="linux-arm64"; ext_sha256="94755ee6cd3bd4e90c6c05768f952ed272152e4eb4f836d37d97a612a68045d2" ;; \
-    *) echo "Unsupported architecture for the OpenTofu extension: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    wget -O /tmp/opentofu.vsix \
-      "https://open-vsx.org/api/OpenTofu/vscode-opentofu/${ext_target}/${OPENTOFU_VSCODE_VERSION}/file/OpenTofu.vscode-opentofu-${OPENTOFU_VSCODE_VERSION}@${ext_target}.vsix"; \
-    echo "${ext_sha256}  /tmp/opentofu.vsix" | sha256sum -c -; \
-    code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/opentofu.vsix --force; \
-    rm -f /tmp/opentofu.vsix; \
-    python3 /tmp/disable-tofu-ls.py /opt/code-server-extensions; \
-    rm -f /tmp/disable-tofu-ls.py; \
-    chown -R root:root /opt/code-server-extensions; \
-    chmod -R a+rX /opt/code-server-extensions
+    if command -v code-server >/dev/null 2>&1; then \
+      case "${TARGETARCH}" in \
+      amd64) ext_target="linux-x64"; ext_sha256="ed0cbd5b8869b7adcc5f1d8fcec5ce573b9e46f4e57ecc66c3d535763a3a85fd" ;; \
+      arm64) ext_target="linux-arm64"; ext_sha256="94755ee6cd3bd4e90c6c05768f952ed272152e4eb4f836d37d97a612a68045d2" ;; \
+      *) echo "Unsupported architecture for the OpenTofu extension: ${TARGETARCH}" >&2; exit 1 ;; \
+      esac; \
+      wget -O /tmp/opentofu.vsix \
+        "https://open-vsx.org/api/OpenTofu/vscode-opentofu/${ext_target}/${OPENTOFU_VSCODE_VERSION}/file/OpenTofu.vscode-opentofu-${OPENTOFU_VSCODE_VERSION}@${ext_target}.vsix"; \
+      echo "${ext_sha256}  /tmp/opentofu.vsix" | sha256sum -c -; \
+      code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/opentofu.vsix --force; \
+      rm -f /tmp/opentofu.vsix; \
+      python3 /tmp/disable-tofu-ls.py /opt/code-server-extensions; \
+      chown -R root:root /opt/code-server-extensions; \
+      chmod -R a+rX /opt/code-server-extensions; \
+    fi; \
+    rm -f /tmp/disable-tofu-ls.py
 
 # Policy tools: opa (Rego tests) and conftest (checks a `tofu show -json` plan). Static binaries, so
 # runner-pool's jobs copy the very same ones (JOB_TOOLS in the overlay). TARGETARCH is declared above.

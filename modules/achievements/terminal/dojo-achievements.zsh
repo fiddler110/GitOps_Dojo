@@ -6,9 +6,18 @@
 #    disowned, so the prompt never waits. Every command is sent; the service does the matching
 #    and keeps none of the text. The fields travel in the environment of that one process
 #    (readable only by this user), not on its command line where `ps` would show them.
-#    Under tmux (every web and VS Code terminal) it also sends the last lines the command
-#    printed, read back from the pane (`out`), so an item can match an error message. Matched
-#    and dropped like the command: the service keeps none of it.
+#    Under tmux (the web/VS Code flavor's terminal) or Zellij (the Zellij flavor, TERMINAL_FLAVOR=
+#    zellij) it also sends the last lines the command printed, read back from the pane (`out`),
+#    so an item can match an error message. Matched and dropped like the command: the service
+#    keeps none of it. tmux and Zellij differ here: tmux tracks the pane's absolute line position
+#    (`_dojo_pane_pos`) so it captures exactly the lines a command added, however long the
+#    scrollback; Zellij's CLI has no such range query (`zellij action dump-screen` only dumps the
+#    whole viewport or the whole scrollback, never a range), so the Zellij branch just dumps the
+#    viewport -- what's actually on screen right after the command finishes, which is the same
+#    moment tmux's capture fires. Good enough for this: `out_regex` is only used by each
+#    workshop's optional "funny" easter-egg catalog, never a core/challenge milestone (see
+#    modules/achievements/catalog/catalog.py), and output taller than the viewport is simply
+#    missed rather than mismatched.
 # 2. The colour echo: new unlocks printed under the prompt (at most every 5 s).
 
 [[ -o interactive && -x /usr/local/bin/dojo-check ]] || return 0
@@ -54,6 +63,11 @@ _dojo_precmd() {
       (( last >= first )) && out=$(command tmux capture-pane -p -J -S $first -E $last 2>/dev/null | tail -n 40)
       out=${out[-4000,-1]}
     fi
+  elif [[ -n $ZELLIJ ]]; then
+    # No range query on this side (see the file header): dump the current
+    # viewport and take its last lines, same shape as the tmux branch above.
+    out=$(command zellij action dump-screen 2>/dev/null | tail -n 40)
+    out=${out[-4000,-1]}
   fi
   _dojo_out_from=''
   if [[ -n ${cmd//[[:space:]]/} ]]; then
