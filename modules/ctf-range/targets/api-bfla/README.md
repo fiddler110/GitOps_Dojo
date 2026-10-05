@@ -27,6 +27,14 @@ against a shared/live deployment.
 1. `POST /login` with `{"username": "student07", "password": "changeme123"}` → a bearer token, role `student`.
 2. `POST /admin/reset-all` with that token, no extra header → `{"reset": false, "flag": "..."}`.
 
+## Decoy port (nmap)
+
+The attack ladder also publishes a decoy SSH listener on container port
+2222 alongside the real API (plan §7.3's own nmap primer). It speaks just
+enough of the SSH-2.0 banner to fingerprint under `nmap -sV`, then closes —
+not a real sshd; see `app.py`'s decoy-listener comment. The standalone
+`docker run` below only publishes 5000; add `-p 2222:2222` to see it too.
+
 ## Environment
 
 | Var | Meaning | Dev default |

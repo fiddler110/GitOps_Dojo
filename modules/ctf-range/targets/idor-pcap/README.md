@@ -22,6 +22,19 @@ stands in for it: same leaked identity unlocks it, and its response
 explains the capability-abuse step and carries the flag. The Lab Info
 library covers `getcap`/`cap_setuid` on its own.
 
+## Decoy ports (nmap)
+
+The attack ladder also publishes decoy SSH (2222) and FTP (2121) listeners
+alongside the real app (plan §7.3's own nmap primer — a student scans their
+box and finds more than the port they'll actually use, same as a HackTheBox
+box). Neither is a real service — each just speaks enough of the opening
+handshake to fingerprint under `nmap -sV`, then fails the next step; see
+`app.py`'s decoy-listener comment. The FTP decoy even accepts `svc-backup`'s
+leaked creds for `USER`/`PASS` and still answers "Login incorrect" — the
+real foothold here is the IDOR, not a live FTP login, and that dead end is
+the point. The standalone `docker run` below only publishes 5000; add
+`-p 2222:2222 -p 2121:2121` to see the decoys too.
+
 ## Environment
 
 | Var | Meaning | Dev default |

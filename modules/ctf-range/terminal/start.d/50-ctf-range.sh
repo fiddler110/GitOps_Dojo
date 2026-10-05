@@ -30,19 +30,26 @@
 # controller.py's Config.index exactly, or a uid's rule would point at a
 # different student's slot).
 #
-# Also opens CTF_ATTACK_PORT_BASE + index (plan §4 "Student-controlled
-# targets", decision CTF-D20): the CTF-1..4 toggle's AttackManager publishes
-# a student's live target on that second, separate port range on the same
-# ctf-host address, so the same per-uid rule shape applies twice, once per
-# range. A student's attack slot being stopped most of the time doesn't
-# need a conditional rule here - an ACCEPT for a port nothing is listening on
-# yet is a no-op, and the rule is already in place the moment they start one.
+# Also opens a BLOCK of CTF_ATTACK_PORT_BLOCK ports starting at
+# CTF_ATTACK_PORT_BASE + index*block (plan §4 "Student-controlled targets",
+# decision CTF-D20, widened for §7.3's nmap primer): the CTF-1..4 toggle's
+# AttackManager publishes a student's live target as a small port BLOCK, not
+# one port - the real app plus a fixed set of decoy ports (controller.py's
+# Config.attack_ports(): ATTACK_PORT_BLOCK, DECOY_SSH_CONTAINER_PORT,
+# DECOY_FTP_CONTAINER_PORT), so a student's `nmap` finds more than the one
+# port they'll actually use, same as a HackTheBox box. The same per-uid rule
+# shape applies to the whole block at once (one iptables range, not one rule
+# per port). A student's attack slot being stopped most of the time, or a
+# given target not using every decoy slot, doesn't need a conditional rule
+# here - an ACCEPT for a port nothing is listening on yet is a no-op, and the
+# rule is already in place the moment a container does listen there.
 set -eu
 
 student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
 host_port_base="${CTF_HOST_PORT_BASE:-15000}"
 attack_port_base="${CTF_ATTACK_PORT_BASE:-16000}"
+attack_port_block="${CTF_ATTACK_PORT_BLOCK:-3}"
 
 if ! getent hosts ctf-host >/dev/null 2>&1; then
   echo "ctf-range: ctf-host not resolvable (ctf_net not joined yet?); skipping firewall rules" >&2
@@ -65,11 +72,12 @@ counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
   port=$((host_port_base + counter - 1))         # 0-based index, same as controller.py's Config.index
-  attack_port=$((attack_port_base + counter - 1))  # AttackManager's own range (CTF-D20)
+  attack_port_start=$((attack_port_base + (counter - 1) * attack_port_block))
+  attack_port_end=$((attack_port_start + attack_port_block - 1))
   uid="$(id -u "$username" 2>/dev/null || true)"
   if [ -n "$uid" ]; then
     iptables -A CTF_ISOLATION -p tcp --dport "$port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
-    iptables -A CTF_ISOLATION -p tcp --dport "$attack_port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
+    iptables -A CTF_ISOLATION -p tcp --dport "$attack_port_start:$attack_port_end" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
   fi
   counter=$((counter + 1))
 done

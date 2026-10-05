@@ -53,21 +53,34 @@ def allowed_image(image, registry_prefix, extra=()):
     return image in extra
 
 
-def build_create_request(image, env_pairs, container_port, host_port,
+def build_create_request(image, env_pairs, ports,
                          memory_bytes, pids_limit, labels):
     """The ONE place a slot spec is assembled. Pure function (tested).
+
+    `ports` is a list of (container_port, host_port) pairs — almost always
+    one (the app), but an attack-ladder slot (controller.py's AttackManager)
+    publishes more: one or two extra ports behind which a target's own
+    decoy listeners sit (plan §7.3's own ~20 min nmap primer — a student
+    scans their box and finds more than the one port they'll actually use,
+    same as a HackTheBox box). Nothing here cares which port is "the" one;
+    that is entirely up to what the image itself chooses to listen on.
 
     Hardening matches targets/customer-portal's compose service: read-only root,
     tmpfs for the only writable paths, all capabilities dropped, no new privs.
     """
-    port_key = f"{int(container_port)}/tcp"
+    exposed = {}
+    bindings = {}
+    for container_port, host_port in ports:
+        port_key = f"{int(container_port)}/tcp"
+        exposed[port_key] = {}
+        bindings[port_key] = [{"HostPort": str(int(host_port))}]
     return {
         "Image": image,
         "Env": [f"{name}={value}" for name, value in env_pairs],
         "Labels": dict(labels, **{LABEL_MANAGED: "true", LABEL_IMAGE: image}),
-        "ExposedPorts": {port_key: {}},
+        "ExposedPorts": exposed,
         "HostConfig": {
-            "PortBindings": {port_key: [{"HostPort": str(int(host_port))}]},
+            "PortBindings": bindings,
             "Memory": int(memory_bytes),
             "MemorySwap": int(memory_bytes),  # no swap beyond the limit
             "PidsLimit": int(pids_limit),
@@ -132,11 +145,11 @@ class Executor:
         if status != 200:
             raise DockerError(f"pull failed ({status}): {data[:200]!r}")
 
-    def create(self, name, image, env_pairs, container_port, host_port,
+    def create(self, name, image, env_pairs, ports,
                memory_bytes, pids_limit, labels):
         if not allowed_image(image, self.registry_prefix, self.extra_images):
             raise DockerError(f"image {image!r} is not allowed")
-        spec = build_create_request(image, env_pairs, container_port, host_port,
+        spec = build_create_request(image, env_pairs, ports,
                                     memory_bytes, pids_limit, labels)
         status, data = self._call("POST", f"/containers/create?name={quote(name)}", spec)
         if status != 201:

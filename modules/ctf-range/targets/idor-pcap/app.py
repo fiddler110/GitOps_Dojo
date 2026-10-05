@@ -26,7 +26,9 @@ flag for — the capability abuse it represents. The Lab Info library covers
 """
 import base64
 import os
+import socket
 import struct
+import threading
 import time
 
 from flask import Flask, Response, abort, request
@@ -127,6 +129,73 @@ def admin():
         f"Running it as svc-backup drops you to root. {FLAG}</p>"
     )
 
+
+# -- Decoy listeners (plan §7.3's nmap primer: a student scans their box
+# and finds more than the one port they'll actually use, same as a
+# HackTheBox box) -------------------------------------------------------
+# NOT real services: every slot container drops every Linux capability and
+# runs read-only as a non-root user (docker_api.py's build_create_request()),
+# which makes a genuine sshd/vsftpd impossible here at all (host keys,
+# privilege separation and setuid-per-connection all need root). Each
+# speaks just enough of the real protocol's opening handshake to
+# fingerprint correctly under `nmap -sV`, then always fails the next step.
+# ctf-controller's AttackManager always reserves these two ports
+# (DECOY_SSH_CONTAINER_PORT, DECOY_FTP_CONTAINER_PORT).
+def _decoy_ssh_handler(conn):
+    try:
+        conn.sendall(b"SSH-2.0-OpenSSH_9.7p1 Debian-7\r\n")
+        conn.recv(256)
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+def _decoy_ftp_handler(conn):
+    # The irony is the point: USER/PASS here are read, but svc-backup's real
+    # creds (the ones the pcap leaks) still don't work — this box's actual
+    # foothold is the IDOR on /data/<n>, not a live FTP login, and a student
+    # who tries the obvious thing first learns that the hard way.
+    try:
+        conn.sendall(b"220 (vsFTPd 3.0.5)\r\n")
+        conn.settimeout(5)
+        while True:
+            data = conn.recv(256)
+            if not data:
+                break
+            line = data.decode("utf-8", "replace").strip().upper()
+            if line.startswith("USER"):
+                conn.sendall(b"331 Please specify the password.\r\n")
+            elif line.startswith("PASS"):
+                conn.sendall(b"530 Login incorrect.\r\n")
+            elif line.startswith("QUIT"):
+                conn.sendall(b"221 Goodbye.\r\n")
+                break
+            else:
+                conn.sendall(b"502 Command not implemented.\r\n")
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+def _start_decoy(port, handler):
+    def _accept_loop():
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("0.0.0.0", port))
+        srv.listen(16)
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                continue
+            threading.Thread(target=handler, args=(conn,), daemon=True).start()
+    threading.Thread(target=_accept_loop, daemon=True).start()
+
+
+_start_decoy(2222, _decoy_ssh_handler)
+_start_decoy(2121, _decoy_ftp_handler)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)

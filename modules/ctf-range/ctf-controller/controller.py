@@ -64,6 +64,21 @@ HOST_PORT_BASE = 15000
 # per-uid firewall rule must agree with this value, same pairing as
 # CTF_HOST_PORT_BASE (that hook's header comment).
 ATTACK_PORT_BASE = 16000
+# How many consecutive host ports each student's attack slot reserves: one
+# for the target's real app, plus a fixed block of decoy ports (plan §7.3's
+# nmap primer — a student scans their box and finds more than the one port
+# they'll actually use, same as a HackTheBox box). The block size is fixed
+# across every target so the BASE + index*BLOCK arithmetic never has to vary
+# per target; a target image that doesn't bind one of these container ports
+# just leaves that slot in the block silent (closed, not "open but refused"
+# — the exact same no-op-ACCEPT reasoning 50-ctf-range.sh's header comment
+# already gives for an idle attack range). DECOY_*_CONTAINER_PORT are the
+# fixed internal ports a target's own decoy listener binds if it wants that
+# slot (see targets/*/app.py's "decoy listeners" section); nothing here
+# cares whether a given image actually uses either of them.
+ATTACK_PORT_BLOCK = 3
+DECOY_SSH_CONTAINER_PORT = 2222
+DECOY_FTP_CONTAINER_PORT = 2121
 ATTACK_IDLE_SECONDS = 20 * 60  # plan §4 "Limits": ~20 min with no traffic
 ATTACK_MAX_CONCURRENT = 10     # plan §4 "Start queue": ~10 at once (tuned in S14)
 
@@ -129,6 +144,7 @@ class Config:
         self.facilitator = env.get("FACILITATOR_USERNAME", "")
         self.attack_targets = parse_targets(env.get("CTF_ATTACK_TARGETS", ""))
         self.attack_port_base = int(env.get("CTF_ATTACK_PORT_BASE", "") or ATTACK_PORT_BASE)
+        self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
         self.attack_idle_seconds = int(env.get("CTF_ATTACK_IDLE_SECONDS", "") or ATTACK_IDLE_SECONDS)
         self.attack_max_concurrent = int(env.get("CTF_ATTACK_MAX_CONCURRENT", "") or ATTACK_MAX_CONCURRENT)
 
@@ -142,7 +158,21 @@ class Config:
         return f"ctf-attack-{user}"
 
     def attack_host_port(self, user):
-        return self.attack_port_base + self.index.get(user, 0)
+        """The one port a student is told nothing about — the real app's
+        port, offset 0 in that student's block (status()'s own comment:
+        "a student finds their own port with nmap")."""
+        return self.attack_port_base + self.index.get(user, 0) * self.attack_port_block
+
+    def attack_ports(self, user):
+        """The full (container_port, host_port) list for this student's
+        attack-slot block: the real app, then the fixed decoy slots. Passed
+        straight to docker_api.Executor.create()'s `ports`."""
+        base = self.attack_host_port(user)
+        return [
+            (self.container_port, base),
+            (DECOY_SSH_CONTAINER_PORT, base + 1),
+            (DECOY_FTP_CONTAINER_PORT, base + 2),
+        ]
 
 
 class Controller:
@@ -173,8 +203,7 @@ class Controller:
             name=name,
             image=image,
             env_pairs=self._env_for(user),
-            container_port=self.cfg.container_port,
-            host_port=self.cfg.host_port(user),
+            ports=[(self.cfg.container_port, self.cfg.host_port(user))],
             memory_bytes=self.cfg.mem_bytes,
             pids_limit=self.cfg.pids,
             labels={docker_api.LABEL_SLOT: user, docker_api.LABEL_USER: user},
@@ -399,8 +428,7 @@ class AttackManager:
             self.ex.remove(name)
             self.ex.create(
                 name=name, image=image, env_pairs=self._env_for(user, target),
-                container_port=self.cfg.container_port,
-                host_port=self.cfg.attack_host_port(user),
+                ports=self.cfg.attack_ports(user),
                 memory_bytes=self.cfg.mem_bytes, pids_limit=self.cfg.pids,
                 labels={docker_api.LABEL_SLOT: user, docker_api.LABEL_USER: user,
                         docker_api.LABEL_TARGET: target},

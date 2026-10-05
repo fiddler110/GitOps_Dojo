@@ -21,7 +21,9 @@ RUN useradd --uid 10015 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 
 ENV PORT=5000 \
     PYTHONUNBUFFERED=1
-EXPOSE 5000
+# 2222 is the decoy SSH listener app.py starts alongside the real app (plan
+# §7.3's nmap primer) — see its module-bottom comment. Not a real sshd.
+EXPOSE 5000 2222
 
 USER sqli
 WORKDIR /app

@@ -40,11 +40,12 @@ class FakeExecutor:
             raise docker_api.DockerError(f"image {image!r} is not allowed")
         self.images.add(image)
 
-    def create(self, name, image, env_pairs, container_port, host_port,
+    def create(self, name, image, env_pairs, ports,
                memory_bytes, pids_limit, labels):
         if not docker_api.allowed_image(image, self.registry_prefix, self.extra_images):
             raise docker_api.DockerError(f"image {image!r} is not allowed")
-        self.containers[name] = {"state": "running", "image": image, "env": dict(env_pairs)}
+        self.containers[name] = {"state": "running", "image": image, "env": dict(env_pairs),
+                                  "ports": list(ports)}
         self.creates.append((name, image))
 
     def remove(self, name):

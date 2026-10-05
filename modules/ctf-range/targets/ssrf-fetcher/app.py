@@ -5,14 +5,15 @@ internal-only admin endpoint instead of the public internet — classic SSRF.
 
 The ladder row calls for "an internal-only admin endpoint on another
 service in the same target, not another student's target." This image runs
-BOTH: the public preview app on 0.0.0.0:$PORT (the one published port, per
-docker_api.py's one-port-per-slot rule) and a second, internal-only Flask
-app bound to 127.0.0.1 only, in a background thread. Nothing outside this
-container can ever reach the internal app directly — it is never published
-and isn't bound to a routable address — but the preview app's own outbound
-fetch runs *inside* the same container, so it can reach 127.0.0.1 fine. That
-gap between "not published" and "not reachable from this process" is the
-whole vulnerability.
+BOTH: the public preview app on 0.0.0.0:$PORT (the app's own port — the
+slot's block also carries a decoy SSH port, see the bottom of this file, but
+that's unrelated to this bug) and a second, internal-only Flask app bound to
+127.0.0.1 only, in a background thread. Nothing outside this container can
+ever reach the internal app directly — it is never published and isn't
+bound to a routable address — but the preview app's own outbound fetch runs
+*inside* the same container, so it can reach 127.0.0.1 fine. That gap
+between "not published" and "not reachable from this process" is the whole
+vulnerability.
 
 Env:
   CTF_FLAG         this slot's flag value (plan §5).
@@ -20,6 +21,7 @@ Env:
   INTERNAL_PORT    internal-only listen port (default 5001, loopback only).
 """
 import os
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -87,6 +89,46 @@ def _run_internal():
 
 
 threading.Thread(target=_run_internal, daemon=True).start()
+
+
+# -- Decoy listener (plan §7.3's nmap primer: a student scans their box and
+# finds more than the one port they'll actually use, same as a HackTheBox
+# box) -----------------------------------------------------------------
+# NOT a real sshd: every slot container drops every Linux capability and
+# runs read-only as a non-root user (docker_api.py's build_create_request()),
+# which makes a genuine sshd impossible here at all (host keys, privilege
+# separation and setuid-per-connection all need root). This speaks just
+# enough of the real SSH-2.0 handshake to fingerprint correctly under
+# `nmap -sV`, then closes — there is no key exchange and no account behind
+# it, and it has nothing to do with the internal Flask app above, which
+# stays loopback-only regardless. ctf-controller's AttackManager always
+# reserves this port (DECOY_SSH_CONTAINER_PORT).
+def _decoy_ssh_handler(conn):
+    try:
+        conn.sendall(b"SSH-2.0-OpenSSH_9.7p1 Debian-7\r\n")
+        conn.recv(256)
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+def _start_decoy(port, handler):
+    def _accept_loop():
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("0.0.0.0", port))
+        srv.listen(16)
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                continue
+            threading.Thread(target=handler, args=(conn,), daemon=True).start()
+    threading.Thread(target=_accept_loop, daemon=True).start()
+
+
+_start_decoy(2222, _decoy_ssh_handler)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)

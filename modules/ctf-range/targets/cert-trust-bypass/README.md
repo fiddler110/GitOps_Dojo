@@ -23,6 +23,14 @@ real X.509 cert, check its signer, check its expiry) without needing a full
 mTLS handshake. A student generates the attacking cert with plain
 `openssl req -x509 ...` — the exact tool `cert-autorenewal` already covers.
 
+## Decoy port (nmap)
+
+The attack ladder also publishes a decoy SSH listener on container port
+2222 alongside the real app (plan §7.3's own nmap primer). It speaks just
+enough of the SSH-2.0 banner to fingerprint under `nmap -sV`, then closes —
+not a real sshd; see `app.py`'s decoy-listener comment. The standalone
+`docker run` below only publishes 5000; add `-p 2222:2222` to see it too.
+
 ## Environment
 
 | Var | Meaning | Dev default |

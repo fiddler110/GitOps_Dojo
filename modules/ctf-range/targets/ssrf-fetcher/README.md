@@ -15,13 +15,22 @@ calling `urlopen`.
 ## Why one image runs two servers
 
 The ladder row wants "an internal-only admin endpoint on another service in
-the same target." This architecture gives one published port per slot
-(`docker_api.py`'s `build_create_request()`), so the "other service" is a
-second Flask app in the same process, bound to `127.0.0.1` only, in a
-background thread. It's never published and isn't on a routable address —
-nothing outside the container can reach it — but `/preview`'s own fetch runs
-*inside* the container, so it can reach loopback fine. See `app.py`'s module
-docstring.
+the same target." This target's real-app port is just one port, so the
+"other service" is a second Flask app in the same process, bound to
+`127.0.0.1` only, in a background thread. It's never published and isn't on
+a routable address — nothing outside the container can reach it — but
+`/preview`'s own fetch runs *inside* the container, so it can reach loopback
+fine. See `app.py`'s module docstring.
+
+## Decoy port (nmap)
+
+The attack ladder also publishes a decoy SSH listener on container port
+2222 alongside the public app (plan §7.3's own nmap primer — unrelated to
+the internal admin app above, which stays loopback-only regardless). It
+speaks just enough of the SSH-2.0 banner to fingerprint under `nmap -sV`,
+then closes — not a real sshd; see `app.py`'s decoy-listener comment. The
+standalone `docker run` below only publishes 5000; add `-p 2222:2222` to
+see it too.
 
 ## Environment
 

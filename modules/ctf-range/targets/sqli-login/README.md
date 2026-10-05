@@ -26,6 +26,17 @@ of the password field. The fix (not graded; this target has no gate) is the
 one-line parameterized version, written as a comment in `app.py` right above
 the vulnerable line.
 
+## Decoy port (nmap)
+
+The attack ladder also publishes a decoy SSH listener on container port
+2222 alongside the real app (plan §7.3's own nmap primer — a student scans
+their box and finds more than the port they'll actually use, same as a
+HackTheBox box). It speaks just enough of the SSH-2.0 banner to fingerprint
+under `nmap -sV`, then closes — not a real sshd; see `app.py`'s
+decoy-listener comment for why a real one can't run in this container at
+all. The standalone `docker run` below only publishes 5000; add
+`-p 2222:2222` to see the decoy too.
+
 ## Data
 
 In-process only (`sqlite3.connect(":memory:")`) — an `admin` row with a random

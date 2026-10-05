@@ -18,6 +18,14 @@ allow-list of bindable fields.
 2. `PATCH /users/me` with `{"role": "admin"}` → the record now has `role: admin`.
 3. `GET /admin/report` with that same token → now passes the role check and returns the flag.
 
+## Decoy port (nmap)
+
+The attack ladder also publishes a decoy SSH listener on container port
+2222 alongside the real API (plan §7.3's own nmap primer). It speaks just
+enough of the SSH-2.0 banner to fingerprint under `nmap -sV`, then closes —
+not a real sshd; see `app.py`'s decoy-listener comment. The standalone
+`docker run` below only publishes 5000; add `-p 2222:2222` to see it too.
+
 ## Environment
 
 | Var | Meaning | Dev default |

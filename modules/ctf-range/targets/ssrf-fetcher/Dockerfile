@@ -15,7 +15,10 @@ RUN useradd --uid 10020 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 ENV PORT=5000 \
     INTERNAL_PORT=5001 \
     PYTHONUNBUFFERED=1
-EXPOSE 5000
+# 5001 (loopback-only, never published — see app.py) isn't exposed here on
+# purpose. 2222 is the decoy SSH listener app.py starts alongside the
+# public app (plan §7.3's nmap primer) — not a real sshd.
+EXPOSE 5000 2222
 
 USER ssrffetcher
 WORKDIR /app

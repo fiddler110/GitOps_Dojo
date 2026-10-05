@@ -12,7 +12,10 @@ RUN useradd --uid 10016 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 
 ENV PORT=5000 \
     PYTHONUNBUFFERED=1
-EXPOSE 5000
+# 2222/2121 are the decoy SSH/FTP listeners app.py starts alongside the real
+# app (plan §7.3's nmap primer) — see its module-bottom comment. Neither is
+# a real service.
+EXPOSE 5000 2222 2121
 
 USER idor
 WORKDIR /app

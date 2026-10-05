@@ -35,7 +35,7 @@ class TestCreateRequest(unittest.TestCase):
         self.spec = d.build_create_request(
             image="ctf-customer-portal:base",
             env_pairs=[("CTF_STUDENT", "student01"), ("CTF_FLAG", "flag{x}"), ("PORT", "5000")],
-            container_port=5000, host_port=15000,
+            ports=[(5000, 15000)],
             memory_bytes=128 * 1024 ** 2, pids_limit=256,
             labels={d.LABEL_SLOT: "student01", d.LABEL_USER: "student01"})
 
@@ -68,6 +68,27 @@ class TestCreateRequest(unittest.TestCase):
     def test_env_passthrough(self):
         self.assertIn("CTF_FLAG=flag{x}", self.spec["Env"])
         self.assertIn("CTF_STUDENT=student01", self.spec["Env"])
+
+
+class TestMultiPort(unittest.TestCase):
+    """An attack-ladder slot publishes the real app plus a block of decoy
+    ports (controller.py's Config.attack_ports) — see that module's nmap
+    primer comment."""
+
+    def test_every_pair_published(self):
+        spec = d.build_create_request(
+            image="ctf-attack:ping-tool",
+            env_pairs=[],
+            ports=[(5000, 16000), (2222, 16001), (2121, 16002)],
+            memory_bytes=128 * 1024 ** 2, pids_limit=256,
+            labels={})
+        self.assertEqual(spec["ExposedPorts"],
+                         {"5000/tcp": {}, "2222/tcp": {}, "2121/tcp": {}})
+        self.assertEqual(spec["HostConfig"]["PortBindings"], {
+            "5000/tcp": [{"HostPort": "16000"}],
+            "2222/tcp": [{"HostPort": "16001"}],
+            "2121/tcp": [{"HostPort": "16002"}],
+        })
 
 
 if __name__ == "__main__":
