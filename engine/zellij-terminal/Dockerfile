@@ -1,12 +1,14 @@
-# Zellij terminal flavor: the web-terminal image plus Zellij, micro (editor) and a
-# read-only file listing that follows the shell, so a student works in the browser
-# terminal alone, with no VS Code. Selected by TERMINAL_FLAVOR=zellij (engine/.env or a workshop.env);
-# run.sh builds this on top of web-terminal:base and chains every module and
-# workshop terminal/ link on top of it, exactly as it does for the web flavor.
-# workspace-control.py does the rest at runtime: it sees TERMINAL_FLAVOR and runs
-# Zellij instead of tmux and never starts code-server (so code-server, still in
-# the layers below, costs disk only, never memory).
-ARG BASE=gitopsdojo/web-terminal:base
+# Zellij terminal flavor: the flavor-agnostic web-terminal:core image plus
+# Zellij, micro (editor) and a read-only file listing that follows the
+# shell, so a student works in the browser terminal alone, with no VS Code.
+# Selected by TERMINAL_FLAVOR=zellij (engine/.env or a workshop.env);
+# run.sh builds this on top of web-terminal:core -- a sibling of
+# web-terminal-vscode/ (code-server), not downstream of it, so this image
+# never carries code-server's disk weight at all -- and chains every
+# module and workshop terminal/ link on top of it, exactly as it does for
+# the web flavor. workspace-control.py does the rest at runtime: it sees
+# TERMINAL_FLAVOR and runs Zellij instead of tmux.
+ARG BASE=gitopsdojo/web-terminal:core
 FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends file less micro \

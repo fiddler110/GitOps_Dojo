@@ -121,14 +121,14 @@ class TerminalChain(Quiet):
 
     def test_builds_base_then_each_link_on_the_one_before(self):
         rt = FakeRuntime(cli="docker")
-        rt.ids = {"gitopsdojo/web-terminal:base": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
+        rt.ids = {"gitopsdojo/web-terminal:core": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
         with mock.patch.object(build.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.builder(rt).terminal_chain(self.LINKS)
         cmds = [c[0][0] for c in run.call_args_list]
         self.assertEqual([c[c.index("-t") + 1] for c in cmds],
-                         ["gitopsdojo/web-terminal:base", "gitopsdojo/web-terminal:w.mod-a", "gitopsdojo/web-terminal:w"])
+                         ["gitopsdojo/web-terminal:core", "gitopsdojo/web-terminal:w.mod-a", "gitopsdojo/web-terminal:w"])
         self.assertNotIn("--build-arg", cmds[0])
-        self.assertIn("BASE=gitopsdojo/web-terminal:base", cmds[1])
+        self.assertIn("BASE=gitopsdojo/web-terminal:core", cmds[1])
         self.assertIn("BASE=gitopsdojo/web-terminal:w.mod-a", cmds[2])
         # a child's hash includes its parent's image ID, so a rebuilt parent rebuilds it
         self.assertIn("dojo.src-hash=h-mod|id-base", cmds[1])
@@ -136,8 +136,8 @@ class TerminalChain(Quiet):
 
     def test_unchanged_chain_builds_nothing(self):
         rt = FakeRuntime(cli="docker")
-        rt.ids = {"gitopsdojo/web-terminal:base": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
-        rt.labels = {"gitopsdojo/web-terminal:base": "h-base|", "gitopsdojo/web-terminal:w.mod-a": "h-mod|id-base",
+        rt.ids = {"gitopsdojo/web-terminal:core": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
+        rt.labels = {"gitopsdojo/web-terminal:core": "h-base|", "gitopsdojo/web-terminal:w.mod-a": "h-mod|id-base",
                      "gitopsdojo/web-terminal:w": "h-ws|id-mod"}
         with mock.patch.object(build.subprocess, "run") as run:
             self.builder(rt).terminal_chain(self.LINKS)
@@ -145,8 +145,8 @@ class TerminalChain(Quiet):
 
     def test_dry_run_marks_children_of_a_changed_parent(self):
         rt = FakeRuntime(cli="docker")
-        rt.labels = {"gitopsdojo/web-terminal:base": "h-base|"}       # base unchanged
-        rt.ids = {"gitopsdojo/web-terminal:base": "id-base"}
+        rt.labels = {"gitopsdojo/web-terminal:core": "h-base|"}       # base unchanged
+        rt.ids = {"gitopsdojo/web-terminal:core": "id-base"}
         b = self.builder(rt, dry_run=True)
         with mock.patch.object(build.subprocess, "run") as run:
             b.terminal_chain(self.LINKS)                               # mod-a changed -> w follows
@@ -202,7 +202,7 @@ class ConcurrentImages(Quiet):
         self.assertEqual(len(by_image), 3 + len(build.ENGINE_IMAGES))
         for image, _ in build.ENGINE_IMAGES:
             self.assertIsNotNone(by_image[image]["stdout"])
-        self.assertIsNone(by_image["gitopsdojo/web-terminal:base"]["stdout"])
+        self.assertIsNone(by_image["gitopsdojo/web-terminal:core"]["stdout"])
         self.assertEqual(list(Path(build.tempfile.gettempdir()).glob("dojo-build.*")), [])  # logs of good builds go
 
     def test_a_failure_waits_for_the_others_and_keeps_its_log(self):

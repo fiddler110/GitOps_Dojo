@@ -215,11 +215,14 @@ class Builder:
                 raise exc
 
     def terminal_chain(self, links: List[tuple]) -> None:
-        """:base, then each (image, context) link built FROM the one before. A
-        rebuilt parent rebuilds its children: the parent's image ID is part of
-        each child's hash."""
-        self.build_if_changed("gitopsdojo/web-terminal:base", "./web-terminal", with_ca=True)
-        parent = "gitopsdojo/web-terminal:base"
+        """:core (the flavor-agnostic root both leaves build from), then each
+        (image, context) link built FROM the one before -- the first link is
+        always the one flavor leaf (web-terminal-vscode or zellij-terminal)
+        this run selected (see start.py), so :core's code-server-free build
+        never costs the Zellij flavor anything. A rebuilt parent rebuilds its
+        children: the parent's image ID is part of each child's hash."""
+        self.build_if_changed("gitopsdojo/web-terminal:core", "./web-terminal")
+        parent = "gitopsdojo/web-terminal:core"
         for image, context in links:
             if parent in self.would_build:
                 changed(f"{image}: parent changed, would build")

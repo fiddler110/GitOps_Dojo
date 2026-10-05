@@ -629,10 +629,22 @@ assigned student (name, account, IP, live active/inactive status) at
 in the browser plus a tmux terminal. `zellij` gives a terminal only: a Zellij
 session with a read-only listing of the shell's directory (`dojo-sidebar`), the
 shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it in `engine/.env`
-or a workshop's `workshop.env` (which wins). `run.sh` then builds
-`gitopsdojo/zellij-terminal:base` (`engine/zellij-terminal/`) on top of
-`web-terminal:base` and chains every module and workshop terminal link on it, so
-those links need no change. The same `workspace-control.py` runs in both: with
+or a workshop's `workshop.env` (which wins).
+
+The terminal image chain has one flavor-agnostic root and two sibling leaves:
+`web-terminal:core` (`engine/web-terminal/`) holds everything both flavors
+need (shell, tmux, ttyd, provisioning, the entrypoint) and nothing
+flavor-specific; `gitopsdojo/web-terminal:base` (`engine/web-terminal-vscode/`,
+code-server + its curated extensions) and `gitopsdojo/zellij-terminal:base`
+(`engine/zellij-terminal/`) both build FROM `:core` as siblings, not one on
+top of the other. `run.sh` builds `:core` plus only the one leaf
+`TERMINAL_FLAVOR` selects, then chains every module and workshop terminal
+link on top of that leaf, so those links need no change either way -- they
+only ever see an opaque `ARG BASE`. Splitting the leaves this way means a
+code-server-only change never invalidates the Zellij flavor's build cache
+(and vice versa), and the Zellij flavor never pays code-server's disk/build
+cost at all, which it did when it built on top of the vscode-laden `:base`
+directly. The same `workspace-control.py` runs in both: with
 `zellij` it starts `zellij attach --create main` instead of tmux, the
 facilitator's watch tile runs `zellij watch main` (Zellij's read-only client), and
 `/start/ide` answers 404. The allocator gets the same value and drops the VS Code
@@ -648,7 +660,7 @@ fresh session with README.md and its preview, a `.yaml` and a `.tf` open):
 about **260MB** PSS / **240MB** private memory per student, of which
 roughly 200MB is the extension host, pty host and language servers. That is
 down from about 480MB before the extension trim and code-server node flags
-(`f977209`); see `web-terminal/vscode-extensions.md` and
+(`f977209`); see `web-terminal-vscode/vscode-extensions.md` and
 `CODE_SERVER_MAX_HEAP_MB` below. They're spawned lazily on first `/ide`
 visit and killed on Release — cost scales with concurrently-*active*
 students, not `STUDENT_COUNT`. A room where everyone is connected at once is

@@ -33,9 +33,13 @@ from .stack import compose_args, extra_files, services
 from .ui import bad, changed, console, fail, ok, step
 
 MAX_BOTS = 35
-# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one
-# (engine/zellij-terminal/, built on top of the web-terminal base).
+# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one.
+# Both are sibling leaves built FROM the flavor-agnostic web-terminal:core
+# (engine/web-terminal/); web-terminal-vscode/ and zellij-terminal/ hold the
+# two leaves respectively -- see build.py's terminal_chain() and
+# engine/README.md's "Terminal flavor" section.
 TERMINAL_FLAVORS = ("web", "zellij")
+VSCODE_BASE_IMAGE = "gitopsdojo/web-terminal:base"
 ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
 
 
@@ -267,21 +271,26 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     else:
         ca = ""
 
-    # The terminal image chain: :base -> (the Zellij flavor) -> each module's
-    # terminal/ -> the workshop's. TERMINAL_FLAVOR comes from engine/.env or the
-    # workshop's workshop.env (the latter wins); "zellij" inserts the
-    # zellij-terminal layer on top of :base, so every later link builds FROM it.
+    # The terminal image chain: :core -> the selected flavor leaf -> each
+    # module's terminal/ -> the workshop's. TERMINAL_FLAVOR comes from
+    # engine/.env or the workshop's workshop.env (the latter wins); each
+    # flavor's leaf (web-terminal-vscode/ or zellij-terminal/) builds FROM
+    # :core as a sibling of the other flavor's leaf, not on top of it, so
+    # only the one leaf this run actually needs gets built (build.py's
+    # terminal_chain()), and every later link builds FROM whichever leaf
+    # that was.
     flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
     if flavor not in TERMINAL_FLAVORS:
         raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
     env["TERMINAL_FLAVOR"] = flavor
-    base_image = ZELLIJ_BASE_IMAGE if flavor == "zellij" else "gitopsdojo/web-terminal:base"
-    links = [(ZELLIJ_BASE_IMAGE, "./zellij-terminal")] if flavor == "zellij" else []
+    flavor_leaf = (ZELLIJ_BASE_IMAGE, "./zellij-terminal") if flavor == "zellij" \
+        else (VSCODE_BASE_IMAGE, "./web-terminal-vscode")
+    links = [flavor_leaf]
     links += [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
               for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
         links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
-    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else base_image
+    env["WEB_TERMINAL_IMAGE"] = links[-1][0]
 
     files = extra_files(res)
     overlay_dirs = [f"../modules/{m}" for m in res.modules if (paths.MODULES / m / "compose.yml").is_file()]
