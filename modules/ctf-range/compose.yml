@@ -164,12 +164,15 @@ services:
   # ctf-controller: the single, unprivileged client of ctf-host. Stdlib Python,
   # no capability of its own except membership in the socket group (group_add
   # 1901, the CTF_GID ctf-host sets). On `ctf_ops` for ctf-host and the
-  # allocator/admin, and ALSO on `runner_net` so the defend pipeline's merge
-  # job (defend-main.yml, running in the runner pool, spike S6) can POST
-  # /redeploy directly — never by a student either way. Dual-homing widens
-  # only reachability, not capability: every mutating route still fails
-  # closed on the same constant-time control-token check regardless of which
-  # network a request arrives on.
+  # allocator/admin, ALSO on `runner_net` so the defend pipeline's merge job
+  # (defend-main.yml, running in the runner pool, spike S6) can POST
+  # /redeploy directly, and now ALSO on `workshop_lab` for the attack-range
+  # card's /attack/* paths (plan §4, CTF-D20) — a student's own browser,
+  # through the gateway's identity gate. Dual-/triple-homing widens only
+  # reachability, not capability: /redeploy, /reconcile and /slots still fail
+  # closed on the Bearer control-token check regardless of which network a
+  # request arrives on, and /attack/* is a wholly separate check (gateway
+  # token + X-Auth-User, dojo_http.py) that those paths never accept.
   ctf-controller:
     build:
       context: ../modules/ctf-range/ctf-controller
@@ -196,6 +199,18 @@ services:
       - CTF_TARGET_PIDS_LIMIT=${CTF_TARGET_PIDS_LIMIT:-256}
       # The control token the allocator / defend pipeline authenticate with.
       - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      # This upstream's own gateway token (render_extensions.py derives it
+      # from extensions.json's "ctf-attack" identity route; FIND-16), and the
+      # facilitator account name, so /attack/* can tell that account apart
+      # from a real student slot.
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_CONTROLLER:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
+      # The CTF-1..4 attack-ladder catalog and its queue/idle tuning (plan §4,
+      # CTF-D20) — see module.env for why CTF_ATTACK_TARGETS defaults empty.
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      - CTF_ATTACK_PORT_BASE=${CTF_ATTACK_PORT_BASE:-16000}
+      - CTF_ATTACK_IDLE_SECONDS=${CTF_ATTACK_IDLE_SECONDS:-1200}
+      - CTF_ATTACK_MAX_CONCURRENT=${CTF_ATTACK_MAX_CONCURRENT:-10}
     volumes:
       - ctf_run:/run/ctf
     # The ctf-host socket is 0660 root:ctf (gid 1901); the controller is the
@@ -205,12 +220,19 @@ services:
     networks:
       - ctf_ops
       - runner_net
+      - workshop_lab
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     mem_limit: ${CTF_CONTROLLER_MEM_LIMIT:-128m}
     pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     restart: unless-stopped
 
   # ctf-builder: the ONLY thing allowed to ask ctf-host to build (spike S6).

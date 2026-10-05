@@ -54,8 +54,21 @@ it enables, and ships its own labs and slides.
 > `ctf-lab-info` (stock Caddy, `file_server`, mounting `terminal/content/lab-info`
 > read-only) plus this module's `extensions.json` (a "Lab Info" card,
 > `/admin` tab, and `gate: "shared"` route — one copy, identical for every
-> student). The CTF-1 to CTF-4 start/stop toggle + queue
-> (CTF-D20) is also **not built yet**. Do not wire a workshop to this
+> student). Also now: the **CTF-1 to CTF-4 start/stop toggle + queue** (plan
+> §4 "Student-controlled targets, one live per slot", decision CTF-D20) — a
+> new `AttackManager` in `ctf-controller/controller.py`, separate from the
+> always-on CTF-5 reconcile loop above: a FIFO start/reset queue (at most
+> `CTF_ATTACK_MAX_CONCURRENT` jobs at once), a per-student state machine
+> (stopped/queued/starting/live/error), and a time-based idle auto-stop
+> (`CTF_ATTACK_IDLE_SECONDS` — a documented simplification; the controller
+> has no visibility into a target's actual traffic). Fully generic over
+> `CTF_ATTACK_TARGETS` (`module.env`), which defaults to empty — the real
+> target-1..4 images are CTF-S8, not built yet — so wiring one in is a
+> config change, never a code change. The card itself
+> (`ctf-controller/static/`, `extensions.json`'s `"ctf-attack"` id) is a
+> small page `ctf-controller` serves directly behind the gateway's
+> `identity` gate, polling `GET attack/status` and driving
+> `POST attack/{start,stop,reset}`. Do not wire a workshop to this
 > module expecting a full range, and note
 > `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
 > anything once a workshop pack also lists `runner-pool` in `MODULES` (see
@@ -92,7 +105,14 @@ it enables, and ships its own labs and slides.
   stop / rm — never build). It reconciles one always-on slot per student
   (CTF-5 model) and serves `POST /redeploy`, the live tail of the S6 loop that
   `defend-main.yml` calls. `flags.py` renders the §5 per-slot flag; the seed
-  lives only here, never in a target. Unit tests in `ctf-controller/tests/`.
+  lives only here, never in a target. A second class, `AttackManager`, is the
+  CTF-1 to CTF-4 toggle (CTF-D20): its own queue/state machine, its own slot
+  name and port range, nothing shared with reconcile() except the executor.
+  Its `/attack/*` HTTP paths are gateway-identity-gated (`GATEWAY_TOKEN` +
+  `X-Auth-User`, `dojo_http.py` — the `SHARED=` copy in `module.env`), a
+  different scheme from `/redeploy`'s Bearer control token, and reachable
+  because this service is now also on `workshop_lab` (compose.yml). Its page
+  shell lives in `static/`. Unit tests in `ctf-controller/tests/`.
 - `ctf-builder/` — the single, unprivileged client that may ask `ctf-host` to
   **build** (stdlib Python; spike S6). The only thing `ctf-controller`
   deliberately never does — see `ctf-controller/docker_api.py`'s docstring.

@@ -19,6 +19,9 @@ LABEL_MANAGED = "ctf.managed"
 LABEL_SLOT = "ctf.slot"
 LABEL_USER = "ctf.user"
 LABEL_IMAGE = "ctf.image"
+# Which catalog entry an attack slot (controller.py's AttackManager, CTF-D20)
+# is currently running; the always-on CTF-5 slots above never set this.
+LABEL_TARGET = "ctf.target"
 
 
 class DockerError(Exception):
@@ -36,16 +39,18 @@ class _UnixConnection(http.client.HTTPConnection):
         self.sock.connect(self._path)
 
 
-def allowed_image(image, registry_prefix):
-    """A slot may only ever run the base target image or a tag the in-lab
-    registry serves under the approved prefix (what defend-main.yml pushes).
-    Anything else — a Hub image, a latest tag, a different name — is refused
-    before it reaches the daemon."""
+def allowed_image(image, registry_prefix, extra=()):
+    """A slot may only ever run the base target image, a tag the in-lab
+    registry serves under the approved prefix (what defend-main.yml pushes),
+    or one of EXTRA — the attack-range catalog (controller.py's
+    CTF_ATTACK_TARGETS, CTF-D20), a short, config-supplied allow-list of exact
+    image tags, never a pattern. Anything else — a Hub image, a latest tag, a
+    different name — is refused before it reaches the daemon."""
     if image == "ctf-customer-portal:base":
         return True
     if registry_prefix and image.startswith(registry_prefix + "/"):
         return True
-    return False
+    return image in extra
 
 
 def build_create_request(image, env_pairs, container_port, host_port,
@@ -87,9 +92,10 @@ def build_create_request(image, env_pairs, container_port, host_port,
 
 
 class Executor:
-    def __init__(self, socket_path, registry_prefix=""):
+    def __init__(self, socket_path, registry_prefix="", extra_images=()):
         self.socket_path = socket_path
         self.registry_prefix = registry_prefix
+        self.extra_images = frozenset(extra_images)
 
     def _call(self, method, path, body=None, timeout=30):
         conn = _UnixConnection(self.socket_path, timeout=timeout)
@@ -119,7 +125,7 @@ class Executor:
     def pull(self, image):
         """Pull an allow-listed image from the in-lab registry. Offline posture:
         the registry is internal (CTF-D24); this never reaches the internet."""
-        if not allowed_image(image, self.registry_prefix):
+        if not allowed_image(image, self.registry_prefix, self.extra_images):
             raise DockerError(f"image {image!r} is not allowed")
         status, data = self._call("POST", f"/images/create?fromImage={quote(image, safe='')}",
                                   timeout=120)
@@ -128,7 +134,7 @@ class Executor:
 
     def create(self, name, image, env_pairs, container_port, host_port,
                memory_bytes, pids_limit, labels):
-        if not allowed_image(image, self.registry_prefix):
+        if not allowed_image(image, self.registry_prefix, self.extra_images):
             raise DockerError(f"image {image!r} is not allowed")
         spec = build_create_request(image, env_pairs, container_port, host_port,
                                     memory_bytes, pids_limit, labels)

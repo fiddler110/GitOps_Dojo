@@ -7,6 +7,10 @@
 FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
 COPY controller.py docker_api.py flags.py /app/
+COPY _shared/ /app/_shared/
+# The attack-range card's page shell (plan §4, CTF-D20) — static assets only,
+# served by controller.py itself; nothing here talks to ctf-host.
+COPY static/ /app/static/
 WORKDIR /app
 
 # A fixed non-root uid. The socket group is granted at runtime (compose

@@ -7,11 +7,12 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ---
 
-### ⏩ Resume here (checkpoint 2026-10-05b)
+### ⏩ Resume here (checkpoint 2026-10-05c)
 
 **Phase:** CTF-P0 spikes mostly answered; CTF-P1 build well underway on `feat/zellij-terminal`. Target 14
 `customer-portal` is the only target image built; target 6 `dns-resolver-cve` is fully decided and de-risked (see
-`CTF-SPIKES.md`) but not yet built.
+`CTF-SPIKES.md`) but not yet built; targets 1-4 (the attack ladder CTF-D20 toggles between) are CTF-S8, also not
+built yet.
 
 **Built and live-verified, in order:** target 14 `customer-portal` scaffold + its informational SAST stage and
 defend pipeline; the range control plane (`ctf-host` + `ctf-controller`, CTF-D21/S14); spike S6's full defend loop —
@@ -20,24 +21,29 @@ end on `workshops/ctf-defend-test` at **83s push-to-redeployed**, with both of S
 same day; the digest-sync check (`check-pins.sh`); the `ctf-flags` submission service (§5) and per-uid target
 isolation (CTF-S2/S3), live-verified with real submissions and firewall checks; the wall of shame (§8.12) **minimal
 slice** — event, storage, route — scoped down since the bot swarm/SOC feed it needs to mean anything isn't built
-yet; the offensive tool suite in the terminal image (§9); the **Lab Info library content** (CTF-D16, CTF-P2b) — the
-Linux/shell primer plus one primer per installed tool, baked into every account's `~/lab-info` with no engine
-change; and now **CTF-P2b's other half, the browser route**: a new `ctf-lab-info` service (stock Caddy, `file_server`,
-read-only mount of the same `content/lab-info` directory) plus `modules/ctf-range/extensions.json` (card, `/admin`
-tab, `gate: "shared"` route, status check). Live-verified on `workshops/ctf-defend-test`: logged in as a real
-assigned student and as the facilitator, both reached `/lab-info/` (directory listing) and individual primers
-(`nmap.md`, `opa.md`) over the real gateway route with a 200, and the facilitator's `/admin` page renders the
-matching "Lab Info" tab. One build snag worth remembering for the next Caddy-as-static-server service: `caddy`'s
-binary carries a `cap_net_bind_service` *file* capability (so it can bind low ports non-root), and `cap_drop: ALL`
-with no `cap_add` makes the kernel refuse to exec it at all ("Operation not permitted"), even on an unprivileged
-port — same fix as `runner-pool-shim`/`openbao-sso-shim`, add `NET_BIND_SERVICE` back. Full detail in `ROADMAP.md`'s
-CTF row and in git history; this checkpoint only tracks what's next.
+yet; the offensive tool suite in the terminal image (§9); the **Lab Info library** (CTF-D16, CTF-P2b), content and
+browser route both; and now the **CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20)**: a new `AttackManager` in
+`ctf-controller/controller.py`, entirely separate from the always-on CTF-5 reconcile loop it sits beside — a FIFO
+start/reset queue capped at `CTF_ATTACK_MAX_CONCURRENT`, a per-student state machine (stopped → queued → starting →
+live/error), and a time-based idle auto-stop (a documented simplification — the controller has no visibility into a
+target's actual traffic). Fully generic over `CTF_ATTACK_TARGETS` (`module.env`, empty by default, since the real
+target-1..4 images are CTF-S8), so wiring a real target is a config change, never a code change. The card
+(`extensions.json`'s `"ctf-attack"` id) is a small page `ctf-controller` now serves directly — it also joined
+`workshop_lab` — behind the gateway's `identity` gate, a different auth scheme (`GATEWAY_TOKEN` + `X-Auth-User`,
+`dojo_http.py`) from the existing `/redeploy`/`/slots` Bearer-token paths, which are untouched. **Live-verified** on
+`workshops/ctf-defend-test` with a temporary `CTF_ATTACK_TARGETS` override pointing one catalog id at the
+already-built customer-portal base image (kept in that pack's `workshop.env` as a reusable test fixture, same as
+its tokens): a real assigned student started it (queued → live), reset it (requeued, came back live), and stopped
+it; the facilitator's `/attack/status` correctly reports no slot of its own and the `/admin` page renders the
+"Attack Range" tab; the plan's "one request per student, not stacked" and "stop skips the queue" rules both held
+under a real HTTP sequence. Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks
+what's next.
 
-**👉 Next step (do this next):** no single next step dominates — two independent threads are open:
-
-1. The CTF-1 to CTF-4 student-controlled start/stop toggle + queue (CTF-D20) — CTF-5's always-on model is done;
-   the attack-ladder sessions still need it.
-2. The attacker-bot persona swarm + SOC event feed (§8.2-8.11) — what the wall of shame needs to mean anything live.
+**👉 Next step (do this next):** the attacker-bot persona swarm + SOC event feed (§8.2-8.11) — what the wall of
+shame needs to mean anything live. (A parallel session was already building this independently as CTF-D20 landed;
+check `ROADMAP.md`/git history for its state before starting from scratch.) After that: the CTF-S8 target-1..4
+images the attack ladder now has a toggle for but nothing to toggle yet, and the SAST/IaC/secret/SCA scanners for
+targets 8-11.
 
 Also open: the IaC/secret/SCA scanners for targets 8-11 on the SAST side (S17 in `CTF-SPIKES.md`), and the seven
 not-yet-built target images (S8).

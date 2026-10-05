@@ -29,11 +29,20 @@
 # entrypoint already used to provision accounts (roster order must match
 # controller.py's Config.index exactly, or a uid's rule would point at a
 # different student's slot).
+#
+# Also opens CTF_ATTACK_PORT_BASE + index (plan §4 "Student-controlled
+# targets", decision CTF-D20): the CTF-1..4 toggle's AttackManager publishes
+# a student's live target on that second, separate port range on the same
+# ctf-host address, so the same per-uid rule shape applies twice, once per
+# range. A student's attack slot being stopped most of the time doesn't
+# need a conditional rule here - an ACCEPT for a port nothing is listening on
+# yet is a no-op, and the rule is already in place the moment they start one.
 set -eu
 
 student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
 host_port_base="${CTF_HOST_PORT_BASE:-15000}"
+attack_port_base="${CTF_ATTACK_PORT_BASE:-16000}"
 
 if ! getent hosts ctf-host >/dev/null 2>&1; then
   echo "ctf-range: ctf-host not resolvable (ctf_net not joined yet?); skipping firewall rules" >&2
@@ -55,10 +64,12 @@ iptables -A CTF_ISOLATION -p tcp -m owner --uid-owner 0 -d "$ctf_host_ip" -j ACC
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
-  port=$((host_port_base + counter - 1))  # 0-based index, same as controller.py's Config.index
+  port=$((host_port_base + counter - 1))         # 0-based index, same as controller.py's Config.index
+  attack_port=$((attack_port_base + counter - 1))  # AttackManager's own range (CTF-D20)
   uid="$(id -u "$username" 2>/dev/null || true)"
   if [ -n "$uid" ]; then
     iptables -A CTF_ISOLATION -p tcp --dport "$port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
+    iptables -A CTF_ISOLATION -p tcp --dport "$attack_port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
   fi
   counter=$((counter + 1))
 done
