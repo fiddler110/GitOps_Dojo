@@ -431,11 +431,16 @@ def _dry_run_checks(p: Plan) -> int:
     step("Checking image pins")
     pins = subprocess.run(["sh", "scripts/check-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
     if pins.returncode == 0:
-        ok("every external image pinned by digest")
+        ok("every external image pinned by digest, and shared pins agree")
     else:
-        for line in (pins.stdout + pins.stderr).strip().splitlines()[:-2]:
+        pins_lines = (pins.stdout + pins.stderr).strip().splitlines()
+        is_drift = any(line.startswith("pin drift:") for line in pins_lines)
+        for line in pins_lines[:-2]:
             bad(line)
-        bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
+        if is_drift:
+            bad("pin drift: bump every copy of a shared base image together (see scripts/check-pins.sh)")
+        else:
+            bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
     console.print()
     step("Checking tool pins")
     tools = subprocess.run(["sh", "scripts/check-tool-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
@@ -448,7 +453,8 @@ def _dry_run_checks(p: Plan) -> int:
     console.print()
     console.print(f"Would run: compose {' '.join(compose_args(p.files))} up -d")
     if pins.returncode != 0 or tools.returncode != 0:
-        found = " and ".join(w for w in ("unpinned images" if pins.returncode != 0 else "",
+        pins_problem = "drifted image pins" if (pins.returncode != 0 and is_drift) else "unpinned images"
+        found = " and ".join(w for w in (pins_problem if pins.returncode != 0 else "",
                                         "drifted tool pins" if tools.returncode != 0 else "") if w)
         fail(f"Dry run complete: nothing was built or started, but {found} were found.")
         return 1
