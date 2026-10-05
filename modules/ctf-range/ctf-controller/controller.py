@@ -36,7 +36,12 @@ import docker_api
 import flags
 
 TICK = 10          # reconcile loop period, seconds
-HOST_PORT_BASE = 15000  # per-slot published port inside ctf-host: BASE + index
+# Per-slot published port inside ctf-host: BASE + index. Overridable
+# (CTF_HOST_PORT_BASE) because the web-terminal firewall hook
+# (modules/ctf-range/terminal/start.d/50-ctf-range.sh) computes the same
+# address from the same roster/index and must agree with this value - see
+# that hook's header comment.
+HOST_PORT_BASE = 15000
 
 
 def _mem_bytes(text, default=128 * 1024 ** 2):
@@ -69,6 +74,7 @@ class Config:
         self.mem_bytes = _mem_bytes(env.get("CTF_TARGET_MEM_LIMIT", "128m"))
         self.pids = int(env.get("CTF_TARGET_PIDS_LIMIT", "256"))
         self.seed = env.get("STUDENT_PASSWORD_SEED", "")
+        self.host_port_base = int(env.get("CTF_HOST_PORT_BASE", "") or HOST_PORT_BASE)
         self.users = roster(env)
         # Stable per-user index → container name and published port, so a
         # recreate keeps the same address (§4 "Stable slot address").
@@ -78,7 +84,7 @@ class Config:
         return f"ctf-{flags.CHALLENGE}-{user}"
 
     def host_port(self, user):
-        return HOST_PORT_BASE + self.index.get(user, 0)
+        return self.host_port_base + self.index.get(user, 0)
 
 
 class Controller:

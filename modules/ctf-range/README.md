@@ -14,19 +14,27 @@ labs and slides.
 > exploit-gate on PR, rebuild→redeploy on merge); the **range control
 > plane** — the boxed `ctf-host` Docker-in-Docker daemon and its one client
 > `ctf-controller` (CTF-D21 / spike S14), which owns the per-student target
-> slots and performs the live redeploy-in-place the pipeline calls; and now
-> the **in-lab registry + `ctf-builder`** (spike S6's remaining half):
+> slots and performs the live redeploy-in-place the pipeline calls; the
+> **in-lab registry + `ctf-builder`** (spike S6's remaining half):
 > `defend-main.yml` POSTs a ref to `ctf-builder`, which clones the student's
 > own repo itself, builds and pushes it via `ctf-host`'s socket under the
 > slot's own tag, then the same job POSTs `ctf-controller`'s `/redeploy` to
-> swap the running slot in place. The `ctf-flags` submission service (§5 —
-> the controller renders flags inline for now), the firewall/isolation hooks
-> and SNAT (spikes CTF-S2/S3), the CTF-1 to CTF-4 start/stop toggle + queue
-> (CTF-D20), and the CTF-5 live bots / SOC feed / **wall of shame** (§8) are
-> **not built yet**. Do not wire a workshop to this module expecting a full
-> range, and note `ctf-builder`/`ctf-controller`'s `runner_net` reachability
-> only does anything once a workshop pack also lists `runner-pool` in
-> `MODULES` (see "Range control plane" below) — no such pack exists yet.
+> swap the running slot in place; and now the **`ctf-flags` submission
+> service** (§5 — a student's own HMAC flag, verified against the same seed
+> `ctf-controller` renders slots with, credits the achievement through the
+> usual signed adapter path) plus the **per-uid target reachability wiring**
+> (spikes CTF-S2/S3): `web-terminal` joins `ctf_net`, and
+> `terminal/start.d/50-ctf-range.sh` restricts each student's uid to exactly
+> their own slot's published port on `ctf-host`. No SNAT is needed — CTF-D21's
+> boxed `ctf-host` (one address, one port per slot, `--icc=false`) made the
+> plan's original per-target-network/SNAT sketch moot; see that hook's header
+> comment. The CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20), the
+> offensive tool suite + Lab Info library (§9, CTF-P2b/P3), and the CTF-5 live
+> bots / SOC feed / **wall of shame** (§8.12) are **not built yet**. Do not
+> wire a workshop to this module expecting a full range, and note
+> `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
+> anything once a workshop pack also lists `runner-pool` in `MODULES` (see
+> "Range control plane" below) — no such pack exists yet.
 
 ## Layout
 
@@ -35,11 +43,17 @@ labs and slides.
 - `compose.yml` — layered onto `engine/docker-compose.yml` by `engine/run.sh`
   when a `workshop.env` lists `ctf-range` in `MODULES`. Relative paths resolve
   against `engine/`, **not** this folder. Defines the `ctf_net` target
-  network, a single dev instance of target 14, and the control plane
-  (`ctf-host`, `ctf-controller`, `registry`, `ctf-builder`) split across the
-  internal `ctf_ops` network and (for `ctf-builder` and `ctf-controller`) the
+  network (now carrying `ctf-host` and `web-terminal` — the only address a
+  student's terminal may reach at all), a single dev instance of target 14,
+  `ctf-flags` on `workshop_lab`, and the control plane (`ctf-host`,
+  `ctf-controller`, `registry`, `ctf-builder`) split across the internal
+  `ctf_ops` network and (for `ctf-builder` and `ctf-controller`) the
   `runner_net` network that `modules/runner-pool` owns — see "Range control
-  plane" below for which service sits on which network, and why.
+  plane" below for which service sits on which network, and why. The
+  `web-terminal` fragment here adds only `ctf_net` and uses the **map** form
+  (`ctf_net: {}`) because the base service's own `networks:` is map-form,
+  for the `terminal_ingress` alias (`engine/docker-compose.yml`) — mixing
+  list and map fails `up` under podman-compose (CLAUDE.md).
 - `targets/<name>/` — one self-contained vulnerable target per directory. Each
   builds to its own image and carries its own README, flaw and reference
   exploit. `targets/customer-portal/` is target 14.
@@ -66,6 +80,23 @@ labs and slides.
   pinned by digest) — the in-lab image registry `ctf-builder` pushes to and
   `ctf-host`'s `dockerd` pulls from. Internal-only, `ctf_ops` only, no
   published port, no auth (never reachable from a student or the internet).
+- `ctf-flags/` — the flag submission service (plan §5; stdlib Python).
+  Verifies a submitted flag against the same per-slot HMAC `ctf-controller`
+  renders slots with (own copy of the tiny `flags.py`, deliberately not
+  shared — see its header), then credits the achievement over the same
+  signed `/api/adapter` path `dns-gate`/`cloud-api`/`openbao-audit` use. On
+  `workshop_lab`, reachable directly by every student's terminal — `user` is
+  self-asserted (whoever's uid the CLI ran as), which is fine here because
+  the real secret is the flag value, not the identity claim (see the
+  service's header). Unit tests in `ctf-flags/tests/`.
+- `terminal/` — this module's link in the terminal build chain
+  (`engine/run.sh`). Ships `dojo-flag` (the CLI for `ctf-flags`) and
+  `start.d/50-ctf-range.sh`, the per-uid firewall hook that restricts each
+  student's uid to exactly their own slot's published port on `ctf-host`
+  (spikes CTF-S2/S3). Deliberately does **not** yet carry the offensive tool
+  suite (`nmap`, `sqlmap`, …) or the Lab Info library — separate, larger work
+  (plan §9, CTF-P2b/P3); a pack needing those adds its own
+  `compose/terminal/Dockerfile` link on top of this one meanwhile.
 
 ## Range control plane (CTF-D21 / spike S14, build/push half spike S6)
 

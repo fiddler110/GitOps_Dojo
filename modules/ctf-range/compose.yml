@@ -13,12 +13,17 @@
 #     are owned, which is why Compose does not need to loop to make N of them
 #     (spike CTF-S1 is answered by the controller, not a generated fragment).
 #
-# STILL NOT WIRED: the web-terminal join to ctf_net, the per-uid OUTPUT
-# firewall rules and target-to-target isolation / SNAT (spikes CTF-S2/S3),
-# and the CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20). The controller
-# here implements the CTF-5 always-on model and the redeploy-in-place
-# endpoint; the in-lab registry + the build/push half of spike S6 are below
-# (`registry`, `ctf-builder`).
+# WIRED (2026-10-05): web-terminal joins ctf_net, which now also carries
+# ctf-host (its one address there, published slot ports only); the per-uid
+# OUTPUT firewall rule is modules/ctf-range/terminal/start.d/50-ctf-range.sh,
+# and `ctf-flags` (below) is the submission service from plan §5. No
+# per-target SNAT is needed - see that hook's header comment for why CTF-D21
+# superseded the plan's original per-target-network sketch.
+#
+# STILL NOT WIRED: the CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20).
+# The controller here implements the CTF-5 always-on model and the
+# redeploy-in-place endpoint; the in-lab registry + the build/push half of
+# spike S6 are below (`registry`, `ctf-builder`).
 
 services:
   # One standalone instance of target 14 for development (NOT the range path;
@@ -104,11 +109,17 @@ services:
 
   # ctf-host: a boxed privileged Docker-in-Docker daemon that holds the target
   # slots. Privileged is acceptable ONLY because of how it is boxed in, exactly
-  # as dojo-cloud's cloud-host: it is on the `internal: true` ctf_ops network
-  # with no route to the internet, the gateway, Forgejo, workshop_lab or any
-  # student; it publishes nothing to the host; and its only listener is the
-  # unix socket it shares with ctf-controller. The target image is baked in at
-  # build time and imported at start (offline). See modules/ctf-range/ctf-host.
+  # as dojo-cloud's cloud-host: its control-plane side is the `internal: true`
+  # ctf_ops network, with no route to the internet, the gateway, Forgejo or
+  # workshop_lab; it publishes nothing to the host; and its only listener
+  # there is the unix socket it shares with ctf-controller. It is ALSO a
+  # member of `ctf_net` (also internal, below) — the one address a student's
+  # terminal is allowed to reach at all, on exactly their own slot's
+  # published port (CTF-S2/S3; see the terminal firewall hook). The two
+  # networks are separate bridges: joining ctf_net gives students no
+  # visibility into ctf_ops's other members (ctf-controller, the registry).
+  # The target image is baked in at build time and imported at start
+  # (offline). See modules/ctf-range/ctf-host.
   ctf-host:
     build:
       # Context is the module root so the build can reach targets/; the
@@ -131,6 +142,7 @@ services:
       - ctf_docker:/var/lib/docker
     networks:
       - ctf_ops
+      - ctf_net
     depends_on:
       registry:
         condition: service_started
@@ -264,6 +276,47 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # ctf-flags: the flag submission service (plan §5). Reachable directly by
+  # every student's terminal on workshop_lab (no gateway hop — the terminal
+  # is already the identified side of that trust boundary, see CLAUDE.md);
+  # it verifies a submitted flag itself and credits achievements through the
+  # same signed adapter path dns-gate/cloud-api/openbao-audit use. Holds the
+  # range-wide flag seed, same trust tier as ctf-controller, but no socket
+  # and no volume beyond its own code.
+  ctf-flags:
+    build:
+      context: ../modules/ctf-range/ctf-flags
+    image: gitopsdojo/ctf-flags:local
+    container_name: workshop_ctf_flags
+    environment:
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
+    networks:
+      - workshop_lab
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_FLAGS_MEM_LIMIT:-64m}
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # The terminal's client side (dojo-flag, the ctf_net firewall hook) is
+  # terminal/, a link in the terminal build chain (engine/run.sh). web-terminal's
+  # base `networks:` uses the MAP form (engine/docker-compose.yml, for the
+  # terminal_ingress alias) — a fragment that adds networks here MUST use map
+  # form too, or podman-compose fails mixing list and map (CLAUDE.md).
+  web-terminal:
+    networks:
+      ctf_net: {}
+
 volumes:
   ctf_customer_portal_data:
   ctf_run:
@@ -272,8 +325,10 @@ volumes:
 
 networks:
   # The range network: internal, no route to the internet, the gateway,
-  # Forgejo or workshop_lab (§4, §6). The real range adds per-student firewall
-  # rules so each uid reaches exactly its own target; that is spike CTF-S2.
+  # Forgejo or workshop_lab (§4, §6). Carries ctf-host (its one address,
+  # published slot ports only) and web-terminal; the per-student firewall
+  # rule restricting each uid to its own slot's port is
+  # modules/ctf-range/terminal/start.d/50-ctf-range.sh (spike CTF-S2).
   ctf_net:
     internal: true
   # The control-plane network: ctf-host, ctf-controller and the in-lab

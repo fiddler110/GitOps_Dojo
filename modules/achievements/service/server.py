@@ -14,7 +14,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   POST /api/shell         one command line from the prompt hook {cmd, exit, branch, ...}:
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
-  POST /api/adapter       a module's event (dns-gate, cloud-api, openbao-audit), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
+  POST /api/adapter       a module's event (dns-gate, cloud-api, openbao-audit, ctf-flags), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):

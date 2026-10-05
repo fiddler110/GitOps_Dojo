@@ -356,14 +356,15 @@ def _dns_match(m, ev):
     return True
 
 
-# -- cloud, bao, ca (posted by the owning module, signed; see server.py /api/adapter) -----------
+# -- cloud, bao, ca, ctf (posted by the owning module, signed; see server.py /api/adapter) -------
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
               "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
+    "ctf": ("flag_solved",),
 }
-ADAPTER_TEXT = ("reason", "mount", "role", "op", "path")
+ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge")
 
 
 def adapter_event(body):
@@ -392,7 +393,7 @@ def adapter_event(body):
 
 
 def _adapter_match(m, ev):
-    for key in ("event", "reason", "mount", "role"):
+    for key in ("event", "reason", "mount", "role", "challenge"):
         if not _value_ok(m, ev, key, ev["user"]):
             return False
     for key in ("ok", "root"):
@@ -425,7 +426,7 @@ class Matcher:
             for a in alts:
                 if isinstance(a, dict) and a.get("source") == "verify":
                     self.state_rules.append((iid, a))
-                elif isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns", "cloud", "bao", "ca"):
+                elif isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns", "cloud", "bao", "ca", "ctf"):
                     compiled.append((a, re.compile(a["regex"]) if "regex" in a else None))
             if compiled:
                 self.rules.append((iid, compiled))
@@ -447,7 +448,8 @@ class Matcher:
                     continue
                 ok = {"shell": lambda: _shell_match(m, event, rx), "forgejo": lambda: _forgejo_match(m, event),
                       "dns": lambda: _dns_match(m, event), "cloud": lambda: _adapter_match(m, event),
-                      "bao": lambda: _adapter_match(m, event), "ca": lambda: _adapter_match(m, event)}[event["source"]]()
+                      "bao": lambda: _adapter_match(m, event), "ca": lambda: _adapter_match(m, event),
+                      "ctf": lambda: _adapter_match(m, event)}[event["source"]]()
                 if ok and "count" in m:
                     ok = bump is not None and bump(iid) >= m["count"]
                 if ok:

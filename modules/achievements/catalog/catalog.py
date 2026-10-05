@@ -40,14 +40,16 @@ PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge", "require_match"}
 LAB_FIELDS = {"id", "title"}
 # `service` means the service fires the item itself (the cheating tiers).
-MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "verify", "lab")
+MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ctf", "verify", "lab")
 # Sources whose events a module posts to /api/adapter, matched on the same few generic fields.
-ADAPTER_SOURCES = ("cloud", "bao", "ca")
+ADAPTER_SOURCES = ("cloud", "bao", "ca", "ctf")
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
               "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
+    # ctf-flags (modules/ctf-range/ctf-flags) posts this once a submitted flag verifies (plan §5).
+    "ctf": ("flag_solved",),
 }
 
 # The structured trigger (`match`) for the sources the service matches itself
@@ -84,6 +86,9 @@ ADAPTER_EVENTS = {
 #             (false = the request was refused), status (HTTP code), root (the token carried the root
 #             policy), op (read | create | update | delete | list), path_prefix (inside the student's namespace)
 #     ca      event: rate_limited | order_failed | order_issued
+#   ctf: one event posted (signed) by the ctf-flags service (modules/ctf-range) once a submitted
+#     flag verifies. event: flag_solved; challenge "sqli-login" ({user} allowed, since a flag's
+#     challenge name never embeds the student)
 #   verify: a state milestone. Not an event: the service runs these assertions (the same verbs a challenge
 #     uses, `{user}` allowed) for each active student every few seconds and unlocks it the first time they
 #     all pass. `verify` is a list of {verb, ...args}; the student's own space only, like a challenge.
@@ -104,6 +109,7 @@ MATCH_FIELDS = {
     "bao": {"event", "mount", "mount_not", "role", "role_not", "ok", "status", "root", "op", "path_prefix",
             "requires", "requires_not", "count"},
     "ca": {"event", "reason", "reason_not", "requires", "requires_not", "count"},
+    "ctf": {"event", "challenge", "challenge_not", "requires", "requires_not", "count"},
     "verify": {"verify", "requires", "requires_not"},
 }
 DNS_EVENTS = ("zone_patch", "api_refused")
