@@ -48,8 +48,10 @@ ADAPTER_EVENTS = {
               "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
-    # ctf-flags (modules/ctf-range/ctf-flags) posts this once a submitted flag verifies (plan §5).
-    "ctf": ("flag_solved",),
+    # ctf-flags (modules/ctf-range/ctf-flags) posts flag_solved once a submitted flag verifies
+    # (plan §5). dump_success is an attacker's successful dump against a student's target,
+    # driving the wall of shame (§8.12); no real attacker-bot source posts it yet.
+    "ctf": ("flag_solved", "dump_success"),
 }
 
 # The structured trigger (`match`) for the sources the service matches itself

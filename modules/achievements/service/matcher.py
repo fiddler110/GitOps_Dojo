@@ -362,7 +362,9 @@ ADAPTER_EVENTS = {
               "container_updated", "container_deleted", "container_replaced", "policy_written"),
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
-    "ctf": ("flag_solved",),
+    # dump_success: an attacker's successful dump against a student's target (plan §8.12's
+    # wall of shame; no real attacker-bot source exists yet - see modules/ctf-range/README.md).
+    "ctf": ("flag_solved", "dump_success"),
 }
 ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge")
 

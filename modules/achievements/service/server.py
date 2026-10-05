@@ -4,6 +4,7 @@
 Student routes (gateway identity gate, mounted at /achievements, prefix stripped):
   GET  /                  the leaderboard page
   GET  /widget            the landing-page widget (score, completion, recent, Moments)
+  GET  /wall, /api/wall   the wall of shame (plan §8.12): room-wide, any signed-in caller
   GET  /api/me            the caller's score, rank, completion, recent unlocks, Moments
   GET  /api/board         the whole class (anonymous names when ACHIEVEMENTS_ANONYMOUS=1)
   GET  /api/toasts?surface=NAME   toasts to show now (each shown once; surface=terminal keeps them)
@@ -60,8 +61,8 @@ MAX_BODY = 8192
 SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); every widget polls
 MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
-PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html"}
-ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js")
+PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html", "/wall": "wall.html"}
+ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js", "wall.js")
 ADMIN_PAGES = {"/": "admin.html"}
 ADMIN_ASSETS = ("admin.js", "style.css")
 
@@ -271,6 +272,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, store.certificate(self._need(caller)))
         if path == "/api/board":
             return self._json(200, {"rows": store.board(self._need(caller))})
+        if path == "/api/wall":
+            # Room-wide (plan §8.12's wall of shame), same visibility tier as /api/board's "whole
+            # class" view: any signed-in caller, not bound to one student's own rows.
+            return self._json(200, {"rows": store.wall_rows()})
         if path == "/api/toasts":
             surface = (query.get("surface") or ["page"])[0][:20]
             try:

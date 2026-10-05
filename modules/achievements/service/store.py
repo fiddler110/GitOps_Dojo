@@ -97,6 +97,11 @@ class Store:
         # Per-student terminal activity for Sensei's stuck radar: times and exit codes only, never the command
         # text. Saved with the rest of the state, so a restart keeps the radar.
         self.activity = _activity(state.get("activity"))
+        # Wall of shame (plan §8.12): (user, challenge) -> last `ctf`/`dump_success` event time.
+        # Deliberately IN-MEMORY ONLY, not part of _doc()/persistence - it is a rolling "is the
+        # attacker still connected right now" signal, not a record worth keeping across a
+        # restart. See wall_rows().
+        self.ctf_dumps = {}
         self._saved_at = None
         self.save_delay = save_delay
         self._dirty = False
@@ -454,9 +459,31 @@ class Store:
             return {"unlocked": 0}
         with self.lock:
             self._student(user)
+            if event.get("source") == "ctf" and event.get("event") == "dump_success":
+                self.ctf_dumps[(user, event.get("challenge") or "")] = self.clock()
             got = self._matched(user, event, self.clock())
             self._save()
             return {"unlocked": len(got)}
+
+    # Wall of shame (plan §8.12). LIVE while dump_success events keep arriving for a
+    # (student, target); DISCONNECTED once they stop (the moment a patch lands and the next
+    # attacker probe comes back empty - containment, same signal MTTP already counts); dropped
+    # once quiet long enough to age off. Driven entirely by the event payload (CTF-S11): nothing
+    # here is specific to any one target.
+    WALL_LIVE_WINDOW = 90     # seconds with no fresh dump -> DISCONNECTED
+    WALL_MAX_AGE = 1800       # seconds quiet -> dropped (ages off)
+
+    def wall_rows(self):
+        now = self.clock()
+        with self.lock:
+            for key in [k for k, t in self.ctf_dumps.items() if now - t > self.WALL_MAX_AGE]:
+                del self.ctf_dumps[key]
+            rows = [{"user": self._label(user), "challenge": challenge,
+                    "state": "LIVE" if now - t < self.WALL_LIVE_WINDOW else "DISCONNECTED",
+                    "last_seen": t}
+                   for (user, challenge), t in self.ctf_dumps.items()]
+        rows.sort(key=lambda r: -r["last_seen"])
+        return rows
 
     def sweep_state(self, runner, unavailable=(), gap=20, budget=40):
         """Run the `verify` milestones (state, not events: "the app serves a new certificate") for

@@ -157,6 +157,22 @@ class StoreTests(unittest.TestCase):
         self.mk(anonymous=False)
         self.assertEqual({r["name"] for r in self.s.board("bob")}, {"alice", "bob"})
 
+    def test_wall_of_shame_tracks_live_then_disconnected_then_ages_off(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "customer-portal"})
+        rows = self.s.wall_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["challenge"], rows[0]["state"]), ("customer-portal", "LIVE"))
+        self.assertNotIn("alice", json.dumps(rows))  # anonymous by default, like the board
+        self.clock.t += self.s.WALL_LIVE_WINDOW + 1
+        self.assertEqual(self.s.wall_rows()[0]["state"], "DISCONNECTED")
+        self.clock.t += self.s.WALL_MAX_AGE
+        self.assertEqual(self.s.wall_rows(), [])
+
+    def test_wall_of_shame_is_not_anonymous_when_the_board_is_not(self):
+        self.mk(anonymous=False)
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.wall_rows()[0]["user"], "alice")
+
     def test_me_has_moments_and_completion(self):
         self.s.event(None, self.ev("a", "f-wrongdir"))
         me = self.s.me("a")

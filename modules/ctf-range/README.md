@@ -4,9 +4,10 @@ The reusable runtime for the CTF workshop series (see
 `docs/CTF-WORKSHOP-PLAN.md`). The range holds the vulnerable **targets**, the
 `ctf_net` network they live on, the `ctf-flags` submission service, the extra
 terminal tools, and — for CTF-5 — the attacker swarm, SOC feed and wall of
-shame. Each CTF session is a thin workshop pack (`workshops/ctf-*`) that lists
-`MODULES="ctf-range ..."`, names which targets it enables, and ships its own
-labs and slides.
+shame (the wall's plumbing is built; the swarm/feed that should drive it is
+not — see "Wall of shame" below). Each CTF session is a thin workshop pack
+(`workshops/ctf-*`) that lists `MODULES="ctf-range ..."`, names which targets
+it enables, and ships its own labs and slides.
 
 > **Status: scaffold.** Built so far: **target 14 `customer-portal`** (CTF-5's
 > app-code defend target, decision CTF-D25) with its informational **SAST
@@ -28,9 +29,17 @@ labs and slides.
 > their own slot's published port on `ctf-host`. No SNAT is needed — CTF-D21's
 > boxed `ctf-host` (one address, one port per slot, `--icc=false`) made the
 > plan's original per-target-network/SNAT sketch moot; see that hook's header
-> comment. The CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20), the
-> offensive tool suite + Lab Info library (§9, CTF-P2b/P3), and the CTF-5 live
-> bots / SOC feed / **wall of shame** (§8.12) are **not built yet**. Do not
+> comment. Also now: the **wall of shame**'s event source, storage and page
+> (§8.12) — `modules/achievements`' `store.wall_rows()` and
+> `GET /achievements/wall`, driven entirely by `ctf`/`dump_success` events,
+> LIVE while they keep arriving for a (student, target), DISCONNECTED once
+> they stop, dropped once quiet long enough to age off. **Nothing posts that
+> event yet except a manual stand-in**
+> (`modules/ctf-range/tools/simulate-dump.py`) — the real attacker-bot
+> persona swarm and SOC feed it should be driven by (§8.2-8.11) are a
+> separate, larger task, not built; see "Wall of shame" below. The CTF-1 to
+> CTF-4 start/stop toggle + queue (CTF-D20) and the offensive tool suite +
+> Lab Info library (§9, CTF-P2b/P3) are also **not built yet**. Do not
 > wire a workshop to this module expecting a full range, and note
 > `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
 > anything once a workshop pack also lists `runner-pool` in `MODULES` (see
@@ -166,6 +175,42 @@ never redeploy a slot.
 | 14 | `customer-portal` | Hard | ✅ app + SAST + pipeline | CTF-5 app-code defend target (CTF-D25): SQL injection dumps a plaintext SQLite `customers` table; fix is to parameterize the query. Ships the CWE-89 SAST (informational) and the `.forgejo/workflows/` defend pipeline (CTF-D19 gate on PR; redeploy on merge needs `ctf-controller`). |
 
 Targets 0–13 (the attack ladder, §7.3) are not built yet.
+
+## Wall of shame (§8.12)
+
+Built, as a minimal vertical slice — the plumbing a real attacker-bot swarm
+will eventually drive, exercised today only by a manual stand-in:
+
+- **Event source** (`modules/achievements`): a `ctf`/`dump_success` adapter
+  event (`catalog.py`, `matcher.py`, alongside the existing `flag_solved`).
+  `{source: "ctf", event: "dump_success", user, challenge}`, HMAC-signed over
+  `/api/adapter` like every other module's events (dns-gate, cloud-api,
+  openbao-audit).
+- **Storage** (`store.py`'s `wall_rows()`): in-memory only (deliberately —
+  it's a rolling "is the attacker still connected right now" signal, not a
+  record worth a restart keeping), keyed by `(user, challenge)`. **LIVE**
+  while fresh `dump_success` events keep arriving (`WALL_LIVE_WINDOW`, 90s);
+  **DISCONNECTED** once they stop (the moment a patch lands and the next
+  probe comes back empty — the same signal MTTP already counts); dropped
+  entirely once quiet past `WALL_MAX_AGE` (30 min) — "ages off".
+- **Page** (`GET /achievements/wall`, `GET /achievements/api/wall`): a plain
+  table, same visibility tier as the leaderboard's `/api/board` (any
+  signed-in caller sees the whole class, not just their own row). Not yet
+  its own gate="shared" projector route per CTF-D18 — piggybacking on
+  achievements' existing identity-gated mount was the pragmatic choice here,
+  since giving it a dedicated route in `ctf-range`'s own `extensions.json`
+  would make this module hard-depend on `achievements` always being in
+  `MODULES`, which `workshops/ctf-defend-test` (and maybe other packs)
+  deliberately isn't. Revisit once a real pack wires both modules together.
+- **What posts the event today:** nothing automatic.
+  `modules/ctf-range/tools/simulate-dump.py` signs and posts one manually,
+  for exercising/demoing the above before the real source exists.
+- **Not built:** the attacker-bot persona swarm and the SOC event feed
+  (plan §8.2-8.11) that are supposed to post `dump_success` for real; the
+  cyber map; the per-pack `CTF_WALL_OF_SHAME` render toggle (the flag exists
+  in `module.env` but nothing reads it yet — the wall always renders when
+  there's data); row payloads richer than `(user, challenge)` (e.g. a row
+  count, CTF-D17's bonus cleartext-storage flaw).
 
 ## Safety (holds for every target — §6)
 
