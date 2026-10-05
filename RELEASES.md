@@ -9,6 +9,19 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## `feat/zellij-terminal`
 
+**The allocator answers a POST only after reading its body (2026-10-04, committed on the branch, unit tests,
+locally).** `test_reset`'s `test_reset_needs_header_facilitator_and_typed_id` failed at random under load
+(`ConnectionResetError [Errno 54]` while handling an expected 403; 3 of 6 runs on a busy machine, and at `00f6c99`
+too, so it predates this branch). Cause: every reply closes the connection (HTTP/1.0), and the early rejections
+(`do_POST`'s gateway-token 403, its three `X-Requested-With` 403s and its 404; `handle_reset`'s 403 and 404;
+`handle_release_unused`, which never read its body) replied without reading the body, and closing a socket over
+unread bytes sends RST instead of FIN, which can beat the reply to the client. Fixed in one place rather than per
+path: `do_POST` now reads the capped body first (`read_body`), and `read_form_body` parses that. The new
+`PostBody` test in `test_handlers.py` holds the body back on a raw socket and fails if any of five rejection
+paths replies first — all five did before the fix, none after; the original test then passed 40 of 40 runs in
+four parallel loops. A body over the 4 KB cap still leaves bytes behind; no real form comes near it. The same
+class as the `cloud-api` `Connection: close` fix below.
+
 **The CTF range's three Python bases are pinned by digest (2026-10-04, committed on the branch, every
 pack's `--dry-run`, locally).** The `ctf-range` module (spike S14 / CTF-D21, commits 72feff2, 20efb6e,
 00f6c99) built three images `FROM python:3.12-slim`, a bare tag, which `check-pins.sh` rejects — and because
