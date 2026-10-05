@@ -231,7 +231,7 @@ class Builder:
 
     def overlay_if_changed(self, dirs: List[str], state_file, compose_cmd: List[str], env: Dict[str, str],
                            services: List[str]) -> None:
-        """The modules' and overlay's own build: blocks (forgejo-runner, step-ca, ...).
+        """The modules' and overlay's own build: blocks (runner-pool, step-ca, ...).
         No image of our own to label, so one hash over their directories is kept in a
         state file. web-terminal/allocator/gateway/presentation are left out: Compose's
         build would overwrite their tags without our label."""

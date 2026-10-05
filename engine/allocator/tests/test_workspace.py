@@ -19,6 +19,7 @@ for _k, _v in {"FORGEJO_ADMIN_USER": "admin", "FORGEJO_ADMIN_PASSWORD": "x",
 import allocation  # noqa: E402
 import config  # noqa: E402
 import handler  # noqa: E402
+import views  # noqa: E402
 import pages  # noqa: E402
 
 CARD = {"id": "demo", "label": "Demo Site", "desc": "Your site.", "href": "/demo/", "icon": "cloud"}
@@ -214,6 +215,38 @@ class ExtraScripts(unittest.TestCase):
 
     def test_default_is_no_scripts(self):
         self.assertEqual(config.load_extensions(os.path.join(HERE, "nope.json"))["scripts"], [])
+
+
+class ZellijFlavor(unittest.TestCase):
+    """TERMINAL_FLAVOR=zellij (config.HAS_IDE false): no IDE anywhere a student or facilitator looks."""
+
+    def test_student_workspace_has_no_vscode_tab(self):
+        with mock.patch.object(views, "HAS_IDE", False):
+            page = workspace()
+        self.assertEqual(re.findall(r'data-tab="([a-z0-9-]+)"', page), ["term", "forgejo", "slides", "labs"])
+        self.assertNotIn("VS Code", page)
+        self.assertEqual(len(re.findall(r'class="tab active"', page)), 1)
+
+    def test_landing_page_leads_with_the_terminal(self):
+        with mock.patch.object(views, "HAS_IDE", False):
+            page = landing()
+        self.assertNotIn("VS Code", page)
+        self.assertNotIn('href="/ide/"', page)
+        self.assertIn('href="/term/"', page)
+
+    def test_facilitator_page_drops_its_ide_tab_and_panel(self):
+        with mock.patch.dict(config.EXTENSIONS, ext(), clear=True):
+            on = handler.Handler.render_facilitator_workspace(None)
+            with mock.patch.object(views, "HAS_IDE", False):
+                off = handler.Handler.render_facilitator_workspace(None)
+        self.assertIn('data-tab="ide"', on)
+        self.assertNotIn('data-tab="ide"', off)
+        self.assertNotIn('panel-ide', off)
+        self.assertIn('data-tab="term"', off)
+
+    def test_default_flavor_keeps_the_ide(self):
+        self.assertTrue(config.HAS_IDE)
+        self.assertIn('data-tab="ide"', workspace())
 
 
 if __name__ == "__main__":

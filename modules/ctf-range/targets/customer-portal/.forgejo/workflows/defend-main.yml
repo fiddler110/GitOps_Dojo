@@ -1,0 +1,66 @@
+# CTF-5 defend pipeline — merge job for target 14 `customer-portal`.
+#
+# The "rebuild → redeploy" half of the S6 loop. Runs when the student's fix
+# merges to main: rebuild the image from the now-patched source, push it under
+# the slot's approved name:tag, then ask the controller to redeploy it in place
+# so the *same* running container the attacker bot is hitting is replaced (plan
+# §8.12 "Containment is the reward", spike S6). The bot's next dump then returns
+# nothing and the wall-of-shame entry flips LIVE → DISCONNECTED.
+#
+# RANGE-INFRA DEPENDENCIES (not wired by the target-14 scaffold — see plan §12
+# S6/S14 and modules/ctf-range/README.md). This file is the faithful, concrete
+# form of the loop; the two steps below run green only once these exist:
+#   * A build+push capability reachable from the runner WITHOUT docker.sock —
+#     the boxed `ctf-host` DinD (CTF-D21) builds and pushes to the registry.
+#   * `ctf-controller` (S14): its only capability is pull-by-name then
+#     stop/rm/run under the same slot name — no Dockerfile, no build context,
+#     no socket. The workflow just signals it; it never hands it a build.
+# Offline posture (CTF-D24): the registry is in-lab; nothing is fetched out.
+name: Defend — rebuild and redeploy
+on:
+  push:
+    branches: [main]
+
+env:
+  # In-lab registry and the slot's approved image name:tag. Set by the CTF
+  # pack / controller when wired; shown here so the contract is explicit.
+  CTF_REGISTRY: ${{ vars.CTF_REGISTRY }}          # e.g. registry.ctf.internal
+  CTF_IMAGE: ctf-customer-portal
+  CTF_SLOT: ${{ github.repository_owner }}        # one running target per slot
+
+jobs:
+  rebuild-and-redeploy:
+    runs-on: host
+    steps:
+      - name: Checkout main
+        run: |
+          set -eu
+          rm -rf repo
+          git clone --quiet --branch main "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout --quiet "$GITHUB_SHA"
+
+      - name: Build and push the patched image
+        # Depends on the boxed `ctf-host` build capability (CTF-D21). The tag is
+        # the slot's approved name so the controller pulls exactly this build.
+        run: |
+          set -eu
+          cd repo
+          tag="${CTF_REGISTRY}/${CTF_IMAGE}:${CTF_SLOT}"
+          echo "building ${tag} from patched source"
+          # ctf-host performs the build+push; no socket is exposed to this runner.
+          #   buildah bud -t "$tag" . && buildah push "$tag"
+          # (left as the documented contract until ctf-host/registry are wired)
+
+      - name: Redeploy in place via ctf-controller
+        # The controller pulls name:tag and recreates the slot's container under
+        # the same name, so the attacker bot's next probe hits the patched app
+        # without anything being redirected (S6 step 3). We only signal; the
+        # controller holds the only privileged capability.
+        run: |
+          set -eu
+          echo "requesting redeploy of slot ${CTF_SLOT} -> ${CTF_REGISTRY}/${CTF_IMAGE}:${CTF_SLOT}"
+          # curl -fsS -X POST "http://ctf-controller:9000/redeploy" \
+          #   -H "Authorization: Bearer ${CONTROL_TOKEN}" \
+          #   -d "slot=${CTF_SLOT}&image=${CTF_REGISTRY}/${CTF_IMAGE}:${CTF_SLOT}"
+          # (left as the documented contract until ctf-controller (S14) is wired)

@@ -30,13 +30,15 @@ class Scaffold:
     description: str = ""
     modules: str = ""
     order: int = -1          # -1: after the last workshop in the learning path
+    duration: str = ""       # free text ("~2 h"), shown by `list`; "": a TODO
     org: str = "training"
     repo: str = ""           # "": the workshop's name
     terminal: bool = False   # also compose/terminal/Dockerfile
 
     def values(self) -> dict:
         return {"name": self.name, "title": self.title, "description": self.description,
-                "modules": self.modules, "order": str(self.order), "org": self.org, "repo": self.repo}
+                "modules": self.modules, "order": str(self.order), "duration": self.duration,
+                "org": self.org, "repo": self.repo}
 
 
 def prepare(s: Scaffold, reserved: Iterable[str]) -> Scaffold:
@@ -52,11 +54,12 @@ def prepare(s: Scaffold, reserved: Iterable[str]) -> Scaffold:
         raise ScaffoldError(f"No template at {TEMPLATE}.")
     s.title = s.title or s.name.replace("-", " ").title()
     s.description = s.description or f"TODO: one sentence on what {s.title} teaches (shown on the login page)."
+    s.duration = s.duration or "TODO: e.g. ~2 h"
     s.repo = s.repo or s.name
     for key in ("org", "repo"):
         if not NAME_RE.match(getattr(s, key)):
             raise ScaffoldError(f"--{key} '{getattr(s, key)}': lowercase letters, digits and dashes.")
-    for key in ("title", "description"):
+    for key in ("title", "description", "duration"):
         if UNSAFE.search(getattr(s, key)):
             raise ScaffoldError(f'--{key} can\'t contain " $ ` \\ < > or a line break.')
     known = {m.name for m in modules()}

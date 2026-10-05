@@ -4,7 +4,7 @@ import html
 
 from accounts import LOGIN_HTML
 from allocation import slot_snapshot
-from config import EXTENSIONS, FACILITATOR_USERNAME, WORKSHOP_DESCRIPTION, WORKSHOP_NAME
+from config import EXTENSIONS, FACILITATOR_USERNAME, HAS_IDE, WORKSHOP_DESCRIPTION, WORKSHOP_NAME
 from dojo_secret import forgejo_password
 from pages import (
     CONFIRM_CSS, ICON_ARROW, ICON_CODE, ICON_GIT, ICON_LAYOUT, ICON_SLIDES, ICON_TERMINAL, ICONS_BY_NAME, page,
@@ -46,13 +46,15 @@ class ViewsMixin:
         from room to show what each one actually does."""
         slot = slot_snapshot(sid)
         tools = [
-            {
+            *([{
                 "href": "/ide/", "label": "VS Code", "icon": ICON_CODE, "primary": True,
                 "desc": "Your editor, already open in your lab folder.",
-            },
+            }] if HAS_IDE else []),
             {
                 "href": "/term/", "label": "Terminal", "icon": ICON_TERMINAL,
-                "desc": "A plain shell, same account, if you'd rather type.",
+                **({"desc": "A plain shell, same account, if you'd rather type."} if HAS_IDE else
+                   {"primary": True,
+                    "desc": "Your workspace: a file browser, an editor and a shell, open in your lab folder."}),
             },
             {
                 "href": "/forgejo-login", "label": "Forgejo", "icon": ICON_GIT,
@@ -73,7 +75,7 @@ class ViewsMixin:
   <span class="card-icon">{ICON_LAYOUT}</span>
   <span class="card-text">
     <span class="card-title">Open workspace</span>
-    <span class="card-desc">Everything on one page: the labs, VS Code, terminal, Forgejo and slides as tabs.</span>
+    <span class="card-desc">Everything on one page: the labs, {'VS Code, ' if HAS_IDE else ''}terminal, Forgejo and slides as tabs.</span>
   </span>
   {ICON_ARROW}
 </a>"""
@@ -110,7 +112,7 @@ class ViewsMixin:
     <tr><th scope="row">Username</th><td><code class="secret-value">{html.escape(sid)}</code></td></tr>
     <tr><th scope="row">Password</th><td><code class="secret-value">{html.escape(forgejo_password(sid))}</code></td></tr>
   </table>
-  <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal and VS Code is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
+  <span class="secret-hint">Yours alone, for signing in to Forgejo by hand. Git in your terminal{' and VS Code' if HAS_IDE else ''} is already signed in (a token in <code>~/.git-credentials</code>), and the Forgejo card signs you in to the web page.</span>
 </div>
 <div class="cards">
 {workspace_card}
@@ -144,7 +146,7 @@ class ViewsMixin:
         # VS Code, Terminal, Forgejo, Slides (the labs sit under it), then a tab per
         # widget (its full page) and per card. The first tab opens at load.
         tabs = [
-            ("ide", "VS Code", "/ide/", False),
+            *([("ide", "VS Code", "/ide/", False)] if HAS_IDE else []),
             ("term", "Terminal", "/term/", False),
             ("forgejo", "Forgejo", "/forgejo-login", False),
             ("slides", "Slides", "/slides/", False),
@@ -260,6 +262,9 @@ EXT_TABS_PLACEHOLDER  </div>
 EXT_PANELS_PLACEHOLDER</main>
 <script src="/admin/admin.js"></script>"""
         body = body.replace("FACILITATOR_USERNAME_PLACEHOLDER", html.escape(FACILITATOR_USERNAME))
+        if not HAS_IDE:  # the Zellij flavor has no IDE: drop the facilitator's own VS Code tab and panel
+            body = body.replace('  <button class="tab" data-tab="ide">VS Code</button>\n', "")
+            body = body.replace('<div class="panel" id="panel-ide"><iframe data-src="/ide/"></iframe></div>\n', "")
         # The facilitator gets every tool a student has: every tab a workshop
         # or module declares next to its cards (extensions.json).
         # Ids are [a-z0-9-] and src a checked same-origin path; escaped anyway.

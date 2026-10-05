@@ -46,18 +46,21 @@ is part of the lesson and never an incident.
 
 | # | Workshop | What students learn | Labs | Length |
 | - | -------- | ------------------- | ---- | ------ |
-| 0 | [**Dojo Introduction**](workshops/dojo-introduction/) | A show-and-tell of the platform for a facilitator, not a lab: Forgejo with CI runners, DNS as code and Dojo Cloud run at once, with a platform tour, a workshop library and a tools tour. | none | ~30 min |
+| 0 | [**Dojo Introduction**](workshops/dojo-introduction/) | A show-and-tell of the platform for a facilitator, not a lab: Forgejo with CI runners, DNS as code and Dojo Cloud run at once, with a platform tour, a workshop library and a tools tour. | none | ~35 min |
 | 1 | [**Git Fundamentals**](workshops/git-fundamentals/) | The core git workflow: clone, branch, commit, push, pull request, then reviewing and undoing changes, stashing, reading history and resolving merge conflicts. | 5 | 60 min |
-| 2 | [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | 45-60 min |
-| 3 | [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~75 min |
+| 2 | [**DNS as Code**](workshops/dns-as-code/) | Managing DNS records in git with `dnscontrol`. A pull request runs a CI preview, and merging it applies the change to a live PowerDNS server. | 5 | ~2 h |
+| 3 | [**Certificate Autorenewal**](workshops/cert-autorenewal/) | Getting TLS certificates over ACME from a private CA with `certbot` and `acme.sh`, installing them on a real web server, automating renewal (certificates last 5-10 minutes, so students see renewals happen) and the dns-01 challenge. | 5 | ~1¾ h |
 | 4 | [**OpenTofu Basics**](workshops/tofu-basics/) | The Terraform workflow (`init`, `plan`, `apply`, `destroy`) and how an IaC repo is laid out. Track A is an offline sandbox. Track B deploys real containers through the real `azurerm` provider into **Dojo Cloud**, an Azure-inspired practice cloud with a portal, policies, quotas and drift. `terraform` runs OpenTofu. | 11 | ~2¼ h |
 | 5 | [**Vault Fundamentals**](workshops/vault-fundamentals/) | Using a vault well, on a real OpenBao: get secrets out of code, git, pipelines and servers, and swap long-lived secrets for identity and short-lived credentials. Labs cover leaking and scanning, `sops` and `pass`, per-student namespaces and policies, an app and OpenBao Agent, CI that logs in with its Forgejo identity on single-use runners, deployments with a delivered secret ID or workload identity, dynamic Postgres logins and an incident drill. | 14 | ~3½ h |
 | 6 | [**Cloud-Policy-as-Code**](workshops/cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, sets, modify and remediation, exemptions, Rego and conftest checks, a CI pipeline and drift. | 13 + capstone | ~4-5 h |
 
-The numbers are a learning path: teach them in order. `0` showcases the platform and is not a course; `1` to `5`
+The numbers are a learning path: teach them in order. `0` showcases the platform and is not a course; `1` to `6`
 build on each other (DNS as Code reuses the git flow, Certificate Autorenewal's capstone drives the DNS API from
-workshop 2, OpenTofu Basics extends the plan-before-apply and drift ideas, and Vault Fundamentals, which lists Git
-Fundamentals as a prerequisite, comes last as the longest).
+workshop 2, OpenTofu Basics extends the plan-before-apply and drift ideas, Vault Fundamentals lists Git Fundamentals
+as a prerequisite, and Cloud-Policy-as-Code builds on OpenTofu Basics and comes last as the longest).
+
+The **Length** of each is its `WORKSHOP_DURATION` (`workshops/<name>/workshop.env`), which
+`./run.sh list` prints beside the name; each pack's `FACILITATOR.md` is where the figure comes from.
 
 Each workshop pack has its own slide deck, lab guides, cheat sheet and a seed
 repository. The lab guides are copied into every student's `~/lab` and shown
@@ -72,9 +75,14 @@ in the browser.
 - **A facilitator workspace at `/admin`.** A live roster with a read-only view
   of every student's terminal, a Release button to free a stuck account, a
   service status strip, and the facilitator's own VS Code, Terminal, Forgejo,
-  Slides tabs, plus the tabs a workshop's modules add: Dojo Cloud and the **Class
-  progress** board (tofu-basics), Vault, Audit, Runners and Apps
-  (vault-fundamentals), DNS Admin (dns-as-code, cert-autorenewal).
+  Slides tabs, plus the tabs this workshop's modules and pack add — **Dojo Cloud**,
+  whose facilitator view is the class-progress board (tofu-basics,
+  cloud-policy-as-code, dojo-introduction); **Runners** (dns-as-code,
+  vault-fundamentals, cloud-policy-as-code, dojo-introduction); **DNS Zones** and
+  **DNS Admin** (dns-as-code, cert-autorenewal, dojo-introduction); **Vault**,
+  **Audit** and **Apps** (vault-fundamentals); **Site Inspector**
+  (cert-autorenewal); **Workshop Library** (dojo-introduction); **Sensei**
+  (every pack); and **Achievements** when `ACHIEVEMENTS_ENABLED` is on.
 - **Isolated labs.** Student terminals have no internet and no Docker socket.
   Every tool is baked into the workshop's image, pinned to a version and checked
   against a sha256. Extra services sit on internal-only networks, and anything a
@@ -125,7 +133,7 @@ The facilitator's machine needs a container engine, git and openssl. Students ne
 |---|---|
 | Ubuntu / Debian / Fedora | `./setup.sh` |
 | Windows | `.\setup.ps1` in PowerShell: sets up WSL2 + Ubuntu, clones the repo inside it, then runs `setup.sh` there |
-| macOS | `./setup.sh` (Homebrew; podman needs `podman machine`, or use Docker Desktop). Not yet tested on a Mac. |
+| macOS | `./setup.sh` (Homebrew; podman needs `podman machine`, or use Docker Desktop). Tested on Apple Silicon with podman: setup, a cold build, start, restart and stop, and every CLI command (see [`RELEASES.md`](RELEASES.md), "C5, Mac part"). Use ports 8080/8443, not 80/443 — rootless podman there can't bind `127.0.0.1:80`. |
 
 `./setup.sh` detects the OS, asks you to confirm, shows what is missing and asks before installing anything
 (`--check` only reports). `./run.sh` uses podman whenever `podman` and `podman-compose` are installed (rootless, no root daemon, so a
@@ -142,16 +150,14 @@ automation instead of being made by hand.
 
 ## Status and roadmap
 
-| Workshop | Status |
-| -------- | ------ |
-| Git Fundamentals | Ready |
-| DNS as Code | Ready |
-| Certificate Autorenewal | Ready |
-| OpenTofu Basics | Built and tested live. A human dry-run and a final browser pass remain (see [`ROADMAP.md`](ROADMAP.md)). |
-| Vault Fundamentals (OpenBao) | Ready. Merged to `main` (PR #3): labs 0-13, the talk and the facilitator's Vault, Audit, Runners and Apps tabs. Live-tested with demo bots (10 students, about 2 GiB); a person walking labs 7-9 in the browser remains ([`ROADMAP.md`](ROADMAP.md)). |
-| Dojo Introduction | Built and tested locally; a showcase, not a lab. |
-| Threat-model remediation | 15 of 19 findings fixed, 2 partial, 2 accepted; merged to `main` (PR #4). See [`RELEASES.md`](RELEASES.md). |
-| Git follow-ups: branching workflows and pull requests; conflicts, rebasing and recovery; pre-commit hooks and CI | Ideas, not started |
+Every workshop in the table above is built, runs end to end and has been tested with the
+demo bots; what is left on each is a human dry run or a browser pass, not missing labs.
+Rather than repeat it here, the two files that track it are kept current:
+
+- [`ROADMAP.md`](ROADMAP.md) — the single list of open work, including the per-workshop
+  checks still outstanding and the ideas not started.
+- [`RELEASES.md`](RELEASES.md) — what has shipped, newest first (the workshops themselves,
+  the threat-model remediation and the platform review).
 
 ## Repository layout
 
@@ -160,13 +166,16 @@ automation instead of being made by hand.
 ├── engine/                   # The shared runtime: gateway, allocator, web-terminal, Forgejo, slides
 │   ├── README.md             # Setup, routing, auth, facilitator operations, troubleshooting
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
-├── modules/                  # Reusable services + tools a workshop lists in MODULES (./run.sh modules)
-│   ├── dns-gate/             # dns-api: PowerDNS API gate, per-account keys, CI by ID token (dns-as-code, cert-autorenewal)
-│   ├── dns-ui/               # DNS Zones page and the facilitator's DNS Admin (dns-as-code, cert-autorenewal)
-│   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker (tofu-basics)
-│   ├── forgejo-runner/       # One long-lived Actions runner for one repo (no workshop uses it now)
-│   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker (vault-fundamentals)
-│   └── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin (vault-fundamentals, dns-as-code)
+├── modules/                  # Reusable services + tools a workshop lists in MODULES
+│   │                         # `./run.sh modules` prints these with who uses each one
+│   ├── _shared/              # Single copies of helpers several modules build in (dojo_http.py, adapter_client.py)
+│   ├── achievements/         # Leaderboard, toasts, per-lab challenges and the certificate (ACHIEVEMENTS_ENABLED)
+│   ├── dns-gate/             # dns-api: PowerDNS API gate, per-account keys, CI by ID token
+│   ├── dns-ui/               # DNS Zones page and the facilitator's DNS Admin
+│   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker
+│   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker
+│   ├── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin
+│   └── sensei/               # Reviews and merges the roster pull request; `sensei ask|why` in the terminal
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader
@@ -322,6 +331,7 @@ update. `FORGEJO_ORG`/`FORGEJO_REPO` come from the workshop's
 | `tofu-basics` | `dojo-cloud` | `cloud-api`, `cloud-host` (module) | `cloud_net` (module) | `tofu` (also `terraform`), offline provider mirror; credential broker (module) | `cloud-api` (Track B) |
 | `vault-fundamentals` | `openbao`, `runner-pool` | `openbao`, `openbao-setup`, `openbao-sso-shim`, `openbao-audit`; `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `app-host`, `app-db` | `runner_net` (module; `openbao` and `app-host` join it) | `bao`, `bao-audit`, identity broker (module); `sops`, `gitleaks`, `pass`, `hvac`, `pg8000`, `psql`, `jq` | OpenBao, Forgejo, My App |
 | `dojo-introduction` | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | The modules' services, plus PowerDNS as dns-as-code runs it | `runner_net`, `cloud_net` (modules) | One image with `dnscontrol`, `dig`, `tofu` | CI, DNS and Dojo Cloud; nothing to complete |
+| `cloud-policy-as-code` | `dojo-cloud`, `runner-pool`, `sensei` | `cloud-api`, `cloud-host`, `runner-pool`, `runner-pool-shim`, `runner-controller` (modules); `tofu-mirror-init` (one-shot) | `cloud_net`, `runner_net` (modules; `cloud-api` also answers the Dojo Cloud names there, so CI jobs reach it) | `tofu` (also `terraform`), `opa`, `conftest`, the offline provider mirror; credential broker (module) | `cloud-api`, Forgejo |
 
 Everything below is layered on the shared engine above — any service or
 network not named there is unchanged.
@@ -821,6 +831,36 @@ zone hook, and serves each workshop's slides under a Workshop Library.
 
 ---
 
+### `cloud-policy-as-code` — OpenTofu Basics' cloud, now governed
+
+The same Dojo Cloud as [`tofu-basics`](#tofu-basics--offline-sandbox--dojo-cloud)
+(the `dojo-cloud` module, unchanged: `cloud-api`, `cloud-host`, `cloud_net`, the
+per-student subscription and the credential broker in the terminal), with two
+things added.
+
+**Policy on the cloud.** `cloud-api` carries the Dojo Cloud **Policy** engine —
+definitions, assignments, parameters, sets, `modify` and remediation, exemptions —
+which students drive through the `azurerm` provider, exactly as they drove
+resources in workshop 4. The terminal image adds `opa` and `conftest` on top of
+tofu's, so a plan can be checked against Rego before it is applied.
+
+**CI that does what the terminal does** (labs 11-12). A job on `runner-pool`'s
+single-use runners needs the same four things a student's terminal has, and the
+overlay gives it each one: the binaries (`JOB_TOOLS: "tofu opa conftest"`, copied
+from the terminal image the build just made), the offline provider mirror (a
+one-shot `tofu-mirror-init` fills a named volume that `runner-pool` mounts
+read-only), a route to Dojo Cloud (`cloud-api` gets `runner_net` aliases for the
+names the provider resolves, `management.dojo.cloud` and `login.dojo.cloud`), and
+Dojo Cloud's CA (the `cloud_pki` volume, read-only). Nothing reaches the internet;
+every one of those is a path inside the stack.
+
+Each lab is a `tofu apply` against the real provider, so the pack raises its own
+ceilings in `workshop.env` (`WEB_TERMINAL_MEM_LIMIT=6g`,
+`WEB_TERMINAL_PIDS_LIMIT=1024`) — a whole class applying at the same moment went
+past the engine's defaults.
+
+---
+
 ## Security boundaries
 
 The lab assumes students will poke at everything they can reach, whether out of
@@ -1085,11 +1125,11 @@ blocked by network isolation or never routed.
 
 | From ↓ / To → | `git-server` | `presentation` | `dns-server` | `step-ca` / `demo-app` | `cloud-api` | `cloud-host` | Internet |
 | ------------- | :----------: | :------------: | :----------: | :--------------------: | :---------: | :----------: | :------: |
-| Student terminal | ✓ | — | dns-as-code, cert-autorenewal | cert-autorenewal | tofu-basics (:443; :8080 needs the gateway token) | — | — |
-| `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics) | — | published :80/:443 in, nothing else |
-| `runner-pool` (dns-as-code: also `dns-api`; vault-fundamentals: also `openbao`, `app-host`) | ✓ | — | dns-as-code | — | — | — | — |
+| Student terminal | ✓ | — | dns-as-code, cert-autorenewal, dojo-introduction | cert-autorenewal | tofu-basics, cloud-policy-as-code, dojo-introduction (:443; :8080 needs the gateway token) | — | — |
+| `gateway` | ✓ | ✓ | — | `/demo` (cert-autorenewal) | `/cloud` (tofu-basics, cloud-policy-as-code, dojo-introduction) | — | published :80/:443 in, nothing else |
+| `runner-pool` (dns-as-code: also `dns-api`; vault-fundamentals: also `openbao`, `app-host`) | ✓ | — | dns-as-code, dojo-introduction | — | cloud-policy-as-code (the Dojo Cloud names are aliased onto `runner_net`) | — | — |
 | `step-ca` (cert-autorenewal) | — | — | ✓ | ✓ | — | — | — |
-| `cloud-api` (tofu-basics) | — | — | — | — | — | ✓ | — |
+| `cloud-api` (tofu-basics, cloud-policy-as-code, dojo-introduction) | — | — | — | — | — | ✓ | — |
 | `bootstrap` | ✓ | — | — | — | — | — | — |
 
 vault-fundamentals adds `openbao` (`workshop_lab`), which the student terminal and app-host reach and the gateway fronts at `/ui` and `/v1`, and `runner_net`, which only the runner pool, `git-server`, `openbao` and `app-host` join.

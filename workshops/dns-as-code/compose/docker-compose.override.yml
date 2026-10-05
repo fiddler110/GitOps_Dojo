@@ -50,8 +50,8 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     # workshop_lab for students' own terminal sessions (dig/dnscontrol),
-    # runner_net (from the forgejo-runner module) so CI workflow runs (dnscontrol push)
-    # can reach it too, without forgejo-runner needing the rest of workshop_lab.
+    # runner_net (from the runner-pool module) so CI workflow runs (dnscontrol push)
+    # can reach it too, without the runners needing the rest of workshop_lab.
     # Map form, not list: the dns-ui module adds dns_admin_net to this
     # service in map form, and podman-compose fails at `up` when one
     # service's networks mix the two.

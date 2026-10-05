@@ -1,0 +1,15 @@
+// The student workspace: a read-only listing of the shell's current directory on the
+// left (dojo-sidebar), the shell on the right, with Zellij's tab bar on top and
+// key-hint bar below. The shell pane has focus, so a student can type straight away.
+layout {
+    pane size=1 borderless=true {
+        plugin location="tab-bar"
+    }
+    pane split_direction="vertical" {
+        pane size="22%" borderless=true command="/usr/local/bin/dojo-sidebar"
+        pane focus=true
+    }
+    pane size=2 borderless=true {
+        plugin location="status-bar"
+    }
+}

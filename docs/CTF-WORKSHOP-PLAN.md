@@ -1,7 +1,76 @@
 # CTF workshop series: plan
 
 Status: **draft 2, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
-marked **(spike)** are claims or designs that must be proven before anyone relies on them.
+marked **(spike)** are claims or designs that must be proven before anyone relies on them. The spike-answer log and
+the full decisions log (CTF-S1..S17, CTF-D1..D25) moved to [`CTF-SPIKES.md`](CTF-SPIKES.md) on 2026-10-05, to keep
+this file lighter to read; it's a companion file to this one, same status, same ownership.
+
+---
+
+### ⏩ Resume here (checkpoint 2026-10-04)
+
+**Phase:** CTF-P0 (spikes), now also starting CTF-P1 build. Most spikes are answered; the **first target image is
+built** — target 14 `customer-portal` (scaffold). No other target images built yet.
+
+**Just finished — target 6 `dns-resolver-cve` is fully decided and de-risked.** It is **uClibc / uClibc-ng ≤ 1.0.40,
+CVE-2022-30295** (predictable monotonic DNS TXID + static source port 53): the attacker *predicts* the id and lands a
+single spoofed reply — **deterministic**, not guess-and-retry. Verified this session (rootless Podman): off-path
+source-spoofing works on a rootless netavark bridge, and a pinned **Bootlin** uClibc-ng toolchain (1.0.39, in range)
+compiles a static agent that resolves — so the build is cheap. Full story in
+[`CTF-SPIKES.md`](CTF-SPIKES.md), "Target 6 DNS poisoning build" (Runs A/B/C). Earlier picks (2017 dnsmasq overflow,
+then Dnspooq) were rejected and the reasons are recorded there.
+
+**Also decided recently:** target 14 `customer-portal` (CTF-5 app-code defend target) + the wall of shame (§8.12,
+`LIVE → DISCONNECTED`, toggle `CTF_WALL_OF_SHAME`) — see **CTF-D25**.
+
+**Just finished — target 14 `customer-portal` scaffold is built** (2026-10-04) in a new **`ctf-range` module**
+(`modules/ctf-range/`): the vulnerable Flask app over plaintext SQLite (`targets/customer-portal/app.py`), the
+synthetic per-handle seed (`seed.py`, a `customers` table whose `portal-service` row's password is the flag), the
+container image (`Dockerfile`, read-only root + `/data` volume), a single dev instance + `ctf_net` in the module
+`compose.yml`, and a reference SQLi dump that doubles as the **CTF-D19 gate** (`exploit/dump.py`). Verified without
+Docker: the `%' OR '1'='1' -- ` payload dumps all rows incl. the flag; the parameterized (fixed) query returns zero
+rows; normal search and idempotent re-seed work. The module is a **scaffold** — `README.md` lists what is and isn't
+built.
+
+**Also finished — target 14's SAST stage and defend pipeline** (2026-10-04). Added the informational **CWE-89 SAST**
+(`targets/customer-portal/sast/scan.py`: pinned, stdlib-only `ast` detector, CTF-D23/D24 — flags both string-built
+queries on the vulnerable source, silent once parameterized, never gates) and the **defend pipeline**
+(`targets/customer-portal/.forgejo/workflows/`): `defend-pr.yml` runs the SAST (informational) then the exploit
+re-run as the **CTF-D19 gate** (PR passes only when the dump returns nothing), `defend-main.yml` rebuilds and asks
+`ctf-controller` to redeploy the slot in place on merge. Verified: SAST flags vuln / clears patched / `--strict`
+exits 1; the PR gate's exit-code mapping (vuln→fail, patched→pass, unreachable→error) is unit-tested.
+
+**Also finished — the range control plane `ctf-host` + `ctf-controller`** (2026-10-04, spike S14 / CTF-D21). The boxed
+privileged Docker-in-Docker `ctf-host` (`modules/ctf-range/ctf-host/`, the `cloud-host` pattern: `internal`-only,
+publishes nothing, target image baked in and imported offline at start) and its single unprivileged client
+`ctf-controller` (`modules/ctf-range/ctf-controller/`: stdlib Python; its whole reach is a fixed-template
+pull/create/start/stop/rm executor over the shared socket — never build). The controller reconciles one always-on
+slot per student (CTF-5 model), renders the §5 per-slot flag inline (seed stays in the controller, never in a
+target), and serves `POST /redeploy` — the **live tail of the S6 loop** `defend-main.yml` calls. 30 unit tests, and
+verified **live** under podman (`STUDENT_COUNT=2`): base import → one hardened slot per student each with its own
+flag → exploit dumps the flag from a managed slot → `/redeploy` recreates the slot in place from a parameterized
+image (~0.5 s) → the same published port returns zero rows / no flag (CTF-D19 green) while an un-redeployed slot
+still leaks (in-place + per-slot proven). See the S14 "Built" note in [`CTF-SPIKES.md`](CTF-SPIKES.md).
+
+**👉 Next step (do this next):** what the control plane still depends on — the **in-lab registry** + CI build that
+`defend-main.yml` pushes patched images to (spike S6; the controller's pull-by-name path is coded and unit-tested,
+but no registry is stood up, so the live flip above used an offline image swap as the stand-in). Then the **wall of
+shame** (§8.12, `LIVE → DISCONNECTED`, `CTF_WALL_OF_SHAME`), which needs the SOC/CTF event contract (spike CTF-S11),
+the attacker bots, and the presentation widget route. Then the rest of the range infra: the `STUDENT_COUNT` fan-out
+for the attack ladder (CTF-S1 — answered for CTF-5 by the controller, still open for CTF-1 to CTF-4's start/stop
+toggle + queue, CTF-D20), the standalone `ctf-flags` submission service (§5), and per-uid isolation + SNAT
+(CTF-S2/S3). Still open for the SAST side: the IaC/secret/SCA scanners for targets 8-11 (S17 in
+[`CTF-SPIKES.md`](CTF-SPIKES.md)). Spec: **§7.3 (row 14)**, **§8 (CTF-5 scope)**, **§8.12**, the **S6/S14/S17
+bullets** in [`CTF-SPIKES.md`](CTF-SPIKES.md).
+
+**Still open at CTF-P5 for target 6** (small, do when building it): confirm end-to-end that the uClibc 1.0.39 stub's
+TXID is predictable (documented CVE behavior; the empirical check was interrupted by a session safety classifier —
+redo in a fresh session), then wire the internal agent's check-in → flag-1 → flag-2 chain.
+
+**Session note:** a safety classifier began blocking all shell commands late in the 2026-10-04 session (reacting to
+the cumulative DNS cache-poisoning material, not to any one command). A fresh session clears it.
+
+---
 
 ## 1. The idea in one paragraph
 
@@ -97,7 +166,37 @@ targets reach nothing outbound, and each student's firewall rule permits exactly
   one code-server.
 - **Reset.** A `resets` entry (`phase=teardown`/`provision`) recreates `target-NN` from its image and re-issues its
   flags. It checks `X-Dojo-Reset-Token` in constant time like every reset hook, because students can reach the
-  service on `workshop_lab`.
+  service on `workshop_lab`. The same path backs the per-target **Reset** button on the landing card (CTF-D20): it
+  recreates the live target from its pristine image, restoring the starting state, and does not touch solved status
+  or the student's flags.
+- **Student-controlled targets, one live per slot (CTF-D20, CTF-1 to CTF-4 only).** A student picks which of their
+  session's targets to run from a card on the landing page. At most one is live per student, so the room never
+  exceeds N attack containers.
+  - **Stable slot address.** `slot-NN` keeps one address on `ctf_net`; starting a target recreates the slot's
+    container from that target's image. The per-uid firewall rule therefore never changes when a student switches.
+  - **Card.** One per target: state (stopped, starting, live, solved), the slot **IP only, never the ports** (students
+    find those with `nmap`), a short briefing, **Start/Stop**, **Reset**, and a flag text box under it.
+    Starting a second target stops the first, after a confirmation. Targets are listed in the suggested order but
+    none is locked.
+  - **Flags and state.** HMAC flags derive from student and target, so they survive stop, start and reset. A solved
+    target stays solved. Stop and reset both return a target to its clean state (nothing persists, deliberately).
+  - **Start queue.** Start and Reset requests go into one FIFO queue in the controller, and at most about 10 run at
+    once (tuned in S14), so a room that all clicks Start together doesn't spike the host. A queued card shows
+    "queued, position N" and then "starting". A student can cancel while queued. A student has at most one request
+    in the queue, so repeated clicks don't stack. Stops skip the queue, because they free resources.
+  - **Limits.** Auto-stop after about 20 min with no traffic. Reset is rate-limited per student.
+  - **Controller and `ctf-host` (CTF-D21).** Starting and stopping needs a container daemon, which the allocator never
+    has and which must not be the host's. A privileged `docker:dind` container, `ctf-host`, sits on an internal
+    network and holds the slot containers; a separate `ctf-controller`, unreachable from students, is its only client
+    over a unix socket in a shared volume. This is the `cloud-host`/`cloud-api` pattern from `dojo-cloud`. No host
+    socket is mounted anywhere. Each slot is an IP alias on `ctf-host` with the target's ports published on it; the
+    controller creates the slot containers itself from `STUDENT_COUNT` (spike CTF-S1, S14).
+  - **Exception: CTF-5.** Defend needs all four targets live at once, so it keeps one always-on target per
+    target per student (160 at 40 students) and has no toggle. Reset there is a facilitator action only, since a
+    reset would wipe the student's patch.
+- **Multi-port targets.** The slot may expose several services so `nmap` is useful: the lab service on a non-default
+  port, plus decoys or supporting services. Each target's spec lists its ports and marks which are decoys and
+  which are on the path. Web-app lessons with nothing to discover say so in the briefing and may use one port.
 - **Hardening for every target:** read-only root with only the tmpfs mounts the service needs (Apache, for one, needs
   writable `/var/run/apache2`, `/var/lock/apache2`, `/var/log/apache2`; **verify**), `cap_drop: ALL` plus only what
   the service needs, `no-new-privileges` unless the box's privesc is the point, never `privileged`, never the
@@ -201,7 +300,7 @@ original draft's warm-ups.
 | 3 | Low | `cert-trust-bypass` (NEW, ties `cert-autorenewal`) | An internal API meant to require a client certificate accepts an expired or self-signed one because it skips chain/revocation checks | The accepted identity unlocks a second endpoint | Certificate chains, expiry and revocation, why "it has a cert" isn't "it has a *valid* cert" |
 | 4 | Medium | `ping-tool` | Command injection in a "network diagnostics" page, reverse shell | `sudo -l` shows a passwordless GTFOBins binary | Reverse shells and the return-path ports, `sudo` audit, GTFOBins |
 | 5 | Medium | `leaky-config` | A web admin panel exposes logs and a config backup holding credentials | Credentials reused for a local service | Post-exploitation enumeration, credential hygiene, log reading |
-| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | A DNS resolver component pinned to an old version with a disclosed CVE (cache poisoning or a parsing RCE, depending on what's practical to build) | Access gained through the resolver reaches a second flag on the same host | Why resolver software is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the digest, not just set one |
+| 6 | Medium | `dns-resolver-cve` (NEW, ties `dns-as-code`) | The target's internal agent is linked against **uClibc-ng ≤ 1.0.40 with CVE-2022-30295**: its stub resolver uses **monotonically increasing transaction IDs and a static source port 53**, so an off-path attacker inside `ctf_net` observes one lookup, **predicts** the next TXID, and lands a *single* spoofed reply (no brute force) that answers `vault.svc.internal` with the attacker's address | The spoofed answer makes the agent connect to the attacker and hand over its service token (credential capture); replaying the token against the real internal endpoint reaches a second flag on the same host | Why the resolver (here the libc stub) is itself an attack surface, CVE research, why pinning by digest cuts both ways — you must *update* the pin (bump uClibc-ng past 1.0.40), not just set one; why TXID + source-port randomization exist |
 | 7 | Medium | `ssrf-fetcher` (NEW) | A "preview this URL" feature fetches server-side and can be pointed at `ctf_net`'s internal addresses instead of the internet | Reaches an internal-only admin endpoint on another service in the same target, not another student's target | Why outbound requests from a server are a trust boundary, allow-lists versus deny-lists, cloud-metadata-style SSRF without needing a real cloud metadata endpoint |
 | 12 | Medium | `api-mass-assignment` (NEW, API-only) | A JSON `PATCH /users/me` endpoint binds the whole request body to the user object, so adding `"role":"admin"` to the payload sets it | The elevated token reaches a second, admin-only route | API1/API3-style mass assignment, why a JSON body isn't automatically a trusted struct, allow-listing bindable fields |
 | 8 | Hard | `git-secrets` (GitOps, ties `git-fundamentals`) | A seed repo in Forgejo with a secret removed in a later commit but still in history | The recovered token reaches a second target | `git log -p`, `git secrets`-style scanning, why deleting a file is not revoking a secret |
@@ -209,8 +308,9 @@ original draft's warm-ups.
 | 10 | Hard | `runner-escape` (GitOps, needs `runner-pool`) | A workflow in a fork runs attacker-controlled code on a shared runner | Read another job's leftover state; expected to fail, which is the point | CI trust boundaries, `pull_request` vs `pull_request_target`, why runners are single-use |
 | 11 | Hard | `tfstate-treasure` (GitOps, ties `tofu-basics` + `vault-fundamentals`) | `terraform.tfstate` committed or left in a bucket-like share, containing credentials | Credentials open a vault path; the debrief has students find the access in Vault's Audit tab | State files as secrets, remote state, least privilege, detection after the fact |
 | 13 | Hard | `api-bfla` (NEW, API-only) | A valid student-scoped API token can call `POST /admin/reset-all` because the route checks the token is *valid*, not that it's a facilitator token | Resets every student's progress, which the solve script treats as "exploit confirmed" without actually running it against the live range | API5-style broken function-level authorization, why "authenticated" and "authorized" are different checks, the same shape of bug as `allocator`'s own `X-Auth-User` trust model if it were ever done wrong |
+| 14 | Hard | `customer-portal` (NEW, CTF-5 defend-only) | SQL injection in a login/search field dumps a **plaintext SQLite** table of synthetic customer records that reference the student (name, email, a cleartext password, an account id tied to their handle) | A successful dump is posted to the room-wide **wall of shame** (8.12), in front of everyone; the student defends by fixing the query — PR → scan → merge to main → rebuild → redeploy the running app (S6) — after which the dump fails and their entry is marked contained | The full patch → PR → scan → merge → deploy loop (the GitOps payoff); SQL injection and data exfiltration; why app data stored in cleartext makes a breach worse |
 
-Rungs 8-11 (and 3, 6, 7, 9, 12, 13) reuse existing modules instead of new code wherever they can. Which ones need a
+Rungs 8-11 and 14 (and 3, 6, 7, 9, 12, 13) reuse existing modules instead of new code wherever they can; 14 is a new custom app build (defend-only). Which ones need a
 custom target image and which can sit on top of Forgejo, `runner-pool`, `openbao`, the DNS stack and the policy
 engine is **spike CTF-S5** (now covering all workshop-tied, SSRF-adjacent and API-only targets).
 
@@ -225,7 +325,7 @@ broken image is caught before a class sees it.
 | CTF-2 | **Server-side trust and APIs**: the server trusts input or the caller | Medium/Hard | 4, 7, 12, 13 | ~150 min |
 | CTF-3 | **Secrets and misconfiguration**: leaked credentials and their reach | Medium/Hard | 5, 8, 11 | ~115 min |
 | CTF-4 | **Trusting the wrong thing**: a component, a rule or a pipeline | Medium/Hard | 6, 9, 10 | ~115 min |
-| CTF-5 | **Defend**: patch it with git | Hard | 8-11, source in a Forgejo repo | ~120 min |
+| CTF-5 | **Defend**: patch it with git | Hard | 8-11 + 14 (app-code), source in a Forgejo repo | ~120 min |
 
 The attack sessions were grouped by how the exploit works, not by tier, so each stays inside a 2-3 hour window
 (decision CTF-D12). The defend session is not split. CTF-5 expects CTF-3 and CTF-4 as prerequisites, because targets
@@ -237,10 +337,18 @@ Each session is its own workshop pack (`workshops/ctf-access/`, `ctf-server-trus
 and in which target images and flags they enable, so a new session is content work, not infrastructure work. Every
 pack ships the same **Lab Info** library (section 9).
 
-**CTF-5 (defend)** is the GitOps payoff, scoped to targets 8-11 because those are the ones with pipeline-adjacent
-fixes (a secret to rotate, a policy to correct, a workflow trigger to lock down, a state backend to move). Target
-13 (`api-bfla`) is deliberately left out of CTF-5: its "exploit" is calling a destructive admin route, and the
-defend loop must never re-run that against the live range (see target 13's note in section 7.3).
+**CTF-5 (defend)** is the GitOps payoff, scoped to targets 8-11 (pipeline-adjacent artifact fixes: a secret to
+rotate, a policy to correct, a workflow trigger to lock down, a state backend to move) **plus a dedicated app-code
+target, 14 `customer-portal`** (CTF-D25). Targets 8-11 fix a config/secret/workflow artifact and the gate re-runs a
+check; target 14 is the one where the fix is **application source** and merging it actually **rebuilds a container
+image and redeploys it in place** (the full S6 loop), so it carries the whole "patch code → PR → scan → merge →
+deploy → the running app is replaced" arc the GitOps story is about. Target 14 is defend-only — never attacked in an
+earlier session — which keeps CTF-5's prerequisites unchanged (still CTF-3 and CTF-4 for targets 8-11). Adding it
+makes CTF-5 **five** always-live defend targets per student, not four, so the capacity and isolation numbers (S2,
+S15; CTF-D14's "four per student" → five → 200 targets at 40 students) size for five — one extra lightweight
+Flask+SQLite container per student. Target 13 (`api-bfla`) is deliberately left out of CTF-5: its "exploit" is
+calling a destructive admin route, and the defend loop must never re-run that against the live range (see target
+13's note in section 7.3).
 
 ### 8.1 Why a CI gate alone isn't enough
 
@@ -536,6 +644,49 @@ runner-pool pipeline rebuilds and re-tests the target and re-runs the exploit: t
 now fails. Whether CTF-5 should also cover the low/medium/API targets (0-7, 12) in a later iteration, and with
 their own attacker-bot, is a later iteration.
 
+### 8.12 The wall of shame: a breach you watch happen, with your name on it
+
+Target 14 `customer-portal` (section 7.3) turns the abstract "a target was breached" marker into something
+personal and public. Each student's app sits over a **plaintext SQLite** database holding a handful of synthetic
+customer records that reference *them* — a name, email, cleartext password and account id derived from their lab
+handle (`student07`…). While the app is unpatched, the attacker swarm's SQL-injection dump succeeds, and the stolen
+rows are posted to a room-wide **wall of shame** page: the class watches a feed of "leaked" customer records
+appear, each tagged to whichever student's app just gave them up. It is the dramatized version of a real breach's
+worst moment — stolen data dumped on the open web — built entirely from in-lab synthetic data.
+
+- **Its own projector route, like the cyber map.** The wall of shame is a `widgets` entry on its own route
+  (CTF-D18's one-projector-route precedent, section 8.3), a sibling to the cyber map and the "top 10 under siege"
+  list, not a per-student card.
+- **Driven by the event payload, never hardcoded.** A successful dump by an attacker persona emits the exfiltrated
+  rows inside its `soc`/`ctf` achievement event (the same contract the map uses, spike CTF-S11); the widget renders
+  only what the event carries. Tuning what a dump shows is a payload change, not a front-end change.
+- **A live connection, then a cut one.** Each wall entry carries a connection state, not just a one-shot row dump.
+  While the app is still exploitable the entry reads **LIVE** (the attacker still has a working line into the
+  student's data, records still trickling in); the moment the patched app is redeployed and the next dump fails,
+  the same entry flips to **DISCONNECTED**. That live→disconnected transition is the satisfying, legible "you cut
+  them off" moment — a sharper read than a static "breached" tag, and it's the same underlying signal as the status
+  light and MTTP, just shown as a connection. Mechanically it's the presence or absence of fresh successful-dump
+  events for that (student, target) within a short rolling window, the same heat calculation 8.11/8.3 already use.
+- **Containment is the reward.** Once the student patches the query, merges to main and the controller redeploys
+  the app (the S6 loop), the next dump returns nothing — no new rows post, the connection shows DISCONNECTED, and
+  their wall-of-shame entry is marked *contained* and ages off. This mirrors the red → yellow transition of the
+  status light (CTF-D10) and feeds mean-time-to-patch (8.8): the wall is the visible, emotional read of the same
+  event the MTTP figure counts.
+- **Wire it always; make visibility a toggle.** The wiring — the successful-dump events, the widget, its route, the
+  live/disconnected state — is built unconditionally. Whether the wall actually *renders in the lab* is a per-pack
+  switch (a `workshop.env` flag, e.g. `CTF_WALL_OF_SHAME=on|off`, following the same pattern as the other CTF
+  feature flags), so a facilitator can run CTF-5 with the wall projected for full dramatic pressure, or turn it off
+  for a quieter or smaller session without changing any code or disabling the underlying events (the status light,
+  MTTP and incident summary still work off the same events either way). Default on for the `ctf-defend` pack.
+- **Safety: synthetic only, no real PII, ever.** Every record is generated from the student's in-lab handle and
+  lab-local fake data. The wall never displays anything real, and the plaintext store exists purely so the dump is
+  *legible* on screen — the point students feel is "this data was readable the instant they got in." Plaintext at
+  rest is deliberate scenario design, reviewed under the same no-real-payload rule as the Lab Info library
+  (CTF-P2b).
+- **Which flaw is graded.** The scored, gated fix is the **SQL injection** (parameterize the query); the cleartext
+  storage is available as a CTF-D17 **bonus second flaw** (encrypt/hash at rest) that bots surface but that never
+  moves the status light on its own.
+
 ## 9. Content and front door
 
 Per session pack, from `./run.sh new-workshop`:
@@ -543,6 +694,8 @@ Per session pack, from `./run.sh new-workshop`:
 - `content/slides/presentation.md` (Marp): the technique, the legal boundary, one example solved live.
 - `content/lab/README.md` and lab files: seeded into `~/lab`; each target has a briefing (what the box is, which
   ports are yours, no answers), a hint ladder and a debrief page unlocked after the flag.
+- **Target cards (CTF-D20, CTF-1 to CTF-4).** One card per target with state, slot IP, Start/Stop, Reset and a flag
+  box (section 4). The facilitator `/admin` tab shows every student's live target and can stop or reset any of them.
 - `extensions.json`: cards `{id, label, desc, href, icon}` for the briefing and flag submission; a matching `/admin`
   tab per card (the renderer warns otherwise). No `/guide/` or `/terminal/` routes: the Labs and Terminal tabs
   already exist.
@@ -577,14 +730,14 @@ Per session pack, from `./run.sh new-workshop`:
 
 | Phase | Work | Done when |
 |---|---|---|
-| CTF-P0 | Spikes S1-S13 | Each has a written answer in section 12 |
+| CTF-P0 | Spikes S1-S17 | Each has a written answer in [`CTF-SPIKES.md`](CTF-SPIKES.md) |
 | CTF-P1 | `ctf-range` skeleton: `ctf_net`, one target, firewall hook, reset hook | A student reaches only their target; `nmap` of the subnet shows one host; `--dry-run` clean |
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
 | CTF-P3 | Targets 0-4, 7, 12 and 13 and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand; target 13's solve script never actually fires its destructive route against the live range |
 | CTF-P4 | Class-size checks | `--test N` at 40 students (CTF-5 means 160 targets); target-to-target and listener isolation tests pass; memory sized |
 | CTF-P5 | Targets 5, 6, 8-11 and the CTF-3/CTF-4 packs | Solved by script; rung 10's failure case documented |
-| CTF-P6 | CTF-5 defend: CI gate first, then the live bot and SOC feed | A fixed PR passes the pipeline; the unfixed one fails; separately, the live bot's next attempt fails only after that same PR is live |
+| CTF-P6 | CTF-5 defend: build target 14 `customer-portal` and the CI gate (scan + exploit re-run) and merge→rebuild→redeploy loop first, then the live bot, SOC feed and wall of shame | A fixed PR passes the pipeline and the unfixed one fails; a merge to main rebuilds and redeploys the student's app in place so the live bot's next dump returns no data; a successful dump posts to the wall of shame and a contained one ages off |
 | CTF-P7 | Live checks | One real class on the Azure path; results in `RELEASES.md` |
 
 Isolation tests are acceptance tests, not nice-to-haves: one script per rule (can reach own target; cannot reach
@@ -599,6 +752,10 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 - **CTF-S2, target-to-target isolation on both runtimes.** Which of per-target networks, `enable_icc=false` or a
   sidecar firewall works under Docker and rootless Podman (`netavark`), and what `web-terminal` joining N networks
   costs.
+- **CTF-S14, student-controlled targets.** The `ctf-controller` and its label-restricted socket proxy under Docker and
+  rootless Podman; cold-start time per target (CTF-4's DNS, policy and `runner-pool` stacks especially) at 40
+  students; that recreating the slot keeps its address and firewall rule; the queue's concurrency and the idle timeout
+  values, including the worst-case wait when all 40 students press Start at once.
 - **CTF-S3, listener return path.** Port ranges, `INPUT` rules by source, and survival across container restart and
   student reset; also that other uids cannot reach a student's listener over loopback.
 - **CTF-S4, achievements `ctf` source.** Smallest change to add a signed `ctf` event source (as `cloud`, `bao`, `ca`
@@ -640,73 +797,42 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
   control port (`engine/README.md`). Whether that same shape (an internal-only control port, called only by the
   allocator or the admin tab's backend) fits the bot, or a simpler signal (a file the bot polls, written by a
   `start.d`-style hook) is enough for something this infrequent.
+- **CTF-S15, terminal footprint (CTF-D22).** Per-student memory with code-server open is about 260MB
+  (`engine/README.md`, Capacity), which at 40 students is likely the largest memory line in a CTF session. Confirm
+  code-server only starts on the first `/ide` request, so a pack whose students stay in the terminal never pays for
+  it; measure a terminal-only student against the 260MB figure with `./run.sh capacity` and a `--test` bot; and check
+  whether a pack can hide the VS Code tab without an engine change (the workspace page comes from the allocator, so it
+  may not be possible, which would be a separate engine proposal per CTF-D15). Also decide how CTF-5, where students
+  patch YAML, Rego and workflows, sizes for IDE use.
+- **CTF-S16, the CTF terminal workspace (CTF-D22).** One ttyd window holding a file browser, an editor and a shell,
+  built in a terminal link (`/etc/tmux.conf` and the shared zshrc are layered over, not edited). Candidates: `yazi`
+  (browser), `micro` (editor), and a multiplexer chosen by a bake-off between tmux alone, Zellij nested in tmux, and
+  Zellij's own web client. The facilitator watch tiles must keep working: today that is `tmux attach -r`
+  (`workspace-control.py`). Still to check: whether `yazi` follows the shell's `cd` through a `chpwd` hook; whether
+  the tmux `session-created` hook fires for the first session; mouse, OSC52 clipboard, file drop and sixel in ttyd;
+  Chrome and Firefox capturing Ctrl-T, Ctrl-N and Ctrl-W (Zellij's default tab and resize modes use the first two);
+  a read-only Zellij watcher attach working end to end; and a pass by someone who has never used a multiplexer.
+- **CTF-S17, a SAST/SCA scan step in the defend pipeline.** CTF-5's pipeline (spike CTF-S6) already builds the
+  student's branch and re-runs the exploit as the CI gate; the ask is one more stage in that same job, not a new
+  mechanism, that runs a static-analysis and dependency-scan tool over the student's pushed source and surfaces
+  real findings (CWE category and file:line) as pointer noise toward the flaw, matching "a real team would have
+  this." It does **not** gate pass/fail — only the exploit re-check decides red/yellow/green (CTF-D19); the scan is
+  informational so an unrelated finding in a scanner can never flip a correct fix to red. To settle: which tool(s)
+  for whatever language targets 8-11 ship in (a no-network SAST tool and a dependency/SCA tool, both pinned per
+  CTF-D16), whether findings surface unconditionally every run or sit behind the existing two-hint ladder (section
+  9) given that a scan finding is more specific than today's hints, where they render (the status strip next to
+  red/yellow/green, or the SOC feed), and the smallest way to add this stage to `runner-pool`'s job without a new
+  `JOB_TOOLS` entry per target image.
 
-## 12. Spike answers
+## 12. Spike answers and decisions
 
-None yet.
+Moved to [`CTF-SPIKES.md`](CTF-SPIKES.md) (2026-10-05) to keep this file lighter to read: every spike's answer
+(CTF-S1...S17) and the full decisions log (CTF-D1...D25) live there now. Spike and decision IDs referenced
+throughout this plan point to that file.
 
-## 13. Decisions so far
+## 13. Open questions
 
-- **CTF-D1 (user, 2026-10-03):** Isolation is **N static targets, one per slot**, with per-uid firewall rules in the
-  terminal; no `docker.sock`, no engine change.
-- **CTF-D2 (user, 2026-10-03):** Flavor is **both, as a ladder**: classic boot2root warm-ups, then GitOps-flavored
-  attack paths.
-- **CTF-D3 (user, 2026-10-03):** Flags are validated through the **achievements module with per-student flags**. No
-  CTFd.
-- **CTF-D4 (user, 2026-10-03):** Scope is a **multi-session series**, not a single session. "Attack-Defend" is
-  included as the final session (CTF-5).
-- **CTF-D5:** The range is a **module** (`ctf-range`) and each session a thin workshop pack, per the repo rule that
-  anything a second workshop would want becomes a module.
-- **CTF-D6:** Targets are **original builds** inspired by the HTB techniques, not copies of HTB machines, and
-  **Linux only**.
-- **CTF-D7 (user, 2026-10-03):** The ladder is **not capped at ten**. It grew to fourteen targets so the OWASP Top
-  10 (2021), the OWASP API Security Top 10 (2023), and every workshop with an attackable concept each get their
-  own target instead of sharing one to hit a round number.
-- **CTF-D8 (user, 2026-10-03):** CTF-5 (defend) gets a **live attacker bot per student plus a simulated SOC/SIEM
-  alert feed, with the bot as 4-6 randomly-timed personas and a room-wide synthetic "cyber map" dashboard**
-  (section 8.1-8.4), to create real-time pressure during the session instead of relying on the CI
-  gate alone. The CI gate (pipeline rebuilds, re-runs the exploit, PR passes only if it now fails) stays as the
-  actual proof that a fix works; the bot and feed are the pressure layered on top of it, not a replacement for it.
-- **CTF-D9 (user, 2026-10-03):** CTF-5 additionally gets: a facilitator-fired **hint probe** (a short,
-  non-exploiting burst at the vulnerable area, firing on one student, a group, or everyone at once, each with
-  independent random timing so it reads as a wide sweep — section 8.5), a facilitator **inject** control for a
-  real extra attempt, a **benign persona** for triage practice (8.6), an optional **second latent vulnerability**
-  per target (8.7), a **mean-time-to-patch** figure shown with the map (8.8), and an **auto-built incident
-  summary** for the debrief (8.9).
-- **CTF-D10 (user, 2026-10-03):** Each CTF-5 target carries a **red/yellow/green status** (never breached, breached
-  then fixed, breached and still open), one-way (green → red → yellow, never back to green), shown per student
-  and room-wide, with **points attached to the status at session end** rather than only to whether the flag was
-  ever recovered (section 8.10). This replaces the earlier "no points lost either way" framing in 8.4.
-- **CTF-D11 (user, 2026-10-03):** CTF-5's traffic **ramps and pivots** (8.11): probe frequency and the
-  probe-versus-real-exploit mix both climb the longer a target's been in its escalating phase, and the swarm's
-  attention concentrates on whichever of the student's four targets is closest to exploitation, shifting away
-  once a target resolves. The cyber map (8.3) gets a **"Top 10 under siege" list** of the hottest
-  (student, target) pairs in the room right now, driven by the same heat calculation.
-- **CTF-D12 (user, 2026-10-03):** Five sessions: CTF-1 access and identity (0, 2, 1, 3), CTF-2 server-side trust and
-  APIs (4, 7, 12, 13), CTF-3 secrets and misconfiguration (5, 8, 11), CTF-4 trusting the wrong thing (6, 9, 10),
-  CTF-5 defend (8-11, unsplit, needs CTF-3 and CTF-4 first). Packs: `ctf-access`, `ctf-server-trust`, `ctf-secrets`,
-  `ctf-trust`, `ctf-defend`.
-- **CTF-D13 (user, 2026-10-03):** The leaderboard is public in CTF-1 to CTF-4. In CTF-5 the "Top 10 under siege"
-  list is anonymized ("target type + anonymous id").
-- **CTF-D14 (user, 2026-10-03):** Design and test for about **40 students**. CTF-5 then needs 160 targets (four per
-  student), which spike S2 must prove.
-- **CTF-D15 (user, 2026-10-03):** If generating N targets needs an engine change (S1), it is proposed as a
-  **separate change**, not designed around.
-- **CTF-D16 (user, 2026-10-03):** Students need a Linux/`nmap` primer. A shared **Lab Info** library (section 9)
-  ships in every pack: tool primers with neutral examples, no lab-specific payloads, identical across sessions so it
-  can't hint at what a lab needs.
-- **CTF-D17 (user, 2026-10-03):** Each defend target carries a **bonus second flaw** that bots probe but never
-  exploit, scored separately and never affecting the status light (8.7).
-- **CTF-D19 (user, 2026-10-03):** Defend scoring is **units**: green 2 / yellow 1 / red 0, bonus +1 (gated on the
-  main fix), times one configurable multiplier into achievements points. This replaces the 10/5/0 and +3 guesses.
-- **CTF-D18 (user, 2026-10-03):** Bot delay is held at a base value X until dwell ends, then shrinks as the target
-  nears exploitation (8.11). Adopted defaults: no extra retry penalty; flatter
-  region-level origin mix; one projector route for the cyber map; facilitator-only hint probes; linear 10 min ramp;
-  top-10 always up to ten entries from hot pairs. Bot-pacing numbers still come from spike S9.
-
-## 14. Open questions
-
-Questions 1-13 of draft 1 are resolved in section 13 (CTF-D12 to D18). What remains:
+Questions 1-13 of draft 1 are resolved in [`CTF-SPIKES.md`](CTF-SPIKES.md) (CTF-D12 to D18). What remains:
 
 1. **Multiplier.** Start at x5 (10/5/0, bonus +5), or lower the bonus to 0.5 unit if it feels too large?
 2. **Ramp floor.** The fully ramped delay (5-10s guess) is set in spike S13.

@@ -315,7 +315,8 @@ this is how the engine uses it.
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
-- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` makes `run.sh` add the
+- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` (the default since 2026-10-04;
+  set it to 0 for a session that should not score anyone) makes `run.sh` add the
   `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
   (warning and no module when it doesn't). The catalog is validated first, in the allocator image
   (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
@@ -624,6 +625,23 @@ assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
+**Terminal flavor** (`TERMINAL_FLAVOR`): `web` (the default) gives each student VS Code
+in the browser plus a tmux terminal. `zellij` gives a terminal only: a Zellij
+session with a read-only listing of the shell's directory (`dojo-sidebar`), the
+shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it in `engine/.env`
+or a workshop's `workshop.env` (which wins). `run.sh` then builds
+`gitopsdojo/zellij-terminal:base` (`engine/zellij-terminal/`) on top of
+`web-terminal:base` and chains every module and workshop terminal link on it, so
+those links need no change. The same `workspace-control.py` runs in both: with
+`zellij` it starts `zellij attach --create main` instead of tmux, the
+facilitator's watch tile runs `zellij watch main` (Zellij's read-only client), and
+`/start/ide` answers 404. The allocator gets the same value and drops the VS Code
+tab, landing card and `/ide` route; the service name, the control port and the
+port ranges are unchanged, so the diagrams above still hold. Demo bots run in a
+Zellij background session (`bot-supervisor.sh`, `layouts/bot.kdl`). Zellij costs
+more than tmux per student (about 50 MB measured, docs/CTF-WORKSHOP-PLAN.md S16),
+far less than code-server's ~260 MB.
+
 **Capacity**: code-server instances run meaningfully heavier than a bare
 shell. Measured natively on amd64 with 3 students connected at once (a
 fresh session with README.md and its preview, a `.yaml` and a `.tf` open):
@@ -726,7 +744,7 @@ web-terminal/allocator/gateway build contexts individually (only rebuilding
 the ones that actually changed — see `build_if_changed` in `run.sh`), and
 hashes every module folder plus the workshop's `compose/` overlay directory
 as one unit to catch changes to any module or workshop service beyond that
-(the `forgejo-runner` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
+(the `runner-pool` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
 see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
 way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each

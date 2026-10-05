@@ -1,0 +1,19 @@
+#!/bin/sh
+# Read-only listing of the shell's current directory, for the Zellij workspace's side
+# pane. Not interactive: it ignores keystrokes and only redraws when the directory the
+# shell is in (recorded in ~/.dojo-cwd by zshrc-zellij) or its contents change.
+stty -echo -icanon 2>/dev/null
+printf '\033[?25l\033[?7l'   # hide the cursor; no line wrap, so long names clip instead of wrapping
+state="$HOME/.dojo-cwd"
+last=""
+while :; do
+  dir=$(cat "$state" 2>/dev/null)
+  [ -d "$dir" ] || dir="$HOME/lab"
+  sig="$dir|$(ls -lAn --time-style=+%s "$dir" 2>/dev/null | cksum)"
+  if [ "$sig" != "$last" ]; then
+    last="$sig"
+    printf '\033[H\033[2J\033[1;36m %s\033[0m\n' "$(printf '%s' "$dir" | sed "s|^$HOME|~|")"
+    ls -1AF --group-directories-first --color=always -I .vscode "$dir" 2>&1
+  fi
+  sleep 1
+done

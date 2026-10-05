@@ -333,7 +333,7 @@ def reset_steps(sid, optional=frozenset()):
 
     hooks = [h for h in EXTENSIONS["resets"] if not h.get("optional") or h["id"] in optional]
     return [
-        ("stop", "Stop VS Code and terminal", stop),
+        ("stop", "Stop VS Code and terminal" if config.HAS_IDE else "Stop terminal", stop),
     ] + reset.hook_steps(hooks, sid, "teardown", GATEWAY_TOKEN) + [
         ("forgejo-teardown", "Forgejo: close pull requests, delete branches and the account",
          lambda: reset.forgejo_teardown(fj, FORGEJO_ORG, sid)),

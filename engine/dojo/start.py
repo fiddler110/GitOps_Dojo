@@ -33,6 +33,10 @@ from .stack import compose_args, extra_files, services
 from .ui import bad, changed, console, fail, ok, step
 
 MAX_BOTS = 35
+# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one
+# (engine/zellij-terminal/, built on top of the web-terminal base).
+TERMINAL_FLAVORS = ("web", "zellij")
+ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
 
 
 class StartError(Exception):
@@ -263,12 +267,21 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     else:
         ca = ""
 
-    # The terminal image chain: :base -> each module's terminal/ -> the workshop's.
-    links = [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
-             for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
+    # The terminal image chain: :base -> (the Zellij flavor) -> each module's
+    # terminal/ -> the workshop's. TERMINAL_FLAVOR comes from engine/.env or the
+    # workshop's workshop.env (the latter wins); "zellij" inserts the
+    # zellij-terminal layer on top of :base, so every later link builds FROM it.
+    flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
+    if flavor not in TERMINAL_FLAVORS:
+        raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
+    env["TERMINAL_FLAVOR"] = flavor
+    base_image = ZELLIJ_BASE_IMAGE if flavor == "zellij" else "gitopsdojo/web-terminal:base"
+    links = [(ZELLIJ_BASE_IMAGE, "./zellij-terminal")] if flavor == "zellij" else []
+    links += [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
+              for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
         links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
-    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else "gitopsdojo/web-terminal:base"
+    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else base_image
 
     files = extra_files(res)
     overlay_dirs = [f"../modules/{m}" for m in res.modules if (paths.MODULES / m / "compose.yml").is_file()]
@@ -424,9 +437,20 @@ def _dry_run_checks(p: Plan) -> int:
             bad(line)
         bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
     console.print()
+    step("Checking tool pins")
+    tools = subprocess.run(["sh", "scripts/check-tool-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
+    if tools.returncode == 0:
+        ok("every shared tool pin agrees across its Dockerfiles")
+    else:
+        for line in (tools.stdout + tools.stderr).strip().splitlines()[:-1]:
+            bad(line)
+        bad("pin drift: bump every copy of a shared pin together (see scripts/check-tool-pins.sh)")
+    console.print()
     console.print(f"Would run: compose {' '.join(compose_args(p.files))} up -d")
-    if pins.returncode != 0:
-        fail("Dry run complete: nothing was built or started, but unpinned images were found.")
+    if pins.returncode != 0 or tools.returncode != 0:
+        found = " and ".join(w for w in ("unpinned images" if pins.returncode != 0 else "",
+                                        "drifted tool pins" if tools.returncode != 0 else "") if w)
+        fail(f"Dry run complete: nothing was built or started, but {found} were found.")
         return 1
     console.print("Dry run complete: nothing was built or started.")
     return 0

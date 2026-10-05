@@ -178,9 +178,13 @@ def logs(service: str, follow: bool, tail: str) -> None:
 def list_cmd() -> None:
     """Show the workshops, in learning-path order."""
     console.print("Available workshops (in learning-path order):")
-    for w in all_workshops():
+    shops = all_workshops()
+    width = max((len(w.title) for w in shops), default=0)
+    for w in shops:
         order = " " if w.order is None else str(w.order)
-        console.print(f"  {order:>2}  [cyan]{w.name:<20}[/] {escape(w.title)}")
+        title = escape(w.title).ljust(width) if w.duration else escape(w.title)
+        console.print(f"  {order:>2}  [cyan]{w.name:<20}[/] {title}"
+                      + (f"  [dim]{escape(w.duration)}[/]" if w.duration else ""))
 
 
 @cli.command("modules", context_settings=SETTINGS)
@@ -263,16 +267,17 @@ def config(workshop: str, keys: Tuple[str, ...], env_name: Optional[str], show_s
 @click.option("--description", default="", help="One sentence, shown on the login page.")
 @click.option("--modules", "mods", default="", metavar="'A B'", help="Modules to use ('./run.sh modules' lists them).")
 @click.option("--order", type=int, default=-1, help="Place in the learning path (default: last).")
+@click.option("--duration", default="", metavar="'~2 h'", help="How long a session takes, shown by 'list'.")
 @click.option("--org", default="training", show_default=True, help="Forgejo organisation of the sample repo.")
 @click.option("--repo", default="", help="Forgejo name of the sample repo (default: NAME).")
 @click.option("--terminal", is_flag=True, help="Also add compose/terminal/Dockerfile for extra tools.")
 @click.option("--dry-run", is_flag=True, help="List the files it would write; write nothing.")
-def new_workshop(name, title, description, mods, order, org, repo, terminal, dry_run) -> None:
+def new_workshop(name, title, description, mods, order, duration, org, repo, terminal, dry_run) -> None:
     """Start a new workshop pack in workshops/NAME/ from workshops/assets/template/:
     workshop.env, slides, a first lab and a sample repo, with TODOs to fill in."""
     from .scaffold import Scaffold, ScaffoldError, create, plan, prepare
     try:
-        s = prepare(Scaffold(name, title, description, mods, order, org, repo, terminal), cli.commands)
+        s = prepare(Scaffold(name, title, description, mods, order, duration, org, repo, terminal), cli.commands)
         files = plan(s) if dry_run else create(s)
     except (ScaffoldError, OSError) as exc:
         fail(str(exc))

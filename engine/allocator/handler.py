@@ -147,14 +147,22 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
     # allocate or block on reading an enormous declared body.
     MAX_BODY_BYTES = 4096
 
-    def read_form_body(self):
+    def read_body(self):
+        """Read the request body, once, before do_POST routes or rejects anything.
+        Every reply closes the connection (HTTP/1.0), and closing a socket with
+        unread bytes in its receive buffer makes the kernel send RST instead of
+        FIN, which can reach the client before it reads the reply: it gets
+        ConnectionResetError, not the 403/404 it was sent. A body over the cap
+        still leaves bytes behind; no real form comes near it."""
         try:
             length = int(self.headers.get("Content-Length", 0))
         except ValueError:
             length = 0
         length = max(0, min(length, self.MAX_BODY_BYTES))
-        raw = self.rfile.read(length) if length else b""
-        parsed = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+        return self.rfile.read(length) if length else b""
+
+    def read_form_body(self):
+        parsed = urllib.parse.parse_qs(self.body.decode("utf-8", errors="replace"))
         return {k: v[0] for k, v in parsed.items()}
 
     # -- GET routes ----------------------------------------------------
@@ -309,6 +317,7 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
 
     # -- POST routes -----------------------------------------------------
     def do_POST(self):
+        self.body = self.read_body()  # before any reply, even a rejection: see read_body
         if not self.gateway_authorized():
             self.send_response(403)
             self.end_headers()

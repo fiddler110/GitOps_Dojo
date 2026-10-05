@@ -28,6 +28,7 @@ import math
 import os
 import random
 import re
+import selectors
 import socket
 import sys
 import tempfile
@@ -235,6 +236,7 @@ class Resp:
         self.error = None     # set when nothing (or half a reply) came back
         self.head = False     # the request was HEAD: the reply has headers only
         self.leftover = b""
+        self.hangup = None    # how the transport ended, if badly, even when a reply did arrive
 
     @property
     def status(self):
@@ -312,49 +314,84 @@ def parse_responses(data, head=False):
 
 def talk(port, payload, timeout=5.0, first_only=True, patience=0.0):
     """Send raw bytes, read the reply. `first_only`: stop after the first complete response.
-    `patience`: after that, keep listening this long for further (unwanted) responses."""
+    `patience`: after that, keep listening this long for further (unwanted) responses.
+
+    Sending and receiving are interleaved, and a ready read is drained before the next write,
+    rather than sendall()-ing the whole payload first. A server that refuses an oversized body
+    answers and then closes while the upload is still in flight -- and a close() whose receive
+    queue still holds unread request bytes is an RST, not a FIN. An RST makes the *client*
+    kernel discard whatever it had already buffered for us, so sendall()-first would throw away
+    the very refusal the caller is waiting for. It only shows up where the socket buffers are
+    smaller than the payload: macOS gives ~128 KB (net.inet.tcp.sendspace), so a 3 MB body
+    blocks in sendall() and loses the reply, while Linux's autotuned multi-MB buffers usually
+    swallow the whole write and hide the bug. Interleaving is also what a real client does.
+    """
     resp = Resp()
     head = payload.startswith(b"HEAD ")
     resp.head = head
     sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
-    data = b""
+    sock.setblocking(False)
+    data, sent = b"", 0
     try:
-        try:
-            sock.sendall(payload)
-        except OSError as exc:  # the server may answer and hang up before it has read everything
-            resp.error = f"send failed: {exc!r}"
         deadline = time.monotonic() + timeout
-        quiet_since = None
-        while time.monotonic() < deadline:
-            parsed, left, problem = parse_responses(data, head)
-            if parsed and problem is None and left == b"" and (first_only and patience == 0):
-                break
-            if parsed and problem is None and first_only and patience:
-                quiet_since = quiet_since or time.monotonic()
-                sock.settimeout(max(0.05, min(patience, deadline - time.monotonic())))
-            else:
-                sock.settimeout(max(0.05, deadline - time.monotonic()))
-            try:
-                chunk = sock.recv(1 << 20)
-            except socket.timeout:
-                break
-            except OSError as exc:
-                resp.error = resp.error or f"connection error: {exc!r}"
-                break
-            if not chunk:
-                break
-            data += chunk
-            quiet_since = None
+        with selectors.DefaultSelector() as sel:
+            sel.register(sock, selectors.EVENT_READ)
+            while True:
+                now = time.monotonic()
+                if now >= deadline:
+                    break
+                parsed, left, problem = parse_responses(data, head)
+                complete = bool(parsed) and problem is None
+                if complete and left == b"" and (first_only and patience == 0):
+                    break
+                if complete and first_only and patience:
+                    wait = max(0.05, min(patience, deadline - now))
+                else:
+                    wait = max(0.05, deadline - now)
+                sel.modify(sock, selectors.EVENT_READ if sent >= len(payload)
+                           else selectors.EVENT_READ | selectors.EVENT_WRITE)
+                events = sel.select(wait)
+                if not events:
+                    break  # the reply is not coming, or patience for a second one ran out
+                mask = events[0][1]
+                if mask & selectors.EVENT_READ:  # drain first: an RST would wipe this
+                    try:
+                        chunk = sock.recv(1 << 20)
+                    except BlockingIOError:
+                        continue  # a spurious wakeup, not an end of stream
+                    except OSError as exc:
+                        resp.error = resp.error or f"connection error: {exc!r}"
+                        break
+                    if not chunk:
+                        break
+                    data += chunk
+                elif mask & selectors.EVENT_WRITE:
+                    try:
+                        sent += sock.send(payload[sent:sent + (1 << 20)])
+                    except BlockingIOError:
+                        pass
+                    except OSError as exc:  # the server answered and hung up before reading it all
+                        resp.error = resp.error or f"send failed: {exc!r}"
+                        sent = len(payload)  # stop writing, keep reading whatever did arrive
     finally:
         sock.close()
     resp.responses, resp.leftover, problem = parse_responses(data, head)
+    resp.hangup = resp.error  # kept for callers that care how the socket ended
     if not resp.responses:
         resp.error = resp.error or (problem or "no response (connection closed or timed out)")
     elif problem and not first_only:
         resp.error = problem
-    elif problem and first_only and len(resp.responses) == 0:
-        resp.error = problem
+    else:
+        # A complete reply arrived, so the exchange is usable however the socket ended afterwards:
+        # a server that refuses a body mid-upload and closes necessarily resets our write, and
+        # `error` means "no usable reply" -- we have one.
+        resp.error = None
     return resp
+
+
+def is_hangup(error):
+    """A peer that closed on us mid-upload: an RST (reset) or a write after its FIN (broken pipe)."""
+    return bool(error) and ("ConnectionResetError" in error or "BrokenPipeError" in error)
 
 
 # ------------------------------------------------------------------------------------------------
@@ -373,7 +410,8 @@ SECURITY = ("executor argument", "docker create request", "records and container
             "the token issued", "the portal answered 200", "the portal answered as", "made the portal answer", "a body above",
             "the connection is out of step", "reached another container", "reached both", "not a clean origin-form",
             "a student got past", "an unknown method was not refused", "unexpected status", "builder output",
-            "a non-allow-listed image", "a value that is not a number", "the host port in the request")
+            "a non-allow-listed image", "a value that is not a number", "the host port in the request",
+            "a request smuggled", "one over-cap request")
 
 
 class Problems:
@@ -381,6 +419,7 @@ class Problems:
         self.groups = collections.OrderedDict()   # kind -> {"count": n, "examples": [(size, request, detail)]}
         self.requests = 0
         self.statuses = collections.Counter()
+        self.hangups = 0      # replies lost to an expected mid-upload reset (see judge's allow_hangup)
 
     def add(self, kind, request, detail="", size=0):
         group = self.groups.setdefault(kind, {"count": 0, "examples": []})
@@ -390,7 +429,8 @@ class Problems:
 
     def report(self, seed=SEED):
         lines = [f"{len(self.groups)} distinct problem(s) in {self.requests} request(s) (seed {seed}); "
-                 + (f"statuses seen: {dict(sorted(self.statuses.items()))}" if self.statuses else "")]
+                 + (f"statuses seen: {dict(sorted(self.statuses.items()))}" if self.statuses else "")
+                 + (f"; {self.hangups} expected mid-upload hangup(s)" if self.hangups else "")]
         ordered = sorted(self.groups.items(), key=lambda kv: not kv[0].startswith(SECURITY))
         n_safety = sum(1 for kind, _ in ordered if kind.startswith(SECURITY))
         for n, (kind, group) in enumerate(ordered, 1):
@@ -520,7 +560,7 @@ class Stack(unittest.TestCase):
         return f"/subscriptions/{SUB[user]}/resourceGroups/{rg}{ARM_QS}"
 
     def judge(self, resp, request, kind_prefix="", *, json_reply=True, token_endpoint=False, size=0, before=None,
-              mark=0, allow_status=(), responses=1):
+              mark=0, allow_status=(), responses=1, allow_hangup=False):
         """Apply every per-request invariant; record whatever fails."""
         p = self.problems
         p.requests += 1
@@ -528,7 +568,16 @@ class Stack(unittest.TestCase):
         if resp.error:
             time.sleep(0.2)  # let the handler thread report why it died
         signature = self.signature(mark)
-        if resp.error:
+        if resp.error and allow_hangup and is_hangup(resp.error) and not signature:
+            # The caller sent something the server is meant to refuse mid-upload. Closing a socket
+            # whose receive queue still holds our unread bytes sends an RST, and an RST makes our
+            # own kernel discard the reply it had already buffered -- so no client, this one or
+            # Caddy, can be guaranteed to read it. Losing the reply is not a server fault; what
+            # the caller must still check is that nothing was smuggled through. See
+            # test_oversized_body_is_refused_and_does_not_smuggle_a_second_request.
+            # `not signature`: a reset the server caused by crashing is still a real failure.
+            p.hangups += 1
+        elif resp.error:
             why = resp.error.split(":")[0] if not resp.error.startswith("bad") else "bad reply"
             p.add(f"{kind_prefix}no usable reply: {why}{' (' + signature + ')' if signature else ''}", req, resp.error, size)
         else:
@@ -1573,15 +1622,55 @@ class FramingFuzz(Stack):
         for over in (1, 1000, 2_000_000):
             body = b" " * 1_000_000 + smuggled + b"#" * over
             payload = request_bytes("PUT", self.rg_path(), self.bearer(A), body, keepalive=True)
+            mark = len(self.lines)
             resp = self.framed(payload, f"PUT with a {len(body)}-byte body ({len(smuggled)}-byte GET /healthz after the 1 MB cap, keep-alive)",
-                               first_only=True, patience=1.0, timeout=8.0)
+                               first_only=True, patience=1.0, timeout=8.0, allow_hangup=True)
             if resp.status is not None and resp.status < 400:
                 self.problems.add("a body above the 1 MB cap was accepted", f"{len(body)} bytes", f"status {resp.status}")
+            # Refusing this must end the connection, so the unread tail can never become the next
+            # request. Doing that correctly resets our upload, which can cost us the reply itself
+            # (allow_hangup above, and the note in judge) -- so the property is checked on what
+            # cannot be lost: the smuggled GET /healthz must never be served, on this connection or
+            # a later one, and a single request must never draw more than one answer.
+            if any("GET /healthz" in line for line in self.lines[mark:]):
+                self.problems.add("a request smuggled past the 1 MB body cap was executed",
+                                  f"{len(body)} bytes", "the server logged GET /healthz")
+            if len(resp.responses) > 1:
+                self.problems.add("one over-cap request drew more than one answer",
+                                  f"{len(body)} bytes", f"statuses {[r[0] for r in resp.responses]}")
         # exact-cap body in a valid JSON document is still fine
         pad = "x" * (1_000_000 - len(json_bytes({"location": "canadacentral", "tags": {"owner": "s", "env": "dev", "p": ""}})) - 4)
         body = json_bytes({"location": "canadacentral", "tags": {"owner": "s", "env": "dev", "p": pad}})
         self.framed(request_bytes("PUT", self.rg_path(), self.bearer(A), body), f"PUT with a {len(body)}-byte body just under the cap", timeout=8.0)
         self.check_after()
+
+    def test_a_connection_that_will_close_says_so(self):
+        """RFC 9112 s9.6: a sender about to close SHOULD send `Connection: close`. Caddy holds its
+        connection to cloud-api open between requests, so without the header it only learns the
+        connection is gone by trying to reuse it. The flip side matters just as much: an ordinary
+        keep-alive reply must NOT carry it, or every request pays for a new connection."""
+        def connection_header(resp):
+            return (resp.headers.get("connection") or [None])[0]
+
+        kept = talk(self.port, request_bytes("GET", "/healthz", keepalive=True), timeout=4.0)
+        self.assertEqual(kept.status, 200)
+        self.assertIsNone(connection_header(kept), "a keep-alive reply must not announce a close")
+
+        # Every path that closes must announce it: the 1 MB body cap, a Content-Length that is not
+        # a number, and a request line that never parsed (send_error, before command/path exist).
+        over = request_bytes("PUT", self.rg_path(), self.bearer(A), b" " * 1_000_000 + b"#" * 1000,
+                             keepalive=True)
+        bad_length = (b"PUT " + self.rg_path().encode() + b" HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer "
+                      + self.tokens[A].encode() + b"\r\nContent-Length: abc\r\n\r\n")
+        for payload, label in ((over, "a body over the 1 MB cap"),
+                               (bad_length, "a Content-Length that is not a number"),
+                               (b"!!!!\r\nHost: x\r\n\r\n", "an unparsable request line")):
+            self.reset()
+            resp = talk(self.port, payload, timeout=8.0)
+            if resp.status is None:
+                continue  # the close reset us before the reply landed; the oversized-body test covers that
+            self.assertGreaterEqual(resp.status, 400, label)
+            self.assertEqual(connection_header(resp), "close", f"{label} closes but did not say so")
 
     def test_pipelined_requests_are_answered_one_for_one(self):
         two = request_bytes("GET", "/healthz", keepalive=True) + request_bytes("GET", "/readyz", keepalive=True)

@@ -8,6 +8,8 @@ engine/allocator:
 
 import json
 import os
+import select
+import socket
 import sys
 import threading
 import time
@@ -112,6 +114,33 @@ class GatewayToken(HandlerTest):
         self.assertEqual(self.request("GET", "/auth-check?tool=ide", headers={"X-Gateway-Token": "wrong"},
                                       gateway=False)[0], 403)
         self.assertEqual(self.control.calls, [])
+
+
+class PostBody(HandlerTest):
+    """A rejected POST is answered only after its body is read. Every reply
+    closes the connection, and closing over unread bytes sends RST, so the
+    client could get ConnectionResetError instead of the status (it made
+    test_reset's 403 checks flaky under load). Raw sockets, so the body can be
+    held back: a reply that comes first was sent without reading it."""
+
+    def test_rejections_wait_for_the_body(self):
+        body = b"confirm=student01"
+        gw = {"X-Gateway-Token": config.GATEWAY_TOKEN}
+        for path, headers, status in (
+                ("/admin/reset/student01", {}, 403),                                       # no gateway token
+                ("/admin/reset/student01", {**gw, "X-Auth-User": FAC}, 403),               # no X-Requested-With
+                ("/admin/reset/student01", {**gw, "X-Requested-With": "dojo-admin"}, 403),  # not the facilitator
+                ("/admin/reset/root", {**gw, "X-Auth-User": FAC, "X-Requested-With": "dojo-admin"}, 404),
+                ("/no-such-route", gw, 404)):
+            with self.subTest(path=path, headers=sorted(headers)):
+                head = f"POST {path} HTTP/1.1\r\nHost: x\r\nContent-Length: {len(body)}\r\n"
+                head += "".join(f"{k}: {v}\r\n" for k, v in headers.items()) + "\r\n"
+                with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+                    s.sendall(head.encode())
+                    self.assertFalse(select.select([s], [], [], 0.3)[0], "replied before reading the body")
+                    s.sendall(body)
+                    reply = s.recv(4096)
+                self.assertTrue(reply.startswith(f"HTTP/1.0 {status} ".encode()), reply[:40])
 
 
 class AuthCheck(HandlerTest):

@@ -20,7 +20,7 @@ The session slides cover the *why*. This lab is the *how* — five short, self-c
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab while you work — it's a condensed reference to every command used across all five labs, with a short explanation of how each one works.
 
-Your terminal runs inside `tmux`, which is what lets you open that split pane in the first place (`Ctrl+b %`) — see [tmux-guide.md](tmux-guide.md) for that and a few other handy shortcuts. None of it is required for the labs.
+Your terminal can show several panes at once, which is how you can keep the cheat sheet beside your work. In the VS Code setup that is `tmux` (`Ctrl+b %`; see [tmux-guide.md](tmux-guide.md)); in the terminal workspace it is Zellij, whose key hints stay on screen along the bottom (see [zellij-guide.md](zellij-guide.md)). None of it is required for the labs. In the terminal workspace, `guide quick-start` lists the commands you will use most.
 
 Open any lab file (or the cheat sheet) with:
 
@@ -57,7 +57,7 @@ git config --global user.email
 
 Your username should look like `student01`, `student02`, and so on. Your Git identity is pre-configured to match it — you don't need to set `user.name`/`user.email` yourself.
 
-You're working from either **VS Code** (a browser-based editor with an integrated terminal) or a plain **Terminal** — whichever you opened from the workshop landing page. Every command in these labs works identically in either one; use whichever terminal is in front of you.
+You're working in a terminal: either the **terminal workspace** (a list of your files, an editor and a shell in one window), or **VS Code** (a browser-based editor with an integrated terminal), or a plain **Terminal** — whichever you opened from the workshop landing page. Every command in these labs works identically in any of them; use whichever terminal is in front of you.
 
 The shell is `zsh`, with these helpers installed:
 
@@ -86,7 +86,7 @@ gs
 aliases   # list everything in ~/.zshrc_aliases
 ```
 
-You can also open the file in VS Code or `nano ~/.zshrc_aliases` and edit it directly; run `source ~/.zshrc_aliases` (or open a new terminal) afterwards. The labs spell out the full `git` commands so you learn them, but use your shortcuts wherever you like.
+You can also open the file in your editor (or `nano ~/.zshrc_aliases`) and edit it directly; run `source ~/.zshrc_aliases` (or open a new terminal) afterwards. The labs spell out the full `git` commands so you learn them, but use your shortcuts wherever you like.
 
 ---
 
