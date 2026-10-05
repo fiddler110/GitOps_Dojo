@@ -315,7 +315,8 @@ this is how the engine uses it.
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
-- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` makes `run.sh` add the
+- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` (the default since 2026-10-04;
+  set it to 0 for a session that should not score anyone) makes `run.sh` add the
   `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
   (warning and no module when it doesn't). The catalog is validated first, in the allocator image
   (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
