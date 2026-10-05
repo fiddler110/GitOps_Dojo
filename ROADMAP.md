@@ -33,8 +33,8 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
 |---|---|---|---|
-| 1 | Student reset: live checks | M | Everything is built; engine + achievements live on git-fundamentals; the DNS, cert, vault and cloud hooks need their live runs ([Now](#now)) |
-| 2 | Phase 10 leftovers | S | The no-stack half is done (2026-10-03): `slide-overflow.sh` written, dojo-introduction bot steps check their results, my-zone hook dropped. Left: run both on a stack, plus two browser looks |
+| 1 | Student reset: live checks | S | All four hooks have now run live: DNS and cert 2026-10-03, cloud (with a non-empty pre-state) and vault's capstone 2026-10-04. Left: the vault reset once on the Ubuntu WSL/Docker host, and the purge-line finding in [Now](#now) |
+| 2 | Phase 10 leftovers | S | Done apart from the browser looks: `slide-overflow.sh` ran on dns-as-code and dojo-introduction `--test 5 --fast` re-ran with 0 skips (2026-10-04, [Now](#now)). Left: the two browser looks, and 7 overflowing slides to trim across the vault and dns decks |
 | 3 | Platform review tiers 3-4 | L | RV35, RV22-RV25, RV27-RV31 done; left RV26, RV32-RV34, RV36-RV38 |
 
 ## Up next
@@ -46,10 +46,13 @@ of the Zellij flavor commit (same patch-id — see [Housekeeping](#housekeeping)
 and `origin/docs/roadmap-resume` can be deleted by hand.
 The split smoke run is parked (see [Later](#later)); the full-stack smoke loop is paused. Next, one stack at a time
 (`podman ps` first):
-1. **Vault capstone two-step** on the vault stack (the [Now](#now) table). The stack may still be up from 2026-10-04.
-2. **Cloud reset + capstone** on `tofu-basics --test 2 --fast`, then the Phase 10 leftovers and the browser looks.
+1. ~~**Vault capstone two-step**~~, ~~**cloud reset + capstone**~~, ~~**the Phase 10 leftovers**~~: all run 2026-10-04 on the
+   Mac (see [Now](#now)). Nothing is left on a stack here. No stack is up: each run ended with `./run.sh stop`.
+2. **The two findings of 2026-10-04** ([Now](#now)): `no_push_since_step`'s sub-second hole, and the purge line that
+   never names policy objects or tofu states. Both are one-line-ish fixes with unit tests; neither needs a stack.
 3. **One run on the Ubuntu WSL/Docker host** with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
-   (`no-new-privileges=true`, bare `no-new-privileges`) change nothing there.
+   (`no-new-privileges=true`, bare `no-new-privileges`) change nothing there. This and the browser looks are all
+   that the Mac cannot do.
 
 On the Mac (rootful Podman + SELinux) `engine/.env` must carry `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and
 `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`, or no runner or app can start (`unshare: mount /proc
@@ -75,15 +78,31 @@ it says so). A brief for an agent is built from these lines.
 | Check | Stack | What to confirm |
 |---|---|---|
 | Vault reset | `vault-fundamentals --test 2 --fast` | **Fixed 2026-10-03** (`fix/vault-reset`): app-db's worker was started with `su-exec`, which the Postgres image no longer has (now `gosu`), and `kv_wipe` failed on an already-empty folder (`bao list -format=json` says `{}`). Two resets in a row of testuser1 passed all 12 steps, locally, and `lab_11.sh` (12 checks) and `lab_12.sh` (9) passed after a reset (rootful Podman on macOS needs `RUNNER_POOL_SECURITY_OPT_1/2` in `engine/.env` for the pool and app-host; `openbao-setup` needed more than 64m). Left: run `vault-fundamentals --test 2 --fast` once on the Ubuntu WSL/Docker host with the two variables unset, to confirm the repeated `no-new-privileges:true` changes nothing there |
-| Cloud reset + capstone | `tofu-basics --test 2 --fast` | Reset passed 2026-10-03 (8 steps, "Purge subscription (portal)" by student-reset) but testuser1 had no containers (bots end empty). Left: give testuser1 a running container first so "containers gone, testuser2's running" is shown; the capstone two-step as a student ("Halfway" while the sites run, "Passed!" after `tofu destroy`); on cloud-policy-as-code, `policyObjects` in the purge log line |
-| Vault capstone two-step | vault stack | `dojo-check capstone` "Halfway", rotate `capstone/app` without pushing, then "Passed!"; a push in between sends it back to step 1 |
+| Cloud reset + capstone | `tofu-basics --test 2 --fast` | **Both halves passed 2026-10-04 on the Mac (rootful Podman).** Reset with a non-empty pre-state: testuser1 and testuser2 each given one Running container group, reset of testuser1 ran 9 steps all ok, `dojo-cloud-teardown: removed 1 container group(s), 1 resource group(s)`; afterwards testuser1's was gone, testuser2's still Running, and testuser1's bot restarted from round 1 (so a fresh `ci-hello-dev` appears — don't read that as the old one surviving). Capstone two-step as `student01` (not a bot: bot accounts have no `credential.helper`, so they cannot push outside the bot runner's `GIT_ASKPASS`): two sites from one `for_each` → "Halfway", `tofu destroy` → "Passed! +300". Left: nothing here — the `policyObjects` sub-item became its own finding below |
+| Vault capstone two-step | vault stack | **Passed 2026-10-04** (needs `ACHIEVEMENTS_ENABLED=1`; it was 0, so `dojo-check`/`dojo-challenge` were not in the terminal image at all). "Halfway" → rotate `capstone/app` with no push → "Passed! +300", and a push in between answers "main of `<user>`/capstone changed after step 1 passed (a push deploys). Back to step 1". The push case only holds with a gap of more than a second — see the `no_push_since_step` finding below |
 | Browser looks (user) | any | Widget frame full height on first load; the Reset dialog's "Also clear their achievements and score" checkbox |
 
 Slide overflow checker: `workshops/assets/slide-overflow.sh <workshop> [page.md ...]`. It timed out after login on dns-as-code (it waited for
-`networkidle`, but the portal polls); fixed 2026-10-03 and clean on git-fundamentals (5 pages). Left: run it on dns-as-code.
+`networkidle`, but the portal polls); fixed 2026-10-03 and clean on git-fundamentals (5 pages). **Run on dns-as-code 2026-10-04: the
+fix holds (no timeout), and it found 2 overflows** — `cheat-sheet.md` slide 6 `<table>` 110 px past (the `doctor` command table) and
+`presentation.md` slide 11 `<p>` 34 px past. Also run on vault-fundamentals the same day (not asked for, but the stack was up):
+`index.md`, `lab-index.md` and `labs.md` clean, **`presentation.md` over on 5 slides** — 8 `<li>` 45 px, 10 `<li>` 5 px, 21 `<p>` 10 px,
+31 `<p>` 10 px, 49 `<p>` 12 px. So 7 slides across two decks need trimming; the checker itself is now proven on three packs.
 
 Passed 2026-10-03: DNS reset (no purge, PRs kept as Ghost, zone gone, shared records kept, second reset ok), cert reset
 (crontab gone, two seeded records, clean reload; the pre-state was not captured) and dojo-introduction `--test 5 --fast` (no skips).
+
+Passed 2026-10-04 (all on the Mac, rootful Podman): the cloud reset and both capstone two-steps above, the dns-as-code slide run,
+and dojo-introduction `--test 5 --fast` again now that the bot steps check their results — 5 bots, all 5 finished round 1,
+**0 skips and 0 retries** (a skip prints `FAST: <step> failed N times -- skipping it`). The only gateway error in that run was a
+single startup 502 on `/slides/` before the presentation container served, after which the stack reached 17 of 17 ready.
+
+**Found 2026-10-04, while running the checks above (fixes not written):**
+
+| Finding | Where | What |
+|---|---|---|
+| `no_push_since_step` has a sub-second hole | `modules/achievements/achievements/forgejo.py:129` | It compares the newest commit's committer date, which the Forgejo API gives in whole seconds, against a fractional `step_at`, so a push landing inside `step_at`'s own second reads as "before step 1" and step 2 passes anyway. Hit by accident on testuser2 (scripted, back-to-back), then pinned deterministically: `step_at` 1791156367.75 with a commit amended to epoch 1791156367 still gave "Passed!". Window is up to 1 s, so a real student never sees it; a bot or scripted run can. `test_capstone_step_two_rotation_without_deploy` uses a whole-second `step_at`, which is why it never caught this. Fix: compare `at + 1 > step_at` |
+| The purge line never names policy objects or tofu states | `modules/dojo-cloud/cloud-api/portal_api.py:521` (reset step detail) and `:542-543` (Dojo Cloud activity log) | Both f-strings format only `containerGroups` and `resourceGroups`, while `removed` at `:547-548` already carries `policyObjects` and `tfStates` conditionally. Confirmed live on cloud-policy-as-code: `student01` with 1 policy assignment, 1 definition and a saved state was reset (11 steps, all ok) and both the step detail and the activity log's "Purge subscription (portal)" said `removed 0 container group(s), 0 resource group(s)`; the policy objects were in fact gone afterwards. So the purge is right and only the message is wrong — on the one pack where that line matters most |
 
 After the live checks pass: move student reset R0-R4 and R3.x to RELEASES (git-fundamentals live result: steps 3-5 s,
 idempotent, a bot restarts from round 1, the optional score clear clears only that student), and delete them below.
@@ -191,7 +210,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Steps: [`C5-guide.md`](C5-guide.md). (The flaky allocator test first seen here is now diagnosed — see [Housekeeping](#housekeeping).) |
+| C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Steps: [`C5-guide.md`](C5-guide.md). (The flaky allocator test first seen here is fixed: see RELEASES.) |
 
 ### Remediation leftovers
 
@@ -301,7 +320,6 @@ in [Manual checks](#manual-checks) above), **dojo-introduction** and **cloud-pol
 |---|---|---|
 | Take-home handouts and PowerPoint decks | M | Parked: `handouts/` (lab handouts, starter repos, deck export script), the `.githooks` pre-commit and the CI `handouts` checks were all deleted because they had drifted from the labs. Recover from git history if wanted again |
 | Reconcile the two Zellij branches | S | The Zellij-flavor work is committed twice: `fb4d399` on `feat/zellij-terminal` and `cc189e3` on `feat/zellij-terminal-flavor`, identical patch-id on different bases. Pick the branch that goes forward, delete the other, and make sure whichever lands carries the RELEASES entry (already written) |
-| Flaky allocator test: undrained request body | S | `engine/allocator/tests/test_reset.py::test_reset_needs_header_facilitator_and_typed_id` fails intermittently (reproduced 3/6 runs at HEAD and at `00f6c99`, so it predates this branch's work) with `ConnectionResetError [Errno 54]` while handling the expected 403. The early-rejection paths in `engine/allocator/api.py` answer `Content-Length: 0` without draining the POST body, so the close races the client's write — the same undrained-body class the cloud-api `end_headers` fix (RELEASES) addressed. It makes `unit-tests.sh` red at random. **`engine/` change: ask before editing** (CLAUDE.md) |
 
 ## Reference
 
