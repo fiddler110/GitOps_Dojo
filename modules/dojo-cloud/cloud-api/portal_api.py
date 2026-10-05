@@ -518,7 +518,9 @@ class Portal:
         if status != 200 or doc.get("orphanedContainers"):
             raise RuntimeError(f"purge left {doc.get('orphanedContainers', '?')} container(s) behind")
         r = doc["removed"]
-        return f"removed {r['containerGroups']} container group(s), {r['resourceGroups']} resource group(s)"
+        return (f"removed {r['containerGroups']} container group(s), {r['resourceGroups']} resource group(s)"
+                + (f", {r['policyObjects']} policy object(s)" if r.get("policyObjects") else "")
+                + (f", {r['tfStates']} tofu state(s)" if r.get("tfStates") else ""))
 
     def _purge(self, user, sub):
         st, prefix = self.app.state, sub + "/"
@@ -541,6 +543,8 @@ class Portal:
             st.log(sub, user, "Purge subscription (portal)", f"/subscriptions/{sub}",
                    "Succeeded" if not orphaned else "Failed",
                    f"removed {len(containers)} container group(s), {len(rg_keys)} resource group(s)"
+                   + (f", {policy_objects} policy object(s)" if policy_objects else "")
+                   + (f", {tf_states} tofu state(s)" if tf_states else "")
                    + (f"; {orphaned} container(s) could not be removed" if orphaned else ""))
             st.save()
         removed = {"containerGroups": len(containers), "resourceGroups": len(rg_keys),

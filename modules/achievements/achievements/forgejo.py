@@ -117,7 +117,9 @@ def _commits(api, repo, branch, path=None):
 # -- verbs -----------------------------------------------------------------------------
 def no_push_since_step(api, a, ctx):
     """Nothing reached the branch after step 1 of a two-step challenge passed (on main, a push deploys).
-    Goes by the newest commit's committer date: the API keeps no push times."""
+    Goes by the newest commit's committer date: the API keeps no push times, only whole seconds, while
+    step_at is fractional -- `+ 1` rounds that up so a push landing in step_at's own second still counts
+    as after it, instead of reading as before step 1."""
     commits = _commits(api, a["repo"], a["ref"])
     if not commits:
         return False, f"no branch {a['ref']} in {a['repo']}"
@@ -126,7 +128,7 @@ def no_push_since_step(api, a, ctx):
         at = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return False, f"can't read the date of the newest commit on {a['ref']}"
-    if ctx.get("step_at") is None or at > ctx["step_at"]:
+    if ctx.get("step_at") is None or at + 1 > ctx["step_at"]:
         return False, f"{a['ref']} of {a['repo']} changed after step 1 passed (a push deploys)"
     return True, f"nothing pushed to {a['ref']} since step 1"
 
