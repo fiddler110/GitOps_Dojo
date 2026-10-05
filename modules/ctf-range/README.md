@@ -273,18 +273,51 @@ clock, not independent per-persona timers).
 - **Storage for the wall itself is unchanged**: in-memory only, keyed by `(user, challenge)`,
   **LIVE** while fresh `dump_success` events keep arriving (`WALL_LIVE_WINDOW`, 90s),
   **DISCONNECTED** once they stop, dropped once quiet past `WALL_MAX_AGE` (30 min).
-- **Not yet live-verified on a running stack.** `workshops/ctf-defend-test` disables
-  achievements (no `achievements/catalog.json`), so the bot→achievements→SOC-card chain hasn't
-  been watched end to end yet — 345 achievements tests, 33 attacker-bot tests, a real `podman
-  build` of the image, and `--dry-run`/real compose-config validation all pass, but that's
-  short of a live check. `modules/ctf-range/tools/simulate-dump.py` still works as a manual
-  stand-in in the meantime.
-- **Still not built:** the cyber map widget (§8.3); facilitator inject/hint-probe controls
-  (§8.5 — needs a facilitator→bot channel, spike S12, not designed for this single-bot shape
-  yet); mean-time-to-patch and the auto-built incident summary (§8.8-8.9); the per-pack
-  `CTF_WALL_OF_SHAME` render toggle (the flag exists in `module.env` but nothing reads it yet
-  — both the wall and the SOC cards always render when there's data); row payloads richer than
-  `(user, challenge)` for the wall itself (e.g. CTF-D17's bonus cleartext-storage flaw).
+- **Facilitator-gated start (2026-10-05, same day, user request).** The lab can build and sit
+  idle — zero bot traffic — while students are walked through the briefing: `attacker-bot` does
+  nothing until the facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab
+  (`store.py`'s `admin_soc_start()`, idempotent; `admin_soc_reset()` re-arms for a fresh
+  section). `bot.py` polls a new signed `POST /api/soc/control` (same HMAC scheme as
+  `/api/adapter`, but anonymous — no event, just "has it started, and since when") every few
+  seconds until it gets a `started_at`, then begins its dwell clock from that exact value, so
+  the bot's phases and the room's countdown can never drift apart. No adapter secret
+  configured (a standalone/dev run) starts immediately instead. Live-verified against a real
+  running achievements process.
+- **Per-target status light, MTTP, cyber map, inject/hint-probe, incident summary (§8.3,
+  §8.5, §8.8-8.9 — 2026-10-05).** A persisted `red`/`yellow`/`green` light per
+  (student, target) in `store.py` (green = no record; one-way `red → yellow`, a re-exploit
+  after a fix only counts as a retry) is now the foundation the rest read from:
+  - **Cyber map** (`GET /map`, `/api/map` — any signed-in caller, same tier as `/wall`): a
+    `<canvas>` arc animation from the swarm's existing fake-origin field toward a central hub,
+    a "Top 10 under siege" rolling hit count, and a breach flash.
+  - **MTTP** (`mttp_summary()`, on the admin tab's `/api/state`): `fixed_at - breached_at` per
+    student, free once the status light exists.
+  - **Inject / hint probe** (spike S12's facilitator→bot channel, finally built): `POST
+    /api/soc/inject|hint {user}` queues a command the bot's control-poll loop now also drains
+    (at-most-once, fine for one bot process). "Inject" forces one real exploit attempt right
+    now, bypassing that student's delay (`Attacker.force_exploit`); "Hint probe" fires 3-6
+    non-exploiting probes tagged exactly like ordinary recon — nothing marks it as a hint.
+    The admin tab's SOC Alerts page has per-student pick buttons plus Inject-all/Hint-all.
+  - **Incident summary** (`GET /incident`, `/api/incident`, and the facilitator's
+    `/achievements-admin/incident?user=NAME`): one page per student — status light(s) with
+    MTTP, full SOC timeline — for the debrief.
+  103 achievements tests + 43 attacker-bot tests pass; live-verified end to end against a real
+  running achievements process (breach → red → map/incident/admin-state agree; contained →
+  yellow with the right MTTP; inject/hint queued and drained exactly once; every new page
+  renders 200).
+- **Not yet live-verified on a real stack build.** `workshops/ctf-defend-test` disables
+  achievements (no `achievements/catalog.json`), so none of the above has been watched through
+  a real `./run.sh` stack end to end — every check so far is either unit tests or direct HTTP
+  calls against achievements' own process. `modules/ctf-range/tools/simulate-dump.py` still
+  works as a manual stand-in in the meantime.
+- **Still not built:** the per-pack `CTF_WALL_OF_SHAME` render toggle (the flag exists in
+  `module.env` but nothing reads it yet — both the wall and the SOC cards always render when
+  there's data); §8.11's traffic-pivot/attention-budget across a student's targets (moot until
+  the CTF-S8 target-1..4 images exist — CTF-5's one `customer-portal` target has nothing to
+  pivot across yet); §8.7's defense-in-depth bonus flaws (same reason — no second target
+  content to carry one); row payloads richer than `(user, challenge)` for the wall itself (e.g.
+  CTF-D17's bonus cleartext-storage flaw); a class-sized dry run (many students, the real
+  dwell/ramp durations, not a single-student HTTP round-trip).
 
 ## Safety (holds for every target — §6)
 

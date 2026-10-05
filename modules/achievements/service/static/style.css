@@ -55,3 +55,11 @@ button.start { background: var(--good); }
   .frame { min-height: 16cm; }
 }
 .banner a { color: #fff; text-decoration: underline; margin-left: 0.5rem; }
+.map-card { padding: 0; overflow: hidden; }
+.map-card canvas { display: block; width: 100%; height: auto; background: #0b1220; }
+.map-cols { align-items: stretch; }
+.map-col { flex: 1 1 16rem; min-width: 14rem; }
+.student-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
+.student-list button { background: var(--card); color: var(--fg); border: 1px solid var(--line); }
+.student-list button.picked { background: var(--accent); color: #fff; border-color: var(--accent); }
+.incident-card .row { justify-content: space-between; }

@@ -7,6 +7,9 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   GET  /wall, /api/wall   the wall of shame (plan §8.12): room-wide, any signed-in caller
   GET  /soc, /api/soc     the caller's own SOC Alerts feed (plan §8.2): their target's traffic
                           as the attacker swarm sees it
+  GET  /map, /api/map     the cyber map widget (plan §8.3): room-wide recent traffic arcs plus
+                          the "Top 10 under siege" list - any signed-in caller, same tier as /wall
+  GET  /incident, /api/incident   the caller's own incident summary for the debrief (plan §8.9)
   GET  /api/me            the caller's score, rank, completion, recent unlocks, Moments
   GET  /api/board         the whole class (anonymous names when ACHIEVEMENTS_ANONYMOUS=1)
   GET  /api/toasts?surface=NAME   toasts to show now (each shown once; surface=terminal keeps them)
@@ -18,16 +21,22 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
   POST /api/adapter       a module's event (dns-gate, cloud-api, openbao-audit, ctf-flags), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
-  POST /api/soc/control   attacker-bot's poll (plan §8.2): "has the facilitator started the
-                          session yet, and since when" - signed the same way as /api/adapter,
-                          but carries no event (anonymous, not a student or module identity)
+  POST /api/soc/control   attacker-bot's poll (plan §8.2/§8.5): "has the facilitator started
+                          the session yet, and since when" plus any waiting inject/hint
+                          commands - signed the same way as /api/adapter, but carries no event
+                          (anonymous, not a student or module identity)
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
   GET  /achievements-admin/soc, /api/soc   the room-wide SOC Alerts feed (plan §8.2)
+  GET  /achievements-admin/map, /api/map   the same cyber map, facilitator-side
+  GET  /achievements-admin/incident, /api/incident?user=NAME   any student's incident summary
   POST /api/soc/start, /api/soc/reset   start (or re-arm) the SOC countdown/attack swarm -
                           nothing runs until this is clicked (plan §8.2, revised 2026-10-05)
+  POST /api/soc/inject, /api/soc/hint   {user: NAME|"all"}: fire attacker-bot's "Inject" (one
+                          real exploit attempt now) or "Hint probe" (a non-exploiting burst)
+                          at one student or the whole room (plan §8.5)
 GET /healthz.
 
 Trust: X-Auth-User counts only with X-Gateway-Token. workshop_lab reaches this port directly,
@@ -71,11 +80,11 @@ SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); e
 MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
 PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html", "/wall": "wall.html",
-         "/soc": "soc.html"}
+         "/soc": "soc.html", "/map": "map.html", "/incident": "incident.html"}
 ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js", "wall.js",
-          "soc.js")
-ADMIN_PAGES = {"/": "admin.html", "/soc": "soc-admin.html"}
-ADMIN_ASSETS = ("admin.js", "style.css", "soc-admin.js")
+          "soc.js", "map.js", "incident.js")
+ADMIN_PAGES = {"/": "admin.html", "/soc": "soc-admin.html", "/map": "map.html", "/incident": "incident.html"}
+ADMIN_ASSETS = ("admin.js", "style.css", "soc-admin.js", "map.js", "incident.js")
 
 CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
 FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
@@ -257,7 +266,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sent = (self.headers.get("X-Adapter-Signature") or "").strip().lower()
         if not ADAPTER_SECRET or not hmac.compare_digest(webhook.signature(ADAPTER_SECRET, raw).encode(), sent.encode()):
             raise Denied(403, "bad signature")
-        return self._json(200, store.soc_timer())
+        return self._json(200, store.soc_control())
 
     def _run(self, fn):
         try:
@@ -311,6 +320,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # /api/wall/board above; the room-wide view is the facilitator's admin tab. `timer`
             # (the green/yellow/red countdown) IS room-wide - every caller sees the same clock.
             return self._json(200, {"rows": store.soc_rows(self._need(caller)), "timer": store.soc_timer()})
+        if path == "/api/map":
+            # The cyber map widget (plan §8.3): room-wide, same "any signed-in caller" tier as
+            # /api/wall above.
+            return self._json(200, store.map_data())
+        if path == "/api/incident":
+            # The caller's own incident summary for the debrief (plan §8.9).
+            return self._json(200, store.incident(self._need(caller)))
         if path == "/api/toasts":
             surface = (query.get("surface") or ["page"])[0][:20]
             try:
@@ -420,6 +436,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Room-wide SOC feed (plan §8.2), the admin-tab counterpart of the student's own
             # /api/soc above.
             return self._json(200, {"rows": store.admin_soc_rows(), "timer": store.soc_timer()})
+        if path == "/api/map":
+            return self._json(200, store.map_data())
+        if path == "/api/incident":
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            user = (query.get("user") or [""])[0][:100]
+            if not user:
+                raise Denied(400, "user is required")
+            return self._json(200, store.admin_incident(user))
         self._json(404, {"error": "not found"})
 
     def _admin_post(self, path):
@@ -433,6 +457,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, store.admin_soc_start())
         if path == "/api/soc/reset":
             return self._json(200, store.admin_soc_reset())
+        if path in ("/api/soc/inject", "/api/soc/hint"):
+            # The facilitator's "Inject"/"Hint probe" controls (plan §8.5): queued for
+            # attacker-bot's next poll, not applied directly here - see store.py's
+            # soc_control()/_queue_command() docstrings.
+            body = self._body()
+            user = body.get("user")
+            if not isinstance(user, str) or not user:
+                raise Denied(400, "user is required")
+            fn = store.admin_soc_inject if path == "/api/soc/inject" else store.admin_soc_hint
+            return self._json(200, fn(user))
         body = self._body()
         if path == "/api/award":
             store.admin_award(body.get("user"), body.get("points"), body.get("reason", ""))

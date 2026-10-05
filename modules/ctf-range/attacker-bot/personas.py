@@ -130,6 +130,18 @@ class Attacker:
         frac = min(1.0, dwell_elapsed / self.ramp_seconds)
         return self.rng.random() < STYLES[self.style]["ceiling"] * frac
 
+    def force_exploit(self, exploit_fn):
+        """Facilitator's "Inject" control (plan §8.5): the real payload, right now, bypassing
+        this attacker's own delay and the ramp's exploit probability entirely - unlike
+        `attempt()`, this is never a recon/probe outcome. Same breach/contained bookkeeping as
+        `attempt()`, so an injected breach counts toward the wall of shame and the status light
+        (8.10/8.12) exactly like one the regular schedule would have produced on its own."""
+        if exploit_fn():
+            self.breached = True
+            return "dump_success"
+        was_breached, self.breached = self.breached, False
+        return "contained" if was_breached else "exploit_attempt"
+
     def attempt(self, dwell_elapsed, exploit_fn):
         """One attempt's outcome: ("recon"|"probe"|"exploit_attempt"|"dump_success"|"contained",
         {}). EXPLOIT_FN() -> True if the real payload would succeed right now; only called when

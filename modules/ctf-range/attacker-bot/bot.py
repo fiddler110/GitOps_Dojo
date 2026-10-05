@@ -25,17 +25,23 @@ that EXACT timestamp, so the bot's own phases and the countdown everyone's watch
 drift apart. If achievements isn't wired at all (no adapter secret - a standalone/dev run),
 it starts immediately instead, since there's no facilitator button to wait for.
 
+Once running, a second poll loop (`command_loop`) keeps hitting the same `/api/soc/control`
+endpoint for facilitator-fired commands (plan §8.5: "Inject" and "Hint probe") and fires each
+one on its own short-lived thread - see `run_inject`/`run_hint_probe`.
+
 Stdlib only.
 """
 import hashlib
 import hmac
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
 import urllib.request
 
+import personas
 from personas import Swarm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -74,20 +80,36 @@ def post_event(clients, attacker, outcome, challenge):
     print(f"[attacker-bot] {attacker.user} {outcome} (origin {attacker.origin})", flush=True)
 
 
-def poll_control(url, secret, timeout=5):
-    """One signed poll of achievements' /api/soc/control. Returns the room's started_at (a
-    unix timestamp) once the facilitator has started the session, else None - never raises
-    (a hiccup just means "not started yet" to the caller, same as a real "not yet" answer)."""
+def _poll(url, secret, timeout=5):
+    """One signed POST to achievements' /api/soc/control, same scheme as every event this bot
+    posts. Returns the parsed response doc, or None on any hiccup - a timeout, a connection
+    refused, a non-JSON body - since to every caller here that just means "nothing new yet"."""
     body = b"{}"
     sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     req = urllib.request.Request(url, data=body, method="POST",
                                  headers={"Content-Type": "application/json", "X-Adapter-Signature": sig})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            doc = json.loads(resp.read())
+            return json.loads(resp.read())
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return None
+
+
+def poll_control(url, secret, timeout=5):
+    """Returns the room's started_at (a unix timestamp) once the facilitator has started the
+    session, else None - never raises (a hiccup just means "not started yet" to the caller,
+    same as a real "not yet" answer)."""
+    doc = _poll(url, secret, timeout)
     return doc.get("started_at") if isinstance(doc, dict) else None
+
+
+def poll_commands(url, secret, timeout=5):
+    """Returns whatever facilitator-fired commands (plan §8.5: inject/hint) were waiting,
+    else []. achievements pops these at-most-once per poll, so a dropped response here just
+    means they're lost, not worth a special retry (see store.py's soc_control() docstring)."""
+    doc = _poll(url, secret, timeout)
+    cmds = doc.get("commands") if isinstance(doc, dict) else None
+    return cmds if isinstance(cmds, list) else []
 
 
 def wait_for_start(control_url, secret, poll_seconds=5, sleep=time.sleep, now=time.time):
@@ -118,11 +140,64 @@ def make_exploit_fn(url, timeout=5):
     return exploit
 
 
+class _HintPersona:
+    """A throwaway stand-in for post_event's attacker argument. A hint probe isn't a real
+    Attacker (plan §8.5) - it never escalates and never breaches, just a burst of synthetic
+    recon noise at a facilitator-chosen student - so it only needs the two fields post_event
+    actually reads."""
+
+    def __init__(self, user, origin):
+        self.user, self.origin = user, origin
+
+
+def run_inject(clients, challenge, attacker, exploit_fn):
+    """Facilitator's "Inject" control (plan §8.5): one additional, real exploit attempt right
+    now, on its own thread so it never blocks (or is blocked by) that student's regular
+    schedule. See Attacker.force_exploit for exactly what it does."""
+    outcome = attacker.force_exploit(exploit_fn)
+    post_event(clients, attacker, outcome, challenge)
+
+
+def run_hint_probe(clients, challenge, user, rng, sleep=time.sleep):
+    """Facilitator's "Hint probe" control (plan §8.5): a short burst of 3-6 non-exploiting
+    probes at this one student, each with its own random delay (tighter than the regular
+    30-180s range, so the burst reads inside a couple of minutes) and fake origin - never the
+    real payload, and nothing in the event marks it as a hint. The only signal is the burst
+    itself: this student suddenly getting hit far more than the swarm's usual pace."""
+    for _ in range(rng.randint(3, 6)):
+        post_event(clients, _HintPersona(user, personas.pick_origin(rng)), "probe", challenge)
+        sleep(rng.uniform(10.0, 60.0))
+
+
+def command_loop(control_url, secret, swarm, exploit_fns, clients, challenge, users,
+                 poll_seconds=4, sleep=time.sleep, rng=None):
+    """Polls achievements for facilitator-fired commands (plan §8.5) and fires each one on its
+    own short-lived thread, leaving the regular persona loops in `run()` untouched. Runs for
+    the process lifetime, same as attacker_loop; a dropped poll just skips that round (see
+    poll_commands's docstring) rather than erroring."""
+    import threading
+    rng = rng or random.Random()
+    by_user = {a.user: a for a in swarm.attackers}
+    while True:
+        sleep(poll_seconds)
+        for cmd in poll_commands(control_url, secret):
+            targets = users if cmd.get("user") is None else \
+                [cmd["user"]] if cmd.get("user") in by_user else []
+            for u in targets:
+                if cmd.get("type") == "inject":
+                    threading.Thread(target=run_inject,
+                                     args=(clients, challenge, by_user[u], exploit_fns[u]), daemon=True).start()
+                elif cmd.get("type") == "hint":
+                    threading.Thread(target=run_hint_probe,
+                                     args=(clients, challenge, u, random.Random()), daemon=True).start()
+
+
 def run(users, target_urls, challenge, started_at, clients, clock=time.time, sleep=time.sleep, rng=None,
-       dwell_seconds=None, ramp_seconds=None):
+       dwell_seconds=None, ramp_seconds=None, control_url=None, secret=""):
     """Runs forever (the caller's process lifetime is the session's). TARGET_URLS: user -> URL.
     CLIENTS: {"ctf": AdapterClient, "soc": AdapterClient}. One thread per user; nothing here
-    blocks on another user's thread."""
+    blocks on another user's thread. CONTROL_URL/SECRET: when both are set, an extra thread
+    polls for facilitator inject/hint commands (plan §8.5) alongside the persona loops."""
     import threading
     from personas import DWELL_SECONDS, RAMP_SECONDS
 
@@ -139,6 +214,10 @@ def run(users, target_urls, challenge, started_at, clients, clock=time.time, sle
             post_event(clients, attacker, outcome, challenge)
 
     threads = [threading.Thread(target=attacker_loop, args=(a,), daemon=True) for a in swarm.attackers]
+    if control_url and secret:
+        threads.append(threading.Thread(
+            target=command_loop, args=(control_url, secret, swarm, exploit_fns, clients, challenge, users),
+            daemon=True))
     for t in threads:
         t.start()
     for t in threads:
@@ -165,7 +244,8 @@ def main():
          "waiting for the facilitator to start the session...", flush=True)
     started_at = wait_for_start(control_url, adapter_secret)
     print(f"[attacker-bot] started - dwell clock begins now ({started_at})", flush=True)
-    run(users, target_urls, challenge, started_at, clients, dwell_seconds=dwell_seconds, ramp_seconds=ramp_seconds)
+    run(users, target_urls, challenge, started_at, clients, dwell_seconds=dwell_seconds, ramp_seconds=ramp_seconds,
+       control_url=control_url, secret=adapter_secret)
 
 
 if __name__ == "__main__":

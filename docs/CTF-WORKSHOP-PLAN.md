@@ -45,17 +45,24 @@ soc-feed/log-tailing service needed. The whole room shares ONE clock (the user a
 synchronized — yes): green/recon → yellow/escalating (delay ramps down, exploit probability climbs) → red/detonated
 (every attempt is now the real payload, each student jittered 0-60s so it isn't one dead-simultaneous stampede).
 A new `soc` achievements adapter source drives a student "SOC Alerts" card and a facilitator room-wide admin tab,
-each showing the big green→yellow→red countdown the user asked for. 345 achievements + 33 attacker-bot unit tests
-pass; `--dry-run` and a real image build are clean. **Not yet live-verified on a running stack** (see next step).
-Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks what's next.
+each showing the big green→yellow→red countdown the user asked for. Two more rounds the same day, both per user
+request: **(1)** the whole swarm/clock now waits for an explicit facilitator "Start Attack Swarm" button (the lab
+can build and sit idle while students are briefed — `store.py`'s `admin_soc_start()`/`admin_soc_reset()`,
+`bot.py`'s signed `POST /api/soc/control` poll); **(2)** the cyber map (§8.3), facilitator inject/hint-probe
+controls (§8.5, spike S12's channel — finally built, reusing the same control poll), mean-time-to-patch and the
+incident summary (§8.8-8.9), all built on a new persisted per-target status light (§8.10) as their foundation.
+103 achievements + 43 attacker-bot unit tests pass; live-verified end to end against a real running achievements
+process (not yet through a full `./run.sh` stack — see next step). Full detail in `ROADMAP.md`'s CTF row and in
+git history; this checkpoint only tracks what's next.
 
-**👉 Next step (do this next):** live-verify the swarm above end to end — `workshops/ctf-defend-test` currently
-disables achievements (no `achievements/catalog.json`), so the bot→achievements→SOC-card chain hasn't been watched
-on a real stack yet; needs either a minimal catalog added there or a dedicated short-dwell/ramp run. After that,
-the still-open parts of §8.2-8.11: the cyber map widget (§8.3), facilitator inject/hint-probe controls (§8.5 —
-needs a facilitator→bot channel, spike S12, not built for this single-bot shape), mean-time-to-patch and the
-incident summary (§8.8-8.9). Separately: the CTF-S8 target-1..4 images the attack ladder now has a toggle for but
-nothing to toggle yet, and the SAST/IaC/secret/SCA scanners for targets 8-11.
+**👉 Next step (do this next):** live-verify everything above through a real `./run.sh` stack, not just direct
+HTTP calls against achievements' own process — `workshops/ctf-defend-test` currently disables achievements (no
+`achievements/catalog.json`), so the bot→achievements→SOC-card/map/incident chain hasn't been watched on a real
+stack yet; needs either a minimal catalog added there or a dedicated short-dwell/ramp run. After that: the CTF-S8
+target-1..4 images (the attack ladder has a toggle but nothing to toggle yet) — until those exist, §8.11's
+multi-target traffic-pivot and §8.7's defense-in-depth bonus flaws stay moot (CTF-5's one `customer-portal`
+target has nothing to pivot across or add a second flaw to). Separately: the SAST/IaC/secret/SCA scanners for
+targets 8-11, and a class-sized dry run (many students, real dwell/ramp durations).
 
 Also open: the IaC/secret/SCA scanners for targets 8-11 on the SAST side (S17 in `CTF-SPIKES.md`), and the seven
 not-yet-built target images (S8).

@@ -126,6 +126,94 @@ class PollControlTests(unittest.TestCase):
         self.assertIsNone(bot.poll_control("http://127.0.0.1:1", "s3cret", timeout=0.2))
 
 
+class PollCommandsTests(unittest.TestCase):
+    def test_bad_connection_is_no_commands_not_an_error(self):
+        self.assertEqual(bot.poll_commands("http://127.0.0.1:1", "s3cret", timeout=0.2), [])
+
+    def test_reads_the_commands_list_out_of_the_poll(self):
+        bot._poll, real = lambda url, secret, timeout=5: {"commands": [{"type": "inject"}]}, bot._poll
+        try:
+            self.assertEqual(bot.poll_commands("http://x.invalid", "s3cret"), [{"type": "inject"}])
+        finally:
+            bot._poll = real
+
+    def test_a_malformed_commands_field_is_empty_not_an_error(self):
+        bot._poll, real = lambda url, secret, timeout=5: {"commands": "not a list"}, bot._poll
+        try:
+            self.assertEqual(bot.poll_commands("http://x.invalid", "s3cret"), [])
+        finally:
+            bot._poll = real
+
+
+class RunInjectTests(unittest.TestCase):
+    def test_posts_dump_success_on_a_breach(self):
+        clients = {"ctf": FakeClient(), "soc": FakeClient()}
+        attacker = bot.Swarm(["student01"], rng=random.Random(1), started_at=0.0).attackers[0]
+        bot.run_inject(clients, "customer-portal", attacker, lambda: True)
+        self.assertEqual(clients["ctf"].posted[0]["event"], "dump_success")
+
+    def test_posts_exploit_attempt_when_patched(self):
+        clients = {"ctf": FakeClient(), "soc": FakeClient()}
+        attacker = bot.Swarm(["student01"], rng=random.Random(1), started_at=0.0).attackers[0]
+        bot.run_inject(clients, "customer-portal", attacker, lambda: False)
+        self.assertEqual(clients["soc"].posted[0]["event"], "exploit_attempt")
+
+
+class RunHintProbeTests(unittest.TestCase):
+    def test_fires_three_to_six_probes_only(self):
+        clients = {"ctf": FakeClient(), "soc": FakeClient()}
+        sleeps = []
+        bot.run_hint_probe(clients, "customer-portal", "student03", random.Random(1), sleep=sleeps.append)
+        self.assertTrue(3 <= len(clients["soc"].posted) <= 6)
+        self.assertTrue(all(d["event"] == "probe" for d in clients["soc"].posted))
+        self.assertTrue(all(d["user"] == "student03" for d in clients["soc"].posted))
+        self.assertEqual(len(sleeps), len(clients["soc"].posted))
+        self.assertTrue(all(10.0 <= s <= 60.0 for s in sleeps))
+
+
+class CommandLoopTests(unittest.TestCase):
+    def test_dispatches_inject_and_hint_to_their_targets(self):
+        import threading
+        real_thread = threading.Thread
+        started = []
+
+        class ImmediateThread(real_thread):
+            def start(self):
+                started.append((self._target, self._args))
+                self._target(*self._args, **self._kwargs)
+
+            def join(self, timeout=None):
+                pass
+
+        swarm = bot.Swarm(["student01", "student02"], rng=random.Random(1), started_at=0.0)
+        exploit_fns = {"student01": lambda: False, "student02": lambda: False}
+        clients = {"ctf": FakeClient(), "soc": FakeClient()}
+        calls = {"n": 0}
+
+        def fake_poll_commands(url, secret, timeout=5):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return [{"type": "inject", "user": "student01"}, {"type": "hint", "user": None}]
+            raise SystemExit   # stop the (otherwise infinite) loop after one round
+
+        def fast_hint_probe(clients, challenge, user, rng, sleep=None):
+            bot.post_event(clients, bot._HintPersona(user, "US"), "probe", challenge)
+
+        bot.poll_commands, real_poll = fake_poll_commands, bot.poll_commands
+        bot.run_hint_probe, real_hint = fast_hint_probe, bot.run_hint_probe
+        threading.Thread = ImmediateThread
+        try:
+            with self.assertRaises(SystemExit):
+                bot.command_loop("http://x.invalid", "s3cret", swarm, exploit_fns, clients, "customer-portal",
+                                 ["student01", "student02"], poll_seconds=0, sleep=lambda s: None)
+        finally:
+            threading.Thread = real_thread
+            bot.poll_commands = real_poll
+            bot.run_hint_probe = real_hint
+        # one inject (student01 only) plus one hint burst per student (student01, student02)
+        self.assertEqual(len(started), 3)
+
+
 class MakeExploitFnTests(unittest.TestCase):
     def test_operational_error_is_not_a_breach(self):
         exploit = bot.make_exploit_fn("http://127.0.0.1:1", timeout=0.2)  # nothing listens here

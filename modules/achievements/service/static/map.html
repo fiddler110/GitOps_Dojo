@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cyber Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Attack Map</h1>
+<div class="dim">Entirely synthetic, in-lab traffic. Origins are flavor, not real attacker geography.</div>
+<div class="card timer" id="timer-card">
+  <div class="row"><span class="dim" id="timer-label">Loading...</span><span class="big" id="timer-clock">--:--</span></div>
+</div>
+<div class="card map-card"><canvas id="map-canvas" width="900" height="420"></canvas></div>
+<div class="row map-cols">
+  <div class="card map-col">
+    <h2>Top 10 under siege</h2>
+    <div class="dim" id="top-empty">Quiet for now.</div>
+    <table class="hidden" id="top-card"><thead><tr><th>Student</th><th>Target</th><th>Hits</th></tr></thead><tbody id="top-rows"></tbody></table>
+  </div>
+  <div class="card map-col">
+    <h2>Just breached</h2>
+    <div class="dim" id="breach-empty">None right now.</div>
+    <table class="hidden" id="breach-card"><thead><tr><th>Student</th><th>Target</th><th>When</th></tr></thead><tbody id="breach-rows"></tbody></table>
+  </div>
+</div>
+<script src="map.js"></script>
+</body>
+</html>

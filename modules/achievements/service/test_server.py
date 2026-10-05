@@ -220,6 +220,88 @@ class StoreTests(unittest.TestCase):
         restarted = self.s.admin_soc_start()["started_at"]
         self.assertEqual(restarted, self.clock.t)   # a fresh clock, not the old one
 
+    def test_target_status_green_until_breached(self):
+        self.assertEqual(self.s.target_statuses(), [])
+
+    def test_target_status_turns_red_on_breach_then_yellow_once_contained(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "red")
+        self.assertIsNone(rows[0]["mttp"])
+        self.clock.t += 30
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(rows[0]["status"], "yellow")
+        self.assertEqual(rows[0]["mttp"], 30)
+
+    def test_target_status_never_goes_back_to_red_once_yellow(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(rows[0]["status"], "yellow")
+        self.assertEqual(rows[0]["retries"], 1)
+
+    def test_a_fix_on_a_never_breached_target_is_a_no_op(self):
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.target_statuses(), [])
+
+    def test_mttp_summary_only_counts_fixed_targets(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.mttp_summary(), [])      # still red: no time yet
+        self.clock.t += 40
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.mttp_summary(), [{"user": self.s._label("alice"), "mttp": 40}])
+
+    def test_map_data_has_arcs_top_and_breaches(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        data = self.s.map_data()
+        self.assertEqual(len(data["arcs"]), 1)           # dump_success never lands in soc_feed_all
+        self.assertEqual(data["top"], [{"user": self.s._label("alice"), "challenge": "c", "hits": 1}])
+        self.assertEqual(len(data["breaches"]), 1)
+        self.assertEqual(data["breaches"][0]["status"], "red")
+        self.assertIn("timer", data)
+
+    def test_map_breach_ages_out_of_the_window(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.clock.t += self.s.MAP_WINDOW + 1
+        self.assertEqual(self.s.map_data()["breaches"], [])
+
+    def test_incident_is_the_students_own_timeline_and_status(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        doc = self.s.incident("alice")
+        self.assertEqual(doc["user"], self.s._label("alice"))
+        self.assertEqual(len(doc["timeline"]), 1)
+        self.assertEqual(doc["targets"][0]["status"], "red")
+
+    def test_admin_incident_needs_a_known_student(self):
+        with self.assertRaises(Denied) as e:
+            self.s.admin_incident("nobody")
+        self.assertEqual(e.exception.code, 404)
+        self.s.me("alice")
+        self.assertEqual(self.s.admin_incident("alice")["targets"], [])
+
+    def test_admin_soc_inject_and_hint_need_a_known_student(self):
+        with self.assertRaises(Denied) as e:
+            self.s.admin_soc_inject("nobody")
+        self.assertEqual(e.exception.code, 404)
+        self.s.me("alice")
+        self.s.admin_soc_inject("alice")
+        self.s.admin_soc_hint("all")
+        self.assertEqual(self.s.soc_control()["commands"],
+                         [{"type": "inject", "user": "alice"}, {"type": "hint", "user": None}])
+
+    def test_soc_control_pops_commands_at_most_once(self):
+        self.s.me("alice")
+        self.s.admin_soc_inject("alice")
+        self.assertEqual(len(self.s.soc_control()["commands"]), 1)
+        self.assertEqual(self.s.soc_control()["commands"], [])
+
     def test_me_has_moments_and_completion(self):
         self.s.event(None, self.ev("a", "f-wrongdir"))
         me = self.s.me("a")
@@ -961,6 +1043,29 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="alice", extra=hdr)[0], 403)
         self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="boss", extra=hdr)[0], 200)
         self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "waiting")
+
+    def test_soc_inject_and_hint_need_the_facilitator_and_a_known_student(self):
+        hdr = {"X-Requested-With": "dojo-admin"}
+        self.call("GET", "/api/me", user="dana")     # registers dana
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="dana", extra=hdr, body={"user": "dana"})[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", body={"user": "dana"})[0], 403)   # no header
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", extra=hdr, body={"user": "nobody"})[0], 404)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", extra=hdr, body={"user": "dana"})[0], 200)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/hint",
+                                   user="boss", extra=hdr, body={"user": "all"})[0], 200)
+
+    def test_map_and_incident_routes(self):
+        self.call("GET", "/api/me", user="erin")
+        self.assertEqual(self.call("GET", "/api/map", user="erin")[1]["top"], [])
+        st, doc, _ = self.call("GET", "/api/incident", user="erin")
+        self.assertEqual((st, doc["targets"]), (200, []))
+        self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=nobody", user="boss")[0], 404)
+        self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=erin", user="boss")[0], 200)
+        self.assertEqual(self.call("GET", "/achievements-admin/api/map", user="boss")[0], 200)
 
     def test_unknown_paths(self):
         self.assertEqual(self.call("GET", "/nope")[0], 404)

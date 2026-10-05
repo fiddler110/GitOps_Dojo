@@ -8,6 +8,12 @@
   var timerClock = document.getElementById('timer-clock');
   var startBtn = document.getElementById('start-btn');
   var resetBtn = document.getElementById('reset-btn');
+  var studentList = document.getElementById('student-list');
+  var injectOneBtn = document.getElementById('inject-one-btn');
+  var hintOneBtn = document.getElementById('hint-one-btn');
+  var injectAllBtn = document.getElementById('inject-all-btn');
+  var hintAllBtn = document.getElementById('hint-all-btn');
+  var picked = null;
   function cell(text, cls) { var td = document.createElement('td'); td.textContent = text == null ? '' : text; if (cls) { td.className = cls; } return td; }
   function ago(seconds) {
     if (seconds < 60) { return Math.floor(seconds) + 's ago'; }
@@ -37,8 +43,13 @@
       timerClock.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     }
   }
-  function post(path) {
-    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'dojo-admin' } });
+  function post(path, body) {
+    var opts = { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'dojo-admin' } };
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(path, opts);
   }
   startBtn.addEventListener('click', function () {
     startBtn.disabled = true;
@@ -48,6 +59,33 @@
     if (!window.confirm('Re-arm the countdown? The swarm stops until Start is pressed again.')) { return; }
     post('api/soc/reset').then(load);
   });
+  function pick(user, btn) {
+    picked = user;
+    injectOneBtn.disabled = false;
+    hintOneBtn.disabled = false;
+    Array.prototype.forEach.call(studentList.children, function (b) { b.className = b === btn ? 'picked' : ''; });
+  }
+  function loadStudents() {
+    fetch('api/state', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) { return; }
+        while (studentList.firstChild) { studentList.removeChild(studentList.firstChild); }
+        (d.students || []).forEach(function (s) {
+          var btn = document.createElement('button');
+          btn.textContent = s.name;
+          btn.addEventListener('click', function () { pick(s.user, btn); });
+          studentList.appendChild(btn);
+        });
+      })
+      .catch(function () {});
+  }
+  injectOneBtn.addEventListener('click', function () { if (picked) { post('api/soc/inject', { user: picked }); } });
+  hintOneBtn.addEventListener('click', function () { if (picked) { post('api/soc/hint', { user: picked }); } });
+  injectAllBtn.addEventListener('click', function () { post('api/soc/inject', { user: 'all' }); });
+  hintAllBtn.addEventListener('click', function () { post('api/soc/hint', { user: 'all' }); });
+  loadStudents();
+  setInterval(loadStudents, 15000);
   function load() {
     fetch('api/soc', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })

@@ -8,11 +8,24 @@
 </head>
 <body>
 <h1>SOC Alerts - whole room</h1>
-<div class="dim">Every student's recent attacker-persona traffic, newest first. Synthetic, in-lab only.</div>
+<div class="dim">Every student's recent attacker-persona traffic, newest first. Synthetic, in-lab only.
+  See also the <a href="map">cyber map</a> and the <a href="incident">incident summary</a>.</div>
 <div class="card timer" id="timer-card">
   <div class="row"><span class="dim" id="timer-label">Loading...</span><span class="big" id="timer-clock">--:--</span>
     <button id="start-btn" class="hidden">Start Attack Swarm</button>
     <button id="reset-btn" class="hidden danger">Re-arm for next section</button>
+  </div>
+</div>
+<div class="card" id="controls-card">
+  <div class="row"><strong>Facilitator controls (plan §8.5)</strong>
+    <button id="inject-all-btn">Inject all</button>
+    <button id="hint-all-btn">Hint probe all</button>
+  </div>
+  <div class="dim">Pick a student, then fire one control at just them.</div>
+  <div class="student-list" id="student-list"></div>
+  <div class="row">
+    <button id="inject-one-btn" disabled>Inject</button>
+    <button id="hint-one-btn" disabled>Hint probe</button>
   </div>
 </div>
 <div class="card" id="empty">No alerts yet.</div>
