@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SOC Alerts - room</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>SOC Alerts - whole room</h1>
+<div class="dim">Every student's recent attacker-persona traffic, newest first. Synthetic, in-lab only.</div>
+<div class="card timer" id="timer-card">
+  <div class="row"><span class="dim" id="timer-label">Loading...</span><span class="big" id="timer-clock">--:--</span></div>
+</div>
+<div class="card" id="empty">No alerts yet.</div>
+<div class="card hidden" id="soc-card"><table><thead><tr><th>When</th><th>Student</th><th>Severity</th><th>Persona</th><th>Origin</th><th>Target</th></tr></thead><tbody id="rows"></tbody></table></div>
+<script src="soc-admin.js"></script>
+</body>
+</html>

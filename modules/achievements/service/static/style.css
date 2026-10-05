@@ -23,6 +23,16 @@ button.danger { background: #dc2626; }
 .err { color: #dc2626; }
 input.narrow { width: 6rem; }
 .neg { color: var(--bad); font-weight: 600; }
+.warn { color: #b45309; font-weight: 600; }
+.timer { border-width: 2px; transition: background-color 0.3s, border-color 0.3s; }
+.timer.green { border-color: var(--good); }
+.timer.yellow { border-color: #b45309; background: color-mix(in srgb, #b45309 10%, var(--card)); }
+.timer.red { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 18%, var(--card)); animation: pulse 1.5s ease-in-out infinite; }
+.timer .big { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+.timer.green .big { color: var(--good); }
+.timer.yellow .big { color: #b45309; }
+.timer.red .big { color: var(--bad); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
 .cert-body { max-width: 60rem; margin: 0 auto; }
 .page { background: #fff; color: #111; border: 1px solid var(--line); border-radius: 0.4rem; padding: 1.2rem; margin-bottom: 1rem; }
 .page table, .page th, .page td { color: #111; }

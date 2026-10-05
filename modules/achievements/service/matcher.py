@@ -4,7 +4,7 @@ Two event sources feed it (the `match` schema is documented in catalog/catalog.p
 
   shell    one command line from the student's prompt hook (`dojo-check --shell`):
            {cmd, exit, branch, branch_before, in_repo, merging, merging_after}
-  cloud, bao, ca   one event a module posts to /api/adapter (see `adapter_event`)
+  cloud, bao, ca, ctf, soc   one event a module posts to /api/adapter (see `adapter_event`)
   forgejo  one Forgejo webhook delivery, normalised by `forgejo_event` to
            {event, action, user, actor, repo, branch, tag, ref_type}
 
@@ -363,18 +363,23 @@ ADAPTER_EVENTS = {
     "bao": ("login", "request", "wrapping", "sealed"),
     "ca": ("rate_limited", "order_failed", "order_issued"),
     # dump_success: an attacker's successful dump against a student's target (plan §8.12's
-    # wall of shame; no real attacker-bot source exists yet - see modules/ctf-range/README.md).
+    # wall of shame), posted by soc-feed once a real persona breaches, or by the manual
+    # stand-in (tools/simulate-dump.py) before the swarm exists.
     "ctf": ("flag_solved", "dump_success"),
+    # soc-feed (modules/ctf-range, plan §8.2): one alert per persona attempt against a
+    # student's own target. Severity lives in `event`, not a separate field (see catalog.py).
+    "soc": ("recon", "probe", "exploit_attempt", "contained"),
 }
-ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge")
+ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge", "persona", "origin")
 
 
 def adapter_event(body):
-    """A validated cloud/bao/ca event from a module's signed post, or None.
+    """A validated cloud/bao/ca/ctf/soc event from a module's signed post, or None.
 
-    {source, event, user, ...} plus the optional fields reason, mount, role, op, path (text),
-    ok, root (true/false) and status (an HTTP code). `user` is the student the module
-    attributed the activity to: the account behind a token, a namespace `students/<user>`."""
+    {source, event, user, ...} plus the optional fields reason, mount, role, op, path, challenge,
+    persona, origin (text), ok, root (true/false) and status (an HTTP code). `user` is the
+    student the module attributed the activity to: the account behind a token, a namespace
+    `students/<user>`."""
     if not isinstance(body, dict):
         return None
     source, event, user = body.get("source"), body.get("event"), body.get("user")
@@ -395,7 +400,7 @@ def adapter_event(body):
 
 
 def _adapter_match(m, ev):
-    for key in ("event", "reason", "mount", "role", "challenge"):
+    for key in ("event", "reason", "mount", "role", "challenge", "persona", "origin"):
         if not _value_ok(m, ev, key, ev["user"]):
             return False
     for key in ("ok", "root"):
@@ -428,7 +433,7 @@ class Matcher:
             for a in alts:
                 if isinstance(a, dict) and a.get("source") == "verify":
                     self.state_rules.append((iid, a))
-                elif isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns", "cloud", "bao", "ca", "ctf"):
+                elif isinstance(a, dict) and a.get("source") in ("shell", "forgejo", "dns", "cloud", "bao", "ca", "ctf", "soc"):
                     compiled.append((a, re.compile(a["regex"]) if "regex" in a else None))
             if compiled:
                 self.rules.append((iid, compiled))
@@ -451,7 +456,8 @@ class Matcher:
                 ok = {"shell": lambda: _shell_match(m, event, rx), "forgejo": lambda: _forgejo_match(m, event),
                       "dns": lambda: _dns_match(m, event), "cloud": lambda: _adapter_match(m, event),
                       "bao": lambda: _adapter_match(m, event), "ca": lambda: _adapter_match(m, event),
-                      "ctf": lambda: _adapter_match(m, event)}[event["source"]]()
+                      "ctf": lambda: _adapter_match(m, event),
+                      "soc": lambda: _adapter_match(m, event)}[event["source"]]()
                 if ok and "count" in m:
                     ok = bump is not None and bump(iid) >= m["count"]
                 if ok:

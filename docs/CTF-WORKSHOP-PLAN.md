@@ -7,7 +7,7 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ---
 
-### ⏩ Resume here (checkpoint 2026-10-05c)
+### ⏩ Resume here (checkpoint 2026-10-05d)
 
 **Phase:** CTF-P0 spikes mostly answered; CTF-P1 build well underway on `feat/zellij-terminal`. Target 14
 `customer-portal` is the only target image built; target 6 `dns-resolver-cve` is fully decided and de-risked (see
@@ -36,14 +36,26 @@ already-built customer-portal base image (kept in that pack's `workshop.env` as 
 its tokens): a real assigned student started it (queued → live), reset it (requeued, came back live), and stopped
 it; the facilitator's `/attack/status` correctly reports no slot of its own and the `/admin` page renders the
 "Attack Range" tab; the plan's "one request per student, not stacked" and "stop skips the queue" rules both held
-under a real HTTP sequence. Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks
-what's next.
+under a real HTTP sequence; and now the **attacker-bot persona swarm + SOC event feed (§8.2-8.11), REVISED from
+this section's original per-student-container sketch at the user's request**: ONE `attacker-bot` service for the
+whole room (not a fleet), one thread per student, reaching each target the exact same way the student's own
+terminal does over `ctf_net`'s published ports — no docker socket, no place inside `ctf-host`, zero collision with
+CTF-D20's work. Posts straight to achievements over `workshop_lab` (`ctf-flags`'s trust tier) — no separate
+soc-feed/log-tailing service needed. The whole room shares ONE clock (the user asked whether detonation should be
+synchronized — yes): green/recon → yellow/escalating (delay ramps down, exploit probability climbs) → red/detonated
+(every attempt is now the real payload, each student jittered 0-60s so it isn't one dead-simultaneous stampede).
+A new `soc` achievements adapter source drives a student "SOC Alerts" card and a facilitator room-wide admin tab,
+each showing the big green→yellow→red countdown the user asked for. 345 achievements + 33 attacker-bot unit tests
+pass; `--dry-run` and a real image build are clean. **Not yet live-verified on a running stack** (see next step).
+Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks what's next.
 
-**👉 Next step (do this next):** the attacker-bot persona swarm + SOC event feed (§8.2-8.11) — what the wall of
-shame needs to mean anything live. (A parallel session was already building this independently as CTF-D20 landed;
-check `ROADMAP.md`/git history for its state before starting from scratch.) After that: the CTF-S8 target-1..4
-images the attack ladder now has a toggle for but nothing to toggle yet, and the SAST/IaC/secret/SCA scanners for
-targets 8-11.
+**👉 Next step (do this next):** live-verify the swarm above end to end — `workshops/ctf-defend-test` currently
+disables achievements (no `achievements/catalog.json`), so the bot→achievements→SOC-card chain hasn't been watched
+on a real stack yet; needs either a minimal catalog added there or a dedicated short-dwell/ramp run. After that,
+the still-open parts of §8.2-8.11: the cyber map widget (§8.3), facilitator inject/hint-probe controls (§8.5 —
+needs a facilitator→bot channel, spike S12, not built for this single-bot shape), mean-time-to-patch and the
+incident summary (§8.8-8.9). Separately: the CTF-S8 target-1..4 images the attack ladder now has a toggle for but
+nothing to toggle yet, and the SAST/IaC/secret/SCA scanners for targets 8-11.
 
 Also open: the IaC/secret/SCA scanners for targets 8-11 on the SAST side (S17 in `CTF-SPIKES.md`), and the seven
 not-yet-built target images (S8).
@@ -341,6 +353,19 @@ happening to *your* system, and a race to patch and ship before it's exploited f
 still how a fix is proven), but it stops being the only thing creating pressure.
 
 ### 8.2 A swarm of attacker personas, not one bot, and a feed that reacts to them
+
+> **Revised 2026-10-05, at the user's request — built this way, not as sketched below.** One
+> `attacker-bot` service for the whole room, not one container per student: a single process
+> with one thread per student, reaching each target over `ctf_net`'s published ports the same
+> way the student's own terminal does. The room runs on ONE shared clock rather than
+> independent per-persona timers, so detonation (the moment every attempt becomes the real
+> payload) happens for the whole room together, each student jittered by 0-60s so it doesn't
+> read as one dead-simultaneous stampede — this is also what drives the big green/yellow/red
+> countdown §8.4 asks for. See `modules/ctf-range/attacker-bot/personas.py`'s module docstring
+> for the actual mechanics, and the checkpoint above for where it stands. The diagram and
+> "4-6 persona schedulers inside one container" prose below describe the ORIGINAL sketch, not
+> what's built — kept for the traffic-style/fake-origin ideas, which the implementation does
+> keep.
 
 ```mermaid
 flowchart LR

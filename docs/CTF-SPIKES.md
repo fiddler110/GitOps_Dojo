@@ -97,6 +97,14 @@ Mock terminal with `NET_ADMIN`, two uids (ranges 4010-4019 and 4020-4029), two t
   minutes. Fine for correctness, poor for a live leaderboard.
 - Verbs alone can cover validity (the service checks the flag), but not immediacy.
 
+**Built and unit-tested (2026-10-05):** the `ctf` source already existed (`flag_solved`,
+`dump_success`); added a sibling `soc` source for the attacker-swarm alerts proper (§8.2) -
+`recon`/`probe`/`exploit_attempt`/`contained`, severity derived from `event` in store.py
+(`SOC_SEVERITY`), never trusted as a free-text field from the poster. A student's own feed
+(`/achievements/soc`, `GET /api/soc`) and the facilitator's room-wide one
+(`/achievements-admin/soc`) are both built, each a bounded in-memory deque (not persisted,
+same treatment as the wall of shame's `ctf_dumps`). 342 achievements tests pass.
+
 ### S5, GitOps targets
 
 All three run on `workshop_lab` services the terminal can already reach; none belongs in a `ctf_net` slot, and
@@ -425,10 +433,21 @@ at base delay before any ramp (D18), and the bot stops at the wall-clock end wit
 open (so an unfinished fix is part of the lesson). Bot isolation is the S12 answer. These need one real class
 (CTF-P7) to tune, so S9 stays open.
 
+**Built as these defaults (2026-10-05):** `modules/ctf-range/attacker-bot/personas.py` -
+`default_personas()` gives 5 (one `benign`, §8.6, the rest round-robin across the real styles),
+`DELAY_MIN/MAX` 30/180s, `DWELL_SECONDS` 8 min, `RAMP_WINDOW` 10 min, `RAMP_FLOOR` 7.5s (CTF-D18's
+pacing line). 20 unit tests against a fake clock/rng; the numbers themselves are still untuned
+by a real class, so S9 stays open in that sense - this just records where the knobs live.
+
 ### S10, live SOC feed
 
 Poll. Every existing live UI in the engine does: `achievements` board, widget and admin poll every 5 s, its toast every
 4 s, the Runners panel every 2.5 s. A 4-5 s poll gives "new alert within a few seconds" with nothing new to build.
+
+**Built (2026-10-05):** `modules/ctf-range/soc-feed/feed.py` polls every 4s (`POLL_SECONDS`) -
+the achievements-side pages poll on the same cadence family (student card 4s, admin tab 4s).
+soc-feed itself reads each bot's full stdout log each pass rather than tracking a byte offset
+(simple and exactly correct at a session's log volume - a few hundred short lines per bot).
 
 ### S11, the cyber map
 
@@ -445,6 +464,13 @@ The terminal and the students sit on `ctf_net` and `workshop_lab`, so a bot cann
 polls it (`runner-pool`'s controller drops configs in `/spool/start/`). No listener on the bot at all. This is infrequent
 enough for a file. The bots themselves must not be on a network a student's rule permits; student `OUTPUT` rules drop
 everything in the `ctf_net` subnet except the own target, which covers a bot placed there.
+
+**The other direction (bot -> soc-feed) is built the mirror-image way (2026-10-05):** rather than
+a bot writing to a spool file, soc-feed reads the bot's own container logs over the SAME shared
+ctf-host socket ctf-controller/ctf-builder already use (a new read-only `docker_logs.Reader`,
+list + logs only, never create/start/stop/remove) - no listener on the bot, no network the bot
+needs to reach achievements directly, matching this spike's "no listener on the bot at all."
+Still open: the facilitator-to-bot inject/hint-probe channel (§8.5) itself is not built yet.
 
 ### S13, the ramp and weighting functions
 

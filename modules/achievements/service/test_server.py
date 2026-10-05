@@ -173,6 +173,29 @@ class StoreTests(unittest.TestCase):
         self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
         self.assertEqual(self.s.wall_rows()[0]["user"], "alice")
 
+    def test_soc_alerts_land_on_the_student_and_room_feeds(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.assertEqual(len(self.s.soc_rows("alice")), 1)
+        self.assertEqual(self.s.soc_rows("alice")[0]["severity"], "WARN")
+        self.assertEqual(self.s.soc_rows("bob"), [])          # not alice's own feed
+        self.assertEqual(len(self.s.admin_soc_rows()), 1)     # but it IS on the room-wide one
+
+    def test_soc_severity_is_derived_not_trusted(self):
+        self.s.adapter({"source": "soc", "event": "exploit_attempt", "user": "alice",
+                        "severity": "INFO"})   # a poster can't downgrade its own severity
+        self.assertEqual(self.s.soc_rows("alice")[0]["severity"], "CRITICAL")
+
+    def test_soc_timer_green_then_yellow_then_red(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        self.assertEqual(self.s.soc_timer(), {"phase": "green", "seconds_remaining": 300})
+        self.clock.t += 101
+        self.assertEqual(self.s.soc_timer()["phase"], "yellow")
+        self.clock.t += 200
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0})
+        self.clock.t += 99999
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0})
+
     def test_me_has_moments_and_completion(self):
         self.s.event(None, self.ev("a", "f-wrongdir"))
         me = self.s.me("a")

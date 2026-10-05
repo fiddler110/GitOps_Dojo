@@ -40,9 +40,9 @@ PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 CATALOG_FIELDS = {"workshop", "title", "intro", "challenges_intro", "labs", "badge", "require_match"}
 LAB_FIELDS = {"id", "title"}
 # `service` means the service fires the item itself (the cheating tiers).
-MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ctf", "verify", "lab")
+MATCH_SOURCES = ("shell", "forgejo", "service", "dns", "ca", "cloud", "bao", "ctf", "soc", "verify", "lab")
 # Sources whose events a module posts to /api/adapter, matched on the same few generic fields.
-ADAPTER_SOURCES = ("cloud", "bao", "ca", "ctf")
+ADAPTER_SOURCES = ("cloud", "bao", "ca", "ctf", "soc")
 ADAPTER_EVENTS = {
     "cloud": ("portal_request", "site_request", "policy_denied", "quota_denied", "container_created",
               "container_updated", "container_deleted", "container_replaced", "policy_written"),
@@ -50,8 +50,17 @@ ADAPTER_EVENTS = {
     "ca": ("rate_limited", "order_failed", "order_issued"),
     # ctf-flags (modules/ctf-range/ctf-flags) posts flag_solved once a submitted flag verifies
     # (plan §5). dump_success is an attacker's successful dump against a student's target,
-    # driving the wall of shame (§8.12); no real attacker-bot source posts it yet.
+    # driving the wall of shame (§8.12), posted by either the manual stand-in
+    # (tools/simulate-dump.py) or soc-feed once a real dump lands (plan §8.2).
     "ctf": ("flag_solved", "dump_success"),
+    # soc-feed (modules/ctf-range, plan §8.2) posts one of these per persona attempt against a
+    # student's own target: recon (read-only probe, INFO), probe (repeated/hint-probe traffic,
+    # WARN), exploit_attempt (the real payload landed but the target was already patched, so it
+    # failed - a live breach instead posts ctf/dump_success above, which is also what the live
+    # feed shows as CRITICAL), contained (the first probe after a patch lands and comes back
+    # empty - the "you cut them off" moment, §8.12). Severity is derived from `event`, not sent
+    # separately, so the matcher/catalog side never needs a free-text severity field.
+    "soc": ("recon", "probe", "exploit_attempt", "contained"),
 }
 
 # The structured trigger (`match`) for the sources the service matches itself
@@ -91,6 +100,11 @@ ADAPTER_EVENTS = {
 #   ctf: one event posted (signed) by the ctf-flags service (modules/ctf-range) once a submitted
 #     flag verifies. event: flag_solved; challenge "sqli-login" ({user} allowed, since a flag's
 #     challenge name never embeds the student)
+#   soc: one attacker-persona alert posted (signed) by soc-feed (modules/ctf-range, plan §8.2)
+#     against a student's own target. event: recon | probe | exploit_attempt | contained;
+#     persona (the self-reported persona id, e.g. "persona-3"); origin (the fake origin label,
+#     flavor only - never a real IP or geolocation, see plan §8.2); challenge (the target id,
+#     "customer-portal"). A live breach posts ctf/dump_success above instead of exploit_attempt.
 #   verify: a state milestone. Not an event: the service runs these assertions (the same verbs a challenge
 #     uses, `{user}` allowed) for each active student every few seconds and unlocks it the first time they
 #     all pass. `verify` is a list of {verb, ...args}; the student's own space only, like a challenge.
@@ -112,6 +126,8 @@ MATCH_FIELDS = {
             "requires", "requires_not", "count"},
     "ca": {"event", "reason", "reason_not", "requires", "requires_not", "count"},
     "ctf": {"event", "challenge", "challenge_not", "requires", "requires_not", "count"},
+    "soc": {"event", "persona", "persona_not", "origin", "origin_not", "challenge", "challenge_not",
+            "requires", "requires_not", "count"},
     "verify": {"verify", "requires", "requires_not"},
 }
 DNS_EVENTS = ("zone_patch", "api_refused")
@@ -153,7 +169,7 @@ def check_match(match, where):
         problems.append(f"{where}: match needs at least one field besides 'source'")
     for key in ("cmd", "flags", "flags_none", "branch", "branch_not", "branch_before", "branch_before_not",
                 "action", "ref_type", "tag", "repo", "repo_not", "head", "head_prefix", "requires", "requires_not", "zone", "reason", "reason_not", "mount",
-                "mount_not", "role", "role_not", "op", "path_prefix"):
+                "mount_not", "role", "role_not", "op", "path_prefix", "persona", "persona_not", "origin", "origin_not"):
         if key in match and not _strs(match[key]):
             problems.append(f"{where}: match.{key} must be a string or a list of strings")
     for key in ("created_min", "changed_min", "deleted_min", "ttl_below"):

@@ -4,8 +4,8 @@ The reusable runtime for the CTF workshop series (see
 `docs/CTF-WORKSHOP-PLAN.md`). The range holds the vulnerable **targets**, the
 `ctf_net` network they live on, the `ctf-flags` submission service, the extra
 terminal tools, and — for CTF-5 — the attacker swarm, SOC feed and wall of
-shame (the wall's plumbing is built; the swarm/feed that should drive it is
-not — see "Wall of shame" below). Each CTF session is a thin workshop pack
+shame (all built; not yet live-verified on a running stack — see "Wall of
+shame" below). Each CTF session is a thin workshop pack
 (`workshops/ctf-*`) that lists `MODULES="ctf-range ..."`, names which targets
 it enables, and ships its own labs and slides.
 
@@ -33,11 +33,9 @@ it enables, and ships its own labs and slides.
 > (§8.12) — `modules/achievements`' `store.wall_rows()` and
 > `GET /achievements/wall`, driven entirely by `ctf`/`dump_success` events,
 > LIVE while they keep arriving for a (student, target), DISCONNECTED once
-> they stop, dropped once quiet long enough to age off. **Nothing posts that
-> event yet except a manual stand-in**
-> (`modules/ctf-range/tools/simulate-dump.py`) — the real attacker-bot
-> persona swarm and SOC feed it should be driven by (§8.2-8.11) are a
-> separate, larger task, not built; see "Wall of shame" below. Also now: the
+> they stop, dropped once quiet long enough to age off (the attacker-bot
+> swarm that drives it for real is built too now — see further down and
+> "Wall of shame" below for the full story). Also now: the
 > **offensive tool suite** (plan §9) in `terminal/Dockerfile` — `nmap`/`ncat`,
 > `tcpdump`/`tshark`, `sqlmap`, `jq`, `john`, `dnsutils`/`dnsrecon`, `httpie`,
 > `whois`, plus `ffuf` and `opa` (sha256-pinned static binaries) and a small
@@ -72,7 +70,20 @@ it enables, and ships its own labs and slides.
 > module expecting a full range, and note
 > `ctf-builder`/`ctf-controller`'s `runner_net` reachability only does
 > anything once a workshop pack also lists `runner-pool` in `MODULES` (see
-> "Range control plane" below) — no such pack exists yet.
+> "Range control plane" below) — no such pack exists yet. Also now: the
+> **attacker-bot swarm + SOC feed** (plan §8.2-8.11, revised from the plan's
+> sketch at the user's request — see "Wall of shame" below for the full
+> story): ONE `attacker-bot` service for the whole room, one thread per
+> student, reaching each target over `ctf_net`'s published ports the same
+> way the student's own terminal does, and posting straight to achievements
+> over `workshop_lab` (`ctf-flags`'s trust tier — no docker socket, no
+> separate log-tailing service). The whole room shares one clock: green
+> (recon) → yellow (escalating, delay ramping down and exploit odds
+> climbing) → red (detonated — every attempt is now the real payload,
+> each student jittered 0-60s). Drives a new `soc` achievements event
+> source, a student "SOC Alerts" card and a facilitator room-wide admin
+> tab, both showing the green/yellow/red countdown. **Not yet live-verified
+> on a running stack** — see "Wall of shame" below.
 
 ## Layout
 
@@ -224,41 +235,56 @@ never redeploy a slot.
 
 Targets 0–13 (the attack ladder, §7.3) are not built yet.
 
-## Wall of shame (§8.12)
+## Wall of shame (§8.12), the SOC feed and the attacker-bot swarm (§8.2-8.11)
 
-Built, as a minimal vertical slice — the plumbing a real attacker-bot swarm
-will eventually drive, exercised today only by a manual stand-in:
+The wall's plumbing was built first, as a minimal vertical slice exercised only by a manual
+stand-in; the attacker-bot swarm + SOC feed that should drive it for real are now built too
+(2026-10-05), **not as the plan originally sketched** — see the note at the top of plan section
+8.2 for the revision (one bot for the whole room, not a fleet; one shared room-wide detonation
+clock, not independent per-persona timers).
 
-- **Event source** (`modules/achievements`): a `ctf`/`dump_success` adapter
-  event (`catalog.py`, `matcher.py`, alongside the existing `flag_solved`).
-  `{source: "ctf", event: "dump_success", user, challenge}`, HMAC-signed over
-  `/api/adapter` like every other module's events (dns-gate, cloud-api,
-  openbao-audit).
-- **Storage** (`store.py`'s `wall_rows()`): in-memory only (deliberately —
-  it's a rolling "is the attacker still connected right now" signal, not a
-  record worth a restart keeping), keyed by `(user, challenge)`. **LIVE**
-  while fresh `dump_success` events keep arriving (`WALL_LIVE_WINDOW`, 90s);
-  **DISCONNECTED** once they stop (the moment a patch lands and the next
-  probe comes back empty — the same signal MTTP already counts); dropped
-  entirely once quiet past `WALL_MAX_AGE` (30 min) — "ages off".
-- **Page** (`GET /achievements/wall`, `GET /achievements/api/wall`): a plain
-  table, same visibility tier as the leaderboard's `/api/board` (any
-  signed-in caller sees the whole class, not just their own row). Not yet
-  its own gate="shared" projector route per CTF-D18 — piggybacking on
-  achievements' existing identity-gated mount was the pragmatic choice here,
-  since giving it a dedicated route in `ctf-range`'s own `extensions.json`
-  would make this module hard-depend on `achievements` always being in
-  `MODULES`, which `workshops/ctf-defend-test` (and maybe other packs)
-  deliberately isn't. Revisit once a real pack wires both modules together.
-- **What posts the event today:** nothing automatic.
-  `modules/ctf-range/tools/simulate-dump.py` signs and posts one manually,
-  for exercising/demoing the above before the real source exists.
-- **Not built:** the attacker-bot persona swarm and the SOC event feed
-  (plan §8.2-8.11) that are supposed to post `dump_success` for real; the
-  cyber map; the per-pack `CTF_WALL_OF_SHAME` render toggle (the flag exists
-  in `module.env` but nothing reads it yet — the wall always renders when
-  there's data); row payloads richer than `(user, challenge)` (e.g. a row
-  count, CTF-D17's bonus cleartext-storage flaw).
+- **`modules/ctf-range/attacker-bot/`**: ONE container for the whole room. `personas.py` is the
+  pure scheduler (`Swarm`/`Attacker`, no network, fully unit-tested — 33 tests); `bot.py` is the
+  runtime that computes the roster itself (`STUDENT_PREFIX`/`STUDENT_COUNT`, matching
+  `ctf-controller`'s own `roster()`), maps each student to their published target port
+  (`CTF_HOST_PORT_BASE` + roster index — the exact address a student's own terminal reaches),
+  runs one thread per student, and posts straight to achievements over `workshop_lab` via
+  `AdapterClient` (`ctf-flags`'s trust tier — no docker socket, no place inside `ctf-host`, no
+  separate log-tailing service). The real exploit attempt reuses
+  `targets/customer-portal/exploit/dump.py` directly, so the bot and the CI gate can never
+  disagree about "patched".
+- **One shared room clock** (`CTF_SOC_DWELL_SECONDS`/`CTF_SOC_RAMP_SECONDS`, `module.env`):
+  green (recon only) → yellow (escalating — delay ramps down toward a floor, exploit
+  probability climbs) → red (**detonated** — every attempt from here on IS the real payload,
+  each student jittered 0-60s past the room's ramp end so it doesn't read as one dead-
+  simultaneous stampede). A `benign` persona style (~1 in 7 students, flavor-assigned) never
+  escalates at all (§8.6's noise-vs-signal lesson).
+- **Event source** (`modules/achievements`): the existing `ctf`/`dump_success` adapter event
+  (unchanged) plus a new sibling `soc` source — `recon`/`probe`/`exploit_attempt`/`contained`,
+  severity (`INFO`/`WARN`/`CRITICAL`) derived server-side from the event name in `store.py`
+  (`SOC_SEVERITY`), never trusted as a free-text field from the poster.
+- **Storage and pages**: `store.py`'s `soc_feed`/`soc_feed_all` (bounded in-memory deques, same
+  deliberately-ephemeral treatment as `wall_rows()`'s `ctf_dumps`) back a student's own
+  "SOC Alerts" card (`GET /achievements/soc`) and a facilitator room-wide admin tab
+  (`GET /achievements-admin/soc`), both rendering the big green/yellow/red countdown
+  (`store.py`'s `soc_timer()`, mirroring `personas.py`'s `room_timer()` so the two processes
+  agree on the phase without talking to each other). Wired into this module's
+  `extensions.json` as the `"soc-alerts"` card/tab.
+- **Storage for the wall itself is unchanged**: in-memory only, keyed by `(user, challenge)`,
+  **LIVE** while fresh `dump_success` events keep arriving (`WALL_LIVE_WINDOW`, 90s),
+  **DISCONNECTED** once they stop, dropped once quiet past `WALL_MAX_AGE` (30 min).
+- **Not yet live-verified on a running stack.** `workshops/ctf-defend-test` disables
+  achievements (no `achievements/catalog.json`), so the bot→achievements→SOC-card chain hasn't
+  been watched end to end yet — 345 achievements tests, 33 attacker-bot tests, a real `podman
+  build` of the image, and `--dry-run`/real compose-config validation all pass, but that's
+  short of a live check. `modules/ctf-range/tools/simulate-dump.py` still works as a manual
+  stand-in in the meantime.
+- **Still not built:** the cyber map widget (§8.3); facilitator inject/hint-probe controls
+  (§8.5 — needs a facilitator→bot channel, spike S12, not designed for this single-bot shape
+  yet); mean-time-to-patch and the auto-built incident summary (§8.8-8.9); the per-pack
+  `CTF_WALL_OF_SHAME` render toggle (the flag exists in `module.env` but nothing reads it yet
+  — both the wall and the SOC cards always render when there's data); row payloads richer than
+  `(user, challenge)` for the wall itself (e.g. CTF-D17's bonus cleartext-storage flaw).
 
 ## Safety (holds for every target — §6)
 

@@ -14,6 +14,7 @@ import re
 import sys
 import threading
 import time
+from collections import deque
 
 import guards
 import ledger as lg
@@ -57,7 +58,8 @@ class Denied(Exception):
 
 class Store:
     def __init__(self, catalog, config, data_dir, secret, anonymous=True, facilitator="facilitator",
-                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=(), save_delay=None):
+                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=(), save_delay=None,
+                 soc_dwell_seconds=480, soc_ramp_seconds=600):
         self.lock = threading.Lock()
         self.data_dir = data_dir
         self.anonymous = anonymous
@@ -102,6 +104,20 @@ class Store:
         # attacker still connected right now" signal, not a record worth keeping across a
         # restart. See wall_rows().
         self.ctf_dumps = {}
+        # SOC feed (plan §8.2): one bounded deque per student (their own "SOC Alerts" card) plus
+        # one room-wide deque (the facilitator admin tab). Same deliberately-ephemeral treatment
+        # as ctf_dumps above - a rolling live feed, not a record worth a restart.
+        self.soc_feed = {}
+        self.soc_feed_all = deque(maxlen=self.SOC_ROOM_MAX)
+        # The room-wide SOC countdown (plan §8.2, revised 2026-10-05 for the big green/yellow/
+        # red timer): this process's own start is the dwell clock's start - the same assumption
+        # attacker-bot's bot.py makes about its own start (both processes come up with the
+        # stack). SOC_DWELL_SECONDS/SOC_RAMP_SECONDS must equal
+        # modules/ctf-range/attacker-bot/personas.py's DWELL_SECONDS/RAMP_SECONDS
+        # (CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS in module.env set both sides).
+        self.soc_started_at = self.clock()
+        self.soc_dwell_seconds = soc_dwell_seconds
+        self.soc_ramp_seconds = soc_ramp_seconds
         self._saved_at = None
         self.save_delay = save_delay
         self._dirty = False
@@ -461,9 +477,54 @@ class Store:
             self._student(user)
             if event.get("source") == "ctf" and event.get("event") == "dump_success":
                 self.ctf_dumps[(user, event.get("challenge") or "")] = self.clock()
+            if event.get("source") == "soc":
+                self._soc_alert(user, event, self.clock())
             got = self._matched(user, event, self.clock())
             self._save()
             return {"unlocked": len(got)}
+
+    # SOC feed (plan §8.2). One alert per persona attempt against a student's own target,
+    # bounded per-student (their "SOC Alerts" card) and room-wide (the admin tab). Severity is
+    # derived from `event` here, once, rather than trusted as a free-text field from the poster.
+    SOC_SEVERITY = {"recon": "INFO", "probe": "WARN", "exploit_attempt": "CRITICAL", "contained": "INFO"}
+    SOC_PER_STUDENT_MAX = 50
+    SOC_ROOM_MAX = 300
+
+    def _soc_alert(self, user, event, now):
+        """Append one soc alert to both feeds (caller holds the lock)."""
+        row = {"user": self._label(user), "event": event.get("event"),
+               "severity": self.SOC_SEVERITY.get(event.get("event"), "INFO"),
+               "persona": event.get("persona"), "origin": event.get("origin"),
+               "challenge": event.get("challenge"), "at": now}
+        self.soc_feed.setdefault(user, deque(maxlen=self.SOC_PER_STUDENT_MAX)).append(row)
+        self.soc_feed_all.append(row)
+
+    def soc_rows(self, user):
+        """This student's own recent alerts, newest first (their "SOC Alerts" card)."""
+        with self.lock:
+            return list(reversed(self.soc_feed.get(user, ())))
+
+    def admin_soc_rows(self):
+        """Every student's recent alerts, newest first (the facilitator admin tab)."""
+        with self.lock:
+            return list(reversed(self.soc_feed_all))
+
+    def soc_timer(self):
+        """{"phase", "seconds_remaining"} for the big green/yellow/red countdown everyone sees
+        (student card and admin tab alike - it's room-wide, not per-student). Mirrors
+        modules/ctf-range/attacker-bot/personas.py's room_timer() exactly (see this class's
+        soc_started_at comment for why the two never need to talk to agree)."""
+        now = self.clock()
+        dwell_elapsed = now - self.soc_started_at - self.soc_dwell_seconds
+        if dwell_elapsed <= 0:
+            phase = "green"
+        elif dwell_elapsed < self.soc_ramp_seconds:
+            phase = "yellow"
+        else:
+            phase = "red"
+        remaining = 0 if phase == "red" else max(
+            0, int(self.soc_dwell_seconds + self.soc_ramp_seconds - (now - self.soc_started_at)))
+        return {"phase": phase, "seconds_remaining": remaining}
 
     # Wall of shame (plan §8.12). LIVE while dump_success events keep arriving for a
     # (student, target); DISCONNECTED once they stop (the moment a patch lands and the next
