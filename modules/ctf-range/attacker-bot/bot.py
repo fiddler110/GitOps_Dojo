@@ -16,12 +16,25 @@ soc-feed/log-tailing service needed. `ctf`/dump_success events feed the wall of 
 other outcome (`soc`/recon|probe|exploit_attempt|contained) feeds the SOC Alerts feed/countdown
 (modules/achievements/service/store.py).
 
+**Does nothing at all until the facilitator starts it** (revised 2026-10-05 at the user's
+request, so a lab can build and sit idle while students are walked through the briefing): on
+start this process polls achievements' `POST /api/soc/control` - a signed request, same scheme
+as every event it posts - every few seconds until the facilitator's "Start Attack Swarm" button
+(`store.py`'s `admin_soc_start()`) has set a `started_at`, then begins its persona threads from
+that EXACT timestamp, so the bot's own phases and the countdown everyone's watching can never
+drift apart. If achievements isn't wired at all (no adapter secret - a standalone/dev run),
+it starts immediately instead, since there's no facilitator button to wait for.
+
 Stdlib only.
 """
+import hashlib
+import hmac
+import json
 import os
 import sys
 import time
 import urllib.error
+import urllib.request
 
 from personas import Swarm
 
@@ -59,6 +72,35 @@ def post_event(clients, attacker, outcome, challenge):
     clients[source].post({"event": outcome, "user": attacker.user, "challenge": challenge,
                           "persona": attacker.user, "origin": attacker.origin})
     print(f"[attacker-bot] {attacker.user} {outcome} (origin {attacker.origin})", flush=True)
+
+
+def poll_control(url, secret, timeout=5):
+    """One signed poll of achievements' /api/soc/control. Returns the room's started_at (a
+    unix timestamp) once the facilitator has started the session, else None - never raises
+    (a hiccup just means "not started yet" to the caller, same as a real "not yet" answer)."""
+    body = b"{}"
+    sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    req = urllib.request.Request(url, data=body, method="POST",
+                                 headers={"Content-Type": "application/json", "X-Adapter-Signature": sig})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            doc = json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    return doc.get("started_at") if isinstance(doc, dict) else None
+
+
+def wait_for_start(control_url, secret, poll_seconds=5, sleep=time.sleep, now=time.time):
+    """Blocks until the facilitator starts the session, returning the shared started_at. With
+    no adapter secret configured (achievements not wired - a standalone/dev run), there is no
+    facilitator button to wait for, so this starts immediately instead."""
+    if not secret:
+        return now()
+    while True:
+        started_at = poll_control(control_url, secret)
+        if started_at is not None:
+            return started_at
+        sleep(poll_seconds)
 
 
 def make_exploit_fn(url, timeout=5):
@@ -111,10 +153,7 @@ def main():
     challenge = os.environ.get("CTF_CHALLENGE", "customer-portal")
     adapter_url = os.environ.get("ACHIEVEMENTS_ADAPTER_URL", "http://achievements:8080/api/adapter")
     adapter_secret = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET", "")
-    # When the room's dwell clock started, as a unix timestamp; empty/unset means "now" (this
-    # process's own start = the session start, the common case - a real run sets this from the
-    # same moment the workshop stack came up, see module.env).
-    started_at = float(os.environ.get("CTF_DWELL_STARTED_AT") or time.time())
+    control_url = os.environ.get("ACHIEVEMENTS_SOC_CONTROL_URL", "http://achievements:8080/api/soc/control")
     dwell_seconds = int(os.environ.get("CTF_SOC_DWELL_SECONDS") or 0) or None
     ramp_seconds = int(os.environ.get("CTF_SOC_RAMP_SECONDS") or 0) or None
 
@@ -122,8 +161,10 @@ def main():
     target_urls = {u: target_url(host, port_base, i) for i, u in enumerate(users)}
     clients = {"ctf": AdapterClient(adapter_url, adapter_secret, source="ctf"),
               "soc": AdapterClient(adapter_url, adapter_secret, source="soc")}
-    print(f"[attacker-bot] {len(users)} students, dwell started {started_at}, targeting {host}:{port_base}+",
-         flush=True)
+    print(f"[attacker-bot] {len(users)} students ready, targeting {host}:{port_base}+ - "
+         "waiting for the facilitator to start the session...", flush=True)
+    started_at = wait_for_start(control_url, adapter_secret)
+    print(f"[attacker-bot] started - dwell clock begins now ({started_at})", flush=True)
     run(users, target_urls, challenge, started_at, clients, dwell_seconds=dwell_seconds, ramp_seconds=ramp_seconds)
 
 

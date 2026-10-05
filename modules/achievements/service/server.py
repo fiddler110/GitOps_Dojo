@@ -18,16 +18,22 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
                           terminal only (Forgejo token plus client hash); matched, never kept
   POST /api/forgejo       the Forgejo system webhook, HMAC-signed with the shared secret
   POST /api/adapter       a module's event (dns-gate, cloud-api, openbao-audit, ctf-flags), HMAC-signed with ACHIEVEMENTS_ADAPTER_SECRET
+  POST /api/soc/control   attacker-bot's poll (plan §8.2): "has the facilitator started the
+                          session yet, and since when" - signed the same way as /api/adapter,
+                          but carries no event (anonymous, not a student or module identity)
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
   GET  /achievements-admin/soc, /api/soc   the room-wide SOC Alerts feed (plan §8.2)
+  POST /api/soc/start, /api/soc/reset   start (or re-arm) the SOC countdown/attack swarm -
+                          nothing runs until this is clicked (plan §8.2, revised 2026-10-05)
 GET /healthz.
 
 Trust: X-Auth-User counts only with X-Gateway-Token. workshop_lab reaches this port directly,
 so a request without the token is anonymous: it may post a signed event (an adapter or
-checker) and nothing else. A forged event is charged only to an identified caller.
+checker), or poll /api/soc/control the same signed way, and nothing else. A forged event is
+charged only to an identified caller.
 """
 import glob
 import hmac
@@ -236,6 +242,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         event = matcher.dns_event(body) if src == "dns" else matcher.adapter_event(body) if src else None
         return self._json(200, store.adapter(event) if event else {"ignored": True})
 
+    def _soc_control(self):
+        """attacker-bot's poll (plan §8.2, revised 2026-10-05): a signed POST, same scheme as
+        /api/adapter, with no event to validate - it's asking "has the facilitator started the
+        session, and since when", not reporting anything. Anonymous but signed, same trust
+        tier as /api/adapter (see this file's module docstring's Trust paragraph)."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if not 0 <= n <= MAX_BODY:
+            raise Denied(413, "body too large")
+        raw = self.rfile.read(n)
+        sent = (self.headers.get("X-Adapter-Signature") or "").strip().lower()
+        if not ADAPTER_SECRET or not hmac.compare_digest(webhook.signature(ADAPTER_SECRET, raw).encode(), sent.encode()):
+            raise Denied(403, "bad signature")
+        return self._json(200, store.soc_timer())
+
     def _run(self, fn):
         try:
             fn()
@@ -311,6 +334,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._webhook()
         if path == "/api/adapter":
             return self._adapter()
+        if path == "/api/soc/control":
+            return self._soc_control()
         if path.startswith("/_dojo/reset/"):
             return self._student_reset(path)
         if path == "/api/shell":
@@ -401,6 +426,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._facilitator()
         if self.headers.get("X-Requested-With") != "dojo-admin":
             raise Denied(403, "missing header")
+        if path == "/api/soc/start":
+            # The "Start Attack Swarm" button (plan §8.2, revised 2026-10-05): the room's
+            # dwell clock begins now, for every student and the admin tab alike, and the next
+            # time attacker-bot's bot.py polls /api/soc/control it gets this same started_at.
+            return self._json(200, store.admin_soc_start())
+        if path == "/api/soc/reset":
+            return self._json(200, store.admin_soc_reset())
         body = self._body()
         if path == "/api/award":
             store.admin_award(body.get("user"), body.get("points"), body.get("reason", ""))

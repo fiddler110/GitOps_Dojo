@@ -25,6 +25,10 @@ input.narrow { width: 6rem; }
 .neg { color: var(--bad); font-weight: 600; }
 .warn { color: #b45309; font-weight: 600; }
 .timer { border-width: 2px; transition: background-color 0.3s, border-color 0.3s; }
+.timer .row { gap: 0.6rem; }
+button.start { background: var(--good); }
+.timer.waiting { border-color: var(--line); }
+.timer.waiting .big { color: var(--dim); font-size: 1.4rem; }
 .timer.green { border-color: var(--good); }
 .timer.yellow { border-color: #b45309; background: color-mix(in srgb, #b45309 10%, var(--card)); }
 .timer.red { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 18%, var(--card)); animation: pulse 1.5s ease-in-out infinite; }

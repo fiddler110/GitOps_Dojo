@@ -16,13 +16,16 @@
     if (sev === 'WARN') { return 'warn'; }
     return 'dim';
   }
-  var PHASE_TEXT = { green: 'Recon only - quiet for now', yellow: 'Escalating - probes getting closer',
+  var PHASE_TEXT = { waiting: 'Not started yet', green: 'Recon only - quiet for now',
+                    yellow: 'Escalating - probes getting closer',
                     red: 'DETONATED - the real payload is live' };
   function renderTimer(timer) {
     if (!timer) { return; }
     timerCard.className = 'card timer ' + timer.phase;
     timerLabel.textContent = PHASE_TEXT[timer.phase] || timer.phase;
-    if (timer.phase === 'red') {
+    if (timer.phase === 'waiting') {
+      timerClock.textContent = '--:--';
+    } else if (timer.phase === 'red') {
       timerClock.textContent = 'LIVE';
     } else {
       var m = Math.floor(timer.seconds_remaining / 60);

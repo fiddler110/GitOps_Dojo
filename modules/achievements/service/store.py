@@ -110,12 +110,16 @@ class Store:
         self.soc_feed = {}
         self.soc_feed_all = deque(maxlen=self.SOC_ROOM_MAX)
         # The room-wide SOC countdown (plan §8.2, revised 2026-10-05 for the big green/yellow/
-        # red timer): this process's own start is the dwell clock's start - the same assumption
-        # attacker-bot's bot.py makes about its own start (both processes come up with the
-        # stack). SOC_DWELL_SECONDS/SOC_RAMP_SECONDS must equal
+        # red timer; revised again the same day so the facilitator starts it on purpose - see
+        # admin_soc_start()). None = not started yet: the lab can build and sit idle while
+        # students are walked through the briefing with no bot traffic at all. attacker-bot's
+        # bot.py polls admin_soc_start()'s result (POST /api/soc/control) and begins its own
+        # dwell clock from the SAME started_at it gets back, so the two processes agree on the
+        # moment without a push from here - achievements never calls out to the bot.
+        # SOC_DWELL_SECONDS/SOC_RAMP_SECONDS must equal
         # modules/ctf-range/attacker-bot/personas.py's DWELL_SECONDS/RAMP_SECONDS
         # (CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS in module.env set both sides).
-        self.soc_started_at = self.clock()
+        self.soc_started_at = None
         self.soc_dwell_seconds = soc_dwell_seconds
         self.soc_ramp_seconds = soc_ramp_seconds
         self._saved_at = None
@@ -509,13 +513,35 @@ class Store:
         with self.lock:
             return list(reversed(self.soc_feed_all))
 
+    def admin_soc_start(self):
+        """The facilitator's "Start Attack Swarm" button. Idempotent - a second click (or a
+        page two facilitators both have open) never resets an already-running clock; only
+        admin_soc_reset() can do that. Returns the started_at every caller's soc_timer() will
+        now agree on, including attacker-bot's bot.py the next time it polls."""
+        with self.lock:
+            if self.soc_started_at is None:
+                self.soc_started_at = self.clock()
+            return {"started_at": self.soc_started_at}
+
+    def admin_soc_reset(self):
+        """Re-arm the countdown for a fresh run (e.g. between back-to-back sections) - the next
+        admin_soc_start() begins a new clock from scratch."""
+        with self.lock:
+            self.soc_started_at = None
+            return {"ok": True}
+
     def soc_timer(self):
-        """{"phase", "seconds_remaining"} for the big green/yellow/red countdown everyone sees
-        (student card and admin tab alike - it's room-wide, not per-student). Mirrors
-        modules/ctf-range/attacker-bot/personas.py's room_timer() exactly (see this class's
-        soc_started_at comment for why the two never need to talk to agree)."""
+        """{"phase", "seconds_remaining", "started_at"} for the big green/yellow/red countdown
+        everyone sees (student card and admin tab alike - it's room-wide, not per-student).
+        phase "waiting" (seconds_remaining None) until the facilitator starts it. Mirrors
+        modules/ctf-range/attacker-bot/personas.py's room_timer() exactly once started (see this
+        class's soc_started_at comment for why the two never need to talk to agree)."""
         now = self.clock()
-        dwell_elapsed = now - self.soc_started_at - self.soc_dwell_seconds
+        with self.lock:
+            started_at = self.soc_started_at
+        if started_at is None:
+            return {"phase": "waiting", "seconds_remaining": None, "started_at": None}
+        dwell_elapsed = now - started_at - self.soc_dwell_seconds
         if dwell_elapsed <= 0:
             phase = "green"
         elif dwell_elapsed < self.soc_ramp_seconds:
@@ -523,8 +549,8 @@ class Store:
         else:
             phase = "red"
         remaining = 0 if phase == "red" else max(
-            0, int(self.soc_dwell_seconds + self.soc_ramp_seconds - (now - self.soc_started_at)))
-        return {"phase": phase, "seconds_remaining": remaining}
+            0, int(self.soc_dwell_seconds + self.soc_ramp_seconds - (now - started_at)))
+        return {"phase": phase, "seconds_remaining": remaining, "started_at": started_at}
 
     # Wall of shame (plan §8.12). LIVE while dump_success events keep arriving for a
     # (student, target); DISCONNECTED once they stop (the moment a patch lands and the next

@@ -186,15 +186,39 @@ class StoreTests(unittest.TestCase):
                         "severity": "INFO"})   # a poster can't downgrade its own severity
         self.assertEqual(self.s.soc_rows("alice")[0]["severity"], "CRITICAL")
 
-    def test_soc_timer_green_then_yellow_then_red(self):
+    def test_soc_timer_waits_until_the_facilitator_starts_it(self):
         self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
-        self.assertEqual(self.s.soc_timer(), {"phase": "green", "seconds_remaining": 300})
+        self.assertEqual(self.s.soc_timer(), {"phase": "waiting", "seconds_remaining": None, "started_at": None})
+        self.clock.t += 99999   # waiting forever doesn't advance anything on its own
+        self.assertEqual(self.s.soc_timer()["phase"], "waiting")
+
+    def test_admin_soc_start_is_idempotent(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        first = self.s.admin_soc_start()
+        self.clock.t += 50
+        second = self.s.admin_soc_start()    # a second click doesn't reset the clock
+        self.assertEqual(first, second)
+
+    def test_soc_timer_green_then_yellow_then_red_once_started(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        start = self.s.admin_soc_start()["started_at"]
+        self.assertEqual(self.s.soc_timer(), {"phase": "green", "seconds_remaining": 300, "started_at": start})
         self.clock.t += 101
         self.assertEqual(self.s.soc_timer()["phase"], "yellow")
         self.clock.t += 200
-        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0})
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0, "started_at": start})
         self.clock.t += 99999
-        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0})
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0, "started_at": start})
+
+    def test_admin_soc_reset_rearms_the_countdown(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        self.s.admin_soc_start()
+        self.clock.t += 150
+        self.assertEqual(self.s.soc_timer()["phase"], "yellow")
+        self.s.admin_soc_reset()
+        self.assertEqual(self.s.soc_timer()["phase"], "waiting")
+        restarted = self.s.admin_soc_start()["started_at"]
+        self.assertEqual(restarted, self.clock.t)   # a fresh clock, not the old one
 
     def test_me_has_moments_and_completion(self):
         self.s.event(None, self.ev("a", "f-wrongdir"))
@@ -642,6 +666,26 @@ class TokenHttpTests(unittest.TestCase):
         finally:
             server.ADAPTER_SECRET = None
 
+    def test_soc_control_poll_needs_the_shared_secret_too(self):
+        import hashlib
+        import hmac
+        server.ADAPTER_SECRET = "adapt"
+        try:
+            raw = b"{}"
+
+            def poll(sig):
+                c = http.client.HTTPConnection("127.0.0.1", self.port)
+                c.request("POST", "/api/soc/control", body=raw, headers={"X-Adapter-Signature": sig})
+                r = c.getresponse()
+                out = (r.status, json.loads(r.read()))
+                c.close()
+                return out
+            self.assertEqual(poll("0" * 64)[0], 403)
+            status, doc = poll(hmac.new(b"adapt", raw, hashlib.sha256).hexdigest())
+            self.assertEqual((status, doc["phase"]), (200, "waiting"))   # nothing started it yet
+        finally:
+            server.ADAPTER_SECRET = None
+
     def test_sensei_reads_need_the_sensei_key(self):
         server.store.shell("amy", {"cmd": "ls", "exit": 1})
         try:
@@ -901,6 +945,22 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.call("POST", path, user="boss", body=body)[0], 403)
         self.assertEqual(self.call("POST", path, user="boss", body=body, extra={"X-Requested-With": "dojo-admin"})[0], 200)
         self.assertEqual(self.call("GET", "/api/me", user="alice")[1]["score"], 3)
+
+    def test_soc_start_and_reset_need_the_facilitator(self):
+        hdr = {"X-Requested-With": "dojo-admin"}
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "waiting")
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/start", user="alice", extra=hdr)[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/start", user="boss")[0], 403)   # no header
+        st, doc, _ = self.call("POST", "/achievements-admin/api/soc/start", user="boss", extra=hdr)
+        self.assertEqual(st, 200)
+        self.assertIsNotNone(doc["started_at"])
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "green")
+        # idempotent: a second click doesn't reset the clock
+        st, doc2, _ = self.call("POST", "/achievements-admin/api/soc/start", user="boss", extra=hdr)
+        self.assertEqual(doc2["started_at"], doc["started_at"])
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="alice", extra=hdr)[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="boss", extra=hdr)[0], 200)
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "waiting")
 
     def test_unknown_paths(self):
         self.assertEqual(self.call("GET", "/nope")[0], 404)

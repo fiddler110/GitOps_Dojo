@@ -98,6 +98,34 @@ class RunTests(unittest.TestCase):
         self.assertTrue({d["user"] for d in posted} <= {"student01", "student02"})
 
 
+class WaitForStartTests(unittest.TestCase):
+    def test_no_secret_starts_immediately(self):
+        self.assertEqual(bot.wait_for_start("http://unused.invalid", "", now=lambda: 42.0), 42.0)
+
+    def test_polls_until_a_started_at_comes_back(self):
+        calls = {"n": 0}
+        sleeps = []
+
+        def fake_poll(url, secret, timeout=5):
+            calls["n"] += 1
+            return None if calls["n"] < 3 else 1234.5
+
+        bot.poll_control, real = fake_poll, bot.poll_control
+        try:
+            got = bot.wait_for_start("http://achievements.invalid/api/soc/control", "s3cret",
+                                     poll_seconds=0, sleep=sleeps.append)
+        finally:
+            bot.poll_control = real
+        self.assertEqual(got, 1234.5)
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(len(sleeps), 2)   # two "not started yet" polls before the third hit
+
+
+class PollControlTests(unittest.TestCase):
+    def test_bad_connection_is_not_started_not_an_error(self):
+        self.assertIsNone(bot.poll_control("http://127.0.0.1:1", "s3cret", timeout=0.2))
+
+
 class MakeExploitFnTests(unittest.TestCase):
     def test_operational_error_is_not_a_breach(self):
         exploit = bot.make_exploit_fn("http://127.0.0.1:1", timeout=0.2)  # nothing listens here

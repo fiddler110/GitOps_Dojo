@@ -336,7 +336,9 @@ services:
   # student's own terminal reaches it at (CTF_HOST_PORT_BASE + roster index, matching
   # ctf-controller's host_port() - see bot.py's header comment), and posts straight to
   # achievements over `workshop_lab`, same trust tier as ctf-flags (it holds the adapter
-  # secret; no student can ever reach it). No docker socket, no place inside ctf-host.
+  # secret; no student can ever reach it). No docker socket, no place inside ctf-host. Idle
+  # (no traffic at all) until the facilitator presses "Start Attack Swarm" on the SOC Alerts
+  # admin tab - see bot.py's header comment.
   attacker-bot:
     build:
       context: ../modules/ctf-range
@@ -351,13 +353,14 @@ services:
       - CTF_CHALLENGE=customer-portal
       - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
       - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
+      # Where this polls (signed, no event) for "has the facilitator pressed Start yet" - see
+      # bot.py's module docstring. Does nothing at all until that answer is yes.
+      - ACHIEVEMENTS_SOC_CONTROL_URL=${ACHIEVEMENTS_SOC_CONTROL_URL:-http://achievements:8080/api/soc/control}
       # The green/yellow/red countdown's two durations (module.env) - must equal
       # achievements' CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS exactly (store.py's
       # soc_timer(); this comment is duplicated on both sides).
       - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
       - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
-      # Empty = the bot's own process start is the room's dwell-clock start (see module.env).
-      - CTF_DWELL_STARTED_AT=${CTF_DWELL_STARTED_AT:-}
     networks:
       - ctf_net
       - workshop_lab

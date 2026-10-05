@@ -6,6 +6,8 @@
   var timerCard = document.getElementById('timer-card');
   var timerLabel = document.getElementById('timer-label');
   var timerClock = document.getElementById('timer-clock');
+  var startBtn = document.getElementById('start-btn');
+  var resetBtn = document.getElementById('reset-btn');
   function cell(text, cls) { var td = document.createElement('td'); td.textContent = text == null ? '' : text; if (cls) { td.className = cls; } return td; }
   function ago(seconds) {
     if (seconds < 60) { return Math.floor(seconds) + 's ago'; }
@@ -16,13 +18,18 @@
     if (sev === 'WARN') { return 'warn'; }
     return 'dim';
   }
-  var PHASE_TEXT = { green: 'Recon only - quiet for now', yellow: 'Escalating - probes getting closer',
+  var PHASE_TEXT = { waiting: 'Not started - walk through the briefing, then press Start',
+                    green: 'Recon only - quiet for now', yellow: 'Escalating - probes getting closer',
                     red: 'DETONATED - the real payload is live' };
   function renderTimer(timer) {
     if (!timer) { return; }
     timerCard.className = 'card timer ' + timer.phase;
     timerLabel.textContent = PHASE_TEXT[timer.phase] || timer.phase;
-    if (timer.phase === 'red') {
+    startBtn.className = timer.phase === 'waiting' ? 'start' : 'start hidden';
+    resetBtn.className = timer.phase === 'waiting' ? 'danger hidden' : 'danger';
+    if (timer.phase === 'waiting') {
+      timerClock.textContent = '--:--';
+    } else if (timer.phase === 'red') {
       timerClock.textContent = 'LIVE';
     } else {
       var m = Math.floor(timer.seconds_remaining / 60);
@@ -30,6 +37,17 @@
       timerClock.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     }
   }
+  function post(path) {
+    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'dojo-admin' } });
+  }
+  startBtn.addEventListener('click', function () {
+    startBtn.disabled = true;
+    post('api/soc/start').then(load).finally(function () { startBtn.disabled = false; });
+  });
+  resetBtn.addEventListener('click', function () {
+    if (!window.confirm('Re-arm the countdown? The swarm stops until Start is pressed again.')) { return; }
+    post('api/soc/reset').then(load);
+  });
   function load() {
     fetch('api/soc', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
