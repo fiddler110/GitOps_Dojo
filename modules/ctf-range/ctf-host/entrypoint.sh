@@ -171,6 +171,10 @@ import_attack_target ctf-leaky-config:base /opt/leaky-config-rootfs leakyconfig 
 # `ctf-host` stage today, same as leaky-config above.
 import_attack_target ctf-git-secrets:base /opt/git-secrets-rootfs gitsecrets "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# policy-bypass (target 9, CTF-4) only ever bakes into the full-catalog
+# `ctf-host` stage today, same as leaky-config/git-secrets above.
+import_attack_target ctf-policy-bypass:base /opt/policy-bypass-rootfs policybypass "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is

@@ -354,7 +354,18 @@ Suggested minimal builds, unproven unless noted:
   proof is a `HEAD`/`OPTIONS` on the destructive route that returns 200 vs 403 without running it.
 - **3 `cert-trust-bypass`:** a small nginx/openssl front that accepts a cert it should reject.
 - **9 `policy-bypass`:** Rego on the existing policy engine; dual-use (attacked in CTF-4, defended in CTF-5), with a
-  default-allow fallthrough that still passes `opa test`.
+  default-allow fallthrough that still passes `opa test`. **Built 2026-10-06, attack side only** (CTF-5's defend
+  wiring is separate, future work). The "existing policy engine" turned out to be `policy_engine.py` in
+  `modules/dojo-cloud/cloud-api/` — a real, stdlib-only, data-driven rule evaluator, not JSON/Rego but structurally
+  the same Azure-Policy-like grammar (`if`/`allOf`/`not`, deny/audit effects). Vendored it **verbatim** into
+  `modules/ctf-range/targets/policy-bypass/` rather than reimplementing it independently, since it's deterministic
+  logic, not a secret — the two-copies idiom every flag/token derivation elsewhere in this range uses exists to
+  catch secret drift, which doesn't apply here. The "logic gap" built: the deny policy on a protected resource
+  group checks `tags['provisioned-by']` on the WRITE REQUEST ITSELF, not anything about the caller — so a student
+  self-reports that tag and the deny never fires. No `opa test`-style fallthrough was needed; the self-reported-tag
+  mistake alone was enough and is a cleaner single idea for a lab debrief. Live-verified end to end (gateway →
+  firewall → `ctf-host`, both students, isolation, decoy port, flag submission) — see `CTF-WORKSHOP-PLAN.md`'s
+  checkpoint for the full detail.
 - **6 `dns-resolver-cve`:** CVE chosen — **uClibc / uClibc-ng ≤ 1.0.40, CVE-2022-30295** (predictable DNS
   transaction IDs), after two earlier picks were rejected. First was the 2017 dnsmasq heap overflow
   (CVE-2017-14491): a 2-byte overflow → reliable RCE is fragile and breaks on any libc/heap/base-image change —

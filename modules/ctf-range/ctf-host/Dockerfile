@@ -131,6 +131,16 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/git-secrets/app.py /app/app.py
 RUN useradd --uid 10024 --no-create-home --home-dir /app --shell /usr/sbin/nologin gitsecrets
 
+# policy-bypass — CTF-4 "Trusting the wrong thing" (plan §7.3 row 9), ties
+# cloud-policy-as-code. No bug in how the rule is evaluated
+# (policy_engine.py is vendored verbatim from modules/dojo-cloud/cloud-api/)
+# — the deployed rule itself is wrong. See app.py's docstring.
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS policy-bypass
+COPY targets/policy-bypass/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/policy-bypass/policy_engine.py targets/policy-bypass/app.py /app/
+RUN useradd --uid 10025 --no-create-home --home-dir /app --shell /usr/sbin/nologin policybypass
+
 # --- the base image, as a loadable archive, for ctf-builder's rebuilds ------
 # skopeo pinned by digest (quay.io/skopeo/stable). The digest copied below
 # MUST stay in sync with targets/customer-portal/Dockerfile's `FROM` line (and
@@ -244,6 +254,7 @@ COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
 COPY --from=api-bfla / /opt/api-bfla-rootfs/
 COPY --from=leaky-config / /opt/leaky-config-rootfs/
 COPY --from=git-secrets / /opt/git-secrets-rootfs/
+COPY --from=policy-bypass / /opt/policy-bypass-rootfs/
 # The compose service's own healthcheck (modules/ctf-range/compose.yml) uses
 # CTF_HOST_EXPECTED_IMAGES and checks every baked tag; this one is a fallback
 # for a standalone `docker run` of this image alone.

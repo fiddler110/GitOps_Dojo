@@ -9,13 +9,13 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ### ⏩ Resume here (checkpoint 2026-10-06)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **11 of the 14
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **12 of the 14
 attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`,
-8 `git-secrets` and 11 `tfstate-treasure` — see below); target 14 `customer-portal` (CTF-5, defend-only) was already
-built and has a real session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is fully decided and
-de-risked (`CTF-SPIKES.md`) but not yet built, and still has its own open item (confirm the CVE's TXID behavior
-end-to-end) before it can be; CTF-4's 3 targets (rows 6, 9, 10) are not built yet. **CTF-D26 is now built**
-(per-pack `ctf-host` image scoping) — see below.
+8 `git-secrets`, 9 `policy-bypass` and 11 `tfstate-treasure` — see below); target 14 `customer-portal` (CTF-5,
+defend-only) was already built and has a real session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is
+fully decided and de-risked (`CTF-SPIKES.md`) but not yet built, and still has its own open item (confirm the CVE's
+TXID behavior end-to-end) before it can be; CTF-4's other 2 targets (rows 6, 10) are not built yet. **CTF-D26 is now
+built** (per-pack `ctf-host` image scoping) — see below.
 
 **Built and live-verified today (2026-10-06):**
 
@@ -88,6 +88,28 @@ end-to-end) before it can be; CTF-4's 3 targets (rows 6, 9, 10) are not built ye
   process note: podman-compose left `openbao-setup` and `openbao-audit` in `Created` (never auto-started) on this
   run; a manual `podman start` on each was enough, same shape as the `./run.sh stop` needing two runs noted
   earlier — not chased further, not a regression from this target's changes.
+- **Target 9 `policy-bypass` (CTF-4, ties `cloud-policy-as-code`)**: a standalone Flask app again (back to the
+  shape most targets use, unlike 8/11's "no image" shape) — chosen over `dns-resolver-cve` and `runner-escape`
+  precisely because it has no open spike risk (see "Next step" below, both of those do). A04:2021 "Insecure
+  Design": `policy_engine.py` is vendored **verbatim** (not independently re-derived — a real deterministic
+  evaluator, not a secret, so copying it is the right call here, unlike every flag/token HMAC in this range) from
+  `modules/dojo-cloud/cloud-api/policy_engine.py`, the actual rule engine `cloud-policy-as-code` teaches against.
+  The vulnerable policy itself, defined in `app.py`, denies writes to a protected resource group
+  (`rg-vault-gateway`) **unless the write request's own `tags['provisioned-by']` already reads `security-team`**
+  — trusting a label the requester attaches to their own request as proof of who they are, the same category of
+  mistake as trusting an unsigned header or an attacker-controlled JSON field, one layer up in policy instead of
+  app code. `GET /api/policy` shows the whole rule in the open (no bug to find — the rule itself is wrong, and it
+  still "passes" every shape check). No new generic plumbing needed: `CTF_FLAG` was already provided to every
+  attack-ladder slot. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start: both students'
+  slots queued → live through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from inside each
+  student's own terminal account read the live policy over the real gateway → firewall → `ctf-host` path (never a
+  standalone `podman run`), extracted the tag name/value the rule treats as proof straight from the JSON (never
+  hardcoded), self-reported it on a provision request, and got back a correctly-derived, distinct flag per
+  student; confirmed a request with no self-reported tag still 403s with the real ARM-shaped policy error;
+  confirmed student02's uid times out reaching student01's slot (isolation holds); confirmed the decoy SSH banner
+  fingerprints; both flags accepted by the real `dojo-flag submit` CLI, and student01's flag correctly rejected
+  when tried against student02's own submission. All suites (58 engine + 54 ctf-controller, unchanged — this
+  target needed zero controller/ctf-flags code changes, config-only wiring) pass before and after.
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
   `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
@@ -189,16 +211,17 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
 
 **👉 Next step (pick up here):**
 
-1. **Build CTF-4's remaining 3 targets** (6 `dns-resolver-cve`, 9 `policy-bypass`, 10 `runner-escape`) — same shape
-   as the 11 already built (standalone Flask app, or — `git-secrets`/`tfstate-treasure`'s shape — no image at all,
-   the foothold outside `ctf_net`). These tie into modules that don't fully exist as attack surfaces yet
-   (`runner-pool`'s job-trust-boundary angle, the DNS stack, the policy engine) rather than being self-contained
-   Flask apps, so budget more time per target. `dns-resolver-cve` additionally has its own open item below (confirm
-   the CVE behavior) before it can be wired into the chain at all; `runner-escape`'s own spike risk (whether
-   Forgejo's `pull_request_target` reliably fires with repo secrets on this pinned version) was flagged
-   inconclusive in a 2026-09-28 live test (`docs/archive/REMEDIATION-PLAN.md` T0.3) and never resettled — check
-   that before committing to its design, the same way `tfstate-treasure` was picked over it this round precisely
-   because it had no such open spike.
+1. **Build CTF-4's remaining 2 targets** (6 `dns-resolver-cve`, 10 `runner-escape`) — same shape as the 12 already
+   built (standalone Flask app, or — `git-secrets`/`tfstate-treasure`'s shape — no image at all, the foothold
+   outside `ctf_net`). `dns-resolver-cve` ties into the DNS stack and `runner-escape` into `runner-pool`'s
+   job-trust-boundary angle rather than being self-contained Flask apps (unlike `policy-bypass`, which turned out
+   to only need a vendored library plus app.py, no module integration), so budget more time per target.
+   `dns-resolver-cve` additionally has its own open item below (confirm the CVE behavior) before it can be wired
+   into the chain at all; `runner-escape`'s own spike risk (whether Forgejo's `pull_request_target` reliably fires
+   with repo secrets on this pinned version) was flagged inconclusive in a 2026-09-28 live test
+   (`docs/archive/REMEDIATION-PLAN.md` T0.3) and never resettled — check that before committing to its design, the
+   same way `tfstate-treasure` and then `policy-bypass` were both picked ahead of it precisely because neither had
+   an open spike of its own.
 2. **Once a target's built, bake + wire + live-verify it the same way as today** (into `ctf-host`'s full-catalog
    stage, into `ctf-defend-test`'s catalog, toggle + solve through the real gateway/firewall path, from inside the
    student's own terminal account, not a standalone `podman run`) **rather than batching a big-bang verify at the
