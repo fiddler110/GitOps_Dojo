@@ -113,6 +113,15 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/api-bfla/app.py /app/app.py
 RUN useradd --uid 10022 --no-create-home --home-dir /app --shell /usr/sbin/nologin apibfla
 
+# leaky-config — CTF-3 "Secrets and misconfiguration" (plan §7.3 row 5), not
+# yet in a real session pack (CTF-3/CTF-4 stay on the shared full-catalog
+# stage below until that pack work happens — see CTF-D26).
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS leaky-config
+COPY targets/leaky-config/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/leaky-config/app.py /app/app.py
+RUN useradd --uid 10023 --no-create-home --home-dir /app --shell /usr/sbin/nologin leakyconfig
+
 # --- the base image, as a loadable archive, for ctf-builder's rebuilds ------
 # skopeo pinned by digest (quay.io/skopeo/stable). The digest copied below
 # MUST stay in sync with targets/customer-portal/Dockerfile's `FROM` line (and
@@ -174,7 +183,13 @@ RUN set -eux; \
     tar -C /out/merged -cf /out/python-3.12-slim.tar .
 
 # --- the range host itself ----------------------------------------------------
-FROM docker.io/library/docker:29.8.1-dind@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0
+# range-base: everything every pack's ctf-host image needs regardless of
+# which attack-ladder targets it bakes in (CTF-D26). A final stage below
+# FROMs this and COPYs in only its own pack's target rootfses — BuildKit
+# then never even builds the stages a pack doesn't reference (not "baked but
+# skipped at import", genuinely absent: zero extra build time, zero extra
+# image bytes for a scoped pack).
+FROM docker.io/library/docker:29.8.1-dind@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0 AS range-base
 
 # dnsmasq, for entrypoint.sh's fake-DNS stub (see its own comment): a fast,
 # local, always-reachable DNS responder for the inner dockerd's embedded
@@ -192,6 +207,21 @@ RUN sed -i '/--host=tcp:\/\/0.0.0.0:2375/d' /usr/local/bin/dockerd-entrypoint.sh
     && ! grep -q -- '--host=tcp://0.0.0.0:2375' /usr/local/bin/dockerd-entrypoint.sh \
     && grep -q -- '--host="$dockerSocket"' /usr/local/bin/dockerd-entrypoint.sh
 
+COPY ctf-host/entrypoint.sh /usr/local/bin/ctf-host-entrypoint
+RUN chmod 0755 /usr/local/bin/ctf-host-entrypoint
+
+# Socket dir shared with ctf-controller (a named volume in the overlay).
+ENV DOCKER_HOST=unix:///run/ctf/docker.sock \
+    DOCKER_TLS_CERTDIR=
+ENTRYPOINT ["ctf-host-entrypoint"]
+
+# --- ctf-host: the full catalog (default `docker build` target, no --target
+# needed) — used by the shared workshops/ctf-defend-test harness, which
+# deliberately wants every target in one image (module.env's comment on
+# CTF_ATTACK_TARGETS). entrypoint.sh's import_* functions each guard on
+# their own rootfs directory existing, so this is the only stage where every
+# guard actually fires.
+FROM range-base AS ctf-host
 COPY --from=portal / /opt/portal-rootfs/
 COPY --from=portal-deps / /opt/portal-deps-rootfs/
 COPY --from=base-image-fetch /out/python-3.12-slim.tar /opt/base-images/python-3.12-slim.tar
@@ -203,15 +233,33 @@ COPY --from=ping-tool / /opt/ping-tool-rootfs/
 COPY --from=ssrf-fetcher / /opt/ssrf-fetcher-rootfs/
 COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
 COPY --from=api-bfla / /opt/api-bfla-rootfs/
-COPY ctf-host/entrypoint.sh /usr/local/bin/ctf-host-entrypoint
-RUN chmod 0755 /usr/local/bin/ctf-host-entrypoint
-
-# Socket dir shared with ctf-controller (a named volume in the overlay).
-ENV DOCKER_HOST=unix:///run/ctf/docker.sock \
-    DOCKER_TLS_CERTDIR=
-ENTRYPOINT ["ctf-host-entrypoint"]
-# The compose service's own healthcheck (modules/ctf-range/compose.yml)
-# checks every baked tag, including the 8 attack-ladder targets below; this
-# one is a fallback for a standalone `docker run` of this image alone.
+COPY --from=leaky-config / /opt/leaky-config-rootfs/
+# The compose service's own healthcheck (modules/ctf-range/compose.yml) uses
+# CTF_HOST_EXPECTED_IMAGES and checks every baked tag; this one is a fallback
+# for a standalone `docker run` of this image alone.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
     CMD docker image inspect ctf-customer-portal:base >/dev/null 2>&1 || exit 1
+
+# --- ctf-host-ctf1: CTF-1 "Access and identity" only (targets 0,1,2,3 —
+# sqli-login, idor-pcap, weak-auth-portal, cert-trust-bypass). None of these
+# is ever rebuilt (students attack, never patch, them), so this pack needs no
+# customer-portal/ctf-builder plumbing at all — scoped to exactly its own 4
+# rootfses, nothing else. `docker build --target ctf-host-ctf1`.
+FROM range-base AS ctf-host-ctf1
+COPY --from=sqli-login / /opt/sqli-login-rootfs/
+COPY --from=idor-pcap / /opt/idor-pcap-rootfs/
+COPY --from=weak-auth-portal / /opt/weak-auth-portal-rootfs/
+COPY --from=cert-trust-bypass / /opt/cert-trust-bypass-rootfs/
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
+    CMD docker image inspect ctf-sqli-login:base >/dev/null 2>&1 || exit 1
+
+# --- ctf-host-ctf2: CTF-2 "Server-side trust and APIs" only (targets 4,7,12,
+# 13 — ping-tool, ssrf-fetcher, api-mass-assignment, api-bfla). Same shape as
+# ctf-host-ctf1 above. `docker build --target ctf-host-ctf2`.
+FROM range-base AS ctf-host-ctf2
+COPY --from=ping-tool / /opt/ping-tool-rootfs/
+COPY --from=ssrf-fetcher / /opt/ssrf-fetcher-rootfs/
+COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
+COPY --from=api-bfla / /opt/api-bfla-rootfs/
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
+    CMD docker image inspect ctf-ping-tool:base >/dev/null 2>&1 || exit 1

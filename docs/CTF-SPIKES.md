@@ -775,15 +775,23 @@ storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 fo
   SAST for CWE-89 (CTF-D24). It makes CTF-5 **five** always-live defend targets per student (200 at 40 students),
   which S2/S15 capacity must now size for.
 
-- **CTF-D26 (user, 2026-10-05):** `ctf-host`'s Dockerfile currently bakes every attack-ladder target unconditionally
-  (now 8; eventually 14) into one shared image used by every workshop pack, regardless of which targets that pack's
-  own `CTF_ATTACK_TARGETS` actually lists — a single-session pack pays the build time and the startup import cost
-  for targets it will never expose. **Decided direction**: once real per-session packs exist (separate from today's
-  shared `workshops/ctf-defend-test` harness), scope `ctf-host`'s build per pack — named multi-stage Dockerfile
-  targets (`docker build --target ctf-host-ctf1`, tagged `ctf-host:ctf-1`, `ctf-host:ctf-2`, ...), each `COPY --from=`
-  only its own session's target stages, so BuildKit never even builds the stages a given pack doesn't need (not
-  "baked but skipped at import" — zero extra build time, zero extra image bytes). Needs `entrypoint.sh`'s
-  `import_attack_target` calls to skip gracefully when a tag's rootfs isn't present in that pack's image, and the
-  `ctf-host` healthcheck (`compose.yml`) to check a config-driven image list instead of one hardcoded string shared
-  by every pack. **Not yet built** — do this once CTF-1/CTF-2/etc. become real separate packs, not before; today's
-  shared test harness (CTF-D20's `CTF_ATTACK_TARGETS` fixture) deliberately wants the full catalog in one image.
+- **CTF-D26 (user, 2026-10-05; built 2026-10-06):** `ctf-host`'s Dockerfile baked every attack-ladder target
+  unconditionally into one shared image used by every workshop pack, regardless of which targets that pack's own
+  `CTF_ATTACK_TARGETS` actually lists — a single-session pack paid the build time and the startup import cost for
+  targets it would never expose. **Built as decided**: `ctf-host/Dockerfile` now has a shared `range-base` stage
+  (dind + the dnsmasq/sed fixes + `entrypoint.sh`, nothing pack-specific) and three named final stages FROM it —
+  `ctf-host` (the default, full catalog — what `workshop.env` defaults still build, so `workshops/ctf-defend-test`'s
+  shared harness is unaffected), `ctf-host-ctf1` (CTF-1's 4 targets only) and `ctf-host-ctf2` (CTF-2's 4 targets
+  only). `entrypoint.sh`'s `import_target`/`import_portal_deps_base`/`import_attack_target` each guard on their own
+  rootfs directory existing (`[ -d "$rootfs" ] || return 0`) so a pack-scoped image's start never tries to import
+  something it never baked in. `compose.yml`'s `ctf-host` service now takes its build `target`, its `image` tag,
+  and its healthcheck's expected-image list from three new `module.env` vars (`CTF_HOST_BUILD_TARGET`,
+  `CTF_HOST_IMAGE`, `CTF_HOST_EXPECTED_IMAGES`), defaulting to today's full-catalog behavior. **Live-verified**:
+  `podman build --target ctf-host-ctf1`/`ctf-host-ctf2` each only build `range-base` plus their own 4 target
+  stages (confirmed from the build log — `portal`/`portal-deps`/`base-image-fetch` and the other pack's stages
+  never execute); full catalog = 1.89GB, each scoped image ≈ 900MB (roughly half, as expected with no
+  customer-portal/ctf-builder plumbing and only 4 of 9 targets). All engine + ctf-range unit suites still pass, and
+  a cold `./run.sh ctf-defend-test` start still imports and serves its full 9-target catalog (now including
+  `leaky-config`, CTF-S8 below) with no regression. CTF-1/CTF-2 don't have real session packs yet (see the plan's
+  checkpoint) — the mechanism is ready and proven; the next real pack just sets the three vars instead of building
+  a one-off Dockerfile fork.

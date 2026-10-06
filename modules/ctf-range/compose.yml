@@ -123,10 +123,13 @@ services:
   ctf-host:
     build:
       # Context is the module root so the build can reach targets/; the
-      # Dockerfile lives under ctf-host/.
+      # Dockerfile lives under ctf-host/. `target` picks which final stage
+      # (CTF-D26): the full catalog by default, or a pack-scoped
+      # ctf-host-ctf1/ctf-host-ctf2 — see module.env's CTF_HOST_BUILD_TARGET.
       context: ../modules/ctf-range
       dockerfile: ctf-host/Dockerfile
-    image: gitopsdojo/ctf-host:local
+      target: ${CTF_HOST_BUILD_TARGET:-ctf-host}
+    image: ${CTF_HOST_IMAGE:-gitopsdojo/ctf-host:local}
     container_name: workshop_ctf_host
     privileged: true
     environment:
@@ -147,15 +150,15 @@ services:
       registry:
         condition: service_started
     healthcheck:
-      # Every baked image has to be imported before anything may ask ctf-host
-      # to build (spike S6 Run D) or before AttackManager may try to create a
-      # slot from one of the 8 attack-ladder targets below (plan §7.3): the
-      # customer-portal rootfs, its vendored deps base
-      # (gitopsdojo/ctf-customer-portal-base:pinned, Run D) that a rebuild's
-      # own FROM line resolves against, and the 8 attack-ladder tags
-      # entrypoint.sh imports alongside them. ctf-builder and ctf-controller
-      # key their own `depends_on: service_healthy` off this.
-      test: ["CMD-SHELL", "docker image inspect ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base >/dev/null 2>&1"]
+      # Every image this pack's ctf-host stage actually bakes in has to be
+      # imported before anything may ask ctf-host to build (spike S6 Run D)
+      # or before AttackManager may try to create a slot (plan §7.3).
+      # CTF_HOST_EXPECTED_IMAGES (module.env) names exactly that set — the
+      # full catalog by default, a pack-scoped subset when CTF_HOST_IMAGE/
+      # CTF_HOST_BUILD_TARGET above are overridden too (CTF-D26). ctf-builder
+      # and ctf-controller key their own `depends_on: service_healthy` off
+      # this.
+      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base} >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 30

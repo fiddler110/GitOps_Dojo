@@ -94,6 +94,9 @@ done
 # until a student's merged fix is rebuilt and pushed to the in-lab registry
 # (then the controller pulls that tag instead — spike S6).
 import_target() {
+  # CTF-D26: a per-pack ctf-host image (ctf-host-ctf1/ctf-host-ctf2, ...)
+  # never bakes this rootfs in at all — skip gracefully rather than failing.
+  [ -d /opt/portal-rootfs ] || return 0
   docker image inspect ctf-customer-portal:base >/dev/null 2>&1 && return 0
   tar -C /opt/portal-rootfs -c . | docker import \
     --change 'ENTRYPOINT ["/app/entrypoint.sh"]' \
@@ -112,6 +115,8 @@ import_target
 # instead of installing Flask itself, so it has to already be in the inner
 # dockerd's image store before ctf-builder's rebuild runs.
 import_portal_deps_base() {
+  # CTF-D26: same guard as import_target above.
+  [ -d /opt/portal-deps-rootfs ] || return 0
   docker image inspect gitopsdojo/ctf-customer-portal-base:pinned >/dev/null 2>&1 && return 0
   tar -C /opt/portal-deps-rootfs -c . | docker import - gitopsdojo/ctf-customer-portal-base:pinned >/dev/null
   echo "ctf-host: imported gitopsdojo/ctf-customer-portal-base:pinned"
@@ -127,6 +132,10 @@ import_portal_deps_base
 # exact tags.
 import_attack_target() {
   tag="$1" rootfs="$2" user="$3" expose="$4" env="$5"
+  # CTF-D26: a per-pack ctf-host image bakes in only its own session's
+  # targets; skip any rootfs this particular image doesn't have, rather
+  # than failing the whole start over a target this pack doesn't expose.
+  [ -d "$rootfs" ] || return 0
   docker image inspect "$tag" >/dev/null 2>&1 && return 0
   tar -C "$rootfs" -c . | docker import \
     --change 'ENTRYPOINT ["python3", "/app/app.py"]' \
@@ -152,6 +161,11 @@ import_attack_target ctf-ssrf-fetcher:base /opt/ssrf-fetcher-rootfs ssrffetcher 
 import_attack_target ctf-api-mass-assignment:base /opt/api-mass-assignment-rootfs massassign "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 import_attack_target ctf-api-bfla:base /opt/api-bfla-rootfs apibfla "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# leaky-config (target 5, CTF-3) only ever bakes into the full-catalog
+# `ctf-host` stage today (no CTF-3 pack decided yet — CTF-D26 only scoped
+# CTF-1/CTF-2) so this is a no-op on ctf-host-ctf1/ctf-host-ctf2.
+import_attack_target ctf-leaky-config:base /opt/leaky-config-rootfs leakyconfig "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 
 echo "ctf-host: ready"
