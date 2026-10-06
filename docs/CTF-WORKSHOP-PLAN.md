@@ -9,13 +9,13 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ### ⏩ Resume here (checkpoint 2026-10-06)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **13 of the 14
-attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`,
-8 `git-secrets`, 9 `policy-bypass`, 10 `runner-escape` and 11 `tfstate-treasure` — see below); target 14
-`customer-portal` (CTF-5, defend-only) was already built and has a real session pack, `workshops/ctf-defend/`;
-only target 6 `dns-resolver-cve` remains unbuilt — it is fully decided and de-risked (`CTF-SPIKES.md`) but still
-has its own open item (confirm the CVE's TXID behavior end-to-end) before it can be. **CTF-D26 is now built**
-(per-pack `ctf-host` image scoping) — see below.
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **All 14 of the 14
+attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, 5 `leaky-config`,
+8 `git-secrets`, 9 `policy-bypass`, 10 `runner-escape`, 11 `tfstate-treasure` and now 6 `dns-resolver-cve` —
+see below); target 14 `customer-portal` (CTF-5, defend-only) was already built and has a real session pack,
+`workshops/ctf-defend/`. The last open target-build item — "confirm uClibc-ng 1.0.39's monotonic TXID behaviour
+end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D). **CTF-D26 is now built** (per-pack
+`ctf-host` image scoping) — see below.
 
 **Built and live-verified today (2026-10-06):**
 
@@ -139,6 +139,34 @@ has its own open item (confirm the CVE's TXID behavior end-to-end) before it can
   designed. No second flag. Zero controller/ctf-flags/engine code changes — new files are the hook, the target
   `README.md` and `exploit/solve.py` only (plus one line in the pack's terminal `Dockerfile` to install the
   hook); 58 engine tests pass before and after.
+- **Target 6 `dns-resolver-cve` (CTF-3 "Vulnerable and outdated components", ties `dns-as-code`)**: **the last
+  attack-ladder target**, now built. CVE-2022-30295 in uClibc / uClibc-ng ≤ 1.0.40 — monotonically increasing DNS
+  TXIDs. A tiny C check-in agent is cross-compiled statically against uClibc-ng 1.0.39 using the pinned Bootlin
+  `x86-64--uclibc--stable-2021.11-5` toolchain (sha256 `e68fd1b2…`, tarball URL+hash pinned in a new
+  `dns-resolver-cve-agent-build` stage in `ctf-host/Dockerfile`), so the real CVE lives in the one binary the lab
+  resolves through. The target rootfs (new `dns-resolver-cve` stage, imported as `ctf-dns-resolver-cve:base`) runs
+  that agent + an in-process Python Flask control panel + a UDP DNS answerer on 127.0.0.1:5353 + a "real vault"
+  TCP receiver on 127.0.0.1:9000 + an "attacker's receiver" on 127.0.0.2:9000 + the standard decoy :2222.
+  **The open item that was blocking build-start — "confirm 1.0.39 emits a predictable monotonic TXID end-to-end" —
+  was settled empirically in the same session**: a probe agent made 20 getaddrinfo calls against a logging UDP
+  answerer and emitted TXIDs 2, 3, 4, …, 21 strictly +1 each query (`CTF-SPIKES.md` Run D). **One honest
+  correction to the plan draft**: the stub's source port is **kernel-ephemeral, not static :53** as some writeups
+  and the earlier plan draft claimed; only the TXID is predictable in 1.0.39 built this way, and the lab's
+  `/observations` exposes both facts. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start:
+  both students' slots up through the real `/attack/start` gateway route, real monotonic TXIDs visible on
+  `/observations`, `exploit/solve.py` run from inside each student's own terminal predicted the next TXID (`last+1`),
+  armed `/spoof`, waited one agent cycle, pulled the captured service token (`CTF_TARGET_TOKEN` = flag 1) and
+  replayed it at `/admin` for flag 2 (`CTF_FLAG`). All four distinct, correctly-derived flags accepted by the real
+  `dojo-flag submit`; cross-student submissions correctly rejected. **One deliberate deviation from the plan draft
+  on topology**: the plan imagined a cross-slot off-path attacker on `ctf_net`, but the range's inner dockerd runs
+  with `--icc=false` + a DOCKER-USER drop on NEW outbound — a slot cannot reach another slot across the inner
+  bridge at all, so the attack is architecturally impossible there. The CVE itself (predictable TXID,
+  kernel-ephemeral source port) stays real and observable; the mechanical staging is in-process on loopback inside
+  the one slot container. Both target `README.md` and `app.py`'s module docstring state this topology trade
+  honestly. The slot stays within the controller's central hardening (`CapDrop ALL`, no-new-privileges,
+  `ReadonlyRootfs`): the agent sets `_res.nsaddr_list[0]` to 127.0.0.1:5353 after `res_init()`, bypassing
+  `/etc/resolv.conf` so no privileged :53 bind is ever needed. Zero controller/ctf-flags/engine code changes.
+  58 engine + 54 ctf-controller tests pass unchanged.
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
   `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
@@ -240,32 +268,28 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
 
 **👉 Next step (pick up here):**
 
-1. **Build CTF-4's last remaining target** (6 `dns-resolver-cve`) — the one attack-ladder target still unbuilt.
-   It ties into the DNS stack rather than being a self-contained Flask app, so budget more time, and it has its
-   own open item below (confirm the CVE's TXID behavior end-to-end) before it can be wired into the chain at all.
-   (Row 10 `runner-escape` is now built — its own `pull_request_target` spike risk, flagged inconclusive in
-   `docs/archive/REMEDIATION-PLAN.md` T0.3, turned out moot: plain `pull_request` with same-repo secrets is
-   sufficient for its foothold and is proven reliable, so it never needed `pull_request_target`. See its build
-   bullet above.)
-2. **Once a target's built, bake + wire + live-verify it the same way as today** (into `ctf-host`'s full-catalog
-   stage, into `ctf-defend-test`'s catalog, toggle + solve through the real gateway/firewall path, from inside the
-   student's own terminal account, not a standalone `podman run`) **rather than batching a big-bang verify at the
-   end** — every real bug caught so far (the firewall race, ping-tool's DNS hang) was only caught by testing the
-   real path per-target.
-3. **CTF-1/CTF-2 still have no real session pack of their own**, only the shared `ctf-defend-test` harness
+1. **All 14 attack-ladder target images are now built** (CTF-S8 complete). Row 6 `dns-resolver-cve` was closed
+   in the same session that opened this checkpoint, with its own open item (empirical TXID monotonicity) settled
+   first via a Bootlin uClibc-ng 1.0.39 probe (see `CTF-SPIKES.md` Run D) and the full target cold-stack
+   live-verified — real uClibc stub in the loop, real `/observations` evidence of TXIDs 2,3,4,...; two students'
+   slots up through the real `/attack/start` gateway route, `exploit/solve.py` landing both the captured token
+   (flag 1) and the replayed-admin flag (flag 2) from inside each student's own terminal, all four flags accepted
+   by `dojo-flag submit`, cross-student submissions rejected. The target's write-up (`modules/ctf-range/targets/
+   dns-resolver-cve/README.md`) corrects one plan draft claim honestly: TXIDs are monotonic (as expected) but the
+   stub's **source port is kernel-ephemeral**, not static :53 — only the TXID is predictable in 1.0.39 built this
+   way. The attack is modelled on in-container loopback because the inner dockerd's `--icc=false` topology forbids
+   a real cross-slot off-path attack; the CVE itself stays real and observable.
+2. **CTF-1/CTF-2 still have no real session pack of their own**, only the shared `ctf-defend-test` harness
    fixture — CTF-D26's per-pack `ctf-host` scoping mechanism is now built and proven (see above), but nobody has
    used it in a real pack yet. When that work happens: `workshops/ctf-access/` (CTF-1) and
    `workshops/ctf-server-trust/` (CTF-2, names open), each setting `CTF_HOST_BUILD_TARGET`/`CTF_HOST_IMAGE`/
    `CTF_HOST_EXPECTED_IMAGES` to its own stage and `CTF_ATTACK_TARGETS` to its own 4 targets, plus real slides/labs
    content (CTF-5's `ctf-defend/` is the depth bar — not a copy of the test-harness fixture).
-4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — both `git-secrets` (8) and
+3. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — both `git-secrets` (8) and
    `tfstate-treasure` (11) turned out not to need one: the CTF flow is flag-submission, not a graded PR check, so
    neither ended up using `modules/achievements/achievements/forgejo.py`'s `history_absent` verb this was originally
    sketched against. Revisit only if a later target actually needs it.
-5. **`dns-resolver-cve` (target 6)'s own open item** (below): confirm the pinned uClibc stub's transaction-ID
-   behavior actually matches the documented CVE before wiring its check-in → flag chain — do this before or
-   alongside building it in #1, not after.
-6. **A class-sized dry run** of the CTF-5 attacker-bot swarm (many students, real dwell/ramp durations) — every
+4. **A class-sized dry run** of the CTF-5 attacker-bot swarm (many students, real dwell/ramp durations) — every
    live check so far has been single-student, fast HTTP round-trips, not a timed room.
 
 ---

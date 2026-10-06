@@ -141,6 +141,54 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/policy-bypass/policy_engine.py targets/policy-bypass/app.py /app/
 RUN useradd --uid 10025 --no-create-home --home-dir /app --shell /usr/sbin/nologin policybypass
 
+# dns-resolver-cve agent build (target 6, CTF-3 "Vulnerable and outdated
+# components", ties dns-as-code; plan §7.3 row 6). CVE-2022-30295: uClibc /
+# uClibc-ng ≤ 1.0.40's stub resolver assigns monotonically-increasing DNS
+# transaction IDs — settled empirically on 2026-10-06 against the pinned
+# toolchain below (docs/CTF-SPIKES.md "Target 6" addendum; TXIDs ran
+# 2,3,4,...,21 strictly +1 across 20 getaddrinfo calls; source ports were
+# kernel-ephemeral, not static as earlier writeups claimed).
+#
+# The agent is a tiny static ELF cross-compiled against that libc so the real
+# CVE lives in the one process the lab resolves through — not a Python
+# simulation. The 125 MB Bootlin tarball is pulled, verified, used ONCE for
+# this one gcc invocation, and the whole build stage is discarded; only the
+# ~150 KB /agent binary is copied into the runtime stage below. The project's
+# "pin by digest" rule applies at the tarball level here (sha256 of
+# toolchain.tar.bz2); the toolchain itself bundles buildroot-pinned uClibc-ng
+# 1.0.39 (summary.csv in the tarball).
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS dns-resolver-cve-agent-build
+ARG TOOLCHAIN_URL=https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--uclibc--stable-2021.11-5.tar.bz2
+ARG TOOLCHAIN_SHA256=e68fd1b23f4a5c5132f2122e4012c17eb24e5179b2ff45bb793a27ac30dd454f
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    cd /opt; \
+    curl -sfL -o tc.tar.bz2 "$TOOLCHAIN_URL"; \
+    echo "$TOOLCHAIN_SHA256  tc.tar.bz2" | sha256sum -c -; \
+    tar xjf tc.tar.bz2; \
+    rm tc.tar.bz2; \
+    grep -q 'uclibc.*1\.0\.39' /opt/x86-64--uclibc--stable-2021.11-5/summary.csv
+COPY targets/dns-resolver-cve/agent.c /tmp/agent.c
+RUN set -eux; \
+    /opt/x86-64--uclibc--stable-2021.11-5/bin/x86_64-buildroot-linux-uclibc-gcc \
+      -static -O2 -s -o /agent /tmp/agent.c; \
+    test -s /agent && head -c 4 /agent | od -An -tx1 | grep -q '7f 45 4c 46'
+
+# dns-resolver-cve runtime rootfs: python:3.12-slim + Flask + the static
+# agent above + the on-box lab plumbing (see targets/dns-resolver-cve/app.py's
+# module docstring for why the attacker's observe-and-spoof is modelled on
+# loopback inside this one container, not across ctf_net — the inner dockerd's
+# --icc=false topology forbids a real cross-slot off-path attack).
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS dns-resolver-cve
+COPY targets/dns-resolver-cve/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/dns-resolver-cve/app.py /app/app.py
+COPY --from=dns-resolver-cve-agent-build /agent /app/agent
+RUN chmod 0755 /app/agent \
+    && useradd --uid 10026 --no-create-home --home-dir /app --shell /usr/sbin/nologin dnsresolver
+
 # --- the base image, as a loadable archive, for ctf-builder's rebuilds ------
 # skopeo pinned by digest (quay.io/skopeo/stable). The digest copied below
 # MUST stay in sync with targets/customer-portal/Dockerfile's `FROM` line (and
@@ -255,6 +303,7 @@ COPY --from=api-bfla / /opt/api-bfla-rootfs/
 COPY --from=leaky-config / /opt/leaky-config-rootfs/
 COPY --from=git-secrets / /opt/git-secrets-rootfs/
 COPY --from=policy-bypass / /opt/policy-bypass-rootfs/
+COPY --from=dns-resolver-cve / /opt/dns-resolver-cve-rootfs/
 # The compose service's own healthcheck (modules/ctf-range/compose.yml) uses
 # CTF_HOST_EXPECTED_IMAGES and checks every baked tag; this one is a fallback
 # for a standalone `docker run` of this image alone.

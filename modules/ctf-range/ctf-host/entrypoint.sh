@@ -175,6 +175,14 @@ import_attack_target ctf-git-secrets:base /opt/git-secrets-rootfs gitsecrets "50
 # `ctf-host` stage today, same as leaky-config/git-secrets above.
 import_attack_target ctf-policy-bypass:base /opt/policy-bypass-rootfs policybypass "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# dns-resolver-cve (target 6, CTF-3 "Vulnerable and outdated components") only
+# ever bakes into the full-catalog `ctf-host` stage today, same as every CTF-3/
+# CTF-4 target above. The agent subprocess the Python app launches is the real
+# uClibc-ng 1.0.39 ELF whose stub resolver carries CVE-2022-30295 — see the
+# Dockerfile's dns-resolver-cve-agent-build stage comment and app.py's module
+# docstring.
+import_attack_target ctf-dns-resolver-cve:base /opt/dns-resolver-cve-rootfs dnsresolver "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is

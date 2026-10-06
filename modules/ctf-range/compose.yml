@@ -158,7 +158,7 @@ services:
       # CTF_HOST_BUILD_TARGET above are overridden too (CTF-D26). ctf-builder
       # and ctf-controller key their own `depends_on: service_healthy` off
       # this.
-      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base ctf-policy-bypass:base} >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base ctf-policy-bypass:base ctf-dns-resolver-cve:base} >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       # 60 retries (10 min) — the full-catalog stage now imports 12 images

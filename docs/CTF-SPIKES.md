@@ -474,11 +474,41 @@ So the build is cheap and low-maintenance: pin the toolchain tarball URL + sha25
 no from-scratch buildroot, and a static binary is stable across base-image bumps. (The toolchains are x86-64-hosted,
 which matches the x86-64 deployment target; the aarch64 dev machine just builds inside an x86-64 container.)
 
-**Still to do at CTF-P5:** confirm end-to-end that the 1.0.39 stub emits a predictable monotonic TXID the off-path
-attacker can compute (the documented CVE behavior — I started an empirical check pointing the agent at a logging
-nameserver, but a session safety classifier blocked the remaining commands; it is a short check to redo in a fresh
-session or outside auto mode), and wire the agent check-in → flag-1-capture → flag-2-replay chain. Not covered yet:
-Docker as a runtime (the range targets rootless Podman).
+**Run D — TXID empirical check + target build (2026-10-06, settled).** The last open item from Run C — "confirm
+the 1.0.39 stub emits a predictable monotonic TXID end-to-end" — ran: a tiny static agent cross-compiled by the
+pinned Bootlin `x86-64--uclibc--stable-2021.11-5` toolchain made 20 consecutive `getaddrinfo` calls against a
+Python UDP logger on 127.0.0.1:53 (rootless Podman, `--dns=127.0.0.1`). Observed TXIDs: **2, 3, 4, 5, …, 21** —
+strictly +1 each query. CVE confirmed empirically. Source ports were **kernel-ephemeral** (33837, 50108, 41837,
+44112, 50559, 52063, 55632, 43701, 33631, 37390, …), **not** static :53 as the earlier plan draft and some
+writeups claimed — only the TXID is predictable in 1.0.39 built this way; `target 6 README.md` and the lab's
+own `/observations` endpoint carry that correction honestly. For an off-path attacker in the real world this means
+the attack is not single-packet-deterministic as the plan supposed; the lab is modelled on in-container loopback
+(see below), where the DNS answerer, agent and spoofer share one address space, so the port correction doesn't
+change what the student sees — just what the write-up claims it would do over a real bridge.
+
+With that settled, **target 6 is now built** (end to end, cold-stack live-verified 2026-10-06, same session). The
+image is a `python:3.12-slim` runtime (Flask + the static uClibc agent + an in-process UDP DNS answerer on
+127.0.0.1:5353 + a "real vault" TCP receiver on 127.0.0.1:9000 + an "attacker's receiver" on 127.0.0.2:9000 + the
+standard decoy :2222), baked into `ctf-host` as a new build stage pair (`dns-resolver-cve-agent-build` and
+`dns-resolver-cve`) and imported as `ctf-dns-resolver-cve:base`. The uClibc stub cannot bind the privileged :53
+under this range's `CapDrop ALL` + non-root + `ReadonlyRootfs`, so the agent sets `_res.nsaddr_list[0]` to
+`127.0.0.1:5353` after `res_init()` — bypassing `/etc/resolv.conf` and letting an unprivileged answerer serve the
+query without weakening `ctf-controller/docker_api.py`'s central hardening for one target. The exfil/replay chain
+runs as spec'd: observe TXID via `/observations`, predict `last+1`, arm `/spoof`, agent's next cycle lands at the
+attacker's receiver (which captures the carried `CTF_TARGET_TOKEN` = flag 1), replay the token at `/admin` for
+flag 2 (`CTF_FLAG`). Both flags HMAC-derived per student, both accepted by `dojo-flag submit`, cross-student
+submissions correctly rejected. 58 engine + 54 controller tests pass unchanged.
+
+**One deliberate deviation from the plan draft.** The plan imagined a cross-slot off-path attacker observing a
+sibling's lookup across `ctf_net`. The range's inner dockerd runs with `--icc=false` and a DOCKER-USER drop on
+NEW outbound (`ctf-host/entrypoint.sh`) — a slot cannot reach another slot across the inner bridge at all, so a
+cross-slot off-path attack is architecturally impossible here. The CVE itself (predictable TXID, kernel-ephemeral
+source port) stays real and observable; the mechanical staging is in-process on loopback inside the one slot
+container. The teaching holds: a service that trusts DNS to find its backend hands its credentials to whoever
+controls resolution; the fix is to update the resolver pin past uClibc-ng 1.0.41, not merely to pin one. Target
+README.md and `app.py`'s module docstring both state this topology trade honestly.
+
+Not covered yet: Docker as a runtime (the range targets rootless Podman).
 
 ### S9, persona swarm numbers
 
