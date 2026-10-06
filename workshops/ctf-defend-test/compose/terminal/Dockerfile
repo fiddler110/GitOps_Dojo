@@ -5,4 +5,6 @@ FROM ${BASE}
 
 COPY start.d/90-ctf-defend-test.sh /etc/dojo/start.d/90-ctf-defend-test.sh
 COPY start.d/95-tfstate-treasure.sh /etc/dojo/start.d/95-tfstate-treasure.sh
-RUN chmod 0755 /etc/dojo/start.d/90-ctf-defend-test.sh /etc/dojo/start.d/95-tfstate-treasure.sh
+COPY start.d/96-runner-escape.sh /etc/dojo/start.d/96-runner-escape.sh
+RUN chmod 0755 /etc/dojo/start.d/90-ctf-defend-test.sh /etc/dojo/start.d/95-tfstate-treasure.sh \
+      /etc/dojo/start.d/96-runner-escape.sh

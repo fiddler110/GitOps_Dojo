@@ -9,13 +9,13 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ### ⏩ Resume here (checkpoint 2026-10-06)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **12 of the 14
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **13 of the 14
 attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`,
-8 `git-secrets`, 9 `policy-bypass` and 11 `tfstate-treasure` — see below); target 14 `customer-portal` (CTF-5,
-defend-only) was already built and has a real session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is
-fully decided and de-risked (`CTF-SPIKES.md`) but not yet built, and still has its own open item (confirm the CVE's
-TXID behavior end-to-end) before it can be; CTF-4's other 2 targets (rows 6, 10) are not built yet. **CTF-D26 is now
-built** (per-pack `ctf-host` image scoping) — see below.
+8 `git-secrets`, 9 `policy-bypass`, 10 `runner-escape` and 11 `tfstate-treasure` — see below); target 14
+`customer-portal` (CTF-5, defend-only) was already built and has a real session pack, `workshops/ctf-defend/`;
+only target 6 `dns-resolver-cve` remains unbuilt — it is fully decided and de-risked (`CTF-SPIKES.md`) but still
+has its own open item (confirm the CVE's TXID behavior end-to-end) before it can be. **CTF-D26 is now built**
+(per-pack `ctf-host` image scoping) — see below.
 
 **Built and live-verified today (2026-10-06):**
 
@@ -110,6 +110,35 @@ built** (per-pack `ctf-host` image scoping) — see below.
   fingerprints; both flags accepted by the real `dojo-flag submit` CLI, and student01's flag correctly rejected
   when tried against student02's own submission. All suites (58 engine + 54 ctf-controller, unchanged — this
   target needed zero controller/ctf-flags code changes, config-only wiring) pass before and after.
+- **Target 10 `runner-escape` (CTF-4, GitOps, needs `runner-pool`)**: **no image** — the "no container slot"
+  shape (like 8 `git-secrets` and 11 `tfstate-treasure`), provisioned entirely by a terminal hook
+  (`workshops/ctf-defend-test/compose/terminal/start.d/96-runner-escape.sh`, this pack only, same scoping
+  reasoning as `tfstate-treasure` needing `openbao`: `runner-escape` needs `runner-pool` in `MODULES`). Each
+  student gets their own `<user>/ci-pipeline` Forgejo repo: a normal CI workflow on `main` (checkout + lint,
+  touches no secret) plus one Actions secret, `CTF_FLAG`, that workflow never reads. The foothold is CI trust:
+  Forgejo's `pull_request` runs the **PR branch's** version of the workflow file, so the student edits
+  `.forgejo/workflows/ci.yml` on a branch, opens a same-repo PR, and their added step runs on a shared
+  `runner-pool` runner with `secrets.CTF_FLAG` in scope — "attacker-controlled code on a shared runner" (row 10's
+  foothold), the single-tenant equivalent of a fork PR. **This settled `runner-escape`'s open spike** (whether
+  Forgejo's PR workflows reliably fire with repo secrets, left inconclusive in `docs/archive/REMEDIATION-PLAN.md`
+  T0.3): plain `pull_request` with same-repo secrets works reliably — proven both by this target's live run and by
+  `defend-pr.yml` (target 14) already relying on it — so `runner-escape` **never needs `pull_request_target`**,
+  the mode T0.3 actually left unsettled. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start,
+  both students, `exploit/solve.py` run from inside each student's own terminal account (via its own `~/.netrc`
+  Forgejo token): the injected step read `secrets.CTF_FLAG` and exfiltrated it, each student got a distinct,
+  correctly-derived flag, both accepted by the real `dojo-flag submit` and student01's rejected against
+  student02. **One design pivot caught mid-verification**: the auto-issued Actions `GITHUB_TOKEN` (confirmed
+  40 chars, present on every job) is blocked by the branch pre-receive hook from pushing to *any* branch on this
+  pinned Forgejo (`User 'forgejo-actions' is not allowed to push`), so the first design's "write the flag to a
+  file on the PR branch" exfil was a dead end; the token *can* post a PR comment (201), so the exploit
+  exfiltrates through a **PR comment** instead (base64, marker-prefixed) — the smallest reliable channel, no
+  Actions-log API needed. **The escalation deliberately fails, and that is the lesson** (row 10: "read another
+  job's leftover state; expected to fail, which is the point"): the same malicious PR's probe step ran as its own
+  per-job user (`uid=20005`), saw another runner's home present but `drwx------`/unreadable, and `ps aux` showed
+  only its own process tree — `runner-pool`'s per-job user + PID namespace + post-job wipe holding exactly as
+  designed. No second flag. Zero controller/ctf-flags/engine code changes — new files are the hook, the target
+  `README.md` and `exploit/solve.py` only (plus one line in the pack's terminal `Dockerfile` to install the
+  hook); 58 engine tests pass before and after.
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
   `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
@@ -211,17 +240,13 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
 
 **👉 Next step (pick up here):**
 
-1. **Build CTF-4's remaining 2 targets** (6 `dns-resolver-cve`, 10 `runner-escape`) — same shape as the 12 already
-   built (standalone Flask app, or — `git-secrets`/`tfstate-treasure`'s shape — no image at all, the foothold
-   outside `ctf_net`). `dns-resolver-cve` ties into the DNS stack and `runner-escape` into `runner-pool`'s
-   job-trust-boundary angle rather than being self-contained Flask apps (unlike `policy-bypass`, which turned out
-   to only need a vendored library plus app.py, no module integration), so budget more time per target.
-   `dns-resolver-cve` additionally has its own open item below (confirm the CVE behavior) before it can be wired
-   into the chain at all; `runner-escape`'s own spike risk (whether Forgejo's `pull_request_target` reliably fires
-   with repo secrets on this pinned version) was flagged inconclusive in a 2026-09-28 live test
-   (`docs/archive/REMEDIATION-PLAN.md` T0.3) and never resettled — check that before committing to its design, the
-   same way `tfstate-treasure` and then `policy-bypass` were both picked ahead of it precisely because neither had
-   an open spike of its own.
+1. **Build CTF-4's last remaining target** (6 `dns-resolver-cve`) — the one attack-ladder target still unbuilt.
+   It ties into the DNS stack rather than being a self-contained Flask app, so budget more time, and it has its
+   own open item below (confirm the CVE's TXID behavior end-to-end) before it can be wired into the chain at all.
+   (Row 10 `runner-escape` is now built — its own `pull_request_target` spike risk, flagged inconclusive in
+   `docs/archive/REMEDIATION-PLAN.md` T0.3, turned out moot: plain `pull_request` with same-repo secrets is
+   sufficient for its foothold and is proven reliable, so it never needed `pull_request_target`. See its build
+   bullet above.)
 2. **Once a target's built, bake + wire + live-verify it the same way as today** (into `ctf-host`'s full-catalog
    stage, into `ctf-defend-test`'s catalog, toggle + solve through the real gateway/firewall path, from inside the
    student's own terminal account, not a standalone `podman run`) **rather than batching a big-bang verify at the

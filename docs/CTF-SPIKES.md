@@ -125,10 +125,26 @@ All three run on `workshop_lab` services the terminal can already reach; none be
   provisioning hook recomputes the identical value independently (same two-copies idiom as every flag render in
   this range), so the target container still never holds `STUDENT_PASSWORD_SEED`. Live-verified end to end
   (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint has the detail).
-- `runner-escape`: `runner-pool` already gives single-use runners with a per-job user and PID namespace, and "expected
-  to fail" needs no new image, only a seed repo and workflow. Concurrency is capped (`RUNNER_MAX`, default
-  `ceil(STUDENT_COUNT/3)`), so 40 students share about 14 runners; that is a class-size risk for CTF-3/4 and belongs in
-  CTF-P4.
+- `runner-escape` (built 2026-10-06): `runner-pool` already gives single-use runners with a per-job user and PID
+  namespace, and "expected to fail" needs no new image, only a seed repo and workflow. Built exactly that way:
+  `workshops/ctf-defend-test/compose/terminal/start.d/96-runner-escape.sh` seeds each student a `<user>/ci-pipeline`
+  repo (a benign CI workflow on `main` + a `CTF_FLAG` Actions secret the workflow never reads), this-pack-only
+  (needs `runner-pool` in `MODULES`, same scoping reasoning as `tfstate-treasure` needing `openbao`). The foothold:
+  Forgejo's `pull_request` runs the **PR branch's** workflow version, so a same-repo PR editing
+  `.forgejo/workflows/ci.yml` runs attacker-chosen code on a shared runner with `secrets.CTF_FLAG` in scope — the
+  single-tenant equivalent of a fork PR. **This settled the open `pull_request_target` spike risk** (T0.3,
+  `docs/archive/REMEDIATION-PLAN.md`, left inconclusive 2026-09-28): the target never needs `pull_request_target`
+  (the mode T0.3 couldn't settle) — plain `pull_request` with same-repo secrets is sufficient *and* proven reliable
+  (this build + `defend-pr.yml`'s existing live use). **Design pivot caught live:** the auto-issued Actions
+  `GITHUB_TOKEN` (40 chars, present on every job) is blocked by the branch pre-receive hook from pushing to any
+  branch here, so exfil is through a **PR comment** (base64, marker-prefixed), not a file write — the smallest
+  reliable channel the token has. The escalation (plan row 10: "read another job's leftover state") **fails by
+  design** and that is the lesson: the probe step saw its own per-job user only, another runner's home
+  `drwx------`/unreadable, and only its own process tree under `ps aux`. Zero controller/ctf-flags/engine code;
+  new files are the hook, the target `README.md` + `exploit/solve.py`, plus one line in the pack terminal
+  Dockerfile. Live-verified end to end, both students, distinct flags, `dojo-flag submit` accept + cross-student
+  reject — `docs/CTF-WORKSHOP-PLAN.md`'s checkpoint has the full detail. Concurrency is still capped (`RUNNER_MAX`,
+  default `ceil(STUDENT_COUNT/3)`), so 40 students share about 14 runners; that class-size risk belongs in CTF-P4.
 - `tfstate-treasure` (built 2026-10-06): the sketch above (a credential under the student's own `students/<user>`
   namespace) wasn't what got built, once it was clear the student already has `sudo` there by `vault-fundamentals`'
   `student` policy -- stashing the flag anywhere inside a namespace the student already administers isn't a
