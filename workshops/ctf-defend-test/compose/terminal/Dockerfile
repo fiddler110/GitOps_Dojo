@@ -4,4 +4,5 @@ ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
 COPY start.d/90-ctf-defend-test.sh /etc/dojo/start.d/90-ctf-defend-test.sh
-RUN chmod 0755 /etc/dojo/start.d/90-ctf-defend-test.sh
+COPY start.d/95-tfstate-treasure.sh /etc/dojo/start.d/95-tfstate-treasure.sh
+RUN chmod 0755 /etc/dojo/start.d/90-ctf-defend-test.sh /etc/dojo/start.d/95-tfstate-treasure.sh

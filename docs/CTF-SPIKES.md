@@ -129,9 +129,24 @@ All three run on `workshop_lab` services the terminal can already reach; none be
   to fail" needs no new image, only a seed repo and workflow. Concurrency is capped (`RUNNER_MAX`, default
   `ceil(STUDENT_COUNT/3)`), so 40 students share about 14 runners; that is a class-size risk for CTF-3/4 and belongs in
   CTF-P4.
-- `tfstate-treasure`: a seed repo holding the state file, plus a credential written under OpenBao `students/<user>`
-  by a setup step, the same shape `vault-fundamentals` uses (`modules/openbao/setup`, `reset`). The `bao` source and
-  `plugins/bao` verbs already exist for the debrief. New: the seed and the setup script, no image.
+- `tfstate-treasure` (built 2026-10-06): the sketch above (a credential under the student's own `students/<user>`
+  namespace) wasn't what got built, once it was clear the student already has `sudo` there by `vault-fundamentals`'
+  `student` policy -- stashing the flag anywhere inside a namespace the student already administers isn't a
+  challenge. Built instead with **no student/tenancy policy at all** in `ctf-defend-test` (first pack to add
+  `openbao` to `MODULES` without also adding a `10-tenancy.sh`-style hook): a student's SSO/CLI OpenBao login gets
+  zero capability, and the only way to `secret/data/tfstate-treasure/<user>` (root namespace) is an AppRole
+  `role_id`/`secret_id` leaked via a committed `terraform.tfstate` in the student's own `<user>/infra-state`
+  Forgejo repo (`workshops/ctf-defend-test/compose/terminal/start.d/95-tfstate-treasure.sh`, same curl+netrc idiom
+  as `git-secrets`). The Vault side
+  (`workshops/ctf-defend-test/compose/openbao-setup.d/{provisioner.hcl,60-tfstate-treasure.sh}`) writes the policy,
+  role and flag with the provisioner token, same shape as `vault-fundamentals`'s `10-tenancy.sh`. Both hooks derive
+  the flag and the role/secret id independently from `STUDENT_PASSWORD_SEED` (two copies, not shared code, same
+  idiom as `git-secrets`'s `CTF_TARGET_TOKEN`) -- except `openbao-setup` runs in the openbao module's own Alpine
+  image, confirmed to have **no python3 or openssl**, so that hook's HMAC-SHA256 is done by hand with
+  `sha256sum`/`printf`/`od`, checked against RFC 4231's test vector and `flags.py`'s own output for a real seed
+  before being trusted. Live-verified end to end, including that a student's own identity 403s on the flag path
+  with no AppRole login, and that OpenBao's always-on file audit device (`modules/openbao/config.hcl`) records
+  both the AppRole login and the secret read -- the debrief's "find the breach after the fact" claim, proven.
 
 ### S6, defend loop
 

@@ -9,12 +9,13 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ### ⏩ Resume here (checkpoint 2026-10-06)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **10 of the 14
-attack-ladder target images are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`
-and 8 `git-secrets` — see below); target 14 `customer-portal` (CTF-5, defend-only) was already built and has a real
-session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is fully decided and de-risked (`CTF-SPIKES.md`)
-but not yet built; CTF-4's 3 targets (rows 6, 9, 10) plus CTF-3's `tfstate-treasure` (row 11) — 4 targets total —
-are not built yet. **CTF-D26 is now built** (per-pack `ctf-host` image scoping) — see below.
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **11 of the 14
+attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`,
+8 `git-secrets` and 11 `tfstate-treasure` — see below); target 14 `customer-portal` (CTF-5, defend-only) was already
+built and has a real session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is fully decided and
+de-risked (`CTF-SPIKES.md`) but not yet built, and still has its own open item (confirm the CVE's TXID behavior
+end-to-end) before it can be; CTF-4's 3 targets (rows 6, 9, 10) are not built yet. **CTF-D26 is now built**
+(per-pack `ctf-host` image scoping) — see below.
 
 **Built and live-verified today (2026-10-06):**
 
@@ -63,6 +64,30 @@ are not built yet. **CTF-D26 is now built** (per-pack `ctf-host` image scoping) 
   last import landed — harmless (`ctf-controller`/`ctf-builder` still waited correctly) but bumped to 60 retries
   (10 min) for headroom as the catalog grows toward 14. 54 ctf-controller unit tests pass (one new, for
   `CTF_TARGET_TOKEN`).
+- **Target 11 `tfstate-treasure` (CTF-3, ties `tofu-basics` + `vault-fundamentals`)**: also no image — the second
+  target with the foothold entirely outside `ctf_net` (CTF-SPIKES.md's S5 answer, "the seed and the setup script,
+  no image"). Added `openbao` to `ctf-defend-test`'s `MODULES` (first time this pack has used it) with **no**
+  `student`/tenancy policy of its own: a student's SSO/CLI OpenBao login gets zero capability in this pack, by
+  design — the only way into `secret/data/tfstate-treasure/<user>` is an AppRole `role_id`/`secret_id` leaked via
+  each student's own `<user>/infra-state` Forgejo repo (a committed `terraform.tfstate` whose one resource is a
+  `vault_approle_auth_backend_login`), seeded by a new workshop hook, `compose/terminal/start.d/95-tfstate-treasure.sh`.
+  The Vault side (`compose/openbao-setup.d/60-tfstate-treasure.sh` + `provisioner.hcl`) writes the matching policy,
+  AppRole role and flag. Both hooks derive the flag and the role/secret id independently from
+  `STUDENT_PASSWORD_SEED` (same two-copies idiom as `git-secrets`'s `CTF_TARGET_TOKEN`) — but `openbao-setup` runs
+  in the openbao module's own Alpine image, which has **no python3 or openssl**, so that hook does HMAC-SHA256 by
+  hand with nothing but `sha256sum`/`printf`/`od`, checked against RFC 4231's test vector and against `flags.py`'s
+  own output for a real seed before being trusted for a real flag. **Live-verified** end to end on a cold
+  `./run.sh ctf-defend-test` start: `exploit/solve.py` run from inside each student's own terminal read
+  `terraform.tfstate` off Forgejo's API, logged in to OpenBao's AppRole auth method with the recovered
+  `role_id`/`secret_id`, and read the flag at `secret/data/tfstate-treasure/<user>`; confirmed a student's own
+  identity gets a `403` on that same path with no AppRole login (the leak really is the only way in); confirmed the
+  file audit device (always on, `modules/openbao/config.hcl`) recorded both the AppRole login and the secret read
+  for each student, proving the debrief's "find the breach after the fact in the audit log" claim. One bug caught
+  mid-build: Vault/OpenBao ACL policy globs — `+` matches one whole path *segment*, not a mid-segment prefix, so
+  `sys/policies/acl/tfstate-treasure-+` 403'd every write; fixed to the suffix glob, `tfstate-treasure-*`. One
+  process note: podman-compose left `openbao-setup` and `openbao-audit` in `Created` (never auto-started) on this
+  run; a manual `podman start` on each was enough, same shape as the `./run.sh stop` needing two runs noted
+  earlier — not chased further, not a regression from this target's changes.
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
   `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
@@ -164,14 +189,16 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
 
 **👉 Next step (pick up here):**
 
-1. **Build CTF-3's and CTF-4's remaining 4 target images** (row 11 `tfstate-treasure` for CTF-3; 6 `dns-resolver-cve`,
-   9 `policy-bypass`, 10 `runner-escape` for CTF-4) — same shape as the 10 already built (standalone Flask app or
-   GitOps-tied target, `exploit/solve.py`, the nmap-primer decoy ports, or — `git-secrets`'s new shape — no bug in
-   the image at all, the foothold lives in a provisioning step outside `ctf_net`). These are harder than
-   CTF-1/CTF-2's batch: several tie into modules that don't fully exist as attack surfaces yet (`runner-pool`,
-   `openbao`, the DNS stack, the policy engine) rather than being self-contained Flask apps, so budget more time
-   per target. `dns-resolver-cve` additionally has its own open item below (confirm the CVE behavior) before it
-   can be wired into the chain at all.
+1. **Build CTF-4's remaining 3 targets** (6 `dns-resolver-cve`, 9 `policy-bypass`, 10 `runner-escape`) — same shape
+   as the 11 already built (standalone Flask app, or — `git-secrets`/`tfstate-treasure`'s shape — no image at all,
+   the foothold outside `ctf_net`). These tie into modules that don't fully exist as attack surfaces yet
+   (`runner-pool`'s job-trust-boundary angle, the DNS stack, the policy engine) rather than being self-contained
+   Flask apps, so budget more time per target. `dns-resolver-cve` additionally has its own open item below (confirm
+   the CVE behavior) before it can be wired into the chain at all; `runner-escape`'s own spike risk (whether
+   Forgejo's `pull_request_target` reliably fires with repo secrets on this pinned version) was flagged
+   inconclusive in a 2026-09-28 live test (`docs/archive/REMEDIATION-PLAN.md` T0.3) and never resettled — check
+   that before committing to its design, the same way `tfstate-treasure` was picked over it this round precisely
+   because it had no such open spike.
 2. **Once a target's built, bake + wire + live-verify it the same way as today** (into `ctf-host`'s full-catalog
    stage, into `ctf-defend-test`'s catalog, toggle + solve through the real gateway/firewall path, from inside the
    student's own terminal account, not a standalone `podman run`) **rather than batching a big-bang verify at the
@@ -183,10 +210,10 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
    `workshops/ctf-server-trust/` (CTF-2, names open), each setting `CTF_HOST_BUILD_TARGET`/`CTF_HOST_IMAGE`/
    `CTF_HOST_EXPECTED_IMAGES` to its own stage and `CTF_ATTACK_TARGETS` to its own 4 targets, plus real slides/labs
    content (CTF-5's `ctf-defend/` is the depth bar — not a copy of the test-harness fixture).
-4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — ties into #1's
-   `tfstate-treasure` (11); `git-secrets` (8) turned out not to need one (its own history-scan verb, `history_absent`,
-   already exists in `modules/achievements/achievements/forgejo.py` for a different workshop's use — this target
-   didn't end up needing it, since the CTF flow is flag-submission, not a graded PR check).
+4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — both `git-secrets` (8) and
+   `tfstate-treasure` (11) turned out not to need one: the CTF flow is flag-submission, not a graded PR check, so
+   neither ended up using `modules/achievements/achievements/forgejo.py`'s `history_absent` verb this was originally
+   sketched against. Revisit only if a later target actually needs it.
 5. **`dns-resolver-cve` (target 6)'s own open item** (below): confirm the pinned uClibc stub's transaction-ID
    behavior actually matches the documented CVE before wiring its check-in → flag chain — do this before or
    alongside building it in #1, not after.
