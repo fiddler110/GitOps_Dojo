@@ -50,6 +50,69 @@ FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0
 COPY targets/customer-portal/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# --- the attack-ladder targets' filesystems (CTF-1/CTF-2, plan §7.3) --------
+# Unlike customer-portal above, none of these is ever rebuilt by ctf-builder
+# (students attack them, they don't patch and redeploy them — see each
+# target's own Dockerfile comment), so there is no offline-rebuild dependency
+# to vendor for them: a flattened rootfs import is the whole story, same base
+# image digest as portal/portal-deps above (already proven droppable into
+# `docker import`, no FROM resolution needed at import time). Each stage
+# mirrors its targets/<name>/Dockerfile exactly (same deps, same uid, same
+# EXPOSE set including the decoy ports — see controller.py's Config.attack_ports
+# and each app.py's decoy-listener comment).
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS sqli-login
+COPY targets/sqli-login/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/sqli-login/app.py /app/app.py
+RUN useradd --uid 10015 --no-create-home --home-dir /app --shell /usr/sbin/nologin sqli
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS idor-pcap
+COPY targets/idor-pcap/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/idor-pcap/app.py /app/app.py
+RUN useradd --uid 10016 --no-create-home --home-dir /app --shell /usr/sbin/nologin idor
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS weak-auth-portal
+COPY targets/weak-auth-portal/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/weak-auth-portal/app.py /app/app.py
+RUN useradd --uid 10017 --no-create-home --home-dir /app --shell /usr/sbin/nologin weakauth
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS cert-trust-bypass
+COPY targets/cert-trust-bypass/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/cert-trust-bypass/app.py /app/app.py
+RUN useradd --uid 10018 --no-create-home --home-dir /app --shell /usr/sbin/nologin certbypass
+
+# ping-tool alone needs `host` (dnsutils) on PATH — see its app.py docstring
+# for why a DNS lookup stands in for real `ping` under this range's global
+# CapDrop (no raw ICMP socket is possible here regardless).
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS ping-tool
+RUN apt-get update && apt-get install -y --no-install-recommends dnsutils \
+    && rm -rf /var/lib/apt/lists/*
+COPY targets/ping-tool/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/ping-tool/app.py /app/app.py
+RUN useradd --uid 10019 --no-create-home --home-dir /app --shell /usr/sbin/nologin pingtool
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS ssrf-fetcher
+COPY targets/ssrf-fetcher/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/ssrf-fetcher/app.py /app/app.py
+RUN useradd --uid 10020 --no-create-home --home-dir /app --shell /usr/sbin/nologin ssrffetcher
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS api-mass-assignment
+COPY targets/api-mass-assignment/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/api-mass-assignment/app.py /app/app.py
+RUN useradd --uid 10021 --no-create-home --home-dir /app --shell /usr/sbin/nologin massassign
+
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS api-bfla
+COPY targets/api-bfla/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/api-bfla/app.py /app/app.py
+RUN useradd --uid 10022 --no-create-home --home-dir /app --shell /usr/sbin/nologin apibfla
+
 # --- the base image, as a loadable archive, for ctf-builder's rebuilds ------
 # skopeo pinned by digest (quay.io/skopeo/stable). The digest copied below
 # MUST stay in sync with targets/customer-portal/Dockerfile's `FROM` line (and
@@ -113,6 +176,14 @@ RUN set -eux; \
 # --- the range host itself ----------------------------------------------------
 FROM docker.io/library/docker:29.8.1-dind@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0
 
+# dnsmasq, for entrypoint.sh's fake-DNS stub (see its own comment): a fast,
+# local, always-reachable DNS responder for the inner dockerd's embedded
+# per-container resolver to forward to, since ctf_ops/ctf_net are both
+# `internal: true` (CTF-D24) and so have no real resolver to reach at all.
+# apk at THIS image's build time, same offline-at-lab-time trade as every
+# other network-needing step above.
+RUN apk add --no-cache dnsmasq
+
 # docker:dind's entrypoint also opens an UNAUTHENTICATED tcp://0.0.0.0:2375
 # listener when TLS is off. We only ever want the unix socket (shared with
 # ctf-controller), so remove it and fail the build if the upstream script
@@ -124,6 +195,14 @@ RUN sed -i '/--host=tcp:\/\/0.0.0.0:2375/d' /usr/local/bin/dockerd-entrypoint.sh
 COPY --from=portal / /opt/portal-rootfs/
 COPY --from=portal-deps / /opt/portal-deps-rootfs/
 COPY --from=base-image-fetch /out/python-3.12-slim.tar /opt/base-images/python-3.12-slim.tar
+COPY --from=sqli-login / /opt/sqli-login-rootfs/
+COPY --from=idor-pcap / /opt/idor-pcap-rootfs/
+COPY --from=weak-auth-portal / /opt/weak-auth-portal-rootfs/
+COPY --from=cert-trust-bypass / /opt/cert-trust-bypass-rootfs/
+COPY --from=ping-tool / /opt/ping-tool-rootfs/
+COPY --from=ssrf-fetcher / /opt/ssrf-fetcher-rootfs/
+COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
+COPY --from=api-bfla / /opt/api-bfla-rootfs/
 COPY ctf-host/entrypoint.sh /usr/local/bin/ctf-host-entrypoint
 RUN chmod 0755 /usr/local/bin/ctf-host-entrypoint
 
@@ -131,5 +210,8 @@ RUN chmod 0755 /usr/local/bin/ctf-host-entrypoint
 ENV DOCKER_HOST=unix:///run/ctf/docker.sock \
     DOCKER_TLS_CERTDIR=
 ENTRYPOINT ["ctf-host-entrypoint"]
+# The compose service's own healthcheck (modules/ctf-range/compose.yml)
+# checks every baked tag, including the 8 attack-ladder targets below; this
+# one is a fallback for a standalone `docker run` of this image alone.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
     CMD docker image inspect ctf-customer-portal:base >/dev/null 2>&1 || exit 1

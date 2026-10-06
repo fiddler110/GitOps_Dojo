@@ -51,10 +51,27 @@ host_port_base="${CTF_HOST_PORT_BASE:-15000}"
 attack_port_base="${CTF_ATTACK_PORT_BASE:-16000}"
 attack_port_block="${CTF_ATTACK_PORT_BLOCK:-3}"
 
-if ! getent hosts ctf-host >/dev/null 2>&1; then
-  echo "ctf-range: ctf-host not resolvable (ctf_net not joined yet?); skipping firewall rules" >&2
-  exit 0
-fi
+# ctf-host is a boxed DinD daemon that now imports 10 baked image archives
+# at its own start (customer-portal + its pinned deps base, plus the 8
+# attack-ladder targets, CTF-1/CTF-2 — ~4-5 min observed live, 2026-10-06).
+# web-terminal's start.d hooks run much earlier in compose's own startup
+# (this container reaches "healthy" long before ctf-host does), so a
+# one-shot `getent hosts` here raced and lost: ctf-host's container, and so
+# its DNS entry on ctf_net, didn't exist yet at all, and the old single
+# skip-and-exit-0 left this container permanently with NO isolation rules
+# for ctf-host traffic at all - not "fails closed", just never ran (caught
+# live: student02 could reach student01's attack slot with zero rules in
+# place until this hook was re-run by hand). Retry instead of skip once;
+# ctf-host coming up is a matter of when, not if.
+tries=0
+until getent hosts ctf-host >/dev/null 2>&1; do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 180 ]; then
+    echo "ctf-range: ctf-host still not resolvable after 180s; giving up" >&2
+    exit 1
+  fi
+  sleep 1
+done
 ctf_host_ip="$(getent hosts ctf-host | awk '{print $1; exit}')"
 
 echo "Setting up per-account ctf-range target isolation (CTF_ISOLATION iptables chain)..." >&2

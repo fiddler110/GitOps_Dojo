@@ -13,12 +13,33 @@ mkdir -p /run/ctf
 # dockerd never waits on a containerd from a run that is gone.
 rm -rf /var/run/docker /var/run/docker.pid /run/ctf/docker.sock
 
+# A fake, always-reachable, instantly-answering DNS stub for the inner
+# dockerd's embedded per-container resolver to forward to. ctf_ops/ctf_net
+# are both `internal: true` (CTF-D24 - no real resolver reachable at all),
+# so with no --dns configured, a slot container's DNS query has nowhere to
+# go and the kernel just drops it, with nothing coming back until the
+# client gives up - and in the meantime a shell `cmd1; cmd2` chain never
+# even reaches cmd2, since cmd1 (whatever triggered the lookup) hasn't
+# returned yet. Caught live (2026-10-06): ping-tool's whole command-
+# injection teaching point (`host <input>; <injected command>`) silently
+# broke this way - the injected half never ran, because `host 127.0.0.1`
+# just hung until Flask's own subprocess timeout killed the lot. dnsmasq
+# here answers every query immediately (everything maps to 127.0.0.1,
+# meaningless by design - this is not a real resolver) and never itself
+# touches a network (--no-resolv --no-hosts, nothing to forward to even if
+# it wanted to), so a lookup fails or resolves FAST either way.
+dnsmasq --no-daemon --no-resolv --no-hosts --address=/#/127.0.0.1 \
+  --listen-address=127.0.0.1 --port=53 --bind-interfaces \
+  --pid-file=/run/ctf/fake-dns.pid &
+
 #  --icc=false         inner containers (the slots) cannot talk to each other (S14).
+#  --dns                every slot's embedded per-container DNS proxy forwards
+#                        here (the fake stub above) instead of nowhere.
 #  --insecure-registry  the in-lab registry (spike S6) has no TLS — it is
 #                        internal-only, so plaintext within ctf_ops is the
 #                        accepted trade-off (CTF-D24's offline posture is
 #                        about reaching outward, not about TLS inward).
-set -- --icc=false --log-level=warn
+set -- --icc=false --log-level=warn --dns 127.0.0.1
 [ -n "${CTF_REGISTRY:-}" ] && set -- "$@" --insecure-registry "$CTF_REGISTRY"
 dockerd-entrypoint.sh "$@" &
 dockerd_pid=$!
@@ -96,6 +117,42 @@ import_portal_deps_base() {
   echo "ctf-host: imported gitopsdojo/ctf-customer-portal-base:pinned"
 }
 import_portal_deps_base
+
+# Import the 8 attack-ladder target rootfses (CTF-1/CTF-2, plan §7.3). Each
+# is never rebuilt (students attack, never patch, these), so a plain import
+# is the whole story — no offline-rebuild base to vendor alongside, unlike
+# customer-portal above. The --change lines reproduce each target's own
+# Dockerfile (ENTRYPOINT/ENV/EXPOSE/USER/WORKDIR); a workshop pack's
+# CTF_ATTACK_TARGETS (controller.py's AttackManager, CTF-D20) must name these
+# exact tags.
+import_attack_target() {
+  tag="$1" rootfs="$2" user="$3" expose="$4" env="$5"
+  docker image inspect "$tag" >/dev/null 2>&1 && return 0
+  tar -C "$rootfs" -c . | docker import \
+    --change 'ENTRYPOINT ["python3", "/app/app.py"]' \
+    --change "ENV $env" \
+    --change "EXPOSE $expose" \
+    --change "USER $user" \
+    --change 'WORKDIR /app' \
+    - "$tag" >/dev/null
+  echo "ctf-host: imported $tag"
+}
+import_attack_target ctf-sqli-login:base /opt/sqli-login-rootfs sqli "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-idor-pcap:base /opt/idor-pcap-rootfs idor "5000 2222 2121" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-weak-auth-portal:base /opt/weak-auth-portal-rootfs weakauth "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-cert-trust-bypass:base /opt/cert-trust-bypass-rootfs certbypass "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-ping-tool:base /opt/ping-tool-rootfs pingtool "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-ssrf-fetcher:base /opt/ssrf-fetcher-rootfs ssrffetcher "5000 2222" \
+  "PORT=5000 INTERNAL_PORT=5001 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-api-mass-assignment:base /opt/api-mass-assignment-rootfs massassign "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-api-bfla:base /opt/api-bfla-rootfs apibfla "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is
