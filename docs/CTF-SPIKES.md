@@ -774,3 +774,16 @@ storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 fo
   session — so CTF-5's prerequisites are unchanged, and it fixes S17's app-side tool to a pinned, no-network Python
   SAST for CWE-89 (CTF-D24). It makes CTF-5 **five** always-live defend targets per student (200 at 40 students),
   which S2/S15 capacity must now size for.
+
+- **CTF-D26 (user, 2026-10-05):** `ctf-host`'s Dockerfile currently bakes every attack-ladder target unconditionally
+  (now 8; eventually 14) into one shared image used by every workshop pack, regardless of which targets that pack's
+  own `CTF_ATTACK_TARGETS` actually lists — a single-session pack pays the build time and the startup import cost
+  for targets it will never expose. **Decided direction**: once real per-session packs exist (separate from today's
+  shared `workshops/ctf-defend-test` harness), scope `ctf-host`'s build per pack — named multi-stage Dockerfile
+  targets (`docker build --target ctf-host-ctf1`, tagged `ctf-host:ctf-1`, `ctf-host:ctf-2`, ...), each `COPY --from=`
+  only its own session's target stages, so BuildKit never even builds the stages a given pack doesn't need (not
+  "baked but skipped at import" — zero extra build time, zero extra image bytes). Needs `entrypoint.sh`'s
+  `import_attack_target` calls to skip gracefully when a tag's rootfs isn't present in that pack's image, and the
+  `ctf-host` healthcheck (`compose.yml`) to check a config-driven image list instead of one hardcoded string shared
+  by every pack. **Not yet built** — do this once CTF-1/CTF-2/etc. become real separate packs, not before; today's
+  shared test harness (CTF-D20's `CTF_ATTACK_TARGETS` fixture) deliberately wants the full catalog in one image.

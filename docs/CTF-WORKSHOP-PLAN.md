@@ -7,12 +7,63 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ---
 
-### ⏩ Resume here (checkpoint 2026-10-05d)
+### ⏩ Resume here (checkpoint 2026-10-05g)
 
-**Phase:** CTF-P0 spikes mostly answered; CTF-P1 build well underway on `feat/zellij-terminal`. Target 14
-`customer-portal` is the only target image built; target 6 `dns-resolver-cve` is fully decided and de-risked (see
-`CTF-SPIKES.md`) but not yet built; targets 1-4 (the attack ladder CTF-D20 toggles between) are CTF-S8, also not
-built yet.
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **8 of the 14 attack-ladder
+target images are now built and wired in** (CTF-S8, rows 0-3 and 4/7/12/13 — see below); target 14 `customer-portal`
+(CTF-5, defend-only) was already built and now also has a real session pack, `workshops/ctf-defend/` (built the
+same day by a parallel session — see "Also landed" below); target 6 `dns-resolver-cve` is fully decided and
+de-risked (`CTF-SPIKES.md`) but not yet built; CTF-3's and CTF-4's remaining 6 targets (rows 5, 6, 8, 9, 10, 11)
+are not built yet.
+
+**Built and live-verified today, on top of everything in the "Closed since" rows in `ROADMAP.md`'s CTF table:**
+
+- **Targets 0-3 (CTF-1 "Access and identity") and 4/7/12/13 (CTF-2 "Server-side trust and APIs")** — `sqli-login`,
+  `idor-pcap`, `weak-auth-portal`, `cert-trust-bypass`, `ping-tool`, `ssrf-fetcher`, `api-mass-assignment`,
+  `api-bfla`. Each a standalone Flask app under `modules/ctf-range/targets/<name>/`, with its own `app.py`
+  (vulnerability + inline fix comment), `Dockerfile`, `README.md` and `exploit/solve.py`.
+- **The HackTheBox-style multi-port shape, per the user's explicit request**: a student `nmap`s their box and
+  finds more than the one port they'll use. `docker_api.py`/`controller.py`'s `Config.attack_ports()` gives every
+  attack-ladder slot a fixed 3-port block (the real app + decoy ports), not one port; decoys are banner-only TCP
+  listeners (never real `sshd`/`vsftpd` — the universal `CapDrop: ["ALL"]` hardening makes that impossible anyway)
+  that fingerprint correctly under `nmap -sV` then always dead-end. SSH decoy on all 8; `idor-pcap` additionally
+  gets an FTP decoy, scoped to its own leaked-creds story per the user ("decoy services should be scoped around
+  what the lab is", not a uniform set).
+- **All 8 wired into the real `ctf-host`/`ctf-controller` path**, not just built in isolation: baked into
+  `ctf-host` (one `docker import` each, `ctf-<name>:base`) and set as the full catalog in
+  `workshops/ctf-defend-test/workshop.env`'s `CTF_ATTACK_TARGETS` (the CTF-D20 toggle's config surface).
+- **Two real bugs, found only by testing the actual gateway → per-uid-firewall → `ctf-host` path end to end (not
+  standalone `podman run`, which is what every target had only been checked against before today)**:
+  1. Baking 10 images into `ctf-host` instead of 2 pushed its own readiness (~4-5 min) past `web-terminal`'s
+     start.d window, so the per-uid `CTF_ISOLATION` firewall hook's one-shot "skip if `ctf-host` isn't resolvable
+     yet" guard fired every time and silently left **no isolation rules in place at all** — confirmed live,
+     student02 could reach student01's attack slot with zero delay. Fixed: `50-ctf-range.sh` now retries for up
+     to 180s instead of skipping once.
+  2. `ping-tool`'s whole command-injection lesson depends on `host` actually returning, but `ctf_ops`/`ctf_net`
+     are `internal: true` (CTF-D24) with no resolver reachable at all, so a DNS query had nowhere to go and the
+     injected second shell command never ran — the first one just hung until Flask's own subprocess timeout
+     killed the lot. Fixed: a `dnsmasq` stub inside `ctf-host` (`--dns 127.0.0.1`, `--no-resolv --no-hosts`,
+     wildcard-answers everything) so a lookup resolves or fails near-instantly either way — still fully offline,
+     just fast instead of hanging.
+- Verified: 53/53 unit tests; a cold `./run.sh ctf-defend-test` start with no manual intervention now wires the
+  firewall correctly and holds isolation (blocked uid times out, correct uid gets through); logged in as the class
+  account, claimed a slot, and through the real gateway's `/ctf-attack` route toggled between all 8 targets one at
+  a time (confirmed via `docker ps` on `ctf-host`: the old slot container is replaced, never two live at once) and
+  solved every one with its own `exploit/solve.py`; every decoy port probed live and fingerprinted correctly. Full
+  detail and commit hashes in `git log` (`feat/zellij-terminal`) and `ROADMAP.md`'s CTF table.
+
+**Also landed the same day, by a parallel session (not this checkpoint's own work, noted for context):** the real
+`workshops/ctf-defend/` session pack (CTF-5) — previously only the facilitator-only `ctf-defend-test` harness
+existed — plus its achievements catalog (milestones, funny unlocks, a capstone). This matters for "what's next"
+below: CTF-1/CTF-2 still have no real session pack of their own, only the shared test harness's full-catalog
+fixture.
+
+**New open item (CTF-D26 in `CTF-SPIKES.md`, user's suggestion, not yet built):** `ctf-host`'s Dockerfile bakes
+every attack-ladder target into one shared image regardless of which pack uses it — fine for today's full-catalog
+test harness, wasteful once real single-session packs exist (CTF-1's pack would still pay to build+import all 8+
+targets to expose only 4). Decided direction: per-pack `ctf-host:ctf-1`/`ctf-host:ctf-2` tags via named BuildKit
+multi-stage targets, each `COPY --from=` only its own session's stages — do this when CTF-1/CTF-2 become real packs,
+not before.
 
 **Built and live-verified, in order:** target 14 `customer-portal` scaffold + its informational SAST stage and
 defend pipeline; the range control plane (`ctf-host` + `ctf-controller`, CTF-D21/S14); spike S6's full defend loop —
@@ -51,24 +102,38 @@ can build and sit idle while students are briefed — `store.py`'s `admin_soc_st
 `bot.py`'s signed `POST /api/soc/control` poll); **(2)** the cyber map (§8.3), facilitator inject/hint-probe
 controls (§8.5, spike S12's channel — finally built, reusing the same control poll), mean-time-to-patch and the
 incident summary (§8.8-8.9), all built on a new persisted per-target status light (§8.10) as their foundation.
-103 achievements + 43 attacker-bot unit tests pass; live-verified end to end against a real running achievements
-process (not yet through a full `./run.sh` stack — see next step). Full detail in `ROADMAP.md`'s CTF row and in
-git history; this checkpoint only tracks what's next.
+103 achievements + 43 attacker-bot unit tests pass. The bot→achievements→SOC-card/map/incident chain through a
+real `./run.sh` stack (this paragraph's own open item as of 2026-10-05d) is now closed: the parallel session's
+`workshops/ctf-defend/` pack (above) gave achievements a real catalog and live-verified a full stack start with it.
+Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks what's next.
 
-**👉 Next step (do this next):** live-verify everything above through a real `./run.sh` stack, not just direct
-HTTP calls against achievements' own process — `workshops/ctf-defend-test` currently disables achievements (no
-`achievements/catalog.json`), so the bot→achievements→SOC-card/map/incident chain hasn't been watched on a real
-stack yet; needs either a minimal catalog added there or a dedicated short-dwell/ramp run. After that: the CTF-S8
-target-1..4 images (the attack ladder has a toggle but nothing to toggle yet) — until those exist, §8.11's
-multi-target traffic-pivot and §8.7's defense-in-depth bonus flaws stay moot (CTF-5's one `customer-portal`
-target has nothing to pivot across or add a second flaw to). Separately: the SAST/IaC/secret/SCA scanners for
-targets 8-11, and a class-sized dry run (many students, real dwell/ramp durations).
+**👉 Next step for tomorrow (pick up here):**
 
-Also open: the IaC/secret/SCA scanners for targets 8-11 on the SAST side (S17 in `CTF-SPIKES.md`), and the seven
-not-yet-built target images (S8).
-
-**Still open at CTF-P5 for target 6:** confirm end-to-end that the pinned uClibc stub's transaction-ID behavior
-matches the documented CVE before wiring the internal agent's check-in → flag chain.
+1. **Build CTF-3's and CTF-4's remaining 6 target images** (rows 5 `leaky-config`, 8 `git-secrets`, 11
+   `tfstate-treasure` for CTF-3; 6 `dns-resolver-cve`, 9 `policy-bypass`, 10 `runner-escape` for CTF-4) — same
+   shape as today's 8 (standalone Flask app or GitOps-tied target, `exploit/solve.py`, the nmap-primer decoy
+   ports). These are harder than today's batch: several tie into modules that don't fully exist as attack
+   surfaces yet (`runner-pool`, `openbao`, the DNS stack, the policy engine) rather than being self-contained
+   Flask apps, so budget more time per target than CTF-1/CTF-2 took. `dns-resolver-cve` additionally has its own
+   open item below (confirm the CVE behavior) before it can be wired into the chain at all.
+2. **Once a target's built, bake + wire + live-verify it the same way as today** (into `ctf-host`, into a
+   catalog, toggle + solve through the real gateway/firewall path) **rather than batching a big-bang verify at
+   the end** — today's two real bugs (the firewall race, ping-tool's DNS hang) were only caught by testing the
+   real path per-target; batching verification to the end of CTF-3/CTF-4 would mean debugging multiple new
+   targets' worth of real-path issues at once instead of one at a time.
+3. **Decide the real per-session pack structure for CTF-1/CTF-2** before building much more on the shared
+   `ctf-defend-test` harness fixture: does each CTF-N session get its own `workshops/ctf-N/` pack (like the
+   parallel session just did for CTF-5's `ctf-defend/`), and if so, is that the moment to build CTF-D26's
+   per-pack-scoped `ctf-host` tags (`ctf-host:ctf-1`, etc.) rather than continuing to bake everything into one
+   shared image? This decision shapes how CTF-3/CTF-4's targets get wired, so worth settling before #1 goes very
+   far.
+4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — ties into #1's `git-secrets`
+   (8) and `tfstate-treasure` (11).
+5. **`dns-resolver-cve` (target 6)'s own open item** (below): confirm the pinned uClibc stub's transaction-ID
+   behavior actually matches the documented CVE before wiring its check-in → flag chain — do this before or
+   alongside building it in #1, not after.
+6. **A class-sized dry run** of the CTF-5 attacker-bot swarm (many students, real dwell/ramp durations) — every
+   live check so far has been single-student, fast HTTP round-trips, not a timed room.
 
 ---
 
