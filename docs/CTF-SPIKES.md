@@ -110,9 +110,21 @@ same treatment as the wall of shame's `ctf_dumps`). 342 achievements tests pass.
 All three run on `workshop_lab` services the terminal can already reach; none belongs in a `ctf_net` slot, and
 `ctf_net` must still never reach Forgejo (section 6).
 
-- `git-secrets`: the Forgejo seed builder (`forgejo-repo` in `achievements/forgejo.py`, per-student values by hash)
-  makes the repo with the leaked commit. The verifier verbs `history_absent` and plugin `repo_secret` exist. New: the
-  second target the recovered token opens, a tiny token-gated image on `ctf_net`.
+- `git-secrets` (built 2026-10-06): the sketch above (reusing the achievements `forgejo-repo` seed builder and
+  `history_absent` verb) wasn't what got built — those are for achievements' graded PR-challenge flow, and
+  `git-secrets` is a flag-submission CTF target with no PR to grade, so pulling in the achievements module as a
+  dependency would have been the wrong shape. Built instead as a small, self-contained module-level hook,
+  `modules/ctf-range/terminal/start.d/55-git-secrets.sh` (a no-op unless the pack's `CTF_ATTACK_TARGETS` lists
+  `git-secrets`): plain `git init`/commit/push, two commits (token added, then "cleaned up" out of the tree but not
+  the history), using the same curl+netrc Forgejo-admin idiom `90-ctf-defend-test.sh` already established. The
+  "second target the recovered token opens" is `modules/ctf-range/targets/git-secrets/` — a tiny, deliberately
+  bug-free, token-gated `/deploy/trigger` — wired into the normal attack-ladder catalog, not a separate mechanism.
+  One piece of new *generic* controller plumbing this needed: `AttackManager._env_for` (`ctf-controller/controller.py`)
+  now renders a second per-(user, target) secret, `CTF_TARGET_TOKEN`, using the same `flags.render` derivation as
+  `CTF_FLAG` with its own challenge tag — every other target ignores it, only `git-secrets` reads it, and the
+  provisioning hook recomputes the identical value independently (same two-copies idiom as every flag render in
+  this range), so the target container still never holds `STUDENT_PASSWORD_SEED`. Live-verified end to end
+  (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint has the detail).
 - `runner-escape`: `runner-pool` already gives single-use runners with a per-job user and PID namespace, and "expected
   to fail" needs no new image, only a seed repo and workflow. Concurrency is capped (`RUNNER_MAX`, default
   `ceil(STUDENT_COUNT/3)`), so 40 students share about 14 runners; that is a class-size risk for CTF-3/4 and belongs in

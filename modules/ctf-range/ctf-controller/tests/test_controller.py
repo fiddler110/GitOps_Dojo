@@ -282,6 +282,15 @@ class TestAttackManager(unittest.TestCase):
         self.assertTrue(f2.startswith("flag{ctf-2-"))
         self.assertNotEqual(f1, f2)
 
+    def test_target_token_is_distinct_from_flag_and_per_target(self):
+        atk, cfg, ex = make_attack()
+        cfg.seed = "s"
+        atk.start("student01", "ctf-1")
+        atk.process_one()
+        env = ex.containers[cfg.attack_slot_name("student01")]["env"]
+        self.assertTrue(env["CTF_TARGET_TOKEN"].startswith("flag{ctf-1-token-"))
+        self.assertNotEqual(env["CTF_TARGET_TOKEN"], env["CTF_FLAG"])
+
     def test_create_failure_sets_error_state(self):
         atk, cfg, ex = make_attack()
         atk.start("student01", "ctf-1")

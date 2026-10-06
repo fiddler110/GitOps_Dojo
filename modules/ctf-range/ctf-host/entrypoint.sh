@@ -167,6 +167,10 @@ import_attack_target ctf-api-bfla:base /opt/api-bfla-rootfs apibfla "5000 2222" 
 # CTF-1/CTF-2) so this is a no-op on ctf-host-ctf1/ctf-host-ctf2.
 import_attack_target ctf-leaky-config:base /opt/leaky-config-rootfs leakyconfig "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# git-secrets (target 8, CTF-3) only ever bakes into the full-catalog
+# `ctf-host` stage today, same as leaky-config above.
+import_attack_target ctf-git-secrets:base /opt/git-secrets-rootfs gitsecrets "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is

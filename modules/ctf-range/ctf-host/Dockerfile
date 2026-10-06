@@ -122,6 +122,15 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/leaky-config/app.py /app/app.py
 RUN useradd --uid 10023 --no-create-home --home-dir /app --shell /usr/sbin/nologin leakyconfig
 
+# git-secrets — CTF-3, ties git-fundamentals (plan §7.3 row 8). No bug in
+# this image at all; the foothold is in Forgejo's git history
+# (terminal/start.d/55-git-secrets.sh), not here — see app.py's docstring.
+FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS git-secrets
+COPY targets/git-secrets/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY targets/git-secrets/app.py /app/app.py
+RUN useradd --uid 10024 --no-create-home --home-dir /app --shell /usr/sbin/nologin gitsecrets
+
 # --- the base image, as a loadable archive, for ctf-builder's rebuilds ------
 # skopeo pinned by digest (quay.io/skopeo/stable). The digest copied below
 # MUST stay in sync with targets/customer-portal/Dockerfile's `FROM` line (and
@@ -234,6 +243,7 @@ COPY --from=ssrf-fetcher / /opt/ssrf-fetcher-rootfs/
 COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
 COPY --from=api-bfla / /opt/api-bfla-rootfs/
 COPY --from=leaky-config / /opt/leaky-config-rootfs/
+COPY --from=git-secrets / /opt/git-secrets-rootfs/
 # The compose service's own healthcheck (modules/ctf-range/compose.yml) uses
 # CTF_HOST_EXPECTED_IMAGES and checks every baked tag; this one is a fallback
 # for a standalone `docker run` of this image alone.

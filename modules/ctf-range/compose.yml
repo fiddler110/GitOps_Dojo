@@ -158,10 +158,20 @@ services:
       # CTF_HOST_BUILD_TARGET above are overridden too (CTF-D26). ctf-builder
       # and ctf-controller key their own `depends_on: service_healthy` off
       # this.
-      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base} >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base} >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
-      retries: 30
+      # 60 retries (10 min) — the full-catalog stage now imports 11 images
+      # sequentially (customer-portal + its deps base + 9 attack-ladder
+      # targets); live-verified 2026-10-06 taking longer than this
+      # healthcheck's old 30-retry (300s) budget allowed, which flipped it
+      # to transiently "unhealthy" before the imports finished (harmless —
+      # it self-heals the moment the next check passes, and
+      # ctf-controller/ctf-builder's own `depends_on: service_healthy`
+      # still waits correctly — but worth a wider margin as the catalog
+      # grows toward 14). A pack-scoped stage (CTF-D26, 4 images) finishes
+      # in well under this either way.
+      retries: 60
       start_period: 10s
     mem_limit: ${CTF_HOST_MEM_LIMIT:-2g}
     pids_limit: ${CTF_HOST_PIDS_LIMIT:-4096}
@@ -431,6 +441,13 @@ services:
   # terminal_ingress alias) — a fragment that adds networks here MUST use map
   # form too, or podman-compose fails mixing list and map (CLAUDE.md).
   web-terminal:
+    environment:
+      # Which attack-ladder targets this pack enables (CTF-D20's catalog).
+      # Not read by the firewall hook (its own port-base vars stay hardcoded
+      # defaults today — nobody overrides them yet), only by
+      # 55-git-secrets.sh to decide whether that target's provisioning
+      # should run at all for this pack.
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
     networks:
       ctf_net: {}
 

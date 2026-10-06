@@ -9,12 +9,12 @@ this file lighter to read; it's a companion file to this one, same status, same 
 
 ### ⏩ Resume here (checkpoint 2026-10-06)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **9 of the 14 attack-ladder
-target images are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now row 5 `leaky-config` — see below);
-target 14 `customer-portal` (CTF-5, defend-only) was already built and has a real session pack, `workshops/ctf-defend/`;
-target 6 `dns-resolver-cve` is fully decided and de-risked (`CTF-SPIKES.md`) but not yet built; CTF-3's and CTF-4's
-remaining 5 targets (rows 6, 8, 9, 10, 11) are not built yet. **CTF-D26 is now built** (per-pack `ctf-host` image
-scoping) — see below.
+**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **10 of the 14
+attack-ladder target images are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, and now rows 5 `leaky-config`
+and 8 `git-secrets` — see below); target 14 `customer-portal` (CTF-5, defend-only) was already built and has a real
+session pack, `workshops/ctf-defend/`; target 6 `dns-resolver-cve` is fully decided and de-risked (`CTF-SPIKES.md`)
+but not yet built; CTF-4's 3 targets (rows 6, 9, 10) plus CTF-3's `tfstate-treasure` (row 11) — 4 targets total —
+are not built yet. **CTF-D26 is now built** (per-pack `ctf-host` image scoping) — see below.
 
 **Built and live-verified today (2026-10-06):**
 
@@ -41,6 +41,28 @@ scoping) — see below.
   same port (per-uid isolation holds), confirmed the decoy SSH banner on the port-base+1 slot, then stopped the
   slot and `./run.sh stop`'d the whole stack clean (no containers, no volumes left). All engine + ctf-range unit
   suites (58+53+26+10+43) pass with both changes in.
+- **Target 8 `git-secrets` (CTF-3, ties `git-fundamentals`)**: the first target with no bug inside the image at
+  all — the foothold is entirely in a Forgejo repo's git history (CTF-SPIKES.md's S5 answer, finally built). A new
+  module-level hook, `terminal/start.d/55-git-secrets.sh` (a no-op unless a pack's `CTF_ATTACK_TARGETS` lists
+  `git-secrets`), gives each student their own `<user>/internal-tools` repo: commit 1 adds `deploy.sh` with a
+  plaintext `DEPLOY_TOKEN=...`, commit 2 "cleans it up" (the token is gone from the tree, still in history).
+  `app.py` is a correctly-checked, token-gated `/deploy/trigger` — recovering the token from history and presenting
+  it is the whole exploit. New generic plumbing this needed: `ctf-controller`'s `AttackManager._env_for` now hands
+  every attack-ladder slot a second rendered secret, `CTF_TARGET_TOKEN` (`flags.render(..., challenge=f"{target}-token")`,
+  same derivation as `CTF_FLAG`, just its own tag) — unused by every other target, read only by this one; the
+  provisioning hook recomputes the identical value independently (same two-copies-not-shared-code idiom as every
+  other flag/token in this range), so the value baked into history and the value the app checks are guaranteed to
+  match without the target container ever holding `STUDENT_PASSWORD_SEED`. **Live-verified** end to end: both
+  students' repos seeded with distinct history during a cold `./run.sh ctf-defend-test` start; started the target
+  through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from *inside* student01's own terminal
+  walked Forgejo's real commits API, read the token out of the diff (one regex fix needed mid-verification — the
+  leaked line's value was quoted, `DEPLOY_TOKEN="flag{...}"`, and the first cut of the regex captured the quotes
+  too), and traded it for the flag; confirmed student02 is isolated from student01's slot and the decoy SSH banner
+  fingerprints. One infra finding along the way: `ctf-host`'s healthcheck retry budget (30×10s=300s) was tuned for
+  10 images and this run (11 images) took longer and transiently showed "unhealthy" before self-healing once the
+  last import landed — harmless (`ctf-controller`/`ctf-builder` still waited correctly) but bumped to 60 retries
+  (10 min) for headroom as the catalog grows toward 14. 54 ctf-controller unit tests pass (one new, for
+  `CTF_TARGET_TOKEN`).
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
   `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
@@ -142,10 +164,11 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
 
 **👉 Next step (pick up here):**
 
-1. **Build CTF-3's and CTF-4's remaining 5 target images** (rows 8 `git-secrets`, 11 `tfstate-treasure` for CTF-3;
-   6 `dns-resolver-cve`, 9 `policy-bypass`, 10 `runner-escape` for CTF-4) — same shape as the 9 already built
-   (standalone Flask app or GitOps-tied target, `exploit/solve.py`, the nmap-primer decoy ports). These are harder
-   than CTF-1/CTF-2's batch: several tie into modules that don't fully exist as attack surfaces yet (`runner-pool`,
+1. **Build CTF-3's and CTF-4's remaining 4 target images** (row 11 `tfstate-treasure` for CTF-3; 6 `dns-resolver-cve`,
+   9 `policy-bypass`, 10 `runner-escape` for CTF-4) — same shape as the 10 already built (standalone Flask app or
+   GitOps-tied target, `exploit/solve.py`, the nmap-primer decoy ports, or — `git-secrets`'s new shape — no bug in
+   the image at all, the foothold lives in a provisioning step outside `ctf_net`). These are harder than
+   CTF-1/CTF-2's batch: several tie into modules that don't fully exist as attack surfaces yet (`runner-pool`,
    `openbao`, the DNS stack, the policy engine) rather than being self-contained Flask apps, so budget more time
    per target. `dns-resolver-cve` additionally has its own open item below (confirm the CVE behavior) before it
    can be wired into the chain at all.
@@ -160,8 +183,10 @@ Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only t
    `workshops/ctf-server-trust/` (CTF-2, names open), each setting `CTF_HOST_BUILD_TARGET`/`CTF_HOST_IMAGE`/
    `CTF_HOST_EXPECTED_IMAGES` to its own stage and `CTF_ATTACK_TARGETS` to its own 4 targets, plus real slides/labs
    content (CTF-5's `ctf-defend/` is the depth bar — not a copy of the test-harness fixture).
-4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — ties into #1's `git-secrets`
-   (8) and `tfstate-treasure` (11).
+4. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — ties into #1's
+   `tfstate-treasure` (11); `git-secrets` (8) turned out not to need one (its own history-scan verb, `history_absent`,
+   already exists in `modules/achievements/achievements/forgejo.py` for a different workshop's use — this target
+   didn't end up needing it, since the CTF flow is flag-submission, not a graded PR check).
 5. **`dns-resolver-cve` (target 6)'s own open item** (below): confirm the pinned uClibc stub's transaction-ID
    behavior actually matches the documented CVE before wiring its check-in → flag chain — do this before or
    alongside building it in #1, not after.

@@ -345,6 +345,17 @@ class AttackManager:
             ("CTF_STUDENT", user),
             ("CTF_TARGET", target),
             ("CTF_FLAG", flags.render(user, self.cfg.seed, challenge=target)),
+            # A second, generic per-(user, target) secret, same derivation as
+            # CTF_FLAG but its own challenge tag so the two can never collide.
+            # Most targets ignore it; it exists for a target whose *foothold*
+            # lives outside ctf_net entirely (git-secrets, target 8: the
+            # credential sits in a Forgejo repo's history, not in this
+            # container) and needs a value it can check a presented
+            # credential against without ever holding STUDENT_PASSWORD_SEED
+            # itself. The provisioning side (e.g. a start.d hook) computes the
+            # identical value independently, same two-copies-not-shared-code
+            # idiom as every other flag/token render in this range.
+            ("CTF_TARGET_TOKEN", flags.render(user, self.cfg.seed, challenge=f"{target}-token")),
             ("PORT", str(self.cfg.container_port)),
         ]
 
