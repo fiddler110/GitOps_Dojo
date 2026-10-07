@@ -18,7 +18,7 @@ import shlex
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from . import paths
 
@@ -115,6 +115,24 @@ class RunLock:
         self.dir = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
         self.what = what
         self.held = False
+
+    @classmethod
+    def peek(cls) -> Optional[Dict[str, Any]]:
+        """Current lock holder, if any. Returns {pid, what, started_at} when
+        a run is in flight, None otherwise. `dojo status` reads this so a
+        start-in-progress shows up alongside the running containers."""
+        d = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
+        if not d.is_dir():
+            return None
+        pid = (d / "pid").read_text().strip() if (d / "pid").is_file() else ""
+        if pid and not _alive(pid):
+            return None  # stale lock -- the next acquire will clear it
+        what = (d / "what").read_text().strip() if (d / "what").is_file() else ""
+        try:
+            started_at = d.stat().st_mtime
+        except OSError:
+            started_at = 0.0
+        return {"pid": pid, "what": what, "started_at": started_at}
 
     def acquire(self) -> None:
         try:

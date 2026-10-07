@@ -199,7 +199,22 @@ def modules_cmd() -> None:
 @cli.command(context_settings=SETTINGS)
 @click.option("--json", "as_json", is_flag=True, help="Print the status as JSON (for scripts).")
 def status(as_json: bool) -> None:
-    """What is running: workshop, address, each service's health, students."""
+    """What is running: workshop, address, each service's health, students.
+
+    Also flags a build or start currently in flight (another ./run.sh is
+    mid-way through acquiring the lock, so a new 'dojo <workshop>' here
+    would refuse). 'dojo ps' is a shorter alias for the same command."""
+    info = status_mod.collect(Runtime())
+    if as_json:
+        click.echo(json.dumps(info, indent=2))
+    else:
+        status_mod.show(info)
+
+
+@cli.command("ps", context_settings=SETTINGS)
+@click.option("--json", "as_json", is_flag=True, help="Print the status as JSON (for scripts).")
+def ps(as_json: bool) -> None:
+    """Shorter alias for 'dojo status' -- containers, lab health, in-flight starts."""
     info = status_mod.collect(Runtime())
     if as_json:
         click.echo(json.dumps(info, indent=2))

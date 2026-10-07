@@ -136,6 +136,17 @@ def make_mountpoints(content_dir: Path) -> None:
         (content_dir / "slides" / "assets").mkdir(exist_ok=True)
 
 
+def ensure_cache_dirs() -> None:
+    """Project-local caches that compose bind-mounts into containers. Compose
+    (and podman) will auto-create a missing bind-mount source as root, which
+    then can't be rm -rf'd from the host without `podman unshare`; create them
+    here as the invoking user so cleanup stays simple. Gitignored by `.cache/`
+    in the repo root. ctf-host's inner-dockerd image store lives at
+    .cache/ctf-docker (modules/ctf-range/compose.yml, ~1.5 GB cached per
+    pack); any future "download it once" cache goes here too."""
+    (paths.REPO / ".cache" / "ctf-docker").mkdir(parents=True, exist_ok=True)
+
+
 def run_once_cmd(rt: Runtime) -> List[str]:
     # Rootless podman already maps the container's root to us; rootful docker
     # needs --user or the files it writes into engine/ end up owned by root.
@@ -203,7 +214,7 @@ def run_start(o: StartOptions) -> int:
     t_start = time.time()
     try:
         code = _start(o)
-    except (StartError, EnvError, BuildError) as exc:
+    except (StartError, EnvError, BuildError, state.LockBusy) as exc:
         fail(str(exc))
         code = 1
     except KeyboardInterrupt:
@@ -226,12 +237,18 @@ def _start(o: StartOptions) -> int:
     if not rt.available:
         raise StartError(f"Neither podman (with podman-compose) nor docker was found; '{paths.PROG} doctor' explains.")
 
-    p = _plan(o, rt)
-    _check_running(p)
+    # Acquire the run lock BEFORE _plan() so a concurrent start fails fast
+    # with a clean "already running" message, not after we've already read
+    # workshop.env, generated manifests, and printed dry-run output. _plan
+    # does non-trivial work (file I/O under .generated/) that another start
+    # on the same machine would race on. Dry-run skips the lock -- it's
+    # read-only.
     lock = None if o.dry_run else state.RunLock(o.workshop)
     if lock:
         lock.acquire()
     try:
+        p = _plan(o, rt)
+        _check_running(p)
         return _build_and_up(p)
     finally:
         if lock:
@@ -480,6 +497,7 @@ def _compose_up(p: Plan) -> int:
     if content:
         sync_lab_docs(paths.ENGINE / content)
         make_mountpoints(paths.ENGINE / content)
+    ensure_cache_dirs()
 
     up_extra = _up_args(p)
     step("Creating networks and volumes, then starting containers in dependency order")
