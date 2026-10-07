@@ -394,9 +394,29 @@ class TestHTTP(unittest.TestCase):
         status, body = self._raw_get("/")
         self.assertEqual(status, 200)
         self.assertIn(b"Attack Range", body)
+        # No inline <style> or style="": the shared CSP (style-src 'self', no
+        # unsafe-inline) silently drops both, which is what left this page
+        # completely unstyled before 2026-10-06's fix.
+        self.assertNotIn(b"<style", body)
+        self.assertNotIn(b'style="', body)
+        self.assertIn(b'<link rel="stylesheet" href="app.css">', body)
         status, body = self._raw_get("/app.js")
         self.assertEqual(status, 200)
         self.assertIn(b"attack/status", body)
+        status, body = self._raw_get("/app.css")
+        self.assertEqual(status, 200)
+        self.assertIn(b"--accent", body)
+        # Landing-page per-target cards: the script and its external
+        # stylesheet are same-origin and must stay same-origin so the
+        # allocator's strict CSP (script-src 'self', style-src 'self')
+        # accepts both when attack-cards.js is injected into the landing.
+        status, body = self._raw_get("/attack-cards.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"data-surface", body)
+        self.assertIn(b"portal", body)
+        status, body = self._raw_get("/attack-cards.css")
+        self.assertEqual(status, 200)
+        self.assertIn(b".attack-card", body)
 
     def test_attack_status_requires_gateway_token(self):
         self.assertEqual(self._req("GET", "/attack/status")[0], 403)
@@ -411,6 +431,23 @@ class TestHTTP(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(doc["facilitator"])
         self.assertIsNone(doc["slot"])
+
+    def test_attack_status_echoes_scan_target(self):
+        # The landing page's attack-range header reads doc.net for the
+        # fallback scan hint, and each target in doc.targets carries its
+        # own student-reserved IP (addr) that the per-card UI shows. A
+        # change to either shape would strand the landing page.
+        self.cfg.net_subnet = "10.42.0.0/24"
+        self.cfg.net_host_addr = "10.42.0.2"
+        self.cfg.attack_subnet_prefix = "10.42.0"
+        _, doc = self._req("GET", "/attack/status", gw_user="student01")
+        self.assertEqual(doc["net"], {"host": "ctf-host", "subnet": "10.42.0.0/24", "addr": "10.42.0.2"})
+        self.assertEqual(doc["targets"], [{"id": "ctf-1", "addr": "10.42.0.100"}])
+        # Facilitator view carries the net block (same JS) but no per-
+        # target addrs (no slot, no student IP block).
+        _, doc = self._req("GET", "/attack/status", gw_user=self.FACILITATOR)
+        self.assertEqual(doc["net"]["subnet"], "10.42.0.0/24")
+        self.assertEqual(doc["targets"], [{"id": "ctf-1"}])
 
     def test_attack_start_stop_via_http(self):
         self.assertEqual(self._req("POST", "/attack/start",

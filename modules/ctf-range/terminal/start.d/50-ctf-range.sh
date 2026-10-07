@@ -48,8 +48,12 @@ set -eu
 student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
 host_port_base="${CTF_HOST_PORT_BASE:-15000}"
-attack_port_base="${CTF_ATTACK_PORT_BASE:-16000}"
-attack_port_block="${CTF_ATTACK_PORT_BLOCK:-3}"
+# Per-target IP block (HackTheBox-style, 2026-10-07). ctf-host adds the
+# addresses to its ctf_net interface; this hook ACCEPTs each student uid's
+# own 4 IPs. Must match controller.py's ATTACK_IP_BASE_OCTET /
+# ATTACK_IPS_PER_STUDENT and the ctf-host entrypoint's own layout.
+attack_ip_base_octet="${CTF_ATTACK_IP_BASE_OCTET:-100}"
+attack_ips_per_student="${CTF_ATTACK_IPS_PER_STUDENT:-4}"
 
 # ctf-host is a boxed DinD daemon that now imports 10 baked image archives
 # at its own start (customer-portal + its pinned deps base, plus the 8
@@ -85,23 +89,58 @@ iptables -C OUTPUT -j CTF_ISOLATION 2>/dev/null || iptables -A OUTPUT -j CTF_ISO
 # restart), same exception DOJO_ISOLATION makes.
 iptables -A CTF_ISOLATION -p tcp -m owner --uid-owner 0 -d "$ctf_host_ip" -j ACCEPT
 
+# Pull the /24-ish prefix out of CTF_NET_SUBNET for the per-target IPs
+# (ctf-host added them to its own eth1 inside this subnet; same assumption
+# as the controller's ATTACK_SUBNET_PREFIX split).
+attack_prefix=""
+if [ -n "${CTF_NET_SUBNET:-}" ]; then
+  attack_prefix="$(printf '%s' "$CTF_NET_SUBNET" | sed -E 's#\.[0-9]+/[0-9]+$##')."
+fi
+
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
   port=$((host_port_base + counter - 1))         # 0-based index, same as controller.py's Config.index
-  attack_port_start=$((attack_port_base + (counter - 1) * attack_port_block))
-  attack_port_end=$((attack_port_start + attack_port_block - 1))
   uid="$(id -u "$username" 2>/dev/null || true)"
   if [ -n "$uid" ]; then
+    # CTF-5 always-on slot: one port on ctf-host (reconcile path keeps the
+    # port-block scheme; ctf-defend uses this).
     iptables -A CTF_ISOLATION -p tcp --dport "$port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
-    iptables -A CTF_ISOLATION -p tcp --dport "$attack_port_start:$attack_port_end" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
+    # CTF-1..4 attack slots (2026-10-07): each student uid can reach their
+    # own K reserved IPs on ctf_net, native target ports and all. ctf-host
+    # added these addresses to its own eth1; the inner dockerd publishes
+    # each slot bound to the specific IP for this (user, target). One range
+    # rule per student instead of K rules.
+    if [ -n "$attack_prefix" ]; then
+      first=$((attack_ip_base_octet + (counter - 1) * attack_ips_per_student))
+      last=$((first + attack_ips_per_student - 1))
+      if [ "$last" -le 254 ]; then
+        iptables -A CTF_ISOLATION -m iprange --dst-range "${attack_prefix}${first}-${attack_prefix}${last}" \
+          -m owner --uid-owner "$uid" -j ACCEPT
+      fi
+    fi
   fi
   counter=$((counter + 1))
 done
 
-# Default-deny catch-all for ctf_net traffic: must be the LAST rule, after
-# every per-student ACCEPT above. Anything not already accepted - another
-# student's port, a scan of the rest of ctf-host, anything else on ctf_net -
-# falls through to this DROP. Traffic to any address OTHER than ctf-host on
-# ctf_net is also dropped here (nothing else is meant to be reachable there).
+# Default-deny catch-all for ctf_net traffic: two rules, in this order, after
+# every per-student ACCEPT above.
+#
+# 1) Anything landing on ctf-host that was not accepted by a per-uid rule
+#    (another student's slot port, a scan of the rest of ctf-host's ports)
+#    falls through to a targeted DROP.
+# 2) Anything landing on ANY OTHER address inside ctf_net's subnet also
+#    drops. The original comment here claimed the first rule did both; it
+#    does not -- `-d $ctf_host_ip` only matches traffic to ctf-host, so
+#    without this second rule a student uid could nmap attacker-bot, the
+#    dev customer-portal and any other same-net member (2026-10-06 fix).
+#    CTF_NET_SUBNET is set in compose.yml, pinned to the ipam.config.subnet
+#    we also set there; empty = fall back to the per-ctf-host rule above
+#    only, which keeps the old (looser) behaviour instead of a wrong catch.
+#    Root is already past this chain by the per-uid ACCEPT at the top, and
+#    anything on workshop_lab / ctf_ops is on a different interface so it
+#    is unaffected here (output chain only).
 iptables -A CTF_ISOLATION -d "$ctf_host_ip" -j DROP
+if [ -n "${CTF_NET_SUBNET:-}" ]; then
+  iptables -A CTF_ISOLATION -d "$CTF_NET_SUBNET" -j DROP
+fi

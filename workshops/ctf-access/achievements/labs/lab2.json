@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l2-flag",
+      "title": "Reset by Me, For Me",
+      "joke": "ops-admin never asked you to do this. You did it anyway.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for weak-auth-portal",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "weak-auth-portal"
+      }
+    }
+  ]
+}

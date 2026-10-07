@@ -57,23 +57,32 @@ def build_create_request(image, env_pairs, ports,
                          memory_bytes, pids_limit, labels):
     """The ONE place a slot spec is assembled. Pure function (tested).
 
-    `ports` is a list of (container_port, host_port) pairs — almost always
-    one (the app), but an attack-ladder slot (controller.py's AttackManager)
-    publishes more: one or two extra ports behind which a target's own
-    decoy listeners sit (plan §7.3's own ~20 min nmap primer — a student
-    scans their box and finds more than the one port they'll actually use,
-    same as a HackTheBox box). Nothing here cares which port is "the" one;
-    that is entirely up to what the image itself chooses to listen on.
+    `ports` is a list of (container_port, host_port) or (container_port,
+    host_port, host_ip) tuples. The 3-tuple form binds the publish to a
+    specific IP on the ctf-host host namespace (controller.py's
+    AttackManager uses this to give each student their own IP on ctf_net
+    with the target's native ports — one IP per attack box in the student's
+    private block, see "HackTheBox-style" in controller.py). The 2-tuple
+    form keeps the pre-change behaviour: publish on 0.0.0.0 of ctf-host,
+    one host port per student (CTF-5 reconcile still does this).
 
     Hardening matches targets/customer-portal's compose service: read-only root,
     tmpfs for the only writable paths, all capabilities dropped, no new privs.
     """
     exposed = {}
     bindings = {}
-    for container_port, host_port in ports:
+    for item in ports:
+        if len(item) == 3:
+            container_port, host_port, host_ip = item
+        else:
+            container_port, host_port = item
+            host_ip = ""
         port_key = f"{int(container_port)}/tcp"
         exposed[port_key] = {}
-        bindings[port_key] = [{"HostPort": str(int(host_port))}]
+        binding = {"HostPort": str(int(host_port))}
+        if host_ip:
+            binding["HostIp"] = str(host_ip)
+        bindings[port_key] = [binding]
     return {
         "Image": image,
         "Env": [f"{name}={value}" for name, value in env_pairs],

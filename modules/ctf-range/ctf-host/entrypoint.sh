@@ -13,6 +13,93 @@ mkdir -p /run/ctf
 # dockerd never waits on a containerd from a run that is gone.
 rm -rf /var/run/docker /var/run/docker.pid /run/ctf/docker.sock
 
+# Advertise our own ctf_net address through the shared /run/ctf volume so
+# ctf-controller can echo it on the landing-page Attack Range header.
+# ctf-controller is NOT on ctf_net (it only talks TO ctf-host over ctf_ops,
+# plus workshop_lab for the student-browser /attack/* paths); podman's
+# split-horizon DNS therefore gives it only our ctf_ops address, not the
+# ctf_net one students see. Our own `ip addr` is authoritative. The subnet
+# is passed in as CTF_NET_SUBNET (compose.yml); from inside the container
+# we match any address whose prefix starts with the subnet's leading
+# octets (one line in a sed-reduced /24 string -- same as the firewall
+# hook's assumption).
+rm -f /run/ctf/ctf-net-addr
+ctf_net_if=""
+if [ -n "${CTF_NET_SUBNET:-}" ]; then
+  prefix="$(printf '%s' "$CTF_NET_SUBNET" | sed -E 's#\.[0-9]+/[0-9]+$##')."
+  addr="$(ip -o -4 addr show scope global 2>/dev/null | awk -v p="$prefix" '
+    { for (i=1;i<=NF;i++) if ($i ~ /^[0-9.]+\/[0-9]+$/) {
+        split($i, a, "/"); if (index(a[1], p) == 1) { print $2, a[1]; exit }
+      } }')"
+  if [ -n "$addr" ]; then
+    ctf_net_if="$(printf '%s' "$addr" | awk '{print $1}')"
+    ctf_net_ip="$(printf '%s' "$addr" | awk '{print $2}')"
+    printf '%s\n' "$ctf_net_ip" > /run/ctf/ctf-net-addr
+    echo "ctf-host: ctf_net address is $ctf_net_ip on $ctf_net_if (written to /run/ctf/ctf-net-addr)"
+  fi
+fi
+
+# HackTheBox-style per-target IPs (student request 2026-10-07). Add one
+# address per (student, target) to our ctf_net interface so the inner
+# dockerd can `-p <ip>:<port>:<port>` bind each slot to its student's
+# reserved IP. student01 target idx 0 -> prefix.<base>; student01 target
+# idx 1 -> prefix.<base+1>; student02 target idx 0 -> prefix.<base+K>;
+# where K = CTF_ATTACK_IPS_PER_STUDENT. The controller's
+# attack_target_ip() must stay in step with this layout. Idempotent: if
+# an address is already there (restart), ip addr add returns 2 which we
+# treat as success -- the subsequent docker publishes bind the same way.
+if [ -n "$ctf_net_if" ] && [ -n "${STUDENT_COUNT:-}" ]; then
+  base="${CTF_ATTACK_IP_BASE_OCTET:-100}"
+  per="${CTF_ATTACK_IPS_PER_STUDENT:-4}"
+  i=0
+  added=0
+  while [ "$i" -lt "$STUDENT_COUNT" ]; do
+    j=0
+    while [ "$j" -lt "$per" ]; do
+      octet=$((base + i * per + j))
+      if [ "$octet" -gt 254 ]; then
+        echo "ctf-host: attack IP octet $octet exceeds /24 range; stopping" >&2
+        i="$STUDENT_COUNT"; j="$per"
+        continue
+      fi
+      ip addr add "$prefix$octet/24" dev "$ctf_net_if" 2>/dev/null && added=$((added + 1)) || true
+      j=$((j + 1))
+    done
+    i=$((i + 1))
+  done
+  echo "ctf-host: added $added attack IPs on $ctf_net_if (STUDENT_COUNT=$STUDENT_COUNT, per=$per, base=$base)"
+fi
+
+# -- Content-aware DinD image-store cache --------------------------------
+# /var/lib/docker is a host bind mount (modules/ctf-range/compose.yml ->
+# .cache/ctf-docker on the host) so the ~90s-5min first-time import of the
+# baked target rootfses survives `./run.sh stop`. The ctf-host image bakes
+# in /etc/ctf-host-content.sha at build time (Dockerfile: sha256 of every
+# file under /opt). On start, compare that stamp against the cached one and
+# wipe + re-import only when they diverge -- a target source change
+# invalidates the Docker build-cache for its COPY layer, which changes the
+# content sha, which trips this check. Same image => imports no-op.
+cache_root=/var/lib/docker
+baked_stamp_file=/etc/ctf-host-content.sha
+cached_stamp_file="$cache_root/.content.sha"
+baked_stamp=""
+cached_stamp=""
+[ -f "$baked_stamp_file" ] && baked_stamp="$(cat "$baked_stamp_file")"
+[ -f "$cached_stamp_file" ] && cached_stamp="$(cat "$cached_stamp_file")"
+if [ -z "$baked_stamp" ]; then
+  echo "ctf-host: no content stamp baked in; cache invalidation disabled" >&2
+elif [ "$baked_stamp" != "$cached_stamp" ]; then
+  if [ -n "$cached_stamp" ]; then
+    echo "ctf-host: content stamp changed ($cached_stamp -> $baked_stamp); wiping cache" >&2
+  else
+    echo "ctf-host: no cached content stamp; priming image store" >&2
+  fi
+  # Nuke everything under /var/lib/docker before dockerd starts. We only
+  # own the mountpoint's contents, not the mountpoint itself (bind mount),
+  # so delete children only. The stamp is rewritten after imports succeed.
+  find "$cache_root" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+fi
+
 # A fake, always-reachable, instantly-answering DNS stub for the inner
 # dockerd's embedded per-container resolver to forward to. ctf_ops/ctf_net
 # are both `internal: true` (CTF-D24 - no real resolver reachable at all),
@@ -183,6 +270,14 @@ import_attack_target ctf-policy-bypass:base /opt/policy-bypass-rootfs policybypa
 # docstring.
 import_attack_target ctf-dns-resolver-cve:base /opt/dns-resolver-cve-rootfs dnsresolver "5000 2222" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Record the content stamp AFTER every import succeeded. If anything above
+# failed, `set -eu` would have exited before this line and the cache stays
+# invalid for the next start, which trips the wipe+reimport again -- fail-
+# closed on the imports, not on the stamp.
+if [ -n "$baked_stamp" ]; then
+  printf '%s\n' "$baked_stamp" > "$cached_stamp_file"
+fi
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is

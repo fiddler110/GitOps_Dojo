@@ -2,7 +2,11 @@
 // slot", decision CTF-D20). Polls GET attack/status and drives
 // POST attack/start|stop|reset. Every string on the page is set with
 // textContent only (CLAUDE.md "student-controlled strings"), and the strict
-// CSP this page serves under forbids inline script, so everything lives here.
+// CSP this page serves under (modules/_shared/dojo_http.py) forbids inline
+// script *and* inline style, so everything lives here and in app.css --
+// never an inline <style> block or style="" attribute, both silently
+// dropped under this CSP (2026-10-06: that's why this page used to render
+// with no styling at all).
 (function () {
   "use strict";
 
@@ -58,8 +62,10 @@
     doc.targets.forEach(function (t) {
       var here = slot.target === t.id;
       var state = here ? slot.state : "stopped";
+      var pending = state === "queued" || state === "starting";
       var card = document.createElement("div");
-      card.className = "card" + (state === "live" ? " live" : "") + (state === "error" ? " error" : "");
+      card.className = "card" + (state === "live" ? " live" : "") + (pending ? " pending" : "") +
+        (state === "error" ? " error" : "");
 
       var idEl = document.createElement("div");
       idEl.className = "id";

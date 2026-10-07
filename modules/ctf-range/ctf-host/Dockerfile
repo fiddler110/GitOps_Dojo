@@ -282,6 +282,14 @@ ENV DOCKER_HOST=unix:///run/ctf/docker.sock \
     DOCKER_TLS_CERTDIR=
 ENTRYPOINT ["ctf-host-entrypoint"]
 
+# A single-digest stamp of every file this stage baked under /opt. The
+# entrypoint's cache check (/var/lib/docker lives on a host bind mount
+# across stop/start, see compose.yml) reads this and wipes the inner
+# dockerd's image store whenever the stamp has drifted -- i.e. a target
+# rootfs changed, which also changes the COPY layer's digest, which also
+# changes this RUN's cache key. Reproducible: same inputs = same stamp.
+# Each final stage below runs it after its own COPYs.
+
 # --- ctf-host: the full catalog (default `docker build` target, no --target
 # needed) — used by the shared workshops/ctf-defend-test harness, which
 # deliberately wants every target in one image (module.env's comment on
@@ -304,6 +312,7 @@ COPY --from=leaky-config / /opt/leaky-config-rootfs/
 COPY --from=git-secrets / /opt/git-secrets-rootfs/
 COPY --from=policy-bypass / /opt/policy-bypass-rootfs/
 COPY --from=dns-resolver-cve / /opt/dns-resolver-cve-rootfs/
+RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
 # The compose service's own healthcheck (modules/ctf-range/compose.yml) uses
 # CTF_HOST_EXPECTED_IMAGES and checks every baked tag; this one is a fallback
 # for a standalone `docker run` of this image alone.
@@ -320,6 +329,7 @@ COPY --from=sqli-login / /opt/sqli-login-rootfs/
 COPY --from=idor-pcap / /opt/idor-pcap-rootfs/
 COPY --from=weak-auth-portal / /opt/weak-auth-portal-rootfs/
 COPY --from=cert-trust-bypass / /opt/cert-trust-bypass-rootfs/
+RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
     CMD docker image inspect ctf-sqli-login:base >/dev/null 2>&1 || exit 1
 
@@ -331,5 +341,6 @@ COPY --from=ping-tool / /opt/ping-tool-rootfs/
 COPY --from=ssrf-fetcher / /opt/ssrf-fetcher-rootfs/
 COPY --from=api-mass-assignment / /opt/api-mass-assignment-rootfs/
 COPY --from=api-bfla / /opt/api-bfla-rootfs/
+RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
     CMD docker image inspect ctf-ping-tool:base >/dev/null 2>&1 || exit 1

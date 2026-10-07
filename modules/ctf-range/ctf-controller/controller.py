@@ -35,6 +35,7 @@ import json
 import os
 import re
 import signal
+import socket
 import socketserver
 import sys
 import threading
@@ -64,21 +65,31 @@ HOST_PORT_BASE = 15000
 # per-uid firewall rule must agree with this value, same pairing as
 # CTF_HOST_PORT_BASE (that hook's header comment).
 ATTACK_PORT_BASE = 16000
-# How many consecutive host ports each student's attack slot reserves: one
-# for the target's real app, plus a fixed block of decoy ports (plan §7.3's
-# nmap primer — a student scans their box and finds more than the one port
-# they'll actually use, same as a HackTheBox box). The block size is fixed
-# across every target so the BASE + index*BLOCK arithmetic never has to vary
-# per target; a target image that doesn't bind one of these container ports
-# just leaves that slot in the block silent (closed, not "open but refused"
-# — the exact same no-op-ACCEPT reasoning 50-ctf-range.sh's header comment
-# already gives for an idle attack range). DECOY_*_CONTAINER_PORT are the
-# fixed internal ports a target's own decoy listener binds if it wants that
-# slot (see targets/*/app.py's "decoy listeners" section); nothing here
-# cares whether a given image actually uses either of them.
+# How many ports every attack-ladder slot publishes to its student IP: the
+# target's real app port plus a fixed block of decoy ports (plan §7.3's nmap
+# primer — a student scans their box and finds more than the one port
+# they'll actually use, same as a HackTheBox box). Nothing varies per
+# target image here; one that doesn't bind every container port just leaves
+# that slot silent (closed, not "open but refused" — same no-op-ACCEPT
+# reasoning 50-ctf-range.sh's header comment gives for an idle range).
+# DECOY_*_CONTAINER_PORT are the fixed internal ports a target's own decoy
+# listener binds if it wants that slot (see targets/*/app.py's "decoy
+# listeners"); nothing here cares whether a given image actually uses them.
 ATTACK_PORT_BLOCK = 3
 DECOY_SSH_CONTAINER_PORT = 2222
 DECOY_FTP_CONTAINER_PORT = 2121
+
+# HackTheBox-style per-target IPs (student request 2026-10-07). Each student
+# gets one IP on ctf_net PER attack target in the pack's catalog, carved out
+# of this base octet range. student01 (roster idx 0, 1st target idx 0) ->
+# <subnet-prefix>.100 ; student01 2nd target -> .101 ; student02 1st -> .104
+# with ATTACK_IPS_PER_STUDENT=4. ctf-host adds every one of these addresses
+# to its eth1 at startup (modules/ctf-range/ctf-host/entrypoint.sh); the
+# per-student terminal firewall accepts the student's own 4-IP range only.
+# Only one target slot per student is live at a time (CTF-D20) — the other
+# three IPs are reserved but silent until the student starts that target.
+ATTACK_IP_BASE_OCTET = 100
+ATTACK_IPS_PER_STUDENT = 4
 ATTACK_IDLE_SECONDS = 20 * 60  # plan §4 "Limits": ~20 min with no traffic
 ATTACK_MAX_CONCURRENT = 10     # plan §4 "Start queue": ~10 at once (tuned in S14)
 
@@ -121,6 +132,30 @@ def roster(env):
     return [f"{prefix}{n:02d}" for n in range(1, count + 1)]
 
 
+def _ctf_host_addr():
+    """ctf-host's address on ctf_net, for the landing-page Attack Range
+    header. Read from /run/ctf/ctf-net-addr if ctf-host wrote it (that
+    container's entrypoint picks the address of its own eth that falls
+    inside CTF_NET_SUBNET; see modules/ctf-range/ctf-host/entrypoint.sh);
+    the file is on the shared ctf_run volume mounted into both services.
+    Falls back to gethostbyname("ctf-host") only as a last resort -- that
+    returns our shared ctf_ops address, not the ctf_net one, which is
+    wrong for a student view (caught live 2026-10-06: the status page
+    showed 10.89.4.3 instead of 10.42.0.x). Empty => the header shows just
+    the hostname + subnet with no numeric address."""
+    try:
+        with open("/run/ctf/ctf-net-addr") as f:
+            addr = f.read().strip()
+            if addr:
+                return addr
+    except OSError:
+        pass
+    try:
+        return socket.gethostbyname("ctf-host")
+    except OSError:
+        return ""
+
+
 class Config:
     def __init__(self, env=os.environ):
         self.socket = env.get("CTF_SOCKET", "/run/ctf/docker.sock")
@@ -147,6 +182,30 @@ class Config:
         self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
         self.attack_idle_seconds = int(env.get("CTF_ATTACK_IDLE_SECONDS", "") or ATTACK_IDLE_SECONDS)
         self.attack_max_concurrent = int(env.get("CTF_ATTACK_MAX_CONCURRENT", "") or ATTACK_MAX_CONCURRENT)
+        # ctf_net scan range shown to the student on the landing-page Attack
+        # Range header. The subnet is pinned in modules/ctf-range/compose.yml
+        # (ctf_net.ipam) and read here through CTF_NET_SUBNET; the firewall
+        # hook (terminal/start.d/50-ctf-range.sh) default-denies on the same
+        # CIDR so the student's scan only ever surfaces ctf-host. ctf-host's
+        # address inside the subnet is resolved at startup instead of pinned
+        # (podman-compose does not honour ipv4_address pins -- live caught
+        # 2026-10-06 as "requested ip 10.42.0.2 already allocated"); an empty
+        # subnet or unresolvable name => the page falls back to just
+        # "ctf-host" with no numeric hints.
+        self.net_subnet = env.get("CTF_NET_SUBNET", "")
+        self.net_host_addr = env.get("CTF_HOST_ADDR", "") or _ctf_host_addr()
+        # Attack IP block: see ATTACK_IP_BASE_OCTET above. Both must stay in
+        # step with ctf-host/entrypoint.sh and terminal/start.d/50-ctf-range.sh.
+        self.attack_ip_base_octet = int(env.get("CTF_ATTACK_IP_BASE_OCTET", "") or ATTACK_IP_BASE_OCTET)
+        self.attack_ips_per_student = int(env.get("CTF_ATTACK_IPS_PER_STUDENT", "") or ATTACK_IPS_PER_STUDENT)
+        # Subnet prefix: "10.42.0.0/24" -> "10.42.0". Empty => per-target IPs
+        # are disabled and attack_ports falls back to the pre-2026-10-07 port
+        # block scheme (still used by CTF-5 reconcile).
+        self.attack_subnet_prefix = ""
+        if self.net_subnet:
+            parts = self.net_subnet.split("/")[0].split(".")
+            if len(parts) == 4:
+                self.attack_subnet_prefix = ".".join(parts[:3])
 
     def slot_name(self, user):
         return f"ctf-{flags.CHALLENGE}-{user}"
@@ -163,10 +222,47 @@ class Config:
         "a student finds their own port with nmap")."""
         return self.attack_port_base + self.index.get(user, 0) * self.attack_port_block
 
-    def attack_ports(self, user):
-        """The full (container_port, host_port) list for this student's
-        attack-slot block: the real app, then the fixed decoy slots. Passed
-        straight to docker_api.Executor.create()'s `ports`."""
+    def attack_target_ip(self, user, target_id):
+        """IP this student's slot for `target_id` binds to on ctf_net
+        (HackTheBox-style per-box IP, 2026-10-07). Blank if the subnet
+        prefix isn't configured or the target isn't in this pack's catalog
+        -- in which case attack_ports() falls back to the port-block
+        binding on ctf-host's main IP."""
+        if not self.attack_subnet_prefix or target_id not in self.attack_targets:
+            return ""
+        user_idx = self.index.get(user, 0)
+        target_idx = list(self.attack_targets).index(target_id)
+        octet = self.attack_ip_base_octet + user_idx * self.attack_ips_per_student + target_idx
+        if octet > 254:
+            return ""
+        return f"{self.attack_subnet_prefix}.{octet}"
+
+    def attack_target_ips(self, user):
+        """{target_id: ip} for every target in this pack's catalog, in order.
+        Used by /attack/status so the landing-page cards can show each
+        target's reserved IP."""
+        return {tid: self.attack_target_ip(user, tid) for tid in self.attack_targets}
+
+    def attack_ports(self, user, target_id=None):
+        """Port publish list for this student's attack slot.
+
+        With a configured subnet prefix + known target, binds to the
+        student's dedicated IP for that target with the target's own
+        container ports (5000 app + 2222/2121 decoys). One IP per box,
+        same ports -- "scan 10.42.0.100 and find your target" (student
+        request 2026-10-07).
+
+        Falls back to the old port-block binding on ctf-host's main IP
+        if the prefix is unset or the target isn't in the catalog --
+        keeps CTF-5 reconcile and any pack that hasn't opted in working.
+        """
+        host_ip = self.attack_target_ip(user, target_id) if target_id else ""
+        if host_ip:
+            return [
+                (self.container_port, self.container_port, host_ip),
+                (DECOY_SSH_CONTAINER_PORT, DECOY_SSH_CONTAINER_PORT, host_ip),
+                (DECOY_FTP_CONTAINER_PORT, DECOY_FTP_CONTAINER_PORT, host_ip),
+            ]
         base = self.attack_host_port(user)
         return [
             (self.container_port, base),
@@ -439,7 +535,7 @@ class AttackManager:
             self.ex.remove(name)
             self.ex.create(
                 name=name, image=image, env_pairs=self._env_for(user, target),
-                ports=self.cfg.attack_ports(user),
+                ports=self.cfg.attack_ports(user, target),
                 memory_bytes=self.cfg.mem_bytes, pids_limit=self.cfg.pids,
                 labels={docker_api.LABEL_SLOT: user, docker_api.LABEL_USER: user,
                         docker_api.LABEL_TARGET: target},
@@ -542,16 +638,32 @@ def make_handler(ctl, atk):
             if path == "/app.js":
                 self._static(STATIC["app.js"], "application/javascript; charset=utf-8")
                 return
+            if path == "/app.css":
+                self._static(STATIC["app.css"], "text/css; charset=utf-8")
+                return
+            if path == "/attack-cards.js":
+                self._static(STATIC["attack-cards.js"], "application/javascript; charset=utf-8")
+                return
+            if path == "/attack-cards.css":
+                self._static(STATIC["attack-cards.css"], "text/css; charset=utf-8")
+                return
             if path == "/attack/status":
                 user = self._gw_user()
                 if not user:
                     self._json(403, {"error": "gateway token required"})
                     return
+                # Scan target shown on the landing page's Attack Range header
+                # (static for the stack's lifetime) + per-target IPs so each
+                # card shows the student their own IP for that specific box.
+                net = {"host": "ctf-host", "subnet": ctl.cfg.net_subnet, "addr": ctl.cfg.net_host_addr}
                 if user == ctl.cfg.facilitator:
-                    self._json(200, {"ok": True, "facilitator": True, "targets": atk.catalog(), "slot": None})
+                    self._json(200, {"ok": True, "facilitator": True,
+                                     "targets": atk.catalog(), "slot": None, "net": net})
                     return
+                target_ips = ctl.cfg.attack_target_ips(user)
+                targets = [dict(t, addr=target_ips.get(t["id"], "")) for t in atk.catalog()]
                 self._json(200, {"ok": True, "facilitator": False,
-                                 "targets": atk.catalog(), "slot": atk.status(user)})
+                                 "targets": targets, "slot": atk.status(user), "net": net})
                 return
             if not self._authed():
                 self._json(403, {"error": "control token required"})
@@ -635,7 +747,7 @@ def make_handler(ctl, atk):
 # set, loaded once at start, same pattern as dns-ui's zone-viewer).
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(HERE, "static"))
 STATIC = {}
-for _name in ("index.html", "app.js"):
+for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css"):
     with open(os.path.join(STATIC_DIR, _name), "rb") as _f:
         STATIC[_name] = _f.read()
 

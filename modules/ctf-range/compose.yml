@@ -138,11 +138,32 @@ services:
       # in-lab registry below has no TLS because it is internal-only and
       # never reaches outside ctf_ops (spike S6).
       - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      # Entrypoint uses this to pick its own ctf_net address out of `ip
+      # addr show` and writes it to /run/ctf/ctf-net-addr for ctf-controller
+      # to echo on the landing-page Attack Range header. Must match
+      # ctf_net.ipam.config.subnet below.
+      - CTF_NET_SUBNET=10.42.0.0/24
+      # HackTheBox-style per-target IPs (student request 2026-10-07). The
+      # entrypoint adds STUDENT_COUNT * CTF_ATTACK_IPS_PER_STUDENT extra
+      # addresses to its eth1 so the inner dockerd can -p <ip>:<port>:<port>
+      # bind each slot to its student's reserved IP. Default base .100 +
+      # 4 per student fits 30 students in a /24. Must match the controller's
+      # ATTACK_IP_BASE_OCTET / ATTACK_IPS_PER_STUDENT (controller.py).
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
     volumes:
       - ctf_run:/run/ctf
       # docker:dind keeps images/containers in /var/lib/docker (an anonymous
-      # volume in its base image). Name it so `./run.sh stop` removes it too.
-      - ctf_docker:/var/lib/docker
+      # volume in its base image). Bind-mount it to a project-local cache so
+      # the ~90s-5min target-rootfs import on first start isn't repeated on
+      # every stop/start cycle (`./run.sh stop` wipes every named volume but
+      # not host bind mounts). The entrypoint checks a content-sha stamp
+      # baked into this image at build time against the cached one and
+      # wipes + re-imports when it has drifted; a target source change
+      # therefore busts the cache automatically. The host dir is created by
+      # engine/run.sh before `up`.
+      - ../.cache/ctf-docker:/var/lib/docker
     networks:
       - ctf_ops
       - ctf_net
@@ -227,6 +248,18 @@ services:
       - CTF_ATTACK_PORT_BASE=${CTF_ATTACK_PORT_BASE:-16000}
       - CTF_ATTACK_IDLE_SECONDS=${CTF_ATTACK_IDLE_SECONDS:-1200}
       - CTF_ATTACK_MAX_CONCURRENT=${CTF_ATTACK_MAX_CONCURRENT:-10}
+      # Per-target IP layout (controller.py's ATTACK_IP_BASE_OCTET /
+      # ATTACK_IPS_PER_STUDENT); must match the ctf-host service env above
+      # and the terminal firewall's own copy.
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+      # The ctf_net subnet (set in the networks: section below). The
+      # /attack/status endpoint echoes it back so the landing-page Attack
+      # Range header can show students a concrete scan range. ctf-host's own
+      # address inside this subnet is resolved by the controller at startup
+      # (socket.gethostbyname -- podman-compose does not honour
+      # ipv4_address pins, so we read the actual IP instead of pinning).
+      - CTF_NET_SUBNET=10.42.0.0/24
     volumes:
       - ctf_run:/run/ctf
     # The ctf-host socket is 0660 root:ctf (gid 1901); the controller is the
@@ -249,6 +282,46 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+    restart: unless-stopped
+
+  # ctf-view: the browser window onto a student's own live target
+  # (/ctf-view/<target>/, identity gate). Same image as ctf-controller (it
+  # reuses Config's student -> IP math) but a different process and none of
+  # the controller's power: no ctf-host socket, no ctf_ops. It is on ctf_net
+  # only to reach the slot IPs and on workshop_lab to be reached by the
+  # gateway, which stays the sole way in (it checks X-Gateway-Token itself).
+  ctf-view:
+    image: gitopsdojo/ctf-controller:local
+    container_name: workshop_ctf_view
+    entrypoint: ["python3", "/app/view.py"]
+    depends_on:
+      ctf-controller:
+        condition: service_started
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_VIEW:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
+      - CTF_TARGET_PORT=5000
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+      - CTF_NET_SUBNET=10.42.0.0/24
+    networks:
+      - ctf_net
+      - workshop_lab
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_VIEW_MEM_LIMIT:-64m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9100/healthz').read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
   # ctf-builder: the ONLY thing allowed to ask ctf-host to build (spike S6).
@@ -346,52 +419,12 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # attacker-bot: ONE container for the whole room (plan §8.2-8.11, revised 2026-10-05 - not a
-  # fleet of per-student bots living inside ctf-host). One thread per student; it reaches each
-  # student's CTF-5 target-NN over `ctf_net`'s published ports, the exact same address the
-  # student's own terminal reaches it at (CTF_HOST_PORT_BASE + roster index, matching
-  # ctf-controller's host_port() - see bot.py's header comment), and posts straight to
-  # achievements over `workshop_lab`, same trust tier as ctf-flags (it holds the adapter
-  # secret; no student can ever reach it). No docker socket, no place inside ctf-host. Idle
-  # (no traffic at all) until the facilitator presses "Start Attack Swarm" on the SOC Alerts
-  # admin tab - see bot.py's header comment.
-  attacker-bot:
-    build:
-      context: ../modules/ctf-range
-      dockerfile: attacker-bot/Dockerfile
-    image: gitopsdojo/ctf-attacker-bot:local
-    container_name: workshop_ctf_attacker_bot
-    environment:
-      - CTF_HOST=ctf-host
-      - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}
-      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
-      - STUDENT_COUNT=${STUDENT_COUNT:-30}
-      - CTF_CHALLENGE=customer-portal
-      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
-      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
-      # Where this polls (signed, no event) for "has the facilitator pressed Start yet" - see
-      # bot.py's module docstring. Does nothing at all until that answer is yes.
-      - ACHIEVEMENTS_SOC_CONTROL_URL=${ACHIEVEMENTS_SOC_CONTROL_URL:-http://achievements:8080/api/soc/control}
-      # The green/yellow/red countdown's two durations (module.env) - must equal
-      # achievements' CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS exactly (store.py's
-      # soc_timer(); this comment is duplicated on both sides).
-      - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
-      - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
-    networks:
-      - ctf_net
-      - workshop_lab
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: ${CTF_ATTACKER_BOT_MEM_LIMIT:-64m}
-    pids_limit: 128
-    # No healthcheck: a background poller with no listener of its own (see bot.py's module
-    # docstring) - there is nothing on a port to ask.
-    restart: unless-stopped
+  # attacker-bot lives in workshops/ctf-defend/compose/docker-compose.override.yml:
+  # the swarm's hardcoded CTF_CHALLENGE=customer-portal and its "Start Attack
+  # Swarm" trigger (SOC Alerts admin tab) are both defend-only (CTF-5), so
+  # having it in the shared ctf-range module meant attack packs (ctf-access,
+  # ctf-defend-test, future CTF-2..4) ran it idle, wasting a container and
+  # ~64MB on nothing. 2026-10-07 move.
 
   # ctf-lab-info: static file server for the Lab Info library (plan §9,
   # CTF-D16/P2b) - the same content/lab-info the terminal image bakes into
@@ -399,15 +432,22 @@ services:
   # (extensions.json's "lab-info" card/route/admin tab, gate "shared" - one
   # copy, identical for every student, no identity hop needed). Stock Caddy
   # (the gateway's own image, already pulled) with `file_server`, nothing
-  # built. read-only mount of the same directory the Dockerfile COPYs from,
+  # built. read-only mounts of the same directory the Dockerfile COPYs from,
   # so the two can never drift apart.
+  #
+  # The reader (web/) renders each .md with markdown-it + Prism (vendored
+  # under workshops/assets/vendor/) so it reads the same way the workshops'
+  # own lab reader does -- replacing the earlier raw-markdown `file_server
+  # browse` listing (users saw plain text downloads).
   ctf-lab-info:
     image: gitopsdojo/gateway:local
     container_name: workshop_ctf_lab_info
     entrypoint: ["caddy"]
     command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     volumes:
-      - ../modules/ctf-range/terminal/content/lab-info:/srv/lab-info:ro
+      - ../modules/ctf-range/lab-info/web:/srv/lab-info:ro
+      - ../modules/ctf-range/terminal/content/lab-info:/srv/lab-info/docs:ro
+      - ../workshops/assets/vendor:/srv/lab-info/vendor:ro
       - ../modules/ctf-range/lab-info/Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
       - workshop_lab
@@ -443,19 +483,27 @@ services:
   web-terminal:
     environment:
       # Which attack-ladder targets this pack enables (CTF-D20's catalog).
-      # Not read by the firewall hook (its own port-base vars stay hardcoded
-      # defaults today — nobody overrides them yet), only by
-      # 55-git-secrets.sh to decide whether that target's provisioning
-      # should run at all for this pack.
+      # Not read by the firewall hook, only by 55-git-secrets.sh to decide
+      # whether that target's provisioning should run at all for this pack.
       - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      # The ctf_net subnet, read by 50-ctf-range.sh's firewall hook to
+      # drop all student traffic to non-ctf-host addresses on this network
+      # (2026-10-06 fix). Must match ctf_net.ipam.config.subnet below.
+      - CTF_NET_SUBNET=10.42.0.0/24
+      # Per-target IP layout the firewall ACCEPTs per uid (2026-10-07,
+      # HackTheBox-style). Must match the ctf-host and ctf-controller
+      # services' own copies; see controller.py's ATTACK_IP_BASE_OCTET.
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
     networks:
       ctf_net: {}
 
 volumes:
   ctf_customer_portal_data:
   ctf_run:
-  ctf_docker:
   ctf_registry_data:
+  # No ctf_docker volume: /var/lib/docker is bind-mounted to
+  # .cache/ctf-docker on the host (see ctf-host.volumes above).
 
 networks:
   # The range network: internal, no route to the internet, the gateway,
@@ -463,8 +511,18 @@ networks:
   # published slot ports only) and web-terminal; the per-student firewall
   # rule restricting each uid to its own slot's port is
   # modules/ctf-range/terminal/start.d/50-ctf-range.sh (spike CTF-S2).
+  #
+  # Pinned subnet 10.42.0.0/24 so the Attack Range card on the landing page
+  # can show students a concrete scan range, and so the firewall hook has a
+  # single CIDR to default-deny on. Addresses within it are
+  # docker-assigned; ctf-controller resolves ctf-host at startup and echoes
+  # the real IP through /attack/status (podman-compose does not honour
+  # ipv4_address pins, so we read the actual IP instead of pinning).
   ctf_net:
     internal: true
+    ipam:
+      config:
+        - subnet: 10.42.0.0/24
   # The control-plane network: ctf-host, ctf-controller and the in-lab
   # registry only, internal, no student ever on it. The cloud_net precedent
   # from dojo-cloud. ctf-builder is deliberately NOT a member (see its
