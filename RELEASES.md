@@ -9,6 +9,18 @@ WSL2 desktop stack at `http://localhost:8080`.
 
 ## `feat/zellij-terminal`
 
+**`no_push_since_step`'s sub-second hole fixed, and the purge line now names policy objects and tofu states
+(2026-10-05, committed on the branch, unit tests, no stack needed).** Found 2026-10-04 while running the vault
+capstone and cloud-reset live checks (see the old Now section). `no_push_since_step` compared a whole-second
+Forgejo commit timestamp against a fractional `step_at`, so a push landing inside `step_at`'s own second read
+as "before step 1" and a two-step challenge passed anyway (pinned deterministically: `step_at` 1791156367.75
+against a commit at epoch 1791156367 still gave "Passed!"); fixed by comparing `at + 1 > step_at`. Separately,
+`student_reset`'s return message and `_purge`'s activity-log line only ever named `containerGroups`/
+`resourceGroups`, even though `removed` already carries `policyObjects`/`tfStates` when non-zero — confirmed
+live on cloud-policy-as-code, where a reset correctly purged a policy assignment, a definition and a saved
+state but both messages said "removed 0 container group(s), 0 resource group(s)". Both now append the
+non-zero counts to the same message.
+
 **The allocator answers a POST only after reading its body (2026-10-04, committed on the branch, unit tests,
 locally).** `test_reset`'s `test_reset_needs_header_facilitator_and_typed_id` failed at random under load
 (`ConnectionResetError [Errno 54]` while handling an expected 403; 3 of 6 runs on a busy machine, and at `00f6c99`

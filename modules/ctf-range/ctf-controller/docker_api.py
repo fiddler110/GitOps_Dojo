@@ -19,6 +19,9 @@ LABEL_MANAGED = "ctf.managed"
 LABEL_SLOT = "ctf.slot"
 LABEL_USER = "ctf.user"
 LABEL_IMAGE = "ctf.image"
+# Which catalog entry an attack slot (controller.py's AttackManager, CTF-D20)
+# is currently running; the always-on CTF-5 slots above never set this.
+LABEL_TARGET = "ctf.target"
 
 
 class DockerError(Exception):
@@ -36,33 +39,57 @@ class _UnixConnection(http.client.HTTPConnection):
         self.sock.connect(self._path)
 
 
-def allowed_image(image, registry_prefix):
-    """A slot may only ever run the base target image or a tag the in-lab
-    registry serves under the approved prefix (what defend-main.yml pushes).
-    Anything else — a Hub image, a latest tag, a different name — is refused
-    before it reaches the daemon."""
+def allowed_image(image, registry_prefix, extra=()):
+    """A slot may only ever run the base target image, a tag the in-lab
+    registry serves under the approved prefix (what defend-main.yml pushes),
+    or one of EXTRA — the attack-range catalog (controller.py's
+    CTF_ATTACK_TARGETS, CTF-D20), a short, config-supplied allow-list of exact
+    image tags, never a pattern. Anything else — a Hub image, a latest tag, a
+    different name — is refused before it reaches the daemon."""
     if image == "ctf-customer-portal:base":
         return True
     if registry_prefix and image.startswith(registry_prefix + "/"):
         return True
-    return False
+    return image in extra
 
 
-def build_create_request(image, env_pairs, container_port, host_port,
+def build_create_request(image, env_pairs, ports,
                          memory_bytes, pids_limit, labels):
     """The ONE place a slot spec is assembled. Pure function (tested).
+
+    `ports` is a list of (container_port, host_port) or (container_port,
+    host_port, host_ip) tuples. The 3-tuple form binds the publish to a
+    specific IP on the ctf-host host namespace (controller.py's
+    AttackManager uses this to give each student their own IP on ctf_net
+    with the target's native ports — one IP per attack box in the student's
+    private block, see "HackTheBox-style" in controller.py). The 2-tuple
+    form keeps the pre-change behaviour: publish on 0.0.0.0 of ctf-host,
+    one host port per student (CTF-5 reconcile still does this).
 
     Hardening matches targets/customer-portal's compose service: read-only root,
     tmpfs for the only writable paths, all capabilities dropped, no new privs.
     """
-    port_key = f"{int(container_port)}/tcp"
+    exposed = {}
+    bindings = {}
+    for item in ports:
+        if len(item) == 3:
+            container_port, host_port, host_ip = item
+        else:
+            container_port, host_port = item
+            host_ip = ""
+        port_key = f"{int(container_port)}/tcp"
+        exposed[port_key] = {}
+        binding = {"HostPort": str(int(host_port))}
+        if host_ip:
+            binding["HostIp"] = str(host_ip)
+        bindings[port_key] = [binding]
     return {
         "Image": image,
         "Env": [f"{name}={value}" for name, value in env_pairs],
         "Labels": dict(labels, **{LABEL_MANAGED: "true", LABEL_IMAGE: image}),
-        "ExposedPorts": {port_key: {}},
+        "ExposedPorts": exposed,
         "HostConfig": {
-            "PortBindings": {port_key: [{"HostPort": str(int(host_port))}]},
+            "PortBindings": bindings,
             "Memory": int(memory_bytes),
             "MemorySwap": int(memory_bytes),  # no swap beyond the limit
             "PidsLimit": int(pids_limit),
@@ -87,9 +114,10 @@ def build_create_request(image, env_pairs, container_port, host_port,
 
 
 class Executor:
-    def __init__(self, socket_path, registry_prefix=""):
+    def __init__(self, socket_path, registry_prefix="", extra_images=()):
         self.socket_path = socket_path
         self.registry_prefix = registry_prefix
+        self.extra_images = frozenset(extra_images)
 
     def _call(self, method, path, body=None, timeout=30):
         conn = _UnixConnection(self.socket_path, timeout=timeout)
@@ -119,18 +147,18 @@ class Executor:
     def pull(self, image):
         """Pull an allow-listed image from the in-lab registry. Offline posture:
         the registry is internal (CTF-D24); this never reaches the internet."""
-        if not allowed_image(image, self.registry_prefix):
+        if not allowed_image(image, self.registry_prefix, self.extra_images):
             raise DockerError(f"image {image!r} is not allowed")
         status, data = self._call("POST", f"/images/create?fromImage={quote(image, safe='')}",
                                   timeout=120)
         if status != 200:
             raise DockerError(f"pull failed ({status}): {data[:200]!r}")
 
-    def create(self, name, image, env_pairs, container_port, host_port,
+    def create(self, name, image, env_pairs, ports,
                memory_bytes, pids_limit, labels):
-        if not allowed_image(image, self.registry_prefix):
+        if not allowed_image(image, self.registry_prefix, self.extra_images):
             raise DockerError(f"image {image!r} is not allowed")
-        spec = build_create_request(image, env_pairs, container_port, host_port,
+        spec = build_create_request(image, env_pairs, ports,
                                     memory_bytes, pids_limit, labels)
         status, data = self._call("POST", f"/containers/create?name={quote(name)}", spec)
         if status != 201:

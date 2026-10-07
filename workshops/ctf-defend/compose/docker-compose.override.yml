@@ -1,0 +1,72 @@
+# ctf-defend overlay. Paths are relative to engine/ (workshops/README.md's "Adding a new
+# workshop" step 3 explains why: Compose resolves every relative path in a multi-file `-f ... -f
+# ...` merge relative to the *base* file's directory, regardless of which file declares it).
+#
+# web-terminal: extra env only (merges per key into the engine service; list form unaffected) so
+# /etc/dojo/start.d/90-ctf-defend.sh (compose/terminal/Dockerfile) can call Forgejo's admin API to
+# provision each student's own customer-portal repo and its Actions secrets/variable.
+# FORGEJO_ADMIN_USER/PASSWORD are already required in engine/.env by the engine's own bootstrap
+# service (engine/docker-compose.yml); this just also hands them to web-terminal. Same mechanism
+# as workshops/ctf-defend-test, proved on a real stack first (docs/CTF-WORKSHOP-PLAN.md, CTF-S6).
+#
+# attacker-bot: the room-wide swarm (plan §8.2-8.11), moved here from
+# modules/ctf-range/compose.yml on 2026-10-07. Its CTF_CHALLENGE=customer-portal
+# is hardcoded to CTF-5's always-on slot and it only ever activates when the
+# facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab, so
+# every pack but ctf-defend ran it idle before this move.
+services:
+  web-terminal:
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      - CTF_BUILDER_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
+
+  # ONE container for the whole room (revised 2026-10-05 - not a fleet of per-
+  # student bots living inside ctf-host). One thread per student; it reaches each
+  # student's CTF-5 target-NN over `ctf_net`'s published ports, the same address
+  # the student's own terminal reaches it at (CTF_HOST_PORT_BASE + roster index,
+  # matching ctf-controller's host_port() - see bot.py's header comment), and
+  # posts straight to achievements over `workshop_lab`, same trust tier as
+  # ctf-flags (it holds the adapter secret; no student can ever reach it). No
+  # docker socket, no place inside ctf-host. Idle (no traffic) until the
+  # facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab.
+  attacker-bot:
+    build:
+      context: ../modules/ctf-range
+      dockerfile: attacker-bot/Dockerfile
+    image: gitopsdojo/ctf-attacker-bot:local
+    container_name: workshop_ctf_attacker_bot
+    environment:
+      - CTF_HOST=ctf-host
+      - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - CTF_CHALLENGE=customer-portal
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
+      # Where this polls (signed, no event) for "has the facilitator pressed Start yet" - see
+      # bot.py's module docstring. Does nothing at all until that answer is yes.
+      - ACHIEVEMENTS_SOC_CONTROL_URL=${ACHIEVEMENTS_SOC_CONTROL_URL:-http://achievements:8080/api/soc/control}
+      # The green/yellow/red countdown's two durations (module.env) - must equal
+      # achievements' CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS exactly (store.py's
+      # soc_timer(); this comment is duplicated on both sides).
+      - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
+      - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
+    networks:
+      - ctf_net
+      - workshop_lab
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_ATTACKER_BOT_MEM_LIMIT:-64m}
+    pids_limit: 128
+    # No healthcheck: a background poller with no listener of its own (see bot.py's module
+    # docstring) - there is nothing on a port to ask.
+    restart: unless-stopped

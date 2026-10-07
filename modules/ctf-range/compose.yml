@@ -13,11 +13,17 @@
 #     are owned, which is why Compose does not need to loop to make N of them
 #     (spike CTF-S1 is answered by the controller, not a generated fragment).
 #
-# STILL NOT WIRED: the in-lab registry + CI build that defend-main.yml pushes
-# to (spike S6), the web-terminal join to ctf_net, the per-uid OUTPUT firewall
-# rules and target-to-target isolation / SNAT (spikes CTF-S2/S3), and the CTF-1
-# to CTF-4 start/stop toggle + queue (CTF-D20). The controller here implements
-# the CTF-5 always-on model and the redeploy-in-place endpoint.
+# WIRED (2026-10-05): web-terminal joins ctf_net, which now also carries
+# ctf-host (its one address there, published slot ports only); the per-uid
+# OUTPUT firewall rule is modules/ctf-range/terminal/start.d/50-ctf-range.sh,
+# and `ctf-flags` (below) is the submission service from plan §5. No
+# per-target SNAT is needed - see that hook's header comment for why CTF-D21
+# superseded the plan's original per-target-network sketch.
+#
+# STILL NOT WIRED: the CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20).
+# The controller here implements the CTF-5 always-on model and the
+# redeploy-in-place endpoint; the in-lab registry + the build/push half of
+# spike S6 are below (`registry`, `ctf-builder`).
 
 services:
   # One standalone instance of target 14 for development (NOT the range path;
@@ -26,6 +32,14 @@ services:
   customer-portal:
     build:
       context: ../modules/ctf-range/targets/customer-portal
+      # This builds on the OUTER host engine, which has real network but no
+      # local copy of gitopsdojo/ctf-customer-portal-base:pinned (that tag
+      # only ever exists inside ctf-host's INNER dockerd, imported offline at
+      # container start — see that Dockerfile's `deps` stage). Override BASE
+      # to the local `deps` stage so this dev-only service installs Flask
+      # itself instead.
+      args:
+        - BASE=deps
     image: gitopsdojo/ctf-customer-portal:local
     container_name: workshop_ctf_customer_portal
     environment:
@@ -64,36 +78,121 @@ services:
     restart: unless-stopped
 
   # --- the range path (CTF-D21 / spike S14) ---------------------------------
+  # registry: the in-lab image registry a redeploy pulls from and ctf-builder
+  # pushes to (spike S6). internal-only, on ctf_ops ONLY — not ctf_net, not
+  # workshop_lab, no published port, so it is unreachable from students or the
+  # internet (confirmed live; see docs/CTF-SPIKES.md S6). No auth: the only
+  # two things that can ever reach it are ctf-host's dockerd (the pull side,
+  # for a redeploy) and ctf-builder (the push side), both on ctf_ops, and
+  # neither is student-reachable.
+  registry:
+    image: docker.io/library/registry:2@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+    container_name: workshop_ctf_registry
+    networks:
+      - ctf_ops
+    volumes:
+      # Named so ./run.sh stop removes pushed images with the rest of the range.
+      - ctf_registry_data:/var/lib/registry
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_REGISTRY_MEM_LIMIT:-256m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5000/v2/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
   # ctf-host: a boxed privileged Docker-in-Docker daemon that holds the target
   # slots. Privileged is acceptable ONLY because of how it is boxed in, exactly
-  # as dojo-cloud's cloud-host: it is on the `internal: true` ctf_ops network
-  # with no route to the internet, the gateway, Forgejo, workshop_lab or any
-  # student; it publishes nothing to the host; and its only listener is the
-  # unix socket it shares with ctf-controller. The target image is baked in at
-  # build time and imported at start (offline). See modules/ctf-range/ctf-host.
+  # as dojo-cloud's cloud-host: its control-plane side is the `internal: true`
+  # ctf_ops network, with no route to the internet, the gateway, Forgejo or
+  # workshop_lab; it publishes nothing to the host; and its only listener
+  # there is the unix socket it shares with ctf-controller. It is ALSO a
+  # member of `ctf_net` (also internal, below) — the one address a student's
+  # terminal is allowed to reach at all, on exactly their own slot's
+  # published port (CTF-S2/S3; see the terminal firewall hook). The two
+  # networks are separate bridges: joining ctf_net gives students no
+  # visibility into ctf_ops's other members (ctf-controller, the registry).
+  # The target image is baked in at build time and imported at start
+  # (offline). See modules/ctf-range/ctf-host.
   ctf-host:
     build:
       # Context is the module root so the build can reach targets/; the
-      # Dockerfile lives under ctf-host/.
+      # Dockerfile lives under ctf-host/. `target` picks which final stage
+      # (CTF-D26): the full catalog by default, or a pack-scoped
+      # ctf-host-ctf1/ctf-host-ctf2 — see module.env's CTF_HOST_BUILD_TARGET.
       context: ../modules/ctf-range
       dockerfile: ctf-host/Dockerfile
-    image: gitopsdojo/ctf-host:local
+      target: ${CTF_HOST_BUILD_TARGET:-ctf-host}
+    image: ${CTF_HOST_IMAGE:-gitopsdojo/ctf-host:local}
     container_name: workshop_ctf_host
     privileged: true
     environment:
       - CTF_GID=1901
+      # Lets the inner dockerd pull/push a plaintext (no-TLS) registry; the
+      # in-lab registry below has no TLS because it is internal-only and
+      # never reaches outside ctf_ops (spike S6).
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      # Entrypoint uses this to pick its own ctf_net address out of `ip
+      # addr show` and writes it to /run/ctf/ctf-net-addr for ctf-controller
+      # to echo on the landing-page Attack Range header. Must match
+      # ctf_net.ipam.config.subnet below.
+      - CTF_NET_SUBNET=10.42.0.0/24
+      # HackTheBox-style per-target IPs (student request 2026-10-07). The
+      # entrypoint adds STUDENT_COUNT * CTF_ATTACK_IPS_PER_STUDENT extra
+      # addresses to its eth1 so the inner dockerd can -p <ip>:<port>:<port>
+      # bind each slot to its student's reserved IP. Default base .100 +
+      # 4 per student fits 30 students in a /24. Must match the controller's
+      # ATTACK_IP_BASE_OCTET / ATTACK_IPS_PER_STUDENT (controller.py).
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
     volumes:
       - ctf_run:/run/ctf
       # docker:dind keeps images/containers in /var/lib/docker (an anonymous
-      # volume in its base image). Name it so `./run.sh stop` removes it too.
-      - ctf_docker:/var/lib/docker
+      # volume in its base image). Bind-mount it to a project-local cache so
+      # the ~90s-5min target-rootfs import on first start isn't repeated on
+      # every stop/start cycle (`./run.sh stop` wipes every named volume but
+      # not host bind mounts). The entrypoint checks a content-sha stamp
+      # baked into this image at build time against the cached one and
+      # wipes + re-imports when it has drifted; a target source change
+      # therefore busts the cache automatically. The host dir is created by
+      # engine/run.sh before `up`.
+      - ../.cache/ctf-docker:/var/lib/docker
     networks:
       - ctf_ops
+      - ctf_net
+    depends_on:
+      registry:
+        condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "docker image inspect ctf-customer-portal:base >/dev/null 2>&1"]
+      # Every image this pack's ctf-host stage actually bakes in has to be
+      # imported before anything may ask ctf-host to build (spike S6 Run D)
+      # or before AttackManager may try to create a slot (plan §7.3).
+      # CTF_HOST_EXPECTED_IMAGES (module.env) names exactly that set — the
+      # full catalog by default, a pack-scoped subset when CTF_HOST_IMAGE/
+      # CTF_HOST_BUILD_TARGET above are overridden too (CTF-D26). ctf-builder
+      # and ctf-controller key their own `depends_on: service_healthy` off
+      # this.
+      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base ctf-policy-bypass:base ctf-dns-resolver-cve:base} >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
-      retries: 30
+      # 60 retries (10 min) — the full-catalog stage now imports 12 images
+      # sequentially (customer-portal + its deps base + 10 attack-ladder
+      # targets); live-verified 2026-10-06 taking longer than this
+      # healthcheck's old 30-retry (300s) budget allowed, which flipped it
+      # to transiently "unhealthy" before the imports finished (harmless —
+      # it self-heals the moment the next check passes, and
+      # ctf-controller/ctf-builder's own `depends_on: service_healthy`
+      # still waits correctly — but worth a wider margin as the catalog
+      # grows toward 14). A pack-scoped stage (CTF-D26, 4 images) finishes
+      # in well under this either way.
+      retries: 60
       start_period: 10s
     mem_limit: ${CTF_HOST_MEM_LIMIT:-2g}
     pids_limit: ${CTF_HOST_PIDS_LIMIT:-4096}
@@ -101,9 +200,16 @@ services:
 
   # ctf-controller: the single, unprivileged client of ctf-host. Stdlib Python,
   # no capability of its own except membership in the socket group (group_add
-  # 1901, the CTF_GID ctf-host sets). Reachable only on ctf_ops — never by a
-  # student. The defend pipeline's merge job (defend-main.yml) POSTs /redeploy
-  # here; the allocator/admin can read /slots.
+  # 1901, the CTF_GID ctf-host sets). On `ctf_ops` for ctf-host and the
+  # allocator/admin, ALSO on `runner_net` so the defend pipeline's merge job
+  # (defend-main.yml, running in the runner pool, spike S6) can POST
+  # /redeploy directly, and now ALSO on `workshop_lab` for the attack-range
+  # card's /attack/* paths (plan §4, CTF-D20) — a student's own browser,
+  # through the gateway's identity gate. Dual-/triple-homing widens only
+  # reachability, not capability: /redeploy, /reconcile and /slots still fail
+  # closed on the Bearer control-token check regardless of which network a
+  # request arrives on, and /attack/* is a wholly separate check (gateway
+  # token + X-Auth-User, dojo_http.py) that those paths never accept.
   ctf-controller:
     build:
       context: ../modules/ctf-range/ctf-controller
@@ -111,7 +217,7 @@ services:
     container_name: workshop_ctf_controller
     depends_on:
       ctf-host:
-        condition: service_started
+        condition: service_healthy
     environment:
       - CTF_SOCKET=/run/ctf/docker.sock
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
@@ -120,15 +226,40 @@ services:
       # value is injected into each target, the seed never is. Dev fallback if
       # unset (no `:?`, so the stack still comes up — see CLAUDE.md).
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
-      # The in-lab registry defend-main.yml pushes patched images to (spike S6;
-      # not stood up yet). Empty = only the baked base image may run.
-      - CTF_REGISTRY=${CTF_REGISTRY:-}
+      # The in-lab registry ctf-builder pushes patched images to, and the
+      # prefix a redeploy's image name must carry (spike S6). Empty = only
+      # the baked base image may run.
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
       - CTF_BASE_IMAGE=ctf-customer-portal:base
       - CTF_TARGET_PORT=5000
       - CTF_TARGET_MEM_LIMIT=${CTF_TARGET_MEM_LIMIT:-128m}
       - CTF_TARGET_PIDS_LIMIT=${CTF_TARGET_PIDS_LIMIT:-256}
       # The control token the allocator / defend pipeline authenticate with.
       - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      # This upstream's own gateway token (render_extensions.py derives it
+      # from extensions.json's "ctf-attack" identity route; FIND-16), and the
+      # facilitator account name, so /attack/* can tell that account apart
+      # from a real student slot.
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_CONTROLLER:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
+      # The CTF-1..4 attack-ladder catalog and its queue/idle tuning (plan §4,
+      # CTF-D20) — see module.env for why CTF_ATTACK_TARGETS defaults empty.
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      - CTF_ATTACK_PORT_BASE=${CTF_ATTACK_PORT_BASE:-16000}
+      - CTF_ATTACK_IDLE_SECONDS=${CTF_ATTACK_IDLE_SECONDS:-1200}
+      - CTF_ATTACK_MAX_CONCURRENT=${CTF_ATTACK_MAX_CONCURRENT:-10}
+      # Per-target IP layout (controller.py's ATTACK_IP_BASE_OCTET /
+      # ATTACK_IPS_PER_STUDENT); must match the ctf-host service env above
+      # and the terminal firewall's own copy.
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+      # The ctf_net subnet (set in the networks: section below). The
+      # /attack/status endpoint echoes it back so the landing-page Attack
+      # Range header can show students a concrete scan range. ctf-host's own
+      # address inside this subnet is resolved by the controller at startup
+      # (socket.gethostbyname -- podman-compose does not honour
+      # ipv4_address pins, so we read the actual IP instead of pinning).
+      - CTF_NET_SUBNET=10.42.0.0/24
     volumes:
       - ctf_run:/run/ctf
     # The ctf-host socket is 0660 root:ctf (gid 1901); the controller is the
@@ -137,26 +268,271 @@ services:
       - "1901"
     networks:
       - ctf_ops
+      - runner_net
+      - workshop_lab
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     mem_limit: ${CTF_CONTROLLER_MEM_LIMIT:-128m}
     pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     restart: unless-stopped
+
+  # ctf-view: the browser window onto a student's own live target
+  # (/ctf-view/<target>/, identity gate). Same image as ctf-controller (it
+  # reuses Config's student -> IP math) but a different process and none of
+  # the controller's power: no ctf-host socket, no ctf_ops. It is on ctf_net
+  # only to reach the slot IPs and on workshop_lab to be reached by the
+  # gateway, which stays the sole way in (it checks X-Gateway-Token itself).
+  ctf-view:
+    image: gitopsdojo/ctf-controller:local
+    container_name: workshop_ctf_view
+    entrypoint: ["python3", "/app/view.py"]
+    depends_on:
+      ctf-controller:
+        condition: service_started
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_VIEW:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
+      - CTF_TARGET_PORT=5000
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+      - CTF_NET_SUBNET=10.42.0.0/24
+    networks:
+      - ctf_net
+      - workshop_lab
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_VIEW_MEM_LIMIT:-64m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9100/healthz').read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # ctf-builder: the ONLY thing allowed to ask ctf-host to build (spike S6).
+  # Shares ctf-host's socket exactly as ctf-controller does (same volume,
+  # same group_add gid), but is deliberately NOT on `ctf_ops`: it is a member
+  # of `runner_net` only, so the only thing that can reach its /build endpoint
+  # is a Forgejo Actions job in the runner pool (modules/runner-pool) — never
+  # a student. It reaches the registry only INDIRECTLY, by asking ctf-host's
+  # dockerd to push over the shared socket — dockerd is the one that is on
+  # `ctf_ops`, not ctf-builder (see README.md "Why a separate service, and
+  # runner_net only"). It never creates/starts/stops/removes a container; see
+  # ctf-controller/docker_api.py's docstring for why that stays out of reach
+  # here too. ctf-controller is also on `runner_net` (above), so ctf-builder
+  # and ctf-controller now share that one network — but ctf-builder holds no
+  # credential for ctf-controller's control API and never calls it; the CI
+  # job itself sequences build-then-redeploy as two separate authenticated
+  # calls (defend-main.yml).
+  #
+  # Needs `runner-pool` also listed in this workshop's MODULES to be reachable
+  # by a real CI job (that module owns `runner_net`); without it this service
+  # still starts, just with no caller able to reach it.
+  ctf-builder:
+    build:
+      context: ../modules/ctf-range/ctf-builder
+    image: gitopsdojo/ctf-builder:local
+    container_name: workshop_ctf_builder
+    depends_on:
+      ctf-host:
+        condition: service_healthy
+    environment:
+      - CTF_SOCKET=/run/ctf/docker.sock
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      - CTF_GIT_SERVER=${CTF_GIT_SERVER:-git-server:3000}
+      - CTF_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
+      - CTF_IMAGE=ctf-customer-portal
+      # Its OWN token, deliberately different from CTF_CONTROL_TOKEN (a
+      # leaked build-trigger credential should never also grant /redeploy).
+      - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+    volumes:
+      - ctf_run:/run/ctf
+      # A clone is tiny (one Flask app); tmpfs keeps the read-only root happy
+      # without ever touching a real disk path.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    read_only: true
+    # Same socket group as ctf-controller (CTF_GID 1901) — both are clients
+    # of ctf-host's dockerd, neither can reach the other over it.
+    group_add:
+      - "1901"
+    networks:
+      - runner_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_BUILDER_MEM_LIMIT:-256m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9100/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  # ctf-flags: the flag submission service (plan §5). Reachable directly by
+  # every student's terminal on workshop_lab (no gateway hop — the terminal
+  # is already the identified side of that trust boundary, see CLAUDE.md);
+  # it verifies a submitted flag itself and credits achievements through the
+  # same signed adapter path dns-gate/cloud-api/openbao-audit use. Holds the
+  # range-wide flag seed, same trust tier as ctf-controller, but no socket
+  # and no volume beyond its own code.
+  ctf-flags:
+    build:
+      context: ../modules/ctf-range/ctf-flags
+    image: gitopsdojo/ctf-flags:local
+    container_name: workshop_ctf_flags
+    environment:
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+      - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
+      - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
+    networks:
+      - workshop_lab
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_FLAGS_MEM_LIMIT:-64m}
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # attacker-bot lives in workshops/ctf-defend/compose/docker-compose.override.yml:
+  # the swarm's hardcoded CTF_CHALLENGE=customer-portal and its "Start Attack
+  # Swarm" trigger (SOC Alerts admin tab) are both defend-only (CTF-5), so
+  # having it in the shared ctf-range module meant attack packs (ctf-access,
+  # ctf-defend-test, future CTF-2..4) ran it idle, wasting a container and
+  # ~64MB on nothing. 2026-10-07 move.
+
+  # ctf-lab-info: static file server for the Lab Info library (plan §9,
+  # CTF-D16/P2b) - the same content/lab-info the terminal image bakes into
+  # every account's ~/lab-info, now also reachable in the browser
+  # (extensions.json's "lab-info" card/route/admin tab, gate "shared" - one
+  # copy, identical for every student, no identity hop needed). Stock Caddy
+  # (the gateway's own image, already pulled) with `file_server`, nothing
+  # built. read-only mounts of the same directory the Dockerfile COPYs from,
+  # so the two can never drift apart.
+  #
+  # The reader (web/) renders each .md with markdown-it + Prism (vendored
+  # under workshops/assets/vendor/) so it reads the same way the workshops'
+  # own lab reader does -- replacing the earlier raw-markdown `file_server
+  # browse` listing (users saw plain text downloads).
+  ctf-lab-info:
+    image: gitopsdojo/gateway:local
+    container_name: workshop_ctf_lab_info
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ../modules/ctf-range/lab-info/web:/srv/lab-info:ro
+      - ../modules/ctf-range/terminal/content/lab-info:/srv/lab-info/docs:ro
+      - ../workshops/assets/vendor:/srv/lab-info/vendor:ro
+      - ../modules/ctf-range/lab-info/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - workshop_lab
+    read_only: true
+    # caddy:*-alpine's binary carries a cap_net_bind_service FILE capability
+    # (gateway/Dockerfile's comment) so it can bind low ports as non-root;
+    # dropping every capability from the bounding set makes the kernel
+    # refuse that exec outright ("Operation not permitted"), even though we
+    # only bind :8080. Same fix as runner-pool-shim/openbao-sso-shim: add
+    # the one capability back.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_LAB_INFO_MEM_LIMIT:-32m}
+    pids_limit: 32
+    # The image's own HEALTHCHECK asks Caddy's admin API, which this
+    # Caddyfile turns off; ask the site itself instead.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/README.md"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # The terminal's client side (dojo-flag, the ctf_net firewall hook) is
+  # terminal/, a link in the terminal build chain (engine/run.sh). web-terminal's
+  # base `networks:` uses the MAP form (engine/docker-compose.yml, for the
+  # terminal_ingress alias) — a fragment that adds networks here MUST use map
+  # form too, or podman-compose fails mixing list and map (CLAUDE.md).
+  web-terminal:
+    environment:
+      # Which attack-ladder targets this pack enables (CTF-D20's catalog).
+      # Not read by the firewall hook, only by 55-git-secrets.sh to decide
+      # whether that target's provisioning should run at all for this pack.
+      - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}
+      # The ctf_net subnet, read by 50-ctf-range.sh's firewall hook to
+      # drop all student traffic to non-ctf-host addresses on this network
+      # (2026-10-06 fix). Must match ctf_net.ipam.config.subnet below.
+      - CTF_NET_SUBNET=10.42.0.0/24
+      # Per-target IP layout the firewall ACCEPTs per uid (2026-10-07,
+      # HackTheBox-style). Must match the ctf-host and ctf-controller
+      # services' own copies; see controller.py's ATTACK_IP_BASE_OCTET.
+      - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
+      - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+    networks:
+      ctf_net: {}
 
 volumes:
   ctf_customer_portal_data:
   ctf_run:
-  ctf_docker:
+  ctf_registry_data:
+  # No ctf_docker volume: /var/lib/docker is bind-mounted to
+  # .cache/ctf-docker on the host (see ctf-host.volumes above).
 
 networks:
   # The range network: internal, no route to the internet, the gateway,
-  # Forgejo or workshop_lab (§4, §6). The real range adds per-student firewall
-  # rules so each uid reaches exactly its own target; that is spike CTF-S2.
+  # Forgejo or workshop_lab (§4, §6). Carries ctf-host (its one address,
+  # published slot ports only) and web-terminal; the per-student firewall
+  # rule restricting each uid to its own slot's port is
+  # modules/ctf-range/terminal/start.d/50-ctf-range.sh (spike CTF-S2).
+  #
+  # Pinned subnet 10.42.0.0/24 so the Attack Range card on the landing page
+  # can show students a concrete scan range, and so the firewall hook has a
+  # single CIDR to default-deny on. Addresses within it are
+  # docker-assigned; ctf-controller resolves ctf-host at startup and echoes
+  # the real IP through /attack/status (podman-compose does not honour
+  # ipv4_address pins, so we read the actual IP instead of pinning).
   ctf_net:
     internal: true
-  # The control-plane network: ctf-host and ctf-controller only, internal, no
-  # student ever on it. The cloud_net precedent from dojo-cloud.
+    ipam:
+      config:
+        - subnet: 10.42.0.0/24
+  # The control-plane network: ctf-host, ctf-controller and the in-lab
+  # registry only, internal, no student ever on it. The cloud_net precedent
+  # from dojo-cloud. ctf-builder is deliberately NOT a member (see its
+  # comment above) — it never shares a network with ctf-controller/ctf-host.
   ctf_ops:
+    internal: true
+  # Owned by modules/runner-pool; declared here too (identical: internal,
+  # same name) so this module validates and runs standalone (no orphaned
+  # caller — see README.md). When a workshop also lists runner-pool,
+  # compose merges both declarations and the pool's CI jobs can reach
+  # ctf-builder on it; without runner-pool, ctf-builder simply has no caller.
+  runner_net:
     internal: true

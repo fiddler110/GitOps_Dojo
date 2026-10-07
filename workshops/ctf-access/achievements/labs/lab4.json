@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l4-flag",
+      "title": "Trust, But Verify (They Didn't)",
+      "joke": "A certificate you made yourself, thirty seconds ago, and it worked.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for cert-trust-bypass",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "cert-trust-bypass"
+      }
+    }
+  ]
+}

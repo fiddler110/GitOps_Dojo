@@ -1,0 +1,97 @@
+/*
+ * Landing-page attack-range cards (attack-cards.js). The engine's own
+ * confirm.css gives us .card / .card-icon / .card-text / .card-title /
+ * .card-desc; this file adds only what the engine CSS does not: the
+ * section head, the per-card actions column, the state-colour border,
+ * and the small code span showing the target address.
+ *
+ * CSP: served under the allocator's strict policy as a same-origin
+ * external stylesheet (CSP style-src 'self' + hashes). Must stay an
+ * external file -- no inline style, no style attribute.
+ *
+ * Palette shadows modules/ctf-range/ctf-controller/static/app.css so the
+ * state colours (live/pending/error) read the same here as on the
+ * /ctf-attack/ admin page.
+ */
+
+:root {
+  --ctf-live: #16a34a;
+  --ctf-pending: #d97706;
+  --ctf-error: #dc2626;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ctf-live: #22c55e;
+    --ctf-pending: #f59e0b;
+    --ctf-error: #f87171;
+  }
+}
+
+.attack-range { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.6rem; }
+.attack-range-head { display: flex; flex-direction: column; gap: 0.3rem; padding: 0 0.1rem; }
+.attack-range-title { font-weight: 600; font-size: 0.95rem; }
+.attack-range-hint { font-size: 0.78rem; opacity: 0.65; line-height: 1.35; }
+
+.attack-range-scan {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+@media (prefers-color-scheme: dark) {
+  .attack-range-scan { background: #1e2352; color: #c7d2fe; border-color: #312e81; }
+}
+.attack-range-scan-label { font-weight: 600; margin-right: 0.3rem; }
+.attack-range-scan-hint { opacity: 0.75; font-size: 0.76rem; }
+
+.attack-range-grid { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
+
+.attack-card { align-items: center; }
+.attack-card:hover { transform: none; box-shadow: none; border-color: #e2e2e2; }
+@media (prefers-color-scheme: dark) {
+  .attack-card:hover { border-color: #333; }
+}
+.attack-card.live { border-color: var(--ctf-live); }
+.attack-card.pending { border-color: var(--ctf-pending); }
+.attack-card.error { border-color: var(--ctf-error); }
+
+.attack-meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.1rem; }
+.attack-state { text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.72rem; }
+.attack-card.live .attack-state { color: var(--ctf-live); }
+.attack-card.pending .attack-state { color: var(--ctf-pending); }
+.attack-card.error .attack-state { color: var(--ctf-error); }
+.attack-sep { opacity: 0.5; }
+.attack-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #eef2ff; color: #3730a3; border-radius: 0.35rem;
+  padding: 0.02rem 0.4rem; font-size: 0.78rem;
+}
+@media (prefers-color-scheme: dark) {
+  .attack-addr { background: #1e2352; color: #c7d2fe; }
+}
+
+.attack-err {
+  display: block; margin-top: 0.3rem;
+  color: var(--ctf-error); font-size: 0.78rem;
+}
+
+.attack-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; flex-shrink: 0; }
+.attack-btn {
+  font: inherit; font-size: 0.82rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #e2e2e2;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  .attack-btn { background: #1f1f1f; border-color: #333; }
+}
+.attack-btn:hover:not(:disabled) { border-color: #2563eb; color: #2563eb; }
+.attack-btn:disabled { opacity: 0.4; cursor: default; }
+
+.attack-range-note { margin: 0.2rem 0.1rem; font-size: 0.82rem; opacity: 0.7; }

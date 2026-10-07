@@ -14,6 +14,7 @@ import re
 import sys
 import threading
 import time
+from collections import deque
 
 import guards
 import ledger as lg
@@ -46,6 +47,22 @@ def _activity(doc):
     return out
 
 
+def _status(doc):
+    """The saved per-target status lights (plan §8.10), dropping anything malformed."""
+    out = {}
+    for key, v in (doc.items() if isinstance(doc, dict) else ()):
+        try:
+            status = v["status"]
+            if status not in ("red", "yellow"):
+                raise ValueError
+            out[key] = {"status": status, "breached_at": float(v["breached_at"]),
+                        "fixed_at": float(v["fixed_at"]) if v.get("fixed_at") is not None else None,
+                        "retries": int(v.get("retries", 0))}
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
 class Denied(Exception):
     """A request the service refuses; `code` is the HTTP status."""
 
@@ -57,7 +74,8 @@ class Denied(Exception):
 
 class Store:
     def __init__(self, catalog, config, data_dir, secret, anonymous=True, facilitator="facilitator",
-                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=(), save_delay=None):
+                 clock=time.time, rate=(20, 10), shell_rate=(40, 10), ignore=(), save_delay=None,
+                 soc_dwell_seconds=480, soc_ramp_seconds=600):
         self.lock = threading.Lock()
         self.data_dir = data_dir
         self.anonymous = anonymous
@@ -97,6 +115,38 @@ class Store:
         # Per-student terminal activity for Sensei's stuck radar: times and exit codes only, never the command
         # text. Saved with the rest of the state, so a restart keeps the radar.
         self.activity = _activity(state.get("activity"))
+        # Per-target status light (plan §8.10): "user\x1cchallenge" -> {status: red|yellow,
+        # breached_at, fixed_at, retries}. Green is the ABSENCE of an entry, never written
+        # here. Persisted (unlike the ephemeral feeds below) - it is the scoring record a
+        # session-end tally and the debrief incident summary (8.9) both read.
+        self.target_status = _status(state.get("target_status"))
+        # Wall of shame (plan §8.12): (user, challenge) -> last `ctf`/`dump_success` event time.
+        # Deliberately IN-MEMORY ONLY, not part of _doc()/persistence - it is a rolling "is the
+        # attacker still connected right now" signal, not a record worth keeping across a
+        # restart. See wall_rows().
+        self.ctf_dumps = {}
+        # SOC feed (plan §8.2): one bounded deque per student (their own "SOC Alerts" card) plus
+        # one room-wide deque (the facilitator admin tab). Same deliberately-ephemeral treatment
+        # as ctf_dumps above - a rolling live feed, not a record worth a restart.
+        self.soc_feed = {}
+        self.soc_feed_all = deque(maxlen=self.SOC_ROOM_MAX)
+        # The room-wide SOC countdown (plan §8.2, revised 2026-10-05 for the big green/yellow/
+        # red timer; revised again the same day so the facilitator starts it on purpose - see
+        # admin_soc_start()). None = not started yet: the lab can build and sit idle while
+        # students are walked through the briefing with no bot traffic at all. attacker-bot's
+        # bot.py polls admin_soc_start()'s result (POST /api/soc/control) and begins its own
+        # dwell clock from the SAME started_at it gets back, so the two processes agree on the
+        # moment without a push from here - achievements never calls out to the bot.
+        # SOC_DWELL_SECONDS/SOC_RAMP_SECONDS must equal
+        # modules/ctf-range/attacker-bot/personas.py's DWELL_SECONDS/RAMP_SECONDS
+        # (CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS in module.env set both sides).
+        self.soc_started_at = None
+        self.soc_dwell_seconds = soc_dwell_seconds
+        self.soc_ramp_seconds = soc_ramp_seconds
+        # Facilitator-fired inject/hint-probe commands (plan §8.5) waiting for attacker-bot's
+        # next control poll. Ephemeral like the feeds above - a missed poll just means "try
+        # again next poll", not a record worth a restart.
+        self.soc_commands = []
         self._saved_at = None
         self.save_delay = save_delay
         self._dirty = False
@@ -124,7 +174,8 @@ class Store:
         return json.dumps({"ledger": self.ledger.to_dict(), "names": self.names.mapping(),
                            "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
                            "checks": self.checks[-500:], "activity": self.activity,
-                           "watching": self.watching, "stepped": self.stepped})
+                           "watching": self.watching, "stepped": self.stepped,
+                           "target_status": self.target_status})
 
     def _write(self, text):
         path = self._path()
@@ -454,9 +505,232 @@ class Store:
             return {"unlocked": 0}
         with self.lock:
             self._student(user)
-            got = self._matched(user, event, self.clock())
+            now = self.clock()
+            challenge = event.get("challenge") or ""
+            if event.get("source") == "ctf" and event.get("event") == "dump_success":
+                self.ctf_dumps[(user, challenge)] = now
+                self._mark_breach(user, challenge, now)
+            if event.get("source") == "soc":
+                self._soc_alert(user, event, now)
+                if event.get("event") == "contained":
+                    self._mark_fixed(user, challenge, now)
+            got = self._matched(user, event, now)
             self._save()
             return {"unlocked": len(got)}
+
+    # -- per-target status light (plan §8.10) -------------------------------------------
+    def _status_key(self, user, challenge):
+        return f"{user}\x1c{challenge}"
+
+    def _mark_breach(self, user, challenge, now):
+        """A `dump_success` landed (caller holds the lock): green -> red. Already red or
+        yellow stays exactly where it is - the one-way transition the plan asks for (never
+        back to green, and a re-exploit after a fix doesn't move it back to red either, only
+        counts as a retry for the debrief)."""
+        key = self._status_key(user, challenge)
+        rec = self.target_status.get(key)
+        if rec is None:
+            self.target_status[key] = {"status": "red", "breached_at": now, "fixed_at": None, "retries": 0}
+        elif rec["status"] == "yellow":
+            rec["retries"] += 1
+
+    def _mark_fixed(self, user, challenge, now):
+        """A `contained` event: attacker-bot re-probed the live (redeployed) target and it's
+        patched now - the same signal mean-time-to-patch (8.8) counts. Only means anything for
+        a target that's currently red; fixing something never breached is a no-op."""
+        key = self._status_key(user, challenge)
+        rec = self.target_status.get(key)
+        if rec and rec["status"] == "red":
+            rec["status"] = "yellow"
+            rec["fixed_at"] = now
+
+    def target_statuses(self):
+        """Every (student, target) status light the room has, for the facilitator admin tab,
+        the cyber map and the incident summary. Green never appears here - it's the absence
+        of a row."""
+        with self.lock:
+            rows = []
+            for key, rec in self.target_status.items():
+                user, challenge = key.split("\x1c", 1)
+                mttp = (rec["fixed_at"] - rec["breached_at"]) if rec["fixed_at"] is not None else None
+                rows.append({"user": self._label(user), "challenge": challenge, "status": rec["status"],
+                            "breached_at": rec["breached_at"], "fixed_at": rec["fixed_at"],
+                            "mttp": mttp, "retries": rec["retries"]})
+        rows.sort(key=lambda r: r["breached_at"])
+        return rows
+
+    def mttp_summary(self):
+        """Mean time to patch per student (plan §8.8), next to the cyber map and on the admin
+        tab: only targets that reached yellow have one - still-red has no time yet, and green
+        never had a breach to time at all."""
+        by_user = {}
+        for r in self.target_statuses():
+            if r["mttp"] is not None:
+                by_user.setdefault(r["user"], []).append(r["mttp"])
+        return [{"user": u, "mttp": sum(v) / len(v)} for u, v in sorted(by_user.items())]
+
+    # -- cyber map (plan §8.3): renders only what the soc feed already tagged -----------
+    MAP_WINDOW = 120     # seconds: how recent a hit has to be to count toward "under siege"
+    MAP_ARCS_MAX = 60    # arcs shown at once - a trim of the same room-wide feed as the admin tab
+
+    def map_data(self):
+        """{"arcs", "top", "breaches", "timer"} for the room-wide cyber map widget. ARCS: the
+        most recent room events (origin/severity/target already tagged by the swarm - this
+        invents nothing, per the plan). TOP: the "Top 10 under siege" list, a rolling hit count
+        per (student, target) in the last MAP_WINDOW seconds. BREACHES: targets that went red
+        within that same window, for the map's distinct "breach just landed" marker - `ctf`
+        dump_success events never reach soc_feed_all (they're a different adapter source, for
+        the wall of shame), so this reads target_statuses() instead rather than inventing a
+        second event path."""
+        now = self.clock()
+        with self.lock:
+            arcs = list(self.soc_feed_all)[-self.MAP_ARCS_MAX:]
+            counts = {}
+            for r in self.soc_feed_all:
+                if now - r["at"] <= self.MAP_WINDOW:
+                    key = (r["user"], r["challenge"])
+                    counts[key] = counts.get(key, 0) + 1
+        top = sorted(({"user": u, "challenge": c, "hits": n} for (u, c), n in counts.items()),
+                     key=lambda x: -x["hits"])[:10]
+        breaches = [r for r in self.target_statuses() if now - r["breached_at"] <= self.MAP_WINDOW]
+        return {"arcs": arcs, "top": top, "breaches": breaches, "timer": self.soc_timer()}
+
+    # -- incident summary (plan §8.9) ----------------------------------------------------
+    def incident(self, user):
+        """One student's own incident summary, for the debrief: their status light(s) (with
+        MTTP once fixed) and their full SOC-alert timeline."""
+        with self.lock:
+            self._student(user)
+            label = self._label(user)
+            timeline = list(reversed(self.soc_feed.get(user, ())))
+        targets = [r for r in self.target_statuses() if r["user"] == label]
+        return {"user": label, "targets": targets, "timeline": timeline}
+
+    def admin_incident(self, user):
+        """The facilitator's view of the same summary, for any known student (not just one
+        who's hit the endpoint themselves)."""
+        with self.lock:
+            if user not in self.ledger.users:
+                raise Denied(404, "no such student")
+            label = self._label(user)
+            timeline = list(reversed(self.soc_feed.get(user, ())))
+        targets = [r for r in self.target_statuses() if r["user"] == label]
+        return {"user": label, "targets": targets, "timeline": timeline}
+
+    # -- facilitator inject / hint-probe controls (plan §8.5) ----------------------------
+    def _queue_command(self, kind, user):
+        with self.lock:
+            if user != "all" and user not in self.ledger.users:
+                raise Denied(404, "no such student")
+            self.soc_commands.append({"type": kind, "user": None if user == "all" else user})
+            return {"ok": True}
+
+    def admin_soc_inject(self, user):
+        """Fires one additional, real exploit attempt at USER (or every student, "all") the
+        next time attacker-bot polls - bypassing their own delay. See bot.py's run_inject."""
+        return self._queue_command("inject", user)
+
+    def admin_soc_hint(self, user):
+        """Fires a short burst of non-exploiting probes at USER (or every student, "all") the
+        next time attacker-bot polls - the "kinetic hint" (plan §8.5). See bot.py's
+        run_hint_probe."""
+        return self._queue_command("hint", user)
+
+    def soc_control(self):
+        """attacker-bot's combined poll (plan §8.2 + §8.5): the room timer plus any waiting
+        commands, popped here - at-most-once, which is fine since there is exactly one bot
+        process consuming them (a missed poll just means "try the next one", not a lost
+        inject worth retrying harder for)."""
+        doc = self.soc_timer()
+        with self.lock:
+            commands, self.soc_commands = self.soc_commands, []
+        doc["commands"] = commands
+        return doc
+
+    # SOC feed (plan §8.2). One alert per persona attempt against a student's own target,
+    # bounded per-student (their "SOC Alerts" card) and room-wide (the admin tab). Severity is
+    # derived from `event` here, once, rather than trusted as a free-text field from the poster.
+    SOC_SEVERITY = {"recon": "INFO", "probe": "WARN", "exploit_attempt": "CRITICAL", "contained": "INFO"}
+    SOC_PER_STUDENT_MAX = 50
+    SOC_ROOM_MAX = 300
+
+    def _soc_alert(self, user, event, now):
+        """Append one soc alert to both feeds (caller holds the lock)."""
+        row = {"user": self._label(user), "event": event.get("event"),
+               "severity": self.SOC_SEVERITY.get(event.get("event"), "INFO"),
+               "persona": event.get("persona"), "origin": event.get("origin"),
+               "challenge": event.get("challenge"), "at": now}
+        self.soc_feed.setdefault(user, deque(maxlen=self.SOC_PER_STUDENT_MAX)).append(row)
+        self.soc_feed_all.append(row)
+
+    def soc_rows(self, user):
+        """This student's own recent alerts, newest first (their "SOC Alerts" card)."""
+        with self.lock:
+            return list(reversed(self.soc_feed.get(user, ())))
+
+    def admin_soc_rows(self):
+        """Every student's recent alerts, newest first (the facilitator admin tab)."""
+        with self.lock:
+            return list(reversed(self.soc_feed_all))
+
+    def admin_soc_start(self):
+        """The facilitator's "Start Attack Swarm" button. Idempotent - a second click (or a
+        page two facilitators both have open) never resets an already-running clock; only
+        admin_soc_reset() can do that. Returns the started_at every caller's soc_timer() will
+        now agree on, including attacker-bot's bot.py the next time it polls."""
+        with self.lock:
+            if self.soc_started_at is None:
+                self.soc_started_at = self.clock()
+            return {"started_at": self.soc_started_at}
+
+    def admin_soc_reset(self):
+        """Re-arm the countdown for a fresh run (e.g. between back-to-back sections) - the next
+        admin_soc_start() begins a new clock from scratch."""
+        with self.lock:
+            self.soc_started_at = None
+            return {"ok": True}
+
+    def soc_timer(self):
+        """{"phase", "seconds_remaining", "started_at"} for the big green/yellow/red countdown
+        everyone sees (student card and admin tab alike - it's room-wide, not per-student).
+        phase "waiting" (seconds_remaining None) until the facilitator starts it. Mirrors
+        modules/ctf-range/attacker-bot/personas.py's room_timer() exactly once started (see this
+        class's soc_started_at comment for why the two never need to talk to agree)."""
+        now = self.clock()
+        with self.lock:
+            started_at = self.soc_started_at
+        if started_at is None:
+            return {"phase": "waiting", "seconds_remaining": None, "started_at": None}
+        dwell_elapsed = now - started_at - self.soc_dwell_seconds
+        if dwell_elapsed <= 0:
+            phase = "green"
+        elif dwell_elapsed < self.soc_ramp_seconds:
+            phase = "yellow"
+        else:
+            phase = "red"
+        remaining = 0 if phase == "red" else max(
+            0, int(self.soc_dwell_seconds + self.soc_ramp_seconds - (now - started_at)))
+        return {"phase": phase, "seconds_remaining": remaining, "started_at": started_at}
+
+    # Wall of shame (plan §8.12). LIVE while dump_success events keep arriving for a
+    # (student, target); DISCONNECTED once they stop (the moment a patch lands and the next
+    # attacker probe comes back empty - containment, same signal MTTP already counts); dropped
+    # once quiet long enough to age off. Driven entirely by the event payload (CTF-S11): nothing
+    # here is specific to any one target.
+    WALL_LIVE_WINDOW = 90     # seconds with no fresh dump -> DISCONNECTED
+    WALL_MAX_AGE = 1800       # seconds quiet -> dropped (ages off)
+
+    def wall_rows(self):
+        now = self.clock()
+        with self.lock:
+            for key in [k for k, t in self.ctf_dumps.items() if now - t > self.WALL_MAX_AGE]:
+                del self.ctf_dumps[key]
+            rows = [{"user": self._label(user), "challenge": challenge,
+                    "state": "LIVE" if now - t < self.WALL_LIVE_WINDOW else "DISCONNECTED",
+                    "last_seen": t}
+                   for (user, challenge), t in self.ctf_dumps.items()]
+        rows.sort(key=lambda r: -r["last_seen"])
+        return rows
 
     def sweep_state(self, runner, unavailable=(), gap=20, budget=40):
         """Run the `verify` milestones (state, not events: "the app serves a new certificate") for
@@ -665,9 +939,11 @@ class Store:
                                  "unlocks": len(L.visible_unlocked(u)),
                                  "moments": [m["title"] for m in L.moments(u)],
                                  "cheats": [i for i, x in L.visible_unlocked(u).items() if x["cheat"]]})
-            return {"students": students, "log": L.log[-100:], "forged": self.forged[-50:],
-                    "checks": self.checks[-100:],
-                    "anonymous": self.anonymous}
+            out = {"students": students, "log": L.log[-100:], "forged": self.forged[-50:],
+                  "checks": self.checks[-100:], "anonymous": self.anonymous}
+        out["target_status"] = self.target_statuses()     # each acquires the lock itself
+        out["mttp"] = self.mttp_summary()
+        return out
 
     def admin_award(self, user, points, reason):
         with self.lock:

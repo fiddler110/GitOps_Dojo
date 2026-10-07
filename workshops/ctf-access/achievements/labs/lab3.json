@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l3-flag",
+      "title": "Ticket Resolved (Not How They Meant)",
+      "joke": "Someone's old habit of saving packet captures just cost them an account.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for idor-pcap",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "idor-pcap"
+      }
+    }
+  ]
+}

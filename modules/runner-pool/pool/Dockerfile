@@ -17,8 +17,12 @@ USER root
 # util-linux: unshare, prlimit. shadow: useradd/userdel. python3: the
 # supervisor. tini: PID 1, so the processes of a killed runner that end up
 # re-parented to it are reaped. bash: a workflow's default shell. curl, jq,
-# git: what most steps call.
-RUN apk add --no-cache util-linux shadow python3 tini bash curl jq git ca-certificates
+# git: what most steps call. py3-flask: baked (never fetched, CTF-D24) so a
+# workflow can run a target's own app.py in-process for a gate (e.g.
+# modules/ctf-range/targets/customer-portal's defend-pr.yml, per its own
+# comment on why this needs to be baked here) -- additive, no other
+# workshop's jobs reference it.
+RUN apk add --no-cache util-linux shadow python3 py3-flask tini bash curl jq git ca-certificates
 
 ARG JOB_TOOLS=""
 RUN --mount=type=bind,from=tools,source=/usr/local/bin,target=/tools \

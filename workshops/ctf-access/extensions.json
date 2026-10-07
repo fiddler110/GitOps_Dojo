@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "scripts": [
+    { "id": "attack-cards", "src": "/ctf-attack/attack-cards.js" }
+  ]
+}

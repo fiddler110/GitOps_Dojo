@@ -59,22 +59,29 @@ RUN set -eux; \
 # starts no process. The Python step fails the build if a future version
 # moves those fields, instead of shipping with the reporter still on.
 # https://open-vsx.org/extension/hashicorp/hcl
+#
+# Guarded by `command -v code-server`: the Zellij flavor's leaf has no
+# code-server at all (a sibling of the vscode leaf, not built on top of it
+# — see engine/README.md's "Terminal flavor" section), so there's nothing
+# to install the extension into.
 ARG HCL_VSCODE_VERSION=0.5.0
 ARG HCL_VSCODE_SHA256=09fc9348908c4c8283572bc4ec9f452907d72abc1008e328051f76d0232804e3
 RUN set -eux; \
-    wget -O /tmp/hcl.vsix \
-      "https://open-vsx.org/api/hashicorp/hcl/${HCL_VSCODE_VERSION}/file/hashicorp.hcl-${HCL_VSCODE_VERSION}.vsix"; \
-    echo "${HCL_VSCODE_SHA256}  /tmp/hcl.vsix" | sha256sum -c -; \
-    code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/hcl.vsix --force; \
-    rm -f /tmp/hcl.vsix; \
-    ext="/opt/code-server-extensions/hashicorp.hcl-${HCL_VSCODE_VERSION}"; \
-    python3 -B -c 'import json, sys; p = sys.argv[1] + "/package.json"; d = json.load(open(p)); \
+    if command -v code-server >/dev/null 2>&1; then \
+      wget -O /tmp/hcl.vsix \
+        "https://open-vsx.org/api/hashicorp/hcl/${HCL_VSCODE_VERSION}/file/hashicorp.hcl-${HCL_VSCODE_VERSION}.vsix"; \
+      echo "${HCL_VSCODE_SHA256}  /tmp/hcl.vsix" | sha256sum -c -; \
+      code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/hcl.vsix --force; \
+      rm -f /tmp/hcl.vsix; \
+      ext="/opt/code-server-extensions/hashicorp.hcl-${HCL_VSCODE_VERSION}"; \
+      python3 -B -c 'import json, sys; p = sys.argv[1] + "/package.json"; d = json.load(open(p)); \
 [d.pop(k) for k in ("main", "browser", "activationEvents")]; \
 assert any(".hcl" in l.get("extensions", []) for l in d["contributes"]["languages"]); \
 json.dump(d, open(p, "w"), indent=2)' "$ext"; \
-    rm -rf "$ext/out"; \
-    chown -R root:root /opt/code-server-extensions; \
-    chmod -R a+rX /opt/code-server-extensions
+      rm -rf "$ext/out"; \
+      chown -R root:root /opt/code-server-extensions; \
+      chmod -R a+rX /opt/code-server-extensions; \
+    fi
 
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the
 # HEALTHCHECK is restated so a static scan of this file alone (which doesn't

@@ -50,6 +50,7 @@ class Sources(unittest.TestCase):
             item("fork", {"source": "forgejo", "event": "fork"}),
             item("first", {"source": "shell", "cmd": "tofu destroy", "requires_not": ["denied"]}),
             item("limited", {"source": "ca", "event": "rate_limited"}),
+            item("sqli-solved", {"source": "ctf", "event": "flag_solved", "challenge": "sqli-login"}),
         ]
         self.root, self.path = workshop(self.items)
         c = cat.load(self.path, check_name=False)[0]
@@ -77,6 +78,12 @@ class Sources(unittest.TestCase):
     def test_ca_event(self):
         self.assertEqual(self.m.match(mt.adapter_event({"source": "ca", "event": "rate_limited", "user": "amy"})),
                          ["limited"])
+
+    def test_ctf_event(self):
+        ev = mt.adapter_event({"source": "ctf", "event": "flag_solved", "user": "amy", "challenge": "sqli-login"})
+        self.assertEqual(self.m.match(ev), ["sqli-solved"])
+        ev["challenge"] = "idor-pcap"
+        self.assertEqual(self.m.match(ev), [])
 
     def test_bad_adapter_events_are_dropped(self):
         for body in ({"source": "cloud", "event": "nope", "user": "a"}, {"source": "x", "event": "login", "user": "a"},

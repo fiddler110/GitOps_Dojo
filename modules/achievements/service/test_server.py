@@ -157,6 +157,151 @@ class StoreTests(unittest.TestCase):
         self.mk(anonymous=False)
         self.assertEqual({r["name"] for r in self.s.board("bob")}, {"alice", "bob"})
 
+    def test_wall_of_shame_tracks_live_then_disconnected_then_ages_off(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "customer-portal"})
+        rows = self.s.wall_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["challenge"], rows[0]["state"]), ("customer-portal", "LIVE"))
+        self.assertNotIn("alice", json.dumps(rows))  # anonymous by default, like the board
+        self.clock.t += self.s.WALL_LIVE_WINDOW + 1
+        self.assertEqual(self.s.wall_rows()[0]["state"], "DISCONNECTED")
+        self.clock.t += self.s.WALL_MAX_AGE
+        self.assertEqual(self.s.wall_rows(), [])
+
+    def test_wall_of_shame_is_not_anonymous_when_the_board_is_not(self):
+        self.mk(anonymous=False)
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.wall_rows()[0]["user"], "alice")
+
+    def test_soc_alerts_land_on_the_student_and_room_feeds(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.assertEqual(len(self.s.soc_rows("alice")), 1)
+        self.assertEqual(self.s.soc_rows("alice")[0]["severity"], "WARN")
+        self.assertEqual(self.s.soc_rows("bob"), [])          # not alice's own feed
+        self.assertEqual(len(self.s.admin_soc_rows()), 1)     # but it IS on the room-wide one
+
+    def test_soc_severity_is_derived_not_trusted(self):
+        self.s.adapter({"source": "soc", "event": "exploit_attempt", "user": "alice",
+                        "severity": "INFO"})   # a poster can't downgrade its own severity
+        self.assertEqual(self.s.soc_rows("alice")[0]["severity"], "CRITICAL")
+
+    def test_soc_timer_waits_until_the_facilitator_starts_it(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        self.assertEqual(self.s.soc_timer(), {"phase": "waiting", "seconds_remaining": None, "started_at": None})
+        self.clock.t += 99999   # waiting forever doesn't advance anything on its own
+        self.assertEqual(self.s.soc_timer()["phase"], "waiting")
+
+    def test_admin_soc_start_is_idempotent(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        first = self.s.admin_soc_start()
+        self.clock.t += 50
+        second = self.s.admin_soc_start()    # a second click doesn't reset the clock
+        self.assertEqual(first, second)
+
+    def test_soc_timer_green_then_yellow_then_red_once_started(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        start = self.s.admin_soc_start()["started_at"]
+        self.assertEqual(self.s.soc_timer(), {"phase": "green", "seconds_remaining": 300, "started_at": start})
+        self.clock.t += 101
+        self.assertEqual(self.s.soc_timer()["phase"], "yellow")
+        self.clock.t += 200
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0, "started_at": start})
+        self.clock.t += 99999
+        self.assertEqual(self.s.soc_timer(), {"phase": "red", "seconds_remaining": 0, "started_at": start})
+
+    def test_admin_soc_reset_rearms_the_countdown(self):
+        self.mk(soc_dwell_seconds=100, soc_ramp_seconds=200)
+        self.s.admin_soc_start()
+        self.clock.t += 150
+        self.assertEqual(self.s.soc_timer()["phase"], "yellow")
+        self.s.admin_soc_reset()
+        self.assertEqual(self.s.soc_timer()["phase"], "waiting")
+        restarted = self.s.admin_soc_start()["started_at"]
+        self.assertEqual(restarted, self.clock.t)   # a fresh clock, not the old one
+
+    def test_target_status_green_until_breached(self):
+        self.assertEqual(self.s.target_statuses(), [])
+
+    def test_target_status_turns_red_on_breach_then_yellow_once_contained(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "red")
+        self.assertIsNone(rows[0]["mttp"])
+        self.clock.t += 30
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(rows[0]["status"], "yellow")
+        self.assertEqual(rows[0]["mttp"], 30)
+
+    def test_target_status_never_goes_back_to_red_once_yellow(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        rows = self.s.target_statuses()
+        self.assertEqual(rows[0]["status"], "yellow")
+        self.assertEqual(rows[0]["retries"], 1)
+
+    def test_a_fix_on_a_never_breached_target_is_a_no_op(self):
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.target_statuses(), [])
+
+    def test_mttp_summary_only_counts_fixed_targets(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.mttp_summary(), [])      # still red: no time yet
+        self.clock.t += 40
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.mttp_summary(), [{"user": self.s._label("alice"), "mttp": 40}])
+
+    def test_map_data_has_arcs_top_and_breaches(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        data = self.s.map_data()
+        self.assertEqual(len(data["arcs"]), 1)           # dump_success never lands in soc_feed_all
+        self.assertEqual(data["top"], [{"user": self.s._label("alice"), "challenge": "c", "hits": 1}])
+        self.assertEqual(len(data["breaches"]), 1)
+        self.assertEqual(data["breaches"][0]["status"], "red")
+        self.assertIn("timer", data)
+
+    def test_map_breach_ages_out_of_the_window(self):
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.clock.t += self.s.MAP_WINDOW + 1
+        self.assertEqual(self.s.map_data()["breaches"], [])
+
+    def test_incident_is_the_students_own_timeline_and_status(self):
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
+                        "persona": "alice", "origin": "RU"})
+        self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        doc = self.s.incident("alice")
+        self.assertEqual(doc["user"], self.s._label("alice"))
+        self.assertEqual(len(doc["timeline"]), 1)
+        self.assertEqual(doc["targets"][0]["status"], "red")
+
+    def test_admin_incident_needs_a_known_student(self):
+        with self.assertRaises(Denied) as e:
+            self.s.admin_incident("nobody")
+        self.assertEqual(e.exception.code, 404)
+        self.s.me("alice")
+        self.assertEqual(self.s.admin_incident("alice")["targets"], [])
+
+    def test_admin_soc_inject_and_hint_need_a_known_student(self):
+        with self.assertRaises(Denied) as e:
+            self.s.admin_soc_inject("nobody")
+        self.assertEqual(e.exception.code, 404)
+        self.s.me("alice")
+        self.s.admin_soc_inject("alice")
+        self.s.admin_soc_hint("all")
+        self.assertEqual(self.s.soc_control()["commands"],
+                         [{"type": "inject", "user": "alice"}, {"type": "hint", "user": None}])
+
+    def test_soc_control_pops_commands_at_most_once(self):
+        self.s.me("alice")
+        self.s.admin_soc_inject("alice")
+        self.assertEqual(len(self.s.soc_control()["commands"]), 1)
+        self.assertEqual(self.s.soc_control()["commands"], [])
+
     def test_me_has_moments_and_completion(self):
         self.s.event(None, self.ev("a", "f-wrongdir"))
         me = self.s.me("a")
@@ -603,6 +748,26 @@ class TokenHttpTests(unittest.TestCase):
         finally:
             server.ADAPTER_SECRET = None
 
+    def test_soc_control_poll_needs_the_shared_secret_too(self):
+        import hashlib
+        import hmac
+        server.ADAPTER_SECRET = "adapt"
+        try:
+            raw = b"{}"
+
+            def poll(sig):
+                c = http.client.HTTPConnection("127.0.0.1", self.port)
+                c.request("POST", "/api/soc/control", body=raw, headers={"X-Adapter-Signature": sig})
+                r = c.getresponse()
+                out = (r.status, json.loads(r.read()))
+                c.close()
+                return out
+            self.assertEqual(poll("0" * 64)[0], 403)
+            status, doc = poll(hmac.new(b"adapt", raw, hashlib.sha256).hexdigest())
+            self.assertEqual((status, doc["phase"]), (200, "waiting"))   # nothing started it yet
+        finally:
+            server.ADAPTER_SECRET = None
+
     def test_sensei_reads_need_the_sensei_key(self):
         server.store.shell("amy", {"cmd": "ls", "exit": 1})
         try:
@@ -862,6 +1027,45 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.call("POST", path, user="boss", body=body)[0], 403)
         self.assertEqual(self.call("POST", path, user="boss", body=body, extra={"X-Requested-With": "dojo-admin"})[0], 200)
         self.assertEqual(self.call("GET", "/api/me", user="alice")[1]["score"], 3)
+
+    def test_soc_start_and_reset_need_the_facilitator(self):
+        hdr = {"X-Requested-With": "dojo-admin"}
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "waiting")
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/start", user="alice", extra=hdr)[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/start", user="boss")[0], 403)   # no header
+        st, doc, _ = self.call("POST", "/achievements-admin/api/soc/start", user="boss", extra=hdr)
+        self.assertEqual(st, 200)
+        self.assertIsNotNone(doc["started_at"])
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "green")
+        # idempotent: a second click doesn't reset the clock
+        st, doc2, _ = self.call("POST", "/achievements-admin/api/soc/start", user="boss", extra=hdr)
+        self.assertEqual(doc2["started_at"], doc["started_at"])
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="alice", extra=hdr)[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/reset", user="boss", extra=hdr)[0], 200)
+        self.assertEqual(self.call("GET", "/api/soc", user="alice")[1]["timer"]["phase"], "waiting")
+
+    def test_soc_inject_and_hint_need_the_facilitator_and_a_known_student(self):
+        hdr = {"X-Requested-With": "dojo-admin"}
+        self.call("GET", "/api/me", user="dana")     # registers dana
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="dana", extra=hdr, body={"user": "dana"})[0], 403)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", body={"user": "dana"})[0], 403)   # no header
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", extra=hdr, body={"user": "nobody"})[0], 404)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/inject",
+                                   user="boss", extra=hdr, body={"user": "dana"})[0], 200)
+        self.assertEqual(self.call("POST", "/achievements-admin/api/soc/hint",
+                                   user="boss", extra=hdr, body={"user": "all"})[0], 200)
+
+    def test_map_and_incident_routes(self):
+        self.call("GET", "/api/me", user="erin")
+        self.assertEqual(self.call("GET", "/api/map", user="erin")[1]["top"], [])
+        st, doc, _ = self.call("GET", "/api/incident", user="erin")
+        self.assertEqual((st, doc["targets"]), (200, []))
+        self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=nobody", user="boss")[0], 404)
+        self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=erin", user="boss")[0], 200)
+        self.assertEqual(self.call("GET", "/achievements-admin/api/map", user="boss")[0], 200)
 
     def test_unknown_paths(self):
         self.assertEqual(self.call("GET", "/nope")[0], 404)

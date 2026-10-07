@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "soc-alerts", "label": "SOC Alerts", "icon": "terminal",
+      "desc": "Your target's traffic, as the attacker swarm sees it.",
+      "href": "/achievements/soc" }
+  ],
+  "admin_tabs": [
+    { "id": "soc-alerts", "label": "SOC Alerts", "src": "/achievements-admin/soc" }
+  ]
+}

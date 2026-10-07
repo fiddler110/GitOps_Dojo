@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Incident Summary</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Incident Summary</h1>
+<div class="dim">What came in, when, and how long it took to shut the door - for the debrief (plan §8.9).</div>
+<div class="card incident-card" id="empty">No activity recorded yet.</div>
+<div class="card hidden incident-card" id="targets-card">
+  <h2>Targets</h2>
+  <table><thead><tr><th>Target</th><th>Status</th><th>Breached</th><th>Fixed</th><th>Time to patch</th><th>Retries since</th></tr></thead><tbody id="target-rows"></tbody></table>
+</div>
+<div class="card hidden" id="timeline-card">
+  <h2>Timeline</h2>
+  <table><thead><tr><th>When</th><th>Severity</th><th>Persona</th><th>Origin</th><th>Target</th></tr></thead><tbody id="timeline-rows"></tbody></table>
+</div>
+<script src="incident.js"></script>
+</body>
+</html>

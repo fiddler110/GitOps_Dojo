@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "cards": [
+    { "id": "lab-info", "label": "Lab Info", "icon": "terminal",
+      "desc": "Reference for every tool in your terminal -- mechanics, not answers.",
+      "href": "/lab-info/" },
+    { "id": "ctf-view", "label": "Target Viewer", "icon": "terminal",
+      "desc": "Open your attack target in a browser tab -- no tools needed.",
+      "href": "/ctf-view/" }
+  ],
+  "admin_tabs": [
+    { "id": "lab-info", "label": "Lab Info", "src": "/lab-info/" },
+    { "id": "ctf-attack", "label": "Attack Range", "src": "/ctf-attack/" },
+    { "id": "ctf-view", "label": "Target Viewer", "src": "/ctf-view/" }
+  ],
+  "routes": [
+    { "id": "lab-info", "path": "/lab-info", "upstream": "ctf-lab-info:8080", "gate": "shared",
+      "strip_prefix": true },
+    { "id": "ctf-attack", "path": "/ctf-attack", "upstream": "ctf-controller:9000", "gate": "identity",
+      "strip_prefix": true },
+    { "id": "ctf-view", "path": "/ctf-view", "upstream": "ctf-view:9100", "gate": "identity",
+      "strip_prefix": true }
+  ],
+  "status_checks": [
+    { "label": "Lab Info", "url": "http://ctf-lab-info:8080/" },
+    { "label": "Attack Range", "url": "http://ctf-controller:9000/healthz" },
+    { "label": "Target Viewer", "url": "http://ctf-view:9100/healthz" }
+  ]
+}

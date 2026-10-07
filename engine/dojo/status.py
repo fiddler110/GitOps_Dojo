@@ -46,6 +46,10 @@ def collect(rt: Runtime) -> Dict[str, Any]:
         "ready": sum(1 for c in containers if c.state in READY),
         "students": None,
         "checks": None,
+        # A start in flight shows up here before any container has appeared,
+        # so `dojo ps` can tell "nothing's up yet" from "another run.sh is
+        # mid-build": {pid, what, started_at} or None.
+        "in_progress": state.RunLock.peek(),
     }
     ws = find(workshop) if workshop else None
     if ws:
@@ -69,8 +73,19 @@ def collect(rt: Runtime) -> Dict[str, Any]:
 
 
 def show(info: Dict[str, Any]) -> None:
+    ip = info.get("in_progress")
+    if ip:
+        age = ""
+        if ip.get("started_at"):
+            secs = max(0, int(time.time() - ip["started_at"]))
+            age = f"  [dim]({secs // 60}m {secs % 60:02d}s ago)[/]"
+        detail = ip["what"] or f"pid {ip['pid']}"
+        console.print(f"[yellow]A build or start is in progress:[/] {detail}{age}")
+        console.print(f"  [dim]Another '{paths.PROG} <workshop>' will refuse until this finishes.[/]")
+        console.print()
     if not info["running"]:
-        console.print("[yellow]No workshop stack is running.[/]")
+        if not ip:
+            console.print("[yellow]No workshop stack is running.[/]")
         if info["volumes"]:
             console.print(f"  {info['volumes']} volume(s) left from an earlier run: "
                           f"'{paths.PROG} stop' removes them, or a start of the same workshop reuses them.")

@@ -33,9 +33,13 @@ from .stack import compose_args, extra_files, services
 from .ui import bad, changed, console, fail, ok, step
 
 MAX_BOTS = 35
-# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one
-# (engine/zellij-terminal/, built on top of the web-terminal base).
+# TERMINAL_FLAVOR values: the VS Code + tmux terminal, or the Zellij-only one.
+# Both are sibling leaves built FROM the flavor-agnostic web-terminal:core
+# (engine/web-terminal/); web-terminal-vscode/ and zellij-terminal/ hold the
+# two leaves respectively -- see build.py's terminal_chain() and
+# engine/README.md's "Terminal flavor" section.
 TERMINAL_FLAVORS = ("web", "zellij")
+VSCODE_BASE_IMAGE = "gitopsdojo/web-terminal:base"
 ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
 
 
@@ -132,6 +136,17 @@ def make_mountpoints(content_dir: Path) -> None:
         (content_dir / "slides" / "assets").mkdir(exist_ok=True)
 
 
+def ensure_cache_dirs() -> None:
+    """Project-local caches that compose bind-mounts into containers. Compose
+    (and podman) will auto-create a missing bind-mount source as root, which
+    then can't be rm -rf'd from the host without `podman unshare`; create them
+    here as the invoking user so cleanup stays simple. Gitignored by `.cache/`
+    in the repo root. ctf-host's inner-dockerd image store lives at
+    .cache/ctf-docker (modules/ctf-range/compose.yml, ~1.5 GB cached per
+    pack); any future "download it once" cache goes here too."""
+    (paths.REPO / ".cache" / "ctf-docker").mkdir(parents=True, exist_ok=True)
+
+
 def run_once_cmd(rt: Runtime) -> List[str]:
     # Rootless podman already maps the container's root to us; rootful docker
     # needs --user or the files it writes into engine/ end up owned by root.
@@ -199,7 +214,7 @@ def run_start(o: StartOptions) -> int:
     t_start = time.time()
     try:
         code = _start(o)
-    except (StartError, EnvError, BuildError) as exc:
+    except (StartError, EnvError, BuildError, state.LockBusy) as exc:
         fail(str(exc))
         code = 1
     except KeyboardInterrupt:
@@ -222,12 +237,18 @@ def _start(o: StartOptions) -> int:
     if not rt.available:
         raise StartError(f"Neither podman (with podman-compose) nor docker was found; '{paths.PROG} doctor' explains.")
 
-    p = _plan(o, rt)
-    _check_running(p)
+    # Acquire the run lock BEFORE _plan() so a concurrent start fails fast
+    # with a clean "already running" message, not after we've already read
+    # workshop.env, generated manifests, and printed dry-run output. _plan
+    # does non-trivial work (file I/O under .generated/) that another start
+    # on the same machine would race on. Dry-run skips the lock -- it's
+    # read-only.
     lock = None if o.dry_run else state.RunLock(o.workshop)
     if lock:
         lock.acquire()
     try:
+        p = _plan(o, rt)
+        _check_running(p)
         return _build_and_up(p)
     finally:
         if lock:
@@ -267,21 +288,26 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     else:
         ca = ""
 
-    # The terminal image chain: :base -> (the Zellij flavor) -> each module's
-    # terminal/ -> the workshop's. TERMINAL_FLAVOR comes from engine/.env or the
-    # workshop's workshop.env (the latter wins); "zellij" inserts the
-    # zellij-terminal layer on top of :base, so every later link builds FROM it.
+    # The terminal image chain: :core -> the selected flavor leaf -> each
+    # module's terminal/ -> the workshop's. TERMINAL_FLAVOR comes from
+    # engine/.env or the workshop's workshop.env (the latter wins); each
+    # flavor's leaf (web-terminal-vscode/ or zellij-terminal/) builds FROM
+    # :core as a sibling of the other flavor's leaf, not on top of it, so
+    # only the one leaf this run actually needs gets built (build.py's
+    # terminal_chain()), and every later link builds FROM whichever leaf
+    # that was.
     flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
     if flavor not in TERMINAL_FLAVORS:
         raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
     env["TERMINAL_FLAVOR"] = flavor
-    base_image = ZELLIJ_BASE_IMAGE if flavor == "zellij" else "gitopsdojo/web-terminal:base"
-    links = [(ZELLIJ_BASE_IMAGE, "./zellij-terminal")] if flavor == "zellij" else []
+    flavor_leaf = (ZELLIJ_BASE_IMAGE, "./zellij-terminal") if flavor == "zellij" \
+        else (VSCODE_BASE_IMAGE, "./web-terminal-vscode")
+    links = [flavor_leaf]
     links += [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
               for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
         links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
-    env["WEB_TERMINAL_IMAGE"] = links[-1][0] if links else base_image
+    env["WEB_TERMINAL_IMAGE"] = links[-1][0]
 
     files = extra_files(res)
     overlay_dirs = [f"../modules/{m}" for m in res.modules if (paths.MODULES / m / "compose.yml").is_file()]
@@ -431,11 +457,16 @@ def _dry_run_checks(p: Plan) -> int:
     step("Checking image pins")
     pins = subprocess.run(["sh", "scripts/check-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
     if pins.returncode == 0:
-        ok("every external image pinned by digest")
+        ok("every external image pinned by digest, and shared pins agree")
     else:
-        for line in (pins.stdout + pins.stderr).strip().splitlines()[:-2]:
+        pins_lines = (pins.stdout + pins.stderr).strip().splitlines()
+        is_drift = any(line.startswith("pin drift:") for line in pins_lines)
+        for line in pins_lines[:-2]:
             bad(line)
-        bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
+        if is_drift:
+            bad("pin drift: bump every copy of a shared base image together (see scripts/check-pins.sh)")
+        else:
+            bad("not pinned: add @sha256:<digest> (see scripts/check-pins.sh)")
     console.print()
     step("Checking tool pins")
     tools = subprocess.run(["sh", "scripts/check-tool-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
@@ -448,7 +479,8 @@ def _dry_run_checks(p: Plan) -> int:
     console.print()
     console.print(f"Would run: compose {' '.join(compose_args(p.files))} up -d")
     if pins.returncode != 0 or tools.returncode != 0:
-        found = " and ".join(w for w in ("unpinned images" if pins.returncode != 0 else "",
+        pins_problem = "drifted image pins" if (pins.returncode != 0 and is_drift) else "unpinned images"
+        found = " and ".join(w for w in (pins_problem if pins.returncode != 0 else "",
                                         "drifted tool pins" if tools.returncode != 0 else "") if w)
         fail(f"Dry run complete: nothing was built or started, but {found} were found.")
         return 1
@@ -465,6 +497,7 @@ def _compose_up(p: Plan) -> int:
     if content:
         sync_lab_docs(paths.ENGINE / content)
         make_mountpoints(paths.ENGINE / content)
+    ensure_cache_dirs()
 
     up_extra = _up_args(p)
     step("Creating networks and volumes, then starting containers in dependency order")

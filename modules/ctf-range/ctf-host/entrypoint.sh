@@ -1,9 +1,10 @@
 #!/bin/sh
-# Starts the inner dockerd on the shared unix socket, locks it down, then
-# imports the customer-portal target image from the rootfs baked into this
-# image. Everything here is offline — nothing is pulled at lab time. Closely
-# follows dojo-cloud's cloud-host/entrypoint.sh; see it for the why behind the
-# signal handling and the DOCKER-USER rule.
+# Starts the inner dockerd on the shared unix socket, locks it down, loads the
+# base image archive(s) baked into this image, then imports the
+# customer-portal target image from the rootfs also baked in. Everything here
+# is offline — nothing is pulled at lab time. Closely follows dojo-cloud's
+# cloud-host/entrypoint.sh; see it for the why behind the signal handling and
+# the DOCKER-USER rule.
 set -eu
 
 mkdir -p /run/ctf
@@ -12,8 +13,122 @@ mkdir -p /run/ctf
 # dockerd never waits on a containerd from a run that is gone.
 rm -rf /var/run/docker /var/run/docker.pid /run/ctf/docker.sock
 
-#  --icc=false   inner containers (the slots) cannot talk to each other (S14).
-dockerd-entrypoint.sh --icc=false --log-level=warn &
+# Advertise our own ctf_net address through the shared /run/ctf volume so
+# ctf-controller can echo it on the landing-page Attack Range header.
+# ctf-controller is NOT on ctf_net (it only talks TO ctf-host over ctf_ops,
+# plus workshop_lab for the student-browser /attack/* paths); podman's
+# split-horizon DNS therefore gives it only our ctf_ops address, not the
+# ctf_net one students see. Our own `ip addr` is authoritative. The subnet
+# is passed in as CTF_NET_SUBNET (compose.yml); from inside the container
+# we match any address whose prefix starts with the subnet's leading
+# octets (one line in a sed-reduced /24 string -- same as the firewall
+# hook's assumption).
+rm -f /run/ctf/ctf-net-addr
+ctf_net_if=""
+if [ -n "${CTF_NET_SUBNET:-}" ]; then
+  prefix="$(printf '%s' "$CTF_NET_SUBNET" | sed -E 's#\.[0-9]+/[0-9]+$##')."
+  addr="$(ip -o -4 addr show scope global 2>/dev/null | awk -v p="$prefix" '
+    { for (i=1;i<=NF;i++) if ($i ~ /^[0-9.]+\/[0-9]+$/) {
+        split($i, a, "/"); if (index(a[1], p) == 1) { print $2, a[1]; exit }
+      } }')"
+  if [ -n "$addr" ]; then
+    ctf_net_if="$(printf '%s' "$addr" | awk '{print $1}')"
+    ctf_net_ip="$(printf '%s' "$addr" | awk '{print $2}')"
+    printf '%s\n' "$ctf_net_ip" > /run/ctf/ctf-net-addr
+    echo "ctf-host: ctf_net address is $ctf_net_ip on $ctf_net_if (written to /run/ctf/ctf-net-addr)"
+  fi
+fi
+
+# HackTheBox-style per-target IPs (student request 2026-10-07). Add one
+# address per (student, target) to our ctf_net interface so the inner
+# dockerd can `-p <ip>:<port>:<port>` bind each slot to its student's
+# reserved IP. student01 target idx 0 -> prefix.<base>; student01 target
+# idx 1 -> prefix.<base+1>; student02 target idx 0 -> prefix.<base+K>;
+# where K = CTF_ATTACK_IPS_PER_STUDENT. The controller's
+# attack_target_ip() must stay in step with this layout. Idempotent: if
+# an address is already there (restart), ip addr add returns 2 which we
+# treat as success -- the subsequent docker publishes bind the same way.
+if [ -n "$ctf_net_if" ] && [ -n "${STUDENT_COUNT:-}" ]; then
+  base="${CTF_ATTACK_IP_BASE_OCTET:-100}"
+  per="${CTF_ATTACK_IPS_PER_STUDENT:-4}"
+  i=0
+  added=0
+  while [ "$i" -lt "$STUDENT_COUNT" ]; do
+    j=0
+    while [ "$j" -lt "$per" ]; do
+      octet=$((base + i * per + j))
+      if [ "$octet" -gt 254 ]; then
+        echo "ctf-host: attack IP octet $octet exceeds /24 range; stopping" >&2
+        i="$STUDENT_COUNT"; j="$per"
+        continue
+      fi
+      ip addr add "$prefix$octet/24" dev "$ctf_net_if" 2>/dev/null && added=$((added + 1)) || true
+      j=$((j + 1))
+    done
+    i=$((i + 1))
+  done
+  echo "ctf-host: added $added attack IPs on $ctf_net_if (STUDENT_COUNT=$STUDENT_COUNT, per=$per, base=$base)"
+fi
+
+# -- Content-aware DinD image-store cache --------------------------------
+# /var/lib/docker is a host bind mount (modules/ctf-range/compose.yml ->
+# .cache/ctf-docker on the host) so the ~90s-5min first-time import of the
+# baked target rootfses survives `./run.sh stop`. The ctf-host image bakes
+# in /etc/ctf-host-content.sha at build time (Dockerfile: sha256 of every
+# file under /opt). On start, compare that stamp against the cached one and
+# wipe + re-import only when they diverge -- a target source change
+# invalidates the Docker build-cache for its COPY layer, which changes the
+# content sha, which trips this check. Same image => imports no-op.
+cache_root=/var/lib/docker
+baked_stamp_file=/etc/ctf-host-content.sha
+cached_stamp_file="$cache_root/.content.sha"
+baked_stamp=""
+cached_stamp=""
+[ -f "$baked_stamp_file" ] && baked_stamp="$(cat "$baked_stamp_file")"
+[ -f "$cached_stamp_file" ] && cached_stamp="$(cat "$cached_stamp_file")"
+if [ -z "$baked_stamp" ]; then
+  echo "ctf-host: no content stamp baked in; cache invalidation disabled" >&2
+elif [ "$baked_stamp" != "$cached_stamp" ]; then
+  if [ -n "$cached_stamp" ]; then
+    echo "ctf-host: content stamp changed ($cached_stamp -> $baked_stamp); wiping cache" >&2
+  else
+    echo "ctf-host: no cached content stamp; priming image store" >&2
+  fi
+  # Nuke everything under /var/lib/docker before dockerd starts. We only
+  # own the mountpoint's contents, not the mountpoint itself (bind mount),
+  # so delete children only. The stamp is rewritten after imports succeed.
+  find "$cache_root" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+fi
+
+# A fake, always-reachable, instantly-answering DNS stub for the inner
+# dockerd's embedded per-container resolver to forward to. ctf_ops/ctf_net
+# are both `internal: true` (CTF-D24 - no real resolver reachable at all),
+# so with no --dns configured, a slot container's DNS query has nowhere to
+# go and the kernel just drops it, with nothing coming back until the
+# client gives up - and in the meantime a shell `cmd1; cmd2` chain never
+# even reaches cmd2, since cmd1 (whatever triggered the lookup) hasn't
+# returned yet. Caught live (2026-10-06): ping-tool's whole command-
+# injection teaching point (`host <input>; <injected command>`) silently
+# broke this way - the injected half never ran, because `host 127.0.0.1`
+# just hung until Flask's own subprocess timeout killed the lot. dnsmasq
+# here answers every query immediately (everything maps to 127.0.0.1,
+# meaningless by design - this is not a real resolver) and never itself
+# touches a network (--no-resolv --no-hosts, nothing to forward to even if
+# it wanted to), so a lookup fails or resolves FAST either way.
+dnsmasq --no-daemon --no-resolv --no-hosts --address=/#/127.0.0.1 \
+  --listen-address=127.0.0.1 --port=53 --bind-interfaces \
+  --pid-file=/run/ctf/fake-dns.pid &
+
+#  --icc=false         inner containers (the slots) cannot talk to each other (S14).
+#  --dns                every slot's embedded per-container DNS proxy forwards
+#                        here (the fake stub above) instead of nowhere.
+#  --insecure-registry  the in-lab registry (spike S6) has no TLS — it is
+#                        internal-only, so plaintext within ctf_ops is the
+#                        accepted trade-off (CTF-D24's offline posture is
+#                        about reaching outward, not about TLS inward).
+set -- --icc=false --log-level=warn --dns 127.0.0.1
+[ -n "${CTF_REGISTRY:-}" ] && set -- "$@" --insecure-registry "$CTF_REGISTRY"
+dockerd-entrypoint.sh "$@" &
 dockerd_pid=$!
 
 # PID 1 ignores SIGTERM without a handler; pass it on so `stop` is clean.
@@ -47,12 +162,28 @@ getent group "$CTF_GID" >/dev/null 2>&1 || addgroup -g "$CTF_GID" ctf
 chgrp "$CTF_GID" /run/ctf/docker.sock
 chmod 0660 /run/ctf/docker.sock
 
+# Load the base image archives baked in at build time (offline, nothing
+# pulled at lab time — see ctf-host/Dockerfile's base-image-fetch stage).
+# ctf-builder's rebuild of the patched target has its own `FROM
+# python:3.12-slim@sha256:...` and runs with pull=0, so that digest has to
+# already be in the inner dockerd's image store before ctf-builder ever runs.
+# `docker image load` is idempotent on its own (re-loading an already-present
+# image is a no-op), so this is safe to run on every start.
+for archive in /opt/base-images/*.tar; do
+  [ -e "$archive" ] || continue
+  docker image load -i "$archive" >/dev/null
+  echo "ctf-host: loaded base image archive $(basename "$archive")"
+done
+
 # Import the target image from the baked rootfs (offline). The --change lines
 # reproduce targets/customer-portal/Dockerfile's runtime config, since
 # `docker import` keeps only the filesystem. This is the BASE image a slot runs
 # until a student's merged fix is rebuilt and pushed to the in-lab registry
 # (then the controller pulls that tag instead — spike S6).
 import_target() {
+  # CTF-D26: a per-pack ctf-host image (ctf-host-ctf1/ctf-host-ctf2, ...)
+  # never bakes this rootfs in at all — skip gracefully rather than failing.
+  [ -d /opt/portal-rootfs ] || return 0
   docker image inspect ctf-customer-portal:base >/dev/null 2>&1 && return 0
   tar -C /opt/portal-rootfs -c . | docker import \
     --change 'ENTRYPOINT ["/app/entrypoint.sh"]' \
@@ -64,6 +195,89 @@ import_target() {
   echo "ctf-host: imported ctf-customer-portal:base"
 }
 import_target
+
+# Import the vendored-Flask base for ctf-builder's offline rebuild (offline).
+# See ctf-host/Dockerfile's portal-deps stage and docs/CTF-SPIKES.md S6
+# "Scoped" (2026-10-05): targets/customer-portal/Dockerfile now FROMs this tag
+# instead of installing Flask itself, so it has to already be in the inner
+# dockerd's image store before ctf-builder's rebuild runs.
+import_portal_deps_base() {
+  # CTF-D26: same guard as import_target above.
+  [ -d /opt/portal-deps-rootfs ] || return 0
+  docker image inspect gitopsdojo/ctf-customer-portal-base:pinned >/dev/null 2>&1 && return 0
+  tar -C /opt/portal-deps-rootfs -c . | docker import - gitopsdojo/ctf-customer-portal-base:pinned >/dev/null
+  echo "ctf-host: imported gitopsdojo/ctf-customer-portal-base:pinned"
+}
+import_portal_deps_base
+
+# Import the 8 attack-ladder target rootfses (CTF-1/CTF-2, plan §7.3). Each
+# is never rebuilt (students attack, never patch, these), so a plain import
+# is the whole story — no offline-rebuild base to vendor alongside, unlike
+# customer-portal above. The --change lines reproduce each target's own
+# Dockerfile (ENTRYPOINT/ENV/EXPOSE/USER/WORKDIR); a workshop pack's
+# CTF_ATTACK_TARGETS (controller.py's AttackManager, CTF-D20) must name these
+# exact tags.
+import_attack_target() {
+  tag="$1" rootfs="$2" user="$3" expose="$4" env="$5"
+  # CTF-D26: a per-pack ctf-host image bakes in only its own session's
+  # targets; skip any rootfs this particular image doesn't have, rather
+  # than failing the whole start over a target this pack doesn't expose.
+  [ -d "$rootfs" ] || return 0
+  docker image inspect "$tag" >/dev/null 2>&1 && return 0
+  tar -C "$rootfs" -c . | docker import \
+    --change 'ENTRYPOINT ["python3", "/app/app.py"]' \
+    --change "ENV $env" \
+    --change "EXPOSE $expose" \
+    --change "USER $user" \
+    --change 'WORKDIR /app' \
+    - "$tag" >/dev/null
+  echo "ctf-host: imported $tag"
+}
+import_attack_target ctf-sqli-login:base /opt/sqli-login-rootfs sqli "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-idor-pcap:base /opt/idor-pcap-rootfs idor "5000 2222 2121" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-weak-auth-portal:base /opt/weak-auth-portal-rootfs weakauth "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-cert-trust-bypass:base /opt/cert-trust-bypass-rootfs certbypass "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-ping-tool:base /opt/ping-tool-rootfs pingtool "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-ssrf-fetcher:base /opt/ssrf-fetcher-rootfs ssrffetcher "5000 2222" \
+  "PORT=5000 INTERNAL_PORT=5001 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-api-mass-assignment:base /opt/api-mass-assignment-rootfs massassign "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+import_attack_target ctf-api-bfla:base /opt/api-bfla-rootfs apibfla "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# leaky-config (target 5, CTF-3) only ever bakes into the full-catalog
+# `ctf-host` stage today (no CTF-3 pack decided yet — CTF-D26 only scoped
+# CTF-1/CTF-2) so this is a no-op on ctf-host-ctf1/ctf-host-ctf2.
+import_attack_target ctf-leaky-config:base /opt/leaky-config-rootfs leakyconfig "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# git-secrets (target 8, CTF-3) only ever bakes into the full-catalog
+# `ctf-host` stage today, same as leaky-config above.
+import_attack_target ctf-git-secrets:base /opt/git-secrets-rootfs gitsecrets "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# policy-bypass (target 9, CTF-4) only ever bakes into the full-catalog
+# `ctf-host` stage today, same as leaky-config/git-secrets above.
+import_attack_target ctf-policy-bypass:base /opt/policy-bypass-rootfs policybypass "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+# dns-resolver-cve (target 6, CTF-3 "Vulnerable and outdated components") only
+# ever bakes into the full-catalog `ctf-host` stage today, same as every CTF-3/
+# CTF-4 target above. The agent subprocess the Python app launches is the real
+# uClibc-ng 1.0.39 ELF whose stub resolver carries CVE-2022-30295 — see the
+# Dockerfile's dns-resolver-cve-agent-build stage comment and app.py's module
+# docstring.
+import_attack_target ctf-dns-resolver-cve:base /opt/dns-resolver-cve-rootfs dnsresolver "5000 2222" \
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Record the content stamp AFTER every import succeeded. If anything above
+# failed, `set -eu` would have exited before this line and the cache stays
+# invalid for the next start, which trips the wipe+reimport again -- fail-
+# closed on the imports, not on the stamp.
+if [ -n "$baked_stamp" ]; then
+  printf '%s\n' "$baked_stamp" > "$cached_stamp_file"
+fi
 
 echo "ctf-host: ready"
 # A trapped signal makes `wait` return early: keep waiting until dockerd is

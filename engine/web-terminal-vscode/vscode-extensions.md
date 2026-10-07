@@ -112,9 +112,9 @@ FROM gitopsdojo/web-terminal:base
 
 # Re-adds Mermaid rendering to the built-in markdown preview for this
 # workshop only -- deliberately not in the shared base image (see
-# engine/web-terminal/vscode-extensions.md). Find the current version +
+# engine/web-terminal-vscode/vscode-extensions.md). Find the current version +
 # sha256 on open-vsx.org (same steps as the fetch_ext block in
-# engine/web-terminal/Dockerfile) before filling these in.
+# engine/web-terminal-vscode/Dockerfile) before filling these in.
 RUN set -eux; \
     wget -O /tmp/markdown-mermaid.vsix \
       "https://open-vsx.org/api/bierner/markdown-mermaid/<version>/file/bierner.markdown-mermaid-<version>.vsix"; \

@@ -10,6 +10,9 @@ if [ -n "$ZELLIJ" ]; then
   export STARSHIP_CONFIG=/etc/starship.toml
   eval "$(starship init zsh)"
 
+  # The detached Zellij server can start panes in /; students belong in ~/lab.
+  [ "$PWD" = / ] && cd "$HOME/lab"
+
   # Tell the side pane (dojo-sidebar) which directory this shell is in.
   autoload -Uz add-zsh-hook
   _dojo_record_cwd() { print -rn -- "$PWD" > "$HOME/.dojo-cwd" }

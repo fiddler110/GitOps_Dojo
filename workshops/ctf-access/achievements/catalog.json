@@ -1,0 +1,12 @@
+{
+  "workshop": "ctf-access",
+  "title": "CTF-1: Access and Identity",
+  "intro": "## Scoring\n\nEach target you solve posts its own flag-verified event the moment `dojo-flag submit` accepts it -- no\nseparate check-in step. Two process milestones (scan with version detection, scan every port) reward doing\nthe recon step properly before touching a target, since that's half the lesson. `core` is the four\nflag milestones, so completion tracks targets solved, not labs merely opened.",
+  "labs": [
+    { "id": "lab1", "title": "staff login portal (sqli-login)" },
+    { "id": "lab2", "title": "password self-service (weak-auth-portal)" },
+    { "id": "lab3", "title": "support ticket archive (idor-pcap)" },
+    { "id": "lab4", "title": "internal ops API (cert-trust-bypass)" }
+  ],
+  "require_match": true
+}

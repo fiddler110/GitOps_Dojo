@@ -1,0 +1,30 @@
+# Static file server for the Lab Info reader (plan §9, CTF-D16/P2b).
+# Plain HTTP on an internal-only port; the gateway's own Caddy terminates
+# the public side and reverse-proxies to this one (extensions.json's
+# "lab-info" route, gate "shared" -- the content is identical for every
+# student, so no identity hop is needed here). No TLS, no admin API,
+# nothing to persist.
+#
+# Layout under /srv/lab-info (compose mounts):
+#   /         -> web/ (reader shell: index.html, reader.js, style.css)
+#   /docs/    -> ../terminal/content/lab-info/*.md (the real reference docs)
+#   /vendor/  -> workshops/assets/vendor/*.js (markdown-it, prism)
+#
+# No `browse`: the reader is a single page that fetches each doc with
+# fetch(), and a raw directory listing of the .md files was the thing we
+# were replacing (unstyled, downloaded-as-text in the browser).
+{
+	admin off
+}
+
+:8080 {
+	root * /srv/lab-info
+	encode gzip zstd
+	file_server
+	# Legacy students / old bookmarks that still hit the raw doc path get
+	# a human page instead of a plain-text download: Caddy serves the
+	# reader at / with ?file=<name>.md, and the reader loads the real
+	# markdown from /docs/<name>.md itself.
+	@legacy_doc path_regexp ^/([A-Za-z0-9][A-Za-z0-9_.-]*\.md)$
+	redir @legacy_doc /?file={re.legacy_doc.1} 302
+}

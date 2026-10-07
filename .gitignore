@@ -4,6 +4,11 @@ engine/.build-state/
 engine/.generated/
 # The dojo CLI's unpacked, hash-checked dependencies (engine/dojo/boot.py).
 engine/.cache/
+# Project-local caches for one-time pulls that `./run.sh stop` would
+# otherwise wipe (modules/ctf-range/ctf-host's inner-dockerd image store
+# lives under .cache/ctf-docker/; see its Dockerfile + entrypoint for the
+# content-sha stamp that invalidates it on a rebuild).
+.cache/
 .infra/**/*.auto.tfvars
 .infra/**/.terraform/
 .infra/**/*.tfstate*

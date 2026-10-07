@@ -170,7 +170,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         cur = state.read_current()
         recorded = cur.workshop if cur and cur.workshop else "an unrecorded workshop"
         add(Check(INFO, "Running now", f"{recorded}: {len(containers)} container(s) ('{paths.PROG} status' for detail)"))
-    images = [i for i in ("gitopsdojo/web-terminal:base", "gitopsdojo/allocator:local",
+    images = [i for i in ("gitopsdojo/web-terminal:core", "gitopsdojo/allocator:local",
                           "gitopsdojo/gateway:local", "gitopsdojo/presentation:local")
               if not rt.out("image", "inspect", "--format", "{{.Id}}", i)]
     add(Check(OK if not images else INFO, "Engine images",

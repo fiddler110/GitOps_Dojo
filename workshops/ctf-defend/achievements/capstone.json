@@ -1,0 +1,35 @@
+{
+  "id": "capstone",
+  "title": "Fully Patched",
+  "space": "the student's own `{user}/customer-portal` repo and live slot",
+  "goal": "Close both of customer-portal's SQL injection points -- not just the one the PR gate re-tests -- and ship it to main.",
+  "seed": "Nothing extra to start: this is the same repo and the same PR flow as the lab, just finished all the way.",
+  "verify_text": "On `main` of `{user}/customer-portal`, both the search query and the login query build their SQL with a placeholder and a separate params tuple, not a string built from the request.",
+  "isolation": "entirely the student's own `{user}/customer-portal` repo; the check reads only that repo's `main` branch, nothing shared.",
+  "badge_tier": "capstone",
+  "hints": [
+    "The PR gate only re-tests the search endpoint; login shares the exact same bug.",
+    "`app.py` already shows the fix for search, right below the vulnerable line -- the same shape works for login."
+  ],
+  "verify": [
+    {
+      "verb": "file_contains",
+      "repo": "{user}/customer-portal",
+      "ref": "main",
+      "path": "app.py",
+      "regex": "'%\"\\s*\\+\\s*q\\s*\\+\\s*\"%'",
+      "absent": true,
+      "student": "{user}"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/customer-portal",
+      "ref": "main",
+      "path": "app.py",
+      "regex": "WHERE email = '\\{email\\}'",
+      "absent": true,
+      "student": "{user}"
+    }
+  ],
+  "answer": "Parameterize both queries: search already shows the pattern right below its vulnerable line (a `?` placeholder, the search term passed as a params tuple); apply the exact same shape to login's two values, then PR and merge to main."
+}

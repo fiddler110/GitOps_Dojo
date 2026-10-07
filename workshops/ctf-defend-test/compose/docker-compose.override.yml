@@ -1,0 +1,36 @@
+# ctf-defend-test overlay. Paths are relative to engine/ (workshops/README.md's "Adding a new
+# workshop" step 3 explains why: Compose resolves every relative path in a multi-file `-f ... -f
+# ...` merge relative to the *base* file's directory, regardless of which file declares it).
+#
+# web-terminal: extra env only (merges per key into the engine service; list form unaffected) so
+# /etc/dojo/start.d/90-ctf-defend-test.sh (compose/terminal/Dockerfile) can call Forgejo's admin
+# API to provision each student's own customer-portal repo and its Actions secrets/variable.
+# FORGEJO_ADMIN_USER/PASSWORD are already required in engine/.env by the engine's own bootstrap
+# service (engine/docker-compose.yml); this just also hands them to web-terminal.
+# openbao-setup: target 11 tfstate-treasure's own hook (60-tfstate-treasure.sh,
+# below) sources with the provisioner token, same shape vault-fundamentals
+# uses (VAULT-FUNDAMENTALS-PLAN.md S29). This pack sets no student/tenancy
+# policy at all (unlike vault-fundamentals' 10-tenancy.sh): a signed-in
+# student's identity gets no capability on secret/data/tfstate-treasure/* by
+# design -- the only way in is the approle credential leaked via the seeded
+# tfstate file (95-tfstate-treasure.sh, web-terminal).
+services:
+  web-terminal:
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
+      - CTF_BUILDER_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
+
+  openbao-setup:
+    environment:
+      # Not in the openbao module's own environment list (module.env never
+      # needed it before this target): 60-tfstate-treasure.sh derives the
+      # flag and the AppRole role_id/secret_id from it, by hand (no
+      # python3/openssl in this Alpine image), the same HMAC-SHA256 formula
+      # as flags.py's render().
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+    volumes:
+      - ../workshops/ctf-defend-test/compose/openbao-setup.d:/etc/openbao-setup.d:ro

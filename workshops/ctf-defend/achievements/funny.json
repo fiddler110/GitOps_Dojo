@@ -1,0 +1,34 @@
+{
+  "unlocks": [
+    {
+      "id": "f-under-siege",
+      "title": "Under Siege",
+      "joke": "The swarm found you. It finds everyone, eventually.",
+      "when": "soc: the attacker bot's first recon pass against your slot",
+      "match": {
+        "source": "soc",
+        "event": "recon"
+      }
+    },
+    {
+      "id": "f-noticed",
+      "title": "They Noticed",
+      "joke": "First real attempt. Still just background noise -- for now.",
+      "when": "soc: the attacker bot's first exploit attempt against your slot",
+      "match": {
+        "source": "soc",
+        "event": "exploit_attempt"
+      }
+    },
+    {
+      "id": "f-wall",
+      "title": "Hall of Shame",
+      "joke": "Your data, on the projector, in front of everyone.",
+      "when": "ctf: a successful dump against your slot (see the wall of shame)",
+      "match": {
+        "source": "ctf",
+        "event": "dump_success"
+      }
+    }
+  ]
+}

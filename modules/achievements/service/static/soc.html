@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SOC Alerts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>SOC Alerts</h1>
+<div class="dim">Your own target's traffic, as the attacker swarm sees it. Synthetic, in-lab only -- the origin label is flavor, never a real IP.</div>
+<div class="card timer" id="timer-card">
+  <div class="row"><span class="dim" id="timer-label">Loading...</span><span class="big" id="timer-clock">--:--</span></div>
+</div>
+<div class="card" id="empty">No alerts yet.</div>
+<div class="card hidden" id="soc-card"><table><thead><tr><th>When</th><th>Severity</th><th>Persona</th><th>Origin</th><th>Target</th></tr></thead><tbody id="rows"></tbody></table></div>
+<script src="soc.js"></script>
+</body>
+</html>
