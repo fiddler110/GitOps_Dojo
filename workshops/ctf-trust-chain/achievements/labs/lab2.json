@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l2-flag",
+      "title": "Technically Compliant",
+      "joke": "The policy passed every test it had. It just didn't have the right one.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for policy-bypass",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "policy-bypass"
+      }
+    }
+  ]
+}

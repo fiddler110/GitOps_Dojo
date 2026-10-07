@@ -1,0 +1,56 @@
+{
+  "milestones": [
+    {
+      "id": "recon-versions",
+      "title": "Scan Before You Guess",
+      "joke": "You asked what's actually running before you tried anything on it.",
+      "core": false,
+      "when": "shell: `nmap -sV` (exit 0) -- anywhere in the session, your first target or your second",
+      "match": {
+        "source": "shell",
+        "cmd": "nmap",
+        "flags": ["-sV"],
+        "exit": 0
+      }
+    },
+    {
+      "id": "recon-full-sweep",
+      "title": "Every Port, Not Just the Obvious One",
+      "joke": "The decoys were counting on you stopping at the top 1000.",
+      "core": false,
+      "when": "shell: `nmap -p-` (exit 0) -- a full port sweep, not nmap's default range",
+      "match": {
+        "source": "shell",
+        "cmd": "nmap",
+        "flags": ["-p-"],
+        "exit": 0
+      }
+    },
+    {
+      "id": "l1-flag-token",
+      "title": "Next in Line",
+      "joke": "You didn't guess the transaction ID. You counted.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for dns-resolver-cve-token",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "dns-resolver-cve-token"
+      }
+    },
+    {
+      "id": "l1-flag",
+      "title": "Same Key, Different Door",
+      "joke": "A credential captured in transit works just as well where it was headed.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for dns-resolver-cve",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "dns-resolver-cve"
+      }
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "milestones": [
+    {
+      "id": "recon-versions",
+      "title": "Scan Before You Guess",
+      "joke": "You asked what's actually running before you tried anything on it.",
+      "core": false,
+      "when": "shell: `nmap -sV` (exit 0) -- anywhere in the session, your first target or your second",
+      "match": {
+        "source": "shell",
+        "cmd": "nmap",
+        "flags": ["-sV"],
+        "exit": 0
+      }
+    },
+    {
+      "id": "recon-full-sweep",
+      "title": "Every Port, Not Just the Obvious One",
+      "joke": "The decoy was counting on you stopping at the top 1000.",
+      "core": false,
+      "when": "shell: `nmap -p-` (exit 0) -- a full port sweep, not nmap's default range",
+      "match": {
+        "source": "shell",
+        "cmd": "nmap",
+        "flags": ["-p-"],
+        "exit": 0
+      }
+    },
+    {
+      "id": "l1-flag",
+      "title": "The Log Remembers",
+      "joke": "A WARN line nobody scrubbed, and now you have a password.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for leaky-config",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "leaky-config"
+      }
+    }
+  ]
+}

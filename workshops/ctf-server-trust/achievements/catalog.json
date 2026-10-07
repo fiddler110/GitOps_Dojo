@@ -1,0 +1,12 @@
+{
+  "workshop": "ctf-server-trust",
+  "title": "CTF-2: Server-side Trust and APIs",
+  "intro": "## Scoring\n\nEach target you solve posts its own flag-verified event the moment `dojo-flag submit` accepts it -- no\nseparate check-in step. Two process milestones (scan with version detection, scan every port) reward doing\nthe recon step properly before touching a target, since that's half the lesson. `core` is the four\nflag milestones, so completion tracks targets solved, not labs merely opened.",
+  "labs": [
+    { "id": "lab1", "title": "network diagnostics page (ping-tool)" },
+    { "id": "lab2", "title": "URL preview feature (ssrf-fetcher)" },
+    { "id": "lab3", "title": "accounts API (api-mass-assignment)" },
+    { "id": "lab4", "title": "ops API admin route (api-bfla)" }
+  ],
+  "require_match": true
+}
