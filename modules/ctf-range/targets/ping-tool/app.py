@@ -37,8 +37,44 @@ import subprocess
 import threading
 
 from flask import Flask, render_template_string, request
+from flask import Response as _Response
 
 app = Flask(__name__)
+
+
+# -- Scenario theme ("NetPulse Diagnostics"): static CSS served at /assets/theme.css, linked
+# with a relative root path so it works through the Target Viewer proxy.
+_CSS = """
+:root{--bg:#0c1a22;--card:#122632;--ink:#d6eef7;--mute:#82a9b8;--acc:#06b6d4;--line:#1d3d4d}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:linear-gradient(90deg,#083344,#0e7490);color:#fff;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem}
+.logo{background:#fff;color:#0e7490;font-weight:800;border-radius:6px;padding:.1rem .5rem}.brand{font-weight:600;letter-spacing:.02em}
+main{max-width:640px;margin:2.5rem auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem;box-shadow:0 8px 30px #0002}
+h1{margin:0 0 .6rem;font-size:1.4rem}h1 small{color:var(--mute);font-weight:400;font-size:.8em}h2{font-size:1.1rem}a{color:var(--acc)}
+label{display:block;font-weight:600;font-size:.85rem;margin:.8rem 0 .25rem}
+input{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--bg);color:var(--ink)}
+input:focus{outline:2px solid var(--acc)}
+button{margin-top:1rem;padding:.6rem 1.2rem;border:0;border-radius:8px;background:var(--acc);color:#fff;font:600 1rem system-ui;cursor:pointer}
+code,pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:.05rem .35rem;font-size:.9em}
+pre{padding:.7rem;white-space:pre-wrap;word-break:break-all}
+"""
+
+
+@app.get("/assets/theme.css")
+def theme_css():
+    return _Response(_CSS, mimetype="text/css")
+
+
+def _shell(title, inner):
+    # `inner` is static markup written in this file (never request data).
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title}</title>"
+        '<link rel="stylesheet" href="/assets/theme.css"></head><body>'
+        '<header><span class="logo">N</span><span class="brand">NetPulse Diagnostics</span></header>'
+        f"<main>{inner}</main></body></html>"
+    )
 
 FLAG = os.environ.get("CTF_FLAG", "flag{ping-tool-dev0000000000}")
 
@@ -57,14 +93,19 @@ with open(_NOTE_PATH, "w") as _f:
 PAGE = """
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Network Diagnostics</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network Diagnostics &middot; NetPulse</title>
+<link rel="stylesheet" href="/assets/theme.css"></head>
 <body>
+<header><span class="logo">N</span><span class="brand">NetPulse Diagnostics</span></header>
+<main>
 <h1>Network Diagnostics</h1>
 <form method="post" action="/diagnostics">
   <label>Host to look up <input name="host" value="example.com"></label>
   <button type="submit">Look up</button>
 </form>
 {% if output %}<pre>{{ output }}</pre>{% endif %}
+</main>
 </body>
 </html>
 """

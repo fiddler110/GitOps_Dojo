@@ -7,6 +7,15 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## On `feat/ctf-refinement` (2026-10-07, not yet merged)
+
+**Themed attack boxes, the rest.** Nine more targets got scenario themes (CSS at `/assets/theme.css`, own fictional brand):
+`customer-portal`, `dns-resolver-cve`, `git-secrets`, `leaky-config`, `ping-tool`, `policy-bypass`, `ssrf-fetcher`, plus
+a landing page for the JSON-only `api-bfla` and `api-mass-assignment`. Flags and bug behaviour unchanged (Flask test
+client per exploit path). Checked locally in headless Chromium through the gateway: eight of them load CSS with no
+4xx/5xx and no horizontal overflow. The Target Viewer card was browsed as a real student and as the facilitator
+(only the running box is a link; `/ctf-view/<student>/<target>/` works for the facilitator).
+
 ## Merged to `main` in PR #17 (2026-10-07)
 
 **ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack (locally, headless Chromium through the real

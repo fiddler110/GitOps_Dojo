@@ -33,10 +33,46 @@ import threading
 import socket
 
 from flask import Flask, jsonify, request
+from flask import Response as _Response
 
 import policy_engine as engine
 
 app = Flask(__name__)
+
+
+# -- Scenario theme ("CloudGuard Policy"): static CSS served at /assets/theme.css, linked
+# with a relative root path so it works through the Target Viewer proxy.
+_CSS = """
+:root{--bg:#f1f0fb;--card:#fff;--ink:#1f1b3a;--mute:#6b6890;--acc:#4f46e5;--line:#d9d6f2}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:linear-gradient(90deg,#1e1b4b,#4f46e5);color:#fff;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem}
+.logo{background:#fff;color:#4f46e5;font-weight:800;border-radius:6px;padding:.1rem .5rem}.brand{font-weight:600;letter-spacing:.02em}
+main{max-width:640px;margin:2.5rem auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem;box-shadow:0 8px 30px #0002}
+h1{margin:0 0 .6rem;font-size:1.4rem}h1 small{color:var(--mute);font-weight:400;font-size:.8em}h2{font-size:1.1rem}a{color:var(--acc)}
+label{display:block;font-weight:600;font-size:.85rem;margin:.8rem 0 .25rem}
+input{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--bg);color:var(--ink)}
+input:focus{outline:2px solid var(--acc)}
+button{margin-top:1rem;padding:.6rem 1.2rem;border:0;border-radius:8px;background:var(--acc);color:#fff;font:600 1rem system-ui;cursor:pointer}
+code,pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:.05rem .35rem;font-size:.9em}
+pre{padding:.7rem;white-space:pre-wrap;word-break:break-all}
+"""
+
+
+@app.get("/assets/theme.css")
+def theme_css():
+    return _Response(_CSS, mimetype="text/css")
+
+
+def _shell(title, inner):
+    # `inner` is static markup written in this file (never request data).
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title}</title>"
+        '<link rel="stylesheet" href="/assets/theme.css"></head><body>'
+        '<header><span class="logo">C</span><span class="brand">CloudGuard Policy</span></header>'
+        f"<main>{inner}</main></body></html>"
+    )
 
 FLAG = os.environ.get("CTF_FLAG", "flag{policy-bypass-dev0000000000}")
 SUB = "ctf-lab"
@@ -96,7 +132,8 @@ _PROVISIONED = []  # flavor-only audit trail, shown back on /api/resources
 
 @app.get("/")
 def index():
-    return (
+    return _shell(
+        "CloudGuard Policy",
         "<h1>CloudGuard</h1>"
         "<p>Policy-as-code guardrails for Dojo Cloud. One resource group, "
         f"<code>{PROTECTED_RG}</code>, is restricted to the security team.</p>"
