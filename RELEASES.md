@@ -7,6 +7,17 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Merged to `main` in PR #17 (2026-10-07)
+
+**ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack (locally, headless Chromium through the real
+gateway, 64 `ctf-controller` unit tests).** `ctf-view` is a gateway-gated reverse proxy so a student opens their own
+live attack box in a browser tab (`/ctf-view/<target>/`; the facilitator uses `/ctf-view/<student>/<target>/`), with a
+card picker where only the running box is selectable and `w3m` in the terminal image. The four `ctf-access` targets
+wear scenario-specific pages; a CSP `sandbox` was dropped because it made the browser withhold the login cookie. The PR
+also carried the whole `feat/zellij-terminal` branch: the CTF range and its 14 targets, the Zellij flavor, RV25/RV27/RV30,
+the ctf-range digest pins, per-target IP attack cards, the lab-info reader, the `ctf-access` pack, and `dojo status`
+flagging a start in flight. Detail for the earlier items is in the entries below.
+
 ## `feat/zellij-terminal`
 
 **`no_push_since_step`'s sub-second hole fixed, and the purge line now names policy objects and tofu states
