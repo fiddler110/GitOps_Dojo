@@ -91,10 +91,41 @@ def ticket_pcap(n):
     return build_pcap([f"ticket #{n}: nothing of interest\r\n"])
 
 
+# -- Presentation only (no behavior): each target wears the look of its own
+# scenario. The stylesheet is a separate route so `curl` output stays readable.
+_CSS = """
+:root{--bg:#fff8f0;--card:#fff;--ink:#3b2a1a;--mute:#8a6d52;--acc:#ea580c;--line:#f1dcc8}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--acc);color:#fff;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem}
+.logo{background:#fff;color:var(--acc);font-weight:800;border-radius:50%;width:1.7rem;height:1.7rem;display:inline-grid;place-items:center}.brand{font-weight:600}
+main{max-width:640px;margin:2rem auto;padding:0 1rem}h1{font-size:1.4rem;margin:0 0 1rem}
+ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+li{padding:.7rem 1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.6rem}li:last-child{border:0}
+li::before{content:"\1F3AB";filter:grayscale(.2)}a{color:var(--acc);text-decoration:none;font-weight:600}a:hover{text-decoration:underline}
+p{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;word-break:break-word}
+"""
+
+
+@app.get("/assets/theme.css")
+def theme_css():
+    return Response(_CSS, mimetype="text/css")
+
+
+def _page(title, body):
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title} &middot; Helpdesk Support</title>"
+        '<link rel="stylesheet" href="/assets/theme.css"></head><body>'
+        '<header><span class="logo">H</span><span class="brand">Helpdesk Support</span></header>'
+        f'<main>{body}</main></body></html>'
+    )
+
+
 @app.get("/")
 def index():
     links = "".join(f'<li><a href="/data/{n}">ticket-{n}.pcap</a></li>' for n in range(TICKET_COUNT))
-    return f"<h1>Support Ticket Archive</h1><ul>{links}</ul>"
+    return _page("Ticket archive", f"<h1>Support Ticket Archive</h1><ul>{links}</ul>")
 
 
 @app.get("/data/<int:n>")
@@ -122,12 +153,12 @@ def _basic_auth_ok():
 def admin():
     if not _basic_auth_ok():
         return Response("auth required", 401, {"WWW-Authenticate": 'Basic realm="ops"'})
-    return (
+    return _page("Diagnostics", (
         "<h1>svc-backup diagnostics</h1>"
         "<p>This account's helper, /usr/local/bin/ctf-triage, carries the "
         "cap_setuid capability — any process it execs can call setuid(0). "
         f"Running it as svc-backup drops you to root. {FLAG}</p>"
-    )
+    ))
 
 
 # -- Decoy listeners (plan §7.3's nmap primer: a student scans their box

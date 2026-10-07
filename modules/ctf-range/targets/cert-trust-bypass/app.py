@@ -25,7 +25,7 @@ import socket
 import tempfile
 import threading
 
-from flask import Flask, request
+from flask import Flask, Response, request
 
 import ssl as _ssl_module  # noqa: F401  (imported for the module itself)
 from ssl import _ssl  # the stdlib's own PEM/X.509 decoder, no extra dependency
@@ -61,12 +61,42 @@ def common_name(decoded):
     return None
 
 
+# -- Presentation only (no behavior): each target wears the look of its own
+# scenario. The stylesheet is a separate route so `curl` output stays readable.
+_CSS = """
+:root{--bg:#07110d;--card:#0c1a14;--ink:#d1fae5;--mute:#6ee7b7aa;--acc:#34d399;--line:#14382a}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);min-height:100vh}
+header{padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem;border-bottom:1px solid var(--line)}
+.logo{border:1px solid var(--acc);color:var(--acc);border-radius:4px;padding:0 .45rem;font-weight:700}.brand{letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--mute)}
+main{max-width:640px;margin:2.5rem auto;padding:1.6rem;background:var(--card);border:1px solid var(--line);border-radius:10px}
+h1{font-size:1.2rem;margin:0 0 1rem;color:var(--acc)}h1::before{content:"$ ";opacity:.6}
+p{margin:.5rem 0;word-break:break-word}code{background:#0a2a1e;border:1px solid var(--line);border-radius:4px;padding:.05rem .35rem;color:var(--acc)}
+"""
+
+
+@app.get("/assets/theme.css")
+def theme_css():
+    return Response(_CSS, mimetype="text/css")
+
+
+def _page(title, body):
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title} &middot; Zero-Trust API Gateway</title>"
+        '<link rel="stylesheet" href="/assets/theme.css"></head><body>'
+        '<header><span class="logo">&#9919;</span><span class="brand">Zero-Trust API Gateway</span></header>'
+        f'<main>{body}</main></body></html>'
+    )
+
+
 @app.get("/")
 def index():
-    return (
+    return _page("Internal API", (
         "<h1>Internal API</h1>"
         "<p>POST a client certificate PEM to /internal/ops to authenticate.</p>"
-    )
+        "<p>Endpoint: <code>POST /internal/ops</code> &mdash; mutual-auth required.</p>"
+    ))
 
 
 @app.post("/internal/ops")
@@ -74,7 +104,7 @@ def internal_ops():
     pem = request.get_data()
     decoded = decode_cert(pem)
     if decoded is None:
-        return "<p>Not a certificate.</p>", 400
+        return _page("Rejected", "<p>Not a certificate.</p>"), 400
 
     # THE BUG: only the Subject CN is checked. A correct implementation
     # also has to verify:
@@ -90,9 +120,9 @@ def internal_ops():
     # right CN is accepted as proof of identity.
     cn = common_name(decoded)
     if cn != REQUIRED_CN:
-        return "<p>Wrong identity.</p>", 403
+        return _page("Rejected", "<p>Wrong identity.</p>"), 403
 
-    return f"<p>Welcome, {cn}. {FLAG}</p>"
+    return _page("Authenticated", f"<p>Welcome, {cn}. {FLAG}</p>")
 
 
 # -- Decoy listener (plan §7.3's nmap primer: a student scans their box and

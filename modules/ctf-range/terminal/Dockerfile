@@ -39,6 +39,9 @@ ENV CTF_FLAGS_ADDR=http://ctf-flags:8080
 #   dnsrecon    DNS enumeration (target 6)
 #   httpie      a readable JSON-first HTTP client (targets 12/13)
 #   whois       domain/IP registration lookups, a common recon step
+#   w3m         text browser for a quick look at a target's pages (chosen over
+#               lynx: renders tables and forms better; no JS, ~3 MB, no per-student
+#               cost). Full rendering is the /ctf-view/ gateway route.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nmap \
         ncat \
@@ -51,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         dnsrecon \
         httpie \
         whois \
+        w3m \
     && rm -rf /var/lib/apt/lists/*
 
 # ffuf: content/directory discovery (plan's "gobuster or ffuf" - ffuf chosen,

@@ -20,7 +20,7 @@ import socket
 import threading
 import time
 
-from flask import Flask, request
+from flask import Flask, Response, request
 
 app = Flask(__name__)
 
@@ -48,16 +48,50 @@ def _token_for(user, bucket):
     return hashlib.sha256(f"reset:{user}:{bucket}".encode()).hexdigest()[:TOKEN_LEN]
 
 
+# -- Presentation only (no behavior): each target wears the look of its own
+# scenario. The stylesheet is a separate route so `curl` output stays readable.
+_CSS = """
+:root{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#8b9bb4;--acc:#14b8a6;--line:#22304a}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,sans-serif;background:radial-gradient(circle at 20% 0,#12304a,var(--bg) 55%);color:var(--ink);min-height:100vh}
+header{padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem;border-bottom:1px solid var(--line)}
+.logo{background:var(--acc);color:#04201c;font-weight:800;border-radius:6px;padding:.1rem .5rem}.brand{font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:.85rem}
+main{max-width:380px;margin:3rem auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem}
+form{display:flex;flex-direction:column;gap:.7rem;margin:0 0 .8rem}
+input{padding:.65rem .75rem;border:1px solid var(--line);border-radius:8px;background:#0b1424;color:var(--ink);font:inherit}
+input:focus{outline:2px solid #0f766e;border-color:var(--acc)}
+button{padding:.65rem;border:0;border-radius:8px;background:var(--acc);color:#04201c;font:700 1rem system-ui;cursor:pointer}
+button:hover{filter:brightness(1.1)}a{color:var(--acc)}p{margin:.4rem 0}
+h1{font-size:1.25rem;margin:0 0 1rem}.note{color:var(--mute);font-size:.8rem;margin-top:1rem}
+"""
+
+
+@app.get("/assets/theme.css")
+def theme_css():
+    return Response(_CSS, mimetype="text/css")
+
+
+def _page(title, body):
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title} &middot; Northwind Ops Console</title>"
+        '<link rel="stylesheet" href="/assets/theme.css"></head><body>'
+        '<header><span class="logo">N</span><span class="brand">Northwind Ops Console</span></header>'
+        f'<main>{body}</main></body></html>'
+    )
+
+
 @app.get("/")
 def index():
-    return (
+    return _page("Sign in", (
         "<h1>Internal Portal</h1>"
         '<form method="post" action="/login">'
         '<input name="username" placeholder="username">'
         '<input name="password" type="password" placeholder="password">'
         "<button>Log in</button></form>"
         '<p><a href="/forgot-password">Forgot password?</a></p>'
-    )
+        '<p class="note">Operations staff only. Infrastructure change window: Tue 02:00.</p>'
+    ))
 
 
 @app.post("/login")
@@ -67,16 +101,17 @@ def login():
     username = request.form.get("username", "")
     password = request.form.get("password", "")
     if _PASSWORDS.get(username) == password:
-        return f"<p>Welcome, {username}.</p>"
-    return "<p>Invalid credentials.</p>", 401
+        return _page("Portal", f"<p>Welcome, {username}.</p>")
+    return _page("Portal", "<p>Invalid credentials.</p>"), 401
 
 
 @app.get("/forgot-password")
 def forgot_password_form():
-    return (
+    return _page("Reset password", (
+        "<h1>Reset your password</h1>"
         '<form method="post" action="/forgot-password">'
         '<input name="username" placeholder="username"><button>Send reset link</button></form>'
-    )
+    ))
 
 
 @app.post("/forgot-password")
@@ -86,8 +121,8 @@ def forgot_password():
     # it — it's derivable from public inputs alone.
     user = request.form.get("username", "")
     if user in _PASSWORDS:
-        return "<p>If this account exists, a reset link has been sent.</p>"
-    return "<p>If this account exists, a reset link has been sent.</p>"
+        return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
+    return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
 
 
 @app.post("/reset")
@@ -96,18 +131,18 @@ def reset():
     token = request.form.get("token", "")
     new_password = request.form.get("new_password", "")
     if user not in _PASSWORDS:
-        return "<p>Invalid request.</p>", 400
+        return _page("Portal", "<p>Invalid request.</p>"), 400
     now = time.time()
     # Accept the current bucket and one on either side, same tolerance a
     # real deployment needs for clock skew / request latency — it changes
     # nothing about the bug (still zero secret involved).
     valid = {_token_for(user, _bucket(now) + delta) for delta in (-1, 0, 1)}
     if token not in valid:
-        return "<p>Invalid or expired token.</p>", 403
+        return _page("Portal", "<p>Invalid or expired token.</p>"), 403
     _PASSWORDS[user] = new_password
     if user == "ops-admin":
-        return f"<p>Password reset for {user}. {FLAG}</p>"
-    return f"<p>Password reset for {user}.</p>"
+        return _page("Portal", f"<p>Password reset for {user}. {FLAG}</p>")
+    return _page("Portal", f"<p>Password reset for {user}.</p>")
 
 
 # -- Decoy listener (plan §7.3's nmap primer: a student scans their box and
