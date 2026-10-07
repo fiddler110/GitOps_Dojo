@@ -339,6 +339,8 @@ services:
       # The proxy in front of GATEWAY_LISTEN, as the gateway sees it (CIDR,
       # space-separated): the login limit then keys on the real client address.
       - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
+      # sha256 of "dojo-gate:<--pass code>"; empty = no access-code page.
+      - GATEWAY_GATE_TOKEN=${GATEWAY_GATE_TOKEN:-}
       # Shared secret the Caddyfile sends as X-Gateway-Token on every block
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/handler.py's gateway_authorized()).

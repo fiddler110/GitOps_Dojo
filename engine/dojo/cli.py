@@ -66,15 +66,18 @@ def start_options(f):
         click.option("--build-only", is_flag=True, help="Build or refresh the images and stop there (no password checks)."),
         click.option("--allow-default-passwords", is_flag=True,
                      help="Start even with public default passwords on a non-loopback address."),
+        click.option("--pass", "--cookie", "--code", "gate_pass", default=None, metavar="CODE",
+                     help="Ask for this access code on a page in front of everything, sign-in included (--pass, --cookie and --code are the same)."),
     ]):
         f = opt(f)
     return f
 
 
-def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords) -> None:
+def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords, gate_pass=None) -> None:
     from .start import StartOptions, run_start
     sys.exit(run_start(StartOptions(workshop, test=test, fast=fast, env_name=env_name, dry_run=dry_run,
-                                    build_only=build_only, allow_default_passwords=allow_default_passwords)))
+                                    build_only=build_only, allow_default_passwords=allow_default_passwords,
+                                    gate_pass=gate_pass)))
 
 
 def _workshop_command(name: str) -> click.Command:

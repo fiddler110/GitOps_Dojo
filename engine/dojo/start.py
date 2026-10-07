@@ -13,6 +13,7 @@ The steps, in order (each stops the run with a message that says what to do):
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -56,6 +57,7 @@ class StartOptions:
     dry_run: bool = False
     build_only: bool = False
     allow_default_passwords: bool = False
+    gate_pass: Optional[str] = None       # --pass: access code in front of the whole site (gateway cookie gate)
     recreate: Optional[List[str]] = None  # restart: [] every container, [names] only those
 
     @property
@@ -70,6 +72,8 @@ class StartOptions:
             out += ["--env", self.env_name]
         if self.allow_default_passwords:
             out.append("--allow-default-passwords")
+        if self.gate_pass:
+            out += ["--pass", self.gate_pass]
         return out
 
 
@@ -95,6 +99,9 @@ def parse_recorded(words: List[str]) -> StartOptions:
             o.fast = True
         elif w == "--allow-default-passwords":
             o.allow_default_passwords = True
+        elif w == "--pass" and i + 1 < len(words):
+            o.gate_pass = words[i + 1]
+            i += 1
         i += 1
     return o
 
@@ -262,6 +269,10 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     for w in res.warnings:
         console.print(f"[yellow]WARNING: {w}[/]")
     _safety_gates(o, env)
+    # The gateway compares the dojo_gate cookie with this (gateway/Caddyfile, static/_gate/gate.js).
+    env["GATEWAY_GATE_TOKEN"] = hashlib.sha256(f"dojo-gate:{o.gate_pass}".encode()).hexdigest() if o.gate_pass else ""
+    if o.gate_pass:
+        console.print("Access code: the whole site asks for it before the sign-in page (--pass).")
 
     if o.dry_run:
         console.print("DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/).")

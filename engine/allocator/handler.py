@@ -178,6 +178,10 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             self.handle_session_check(parsed)
             return
 
+        if path == "/gate-fail":
+            self.handle_gate_fail()
+            return
+
         if path == "/login":
             nxt = self.login_next(urllib.parse.parse_qs(parsed.query).get("next", [""])[0])
             if self.session_account():

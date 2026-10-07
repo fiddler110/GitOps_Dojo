@@ -94,6 +94,79 @@
 	@public_https expression `"{$PUBLIC_BASE_URL}".startsWith("https://")`
 	header @public_https Strict-Transport-Security "max-age=86400"
 
+	# Optional access code in front of everything, including /login
+	# (`./run.sh <workshop> --pass CODE`). GATEWAY_GATE_TOKEN is the sha256 of
+	# "dojo-gate:CODE", empty when no code is set (then nothing here matches).
+	# Without a dojo_gate cookie holding that value every request gets the
+	# code page (static/_gate/); gate.js sets the cookie. Anything to do with
+	# the code is checked by Caddy itself; only wrong guesses reach the allocator.
+	@needgate {
+		not expression `"{$GATEWAY_GATE_TOKEN}" == ""`
+		not header_regexp gate Cookie (^|;\s*)dojo_gate={$GATEWAY_GATE_TOKEN}(;|$)
+	}
+	# A wrong cookie (one that is present but not the code) is a guess: the
+	# allocator counts it, 10 a minute per address (accounts.py GATE_GUARD),
+	# answering 401 or 429. gate.js reads those from /_gate/probe; any other
+	# path shows the code page again (an old cookie after the code changed).
+	@gateprobe_bad {
+		path /_gate/probe
+		not expression `"{$GATEWAY_GATE_TOKEN}" == ""`
+		header_regexp seen Cookie (^|;\s*)dojo_gate=.
+		not header_regexp gate Cookie (^|;\s*)dojo_gate={$GATEWAY_GATE_TOKEN}(;|$)
+	}
+	handle @gateprobe_bad {
+		rewrite * /gate-fail
+		reverse_proxy allocator:8080 {
+			import allocator_timeouts
+			header_up X-Gateway-Token {$GATEWAY_TOKEN}
+		}
+	}
+	@gateprobe_no {
+		path /_gate/probe
+		not expression `"{$GATEWAY_GATE_TOKEN}" == ""`
+		not header_regexp gate Cookie (^|;\s*)dojo_gate={$GATEWAY_GATE_TOKEN}(;|$)
+	}
+	handle @gateprobe_no {
+		header Cache-Control "no-store"
+		respond 401
+	}
+	@gatebad {
+		not expression `"{$GATEWAY_GATE_TOKEN}" == ""`
+		header_regexp seen Cookie (^|;\s*)dojo_gate=.
+		not header_regexp gate Cookie (^|;\s*)dojo_gate={$GATEWAY_GATE_TOKEN}(;|$)
+		not path /_gate/*
+	}
+	handle @gatebad {
+		rewrite * /gate-fail
+		reverse_proxy allocator:8080 {
+			import allocator_timeouts
+			header_up X-Gateway-Token {$GATEWAY_TOKEN}
+			@wrong status 401
+			handle_response @wrong {
+				header Cache-Control "no-store"
+				root * /srv/static
+				rewrite * /_gate/gate.html
+				file_server
+			}
+		}
+	}
+	@gateprobe path /_gate/probe
+	handle @gateprobe {
+		header Cache-Control "no-store"
+		respond 204
+	}
+	@gateassets path /_gate/gate.js /_gate/gate.css
+	handle @gateassets {
+		root * /srv/static
+		file_server
+	}
+	handle @needgate {
+		header Cache-Control "no-store"
+		root * /srv/static
+		rewrite * /_gate/gate.html
+		file_server
+	}
+
 	# The front door. Open to everyone: the allocator itself checks the
 	# password (and limits wrong guesses per address, see allocator/accounts.py).
 	@login path /login /login/* /logout

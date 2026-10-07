@@ -1085,3 +1085,11 @@ or map 80/443 to them:
 ```sh
 docker compose logs gateway
 ```
+
+## Access code in front of the whole site (`--pass`)
+
+`./run.sh <workshop> --pass CODE` (also `--cookie`, `--code`) puts an "Access code" page in front of every URL,
+sign-in included. The page sets a `dojo_gate` cookie (sha256 of `dojo-gate:CODE`, 12 hours); the gateway lets a
+request through only when the cookie matches `GATEWAY_GATE_TOKEN`. A wrong cookie is counted by the allocator
+(`/gate-fail`, 10 a minute per address, then 429). The page needs HTTPS or localhost (it hashes in the browser).
+The code is recorded with the start flags, so `restart` keeps it. Not a substitute for the real logins.
