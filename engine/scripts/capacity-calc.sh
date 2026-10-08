@@ -1,6 +1,6 @@
 #!/bin/sh
 # Recommends WEB_TERMINAL_MEM_LIMIT / WEB_TERMINAL_PIDS_LIMIT /
-# CODE_SERVER_MAX_HEAP_MB for engine/.env, sized to the machine this script
+# CODE_SERVER_MAX_HEAP_MB for .env, sized to the machine this script
 # actually runs on (your Mac's podman machine, or the Azure VM) rather than
 # the fixed formula in .env.example.
 #
@@ -54,7 +54,7 @@ With WORKSHOP, every service that workshop starts (its modules included) counts
 towards the memory left for students, not just the engine's four.
 
 Recommends WEB_TERMINAL_MEM_LIMIT / WEB_TERMINAL_PIDS_LIMIT /
-CODE_SERVER_MAX_HEAP_MB for engine/.env, sized to the machine it runs on.
+CODE_SERVER_MAX_HEAP_MB for .env, sized to the machine it runs on.
 Run it ON the target machine, ideally with a couple of './run.sh <workshop>
 --test' bot students live so it can measure real per-student memory.
 
@@ -247,7 +247,7 @@ echo "Container base overhead:     ${BASE_MB}MB"
 echo "Other services' mem_limits: ${OTHER_SERVICES_MB}MB (${OTHER_SERVICES_FROM})"
 echo "OS/daemon reserve:           ${RESERVE_MB}MB"
 echo "-------------------------------------------------------------------"
-echo "Recommended engine/.env values for --students $STUDENTS:"
+echo "Recommended .env values for --students $STUDENTS:"
 echo ""
 echo "  WEB_TERMINAL_MEM_LIMIT=${MEM_LIMIT_GB}g"
 echo "  WEB_TERMINAL_PIDS_LIMIT=${PIDS_LIMIT}"

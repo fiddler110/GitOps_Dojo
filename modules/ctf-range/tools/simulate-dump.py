@@ -42,7 +42,7 @@ def main():
     args = ap.parse_args()
     if not args.secret:
         print("simulate-dump: no secret given (--secret or ACHIEVEMENTS_ADAPTER_SECRET); "
-              "see engine/.env's ACHIEVEMENTS_ADAPTER_SECRET for a running stack", file=sys.stderr)
+              "see .env's ACHIEVEMENTS_ADAPTER_SECRET for a running stack", file=sys.stderr)
         return 1
     try:
         status, body = post(args.url, args.secret, args.user, args.challenge)

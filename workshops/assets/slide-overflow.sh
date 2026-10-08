@@ -3,7 +3,7 @@
 # on a stack that is already up:
 #   workshops/assets/slide-overflow.sh <workshop> [page.md ...] [--base URL]
 # Pages default to every Marp file in workshops/<workshop>/content/slides/ (presentation, cheat sheet, labs index).
-# Logs in at /login as the facilitator (engine/.env), opens /slides/<page>, and for every slide compares each
+# Logs in at /login as the facilitator (.env), opens /slides/<page>, and for every slide compares each
 # h1-h3/p/li/pre/table/img/blockquote box with the slide, or with its footer's top; anything more than 2 px past
 # prints as a FAIL with the page, slide number and the start of its text. No browser on this machine, so it runs
 # Playwright in mcr.microsoft.com/playwright/python (host network). Exit 0 when every page is clean.

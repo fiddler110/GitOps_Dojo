@@ -28,7 +28,7 @@ usage() {
 Usage: tests/load.sh [options]
 
   --students N          how many students run the flow (default 30): ${STUDENT_PREFIX}01..NN. Refuses if the
-                        terminal container has fewer accounts (STUDENT_COUNT in engine/.env).
+                        terminal container has fewer accounts (STUDENT_COUNT in .env).
   --wave-size K         start K students at a time instead of all at once (default 0 = all at once)
   --wave-gap S          seconds between waves (default 20)
   --pollers P           class-overview portal pollers, one per user, every 3 s (default 3)
@@ -253,7 +253,7 @@ preflight || die "preflight failed: the stack is not ready for a test"
 if [ "$N" -gt "$STUDENT_COUNT_ACTUAL" ]; then
   say ""
   say "  Cannot run $N students: $TERMINAL_CONTAINER only has $STUDENT_COUNT_ACTUAL accounts (${STUDENT_PREFIX}01..$(printf '%02d' "$STUDENT_COUNT_ACTUAL"))."
-  say "  Either ask for at most $STUDENT_COUNT_ACTUAL (--students $STUDENT_COUNT_ACTUAL), or raise STUDENT_COUNT in engine/.env and restart the stack"
+  say "  Either ask for at most $STUDENT_COUNT_ACTUAL (--students $STUDENT_COUNT_ACTUAL), or raise STUDENT_COUNT in .env and restart the stack"
   say "  (./run.sh stop, then ./run.sh tofu-basics). Nothing was started."
   die "not enough student accounts: asked for $N, have $STUDENT_COUNT_ACTUAL"
 fi

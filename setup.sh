@@ -322,11 +322,11 @@ fi
 # --- 6. Dojo config and next steps -------------------------------------------
 
 step "Dojo configuration"
-if [ -f engine/.env ]; then
-  ok "engine/.env already exists"
+if [ -f .env ] || [ -f .env ]; then
+  ok ".env already exists"
 elif [ "$CHECK_ONLY" = 1 ]; then
-  warn "engine/.env not created yet (./run.sh setup makes it)"
-elif ask "  Create engine/.env now (generates the class and admin passwords)?" y; then
+  warn ".env not created yet (./run.sh setup makes it)"
+elif ask "  Create .env now (generates the class and admin passwords)?" y; then
   ./run.sh setup
 else
   echo "  Skipped. Run ./run.sh setup before starting a workshop."

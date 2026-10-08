@@ -67,7 +67,7 @@ services:
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}
       # Dojo Portal API trusts X-Auth-User only together with this token (the
       # gateway sets both; students on workshop_lab can reach :8080 directly).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CLOUD_API:-}
@@ -122,7 +122,7 @@ services:
         condition: service_started
     environment:
       # Handed to students' shells by the credential broker (TF_VAR_portal_base_url).
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}
     volumes:
       # CA certificate only (public); the CA key never leaves cloud-api.
       - cloud_pki:/run/cloud-pki:ro

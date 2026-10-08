@@ -62,7 +62,7 @@ hmac_sha256_hex() { # KEY_HEX MSG_HEX -> hex
 
 # derive CHALLENGE USER: flags.py's render(), minus the "flag{...}" wrapper
 # and the dev-seed fallback (this hook only ever runs with a real seed set
-# in engine/.env; an empty seed is a misconfigured install, not a dev mode
+# in .env; an empty seed is a misconfigured install, not a dev mode
 # worth special-casing here).
 seed_hex="$(ascii_hex "${STUDENT_PASSWORD_SEED:?STUDENT_PASSWORD_SEED must be set for tfstate-treasure}")"
 derive() { hmac_sha256_hex "$seed_hex" "$(ascii_hex "ctf:$1:$2")" | cut -c1-16; }

@@ -41,7 +41,7 @@ promise it to a room until it exists; mention it only as "a future session" if a
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. Generate a real `CTF_CONTROL_TOKEN` for `workshop.env` (the committed value is a dev placeholder) —
    it gates the Attack Range's start/stop/reset API.

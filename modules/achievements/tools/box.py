@@ -2,7 +2,7 @@
 #   podman run --rm --network host -v "$PWD":/w:Z -e TTYD_USERNAME -e TTYD_PASSWORD \
 #     mcr.microsoft.com/playwright/python:v1.55.0-noble sh -c \
 #     "pip install -q --break-system-packages playwright==1.55.0; python3 /w/modules/achievements/tools/box.py lab1.md.txt /w/box.png"
-# (export TTYD_USERNAME/TTYD_PASSWORD from engine/.env first). Prints how many challenge-box elements the lab page shows.
+# (export TTYD_USERNAME/TTYD_PASSWORD from .env first). Prints how many challenge-box elements the lab page shows.
 import os, sys
 from playwright.sync_api import sync_playwright
 lab = sys.argv[1]; out = sys.argv[2]

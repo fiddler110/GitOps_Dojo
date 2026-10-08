@@ -32,12 +32,13 @@ thrown away after one job. Hosts that block unprivileged user namespaces (e.g. U
 `kernel.apparmor_restrict_unprivileged_userns=1`) stop the runners from starting: they turn red on the panel.
 
 **Rootful Podman with SELinux (e.g. Podman on macOS)** stops them too (`unshare: mount /proc failed`): the runtime masks
-parts of `/proc`, and SELinux denies the mount. Both must be lifted, only for the pool, by setting
-`RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t` in
-`engine/.env` (gitignored, so per machine). Unset, they default to `no-new-privileges=true` and bare `no-new-privileges` (Compose rejects two equal items), so nothing changes. Docker
+parts of `/proc`, and SELinux denies the mount. Both must be lifted, only for the pool, by running with the
+`mac-podman` profile (`./run.sh <workshop> --env mac-podman`, or `--env mac-podman,home` to join another), which
+sets `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`
+(`[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it). Unset, they default to `no-new-privileges=true` and bare `no-new-privileges` (Compose rejects two equal items), so nothing changes. Docker
 doesn't accept `unmask=`; leave them unset there.
 
-**Settings** (`module.env`; set them in `workshop.env` or `engine/.env`): `RUNNER_MIN_IDLE` (2), `RUNNER_MAX` (empty:
+**Settings** (`module.env`; set them in `workshop.env` or `.env`): `RUNNER_MIN_IDLE` (2), `RUNNER_MAX` (empty:
 `ceil(STUDENT_COUNT / 3)`, 2 to 12), `RUNNER_IDLE_TIMEOUT` (120 s), `RUNNER_JOB_TIMEOUT` (900 s), `RUNNER_LABELS`
 (`host:host`), `RUNNER_POOL_MEM_LIMIT` (2g) and `RUNNER_POOL_PIDS` (2048) for the whole pool, and per runner process
 `RUNNER_NPROC` (256), `RUNNER_NOFILE` (1024) and `RUNNER_AS` (address space in bytes, empty for none).
@@ -70,6 +71,6 @@ The token is still admin-scoped: Forgejo's runner endpoints accept no narrower s
 Compose `secrets:` under podman-compose (evaluated from docs and existing behaviour only, not run here):
 1. podman-compose supports file-based `secrets:` (bind-mounted at `/run/secrets/<name>`) but not `environment:`
    secrets, and support for `mode`/`uid`/`gid` varies by version.
-2. That needs a host file holding the value, i.e. another plaintext copy beside `engine/.env`, and `./run.sh stop`
+2. That needs a host file holding the value, i.e. another plaintext copy beside `.env`, and `./run.sh stop`
    would have to delete it; the named volume above is wiped with the rest.
 3. Not adopted: revisit if the engine gains a secrets directory. Needs a live check on this machine's version.

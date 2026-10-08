@@ -1,7 +1,7 @@
 # Zellij terminal flavor: the flavor-agnostic web-terminal:core image plus
 # Zellij, micro (editor) and a read-only file listing that follows the
 # shell, so a student works in the browser terminal alone, with no VS Code.
-# Selected by TERMINAL_FLAVOR=zellij (engine/.env or a workshop.env);
+# Selected by TERMINAL_FLAVOR=zellij (.env or a workshop.env);
 # run.sh builds this on top of web-terminal:core -- a sibling of
 # web-terminal-vscode/ (code-server), not downstream of it, so this image
 # never carries code-server's disk weight at all -- and chains every

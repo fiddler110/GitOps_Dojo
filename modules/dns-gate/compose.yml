@@ -18,7 +18,7 @@ services:
     image: gitopsdojo/dns-api:local
     container_name: workshop_dns_api
     init: true
-    # `:-` not `:?`: ./run.sh stop reads this file with engine/.env only.
+    # `:-` not `:?`: ./run.sh stop reads this file with .env only.
     environment:
       - PDNS_API_URL=http://dns-server:8081
       - PDNS_UPSTREAM_KEY=${POWERDNS_API_KEY:-}

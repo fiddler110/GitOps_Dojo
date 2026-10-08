@@ -37,9 +37,9 @@ def _complete_workshop(ctx, param, incomplete):
 
 
 def _complete_env(ctx, param, incomplete):
-    return [p.name[len(".env."):] for p in paths.ENGINE.glob(".env.*")
-            if p.name not in (".env.example", ".env.previous", ".env.new")
-            and p.name[len(".env."):].startswith(incomplete)]
+    from .envfiles import known_profiles
+    head, _, last = incomplete.rpartition(",")
+    return [f"{head},{n}" if head else n for n in sorted(known_profiles()) if n.startswith(last)]
 
 
 def _complete_service(ctx, param, incomplete):
@@ -50,7 +50,8 @@ def _complete_service(ctx, param, incomplete):
 
 
 ENV_OPTION = click.option("--env", "env_name", metavar="NAME", shell_complete=_complete_env,
-                          help="Also load engine/.env.NAME on top of engine/.env (its values win).")
+                          help="Also apply profile NAME (a [profiles.NAME] in dojo.local.toml and a [NAME] section in .env) on top; "
+                               "NAME,NAME joins several, the last wins.")
 
 
 def start_options(f):
@@ -110,6 +111,10 @@ class DojoGroup(click.Group):
 @click.group(cls=DojoGroup, context_settings=SETTINGS, no_args_is_help=True)
 def cli() -> None:
     """GitOps Dojo command centre: start, inspect and stop workshop stacks."""
+    from . import migrate
+    if migrate.needed() and not os.environ.get("_DOJO_COMPLETE"):
+        for line in migrate.migrate():
+            console.print(f"[yellow]{escape(line)}[/]")
 
 
 # --- the stack ----------------------------------------------------------------------
@@ -312,6 +317,45 @@ def new_workshop(name, title, description, mods, order, duration, org, repo, ter
 
 
 # --- setup, still shell scripts ---------------------------------------------------
+@cli.command("_operator-env", context_settings=SETTINGS, hidden=True)
+@ENV_OPTION
+def operator_env_cmd(env_name: Optional[str]) -> None:
+    """Print the operator's settings (dojo.toml, dojo.local.toml, .env, profiles) as `export` lines,
+    for shell scripts: eval "$(./run.sh _operator-env [--env NAME])"."""
+    import shlex
+    from .envfiles import operator_env
+    try:
+        env = operator_env(env_name)
+    except EnvError as exc:
+        fail(str(exc))
+        sys.exit(1)
+    for key, value in sorted(env.items()):
+        click.echo(f"export {key}={shlex.quote(value)}")
+
+
+@cli.command("_config-get", context_settings=SETTINGS, hidden=True)
+@click.argument("key")
+@ENV_OPTION
+def config_get_cmd(key: str, env_name: Optional[str]) -> None:
+    """One operator setting's current value (used by setup for its prompt defaults)."""
+    from .envfiles import operator_env
+    click.echo(operator_env(env_name).get(key, ""))
+
+
+@cli.command("_config-set", context_settings=SETTINGS, hidden=True)
+@click.argument("key")
+@click.argument("value")
+@click.option("--profile", default=None, help="Write under [profiles.NAME.*] instead of the base settings.")
+def config_set_cmd(key: str, value: str, profile: Optional[str]) -> None:
+    """Set one non-secret setting in dojo.local.toml (used by setup)."""
+    from . import config as config_mod
+    try:
+        config_mod.set_value(key, value, profile=profile, skip_default=True)
+    except config_mod.ConfigError as exc:
+        fail(str(exc))
+        sys.exit(1)
+
+
 def _passthrough(name: str, script: str, help_text: str) -> None:
     """A command run by its shell script with every argument as given (so
     `./run.sh setup --help` is the script's own help)."""
@@ -322,7 +366,7 @@ def _passthrough(name: str, script: str, help_text: str) -> None:
         os.execvp("sh", ["sh", str(paths.ENGINE / "scripts" / script), *args])
 
 
-_passthrough("setup", "env-setup.sh", "Create or update engine/.env (--default, --force, --rotate-class).")
+_passthrough("setup", "env-setup.sh", "Create or update .env (--default, --force, --rotate-class).")
 
 
 @cli.command("capacity", add_help_option=False,

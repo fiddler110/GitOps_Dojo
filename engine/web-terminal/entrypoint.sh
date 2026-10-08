@@ -5,7 +5,7 @@ student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
 workshop_name="${WORKSHOP_NAME:-Workshop Lab}"
 facilitator_username="${FACILITATOR_USERNAME:-root}"
-facilitator_password="${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}"
+facilitator_password="${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in .env or dojo.toml}"
 lab_seed_dir="${LAB_SEED_DIR:-/opt/lab}"
 student_shell="${STUDENT_SHELL:-/bin/zsh}"
 

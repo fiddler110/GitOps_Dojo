@@ -5,7 +5,7 @@ piece (opa tests, conftest, `tofu validate`); not run end to end with bots or a 
 
 ## Before the session
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`; set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`, `STUDENT_COUNT`.
+1. `./run.sh setup` if there is no `.env`; set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`, `STUDENT_COUNT`.
 2. `./run.sh cloud-policy-as-code`. Wait for **Forgejo**, **Terminals**, **Slides**, **Dojo Cloud** and the runner
    pool to go green in the `/admin` status strip. `tofu-mirror-init` runs once and exits (that is normal).
 3. `./run.sh capacity cloud-policy-as-code --students 30`: Dojo Cloud's `cloud-host` is the big one.

@@ -24,7 +24,7 @@ Add it with `MODULES="openbao"` in a `workshop.env`. Built for `vault-fundamenta
 **OpenBao's UI refuses to be framed by default** (`frame-ancestors 'none'`). For the `/admin` tab, `openbao-setup`
 sets `sys/config/ui/headers/Content-Security-Policy` to the same policy with `frame-ancestors 'self'`.
 
-**Settings** (set in `engine/.env` or `workshop.env`): `OPENBAO_MEM_LIMIT` (512m).
+**Settings** (set in `.env` or `workshop.env`): `OPENBAO_MEM_LIMIT` (512m).
 
 **Single sign-on** (`setup/sso.sh`, every start): Forgejo is the OIDC provider. `openbao-setup` creates a confidential
 OAuth2 app owned by `FORGEJO_ADMIN_USER` (its id and secret kept on `openbao_setup`, reused while Forgejo still has

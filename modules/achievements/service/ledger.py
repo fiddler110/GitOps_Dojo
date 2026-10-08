@@ -47,7 +47,7 @@ def _int_env(env, name, default):
 
 
 class Config:
-    """Tunables, all settable in engine/.env (defaults are the roadmap's A4 values)."""
+    """Tunables, all settable in .env (defaults are the roadmap's A4 values)."""
 
     def __init__(self, hint_percent=25, forfeit_after=2, first_blood=25, capstone_first_blood=50,
                  class_clear=10, first_blood_on=True, class_clear_on=True, cheat_penalty_on=True,

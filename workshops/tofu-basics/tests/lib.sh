@@ -367,7 +367,7 @@ preflight() {
   STUDENT_PREFIX=$(terminal_env STUDENT_PREFIX || true); : "${STUDENT_PREFIX:=student}"
   STUDENT_COUNT_ACTUAL=$(terminal_env STUDENT_COUNT || true)
   if [ -z "$STUDENT_COUNT_ACTUAL" ]; then
-    STUDENT_COUNT_ACTUAL=$(sed -n 's/^STUDENT_COUNT=//p' "$TB_REPO_ROOT/engine/.env" 2>/dev/null | head -n1)   # only this key is read from .env
+    STUDENT_COUNT_ACTUAL=$("$TB_REPO_ROOT/engine/run.sh" _config-get STUDENT_COUNT 2>/dev/null | head -n1)
   fi
   : "${STUDENT_COUNT_ACTUAL:=0}"
   say "  accounts: ${STUDENT_PREFIX}01..$(printf '%02d' "$STUDENT_COUNT_ACTUAL") (STUDENT_COUNT=$STUDENT_COUNT_ACTUAL)"

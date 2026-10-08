@@ -295,11 +295,12 @@ class Modules(unittest.TestCase):
             if env:
                 (self.root / "modules" / m / "module.env").write_text(env)
         (self.root / ".env").write_text("OP_WINS=operator\nACHIEVEMENTS_ENABLED=0\n")
-        saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE)
-        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE = (
-            self.root / "workshops", self.root / "modules", self.root / ".env")
-        self.addCleanup(lambda: setattr(paths, "WORKSHOPS", saved[0]) or setattr(paths, "MODULES", saved[1])
-                        or setattr(paths, "ENV_FILE", saved[2]))
+        saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG)
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = (
+            self.root / "workshops", self.root / "modules", self.root / ".env",
+            self.root / "dojo.toml", self.root / "dojo.local.toml")
+        self.addCleanup(lambda: [setattr(paths, n, v) for n, v in zip(
+            ("WORKSHOPS", "MODULES", "ENV_FILE", "CONFIG", "LOCAL_CONFIG"), saved)])
 
     def resolve(self, workshop_env, **shell):
         (self.ws / "workshop.env").write_text(workshop_env)

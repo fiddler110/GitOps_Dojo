@@ -3,7 +3,7 @@
 #
 # Everything it offers comes from the dojo CLI's own definitions (Click's
 # completion protocol), with descriptions: commands, workshop names, each
-# command's options, the engine/.env.NAME files for --env, and the running
+# command's options, the profile NAME files for --env, and the running
 # stack's services for `restart` and `logs`. Nothing here needs updating when
 # commands, workshops or options change.
 #

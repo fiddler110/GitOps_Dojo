@@ -49,7 +49,7 @@ PYTHONPATH=engine:$(echo engine/.cache/pylib-*) /usr/bin/python3 -B -m unittest 
 ## 4. Setup and a plain workshop under Docker
 
 ```bash
-./run.sh setup --default        # writes engine/.env; also runs the capacity sizing
+./run.sh setup --default        # writes `.env`; also runs the capacity sizing
 ./run.sh doctor                 # "Container engine" should say docker
 ./run.sh git-fundamentals --dry-run
 ./run.sh git-fundamentals       # the first build is cold and takes a while
@@ -104,7 +104,7 @@ dojo git-fundamentals --<Tab>    # the start options
 
 ```bash
 ./run.sh capacity --students 10
-./run.sh setup                   # the interactive path: answer a few prompts, then check engine/.env
+./run.sh setup                   # the interactive path: answer a few prompts, then check `.env`
 ./run.sh alias-setup             # run it twice: the block in ~/.zshrc is replaced, not duplicated
 ./run.sh alias-setup --remove    # then once more to put it back
 ```

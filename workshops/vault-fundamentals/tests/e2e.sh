@@ -57,7 +57,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-set -a; . engine/.env; [ -z "${DOJO_ENV:-}" ] || . "engine/.env.$DOJO_ENV"; set +a
+eval "$(./engine/run.sh _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
 [ ! -r engine/.generated/upstream-tokens.env ] || { set -a; . engine/.generated/upstream-tokens.env; set +a; }  # per-upstream tokens (FIND-16)
 podman container exists workshop_terminal 2>/dev/null || { echo "the stack isn't up (./run.sh vault-fundamentals)" >&2; exit 2; }
 OUT="$(mktemp -d "${TMPDIR:-/tmp}/vf-e2e.XXXXXX")"

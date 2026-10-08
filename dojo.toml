@@ -1,0 +1,102 @@
+# GitOps Dojo settings: everything that is not a secret.
+#
+#   dojo.toml        this file, committed: defaults that suit any machine.
+#   dojo.local.toml  git-ignored, same layout: this machine's overrides and your
+#                    profiles (home, live ...). `./run.sh setup` writes it.
+#   .env             git-ignored: passwords, tokens and seeds (see .env.example).
+#
+# Later layers win: dojo.toml < dojo.local.toml < .env < a profile
+# (`./run.sh <workshop> --env home`, or --env mac-podman,home to join several)
+# < the workshop's own workshop.env. `./run.sh config <workshop> KEY` shows which
+# layer set a value. Unknown sections or keys are rejected, so a typo is an error.
+
+[general]
+student_count = 3                 # studentNN Linux + Forgejo accounts
+student_prefix = "student"
+class_username = "student"        # the shared sign-in on the slide (its password is in .env)
+facilitator_username = "facilitator"   # signs in to /admin, has sudo in the terminal
+forgejo_admin_user = "workshop-admin"  # machine account; avoid the reserved name "admin"
+forgejo_admin_email = "admin@example.com"
+achievements = true               # toasts, leaderboard, support desk (workshops with a catalog)
+
+[network]
+# What students type into their browser; the port must match http_port.
+#   local:  http://localhost:8080
+#   a VM:   https://<label>.<region>.cloudapp.azure.com
+# On a LAN use https (run.sh warns about plain http beyond localhost).
+public_base_url = "http://localhost:8080"
+# Interface the gateway binds on THIS machine: 127.0.0.1 = this machine only,
+# 0.0.0.0 = the LAN too (a VM, or a proxy on another host).
+lab_host_ip = "127.0.0.1"
+# Rootless podman can't bind below 1024: put a proxy or port mapping in front for 80/443.
+http_port = 8080
+https_port = 8443
+# Behind another TLS proxy (a home-lab Caddy): the gateway serves plain HTTP here while
+# public_base_url stays the https address, and trusted_proxies names that proxy as the
+# gateway sees it (its address only, never a range) so the login rate limit counts each browser.
+#   gateway_listen = "http://:8080"
+#   trusted_proxies = "10.0.0.2/32"
+# Default passwords on a non-loopback address are refused unless --allow-default-passwords
+# (or this, in a profile for a VPN-only lab).
+#   allow_default_passwords = true
+# The gateway's private network to the students' IDE and terminal ports; change it only if
+# 172.30.9.0/24 clashes with a network on this host.
+#   terminal_ingress_subnet = "172.30.9.0/24"
+
+[terminal]
+# What students get:
+#   "code-server"  VS Code in the browser plus a tmux terminal
+#   "zellij"       a Zellij terminal only (file list, micro editor, shell): far less memory
+#                  per student. run.sh builds the extra image (engine/zellij-terminal/).
+# A workshop's workshop.env can set TERMINAL_FLAVOR too, and wins.
+flavor = "code-server"
+# Zellij only: the browser terminal's font (a CSS list) and size.
+#   font_family = "Menlo,Consolas,monospace"
+#   font_size = 14
+# The container-wide ceiling for ALL students' code-server/ttyd processes together, and a per-process
+# V8 heap cap under it. Size them for the machine with `./run.sh capacity --students N`
+# (`setup` does, into dojo.local.toml). By hand: ~650 MB RAM and 40-50 pids per student, plus ~1 GB.
+mem_limit = "4g"
+pids_limit = 2048
+code_server_max_heap_mb = 384
+# Per-student RLIMIT_NPROC (a fork-bomb tripwire; 0 = off).
+#   nproc_limit = 1024
+# How long a code-server lingers after its tab closes. Grace frees the extension host (~330 MB
+# per student); the idle timeout then exits the whole code-server (tmux terminals survive).
+# Keep grace below the idle timeout; 0 disables a timer; a non-zero idle timeout must exceed 60.
+reconnection_grace_seconds = 300
+idle_timeout_seconds = 900
+
+[bots]
+# `./run.sh <workshop> --test [N]` starts demo "students" (testuser1-3 are expert/intermediate/
+# novice personas). They never use a student slot. --test sets the count for you.
+#   count = 0
+#   prefix = "testuser"
+
+[build]
+# Only if your network does TLS inspection: a combined CA bundle the web-terminal build trusts
+# when it fetches VS Code extensions (a BuildKit secret, never baked into an image).
+#   corp_ca_bundle = "/path/to/combined_ca_bundle.pem"
+
+[engine]
+# Fallbacks so `./run.sh stop` can read the compose file; a workshop's workshop.env sets
+# the real values for each run.
+workshop_content_dir = "../workshops/git-fundamentals/content"
+workshop_name = "Git Training Lab"
+forgejo_org = "training"
+forgejo_repo = "sample-training-repo"
+
+[env]
+# Any other variable, passed through as written:  SOME_VARIABLE = "value"
+
+# --- Profiles: `--env NAME` --------------------------------------------------------
+# A profile repeats the sections above as [profiles.NAME.<section>]. Your own (home, live ...)
+# go in dojo.local.toml; secrets for a profile go under a [NAME] header in .env.
+# Join profiles with commas: --env mac-podman,home (the last wins).
+
+# macOS with rootful Podman (podman machine, SELinux in the VM). Without these no runner-pool
+# runner or vault app can start (`unshare: mount /proc failed`); see modules/runner-pool/README.md.
+# Not needed on Linux or with Docker.
+[profiles.mac-podman.env]
+RUNNER_POOL_SECURITY_OPT_1 = "unmask=/proc/*"
+RUNNER_POOL_SECURITY_OPT_2 = "label=type:container_engine_t"

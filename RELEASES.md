@@ -7,6 +7,25 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## On `feat/config-consolidation` (2026-10-08, not yet merged)
+
+**One settings layout instead of `engine/.env` plus `.env.home`, `.env.live` and the profiles.** Three files at the repo root:
+`dojo.toml` (committed, every non-secret default in sections, `[terminal] flavor = "code-server"|"zellij"`),
+`dojo.local.toml` (git-ignored: this machine's sizing and flavor, and the profiles) and `.env` (git-ignored secrets, with a
+`[home]`-style section per profile). `--env NAME` now selects a profile and takes a comma list (`--env mac-podman,home`), so the
+terminal flavor no longer needs its own overlay and cannot clash with `--env home`. TOML typos (unknown section or key, wrong
+type) stop the start with the file named. The first CLI command in an old checkout migrates `engine/.env*` automatically
+(secrets to `.env`, the rest to `dojo.local.toml`, originals kept as `*.migrated`). `env-profiles/` is gone: `mac-podman` is
+now `[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it or the `.env` profile sections. `tomli` (pinned
+wheel) covers Python below 3.11.
+Checked locally: 70 unit tests (13 new: layering, sections, profiles, set/round-trip, migration); the migration run on this
+machine's real files (`config` shows the same flavor, URL and logins for plain and `--env home`); `git-fundamentals`
+dry-runs and `doctor`; a real start in both flavors (Zellij: `/ide/` 404, code-server: `/ide/` 200) with login and slot
+assignment; `setup --default`, `setup` with every default accepted, and `--rotate-class` in a scratch tree (a `[home]`
+section survives both). Not checked: a live `--env home` start, the other workshops' live runs, the shell test helpers
+(`test-lib.sh` `load_env`, `e2e.sh`) that now read settings through `_operator-env`, and the `tomli` path itself (this machine's
+Python has `tomllib`).
+
 ## On `feat/ctf-refinement` (2026-10-07, not yet merged)
 
 **Themed attack boxes, the rest.** Nine more targets got scenario themes (CSS at `/assets/theme.css`, own fictional brand):

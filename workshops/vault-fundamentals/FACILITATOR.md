@@ -36,12 +36,11 @@ CI runs on the single-use runner pool. The demo bots do the same.
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
-2. **Rootful Podman on macOS only:** `engine/.env` must carry `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*`
-   and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`, or neither the runner pool nor the app
-   host starts (`unshare: mount /proc failed`). `./run.sh setup --default --force` overwrites `.env`, so
-   re-add them. On Docker / rootless Linux, leave them unset. Also give `openbao-setup` more than 64m of
+2. **Rootful Podman on macOS only:** start with `--env mac-podman` (it sets `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*`
+   and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`), or neither the runner pool nor the app
+   host starts (`unshare: mount /proc failed`). On Docker / rootless Linux, leave them unset. Also give `openbao-setup` more than 64m of
    memory — it needs it to provision every namespace. (Details in `modules/runner-pool/README.md`.)
 3. **No password to announce** — each terminal is signed in with the student's own token. **Password** on
    the Roster tile shows it if needed.
@@ -92,7 +91,7 @@ overwritten.
 
 | Symptom | Likely cause and fix |
 | ------- | -------------------- |
-| Runner pool / app host won't start on macOS | The two `RUNNER_POOL_SECURITY_OPT_*` vars are missing from `engine/.env` (a `setup --force` wiped them). Re-add and restart |
+| Runner pool / app host won't start on macOS | The two `RUNNER_POOL_SECURITY_OPT_*` vars are not set: start with `--env mac-podman` |
 | `openbao-setup` fails or namespaces missing | It needs more than 64m; raise its memory. Check `./run.sh logs openbao-setup \| tail -40` |
 | Vault "sealed" after a restart | It should self-unseal from the share on `openbao_setup`. If it didn't, `./run.sh logs openbao \| tail`; a restart of the setup service re-runs unseal |
 | CI job stuck "queued" | No free runner — single-use pool. Raise the count in the **Runners** tab |

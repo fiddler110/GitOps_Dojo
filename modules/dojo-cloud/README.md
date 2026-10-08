@@ -15,7 +15,7 @@ real containers. Students deploy to it with the `azurerm` provider. Add it with
 | `cloud-api/`, `cloud-host/` | The service sources and their unit tests. |
 | `test_parity.py` | Checks that the broker and `cloud-api` derive identical ids and secrets for a username. |
 
-**Settings** (set in `engine/.env` or `workshop.env`): `CLOUD_HOST_MEM_LIMIT` (3g),
+**Settings** (set in `.env` or `workshop.env`): `CLOUD_HOST_MEM_LIMIT` (3g),
 `CLOUD_HOST_PIDS_LIMIT` (4096), `CLOUD_API_MEM_LIMIT` (256m). Needs `PUBLIC_BASE_URL` and
 `GATEWAY_TOKEN`, which `./run.sh setup` writes.
 

@@ -1,6 +1,6 @@
 # Shared helpers for the live-stack test scripts (RV18). POSIX sh: source it from the repo root,
 #   . workshops/assets/test-lib.sh
-# then call load_env if the script needs engine/.env (passwords, gateway tokens). The scripts run on the
+# then call load_env if the script needs .env (passwords, gateway tokens). The scripts run on the
 # host with the stack up and reach it through `podman exec` (or docker: DOJO_CLI picks).
 #
 # Reporting: every check prints "  ok:   NAME" or "  FAIL: NAME ..." and a failure sets failed=1, so a run
@@ -16,10 +16,11 @@
 : "${DOJO_FORGE:=workshop_forge}"
 failed=0
 
-# load_env: engine/.env, plus the per-upstream gateway tokens a start writes (FIND-16), exported.
+# load_env: the operator's settings and secrets (dojo.toml, .env, the DOJO_ENV profile), plus the
+# per-upstream gateway tokens a start writes (FIND-16), exported.
 load_env() {
+  eval "$(./engine/run.sh _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
   set -a
-  . engine/.env
   [ ! -r engine/.generated/upstream-tokens.env ] || . engine/.generated/upstream-tokens.env
   set +a
 }

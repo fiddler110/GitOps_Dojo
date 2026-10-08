@@ -238,8 +238,9 @@ def _start(o: StartOptions) -> int:
     if not NAME_RE.match(o.workshop):
         raise StartError(f"'{o.workshop}' is not a workshop name (lowercase letters, digits and '-').\n"
                          f"Run '{paths.PROG} list' to see available workshops.")
-    if o.env_name is not None and not NAME_RE.match(o.env_name):
-        raise StartError("--env expects a name (lowercase letters, digits and '-'), e.g. --env home")
+    if o.env_name is not None and not all(NAME_RE.match(n) for n in o.env_name.split(",")):
+        raise StartError("--env expects a profile name (lowercase letters, digits and '-'), or several joined "
+                         "with commas, e.g. --env home or --env mac-podman,home")
     rt = Runtime()
     if not rt.available:
         raise StartError(f"Neither podman (with podman-compose) nor docker was found; '{paths.PROG} doctor' explains.")
@@ -301,7 +302,7 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
 
     # The terminal image chain: :core -> the selected flavor leaf -> each
     # module's terminal/ -> the workshop's. TERMINAL_FLAVOR comes from
-    # engine/.env or the workshop's workshop.env (the latter wins); each
+    # dojo.toml [terminal] flavor or the workshop's workshop.env (the latter wins); each
     # flavor's leaf (web-terminal-vscode/ or zellij-terminal/) builds FROM
     # :core as a sibling of the other flavor's leaf, not on top of it, so
     # only the one leaf this run actually needs gets built (build.py's
@@ -342,10 +343,10 @@ def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
                 f"Refusing to start: default passwords ({' '.join(weak)}) with PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')}\n"
                 f"and LAB_HOST_IP={env.get('LAB_HOST_IP') or '<unset>'}, i.e. reachable beyond this machine. Anyone who has seen\n"
                 f"'{paths.PROG} setup --default' can sign in. Generate real ones with '{paths.PROG} setup --force'\n"
-                "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass\n"
-                "--allow-default-passwords (or ALLOW_DEFAULT_PASSWORDS=1 in .env.<name>) to start anyway.")
+                "(your PUBLIC_BASE_URL/LAB_HOST_IP stay in dojo.local.toml), or pass\n"
+                "--allow-default-passwords (or allow_default_passwords = true under [network] in a profile) to start anyway.")
     if not env.get("STUDENT_PASSWORD_SEED"):
-        console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in engine/.env: every student's Forgejo password is the\n"
+        console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in .env: every student's Forgejo password is the\n"
                       f"         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run '{paths.PROG} setup'.[/]")
     if checks.plain_http_offbox(env):
         console.print(f"[yellow]WARNING: PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')} is plain HTTP beyond this machine: passwords,\n"

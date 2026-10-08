@@ -260,7 +260,7 @@ idempotent: a working token is kept). Student Linux passwords are locked
 are `0700`. The per-account steps live in `web-terminal/provision-account.sh`,
 which a student reset reruns. The Roster's **Password** button shows one
 student's Forgejo password for the desk (logged as
-`forgejo-password-shown`). Without a seed (an old `engine/.env`), every
+`forgejo-password-shown`). Without a seed (an old `.env`), every
 student's password is `STUDENT_PASSWORD` and `run.sh` warns.
 
 Git operations (`clone`/`push`) never go through the gateway or this SSO
@@ -315,8 +315,8 @@ this is how the engine uses it.
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
-- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` (the default since 2026-10-04;
-  set it to 0 for a session that should not score anyone) makes `run.sh` add the
+- **Achievements toggle.** `achievements = true` under `[general]` in `dojo.toml` (`ACHIEVEMENTS_ENABLED=1`; the default since 2026-10-04;
+  set it to false for a session that should not score anyone) makes `run.sh` add the
   `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
   (warning and no module when it doesn't). The catalog is validated first, in the allocator image
   (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
@@ -359,8 +359,8 @@ Everything is driven from `run.sh`, which lives in the repo root (and in
 
 `./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below with a
 short explanation, showing its current value in `[brackets]` (Enter accepts it). When
-`engine/.env` already exists, its values are the defaults and settings the script doesn't ask
-about are carried over; a password that is still a public default (`change-me`, `student`,
+`.env` already exists, its values are the defaults and settings the script doesn't ask
+about are carried over, `[profile]` sections included (non-secret answers go to `dojo.local.toml`); a password that is still a public default (`change-me`, `student`,
 `student123`, `admin`) is replaced by a generated one on a bare Enter, while a real one is kept
 (type `new` to generate). The file is built as `.env.new` and moved into place at the end, so
 Ctrl-C leaves `.env` as it was; the old one is kept as `.env.previous`. It also offers to
@@ -372,7 +372,7 @@ instead (`student`/`student123`/`admin`/`admin` — see the script's header
 for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
 `GATEWAY_TOKEN`) and `FORGEJO_ADMIN_PASSWORD` (the facilitator reaches Forgejo
 through SSO) are still randomly generated even in `--default` mode, since
-nobody ever types those. `engine/.env` (and `.env.previous`) is written
+nobody ever types those. `.env` (and `.env.previous`) is written
 mode 0600: it holds every master secret. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
 
@@ -390,8 +390,22 @@ after `--env NAME` is loaded). Run `./run.sh setup` for real values, or pass
 do it by hand instead? `cp .env.example .env` and edit directly — same
 settings, same file.
 
-`.env` now holds only account/secret/network settings — the same for every
-workshop. Which workshop to run (content, Forgejo org/repo, any extra
+**Where settings live.** Three files at the repo root, and nothing under `engine/`:
+
+| File | In git? | Holds |
+|---|---|---|
+| `dojo.toml` | yes | every non-secret default, in sections: `[general]` (student count, usernames, achievements), `[network]` (URL, ports, proxy), `[terminal]` (`flavor = "code-server"` or `"zellij"`, memory/pid limits, idle timers), `[bots]`, `[build]`, `[engine]`, and `[env]` for any other variable |
+| `dojo.local.toml` | no | this machine's overrides in the same layout, plus your profiles (`[profiles.home.network]` ...). `setup` writes the machine sizing here |
+| `.env` | no, mode 0600 | secrets only (`TTYD_PASSWORD`, `FACILITATOR_PASSWORD`, the tokens and seeds), see `.env.example` |
+
+Later layers win: `dojo.toml` < `dojo.local.toml` < `.env` < the selected profile
+(`--env`) < the workshop's `workshop.env`. Unknown sections or keys in a TOML file
+stop the start with the file and line, so a typo cannot silently do nothing.
+`./run.sh config <workshop> KEY` prints every value a key was given and which file won.
+A checkout from before this layout is migrated by the first `./run.sh` command: the
+old `engine/.env` and `engine/.env.NAME` files are split into these three and kept as `*.migrated`.
+
+Which workshop to run (content, Forgejo org/repo, any extra
 services) is selected separately, by name, via `./run.sh` below.
 
 | Variable                                          | Purpose                                                        |
@@ -440,8 +454,12 @@ workshop's duration, not this setting. This repo doesn't manage the NSG;
 that's an Azure-side step you control per-deployment.
 
 **A second address, one flag away (`--env`):** `./run.sh <workshop> --env home`
-sources `engine/.env.home` after `engine/.env`, so it only needs the lines that
-differ and everyday runs are unchanged.
+applies the `home` profile: `[profiles.home.*]` in `dojo.toml`/`dojo.local.toml` for its settings
+(URL, proxy) and a `[home]` section in `.env` for its secrets, so it only needs the values that
+differ and everyday runs are unchanged. A profile never touches settings it does not name, so the
+terminal flavor, set once under `[terminal]`, applies to `--env home` and `--env live` alike. Join
+profiles with commas (`--env mac-podman,home`, the last wins). The profile must exist somewhere, or
+the start stops and lists the known names.
 
 **Behind another reverse proxy (e.g. a home-lab Caddy with a real certificate):**
 the proxy terminates TLS and forwards to the gateway on plain HTTP. `GATEWAY_LISTEN`
@@ -510,8 +528,9 @@ checks each against its pinned sha256 and unpacks them into `engine/.cache/`
 as it does for the image builds. `setup`, `capacity` and `alias-setup` are still
 shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
 
-- **Settings.** `engine/.env` and `engine/.env.NAME` are read literally: a password
-  with `$`, a backquote or spaces arrives as typed. `workshop.env` and `module.env`
+- **Settings.** `.env` is read literally (a password with `$`, a backquote or spaces arrives as
+  typed; a `[name]` header starts a profile's secrets), `dojo.toml` and `dojo.local.toml` are TOML
+  (`dojo/config.py` maps each key to its environment variable). `workshop.env` and `module.env`
   are shell code (they derive tokens with `$(...)`) and are run by `sh` as before.
   `./run.sh config <workshop> KEY` shows every value a key was given and which won.
 - **What a start does**, in order: resolve the settings, apply the safety gates
@@ -583,7 +602,7 @@ kept in `engine/.build-state/` (gitignored). Neither ever prompts outside a
 real terminal, so CI and `--test` bot runs are unaffected.
 
 Completion covers everything the CLI defines: commands, workshop names (with
-titles in zsh), each command's flags, `--env` names from `engine/.env.*`, and
+titles in zsh), each command's flags, `--env` profile names (from `dojo.toml`, `dojo.local.toml` and `.env`), and
 the running stack's services for `restart` and `logs`; adding a command,
 workshop or option needs no completion change. One script covers `dojo`, the
 root `./run.sh` and `engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`,
@@ -625,11 +644,11 @@ assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
-**Terminal flavor** (`TERMINAL_FLAVOR`): `web` (the default) gives each student VS Code
-in the browser plus a tmux terminal. `zellij` gives a terminal only: a Zellij
+**Terminal flavor** (`[terminal] flavor` in `dojo.toml`, which sets `TERMINAL_FLAVOR`): `"code-server"` (the default; `web` is the same) gives each student VS Code
+in the browser plus a tmux terminal. `"zellij"` gives a terminal only: a Zellij
 session with a read-only listing of the shell's directory (`dojo-sidebar`), the
-shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it in `engine/.env`
-or a workshop's `workshop.env` (which wins).
+shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it under `[terminal]` in
+`dojo.local.toml` for this machine, or in a workshop's `workshop.env` (which wins). It is independent of `--env`.
 
 The terminal image chain has one flavor-agnostic root and two sibling leaves:
 `web-terminal:core` (`engine/web-terminal/`) holds everything both flavors
@@ -825,7 +844,7 @@ Use it when the class is full but seats are held by people who never started.
 
 **Slot-assignment rate limit.** New slots go out through a token bucket:
 `ASSIGN_BURST` at once (default 10), then `ASSIGN_PER_MINUTE` (default 20), set
-in `engine/.env`. A class of 30 is in within about a minute. A browser that
+in `dojo.local.toml`'s `[env]` section. A class of 30 is in within about a minute. A browser that
 already holds a slot, the facilitator and the `--test` demo bots are never
 limited. A visitor over the limit gets a "try again in N seconds" page (HTTP 429
 with a `Retry-After` header). This stops one client from draining every free slot by
@@ -939,7 +958,7 @@ within `BOT_SUPERVISOR_INTERVAL` seconds (15 by default) and resumes
 exactly where it left off, so Release is safe to use on a bot to test that
 flow without losing its progress.
 
-**Config** (all optional, in `.env` — see `.env.example`): `BOT_COUNT`
+**Config** (all optional: `[bots]` in `dojo.toml`, `BOT_PASSWORD` in `.env`): `BOT_COUNT`
 (`--test` defaults this to 3 if unset; `--test N` sets it to N and overrides `.env`), `BOT_PREFIX` (default `testuser`),
 `BOT_PASSWORD` (default `testuser123`). A bot's Forgejo account uses the
 same `FORGEJO_ORG`/`FORGEJO_REPO` as everything else, and is added to the

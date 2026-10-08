@@ -30,7 +30,7 @@ people finish its clean-up section before Lab 10.
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`. It must contain `PUBLIC_BASE_URL` (what
+1. `./run.sh setup` if there is no `.env`. It must contain `PUBLIC_BASE_URL` (what
    students will type, including the port if it isn't 80/443) and `GATEWAY_TOKEN`. Set `STUDENT_COUNT`.
 2. **Student password:** nothing to announce. Each student's terminal is signed in to Forgejo with their own
    token (`~/.git-credentials` for git, `~/.netrc` for Lab 0's `curl --netrc` fork), so no lab asks for a password.

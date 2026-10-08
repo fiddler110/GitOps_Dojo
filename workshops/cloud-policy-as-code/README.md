@@ -21,7 +21,7 @@ cd engine
 ./run.sh stop                        # stop and wipe everything
 ```
 
-`engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`. Always start through `./run.sh`; run `./run.sh stop`
+`.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`. Always start through `./run.sh`; run `./run.sh stop`
 before restarting after an image change. Only amd64 has been built.
 
 ## Labs

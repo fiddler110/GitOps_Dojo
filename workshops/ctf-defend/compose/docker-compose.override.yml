@@ -5,7 +5,7 @@
 # web-terminal: extra env only (merges per key into the engine service; list form unaffected) so
 # /etc/dojo/start.d/90-ctf-defend.sh (compose/terminal/Dockerfile) can call Forgejo's admin API to
 # provision each student's own customer-portal repo and its Actions secrets/variable.
-# FORGEJO_ADMIN_USER/PASSWORD are already required in engine/.env by the engine's own bootstrap
+# FORGEJO_ADMIN_USER/PASSWORD are already required in .env by the engine's own bootstrap
 # service (engine/docker-compose.yml); this just also hands them to web-terminal. Same mechanism
 # as workshops/ctf-defend-test, proved on a real stack first (docs/CTF-WORKSHOP-PLAN.md, CTF-S6).
 #
@@ -17,8 +17,8 @@
 services:
   web-terminal:
     environment:
-      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
-      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in .env or dojo.toml}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in .env or dojo.toml}
       - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
       - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
       - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}

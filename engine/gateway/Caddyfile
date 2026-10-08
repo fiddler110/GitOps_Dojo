@@ -40,7 +40,7 @@
 {
 	# See entrypoint.sh: the public host, for clients that send no SNI.
 	default_sni {$GATEWAY_DEFAULT_SNI}
-	# Behind another proxy (engine/.env.home) every request arrives from the
+	# Behind another proxy (dojo.local.toml profile "home") every request arrives from the
 	# proxy's address. GATEWAY_TRUSTED_PROXIES names that proxy (CIDR list) so
 	# the address the allocator's login limit keys on is the real browser's
 	# (from X-Forwarded-For),

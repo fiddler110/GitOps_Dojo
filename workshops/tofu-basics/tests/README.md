@@ -8,7 +8,7 @@ the labs promise. They cover PLAN tasks T9.1, T9.6, the driver half of T9.3, and
 **Status (2026-09-21):** run live on the 9.9 GB dev box: `e2e.sh` (all areas incl. restart) 292 checks, 0 failed; `load.sh` at 5, 10 and 15 students all PASS (`apply` p95 51 / 69 / 76 s, peak memory at 15: terminal 1.2 GB, cloud-host 0.16 GB, no OOM). Not tried: 20 or more students (`STUDENT_COUNT=20` here). Stop at the first surprise; the cleanup is safe to rerun.
 
 ```sh
-cd engine && ./run.sh stop && ./run.sh tofu-basics                # STUDENT_COUNT=20 in engine/.env already covers 15
+cd engine && ./run.sh stop && ./run.sh tofu-basics                # STUDENT_COUNT=20 in `.env` already covers 15
 # 1. Is the stack healthy? /admin shows the Dojo Cloud chip green. Note free memory:  free -m
 workshops/tofu-basics/tests/selftest/run.sh                       # optional: the harness itself, offline (about 1 minute)
 # 2. One student, everything (about 15 minutes). Fix anything that fails before going on.
@@ -145,7 +145,7 @@ the peak memory, then scale up. The script prints its own guess (about 250 MB pe
 the terminal's limit or 70% of the host. It also stresses `cloud-host` (60 containers if every apply lands), whose 3 GB
 ceiling is exactly what T9.3 is meant to measure.
 
-**Accounts.** `engine/.env` on this box says `STUDENT_COUNT=20`, so `--students 30` is refused with instructions (raise
+**Accounts.** `.env` on this box says `STUDENT_COUNT=20`, so `--students 30` is refused with instructions (raise
 `STUDENT_COUNT`, `./run.sh stop`, start again). The `testuserN` demo-bot accounts are not used.
 
 **What the load numbers are and are not.** The portal is polled through cloud-api's plain-HTTP port, so its latency excludes

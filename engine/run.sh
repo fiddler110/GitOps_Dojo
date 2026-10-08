@@ -24,7 +24,7 @@ esac
 # or a read-only command, not for a preview, and never while completing.
 if [ -z "${_DOJO_COMPLETE:-}" ] && [ -f ./scripts/install-completion.sh ]; then
   case "${1:-}" in
-    '' | help | -h | --help | stop | teardown | alias-setup | restart | status | doctor | config | list | modules | logs | completion) ;;
+    '' | help | -h | --help | stop | teardown | alias-setup | restart | status | doctor | config | list | modules | logs | completion | _*) ;;
     *)
       case " $* " in
         *" --dry-run "* | *" --build-only "*) ;;

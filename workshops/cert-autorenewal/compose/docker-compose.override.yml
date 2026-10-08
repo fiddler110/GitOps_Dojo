@@ -199,7 +199,7 @@ services:
       # Lands under /opt/lab (the base file's own read-only mount for
       # content/lab) so entrypoint.sh's per-account `cp -Rn /opt/lab/. ~/lab/`
       # picks it up too, seeding ~/lab/sample-repo without a git clone step.
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/opt/lab/sample-repo:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/sample-repo:/opt/lab/sample-repo:ro
       # Public root cert only — never the CA's private keys/secrets.
       - step_ca_root_pub:/opt/step-ca-root:ro
 

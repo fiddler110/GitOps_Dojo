@@ -35,7 +35,7 @@ else's. The `/admin` Sensei tab lists these.
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. **No password to announce** — each terminal is signed in with the student's own token. **Password** on
    the Roster tile shows it if ever needed.

@@ -470,7 +470,7 @@ def main():
         raise SystemExit("PDNS_UPSTREAM_KEY is empty (the workshop derives POWERDNS_API_KEY in workshop.env)")
     if not CFG.seed:
         print("dns-api: STUDENT_PASSWORD_SEED is empty, so no account key works: only reads and CI "
-              "(./run.sh setup writes a seed to engine/.env)", flush=True)
+              "(./run.sh setup writes a seed to .env)", flush=True)
     server = http.server.ThreadingHTTPServer(("", LISTEN_PORT), Handler)
     server.daemon_threads = True
     print(f"dns-api gate on :{LISTEN_PORT} -> {CFG.upstream.geturl()}; accounts own <user>."

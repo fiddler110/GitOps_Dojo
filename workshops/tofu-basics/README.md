@@ -21,12 +21,12 @@ technical reference. Design and decisions (archived, frozen): [`TOFU-BASICS-PLAN
 
 ```sh
 cd engine
-./run.sh setup            # first time only: creates engine/.env
+./run.sh setup            # first time only: creates `.env`
 ./run.sh tofu-basics      # build (first time: several minutes) and start
 ./run.sh stop             # stop and wipe everything, including all deployed containers
 ```
 
-- `engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the dojo-cloud module refuses to start without them.
+- `.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the dojo-cloud module refuses to start without them.
 - Always start through `./run.sh`. A plain `podman build` / `docker build` drops the image HEALTHCHECK.
 - After changing any image source, run `./run.sh stop` first: Compose does not recreate a running
   container when its image was rebuilt.

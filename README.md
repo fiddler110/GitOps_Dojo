@@ -30,7 +30,7 @@ DNS zones, certificates and cloud resources belong to the lab, so a mistake
 is part of the lesson and never an incident.
 
 ```sh
-./run.sh setup              # first time only: writes engine/.env
+./run.sh setup              # first time only: writes `.env`
 ./run.sh doctor             # will a start work here? (exits 1 if not)
 ./run.sh list               # which workshops exist
 ./run.sh tofu-basics        # build and start one
@@ -963,7 +963,7 @@ graph TB
 The gateway signs everyone in and tells the services behind it who each request
 is from. To make that claim impossible to forge, it always travels as a pair of
 headers that Caddy sets itself: `X-Auth-User` (who) and `X-Gateway-Token` (a
-secret from `engine/.env`, owner-only, that only Caddy and that one service know:
+secret from `.env`, owner-only, that only Caddy and that one service know:
 each upstream gets a token of its own, so one service can't replay another's).
 
 ```mermaid

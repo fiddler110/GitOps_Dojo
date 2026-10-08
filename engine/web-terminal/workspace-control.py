@@ -61,7 +61,7 @@ TMUX_SESSION = "main"
 
 # "web" (VS Code in the browser plus a tmux terminal) or "zellij" (a Zellij
 # terminal only: no code-server is ever started). Set by TERMINAL_FLAVOR in
-# engine/.env or a workshop.env; the zellij-terminal image also bakes it in.
+# .env or a workshop.env; the zellij-terminal image also bakes it in.
 # The Zellij session name is the same fixed "main", per-uid like tmux's.
 TERMINAL_FLAVOR = os.environ.get("TERMINAL_FLAVOR", "web")
 if TERMINAL_FLAVOR not in ("web", "zellij"):

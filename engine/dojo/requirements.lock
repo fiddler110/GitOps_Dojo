@@ -7,3 +7,4 @@ rich 15.0.0 33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb htt
 pygments 2.21.0 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9 https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl
 markdown-it-py 3.0.0 355216845c60bd96232cd8d8c40e8f9765cc86f46880e43a8fd22dc1a1a8cab1 https://files.pythonhosted.org/packages/42/d7/1ec15b46af6af88f19b8e5ffea08fa375d433c998b8a7639e76935c14f1f/markdown_it_py-3.0.0-py3-none-any.whl
 mdurl 0.1.2 84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl
+tomli 2.2.1 cb55c73c5f4408779d0cf3eef9f762b9c9f147a77de7b258bef0a5628adc85cc https://files.pythonhosted.org/packages/6e/c2/61d3e0f47e2b74ef40a68b9e6ad5984f6241a942f7cd3bbfbdbd03861ea9/tomli-2.2.1-py3-none-any.whl

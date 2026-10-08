@@ -30,7 +30,7 @@ anyway** and **comment**. Challenge PRs are never touched.
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env` (or `--default` for the stock
+1. `./run.sh setup` if there is no `.env` (or `--default` for the stock
    `student`/`student123`, `admin`/`admin` logins). It must carry `PUBLIC_BASE_URL` (what students type,
    including the port if not 80/443) and `GATEWAY_TOKEN`. Set `STUDENT_COUNT`.
 2. **No password to announce.** Each student's terminal is signed in to Forgejo with their own token, so

@@ -41,13 +41,13 @@ workshops use them.
 ## How workshop selection works
 
 ```sh
-./run.sh setup             # first time only: writes engine/.env (accounts, secrets), shared by every workshop
+./run.sh setup             # first time only: writes `.env` (accounts, secrets), shared by every workshop
 ./run.sh <workshop-name>
 ```
 
 `run.sh` (the root one forwards to `engine/run.sh`):
 
-1. Loads `engine/.env` (`TTYD_*`, `STUDENT_*`, `FACILITATOR_*`,
+1. Loads `.env` (`TTYD_*`, `STUDENT_*`, `FACILITATOR_*`,
    `FORGEJO_ADMIN_*`, `PUBLIC_BASE_URL`, ports — the same regardless of
    which workshop runs).
 2. Reads `MODULES` from `workshops/<name>/workshop.env`, sources each
