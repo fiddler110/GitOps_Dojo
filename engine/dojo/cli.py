@@ -63,6 +63,9 @@ def start_options(f):
                      help="With --test: bots skip every pause and typing delay, put mistakes in every round "
                           "(intermediate, novice), and stop after one round. For checks, not demos."),
         ENV_OPTION,
+        click.option("--terminal", "terminal", type=click.Choice(["code-server", "zellij"]), default=None,
+                     help="Terminal flavor for this run: code-server (VS Code + tmux) or zellij (terminal only). "
+                          "Beats dojo.toml, profiles and workshop.env."),
         click.option("--dry-run", is_flag=True, help="Preview what would be rebuilt and started; change nothing."),
         click.option("--build-only", is_flag=True, help="Build or refresh the images and stop there (no password checks)."),
         click.option("--allow-default-passwords", is_flag=True,
@@ -74,11 +77,11 @@ def start_options(f):
     return f
 
 
-def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords, gate_pass=None) -> None:
+def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords, gate_pass=None, terminal=None) -> None:
     from .start import StartOptions, run_start
     sys.exit(run_start(StartOptions(workshop, test=test, fast=fast, env_name=env_name, dry_run=dry_run,
                                     build_only=build_only, allow_default_passwords=allow_default_passwords,
-                                    gate_pass=gate_pass)))
+                                    gate_pass=gate_pass, terminal=terminal)))
 
 
 def _workshop_command(name: str) -> click.Command:

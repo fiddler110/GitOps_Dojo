@@ -18,10 +18,11 @@ type) stop the start with the file named. The first CLI command in an old checko
 (secrets to `.env`, the rest to `dojo.local.toml`, originals kept as `*.migrated`). `env-profiles/` is gone: `mac-podman` is
 now `[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it or the `.env` profile sections. `tomli` (pinned
 wheel) covers Python below 3.11.
+`--terminal code-server|zellij` picks the flavor for one run over every file (recorded, so `restart` repeats it).
 Checked locally: 70 unit tests (13 new: layering, sections, profiles, set/round-trip, migration); the migration run on this
 machine's real files (`config` shows the same flavor, URL and logins for plain and `--env home`); `git-fundamentals`
 dry-runs and `doctor`; a real start in both flavors (Zellij: `/ide/` 404, code-server: `/ide/` 200) with login and slot
-assignment; `setup --default`, `setup` with every default accepted, and `--rotate-class` in a scratch tree (a `[home]`
+assignment, and `--terminal code-server` over a `zellij` local file (`/ide/` 200); `setup --default`, `setup` with every default accepted, and `--rotate-class` in a scratch tree (a `[home]`
 section survives both). Not checked: a live `--env home` start, the other workshops' live runs, the shell test helpers
 (`test-lib.sh` `load_env`, `e2e.sh`) that now read settings through `_operator-env`, and the `tomli` path itself (this machine's
 Python has `tomllib`).

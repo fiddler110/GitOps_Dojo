@@ -648,7 +648,7 @@ assigned student (name, account, IP, live active/inactive status) at
 in the browser plus a tmux terminal. `"zellij"` gives a terminal only: a Zellij
 session with a read-only listing of the shell's directory (`dojo-sidebar`), the
 shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it under `[terminal]` in
-`dojo.local.toml` for this machine, or in a workshop's `workshop.env` (which wins). It is independent of `--env`.
+`dojo.local.toml` for this machine, or in a workshop's `workshop.env` (which wins). It is independent of `--env`. For one run, `./run.sh <workshop> --terminal code-server|zellij` beats every file (`restart` repeats it).
 
 The terminal image chain has one flavor-agnostic root and two sibling leaves:
 `web-terminal:core` (`engine/web-terminal/`) holds everything both flavors

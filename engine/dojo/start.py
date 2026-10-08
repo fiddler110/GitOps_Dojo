@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Tuple
 
 from . import checks, paths, state
 from .build import Builder, BuildError, sync_shared
+from . import config
 from .envfiles import EnvError, Resolution, parse_literal, resolve
 from .monitor import StartMonitor, explain_not_ready
 from .runtime import Container, Runtime, project_name
@@ -58,6 +59,7 @@ class StartOptions:
     build_only: bool = False
     allow_default_passwords: bool = False
     gate_pass: Optional[str] = None       # --pass: access code in front of the whole site (gateway cookie gate)
+    terminal: Optional[str] = None        # --terminal: the flavor for this run, over every file
     recreate: Optional[List[str]] = None  # restart: [] every container, [names] only those
 
     @property
@@ -70,6 +72,8 @@ class StartOptions:
             out.append("--fast")
         if self.env_name:
             out += ["--env", self.env_name]
+        if self.terminal:
+            out += ["--terminal", self.terminal]
         if self.allow_default_passwords:
             out.append("--allow-default-passwords")
         if self.gate_pass:
@@ -95,6 +99,11 @@ def parse_recorded(words: List[str]) -> StartOptions:
             i += 1
         elif w.startswith("--env="):
             o.env_name = w.split("=", 1)[1]
+        elif w == "--terminal" and i + 1 < len(words):
+            o.terminal = words[i + 1]
+            i += 1
+        elif w.startswith("--terminal="):
+            o.terminal = w.split("=", 1)[1]
         elif w == "--fast":
             o.fast = True
         elif w == "--allow-default-passwords":
@@ -308,6 +317,10 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     # only the one leaf this run actually needs gets built (build.py's
     # terminal_chain()), and every later link builds FROM whichever leaf
     # that was.
+    if o.terminal:
+        if o.terminal.strip().lower() not in config.FLAVORS:
+            raise StartError(f"--terminal must be one of {', '.join(sorted(config.FLAVORS))}, got {o.terminal!r}.")
+        env["TERMINAL_FLAVOR"] = config.FLAVORS[o.terminal.strip().lower()]
     flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
     if flavor not in TERMINAL_FLAVORS:
         raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
