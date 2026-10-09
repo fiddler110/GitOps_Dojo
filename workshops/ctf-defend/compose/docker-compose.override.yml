@@ -23,6 +23,8 @@ services:
       - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
       - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
       - CTF_BUILDER_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
+      # The bonus-second-flaw toggle (workshop.env): on = 90-ctf-defend.sh lays content/bonus/ over the seed.
+      - CTF_BONUS_FLAWS=${CTF_BONUS_FLAWS:-on}
 
   # ONE container for the whole room (revised 2026-10-05 - not a fleet of per-
   # student bots living inside ctf-host). One thread per student; it reaches each
@@ -55,6 +57,11 @@ services:
       # soc_timer(); this comment is duplicated on both sides).
       - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
       - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
+      # One multiplier for the whole attack timeline (dwell, ramp, delays, jitter, hint gaps): 1 for a
+      # real session, 0.1 under ./dojo --test (engine/dojo/start.py sets it; CTF_TIME_SCALE=1 overrides).
+      - CTF_TIME_SCALE=${CTF_TIME_SCALE:-1}
+      # Bonus-flaw toggle (workshop.env): on = a share of the WARN probes name data-at-rest paths (probes.py).
+      - CTF_BONUS_FLAWS=${CTF_BONUS_FLAWS:-on}
     networks:
       - ctf_net
       - workshop_lab
@@ -70,3 +77,11 @@ services:
     # No healthcheck: a background poller with no listener of its own (see bot.py's module
     # docstring) - there is nothing on a port to ask.
     restart: unless-stopped
+
+  # Bonus-flaw scoring toggle (workshop.env CTF_BONUS_FLAWS). The bonus is one achievements challenge,
+  # achievements/challenges/c1.json; with the toggle off workshop.env points CTF_ACH_C1_FILE at a copy
+  # of it that has "enabled": false (hidden and inert), mounted over the real file. The default path
+  # is the real file itself, so a plain start mounts c1.json as-is. Lists append.
+  achievements:
+    volumes:
+      - ${CTF_ACH_C1_FILE:-../workshops/ctf-defend/achievements/challenges/c1.json}:/opt/workshop/achievements/challenges/c1.json:ro

@@ -242,6 +242,9 @@ services:
       # from a real student slot.
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_CONTROLLER:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
+      # Wall of shame render toggle (plan 8.12): only gates whether /ctf-wall draws.
+      - CTF_WALL_OF_SHAME=${CTF_WALL_OF_SHAME:-off}
+      - CTF_WALL_AGE_OFF_SECONDS=${CTF_WALL_AGE_OFF_SECONDS:-300}
       # The CTF-1..4 attack-ladder catalog and its queue/idle tuning (plan §4,
       # CTF-D20) — see module.env for why CTF_ATTACK_TARGETS defaults empty.
       - CTF_ATTACK_TARGETS=${CTF_ATTACK_TARGETS:-}

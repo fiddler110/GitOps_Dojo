@@ -1,0 +1,44 @@
+{
+  "id": "c1",
+  "title": "Second Look",
+  "after": "after your fix is on main",
+  "space": "the student's own `{user}/customer-portal` repo and live slot",
+  "goal": "The PR gate checked one thing, and your fix passed it. Look at how this app keeps its customers' data once nobody is attacking it. If something else is wrong, fix it too and ship it to main.",
+  "constraints": "in `{user}/customer-portal`, on `main`, through the same PR flow as the lab; customers must still be able to log in afterwards.",
+  "seed": "Nothing extra to start: the same repo and the same PR flow as the lab, just looked at more closely.",
+  "verify_text": "On `main` of `{user}/customer-portal`: the search query is no longer string-built (the gated fix has landed), and both `seed.py` and `app.py` use a password hash function (pbkdf2, scrypt, bcrypt, argon2, or a hashlib digest) instead of storing and comparing the password as typed.",
+  "isolation": "entirely the student's own `{user}/customer-portal` repo; the check reads only that repo's `main` branch, nothing shared.",
+  "verify": [
+    {
+      "verb": "file_contains",
+      "repo": "{user}/customer-portal",
+      "ref": "main",
+      "path": "app.py",
+      "regex": "'%\"\\s*\\+\\s*q\\s*\\+\\s*\"%'",
+      "absent": true,
+      "student": "{user}"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/customer-portal",
+      "ref": "main",
+      "path": "seed.py",
+      "regex": "pbkdf2|scrypt|bcrypt|argon2|hashlib\\.(sha|blake)",
+      "student": "{user}"
+    },
+    {
+      "verb": "file_contains",
+      "repo": "{user}/customer-portal",
+      "ref": "main",
+      "path": "app.py",
+      "regex": "pbkdf2|scrypt|bcrypt|argon2|hashlib\\.(sha|blake)",
+      "student": "{user}"
+    }
+  ],
+  "hints": [
+    "Read the dump from lab step 3 again, column by column. Even if the injection had never existed, what in that table would you not want an attacker, or an insider with a copy of the database, to read? The quieter hits in the SOC Alerts panel point at the same data.",
+    "Compare how `seed.py` writes a customer's password with how `app.py`'s login checks it. A fix has to change both ends together, and a real customer must still be able to log in afterwards."
+  ],
+  "answer": "Customer passwords are stored exactly as typed. Hash them (a salted, slow hash such as PBKDF2 from the standard library) in `seed.py` where the rows are written, and hash the submitted password the same way in `app.py`'s login before comparing. Keep the service account's token as it is, since it is not a customer password. Then PR and merge to main.",
+  "enabled": false
+}

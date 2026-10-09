@@ -8,7 +8,7 @@
 # target 14 uses, so the bot and the CI gate can never disagree about what "patched" means.
 FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
-COPY attacker-bot/bot.py attacker-bot/personas.py /app/
+COPY attacker-bot/bot.py attacker-bot/personas.py attacker-bot/probes.py /app/
 COPY attacker-bot/_shared/ /app/_shared/
 COPY targets/customer-portal/exploit/dump.py /app/exploit/dump.py
 WORKDIR /app

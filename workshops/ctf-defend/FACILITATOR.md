@@ -29,7 +29,16 @@ actually running on their slot.
 → red countdown) sits idle until you press **Start Attack Swarm** on the SOC Alerts `/admin` tab. Nothing
 attacks anyone's slot before that. Default timings are ~8 minutes of recon (green) then ~10 minutes
 ramping to a real exploit attempt (red) — `CTF_SOC_DWELL_SECONDS`/`CTF_SOC_RAMP_SECONDS` in
-`modules/ctf-range/module.env` if you want more runway for a first-time room.
+`modules/ctf-range/module.env` if you want more runway for a first-time room. (`./dojo ctf-defend --test`
+runs the whole timeline at a tenth: 48s of recon, 60s of ramp; `CTF_TIME_SCALE=1` keeps the real clock.)
+
+**The SOC is one screen.** The SOC Alerts tab shows the cyber map (world view plus a Canada inset),
+the live alert feed and the incident summary together, sized for the projector. The facilitator bar
+above them has Start/Re-arm, Inject / Hint probe, and a student picker: choosing a student fills the
+incident summary and lets you correct that student's map point (a city name or `lat,lon,Label`).
+Students' points come from a city-level lookup of where they connect from (optional DB-IP database,
+`modules/achievements/tools/fetch_geoip.sh`; no addresses are stored or shown) or, on a LAN or WSL,
+sit around `CTF_HOME_REGION` (default Toronto).
 
 **Don't name the bug from the stage.** The deck describes the app and the pipeline, never the SQL
 injection itself — students find it by using the app and reading `app.py`, the same file they already
@@ -67,7 +76,7 @@ the line number.
 
 ## During the session
 
-**What you can see.** `/admin` tabs: Roster, VS Code, Terminal, Forgejo, Slides, **SOC Alerts**.
+**What you can see.** `/admin` tabs: Roster, VS Code, Terminal, Forgejo, Slides, **SOC Alerts**, **Wall of Shame** (when on).
 
 - **Press Start Attack Swarm once the room has cloned their repos and read the briefing** — not before.
   Starting it too early just burns the green/recon window while people are still reading the deck.
@@ -84,6 +93,39 @@ the line number.
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show
 immediately, an edited lab file reaches `~/lab` on the next terminal restart, never overwriting a
 student's own work.
+
+## The wall of shame (on by default)
+
+A projector-friendly list of breached students: **LIVE** while the swarm's dumps keep landing, **DISCONNECTED
+(contained)** once a patched redeploy makes them fail, then it ages off (`CTF_WALL_AGE_OFF_SECONDS`, 5 min).
+It is the **Wall of Shame** `/admin` tab and a widget on the landing page. Set `CTF_WALL_OF_SHAME=off` in
+`workshop.env` (or `dojo.local.toml` / `--env`) for a quieter or smaller room: only the display goes; the status
+light, MTTP and incident summary keep working. Data is synthetic and derived from lab handles only.
+
+## The bonus second flaw (`CTF_BONUS_FLAWS`, default on)
+
+Set `CTF_BONUS_FLAWS=off` (in `.env` or the shell) to run without it: the repo ships clean, probes skip the
+area, there is no bonus check or points, and the "Second Look" challenge is hidden. Nothing in the deck or lab
+mentions a bonus either way.
+
+With it on, `customer-portal` also stores customer passwords as typed. The bots never exploit this, so it
+never moves a status light; the PR gate runs one extra informational check after the exploit gate passes
+(`exploit/bonus_check.py`, never blocks a merge) and a share of the swarm's WARN probes name data-at-rest
+paths (`/portal.db`, `/backup/customers.sql`, ...), unlabelled, shown in each student's SOC Alerts card.
+It scores one extra unit (5 points at the default factor) through the achievements challenge "Second Look",
+which verifies on `main` that the search query is parameterized and both `seed.py` and `app.py` hash passwords.
+Its two hints are in `achievements/challenges/c1.json` (hints cost points, as for any challenge).
+
+**Debrief note.** Ask who noticed the odd cluster of probes at paths the SQL fix never touched, and what
+those paths were asking for. The point: the gate proved one fix, and a fix that passes the gate is not the
+same as an app that is safe. Even with the injection closed, anyone holding a copy of the database
+(a backup, an insider, the next bug) reads every customer's password. Hash them (salted, slow), change
+both ends (the seed and the login check), and keep a real customer able to log in. Students who stopped
+at the gate lost nothing: the bonus is a reward for thoroughness, not a trap.
+
+**A deliberate misfix to watch for.** Hashing the service account's token too makes the exploit check pass
+without fixing the injection; the PR gate has a premise step that fails a change which removes the seeded
+secret, so tell students the token is not a customer password.
 
 ## When something breaks
 

@@ -27,6 +27,15 @@ class PickOriginTests(unittest.TestCase):
         for _ in range(50):
             self.assertIn(p.pick_origin(rng), valid)
 
+    def test_pool_spans_every_inhabited_region(self):
+        names = {o for o, _ in p.ORIGINS}
+        for want in ("NG", "ZA", "BR", "AR", "AU", "AE", "IR", "TR", "IN", "VN", "CN", "US", "RU", "UA"):
+            self.assertIn(want, names)
+
+    def test_deterministic_per_seed(self):
+        a = [p.pick_origin(random.Random(7)) for _ in range(3)]
+        self.assertEqual(a, [p.pick_origin(random.Random(7)) for _ in range(3)])
+
 
 class RoomPhaseTests(unittest.TestCase):
     def test_green_during_dwell(self):
@@ -168,6 +177,29 @@ class SwarmTests(unittest.TestCase):
     def test_timer_matches_room_timer(self):
         swarm = p.Swarm(["student01"], rng=random.Random(1), started_at=500.0)
         self.assertEqual(swarm.timer(500.0), p.room_timer(500.0, 500.0))
+
+
+class TimeScaleTests(unittest.TestCase):
+    def test_default_and_bad_values_are_real_time(self):
+        for env in ({}, {"CTF_TIME_SCALE": ""}, {"CTF_TIME_SCALE": "abc"}, {"CTF_TIME_SCALE": "0"},
+                    {"CTF_TIME_SCALE": "-1"}, {"CTF_TIME_SCALE": "999"}):
+            self.assertEqual(p.time_scale(env), 1.0, env)
+
+    def test_reads_the_scale(self):
+        self.assertEqual(p.time_scale({"CTF_TIME_SCALE": "0.1"}), 0.1)
+
+    def test_attacker_pacing_scales_but_defaults_do_not_change(self):
+        a1 = p.Attacker("s", "repeat-exploit", random.Random(7))
+        a10 = p.Attacker("s", "repeat-exploit", random.Random(7), scale=0.1)
+        self.assertAlmostEqual(a10.base_delay, a1.base_delay * 0.1)
+        self.assertAlmostEqual(a10.detonate_jitter, a1.detonate_jitter * 0.1)
+        self.assertAlmostEqual(a10.ramp_floor, p.RAMP_FLOOR * 0.1)
+        self.assertEqual(a1.ramp_floor, p.RAMP_FLOOR)
+        self.assertTrue(p.DELAY_MIN <= a1.base_delay <= p.DELAY_MAX)
+
+    def test_swarm_passes_scale_to_every_attacker(self):
+        sw = p.Swarm(["a", "b"], rng=random.Random(1), scale=0.1, dwell_seconds=48, ramp_seconds=60)
+        self.assertTrue(all(a.scale == 0.1 and a.base_delay <= p.DELAY_MAX * 0.1 for a in sw.attackers))
 
 
 if __name__ == "__main__":

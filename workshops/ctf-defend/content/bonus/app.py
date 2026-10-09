@@ -19,7 +19,6 @@ Nothing here is a secret the student shouldn't see — it's their own target's
 source. The only secret is the flag, which lives in the DB, not the code.
 """
 
-import hashlib
 import os
 import sqlite3
 
@@ -27,11 +26,6 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 DB_PATH = os.environ.get("CTF_DB_PATH", "/data/portal.db")
-
-
-def _hash(password):
-    """Same function as seed.py's `_hash`: customer passwords are stored hashed."""
-    return hashlib.pbkdf2_hmac("sha256", password.encode(), b"larkspur", 20000).hex()
 
 
 def _connect():
@@ -100,7 +94,7 @@ def login():
     reads as a portal, not a single query.
     """
     email = request.form.get("email", "")
-    password = _hash(request.form.get("password", ""))
+    password = request.form.get("password", "")
 
     conn = _connect()
     try:

@@ -94,6 +94,17 @@ jobs:
             *) echo "GATE ERROR — could not reach the target under test."; exit 2 ;;
           esac
 
+      - name: Second check (informational, runs only after the gate passed)
+        # Never fails the PR: the gate above is the only thing that blocks a merge. This
+        # line is the extra signal for a change that went beyond the gate.
+        run: |
+          set -eu
+          cd repo
+          set +e
+          python3 exploit/bonus_check.py --db "$CTF_DB_PATH" --url http://127.0.0.1:5000 --student "$CTF_STUDENT"
+          set -e
+          exit 0
+
       - name: Stop the app
         if: always()
         run: |

@@ -11,7 +11,8 @@
         "event": "pull_request",
         "action": "opened",
         "repo": "{user}/customer-portal"
-      }
+      },
+      "points": 10
     },
     {
       "id": "m-shipped",
@@ -24,7 +25,8 @@
         "event": "pull_request",
         "action": "merged",
         "repo": "{user}/customer-portal"
-      }
+      },
+      "points": 10
     },
     {
       "id": "m-contained",
@@ -35,6 +37,44 @@
       "match": {
         "source": "soc",
         "event": "contained"
+      },
+      "points": 10
+    },
+    {
+      "id": "d-patched",
+      "title": "Patched",
+      "joke": "One unit on the board: the fix is on main, and the gate said so.",
+      "when": "your fix reached main (a merged PR on your customer-portal repo), or the swarm's re-probe came back empty",
+      "core": false,
+      "match": {
+        "any": [
+          {
+            "source": "forgejo",
+            "event": "pull_request",
+            "action": "merged",
+            "repo": "{user}/customer-portal"
+          },
+          {
+            "source": "soc",
+            "event": "contained"
+          },
+          {
+            "source": "soc",
+            "event": "exploit_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "id": "d-unbreached",
+      "title": "Never Breached",
+      "joke": "The swarm tried the real payload and got nothing. It never landed once.",
+      "when": "soc: the swarm's real attempt against your slot failed, and no dump ever succeeded against it",
+      "core": false,
+      "match": {
+        "source": "soc",
+        "event": "exploit_attempt",
+        "requires_not": "f-wall"
       }
     }
   ]

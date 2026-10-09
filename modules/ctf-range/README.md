@@ -287,9 +287,10 @@ clock, not independent per-persona timers).
   §8.5, §8.8-8.9 — 2026-10-05).** A persisted `red`/`yellow`/`green` light per
   (student, target) in `store.py` (green = no record; one-way `red → yellow`, a re-exploit
   after a fix only counts as a retry) is now the foundation the rest read from:
-  - **Cyber map** (`GET /map`, `/api/map` — any signed-in caller, same tier as `/wall`): a
-    `<canvas>` arc animation from the swarm's existing fake-origin field toward a central hub,
-    a "Top 10 under siege" rolling hit count, and a breach flash.
+  - **Cyber map** (`/api/map` — any signed-in caller, same tier as `/wall`): now a panel of the
+    one-page SOC (below). Arcs run from the swarm's flavor origin cities to each student's
+    coarse region on a bundled Natural Earth world outline, with a Canada inset, a "Top under
+    siege" rolling hit count and a breach flash.
   - **MTTP** (`mttp_summary()`, on the admin tab's `/api/state`): `fixed_at - breached_at` per
     student, free once the status light exists.
   - **Inject / hint probe** (spike S12's facilitator→bot channel, finally built): `POST
@@ -298,9 +299,33 @@ clock, not independent per-persona timers).
     now, bypassing that student's delay (`Attacker.force_exploit`); "Hint probe" fires 3-6
     non-exploiting probes tagged exactly like ordinary recon — nothing marks it as a hint.
     The admin tab's SOC Alerts page has per-student pick buttons plus Inject-all/Hint-all.
-  - **Incident summary** (`GET /incident`, `/api/incident`, and the facilitator's
-    `/achievements-admin/incident?user=NAME`): one page per student — status light(s) with
-    MTTP, full SOC timeline — for the debrief.
+  - **Incident summary** (`/api/incident`, facilitator `/achievements-admin/api/incident?user=ID`):
+    status light(s) with MTTP and the SOC timeline, a panel of the one-page SOC for the debrief.
+  - **One-page SOC (2026-10-09).** `/achievements/soc` (student: own feed and incident) and
+    `/achievements-admin/soc` (facilitator: whole room, controls bar, pick a student for the
+    incident panel) put the live alert feed, the map and the incident summary on one 16:9 screen
+    (no page scroll at 1920x1080; one column on a phone). The old `/map` and `/incident` pages
+    (and `incident?user=NAME`) redirect there; the `soc-alerts` card and admin tab ids are
+    unchanged. Assets: `static/{soc,map,mapdata,dash}.*`; the outline is rebuilt by hand with
+    `modules/achievements/tools/build_map_data.py` (Natural Earth, public domain; committed).
+  - **Where students sit on the map (2026-10-09).** `service/geo.py`: with the gateway token
+    present, `X-Forwarded-For` (Caddy sets it; the right-most public address wins, so a forged
+    left entry or our own proxy hops never count) is resolved to a **coarse region only**
+    (0.5 degree lat/lon plus a place label) and the address is dropped: never stored, logged,
+    returned or shown. Resolution is an optional offline DB-IP "IP to City Lite" file
+    (`modules/achievements/tools/fetch_geoip.sh` puts it in the git-ignored
+    `modules/achievements/geoip/`; CC BY 4.0, the map page credits DB-IP), read by a small
+    pure-python mmdb reader. No database, or a private/loopback address (WSL, a LAN): the student
+    sits in `CTF_HOME_REGION` (`module.env`, default Toronto; a city or `lat,lon,Label`) with a
+    small deterministic per-student offset. The facilitator can override one student's point from
+    the SOC controls bar (`POST /achievements-admin/api/region`). Regions are kept in
+    achievements' state file; the map response carries no address.
+  - **Test clock (2026-10-09).** `CTF_TIME_SCALE` (default 1) multiplies dwell, ramp, per-attempt
+    delays, the ramp floor, detonation jitter and hint-probe gaps in `attacker-bot`, and the
+    countdown `achievements` reports, so they stay in step. `./dojo <workshop> --test` sets it to
+    0.1 (dwell 48s, ramp 60s) unless `CTF_TIME_SCALE` is already set (`CTF_TIME_SCALE=1 ./dojo
+    ctf-defend --test` keeps the real clock); a run without `--test` never sees it. The wall of
+    shame's 90s LIVE window and age-off are display timings and are not scaled.
   103 achievements tests + 43 attacker-bot tests pass; live-verified end to end against a real
   running achievements process (breach → red → map/incident/admin-state agree; contained →
   yellow with the right MTTP; inject/hint queued and drained exactly once; every new page
@@ -310,12 +335,33 @@ clock, not independent per-persona timers).
   a real `./dojo` stack end to end — every check so far is either unit tests or direct HTTP
   calls against achievements' own process. `modules/ctf-range/tools/simulate-dump.py` still
   works as a manual stand-in in the meantime.
-- **Still not built:** the per-pack `CTF_WALL_OF_SHAME` render toggle (the flag exists in
-  `module.env` but nothing reads it yet — both the wall and the SOC cards always render when
-  there's data); §8.11's traffic-pivot/attention-budget across a student's targets (moot until
+- **Wall render toggle and projector route (built, not live-verified).** `CTF_WALL_OF_SHAME=on|off`
+  (`module.env` default `off`; `workshops/ctf-defend/workshop.env` sets `on`) reaches `ctf-controller`
+  via `compose.yml`. It gates ONLY drawing: the controller serves the wall page at `/ctf-wall/`
+  (its `/ctf-wall/config` says whether to draw), and the page polls achievements' existing
+  `/achievements/api/wall`. Events, status light, MTTP and incident summary never read it. A pack opts in by
+  listing the `widgets` entry, `/ctf-wall` route (identity gate, `strip_prefix: false`) and a same-id admin tab in its own
+  `extensions.json` (ctf-defend does). `CTF_WALL_AGE_OFF_SECONDS` (300) is how long a DISCONNECTED
+  (contained) entry stays before the page ages it off. Caveat: achievements' own `/achievements/wall` page is
+  unchanged and still reachable by URL when the toggle is off.
+- **Bonus second flaws (`CTF_BONUS_FLAWS=on|off`, plan 8.7 / CTF-D17, built, not live-verified).** A pack
+  switches the bonus on or off with one variable; `workshops/ctf-defend/workshop.env` defaults it to `on`
+  (the module itself sets nothing, so a pack that never mentions it is unaffected). Today the only bonus is
+  target 14 `customer-portal`'s passwords stored as typed. On: `90-ctf-defend.sh` lays
+  `content/bonus/` over the clean seed repo (the flawed `seed.py`/`app.py`, `exploit/bonus_check.py`, and a
+  `defend-pr.yml` with one extra informational step that runs only after the exploit gate passed);
+  `attacker-bot/probes.py` mixes data-at-rest paths (`/portal.db`, ...) into a share of the ordinary WARN
+  probes, unlabelled (the alert's new `path` is shown in the student's SOC Alerts card); the achievements
+  challenge `c1` ("Second Look", two hints, answer) is worth one more unit. Off: the repo is seeded clean,
+  probes only name the graded paths, there is no bonus step, and `c1` is hidden (a `enabled: false` copy
+  is mounted over it). The bots never exploit a bonus flaw, so it never moves the status light. Scoring
+  (`CTF_SCORE_FACTOR`, default 5): green 2 / yellow 1 / red 0 units plus 1 per bonus, as
+  achievements points (`d-patched`, `d-unbreached`, `c1`). Known gap: the pre-merge live slot is built
+  from `targets/customer-portal` (always the as-typed passwords); the toggle governs the student's repo,
+  so with it off a student's first redeploy is what makes the live data match their clean repo.
+- **Still not built:** §8.11's traffic-pivot/attention-budget across a student's targets (moot until
   the CTF-S8 target-1..4 images exist — CTF-5's one `customer-portal` target has nothing to
-  pivot across yet); §8.7's defense-in-depth bonus flaws (same reason — no second target
-  content to carry one); row payloads richer than `(user, challenge)` for the wall itself (e.g.
+  pivot across yet); §8.7's bonus flaws on targets 8-11 (not part of ctf-defend yet; see the next entry for the one that is built); row payloads richer than `(user, challenge)` for the wall itself (e.g.
   CTF-D17's bonus cleartext-storage flaw); a class-sized dry run (many students, the real
   dwell/ramp durations, not a single-student HTTP round-trip).
 

@@ -58,6 +58,21 @@ live by default -- see `compose/docker-compose.override.yml`'s header comment.
   swarm's recon/exploit/dump events, and a capstone (`achievements/capstone.json`) for closing the second,
   un-gated injection point in `/login`.
 
+## Bonus second flaw (toggle)
+
+`CTF_BONUS_FLAWS=on|off` in `workshop.env` (default **on**; override in `.env` or the shell, e.g.
+`CTF_BONUS_FLAWS=off ./dojo ctf-defend`). On, each defend target also carries a smaller flaw the bots never
+exploit and the PR gate never blocks on: today `customer-portal`'s customer passwords are stored as typed,
+`content/bonus/` is laid over the clean seed repo, the swarm's ordinary probes include data-at-rest paths,
+and a hidden-until-found "Second Look" challenge (`achievements/challenges/c1.json`, two hints and an
+answer) is worth one more scoring unit. Off, none of that exists: the repo is seeded clean, there is no
+bonus CI step and no bonus points, and no lab or slide mentions a bonus (they never do; the bonus lives in
+the repo overlay and the achievements challenge). Targets 8-11 are not part of this pack yet, so they have no
+bonus here.
+
+Scoring (`CTF_SCORE_FACTOR`, default 5 points per unit): green 2 units, yellow 1, red 0, plus 1 per bonus
+fixed once the main fix is on `main`: 10/5/0 and +5. Achievements items `d-patched`, `d-unbreached`, `c1`.
+
 ## Facilitator view
 
 The `/admin` workspace's **SOC Alerts** tab is this session's equivalent of CTF-1 through CTF-4's Attack
@@ -71,3 +86,9 @@ and documented in `docs/CTF-WORKSHOP-PLAN.md`/`RELEASES.md`. This pack's own con
 `FACILITATOR.md`, the deck, the cheat sheet) was written during a content audit of the whole CTF series
 and has not yet had its own live rehearsal in a room -- `./dojo ctf-defend --dry-run` has been run, but no
 live stack start. Rehearse before a class (see `FACILITATOR.md`).
+
+## Wall of shame
+
+`CTF_WALL_OF_SHAME=on|off` in `workshop.env` (default `on`) controls whether the room-wide wall of breached
+students is drawn (landing-page widget at `/ctf-wall/` and a facilitator `/admin` tab). Off hides the display only;
+events, status light, MTTP and incident summary are unaffected. Details: `modules/ctf-range/README.md`.
