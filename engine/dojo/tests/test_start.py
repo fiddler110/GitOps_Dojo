@@ -10,7 +10,7 @@ from unittest import mock
 
 from dojo import start, state
 from dojo.monitor import clean_log_line
-from dojo.start import BOTS_GO, StartOptions, StartError, bot_count, parse_recorded, release_bots
+from dojo.start import BOTS_GO, StartOptions, StartError, bot_count, soc_time_scale, parse_recorded, release_bots
 from dojo.runtime import Container, Runtime
 from dojo.stop import _volumes_in_config
 
@@ -28,6 +28,13 @@ class Recorded(unittest.TestCase):
     def test_equals_forms(self):
         o = parse_recorded(["x", "--test=5", "--env=home"])
         self.assertEqual((o.test, o.env_name), ("5", "home"))
+
+    def test_time_scale(self):
+        self.assertIsNone(soc_time_scale(StartOptions("x"), {}))
+        self.assertEqual(soc_time_scale(StartOptions("x", test=""), {}), "0.1")
+        self.assertEqual(soc_time_scale(StartOptions("x", test="5", fast=True), {"CTF_TIME_SCALE": ""}), "0.1")
+        self.assertEqual(soc_time_scale(StartOptions("x", test=""), {"CTF_TIME_SCALE": "1"}), "1")
+        self.assertEqual(soc_time_scale(StartOptions("x", test=""), {"CTF_TIME_SCALE": "0.25"}), "0.25")
 
     def test_bot_count(self):
         self.assertIsNone(bot_count(StartOptions("x"), {}))

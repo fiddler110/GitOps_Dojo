@@ -141,6 +141,15 @@ class Store:
         # modules/ctf-range/attacker-bot/personas.py's DWELL_SECONDS/RAMP_SECONDS
         # (CTF_SOC_DWELL_SECONDS/CTF_SOC_RAMP_SECONDS in module.env set both sides).
         self.soc_started_at = None
+        # Coarse student regions for the cyber map (geo.py): user -> {lat, lon, place, src}. Only
+        # a region, never an address - note_client() sees the forwarded address, resolves it and
+        # drops it. src "admin" is a facilitator override and is never replaced by a lookup.
+        self.regions = {u: r for u, r in (state.get("regions") or {}).items() if isinstance(r, dict)}
+        self.locator = None             # geo.Locator, set by server.py (None = the toronto fallback)
+        self.time_scale = 1.0           # CTF_TIME_SCALE, set by server.py: shrinks the map's "recent" windows
+        self.ctf_hits = {}              # (user, challenge) -> deque of dump_success times (memory only)
+        self._breach_row_at = {}        # (user, challenge) -> clock of the last breach row in the feed
+        self._region_checked = {}       # user -> clock of the last lookup (memory only)
         self.soc_dwell_seconds = soc_dwell_seconds
         self.soc_ramp_seconds = soc_ramp_seconds
         # Facilitator-fired inject/hint-probe commands (plan §8.5) waiting for attacker-bot's
@@ -175,7 +184,7 @@ class Store:
                            "name_seed": self.name_seed, "forged": self.forged[-200:], "seeds": self.seeds,
                            "checks": self.checks[-500:], "activity": self.activity,
                            "watching": self.watching, "stepped": self.stepped,
-                           "target_status": self.target_status})
+                           "target_status": self.target_status, "regions": self.regions})
 
     def _write(self, text):
         path = self._path()
@@ -510,6 +519,7 @@ class Store:
             if event.get("source") == "ctf" and event.get("event") == "dump_success":
                 self.ctf_dumps[(user, challenge)] = now
                 self._mark_breach(user, challenge, now)
+                self._breach_alert(user, event, now)
             if event.get("source") == "soc":
                 self._soc_alert(user, event, now)
                 if event.get("event") == "contained":
@@ -569,11 +579,55 @@ class Store:
                 by_user.setdefault(r["user"], []).append(r["mttp"])
         return [{"user": u, "mttp": sum(v) / len(v)} for u, v in sorted(by_user.items())]
 
+    # -- student regions (geo.py): where each student's point sits on the cyber map ------------
+    REGION_RECHECK = 600     # seconds between lookups for one student (a laptop changes network)
+
+    def note_client(self, user, xff):
+        """A gateway-identified request from USER carried X-Forwarded-For XFF (the caller checked
+        the gateway token). Resolve it to a coarse region and keep only that: the address is not
+        stored, logged or returned. The facilitator and ignored accounts have no map point."""
+        if not self.locator or not user or user == self.facilitator or user in self.ignore:
+            return
+        now = self.clock()
+        with self.lock:
+            have = self.regions.get(user)
+            if have and (have.get("src") == "admin" or now - self._region_checked.get(user, 0) < self.REGION_RECHECK):
+                return
+            self._region_checked[user] = now
+        region = self.locator.locate(user, xff)
+        with self.lock:
+            have = self.regions.get(user)
+            if have and have.get("src") == "admin":
+                return
+            if have and have.get("src") == "geoip" and region.get("src") == "default":
+                return      # a real lookup is never downgraded to the fallback
+            if have != region:
+                self.regions[user] = region
+                self._save()
+
+    def admin_set_region(self, user, spec):
+        """Facilitator override: SPEC is a place name or "lat,lon,Label"; blank clears it (the next
+        request re-resolves). Coarsened like any other region."""
+        import geo
+        with self.lock:
+            if user not in self.ledger.users:
+                raise Denied(404, "no such student")
+            if not (spec or "").strip():
+                self.regions.pop(user, None)
+                self._region_checked.pop(user, None)
+            else:
+                place = geo.parse_place(spec)
+                if not place:
+                    raise Denied(400, "unknown place: use a city name or lat,lon,Label")
+                self.regions[user] = {"lat": place[0], "lon": place[1], "place": place[2], "src": "admin"}
+            self._save()
+            return {"ok": True}
+
     # -- cyber map (plan §8.3): renders only what the soc feed already tagged -----------
-    MAP_WINDOW = 120     # seconds: how recent a hit has to be to count toward "under siege"
+    MAP_WINDOW = 120     # seconds (x time_scale): how recent a hit has to be to count toward "under siege"
     MAP_ARCS_MAX = 60    # arcs shown at once - a trim of the same room-wide feed as the admin tab
 
-    def map_data(self):
+    def map_data(self, admin=False):
         """{"arcs", "top", "breaches", "timer"} for the room-wide cyber map widget. ARCS: the
         most recent room events (origin/severity/target already tagged by the swarm - this
         invents nothing, per the plan). TOP: the "Top 10 under siege" list, a rolling hit count
@@ -583,22 +637,50 @@ class Store:
         the wall of shame), so this reads target_statuses() instead rather than inventing a
         second event path."""
         now = self.clock()
+        window = max(10.0, self.MAP_WINDOW * self.time_scale)
         with self.lock:
             arcs = list(self.soc_feed_all)[-self.MAP_ARCS_MAX:]
             counts = {}
             for r in self.soc_feed_all:
-                if now - r["at"] <= self.MAP_WINDOW:
+                if now - r["at"] <= window and r["event"] != "dump_success":
                     key = (r["user"], r["challenge"])
                     counts[key] = counts.get(key, 0) + 1
+            for (u, c), hits in self.ctf_hits.items():
+                n = sum(1 for t in hits if now - t <= window)
+                if n:
+                    counts[(self._label(u), c)] = counts.get((self._label(u), c), 0) + n
         top = sorted(({"user": u, "challenge": c, "hits": n} for (u, c), n in counts.items()),
                      key=lambda x: -x["hits"])[:10]
-        breaches = [r for r in self.target_statuses() if now - r["breached_at"] <= self.MAP_WINDOW]
-        return {"arcs": arcs, "top": top, "breaches": breaches, "timer": self.soc_timer()}
+        # Targets still red stay listed (a breach is not over until it is patched); `recent`
+        # marks the ones that landed inside the window, for the map's ripple.
+        breaches = []
+        for r in self.target_statuses():
+            recent = now - r["breached_at"] <= window
+            if r["status"] == "red" or recent:
+                breaches.append(dict(r, recent=recent))
+        breaches.sort(key=lambda r: -r["breached_at"])
+        import geo
+        home = self.locator.home if self.locator else geo.PLACES["toronto"]
+        with self.lock:
+            students = []
+            for u in self.ledger.users:
+                if u == self.facilitator or u in self.ignore:
+                    continue
+                r = self.regions.get(u) or geo.home_region(u, home)
+                row = {"user": self._label(u), "lat": r["lat"], "lon": r["lon"], "place": r.get("place", ""),
+                       "src": r.get("src", "")}
+                if admin:
+                    row["id"] = u
+                students.append(row)
+        return {"arcs": arcs, "top": top, "breaches": breaches, "timer": self.soc_timer(),
+                "students": students, "window": window}
 
     # -- incident summary (plan §8.9) ----------------------------------------------------
     def incident(self, user):
         """One student's own incident summary, for the debrief: their status light(s) (with
         MTTP once fixed) and their full SOC-alert timeline."""
+        if user == self.facilitator:     # the facilitator's own view is the admin page: quietly empty
+            return {"user": "", "targets": [], "timeline": []}
         with self.lock:
             self._student(user)
             label = self._label(user)
@@ -650,7 +732,9 @@ class Store:
     # SOC feed (plan §8.2). One alert per persona attempt against a student's own target,
     # bounded per-student (their "SOC Alerts" card) and room-wide (the admin tab). Severity is
     # derived from `event` here, once, rather than trusted as a free-text field from the poster.
-    SOC_SEVERITY = {"recon": "INFO", "probe": "WARN", "exploit_attempt": "CRITICAL", "contained": "INFO"}
+    SOC_SEVERITY = {"recon": "INFO", "probe": "WARN", "exploit_attempt": "CRITICAL", "contained": "INFO",
+                    "dump_success": "BREACH"}
+    BREACH_ROW_GAP = 15     # seconds between feed rows for one (student, target): the dump streams
     SOC_PER_STUDENT_MAX = 50
     SOC_ROOM_MAX = 300
 
@@ -659,9 +743,20 @@ class Store:
         row = {"user": self._label(user), "event": event.get("event"),
                "severity": self.SOC_SEVERITY.get(event.get("event"), "INFO"),
                "persona": event.get("persona"), "origin": event.get("origin"),
-               "challenge": event.get("challenge"), "at": now}
+               "challenge": event.get("challenge"), "path": event.get("path"), "at": now}
         self.soc_feed.setdefault(user, deque(maxlen=self.SOC_PER_STUDENT_MAX)).append(row)
         self.soc_feed_all.append(row)
+
+    def _breach_alert(self, user, event, now):
+        """A dump_success is a breach: show it in the SOC feed (severity BREACH) next to the
+        probes, but as a row at most every BREACH_ROW_GAP seconds per (student, target), so a
+        streaming dump can't push every other alert out of the bounded feed. Every dump still
+        counts toward "under siege" via ctf_hits (caller holds the lock)."""
+        key = (user, event.get("challenge") or "")
+        self.ctf_hits.setdefault(key, deque(maxlen=600)).append(now)
+        if now - self._breach_row_at.get(key, -1e18) >= self.BREACH_ROW_GAP * self.time_scale:
+            self._breach_row_at[key] = now
+            self._soc_alert(user, event, now)
 
     def soc_rows(self, user):
         """This student's own recent alerts, newest first (their "SOC Alerts" card)."""

@@ -64,6 +64,13 @@ services:
       - ACHIEVEMENTS_COMPLETION_PERCENT=${ACHIEVEMENTS_COMPLETION_PERCENT:-80}
       - ACHIEVEMENTS_MILESTONE_POINTS=${ACHIEVEMENTS_MILESTONE_POINTS:-10}
       - ACHIEVEMENTS_FUNNY_POINTS=${ACHIEVEMENTS_FUNNY_POINTS:-0}
+      # ctf-defend's SOC countdown and cyber map (unset elsewhere: harmless defaults). The two durations
+      # must equal attacker-bot's; CTF_TIME_SCALE is ./dojo --test's 0.1 (same multiplier as the bot).
+      - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
+      - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
+      - CTF_TIME_SCALE=${CTF_TIME_SCALE:-1}
+      # Where students with no usable client address (a LAN, WSL) sit on the map; a city or "lat,lon,Label".
+      - CTF_HOME_REGION=${CTF_HOME_REGION:-Toronto}
       - ACHIEVEMENTS_CHALLENGE_POINTS=${ACHIEVEMENTS_CHALLENGE_POINTS:-100}
       - ACHIEVEMENTS_CAPSTONE_POINTS=${ACHIEVEMENTS_CAPSTONE_POINTS:-300}
     volumes:

@@ -96,7 +96,12 @@ volume after every change. Routes: student pages and API under `/achievements` (
 gate), the facilitator tab under `/achievements-admin`. An event is `{user, event, ts, nonce,
 sig}` signed with the service's gateway token; a forged one is charged (-1, "Nice Try,
 Hackerman") only to a caller the gateway identified, never to the user named in the body.
-Tests: `python3 -B -m unittest test_service test_server` from `service/`.
+Tests: `python3 -B -m unittest test_service test_server test_geo` from `service/`.
+The ctf-defend SOC (`/soc`: live alerts, cyber map with a Canada inset, incident summary on one 16:9 page;
+`/map` and `/incident` redirect to it) places each student by a coarse, city-level region from the forwarded
+client address (`geo.py`, optional offline DB-IP database from `tools/fetch_geoip.sh`, else `CTF_HOME_REGION`;
+the address itself is never stored or shown), and honours `CTF_TIME_SCALE` for its countdown. Details:
+`modules/ctf-range/README.md`.
 Sensei's two reads (`GET /api/sensei/activity`: per-student command times and failure counts, no command text; and
 `/api/sensei/progress?user=`: a student's core milestones by lab) need the `X-Sensei-Key` header equal to `SENSEI_KEY`
 (compose passes Sensei's gateway token to both); unset, they answer 403.

@@ -1,0 +1,42 @@
+/* The one-page SOC (soc.html / soc-admin.html): map as the main panel, live alerts and the
+   incident summary beside it. Fills a 16:9 projector without page scroll; one column on narrow
+   screens. Colours come from style.css; the map canvases keep their own dark ocean. */
+body.dash { height: 100vh; box-sizing: border-box; display: grid; grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.5rem; overflow: hidden; padding: 0.6rem 0.8rem; }
+.dash-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.dash-head h1 { margin: 0; font-size: 1.3rem; }
+.dash-head .dim { font-size: 0.8rem; flex: 1 1 12rem; }
+.dash .timer { margin: 0; padding: 0.25rem 0.9rem; flex: 0 0 auto; }
+.dash .timer .big { font-size: 1.7rem; }
+.toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; padding: 0.35rem 0.7rem; margin: 0; }
+.toolbar.hidden { display: none; }
+.toolbar select, .toolbar input { max-width: 14rem; }
+.dash-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 0.6rem; min-height: 0; }
+.map-stack { display: grid; grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.6rem; min-height: 0; min-width: 0; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.5rem 0.7rem;
+  min-height: 0; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.panel h2 { margin: 0 0 0.3rem; font-size: 0.95rem; display: flex; justify-content: space-between; gap: 0.5rem; }
+.panel h2 .dim { font-weight: 400; font-size: 0.75rem; }
+.side-col { display: grid; grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0.6rem; min-height: 0; min-width: 0; }
+.map-panel { padding: 0; position: relative; background: #0b1220; border-color: #1e293b; }
+.map-panel canvas { display: block; width: 100%; height: 100%; }
+.map-credit { position: absolute; right: 0.5rem; bottom: 0.25rem; font-size: 0.65rem; color: #64748b; text-align: right; }
+.map-credit a { color: #94a3b8; }
+.map-tag { position: absolute; left: 0.6rem; top: 0.4rem; font-size: 0.75rem; color: #94a3b8; }
+.low-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 0.6rem; min-height: 0; }
+.lists { display: grid; grid-template-rows: 1fr 1fr; gap: 0.6rem; min-height: 0; min-width: 0; }
+.dash table { font-size: 0.8rem; }
+.dash th, .dash td { padding: 0.18rem 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 12rem; }
+.dash .scroll { min-height: 0; overflow: hidden; flex: 1 1 auto; }
+.dash .empty { font-size: 0.85rem; }
+@media (max-width: 900px) {
+  body.dash { height: auto; overflow: visible; display: block; }
+  .dash-main, .map-stack, .side-col, .low-row { display: block; }
+  .panel { margin-bottom: 0.6rem; }
+  .map-panel { height: 56vw; min-height: 14rem; }
+  .map-panel.inset { height: 40vw; min-height: 12rem; }
+  .panel.feed, .panel.inc, .panel.list { max-height: 22rem; }
+  .dash .scroll { overflow: auto; }
+}
+tr.breach td { background: rgba(239, 68, 68, 0.16); color: var(--bad); font-weight: 700; }
+tr.breach td.dim { color: var(--bad); }

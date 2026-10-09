@@ -30,8 +30,10 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
   GET  /achievements-admin/soc, /api/soc   the room-wide SOC Alerts feed (plan §8.2)
-  GET  /achievements-admin/map, /api/map   the same cyber map, facilitator-side
-  GET  /achievements-admin/incident, /api/incident?user=NAME   any student's incident summary
+  GET  /achievements-admin/api/map   the same cyber map data, facilitator-side (+ student ids)
+  POST /achievements-admin/api/region   {user, region}: override one student's map point
+  (/soc is one page: alerts + map + incident; /map and /incident redirect to it)
+  GET  /achievements-admin/api/incident?user=NAME   any student's incident summary
   POST /api/soc/start, /api/soc/reset   start (or re-arm) the SOC countdown/attack swarm -
                           nothing runs until this is clicked (plan §8.2, revised 2026-10-05)
   POST /api/soc/inject, /api/soc/hint   {user: NAME|"all"}: fire attacker-bot's "Inject" (one
@@ -64,6 +66,7 @@ sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_
 import catalog as cat  # noqa: E402
 import dojo_http  # noqa: E402
 import challenges  # noqa: E402
+import geo  # noqa: E402
 import identity  # noqa: E402
 import ledger as lg  # noqa: E402
 import matcher  # noqa: E402
@@ -72,6 +75,8 @@ from store import Denied, Store  # noqa: E402
 
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 FACILITATOR = os.environ.get("FACILITATOR_USERNAME", "root")
+# Optional offline city database (tools/fetch_geoip.sh puts it here; git-ignored). Absent = the home-region fallback.
+GEOIP_DB = os.path.join(HERE, "..", "geoip", "dbip-city-lite.mmdb")
 # The engine's student reset calls /_dojo/reset/... with this (render_extensions.py derives it per service).
 RESET_TOKEN = os.environ.get("RESET_TOKEN", "")
 ADMIN_PREFIX = "/achievements-admin"
@@ -80,11 +85,14 @@ SAVE_DELAY = 1.0     # seconds: the state is written at most this often (RV2); e
 MAX_WEBHOOK_BODY = 1 << 20      # a push with many commits is large
 STATIC_DIR = os.path.join(HERE, "static")
 PAGES = {"/": "board.html", "/widget": "widget.html", "/certificate": "certificate.html", "/wall": "wall.html",
-         "/soc": "soc.html", "/map": "map.html", "/incident": "incident.html"}
+         "/soc": "soc.html"}
 ASSETS = ("board.js", "widget.js", "toast.js", "style.css", "admin.js", "certificate.js", "badge.js", "wall.js",
-          "soc.js", "map.js", "incident.js")
-ADMIN_PAGES = {"/": "admin.html", "/soc": "soc-admin.html", "/map": "map.html", "/incident": "incident.html"}
-ADMIN_ASSETS = ("admin.js", "style.css", "soc-admin.js", "map.js", "incident.js")
+          "soc.js", "map.js", "mapdata.js", "dash.css")
+ADMIN_PAGES = {"/": "admin.html", "/soc": "soc-admin.html"}
+ADMIN_ASSETS = ("admin.js", "style.css", "soc.js", "soc-admin.js", "map.js", "mapdata.js", "dash.css")
+# The SOC alerts, cyber map and incident summary are one dashboard now (/soc); the old page
+# addresses (and any ?user=NAME) still work by redirecting there.
+SOC_REDIRECTS = ("/map", "/incident")
 
 CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
 FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
@@ -134,15 +142,30 @@ def client_hash():
         return ""
 
 
+def time_scale(env):
+    """CTF_TIME_SCALE (default 1; ./dojo --test sets 0.1), the same multiplier attacker-bot's
+    personas.time_scale() applies, so the countdown reported here matches the bot's phases."""
+    try:
+        scale = float(env.get("CTF_TIME_SCALE") or 1)
+    except ValueError:
+        return 1.0
+    return scale if 0.001 <= scale <= 10 else 1.0
+
+
 def make_store():
     env = os.environ
+    scale = time_scale(env)
     catalog = load_catalog()
     store = Store(catalog, lg.Config.from_env(env), env.get("DATA_DIR", "/data"),
                  secret=GATEWAY_TOKEN or os.urandom(16).hex(),
                  anonymous=env.get("ACHIEVEMENTS_ANONYMOUS", "1") not in ("0", "false", "no", ""),
                  facilitator=FACILITATOR, ignore=(env.get("FORGEJO_ADMIN_USER"),), save_delay=SAVE_DELAY,
-                 soc_dwell_seconds=int(env.get("CTF_SOC_DWELL_SECONDS") or 480),
-                 soc_ramp_seconds=int(env.get("CTF_SOC_RAMP_SECONDS") or 600))
+                 soc_dwell_seconds=round(int(env.get("CTF_SOC_DWELL_SECONDS") or 480) * scale),
+                 soc_ramp_seconds=round(int(env.get("CTF_SOC_RAMP_SECONDS") or 600) * scale))
+    # Student map points: an optional offline DB-IP city database (CC BY 4.0) at CTF_GEOIP_DB, else
+    # every student sits in CTF_HOME_REGION with a small per-student offset. See geo.py.
+    store.time_scale = scale
+    store.locator = geo.Locator(env.get("CTF_GEOIP_DB") or GEOIP_DB, env.get("CTF_HOME_REGION") or "toronto")
     store.signature = env.get("ACHIEVEMENTS_SIGNATURE", "")[:80]
     store.class_date = env.get("ACHIEVEMENTS_CLASS_DATE", "")[:40]
     return store
@@ -171,6 +194,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ctype += "; charset=utf-8"
         self._send(200, body, ctype)
 
+    def _redirect(self, target):
+        query = urllib.parse.urlsplit(self.path).query
+        self.send_response(302)
+        self.send_header("Location", target + ("?" + query if query else ""))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _gateway_user(self):
         """The user the gateway identified, or None when its token is missing or wrong."""
         return dojo_http.gateway_user(self.headers, GATEWAY_TOKEN)
@@ -184,6 +214,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         without the gateway token, next to a token, are someone else's name worn like a hat."""
         user = self._gateway_user()
         if user:
+            # Only here, behind the gateway token check above, is the forwarded address Caddy's.
+            store.note_client(user, self.headers.get("X-Forwarded-For"))
             return user
         user = resolver.resolve(self.headers.get("Authorization")) if resolver else None
         if not user:
@@ -290,6 +322,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if path == ADMIN_PREFIX or path.startswith(ADMIN_PREFIX + "/"):
             return self._admin_get(path[len(ADMIN_PREFIX):] or "/")
+        if path in SOC_REDIRECTS:
+            return self._redirect("soc")
         if path in PAGES:
             return self._static(PAGES[path])
         if path.lstrip("/") in ASSETS:
@@ -426,6 +460,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _admin_get(self, path):
         self._facilitator()
+        if path in SOC_REDIRECTS:
+            return self._redirect("soc")
         if path in ADMIN_PAGES:
             return self._static(ADMIN_PAGES[path])
         if path.lstrip("/") in ADMIN_ASSETS:
@@ -437,7 +473,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # /api/soc above.
             return self._json(200, {"rows": store.admin_soc_rows(), "timer": store.soc_timer()})
         if path == "/api/map":
-            return self._json(200, store.map_data())
+            return self._json(200, store.map_data(admin=True))
         if path == "/api/incident":
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             user = (query.get("user") or [""])[0][:100]
@@ -457,6 +493,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, store.admin_soc_start())
         if path == "/api/soc/reset":
             return self._json(200, store.admin_soc_reset())
+        if path == "/api/region":
+            # A student's map point by hand (blank spec clears it): a city name or "lat,lon,Label".
+            body = self._body()
+            user, spec = body.get("user"), body.get("region", "")
+            if not isinstance(user, str) or not user or not isinstance(spec, str):
+                raise Denied(400, "user is required")
+            return self._json(200, store.admin_set_region(user, spec[:80]))
         if path in ("/api/soc/inject", "/api/soc/hint"):
             # The facilitator's "Inject"/"Hint probe" controls (plan §8.5): queued for
             # attacker-bot's next poll, not applied directly here - see store.py's
