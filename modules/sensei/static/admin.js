@@ -39,34 +39,76 @@
     });
   }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) { e.textContent = text; } if (cls) { e.className = cls; } return e; }
-  function drawHelp(d) {
-    var box = $('help'); while (box.firstChild) { box.removeChild(box.firstChild); }
-    $('helpcount').textContent = d.open ? '(' + d.open + ' waiting)' : '';
-    if (!d.requests.length) { box.textContent = 'Nobody has asked for help.'; box.className = 'dim'; return; }
-    box.className = '';
-    d.requests.forEach(function (r) {
-      var card = el('div', undefined, 'help');
-      card.appendChild(el('strong', '#' + r.id + ' ' + r.user, r.status === 'open' ? 'neg' : ''));
-      card.appendChild(el('span', '  ' + r.minutes + ' min, ' + r.status, 'dim'));
-      card.appendChild(el('div', r.text));
+  // The queue updates cards in place (keyed by request id) so a poll never rebuilds the reply box you are typing in
+  // or collapses "Their screen". "Needs you" = new requests and students who wrote back; "Waiting on student" =
+  // answered ones, which stay open for back and forth until you Close them.
+  var cards = {}, secs = null;
+  function section(title) {
+    var wrap = el('div'), h = el('h4', title), list = el('div'), none = el('div', 'None.', 'dim');
+    wrap.appendChild(h); wrap.appendChild(list); wrap.appendChild(none);
+    return { wrap: wrap, h: h, list: list, none: none, title: title };
+  }
+  function makeCard(r) {
+    var c = { head: el('div'), body: el('div'), thread: el('div'), det: el('details'), pre: el('pre'), sig: '' };
+    c.card = el('div', undefined, 'help');
+    var input = el('input'); input.type = 'text'; input.maxLength = 1000; input.placeholder = 'Reply to ' + r.user;
+    var send = el('button', 'Reply'), done = el('button', 'Close');
+    function sendIt() {
+      if (!input.value.trim()) { return; }
+      post('help/reply', { id: r.id, text: input.value }).then(function () { input.value = ''; say('Replied to #' + r.id + '.'); loadHelp(); }).catch(function (e) { say(e.message, true); });
+    }
+    send.addEventListener('click', sendIt);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { sendIt(); } });
+    done.addEventListener('click', function () { post('help/close', { id: r.id }).then(loadHelp).catch(function (e) { say(e.message, true); }); });
+    c.det.appendChild(el('summary', 'Their screen')); c.det.appendChild(c.pre);
+    var row = el('div'); row.appendChild(input); row.appendChild(send); row.appendChild(done);
+    [c.head, c.body, c.thread, c.det, row].forEach(function (n) { c.card.appendChild(n); });
+    return c;
+  }
+  function fillCard(c, r) {
+    var last = r.replies.length ? r.replies[r.replies.length - 1] : null;
+    var sig = JSON.stringify([r.status, r.minutes, r.replies.length, r.text, r.auto]);
+    if (sig !== c.sig) {
+      c.sig = sig;
+      var kids = [el('strong', '#' + r.id + ' ' + r.user, r.status === 'open' ? 'neg' : ''),
+        el('span', '  ' + r.minutes + ' min' + (last && last.from !== 'facilitator' ? ', student replied' : r.status === 'open' ? ', new' : ', you replied'), 'dim')];
+      while (c.head.firstChild) { c.head.removeChild(c.head.firstChild); }
+      kids.forEach(function (k) { c.head.appendChild(k); });
+      c.body.textContent = r.text;
+      while (c.thread.firstChild) { c.thread.removeChild(c.thread.firstChild); }
       var auto = r.auto || {};
-      if (auto.why) { card.appendChild(el('div', 'Sensei recognised: ' + auto.why.title + ' (' + (auto.why.fix || auto.why.explain) + ')', 'dim')); }
-      if (auto.ask && auto.ask.length) { card.appendChild(el('div', 'The labs cover it in ' + auto.ask[0].file + ' > ' + auto.ask[0].heading, 'dim')); }
-      r.replies.forEach(function (x) { card.appendChild(el('div', x.from + ': ' + x.text, 'dim')); });
-      if (r.context) {
-        var det = el('details'); det.appendChild(el('summary', 'Their screen'));
-        det.appendChild(el('pre', r.context)); card.appendChild(det);
-      }
-      var input = el('input'); input.type = 'text'; input.placeholder = 'Reply to ' + r.user; input.maxLength = 1000;
-      var send = el('button', 'Reply'), done = el('button', 'Close');
-      send.addEventListener('click', function () {
-        if (!input.value.trim()) { return; }
-        post('help/reply', { id: r.id, text: input.value }).then(function () { say('Replied to #' + r.id + '.'); loadHelp(); }).catch(function (e) { say(e.message, true); });
-      });
-      done.addEventListener('click', function () { post('help/close', { id: r.id }).then(loadHelp).catch(function (e) { say(e.message, true); }); });
-      var row = el('div'); row.appendChild(input); row.appendChild(send); row.appendChild(done);
-      card.appendChild(row); box.appendChild(card);
+      if (auto.why) { c.thread.appendChild(el('div', 'Sensei recognised: ' + auto.why.title + ' (' + (auto.why.fix || auto.why.explain) + ')', 'dim')); }
+      if (auto.ask && auto.ask.length) { c.thread.appendChild(el('div', 'The labs cover it in ' + auto.ask[0].file + ' > ' + auto.ask[0].heading, 'dim')); }
+      r.replies.forEach(function (x) { c.thread.appendChild(el('div', x.from + ': ' + x.text, 'dim')); });
+    }
+    c.det.hidden = !r.context;
+    if (c.pre.textContent !== (r.context || '')) { c.pre.textContent = r.context || ''; }
+  }
+  function place(sec, ids) {
+    sec.h.textContent = sec.title + ' (' + ids.length + ')';
+    sec.none.hidden = ids.length > 0;
+    ids.forEach(function (id, i) {
+      if (sec.list.children[i] !== cards[id].card) { sec.list.insertBefore(cards[id].card, sec.list.children[i] || null); }
     });
+  }
+  function drawHelp(d) {
+    var box = $('help');
+    if (!secs) {
+      secs = { need: section('Needs you'), wait: section('Waiting on student') };
+      box.textContent = ''; box.className = ''; box.appendChild(secs.need.wrap); box.appendChild(secs.wait.wrap);
+    }
+    $('helpcount').textContent = d.open ? '(' + d.open + ' waiting)' : '';
+    var seen = {}, need = [], wait = [];
+    d.requests.forEach(function (r) {
+      seen[r.id] = true;
+      if (!cards[r.id]) { cards[r.id] = makeCard(r); }
+      fillCard(cards[r.id], r);
+      (r.status === 'open' ? need : wait).push(r.id);
+    });
+    Object.keys(cards).forEach(function (id) {
+      if (!seen[id]) { if (cards[id].card.parentNode) { cards[id].card.parentNode.removeChild(cards[id].card); } delete cards[id]; }
+    });
+    place(secs.need, need); place(secs.wait, wait);
   }
   function loadHelp() {
     fetch('api/help', { credentials: 'same-origin', cache: 'no-store' })

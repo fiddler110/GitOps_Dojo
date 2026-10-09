@@ -1,0 +1,16 @@
+{
+  "name": "dojo-sensei",
+  "displayName": "Dojo Sensei",
+  "description": "Pops up the facilitator's answer to a raised hand inside VS Code, with a reply button.",
+  "publisher": "gitopsdojo",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": false
+  },
+  "categories": ["Other"]
+}

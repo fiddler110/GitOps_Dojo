@@ -44,6 +44,10 @@ the Lab 1 roster PR) and merges the good ones. Listed in a workshop's `MODULES=`
   - `sensei hand "..."` / `sensei inbox`: raise a hand with the message and the last screen of output; the facilitator
     replies in the Sensei tab (Raised hands) and it shows under `sensei inbox`. Three open at most, one per 20 s per
     student; a request also carries Sensei's own guess (the error it recognised, the lab section that covers it).
+  - Replies are pushed, not just filed. `POST /api/student/notify {surface, wait}` long-polls (up to 25 s) and reports
+    each facilitator reply once per surface: the prompt banner (`dojo-sensei.zsh`, a `TMOUT`/`TRAPALRM` timer, any
+    flavor), a VS Code message with a Reply button (`terminal/vscode/`, code-server flavor) and a Zellij floating
+    pane (`sensei watch`, started once per student by the shell hook, Zellij flavor).
   - `sensei check`: the student's core milestones for the current lab (first with one still undone), done or still to
     do, with the lab step each needs. Reads the achievements service (`GET /api/sensei/progress`), so it needs a
     workshop with a scoreboard; without one it says so. Challenges, funny unlocks and cheats are never listed.
