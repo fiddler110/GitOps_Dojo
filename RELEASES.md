@@ -7,6 +7,29 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## On `fix/ctf-pack-content-gaps` (2026-10-09, not yet merged)
+
+**Content-depth audit of all 5 CTF packs (ROADMAP item 1), two fixes, then a line-by-line verification pass.**
+First pass checked each pack's structure (briefing, hint ladder, debrief, attack boxes, achievement-to-lab counts)
+and found two gaps: (1) `sync_lab_docs()` (`engine/dojo/start.py`) only globbed `content/lab/*.md`, so every pack's
+`exploit-guide/` spoiler walkthroughs never reached the browser lab reader (`exploit-guide/` was reachable only via
+a terminal `cat`/`glow`) -- fixed by making the sync and `lab-reader.js`'s link-rewriting both recurse one
+subdirectory level, verified live (curl against a logged-in session hitting `exploit-guide/*.md.txt`); (2)
+`ctf-defend`'s `README.md`, `FACILITATOR.md` (missing entirely), `presentation.md` and `cheat-sheet.md` were still
+the `./dojo new-workshop` TODO scaffold -- written from scratch, following the other 4 packs' structure and style.
+`ctf-access`/`ctf-server-trust`/`ctf-secrets-config`/`ctf-trust-chain`'s READMEs updated to drop the now-stale claim
+that exploit guides were deliberately unreachable from the browser. `workshops/ctf-defend/workshop.env`'s stale
+`WORKSHOP_ORDER=7` fixed to `104` (found auditing `workshop.env` consistency); `workshops/README.md` gained rows
+100-104 for the series.
+
+Second pass: five parallel sub-agents, one per pack, cross-checked every `lab*.md` and `exploit-guide/*.md`
+against the real target implementation (`modules/ctf-range/targets/<id>/`), achievement catalogs, and (for
+`ctf-defend`) the Forgejo workflow YAMLs and provisioning hook -- every command, route, port, flag mechanic, file
+path and achievement event name, pack by pack. All 14 targets plus `ctf-defend`'s `customer-portal` came back
+clean: no stale commands, wrong paths, broken exploit-guide links, or achievement/event-name mismatches found
+anywhere. `ctf-defend`'s capstone check regexes were verified character-for-character against `app.py`'s two
+SQL-injection sinks.
+
 ## On `feat/ctf-pack-completion` (2026-10-09, not yet merged)
 
 **`ctf-secrets-config`/`ctf-trust-chain` complete their ladders; `ctf-defend-test` deleted.** The two packs each
