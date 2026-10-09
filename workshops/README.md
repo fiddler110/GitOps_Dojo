@@ -18,6 +18,16 @@ one workshop can use live in [`../modules/`](../modules/).
 | 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./dojo tofu-basics` |
 | 5 | [`vault-fundamentals/`](vault-fundamentals/) | Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./dojo vault-fundamentals` |
 | 6 | [`cloud-policy-as-code/`](cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, parameters, sets, modify and remediation, exemptions, then Rego and conftest checks on a plan, `opa test`, a CI pipeline and drift (labs 0-13 + capstone) | `dojo-cloud`, `runner-pool`, `sensei` | `./dojo cloud-policy-as-code` |
+| 100 | [`ctf-access/`](ctf-access/) | CTF-1: a capture-the-flag warm-up on getting in when auth or access checks are weak -- SQL-injection login bypass, a derivable reset token, an IDOR, a client-cert check with no real verification (4 targets) | `ctf-range` | `./dojo ctf-access` |
+| 101 | [`ctf-server-trust/`](ctf-server-trust/) | CTF-2: the server trusting input or the caller a little too much -- SSRF, mass assignment, BFLA, and a trust-the-note ping tool (4 targets) | `ctf-range` | `./dojo ctf-server-trust` |
+| 102 | [`ctf-secrets-config/`](ctf-secrets-config/) | CTF-3: leaked credentials and how far they reach -- an exposed debug log, a secret still live in git history, a committed `tfstate` leaking a vault login (3 targets) | `ctf-range` | `./dojo ctf-secrets-config` |
+| 103 | [`ctf-trust-chain/`](ctf-trust-chain/) | CTF-4: trusting the wrong thing -- a component (a DNS resolver CVE) and a rule (an OPA policy bypass, a CI runner escape) (3 targets) | `ctf-range`, `runner-pool` | `./dojo ctf-trust-chain` |
+| 104 | [`ctf-defend/`](ctf-defend/) | CTF-5: the one session where students patch instead of attack -- find a live SQL-injection incident in your own app, fix it, ship it through a PR a CI gate re-tests, watch the redeploy | `ctf-range`, `runner-pool` | `./dojo ctf-defend` |
+
+The CTF series (100-104) is a separate five-session track, not part of the numbered 0-6 learning path below
+-- see `docs/CTF-WORKSHOP-PLAN.md` for how the five sessions relate to each other and to the numbered
+workshops (`ctf-secrets-config`'s `tfstate-treasure` target ties `tofu-basics` + `vault-fundamentals`;
+`ctf-secrets-config`'s `git-secrets` target ties `git-fundamentals`).
 
 ### Learning path
 

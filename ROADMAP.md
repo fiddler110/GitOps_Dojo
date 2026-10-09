@@ -4,7 +4,9 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-09 (CTF plan and roadmap rows refreshed; CTF build log moved to RELEASES). Before that: 2026-10-07 (the ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack merged to `main` in
+Last updated: 2026-10-09 (content-depth audit of all 5 CTF packs done -- two fixes shipped, content verified
+line-by-line against source; see RELEASES). Before that, same day: CTF plan and roadmap rows refreshed; CTF build
+log moved to RELEASES. Before that: 2026-10-07 (the ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack merged to `main` in
 PR #17; the CTF series, the Zellij flavor and the earlier branch work all landed with it). ·
 Working branch: `main`; cut a feature branch for each new batch of work.
 
@@ -115,9 +117,8 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Content depth: audit every pack against plan section 9 (briefing, hint ladder, debrief per target), `ctf-defend` as the bar, then fill the gaps |
-| 2 | Class-sized run: 40-student capacity and isolation, the swarm with real dwell and ramp times, the Target Viewer card as a student |
-| 3 | Unbuilt design items: `CTF_WALL_OF_SHAME` toggle and route, bonus second flaws for targets 8-11, end-of-session scoring (CTF-D19), plan open questions 1-3 |
+| 1 | Class-sized run: 40-student capacity and isolation, the swarm with real dwell and ramp times, the Target Viewer card as a student |
+| 2 | Unbuilt design items: `CTF_WALL_OF_SHAME` toggle and route, bonus second flaws for targets 8-11, end-of-session scoring (CTF-D19), plan open questions 1-3 |
 
 ### N3 9.4: class-sized run
 
