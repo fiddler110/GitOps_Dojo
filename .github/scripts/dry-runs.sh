@@ -1,5 +1,5 @@
 #!/bin/sh
-# `./run.sh <workshop> --dry-run` for every pack, with achievements off and on
+# `./dojo <workshop> --dry-run` for every pack, with achievements off and on
 # (RV13). That checks the Compose config, every extensions.json, the
 # achievements catalog, the image pins and the shared tool pins, and starts
 # nothing. It also runs each pack's own check-pins-sync.sh (RV25). Needs podman
@@ -11,7 +11,7 @@ set -u
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
-[ -f engine/.env ] || ./run.sh setup --default >/dev/null || { echo "setup failed" >&2; exit 1; }
+[ -f .env ] || ./dojo setup --default >/dev/null || { echo "setup failed" >&2; exit 1; }
 
 if command -v podman >/dev/null && command -v podman-compose >/dev/null; then cli=podman; else cli=docker; fi
 if ! "$cli" image inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
@@ -39,7 +39,7 @@ for env_file in workshops/*/workshop.env; do
   [ -f "workshops/$w/achievements/catalog.json" ] && modes="0 1"
   for a in $modes; do
     echo "==> $w (ACHIEVEMENTS_ENABLED=$a)"
-    if ACHIEVEMENTS_ENABLED=$a ./run.sh "$w" --dry-run >"$log" 2>&1 \
+    if ACHIEVEMENTS_ENABLED=$a ./dojo "$w" --dry-run >"$log" 2>&1 \
        && ! grep -q 'Extensions: not checked' "$log"; then
       grep -E '^(extensions:|achievements:)' "$log" || true
     else

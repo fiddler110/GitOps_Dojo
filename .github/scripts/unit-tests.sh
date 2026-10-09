@@ -17,8 +17,8 @@ run() { # name, then the command
   if "$@"; then :; else failed="$failed $name"; fi
 }
 
-# The dojo CLI needs its pinned wheels; any run.sh call unpacks them first.
-./run.sh list >/dev/null || { echo "could not unpack the CLI's wheels" >&2; exit 1; }
+# The dojo CLI needs its pinned wheels; any dojo call unpacks them first.
+./dojo list >/dev/null || { echo "could not unpack the CLI's wheels" >&2; exit 1; }
 pylib="$(echo engine/.cache/pylib-*)"
 run engine/dojo env PYTHONPATH="engine:$pylib" python3 -B -m unittest discover -s engine/dojo/tests -t engine
 run engine/allocator sh -c 'cd engine/allocator && python3 -B -m unittest discover -s tests'
