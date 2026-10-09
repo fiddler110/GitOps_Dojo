@@ -511,6 +511,14 @@ that has visited once won't fall back to plain HTTP for a day.
 ./dojo doctor [<workshop>]   # will a start work on this machine? exits 1 if not
 ./dojo config <workshop> [KEY ...] [--env NAME]   # each setting and the file it came from
 ./dojo logs <service> [-f]   # one service's log, by Compose service name
+./dojo logs --all [--since 10m] [--grep RE] | --errors   # every service merged; or an error scan (exit 1 if any)
+./dojo status --watch        # redraw until Ctrl-C;  ./dojo wait [--timeout S] blocks until healthy
+./dojo test <workshop> [--n N] [--matrix KEY=a,b] [--keep]   # fast-bot check: start, wait for bots, verdict, stop
+./dojo exec <service> [-- cmd]   # shell or command in a container (./dojo shell = web-terminal)
+./dojo urls | open           # addresses and logins; open in a browser
+./dojo roster | reset-student USER | export-results [--format csv|json]   # via the allocator / achievements admin APIs
+./dojo backup [PATH] | restore PATH   # volumes via podman volume export/import (podman only)
+./dojo prune [--dry-run] | validate [<workshop>...] | doctor --fix | version
 ```
 
 `restart <service>` also recreates the services that depend on it under podman (it won't replace a container

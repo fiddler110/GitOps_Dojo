@@ -21,7 +21,20 @@ that forwards to `./dojo`. Run from the repo root or from `engine/` (same result
 | `./dojo modules` | Modules and which workshops use them |
 | `./dojo doctor [<workshop>] [--env NAME]` | Will a start work here? Exits 1 if not |
 | `./dojo config <workshop> [KEY...] [--env NAME] [--show-secrets]` | Show each setting and which file set it |
-| `./dojo logs <service> [-f] [-n N]` | A service's log, by Compose service name |
+| `./dojo logs [<service>] [-f] [-n N] [--all] [--since 10m] [--grep RE] [--errors]` | A service's log; `--all` merges every service (colour-prefixed); `--errors` scans all for Traceback/ERROR/panic/Exception (exit 1 if found) |
+| `./dojo status --watch` | Redraw the status every few seconds |
+| `./dojo test <workshop> [--n N] [--matrix KEY=a,b] [--keep] [--timeout MIN]` | Start with `--test N --fast`, wait for every `~/.dojo-bot-done`, print pass/fail, then stop (always, even on failure or Ctrl-C, unless `--keep`); `--matrix` repeats per value with `KEY=value` exported; exit 1 on any failure |
+| `./dojo exec <service> [-- cmd...]` / `shell [service]` | Command or shell (bash if present) in a service's container |
+| `./dojo urls [--json]` / `open [student\|admin\|slides]` | Student, admin and slides addresses and logins (passwords only if public defaults); open one in a browser |
+| `./dojo wait [--timeout S]` | Block until every service is healthy; exit 1 on timeout |
+| `./dojo roster [--json]` / `reset-student USER [-y]` | The students and bots, and the Roster's Reset for one (through the allocator's admin API) |
+| `./dojo export-results [--format csv\|json] [--out FILE]` | Scores, unlocks and (json) SOC data from the achievements module; fails if it isn't running |
+| `./dojo backup [PATH]` / `restore PATH [-y]` | Tar of every volume via `podman volume export/import`; restore only into a stopped stack of the same workshop |
+| `./dojo prune [--dry-run]` | Remove dangling `gitopsdojo/` images; never volumes or containers |
+| `./dojo validate [<workshop>...]` | Static checks of every pack (workshop.env, MODULES, extensions.json, catalog); exit 1 on failure |
+| `./dojo doctor --fix` | Safe fixes first: stale run lock, missing `.env` (`setup --default`), `.env` mode 600 |
+| `./dojo version` | Git revision, engine versions, pinned wheels |
+| `--json` | Also on `list`, `modules` and `doctor` |
 | `./dojo setup [--default] [--force] [--rotate-class]` | Create or update `.env` and `dojo.local.toml` |
 | `./dojo capacity [<workshop>] --students N [...]` | Size the terminal resource limits for this machine |
 | `./dojo build-all [--env NAME] [--dry-run]` | Build every workshop's images, start nothing |
@@ -43,7 +56,7 @@ that forwards to `./dojo`. Run from the repo root or from `engine/` (same result
 
 | Flag | Effect |
 |---|---|
-| `--test [N]` | Add demo bots: 3, or N (max 35). `testuser1-3` are expert/intermediate/novice; the rest get one persona at random. They never use a student slot |
+| `--test [N]` | Add demo bots: 3, or N (max 35). `testuser1-3` are expert/intermediate/novice; the rest get one persona at random. They never use a student slot. Also exports `CTF_TIME_SCALE=0.1` (unless already set) so ctf-defend's SOC timeline (dwell, ramp, attacker pacing) runs at a tenth; `CTF_TIME_SCALE=1` keeps the real clock |
 | `--fast` | With `--test`: no pacing, mistakes in every round for intermediate/novice, one round, then `~/.dojo-bot-done`. For checks, not demos |
 | `--env NAME[,NAME]` | Apply profile(s); the last wins |
 | `--terminal code-server\|zellij` | Terminal flavor for this run; beats every file; `restart` repeats it |
