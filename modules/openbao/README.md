@@ -7,7 +7,7 @@ Add it with `MODULES="openbao"` in a `workshop.env`. Built for `vault-fundamenta
 
 | Part | What it does |
 |---|---|
-| `compose.yml` | `openbao` (a tiny network holder: it owns the namespace the server and the SSO shim share, so the server can restart alone), `openbao-server` (`workshop_openbao`; pinned by digest, raft storage, plain HTTP on `workshop_lab` only), `openbao-setup`, `openbao-sso-shim` and `openbao-audit`. Every volume is named, so `./run.sh stop` removes the vault with the rest. |
+| `compose.yml` | `openbao` (a tiny network holder: it owns the namespace the server and the SSO shim share, so the server can restart alone), `openbao-server` (`workshop_openbao`; pinned by digest, raft storage, plain HTTP on `workshop_lab` only), `openbao-setup`, `openbao-sso-shim` and `openbao-audit`. Every volume is named, so `./dojo stop` removes the vault with the rest. |
 | `config.hcl` | The server config: UI on, raft storage, and the file audit device (OpenBao 2.6 and later refuse to enable audit devices through the API, so it is declared here). `openbao-audit` reads the file as OpenBao's uid, and accessors are written in the clear (`hmac_accessor = false`) so a leaked token can be traced by its accessor; tokens and values stay HMACed. |
 | `sso-shim/Caddyfile` | Caddy in OpenBao's network namespace. It answers for `PUBLIC_BASE_URL` there and forwards `/git/*` to `git-server`, so OpenBao reaches Forgejo's OIDC issuer by its public URL. `module.env` points that host name at `127.0.0.1` inside OpenBao. On an `https://` name the shim serves with its own CA, which OpenBao must trust (`oidc_discovery_ca_pem`). |
 | `setup/` | `openbao-setup` (`setup.sh`, on the OpenBao image). First start: init with one key share (a lab shortcut; production uses auto-unseal) and unseal. Every start: a temporary root token from the unseal key, a short-lived provisioner token (and the reset token, below), root revoked; then, as the provisioner, the UI framing header, the `facilitator` policy, SSO (`sso.sh`, below), CLI login (`cli.sh`, below), then each `/etc/openbao-setup.d/*.sh` hook a workshop mounts (sourced with `BAO_TOKEN` and a `retry` helper; each must be safe to re-run); then the provisioner is revoked. It stays up, unsealing whenever `openbao` restarts sealed (within about 10 s). See **Tokens** below. |
@@ -24,13 +24,13 @@ Add it with `MODULES="openbao"` in a `workshop.env`. Built for `vault-fundamenta
 **OpenBao's UI refuses to be framed by default** (`frame-ancestors 'none'`). For the `/admin` tab, `openbao-setup`
 sets `sys/config/ui/headers/Content-Security-Policy` to the same policy with `frame-ancestors 'self'`.
 
-**Settings** (set in `engine/.env` or `workshop.env`): `OPENBAO_MEM_LIMIT` (512m).
+**Settings** (set in `.env` or `workshop.env`): `OPENBAO_MEM_LIMIT` (512m).
 
 **Single sign-on** (`setup/sso.sh`, every start): Forgejo is the OIDC provider. `openbao-setup` creates a confidential
 OAuth2 app owned by `FORGEJO_ADMIN_USER` (its id and secret kept on `openbao_setup`, reused while Forgejo still has
 it), the `oidc` auth method on `${PUBLIC_BASE_URL}/git` (trusting the shim's CA on `https://`) and its role `forgejo`,
 and one identity entity per account, aliased to the Forgejo login: `studentNN` (and each demo bot `testuserN` with
-`./run.sh --test`) with the policy `student`, which the workshop's hooks write, and `facilitator` with `facilitator`.
+`./dojo --test`) with the policy `student`, which the workshop's hooks write, and `facilitator` with `facilitator`.
 Hooks loop over the same accounts with `for s in $(class_users)`. Forgejo 16 can't skip its "Authorize Application" page
 for a trusted app, so each account approves once, on its first sign-in.
 

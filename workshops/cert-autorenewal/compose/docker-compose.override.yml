@@ -1,6 +1,6 @@
 # Overlay for the cert-autorenewal workshop, layered on top of
 # engine/docker-compose.yml via `docker compose -f docker-compose.yml -f
-# <this file>` (see engine/run.sh).
+# <this file>` (see dojo).
 #
 # IMPORTANT: because this file is merged with a base file, Compose resolves
 # every relative path in BOTH files relative to the base file's directory —
@@ -12,7 +12,7 @@
 # Adds:
 #   - dns-server: PowerDNS, authoritative for certs.dojo.test. This
 #     workshop's own instance (workshops can't share a running service with
-#     another workshop today — run.sh only ever activates one overlay at a
+#     another workshop today — dojo only ever activates one overlay at a
 #     time) — same image/pattern as dns-as-code, for skill continuity.
 #   - dns-api (from the dns-gate module, MODULES in workshop.env): the only
 #     way to the PowerDNS API for terminals. Each account's own key changes
@@ -63,7 +63,7 @@ services:
     image: docker.io/powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
     container_name: workshop_cert_powerdns
     environment:
-      # `:-` not `:?`: ./run.sh stop reads this file without workshop.env.
+      # `:-` not `:?`: ./dojo stop reads this file without workshop.env.
       # An empty key leaves PowerDNS's API off.
       - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-}
     # PowerDNS binds port 53 (< 1024) as non-root in this image — without
@@ -161,7 +161,7 @@ services:
       - demo-app
       - step-ca
     environment:
-      # Identity headers count only with this token (derived per upstream by run.sh).
+      # Identity headers count only with this token (derived per upstream by dojo).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_SITE_INSPECTOR:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - ZONE=${DEMO_APP_ZONE:-certs.dojo.test}
@@ -182,7 +182,7 @@ services:
     mem_limit: ${SITE_INSPECTOR_MEM_LIMIT:-64m}
     restart: unless-stopped
 
-  # Image: compose/terminal/, built and selected by engine/run.sh.
+  # Image: compose/terminal/, built and selected by dojo.
   web-terminal:
     # dns-seed is deliberately not listed here: it's a one-shot container
     # that exits(0) once it's done seeding, and podman-compose's plain
@@ -199,7 +199,7 @@ services:
       # Lands under /opt/lab (the base file's own read-only mount for
       # content/lab) so entrypoint.sh's per-account `cp -Rn /opt/lab/. ~/lab/`
       # picks it up too, seeding ~/lab/sample-repo without a git clone step.
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/opt/lab/sample-repo:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/sample-repo:/opt/lab/sample-repo:ro
       # Public root cert only — never the CA's private keys/secrets.
       - step_ca_root_pub:/opt/step-ca-root:ro
 

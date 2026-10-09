@@ -1,0 +1,20 @@
+{
+  "workshop": "ctf-secrets-config",
+  "title": "CTF-3: Secrets and Misconfiguration",
+  "intro": "## Scoring\n\nEach target you solve posts its own flag-verified event the moment `dojo-flag submit` accepts it -- no\nseparate check-in step. Two process milestones (scan with version detection, scan every port) reward doing\nthe recon step properly before touching a target, since that's half the lesson. `core` is the three\nflag milestones, so completion tracks targets solved, not labs merely opened.",
+  "labs": [
+    {
+      "id": "lab1",
+      "title": "ops dashboard (leaky-config)"
+    },
+    {
+      "id": "lab2",
+      "title": "deploy trigger (git-secrets)"
+    },
+    {
+      "id": "lab3",
+      "title": "infrastructure state (tfstate-treasure)"
+    }
+  ],
+  "require_match": true
+}

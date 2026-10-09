@@ -291,8 +291,8 @@ ENTRYPOINT ["ctf-host-entrypoint"]
 # Each final stage below runs it after its own COPYs.
 
 # --- ctf-host: the full catalog (default `docker build` target, no --target
-# needed) — used by the shared workshops/ctf-defend-test harness, which
-# deliberately wants every target in one image (module.env's comment on
+# needed) — kept for ad-hoc local testing of every target at once
+# (module.env's comment on
 # CTF_ATTACK_TARGETS). entrypoint.sh's import_* functions each guard on
 # their own rootfs directory existing, so this is the only stage where every
 # guard actually fires.
@@ -344,3 +344,23 @@ COPY --from=api-bfla / /opt/api-bfla-rootfs/
 RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
 HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
     CMD docker image inspect ctf-ping-tool:base >/dev/null 2>&1 || exit 1
+
+# --- ctf-host-ctf3: CTF-3 "Secrets and misconfiguration" only (targets 5,8 —
+# leaky-config, git-secrets; tfstate-treasure (11) has no image yet, so it is
+# not baked). Same shape as ctf-host-ctf1. `docker build --target ctf-host-ctf3`.
+FROM range-base AS ctf-host-ctf3
+COPY --from=leaky-config / /opt/leaky-config-rootfs/
+COPY --from=git-secrets / /opt/git-secrets-rootfs/
+RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
+    CMD docker image inspect ctf-leaky-config:base >/dev/null 2>&1 || exit 1
+
+# --- ctf-host-ctf4: CTF-4 "Trusting the wrong thing" only (targets 6,9 —
+# dns-resolver-cve, policy-bypass; runner-escape (10) has no image yet).
+# `docker build --target ctf-host-ctf4`.
+FROM range-base AS ctf-host-ctf4
+COPY --from=dns-resolver-cve / /opt/dns-resolver-cve-rootfs/
+COPY --from=policy-bypass / /opt/policy-bypass-rootfs/
+RUN cd /opt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > /etc/ctf-host-content.sha
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=3 \
+    CMD docker image inspect ctf-dns-resolver-cve:base >/dev/null 2>&1 || exit 1

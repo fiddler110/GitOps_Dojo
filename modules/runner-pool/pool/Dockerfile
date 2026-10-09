@@ -4,7 +4,7 @@
 # workflow can only use what is installed here.
 #
 # JOB_TOOLS names extra tools (e.g. "bao sops") to copy from TOOLS_IMAGE's
-# /usr/local/bin; compose.yml sets TOOLS_IMAGE to the terminal image run.sh
+# /usr/local/bin; compose.yml sets TOOLS_IMAGE to the terminal image dojo
 # has just built, so jobs run the very binaries the students have, pinned and
 # checked once, in the terminal's Dockerfiles. They must be static binaries:
 # this image is Alpine (musl), the terminal is not.

@@ -4,8 +4,8 @@ CTF-4 (plan §7.3 row 10, GitOps, needs `runner-pool`). **No image** — same
 shape as `tfstate-treasure` (11): the foothold is a Forgejo repo and a CI
 job, not a container in `ctf-host`. This directory is docs + a reference
 exploit; provisioning lives in
-`workshops/ctf-defend-test/compose/terminal/start.d/96-runner-escape.sh`
-(web-terminal, this pack only — new/unproven outside this harness, same
+`workshops/ctf-trust-chain/compose/terminal/start.d/96-runner-escape.sh`
+(web-terminal, this pack only, same
 scoping reasoning as `tfstate-treasure` needing `openbao`).
 
 ## The flaw

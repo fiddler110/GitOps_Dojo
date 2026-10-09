@@ -30,12 +30,12 @@ people finish its clean-up section before Lab 10.
 
 **A day ahead**
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`. It must contain `PUBLIC_BASE_URL` (what
+1. `./dojo setup` if there is no `.env`. It must contain `PUBLIC_BASE_URL` (what
    students will type, including the port if it isn't 80/443) and `GATEWAY_TOKEN`. Set `STUDENT_COUNT`.
 2. **Student password:** nothing to announce. Each student's terminal is signed in to Forgejo with their own
    token (`~/.git-credentials` for git, `~/.netrc` for Lab 0's `curl --netrc` fork), so no lab asks for a password.
    If you ever need one, **Password** on the student's Roster tile shows it.
-3. Build and start: `./run.sh tofu-basics`. The first build takes several minutes (the terminal image is
+3. Build and start: `./dojo tofu-basics`. The first build takes several minutes (the terminal image is
    about 1.1 GB, `cloud-host` about 370 MB). Open `/admin` and check the **service status strip** at the top right: **Forgejo**,
    **Terminals**, **Slides** and **Dojo Cloud** should all be green (Ready). On a warm start they turned green
    after about 5, 30, 36 and 66 s in the live test. **Terminals is the slowest, about a minute or more**,
@@ -45,7 +45,7 @@ people finish its clean-up section before Lab 10.
    other module services too (about 6.5 GB besides the terminals):
 
    ```sh
-   ./run.sh capacity tofu-basics --students 30
+   ./dojo capacity tofu-basics --students 30
    ```
 
    Those are the ceilings the dojo-cloud module sets (`CLOUD_HOST_MEM_LIMIT` 3g, `CLOUD_API_MEM_LIMIT` 256m), not
@@ -55,7 +55,7 @@ people finish its clean-up section before Lab 10.
 5. **Rehearse as a student.** Open the landing page in a private window: you get a real student account,
    the same experience the room will have. Do Labs 0-1, then Labs 4-5, and open the portal. Check that the
    site link works and that your deployment appears on **Class progress** in your facilitator window. Then
-   `./run.sh stop` and start clean. (Your facilitator workspace never takes a student slot, so it does
+   `./dojo stop` and start clean. (Your facilitator workspace never takes a student slot, so it does
    not tell you what students see.)
 6. Skim the deck once with its speaker notes on.
 
@@ -165,7 +165,7 @@ student has already edited is never overwritten (`engine/README.md`, "Update wor
 
 ## After the session
 
-- `./run.sh stop` wipes everything: the volumes (including `cloud-host`'s Docker data), every deployed container,
+- `./dojo stop` wipes everything: the volumes (including `cloud-host`'s Docker data), every deployed container,
   all state. Nothing is kept. Verified live, including after a hard kill of `cloud-host`: no containers, volumes,
   networks or stray processes left behind.
 - If you learned something (a lab step that confused people, a timing that was wrong, a failure not in the

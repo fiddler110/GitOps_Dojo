@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l2-flag",
+      "title": "History Doesn't Forget",
+      "joke": "They deleted the line. The line disagreed.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for git-secrets",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "git-secrets"
+      }
+    }
+  ]
+}

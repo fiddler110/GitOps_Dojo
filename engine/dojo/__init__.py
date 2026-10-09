@@ -1,5 +1,5 @@
 """The dojo command centre: start, inspect and stop workshop stacks.
 
-Run through ./run.sh (or `dojo`, the ~/.local/bin script `./run.sh alias-setup`
+Run through ./dojo (or `dojo`, the ~/.local/bin script `./dojo alias-setup`
 installs); engine/dojo/boot.py makes the pinned dependencies importable first.
 """

@@ -1,14 +1,15 @@
 """The dojo command line. Each command is a thin layer over a module that does
 the work, so the logic is usable (and testable) without Click.
 
-`./run.sh <workshop> [flags]` starts a workshop: any first word that isn't a
-command is taken as a workshop name (`./run.sh start <workshop>` also works).
+`./dojo <workshop> [flags]` starts a workshop: any first word that isn't a
+command is taken as a workshop name (`./dojo start <workshop>` also works).
 Tab completion comes from these same definitions (engine/completions/).
 """
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from typing import List, Optional, Tuple
 
@@ -37,9 +38,9 @@ def _complete_workshop(ctx, param, incomplete):
 
 
 def _complete_env(ctx, param, incomplete):
-    return [p.name[len(".env."):] for p in paths.ENGINE.glob(".env.*")
-            if p.name not in (".env.example", ".env.previous", ".env.new")
-            and p.name[len(".env."):].startswith(incomplete)]
+    from .envfiles import known_profiles
+    head, _, last = incomplete.rpartition(",")
+    return [f"{head},{n}" if head else n for n in sorted(known_profiles()) if n.startswith(last)]
 
 
 def _complete_service(ctx, param, incomplete):
@@ -50,7 +51,8 @@ def _complete_service(ctx, param, incomplete):
 
 
 ENV_OPTION = click.option("--env", "env_name", metavar="NAME", shell_complete=_complete_env,
-                          help="Also load engine/.env.NAME on top of engine/.env (its values win).")
+                          help="Also apply profile NAME (a [profiles.NAME] in dojo.local.toml and a [NAME] section in .env) on top; "
+                               "NAME,NAME joins several, the last wins.")
 
 
 def start_options(f):
@@ -62,23 +64,29 @@ def start_options(f):
                      help="With --test: bots skip every pause and typing delay, put mistakes in every round "
                           "(intermediate, novice), and stop after one round. For checks, not demos."),
         ENV_OPTION,
+        click.option("--terminal", "terminal", type=click.Choice(["code-server", "zellij"]), default=None,
+                     help="Terminal flavor for this run: code-server (VS Code + tmux) or zellij (terminal only). "
+                          "Beats dojo.toml, profiles and workshop.env."),
         click.option("--dry-run", is_flag=True, help="Preview what would be rebuilt and started; change nothing."),
         click.option("--build-only", is_flag=True, help="Build or refresh the images and stop there (no password checks)."),
         click.option("--allow-default-passwords", is_flag=True,
                      help="Start even with public default passwords on a non-loopback address."),
+        click.option("--pass", "--cookie", "--code", "gate_pass", default=None, metavar="CODE",
+                     help="Ask for this access code on a page in front of everything, sign-in included (--pass, --cookie and --code are the same)."),
     ]):
         f = opt(f)
     return f
 
 
-def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords) -> None:
+def _start(workshop: str, test, fast, env_name, dry_run, build_only, allow_default_passwords, gate_pass=None, terminal=None) -> None:
     from .start import StartOptions, run_start
     sys.exit(run_start(StartOptions(workshop, test=test, fast=fast, env_name=env_name, dry_run=dry_run,
-                                    build_only=build_only, allow_default_passwords=allow_default_passwords)))
+                                    build_only=build_only, allow_default_passwords=allow_default_passwords,
+                                    gate_pass=gate_pass, terminal=terminal)))
 
 
 def _workshop_command(name: str) -> click.Command:
-    """`./run.sh <name> [flags]`: the start command with the workshop filled in."""
+    """`./dojo <name> [flags]`: the start command with the workshop filled in."""
     @click.command(name=name, context_settings=SETTINGS, help=f"Build and start the {name} workshop.")
     @start_options
     def cmd(**kw):
@@ -104,9 +112,31 @@ class DojoGroup(click.Group):
         formatter.write_text(f"Run '{PROG} <command> --help' for a command's own options.")
 
 
+QUIET_COMMANDS = {"help", "stop", "teardown", "alias-setup", "restart", "status", "doctor", "config", "list",
+                  "modules", "logs", "completion"}
+
+
+def _offer_completion() -> None:
+    """The one-time, interactive offer to install `dojo` and tab completion (the script
+    no-ops once answered, and outside a terminal). Not for read-only commands, previews or completing."""
+    args = sys.argv[1:]
+    if os.environ.get("_DOJO_COMPLETE") or not args or args[0].startswith(("-", "_")) or args[0] in QUIET_COMMANDS:
+        return
+    if "--dry-run" in args or "--build-only" in args:
+        return
+    script = paths.ENGINE / "scripts" / "install-completion.sh"
+    if script.is_file():
+        subprocess.run(["sh", str(script)], check=False)
+
+
 @click.group(cls=DojoGroup, context_settings=SETTINGS, no_args_is_help=True)
 def cli() -> None:
     """GitOps Dojo command centre: start, inspect and stop workshop stacks."""
+    from . import migrate
+    if migrate.needed() and not os.environ.get("_DOJO_COMPLETE"):
+        for line in migrate.migrate():
+            console.print(f"[yellow]{escape(line)}[/]")
+    _offer_completion()
 
 
 # --- the stack ----------------------------------------------------------------------
@@ -201,7 +231,7 @@ def modules_cmd() -> None:
 def status(as_json: bool) -> None:
     """What is running: workshop, address, each service's health, students.
 
-    Also flags a build or start currently in flight (another ./run.sh is
+    Also flags a build or start currently in flight (another ./dojo is
     mid-way through acquiring the lock, so a new 'dojo <workshop>' here
     would refuse). 'dojo ps' is a shorter alias for the same command."""
     info = status_mod.collect(Runtime())
@@ -280,7 +310,7 @@ def config(workshop: str, keys: Tuple[str, ...], env_name: Optional[str], show_s
 @click.argument("name")
 @click.option("--title", default="", help="Display name (default: from NAME, e.g. 'Dns As Code').")
 @click.option("--description", default="", help="One sentence, shown on the login page.")
-@click.option("--modules", "mods", default="", metavar="'A B'", help="Modules to use ('./run.sh modules' lists them).")
+@click.option("--modules", "mods", default="", metavar="'A B'", help="Modules to use ('./dojo modules' lists them).")
 @click.option("--order", type=int, default=-1, help="Place in the learning path (default: last).")
 @click.option("--duration", default="", metavar="'~2 h'", help="How long a session takes, shown by 'list'.")
 @click.option("--org", default="training", show_default=True, help="Forgejo organisation of the sample repo.")
@@ -309,9 +339,48 @@ def new_workshop(name, title, description, mods, order, duration, org, repo, ter
 
 
 # --- setup, still shell scripts ---------------------------------------------------
+@cli.command("_operator-env", context_settings=SETTINGS, hidden=True)
+@ENV_OPTION
+def operator_env_cmd(env_name: Optional[str]) -> None:
+    """Print the operator's settings (dojo.toml, dojo.local.toml, .env, profiles) as `export` lines,
+    for shell scripts: eval "$(./dojo _operator-env [--env NAME])"."""
+    import shlex
+    from .envfiles import operator_env
+    try:
+        env = operator_env(env_name)
+    except EnvError as exc:
+        fail(str(exc))
+        sys.exit(1)
+    for key, value in sorted(env.items()):
+        click.echo(f"export {key}={shlex.quote(value)}")
+
+
+@cli.command("_config-get", context_settings=SETTINGS, hidden=True)
+@click.argument("key")
+@ENV_OPTION
+def config_get_cmd(key: str, env_name: Optional[str]) -> None:
+    """One operator setting's current value (used by setup for its prompt defaults)."""
+    from .envfiles import operator_env
+    click.echo(operator_env(env_name).get(key, ""))
+
+
+@cli.command("_config-set", context_settings=SETTINGS, hidden=True)
+@click.argument("key")
+@click.argument("value")
+@click.option("--profile", default=None, help="Write under [profiles.NAME.*] instead of the base settings.")
+def config_set_cmd(key: str, value: str, profile: Optional[str]) -> None:
+    """Set one non-secret setting in dojo.local.toml (used by setup)."""
+    from . import config as config_mod
+    try:
+        config_mod.set_value(key, value, profile=profile, skip_default=True)
+    except config_mod.ConfigError as exc:
+        fail(str(exc))
+        sys.exit(1)
+
+
 def _passthrough(name: str, script: str, help_text: str) -> None:
     """A command run by its shell script with every argument as given (so
-    `./run.sh setup --help` is the script's own help)."""
+    `./dojo setup --help` is the script's own help)."""
     @cli.command(name, help=help_text, add_help_option=False,
                  context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
     @click.argument("args", nargs=-1, type=click.UNPROCESSED)
@@ -319,7 +388,7 @@ def _passthrough(name: str, script: str, help_text: str) -> None:
         os.execvp("sh", ["sh", str(paths.ENGINE / "scripts" / script), *args])
 
 
-_passthrough("setup", "env-setup.sh", "Create or update engine/.env (--default, --force, --rotate-class).")
+_passthrough("setup", "env-setup.sh", "Create or update .env (--default, --force, --rotate-class).")
 
 
 @cli.command("capacity", add_help_option=False,
@@ -356,7 +425,7 @@ _passthrough("alias-setup", "alias-setup.sh", "Install the 'dojo' command (~/.lo
 @click.argument("shell", type=click.Choice(["bash", "zsh"]))
 def completion(shell: str) -> None:
     """Print the tab-completion script for SHELL (eval it, or source the file it names)."""
-    click.echo((paths.ENGINE / "completions" / f"run.sh.{shell}").read_text())
+    click.echo((paths.ENGINE / "completions" / f"dojo.{shell}").read_text())
 
 
 @cli.command("help", context_settings=SETTINGS)

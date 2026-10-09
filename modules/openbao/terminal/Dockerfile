@@ -1,4 +1,4 @@
-# openbao module's link in the terminal build chain (engine/run.sh sets BASE
+# openbao module's link in the terminal build chain (dojo sets BASE
 # to the image below this one; see workshops/README.md). Adds the OpenBao CLI
 # and points it at the class server. Student terminals have no internet, so
 # the CLI is baked in, version-pinned and sha256-verified per architecture.

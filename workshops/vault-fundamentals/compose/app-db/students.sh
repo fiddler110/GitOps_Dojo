@@ -9,7 +9,7 @@
 # hook (30-platform.sh), which gives it to the vault and has the vault rotate
 # it straight away: after that, only the vault knows it.
 
-# Students (studentNN), then the demo bots (testuserN, ./run.sh --test).
+# Students (studentNN), then the demo bots (testuserN, ./dojo --test).
 users() {
   i=1
   while [ "$i" -le "${STUDENT_COUNT:-0}" ]; do printf '%s%02d\n' "${STUDENT_PREFIX:-student}" "$i"; i=$((i + 1)); done

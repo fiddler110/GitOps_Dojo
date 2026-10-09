@@ -1,4 +1,4 @@
-# dojo-introduction's link in the terminal build chain (engine/run.sh sets BASE
+# dojo-introduction's link in the terminal build chain (dojo sets BASE
 # to the image below this one: the dojo-cloud and dns-gate modules' links, with
 # the Dojo Cloud broker and the DNS key; see workshops/README.md). It has the
 # tools of dns-as-code and tofu-basics, the two the tour shows. Student

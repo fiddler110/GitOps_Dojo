@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check one workshop's achievement catalog. run.sh calls this at start when
+"""Check one workshop's achievement catalog. dojo calls this at start when
 ACHIEVEMENTS_ENABLED=1 (in the allocator image, workshop folder mounted read-only):
 
     python3 -B validate.py <workshop dir>
@@ -22,7 +22,7 @@ SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared.json")
 def known_verbs():
     """Verifier verbs the achievements module declares: its own `achievements/verifiers.json` and
     every backend plug-in's `plugins/*/verifiers.json` (this script sits in the module's catalog/
-    folder, and run.sh mounts the whole module). None when neither is found."""
+    folder, and dojo mounts the whole module). None when neither is found."""
     here = os.path.dirname(os.path.abspath(__file__))
     modules = os.path.normpath(os.path.join(here, "..", ".."))
     specs = sorted(glob.glob(os.path.join(modules, "*", "achievements", "verifiers.json")))

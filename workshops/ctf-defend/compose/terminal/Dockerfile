@@ -1,4 +1,4 @@
-# Extra terminal tools for ctf-defend. ./run.sh builds it on top of the base
+# Extra terminal tools for ctf-defend. ./dojo builds it on top of the base
 # image and any module's tools (BASE is set to the image below this one in the
 # chain). Students have no internet: pin each tool's version and check its
 # sha256 for every architecture. Don't set ENTRYPOINT. Start-up work goes in

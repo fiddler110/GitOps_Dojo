@@ -1,4 +1,4 @@
-# achievements module: the class score service (service/server.py), added by engine/run.sh when
+# achievements module: the class score service (service/server.py), added by dojo when
 # ACHIEVEMENTS_ENABLED=1 and the workshop has achievements/catalog.json. Relative paths resolve
 # against engine/, not this folder.
 
@@ -20,7 +20,7 @@ services:
     container_name: workshop_achievements
     entrypoint: ["python3", "-B", "/opt/achievements/service/server.py"]
     environment:
-      # Identity headers count only with this token (derived per upstream by run.sh).
+      # Identity headers count only with this token (derived per upstream by dojo).
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_ACHIEVEMENTS:-}
       # The engine's student reset hooks (extensions.json `resets`) carry this.
       - RESET_TOKEN=${RESET_TOKEN_ACHIEVEMENTS:-}
@@ -28,7 +28,7 @@ services:
       - WORKSHOP_DIR=/opt/workshop
       - FORGEJO_URL=http://git-server:3000
       # The service registers its own Forgejo system webhook at start (service/webhook.py).
-      # No `:?` here: `./run.sh stop` reads only engine/.env.
+      # No `:?` here: `./dojo stop` reads only .env.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:-}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:-}
       - WEBHOOK_URL=http://achievements:8080/api/forgejo
@@ -69,7 +69,7 @@ services:
     volumes:
       - ../modules/achievements:/opt/achievements:ro
       # The workshop's achievements/ folder (it sits beside content/).
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/../achievements:/opt/workshop/achievements:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/../achievements:/opt/workshop/achievements:ro
       - achievements_data:/data
       # A client certificate for the certs verbs, written by a workshop service (empty otherwise).
       - achievements_client_cert:/opt/achievements-client:ro

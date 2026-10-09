@@ -1,0 +1,20 @@
+{
+  "workshop": "ctf-trust-chain",
+  "title": "CTF-4: Trusting the Wrong Thing",
+  "intro": "## Scoring\n\nEach flag you capture posts its own flag-verified event the moment `dojo-flag submit` accepts it --\nno separate check-in step. Two process milestones (scan with version detection, scan every port) reward\ndoing the recon step properly before touching a target, since that's half the lesson. `core` covers all\nfour flags (`dns-resolver-cve` is two: a captured credential, then its replay), so completion tracks\nflags captured, not labs merely opened.",
+  "labs": [
+    {
+      "id": "lab1",
+      "title": "internal DNS-backed agent (dns-resolver-cve)"
+    },
+    {
+      "id": "lab2",
+      "title": "cloud resource policy (policy-bypass)"
+    },
+    {
+      "id": "lab3",
+      "title": "CI pipeline (runner-escape)"
+    }
+  ],
+  "require_match": true
+}

@@ -1,4 +1,4 @@
-# dns-ui module, layered on top of engine/docker-compose.yml by engine/run.sh
+# dns-ui module, layered on top of engine/docker-compose.yml by dojo
 # when a workshop.env lists it in MODULES (see README.md). Relative paths
 # resolve against engine/, not this folder.
 #

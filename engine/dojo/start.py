@@ -1,4 +1,4 @@
-"""Starting a workshop: `./run.sh <workshop> [flags]`, `restart`, `build-all`.
+"""Starting a workshop: `./dojo <workshop> [flags]`, `restart`, `build-all`.
 
 The steps, in order (each stops the run with a message that says what to do):
   1. resolve the environment (envfiles.resolve) and apply the safety gates:
@@ -13,6 +13,7 @@ The steps, in order (each stops the run with a message that says what to do):
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -26,6 +27,7 @@ from typing import Dict, List, Optional, Tuple
 
 from . import checks, paths, state
 from .build import Builder, BuildError, sync_shared
+from . import config
 from .envfiles import EnvError, Resolution, parse_literal, resolve
 from .monitor import StartMonitor, explain_not_ready
 from .runtime import Container, Runtime, project_name
@@ -56,6 +58,8 @@ class StartOptions:
     dry_run: bool = False
     build_only: bool = False
     allow_default_passwords: bool = False
+    gate_pass: Optional[str] = None       # --pass: access code in front of the whole site (gateway cookie gate)
+    terminal: Optional[str] = None        # --terminal: the flavor for this run, over every file
     recreate: Optional[List[str]] = None  # restart: [] every container, [names] only those
 
     @property
@@ -68,8 +72,12 @@ class StartOptions:
             out.append("--fast")
         if self.env_name:
             out += ["--env", self.env_name]
+        if self.terminal:
+            out += ["--terminal", self.terminal]
         if self.allow_default_passwords:
             out.append("--allow-default-passwords")
+        if self.gate_pass:
+            out += ["--pass", self.gate_pass]
         return out
 
 
@@ -91,10 +99,18 @@ def parse_recorded(words: List[str]) -> StartOptions:
             i += 1
         elif w.startswith("--env="):
             o.env_name = w.split("=", 1)[1]
+        elif w == "--terminal" and i + 1 < len(words):
+            o.terminal = words[i + 1]
+            i += 1
+        elif w.startswith("--terminal="):
+            o.terminal = w.split("=", 1)[1]
         elif w == "--fast":
             o.fast = True
         elif w == "--allow-default-passwords":
             o.allow_default_passwords = True
+        elif w == "--pass" and i + 1 < len(words):
+            o.gate_pass = words[i + 1]
+            i += 1
         i += 1
     return o
 
@@ -231,8 +247,9 @@ def _start(o: StartOptions) -> int:
     if not NAME_RE.match(o.workshop):
         raise StartError(f"'{o.workshop}' is not a workshop name (lowercase letters, digits and '-').\n"
                          f"Run '{paths.PROG} list' to see available workshops.")
-    if o.env_name is not None and not NAME_RE.match(o.env_name):
-        raise StartError("--env expects a name (lowercase letters, digits and '-'), e.g. --env home")
+    if o.env_name is not None and not all(NAME_RE.match(n) for n in o.env_name.split(",")):
+        raise StartError("--env expects a profile name (lowercase letters, digits and '-'), or several joined "
+                         "with commas, e.g. --env home or --env mac-podman,home")
     rt = Runtime()
     if not rt.available:
         raise StartError(f"Neither podman (with podman-compose) nor docker was found; '{paths.PROG} doctor' explains.")
@@ -262,6 +279,10 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     for w in res.warnings:
         console.print(f"[yellow]WARNING: {w}[/]")
     _safety_gates(o, env)
+    # The gateway compares the dojo_gate cookie with this (gateway/Caddyfile, static/_gate/gate.js).
+    env["GATEWAY_GATE_TOKEN"] = hashlib.sha256(f"dojo-gate:{o.gate_pass}".encode()).hexdigest() if o.gate_pass else ""
+    if o.gate_pass:
+        console.print("Access code: the whole site asks for it before the sign-in page (--pass).")
 
     if o.dry_run:
         console.print("DRY RUN -- nothing will be built or started (manifests are checked in .generated/dry-run/).")
@@ -290,12 +311,16 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
 
     # The terminal image chain: :core -> the selected flavor leaf -> each
     # module's terminal/ -> the workshop's. TERMINAL_FLAVOR comes from
-    # engine/.env or the workshop's workshop.env (the latter wins); each
+    # dojo.toml [terminal] flavor or the workshop's workshop.env (the latter wins); each
     # flavor's leaf (web-terminal-vscode/ or zellij-terminal/) builds FROM
     # :core as a sibling of the other flavor's leaf, not on top of it, so
     # only the one leaf this run actually needs gets built (build.py's
     # terminal_chain()), and every later link builds FROM whichever leaf
     # that was.
+    if o.terminal:
+        if o.terminal.strip().lower() not in config.FLAVORS:
+            raise StartError(f"--terminal must be one of {', '.join(sorted(config.FLAVORS))}, got {o.terminal!r}.")
+        env["TERMINAL_FLAVOR"] = config.FLAVORS[o.terminal.strip().lower()]
     flavor = (env.get("TERMINAL_FLAVOR") or "web").strip().lower()
     if flavor not in TERMINAL_FLAVORS:
         raise StartError(f"TERMINAL_FLAVOR must be one of {', '.join(TERMINAL_FLAVORS)}, got {flavor!r}.")
@@ -331,10 +356,10 @@ def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
                 f"Refusing to start: default passwords ({' '.join(weak)}) with PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')}\n"
                 f"and LAB_HOST_IP={env.get('LAB_HOST_IP') or '<unset>'}, i.e. reachable beyond this machine. Anyone who has seen\n"
                 f"'{paths.PROG} setup --default' can sign in. Generate real ones with '{paths.PROG} setup --force'\n"
-                "(then set PUBLIC_BASE_URL/LAB_HOST_IP again if engine/.env had them), or pass\n"
-                "--allow-default-passwords (or ALLOW_DEFAULT_PASSWORDS=1 in .env.<name>) to start anyway.")
+                "(your PUBLIC_BASE_URL/LAB_HOST_IP stay in dojo.local.toml), or pass\n"
+                "--allow-default-passwords (or allow_default_passwords = true under [network] in a profile) to start anyway.")
     if not env.get("STUDENT_PASSWORD_SEED"):
-        console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in engine/.env: every student's Forgejo password is the\n"
+        console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in .env: every student's Forgejo password is the\n"
                       f"         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run '{paths.PROG} setup'.[/]")
     if checks.plain_http_offbox(env):
         console.print(f"[yellow]WARNING: PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')} is plain HTTP beyond this machine: passwords,\n"
@@ -358,11 +383,11 @@ def _check_running(p: Plan) -> None:
                                  f"Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or '{paths.PROG} stop' "
                                  "first (it deletes every volume).")
             if o.dry_run:
-                bad(f"{who} is still running: a real start would refuse until './run.sh stop'.")
+                bad(f"{who} is still running: a real start would refuse until './dojo stop'.")
                 console.print()
             else:
                 raise StartError(f"Refusing to start: {who} is still running. Starting {o.workshop} over it\n"
-                                 "would leave its extra services and volumes behind. Run './run.sh stop' first\n"
+                                 "would leave its extra services and volumes behind. Run './dojo stop' first\n"
                                  "(it deletes every volume: student homes and Forgejo data).")
     if o.recreate:
         unknown = [s for s in o.recreate if s not in p.services()]
@@ -370,7 +395,7 @@ def _check_running(p: Plan) -> None:
             raise StartError(f"restart: {', '.join(unknown)} is not a service of {o.workshop}. "
                              f"Its services: {' '.join(p.services())}")
         if not p.running:
-            raise StartError(f"restart: {o.workshop} isn't running; './run.sh restart' (no service names) starts all of it.")
+            raise StartError(f"restart: {o.workshop} isn't running; './dojo restart' (no service names) starts all of it.")
 
 
 def _build_and_up(p: Plan) -> int:
@@ -538,8 +563,8 @@ def _compose_up(p: Plan) -> int:
     if rc == 0 and p.o.fast and p.env.get("BOT_COUNT", "0") != "0":
         release_bots(p.rt)
     if rc != 0:
-        console.print("The run stays recorded so `./run.sh stop` can remove what did start; "
-                      "fix the error, then `./run.sh stop` and start again.")
+        console.print("The run stays recorded so `./dojo stop` can remove what did start; "
+                      "fix the error, then `./dojo stop` and start again.")
     return rc
 
 
@@ -584,7 +609,7 @@ def release_bots(rt) -> None:
 def run_restart(services_: List[str], clean: bool) -> int:
     last = state.last_start()
     if not last:
-        fail("Nothing to restart: no workshop has been started from this checkout yet ('./run.sh <workshop>').")
+        fail("Nothing to restart: no workshop has been started from this checkout yet ('./dojo <workshop>').")
         return 1
     o = parse_recorded(last)
     if clean:
@@ -592,7 +617,7 @@ def run_restart(services_: List[str], clean: bool) -> int:
             fail("--clean restarts the whole stack; leave out the service names.")
             return 1
         from .stop import run_stop
-        console.print(f"Clean restart: './run.sh stop', then './run.sh {' '.join(last)}'.")
+        console.print(f"Clean restart: './dojo stop', then './dojo {' '.join(last)}'.")
         code = run_stop(dry_run=False)
         if code != 0:
             return code

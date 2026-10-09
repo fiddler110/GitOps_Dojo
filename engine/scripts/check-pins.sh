@@ -11,11 +11,11 @@
 # above, so the only way to see it is comparing copies against each other.
 #
 # Usage: engine/scripts/check-pins.sh [DIR...]   (default: engine modules workshops)
-# `./run.sh <workshop> --dry-run` runs it on the whole repo.
+# `./dojo <workshop> --dry-run` runs it on the whole repo.
 #
 # Not external, so skipped: this project's own images (gitopsdojo/*), images
 # chosen by a variable (${BASE}, ${WEB_TERMINAL_IMAGE}; their defaults are
-# gitopsdojo/* and run.sh builds them), `scratch`, and a FROM naming an
+# gitopsdojo/* and dojo builds them), `scratch`, and a FROM naming an
 # earlier build stage.
 set -eu
 

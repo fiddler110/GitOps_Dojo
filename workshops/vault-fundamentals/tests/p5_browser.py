@@ -6,7 +6,7 @@
 #
 # Run it in Playwright's image, with the stack up (from the repo root;
 # screenshots go to $OUT):
-#   set -a; . engine/.env; set +a
+#   eval "$(./dojo _operator-env)"
 #   podman run --rm --network host -v "$PWD/workshops/vault-fundamentals/tests:/t:ro" -v "$OUT:/s" \
 #     mcr.microsoft.com/playwright/python:v1.55.0-noble sh -c \
 #     'pip install -q --break-system-packages playwright==1.55.0 && python3 -B /t/p5_browser.py \

@@ -89,7 +89,7 @@ it enables, and ships its own labs and slides.
 
 - `module.env` — module defaults a `workshop.env` overrides (the pattern every
   module follows; see `modules/runner-pool/module.env`).
-- `compose.yml` — layered onto `engine/docker-compose.yml` by `engine/run.sh`
+- `compose.yml` — layered onto `engine/docker-compose.yml` by `dojo`
   when a `workshop.env` lists `ctf-range` in `MODULES`. Relative paths resolve
   against `engine/`, **not** this folder. Defines the `ctf_net` target
   network (now carrying `ctf-host` and `web-terminal` — the only address a
@@ -146,7 +146,7 @@ it enables, and ships its own labs and slides.
   the real secret is the flag value, not the identity claim (see the
   service's header). Unit tests in `ctf-flags/tests/`.
 - `terminal/` — this module's link in the terminal build chain
-  (`engine/run.sh`). Ships `dojo-flag` (the CLI for `ctf-flags`),
+  (`dojo`). Ships `dojo-flag` (the CLI for `ctf-flags`),
   `start.d/50-ctf-range.sh` (the per-uid firewall hook, spikes CTF-S2/S3),
   and the offensive tool suite (plan §9): apt-installed `nmap`/`ncat`,
   `tcpdump`/`tshark`, `sqlmap`, `jq`, `john`, `dnsutils`/`dnsrecon`,
@@ -305,9 +305,9 @@ clock, not independent per-persona timers).
   running achievements process (breach → red → map/incident/admin-state agree; contained →
   yellow with the right MTTP; inject/hint queued and drained exactly once; every new page
   renders 200).
-- **Not yet live-verified on a real stack build.** `workshops/ctf-defend-test` disables
+- **Not yet live-verified on a real stack build.** This was built against a harness pack that disabled
   achievements (no `achievements/catalog.json`), so none of the above has been watched through
-  a real `./run.sh` stack end to end — every check so far is either unit tests or direct HTTP
+  a real `./dojo` stack end to end — every check so far is either unit tests or direct HTTP
   calls against achievements' own process. `modules/ctf-range/tools/simulate-dump.py` still
   works as a manual stand-in in the meantime.
 - **Still not built:** the per-pack `CTF_WALL_OF_SHAME` render toggle (the flag exists in

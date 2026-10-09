@@ -95,6 +95,24 @@ class LoginGuardTest(unittest.TestCase):
         self.assertFalse(guard.blocked("1.2.3.4"))
 
 
+class GateFailTest(unittest.TestCase):
+    def test_ten_wrong_codes_then_429(self):
+        import api
+        codes = []
+
+        class Fake:
+            def client_ip(self): return "9.9.9.9"
+            def send_response(self, c): codes.append(c)
+            def send_header(self, *a): pass
+            def end_headers(self): pass
+
+        accounts.GATE_GUARD.fails.clear()
+        for _ in range(12):
+            api.Api.handle_gate_fail(Fake()) if hasattr(api, "Api") else handler.Handler.handle_gate_fail(Fake())
+        self.assertEqual(codes, [401] * 10 + [429] * 2)
+        accounts.GATE_GUARD.fails.clear()
+
+
 class RedirectTargetTest(unittest.TestCase):
     def test_login_next(self):
         nxt = handler.Handler.login_next

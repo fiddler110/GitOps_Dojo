@@ -2,7 +2,6 @@
     python3 -B -m unittest discover -s engine/dojo/tests -t engine
 """
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,18 +32,9 @@ class LiteralEnv(unittest.TestCase):
         got = {k: v for k, v, _ in envfiles.parse_literal(Path(self.tmp.name))}
         self.assertEqual(got, EXPECTED)
 
-    def test_shell_loader_agrees(self):
-        """engine/scripts/lib.sh's dojo_load_env reads the same file the same way."""
-        script = ('. ./scripts/lib.sh; dojo_load_env "$1"; for k in ' + " ".join(EXPECTED)
-                  + '; do eval "printf \'%s=%s\\0\' $k \\"\\${$k-UNSET}\\""; done')
-        out = subprocess.run(["sh", "-c", script, "sh", self.tmp.name], cwd=str(paths.ENGINE),
-                             capture_output=True, text=True, check=True).stdout
-        got = dict(item.split("=", 1) for item in out.split("\0") if item)
-        self.assertEqual(got, EXPECTED)
-
 
 class AchievementsToggle(unittest.TestCase):
-    """ACHIEVEMENTS_ENABLED in the shell beats engine/.env; without it, the file decides."""
+    """ACHIEVEMENTS_ENABLED in the shell beats the operator's files; without it, the file decides."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -53,12 +43,13 @@ class AchievementsToggle(unittest.TestCase):
         (self.root / "workshops" / "w" / "achievements" / "catalog.json").write_text("{}")
         (self.root / "modules" / "achievements").mkdir(parents=True)
         (self.root / ".env").write_text("ACHIEVEMENTS_ENABLED=1\n")
-        self.saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE)
-        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE = (
-            self.root / "workshops", self.root / "modules", self.root / ".env")
+        self.saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG)
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = (
+            self.root / "workshops", self.root / "modules", self.root / ".env",
+            self.root / "dojo.toml", self.root / "dojo.local.toml")
 
     def tearDown(self):
-        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE = self.saved
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = self.saved
         import shutil
         shutil.rmtree(self.root)
 

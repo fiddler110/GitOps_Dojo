@@ -1,0 +1,7 @@
+# CTF-4 extras: 96-runner-escape.sh seeds each student's ci-pipeline repo (and its CTF_FLAG Actions
+# secret) through the Forgejo admin login.
+services:
+  web-terminal:
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in .env or dojo.toml}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in .env or dojo.toml}

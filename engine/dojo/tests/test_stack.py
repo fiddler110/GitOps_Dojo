@@ -1,4 +1,4 @@
-"""stack.parse_mem_limits: what `./run.sh capacity WORKSHOP` counts."""
+"""stack.parse_mem_limits: what `./dojo capacity WORKSHOP` counts."""
 import unittest
 
 from dojo import stack

@@ -1,16 +1,16 @@
 #!/bin/sh
 # Recommends WEB_TERMINAL_MEM_LIMIT / WEB_TERMINAL_PIDS_LIMIT /
-# CODE_SERVER_MAX_HEAP_MB for engine/.env, sized to the machine this script
+# CODE_SERVER_MAX_HEAP_MB for .env, sized to the machine this script
 # actually runs on (your Mac's podman machine, or the Azure VM) rather than
 # the fixed formula in .env.example.
 #
-# Usage (normally via run.sh; `./run.sh capacity --help` lists every flag):
-#   ./run.sh capacity --students 30
-#   ./run.sh capacity --students 30 --heap-mb 512 --margin-pct 30
-#   ./run.sh capacity --students 30 --host-mem-mb 32768   # plan for
+# Usage (normally via dojo; `./dojo capacity --help` lists every flag):
+#   ./dojo capacity --students 30
+#   ./dojo capacity --students 30 --heap-mb 512 --margin-pct 30
+#   ./dojo capacity --students 30 --host-mem-mb 32768   # plan for
 #     a VM you haven't provisioned yet -- skips auto-detection
 #
-# Best accuracy: run `./run.sh <workshop> --test` first so a couple of bot
+# Best accuracy: run `./dojo <workshop> --test` first so a couple of bot
 # students (see README's "Demo bots") are live in workshop_terminal, then run
 # this script while they're up -- it measures their real per-student private memory and
 # scales that to --students instead of estimating. Note: --test bots alone
@@ -40,7 +40,7 @@ RESERVE_MB=1024         # host OS + docker/podman daemon headroom
 # matches the mem_limits docker-compose.yml sets on those four services, so
 # this reserve is an enforced ceiling, not just an observed-idle guess.
 OTHER_SERVICES_MB=3072
-# What OTHER_SERVICES_MB counts, for the report. `./run.sh capacity WORKSHOP` passes the real total of that
+# What OTHER_SERVICES_MB counts, for the report. `./dojo capacity WORKSHOP` passes the real total of that
 # workshop's services (modules included) and names it here.
 OTHER_SERVICES_FROM="the engine's 4 services only; name a workshop to count its modules too"
 MARGIN_PCT=15            # extra headroom applied on top of whichever per-student estimate is used
@@ -48,14 +48,14 @@ HOST_MEM_MB_OVERRIDE=""
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh capacity [WORKSHOP] --students N [options]
+Usage: ./dojo capacity [WORKSHOP] --students N [options]
 
 With WORKSHOP, every service that workshop starts (its modules included) counts
 towards the memory left for students, not just the engine's four.
 
 Recommends WEB_TERMINAL_MEM_LIMIT / WEB_TERMINAL_PIDS_LIMIT /
-CODE_SERVER_MAX_HEAP_MB for engine/.env, sized to the machine it runs on.
-Run it ON the target machine, ideally with a couple of './run.sh <workshop>
+CODE_SERVER_MAX_HEAP_MB for .env, sized to the machine it runs on.
+Run it ON the target machine, ideally with a couple of './dojo <workshop>
 --test' bot students live so it can measure real per-student memory.
 
 Required:
@@ -217,7 +217,7 @@ if [ "$LIVE_STUDENTS" -gt 0 ]; then
 else
   PER_STUDENT_MB=$(( BASELINE_PER_STUDENT_MB * (100 + MARGIN_PCT) / 100 ))
   BASE_MB=512
-  SOURCE="revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './run.sh <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
+  SOURCE="revised baseline (${BASELINE_PER_STUDENT_MB}MB/student + ${MARGIN_PCT}% margin) -- no live students found to calibrate against. For a real number instead of a rule of thumb, run './dojo <workshop> --test' first (then start /ide for each bot too -- see header comment), then re-run this script. Worst-case ceiling if every student maxes every node process's heap at once: ${CEILING_PER_STUDENT_MB}MB/student -- treat that as a stress-test check, not the sizing target."
 fi
 
 MEM_LIMIT_MB=$(( BASE_MB + STUDENTS * PER_STUDENT_MB ))
@@ -247,7 +247,7 @@ echo "Container base overhead:     ${BASE_MB}MB"
 echo "Other services' mem_limits: ${OTHER_SERVICES_MB}MB (${OTHER_SERVICES_FROM})"
 echo "OS/daemon reserve:           ${RESERVE_MB}MB"
 echo "-------------------------------------------------------------------"
-echo "Recommended engine/.env values for --students $STUDENTS:"
+echo "Recommended .env values for --students $STUDENTS:"
 echo ""
 echo "  WEB_TERMINAL_MEM_LIMIT=${MEM_LIMIT_GB}g"
 echo "  WEB_TERMINAL_PIDS_LIMIT=${PIDS_LIMIT}"

@@ -13,7 +13,7 @@ the Forgejo image, which has no Python. engine/allocator/tests/
 test_dojo_secret.py checks all three against one known answer, so they
 can't drift.
 
-Without STUDENT_PASSWORD_SEED (an engine/.env written before the seed
+Without STUDENT_PASSWORD_SEED (an .env written before the seed
 existed) every student falls back to the old shared STUDENT_PASSWORD.
 """
 import base64

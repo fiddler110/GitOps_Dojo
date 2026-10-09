@@ -12,7 +12,7 @@ from .runtime import Runtime
 
 
 def extra_files(res: Resolution) -> List[str]:
-    """The -f files after docker-compose.yml, relative to engine/ as run.sh writes
+    """The -f files after docker-compose.yml, relative to engine/ as dojo writes
     them: each module's compose.yml in MODULES order, then the workshop overlay."""
     files = [f"../modules/{m}/compose.yml" for m in res.modules
              if (paths.MODULES / m / "compose.yml").is_file()]

@@ -2,7 +2,7 @@
 # apphost.py (mounted read-only from this folder by the overlay) runs as root
 # and runs each slot's app as its own user.
 #
-# The tools an app calls come from the terminal image run.sh has just built
+# The tools an app calls come from the terminal image dojo has just built
 # (TOOLS_IMAGE, set by the overlay), so each has one pin, in the terminal's
 # Dockerfiles: bao (the Agent) and the Python packages (hvac, pg8000). Both
 # images are Debian bookworm, so the Python packages fit as they are.

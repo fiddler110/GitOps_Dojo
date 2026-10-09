@@ -5,13 +5,13 @@ student_count="${STUDENT_COUNT:-30}"
 student_prefix="${STUDENT_PREFIX:-student}"
 workshop_name="${WORKSHOP_NAME:-Workshop Lab}"
 facilitator_username="${FACILITATOR_USERNAME:-root}"
-facilitator_password="${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}"
+facilitator_password="${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in .env or dojo.toml}"
 lab_seed_dir="${LAB_SEED_DIR:-/opt/lab}"
 student_shell="${STUDENT_SHELL:-/bin/zsh}"
 
-# Demo/test bots -- see ./run.sh's --test flag and engine/README.md's "Demo
+# Demo/test bots -- see ./dojo's --test flag and engine/README.md's "Demo
 # bots (--test)" section. BOT_COUNT is 0 (disabled) unless a facilitator
-# explicitly asked for demo bots, via `./run.sh <workshop> --test` or by
+# explicitly asked for demo bots, via `./dojo <workshop> --test` or by
 # setting BOT_COUNT in .env directly.
 bot_count="${BOT_COUNT:-0}"
 bot_prefix="${BOT_PREFIX:-testuser}"

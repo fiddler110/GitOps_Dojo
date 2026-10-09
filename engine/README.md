@@ -78,7 +78,7 @@ their own, `terminal_ingress` (only `gateway` and `web-terminal`, subnet
 `web-terminal-ingress`. `web-terminal/entrypoint.sh` drops those ports on
 every other interface (`DOJO_INGRESS`), so a CI job or module service on
 `workshop_lab` can't skip Caddy's auth-check by dialling
-`web-terminal:9001` (remediation T2.2a, FIND-04); `run.sh` refuses a
+`web-terminal:9001` (remediation T2.2a, FIND-04); `dojo` refuses a
 fragment that joins `terminal_ingress`.
 Inside `web-terminal`, each student's IDE and terminal run in a PID namespace
 of their own (a user namespace mapping only their uid, kept alive by one
@@ -95,7 +95,7 @@ node/code-server) and no per-user memory cap: that needs per-user cgroups, so
 `mem_limit` stays one shared pool (residual).
 `allocator` keeps only its slot table on disk (the `allocator_state` volume,
 written on every claim and release, so a crash or OOM restart keeps every
-assignment; `./run.sh stop` wipes it like every other volume) and never
+assignment; `./dojo stop` wipes it like every other volume) and never
 touches Docker itself — it only ever
 calls `web-terminal`'s internal control port, never a docker.sock.
 
@@ -260,8 +260,8 @@ idempotent: a working token is kept). Student Linux passwords are locked
 are `0700`. The per-account steps live in `web-terminal/provision-account.sh`,
 which a student reset reruns. The Roster's **Password** button shows one
 student's Forgejo password for the desk (logged as
-`forgejo-password-shown`). Without a seed (an old `engine/.env`), every
-student's password is `STUDENT_PASSWORD` and `run.sh` warns.
+`forgejo-password-shown`). Without a seed (an old `.env`), every
+student's password is `STUDENT_PASSWORD` and `dojo` warns.
 
 Git operations (`clone`/`push`) never go through the gateway or this SSO
 route at all — students run them from inside the terminal, straight to
@@ -279,13 +279,13 @@ checks with an `extensions.json`, not by editing the engine. The format, the
 gates and the rules are in [`workshops/README.md`](../workshops/README.md#front-door-extensionsjson);
 this is how the engine uses it.
 
-- **Render before start.** `run.sh` copies each module's manifest (as
+- **Render before start.** `dojo` copies each module's manifest (as
   `50-NN-module-<name>.json`, in `MODULES` order) and the workshop's (as
   `90-workshop-<name>.json`) into `.generated/in/`, then runs
   `allocator/render_extensions.py` once in a throwaway allocator container,
   mounted from source so a dry run checks with the current rules. It writes
   `.generated/gateway/extensions.caddy` and `.generated/allocator/extensions.json`
-  (both git-ignored). Any error stops `./run.sh` before anything starts;
+  (both git-ignored). Any error stops `./dojo` before anything starts;
   warnings (a card with no matching `/admin` tab) are printed and the start
   goes on. `--dry-run` runs this step too.
 - **Gateway.** `gateway/Caddyfile` has one `import /etc/caddy/extensions/*.caddy`
@@ -300,7 +300,7 @@ this is how the engine uses it.
   shared `GATEWAY_TOKEN` (which only the allocator and engine blocks use), so
   one upstream's token is refused by every other. The renderer also writes
   `.generated/upstream-tokens.env` (`GATEWAY_TOKEN_<SERVICE>=...`, mode 0600),
-  which `run.sh` exports before `compose up`; the upstream's fragment passes it
+  which `dojo` exports before `compose up`; the upstream's fragment passes it
   in as `GATEWAY_TOKEN=${GATEWAY_TOKEN_<SERVICE>:-}`. The snippet holds those
   tokens, so it is owned by the gateway's `nobody`, mode 0440 (0644 when the
   renderer can't chown, under Docker). Caddy re-sorts path-matched `handle` blocks,
@@ -315,8 +315,8 @@ this is how the engine uses it.
   `200` with `X-Dojo-User` (and `X-Dojo-Host` when the route has a `host`).
   The facilitator's `{user}` is their own account name, so they get their own
   demo site rather than a student's.
-- **Achievements toggle.** `ACHIEVEMENTS_ENABLED=1` in `engine/.env` (the default since 2026-10-04;
-  set it to 0 for a session that should not score anyone) makes `run.sh` add the
+- **Achievements toggle.** `achievements = true` under `[general]` in `dojo.toml` (`ACHIEVEMENTS_ENABLED=1`; the default since 2026-10-04;
+  set it to false for a session that should not score anyone) makes `dojo` add the
   `achievements` module to any workshop that has `workshops/<name>/achievements/catalog.json`
   (warning and no module when it doesn't). The catalog is validated first, in the allocator image
   (`modules/achievements/catalog/validate.py`, the achievements module and the workshop folder
@@ -328,13 +328,13 @@ this is how the engine uses it.
 ### Modules and the terminal image
 
 `MODULES="a b"` in `workshop.env` adds `../modules/a/`, `../modules/b/` (see
-`./run.sh modules` and [`workshops/README.md`](../workshops/README.md#writing-a-module)):
+`./dojo modules` and [`workshops/README.md`](../workshops/README.md#writing-a-module)):
 
 - **Settings.** Each `module.env` is sourced first, then `.env` and
   `workshop.env` again, so the workshop wins.
 - **Compose files.** `-f docker-compose.yml`, each module's `compose.yml`, then
   the workshop's `COMPOSE_OVERLAY`. The list is recorded in
-  `.build-state/current.json` so `./run.sh stop` brings down the same set.
+  `.build-state/current.json` so `./dojo stop` brings down the same set.
   Build-change detection hashes each module folder and the overlay folder.
 - **Terminal chain.** `gitopsdojo/web-terminal:base` → each module's
   `terminal/` as `:<workshop>.<module>` → the workshop's `compose/terminal/` as
@@ -348,19 +348,18 @@ this is how the engine uses it.
 
 ## Setup
 
-Everything is driven from `run.sh`, which lives in the repo root (and in
-`engine/` — the root one just forwards to it):
+Everything is driven from `./dojo`, in the repo root:
 
 ```sh
-./run.sh setup
+./dojo setup
 # or, non-interactive with fixed lazy credentials for local/throwaway use:
-./run.sh setup --default
+./dojo setup --default
 ```
 
-`./run.sh setup` (which runs `scripts/env-setup.sh`) walks through every setting below with a
+`./dojo setup` (which runs `scripts/env-setup.sh`) walks through every setting below with a
 short explanation, showing its current value in `[brackets]` (Enter accepts it). When
-`engine/.env` already exists, its values are the defaults and settings the script doesn't ask
-about are carried over; a password that is still a public default (`change-me`, `student`,
+`.env` already exists, its values are the defaults and settings the script doesn't ask
+about are carried over, `[profile]` sections included (non-secret answers go to `dojo.local.toml`); a password that is still a public default (`change-me`, `student`,
 `student123`, `admin`) is replaced by a generated one on a bare Enter, while a real one is kept
 (type `new` to generate). The file is built as `.env.new` and moved into place at the end, so
 Ctrl-C leaves `.env` as it was; the old one is kept as `.env.previous`. It also offers to
@@ -372,27 +371,41 @@ instead (`student`/`student123`/`admin`/`admin` — see the script's header
 for the exact mapping); machine-to-machine secrets (`CONTROL_TOKEN`/
 `GATEWAY_TOKEN`) and `FORGEJO_ADMIN_PASSWORD` (the facilitator reaches Forgejo
 through SSO) are still randomly generated even in `--default` mode, since
-nobody ever types those. `engine/.env` (and `.env.previous`) is written
+nobody ever types those. `.env` (and `.env.previous`) is written
 mode 0600: it holds every master secret. Either way it still tries to auto-size the
 resource-ceiling settings via `capacity-calc.sh`.
 
-**Default passwords stay on this machine.** `./run.sh <workshop>` refuses to
+**Default passwords stay on this machine.** `./dojo <workshop>` refuses to
 start when any of `TTYD_PASSWORD`, `STUDENT_PASSWORD_SEED` (or `STUDENT_PASSWORD`
 without a seed), `FACILITATOR_PASSWORD` or
 `FORGEJO_ADMIN_PASSWORD` is a `--default` value or `.env.example`'s `change-me`,
 unless both `PUBLIC_BASE_URL`'s host and `LAB_HOST_IP` are loopback (checked
-after `--env NAME` is loaded). Run `./run.sh setup` for real values, or pass
+after `--env NAME` is loaded). Run `./dojo setup` for real values, or pass
 `--allow-default-passwords` to start anyway with a warning.
-`./run.sh setup --rotate-class` changes only the shared class password
+`./dojo setup --rotate-class` changes only the shared class password
 (`TTYD_PASSWORD`) in the existing `.env`; restart the workshop to apply it.
 
-`./run.sh setup --force` skips the "`.env` already exists" prompt. Prefer to
+`./dojo setup --force` skips the "`.env` already exists" prompt. Prefer to
 do it by hand instead? `cp .env.example .env` and edit directly — same
 settings, same file.
 
-`.env` now holds only account/secret/network settings — the same for every
-workshop. Which workshop to run (content, Forgejo org/repo, any extra
-services) is selected separately, by name, via `./run.sh` below.
+**Where settings live.** Three files at the repo root, and nothing under `engine/`:
+
+| File | In git? | Holds |
+|---|---|---|
+| `dojo.toml` | yes | every non-secret default, in sections: `[general]` (student count, usernames, achievements), `[network]` (URL, ports, proxy), `[terminal]` (`flavor = "code-server"` or `"zellij"`, memory/pid limits, idle timers), `[bots]`, `[build]`, `[engine]`, and `[env]` for any other variable |
+| `dojo.local.toml` | no | this machine's overrides in the same layout, plus your profiles (`[profiles.home.network]` ...). `setup` writes the machine sizing here |
+| `.env` | no, mode 0600 | secrets only (`TTYD_PASSWORD`, `FACILITATOR_PASSWORD`, the tokens and seeds), see `.env.example` |
+
+Later layers win: `dojo.toml` < `dojo.local.toml` < `.env` < the selected profile
+(`--env`) < the workshop's `workshop.env`. Unknown sections or keys in a TOML file
+stop the start with the file and line, so a typo cannot silently do nothing.
+`./dojo config <workshop> KEY` prints every value a key was given and which file won.
+A checkout from before this layout is migrated by the first `./dojo` command: the
+old `engine/.env` and `engine/.env.NAME` files are split into these three and kept as `*.migrated`.
+
+Which workshop to run (content, Forgejo org/repo, any extra
+services) is selected separately, by name, via `./dojo` below.
 
 | Variable                                          | Purpose                                                        |
 | -------------------------------------------------- | --------------------------------------------------------------- |
@@ -419,7 +432,7 @@ LAB_HOST_IP=127.0.0.1
 GATEWAY_HTTP_PORT=8080
 ```
 Plain HTTP, no TLS, reachable only from this machine. The port in
-`PUBLIC_BASE_URL` must match `GATEWAY_HTTP_PORT` (`run.sh` warns otherwise).
+`PUBLIC_BASE_URL` must match `GATEWAY_HTTP_PORT` (`dojo` warns otherwise).
 
 **Azure VM, internal workshop:** bind the gateway to all interfaces and let
 Azure's free per-public-IP DNS label give you a real hostname — Caddy then
@@ -439,9 +452,13 @@ should be the **NSG**, scoped to your corporate network/VPN range for the
 workshop's duration, not this setting. This repo doesn't manage the NSG;
 that's an Azure-side step you control per-deployment.
 
-**A second address, one flag away (`--env`):** `./run.sh <workshop> --env home`
-sources `engine/.env.home` after `engine/.env`, so it only needs the lines that
-differ and everyday runs are unchanged.
+**A second address, one flag away (`--env`):** `./dojo <workshop> --env home`
+applies the `home` profile: `[profiles.home.*]` in `dojo.toml`/`dojo.local.toml` for its settings
+(URL, proxy) and a `[home]` section in `.env` for its secrets, so it only needs the values that
+differ and everyday runs are unchanged. A profile never touches settings it does not name, so the
+terminal flavor, set once under `[terminal]`, applies to `--env home` and `--env live` alike. Join
+profiles with commas (`--env mac-podman,home`, the last wins). The profile must exist somewhere, or
+the start stops and lists the known names.
 
 **Behind another reverse proxy (e.g. a home-lab Caddy with a real certificate):**
 the proxy terminates TLS and forwards to the gateway on plain HTTP. `GATEWAY_LISTEN`
@@ -461,7 +478,7 @@ whole private range: anyone the gateway trusts can set `X-Forwarded-For`.
 
 **LAN class over HTTPS.** Over plain `http://` the class login, session cookies and
 every keystroke in the terminal cross the room's network in the clear, and
-`run.sh` warns when `PUBLIC_BASE_URL` is `http://` with a host other than
+`dojo` warns when `PUBLIC_BASE_URL` is `http://` with a host other than
 localhost. Two ways to avoid it:
 
 - **A real name** (best): a DNS name that resolves to this machine on the LAN,
@@ -472,7 +489,7 @@ localhost. Two ways to avoid it:
   certificate from its local CA automatically for an IP address. Browsers
   warn until they trust that CA's root; hand it out with
   `podman cp workshop_gateway:/data/caddy/pki/authorities/local/root.crt .`.
-  The gateway's data doesn't survive `./run.sh stop`, so each run has a new
+  The gateway's data doesn't survive `./dojo stop`, so each run has a new
   root to hand out.
 
 When `PUBLIC_BASE_URL` is `https://`, the gateway sends
@@ -482,18 +499,18 @@ that has visited once won't fall back to plain HTTP for a day.
 ## Start
 
 ```sh
-./run.sh <workshop-name>       # e.g. ./run.sh git-fundamentals, ./run.sh dns-as-code
-./run.sh list                  # see available workshops
-./run.sh setup                 # create .env (--default for lazy local values)
-./run.sh capacity --students N # size the terminal resource limits (scripts/capacity-calc.sh)
-./run.sh restart [<service>]   # recreate the last start's containers (or one service), keep volumes
-./run.sh restart --clean       # stop (wipe all volumes), then start the same workshop again
-./run.sh stop                  # tear down the stack and all volumes
-./run.sh <workshop> --dry-run  # preview a start (also: ./run.sh stop --dry-run) — changes nothing
-./run.sh status [--json]       # what is running: workshop, address, health, students signed in
-./run.sh doctor [<workshop>]   # will a start work on this machine? exits 1 if not
-./run.sh config <workshop> [KEY ...] [--env NAME]   # each setting and the file it came from
-./run.sh logs <service> [-f]   # one service's log, by Compose service name
+./dojo <workshop-name>       # e.g. ./dojo git-fundamentals, ./dojo dns-as-code
+./dojo list                  # see available workshops
+./dojo setup                 # create .env (--default for lazy local values)
+./dojo capacity --students N # size the terminal resource limits (scripts/capacity-calc.sh)
+./dojo restart [<service>]   # recreate the last start's containers (or one service), keep volumes
+./dojo restart --clean       # stop (wipe all volumes), then start the same workshop again
+./dojo stop                  # tear down the stack and all volumes
+./dojo <workshop> --dry-run  # preview a start (also: ./dojo stop --dry-run) — changes nothing
+./dojo status [--json]       # what is running: workshop, address, health, students signed in
+./dojo doctor [<workshop>]   # will a start work on this machine? exits 1 if not
+./dojo config <workshop> [KEY ...] [--env NAME]   # each setting and the file it came from
+./dojo logs <service> [-f]   # one service's log, by Compose service name
 ```
 
 `restart <service>` also recreates the services that depend on it under podman (it won't replace a container
@@ -501,7 +518,7 @@ others are linked to), and says which; restarting `step-ca` in cert-autorenewal,
 terminal too, so open terminal sessions reconnect (homes are volumes). A restart repeats the running start's
 achievements setting unless `ACHIEVEMENTS_ENABLED` is set in the shell.
 
-**The `dojo` CLI.** `run.sh` is a short wrapper around a Python command line in
+**The `dojo` CLI.** `./dojo` is a short launcher for a Python command line in
 `engine/dojo/` (Click for commands and completion, Rich for the display). Python 3.9+
 is the only requirement, and podman-compose already needs it. The first run
 downloads the few pure-Python dependencies listed in `dojo/requirements.lock`,
@@ -510,10 +527,11 @@ checks each against its pinned sha256 and unpacks them into `engine/.cache/`
 as it does for the image builds. `setup`, `capacity` and `alias-setup` are still
 shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
 
-- **Settings.** `engine/.env` and `engine/.env.NAME` are read literally: a password
-  with `$`, a backquote or spaces arrives as typed. `workshop.env` and `module.env`
+- **Settings.** `.env` is read literally (a password with `$`, a backquote or spaces arrives as
+  typed; a `[name]` header starts a profile's secrets), `dojo.toml` and `dojo.local.toml` are TOML
+  (`dojo/config.py` maps each key to its environment variable). `workshop.env` and `module.env`
   are shell code (they derive tokens with `$(...)`) and are run by `sh` as before.
-  `./run.sh config <workshop> KEY` shows every value a key was given and which won.
+  `./dojo config <workshop> KEY` shows every value a key was given and which won.
 - **What a start does**, in order: resolve the settings, apply the safety gates
   (public passwords off loopback, the published port, plain HTTP), refuse a start
   over a different running workshop, take the run lock (`/tmp/gitops-dojo-<uid>.lock`;
@@ -537,32 +555,32 @@ shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
 
 Run these from the repo root, or from `engine/` — same commands either way.
 
-**Restarting a hung stack.** `./run.sh restart` re-runs the last start from this
+**Restarting a hung stack.** `./dojo restart` re-runs the last start from this
 checkout with the same flags (`.build-state/last-start`, e.g. `dns-as-code --test 3
 --env home`) and adds `--force-recreate`: every container is stopped (killed after
 Compose's stop timeout) and replaced, while the volumes, so student homes and Forgejo,
-stay. `./run.sh restart web-terminal` (any name from `compose config --services`)
+stay. `./dojo restart web-terminal` (any name from `compose config --services`)
 replaces just that service with `--no-deps` and leaves the rest running.
-`./run.sh restart --clean` is `stop` followed by a fresh start, the state a class
+`./dojo restart --clean` is `stop` followed by a fresh start, the state a class
 begins from. Starting a *different* workshop while one is running is refused: run
-`./run.sh stop` first, or the old one's extra services and volumes stay behind.
+`./dojo stop` first, or the old one's extra services and volumes stay behind.
 
-**Preview first with `--dry-run`.** `./run.sh <workshop-name> --dry-run` shows
+**Preview first with `--dry-run`.** `./dojo <workshop-name> --dry-run` shows
 the resolved content/overlay, which images would be rebuilt vs. reused,
 and whether the Compose config validates — without building, starting, or
 writing anything (it won't even offer to install tab-completion).
-`./run.sh stop --dry-run` lists the Compose files, services, volumes, and
+`./dojo stop --dry-run` lists the Compose files, services, volumes, and
 running containers that `stop` would act on, and the exact command it would
 run, without removing anything. Worth doing before `stop`, since that deletes
 every volume. (`setup` and `capacity` don't take `--dry-run`: `capacity` is
 already read-only, and `setup` only writes the gitignored `.env`, asking
 before it overwrites one.)
-`./run.sh --help` lists every command, and `./run.sh <command> --help` prints
-that command's own help (e.g. `./run.sh capacity --help` for all the sizing
-flags, `./run.sh setup --help` for `--default`/`--force`).
+`./dojo --help` lists every command, and `./dojo <command> --help` prints
+that command's own help (e.g. `./dojo capacity --help` for all the sizing
+flags, `./dojo setup --help` for `--default`/`--force`).
 
-**The `dojo` command and tab-completion.** `./run.sh alias-setup` installs
-`~/.local/bin/dojo`, a three-line script that runs this checkout's `./run.sh`
+**The `dojo` command and tab-completion.** `./dojo alias-setup` installs
+`~/.local/bin/dojo`, a three-line script that runs this checkout's `./dojo`
 with `DOJO_PROG=dojo` (so help and advice say `dojo ...`). It works from any
 directory, in any shell and from scripts. It also adds one marked block to
 your shell profile (`~/.zshrc_aliases` or `~/.zshrc`, `~/.bash_aliases` or
@@ -576,33 +594,33 @@ warns about any other line in your profiles that loads a dojo completion file
 and it won't overwrite a `~/.local/bin/dojo` it didn't write. Move the repo?
 Re-run it from the new place.
 
-`./run.sh setup` offers it at the end (interactive mode; `--default` only
-prints a hint), and so does the first `./run.sh` in an interactive terminal
+`./dojo setup` offers it at the end (interactive mode; `--default` only
+prints a hint), and so does the first `./dojo` in an interactive terminal
 (`engine/scripts/install-completion.sh`), once per machine: the answer is
 kept in `engine/.build-state/` (gitignored). Neither ever prompts outside a
 real terminal, so CI and `--test` bot runs are unaffected.
 
 Completion covers everything the CLI defines: commands, workshop names (with
-titles in zsh), each command's flags, `--env` names from `engine/.env.*`, and
+titles in zsh), each command's flags, `--env` profile names (from `dojo.toml`, `dojo.local.toml` and `.env`), and
 the running stack's services for `restart` and `logs`; adding a command,
 workshop or option needs no completion change. One script covers `dojo`, the
-root `./run.sh` and `engine/run.sh` (`./run.sh`, `../run.sh`, `engine/run.sh`,
-`./engine/run.sh`), and it finds the workshops from its own location, not your
+root `./dojo` and `dojo` (`./dojo`, `../dojo`, `dojo`,
+`./dojo`), and it finds the workshops from its own location, not your
 current directory. It's sourced by path, so a new shell picks up updates with
 no re-install. Only bash and zsh; for another shell, wire up a file from
 `engine/completions/` by hand.
 
-`run.sh` picks the workshop's content/org/repo from
+`dojo` picks the workshop's content/org/repo from
 `workshops/<name>/workshop.env`, builds the base terminal image, layers on
 that workshop's Compose overlay if it has one, and brings the stack up —
 see [`../workshops/README.md`](../workshops/README.md) for the full
 mechanism. (Running `docker compose up -d --build` directly still works
 too, using whatever's in `.env` — useful for quick iteration on the engine
-itself, but `run.sh` is the normal path.)
+itself, but `dojo` is the normal path.)
 
 Needs a container engine on `PATH`: podman with podman-compose if both are
 installed, otherwise docker with its `compose` plugin. There's no flag to set;
-`./run.sh doctor` says which one it found. Confirmed working
+`./dojo doctor` says which one it found. Confirmed working
 end-to-end on Podman (`podman-compose`) as well as Docker.
 
 This builds the terminal and gateway images, starts Forgejo, waits for it to
@@ -625,11 +643,11 @@ assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
-**Terminal flavor** (`TERMINAL_FLAVOR`): `web` (the default) gives each student VS Code
-in the browser plus a tmux terminal. `zellij` gives a terminal only: a Zellij
+**Terminal flavor** (`[terminal] flavor` in `dojo.toml`, which sets `TERMINAL_FLAVOR`): `"code-server"` (the default; `web` is the same) gives each student VS Code
+in the browser plus a tmux terminal. `"zellij"` gives a terminal only: a Zellij
 session with a read-only listing of the shell's directory (`dojo-sidebar`), the
-shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it in `engine/.env`
-or a workshop's `workshop.env` (which wins).
+shell and an editor (micro), and no code-server, which is the large per-student cost below. Set it under `[terminal]` in
+`dojo.local.toml` for this machine, or in a workshop's `workshop.env` (which wins). It is independent of `--env`. For one run, `./dojo <workshop> --terminal code-server|zellij` beats every file (`restart` repeats it).
 
 The terminal image chain has one flavor-agnostic root and two sibling leaves:
 `web-terminal:core` (`engine/web-terminal/`) holds everything both flavors
@@ -637,7 +655,7 @@ need (shell, tmux, ttyd, provisioning, the entrypoint) and nothing
 flavor-specific; `gitopsdojo/web-terminal:base` (`engine/web-terminal-vscode/`,
 code-server + its curated extensions) and `gitopsdojo/zellij-terminal:base`
 (`engine/zellij-terminal/`) both build FROM `:core` as siblings, not one on
-top of the other. `run.sh` builds `:core` plus only the one leaf
+top of the other. `dojo` builds `:core` plus only the one leaf
 `TERMINAL_FLAVOR` selects, then chains every module and workshop terminal
 link on top of that leaf, so those links need no change either way -- they
 only ever see an opaque `ARG BASE`. Splitting the leaves this way means a
@@ -671,7 +689,7 @@ the peak; nothing below lowers it. Three knobs bound it:
   in `.env`) is the ceiling for every student's code-server/ttyd process
   combined. Size roughly `(expected concurrent students) × 650MB × 1.15 + 512MB`
   for RAM and `(expected concurrent students) × 40 + 200` for pids: the same
-  rule `./run.sh capacity` falls back to (below).
+  rule `./dojo capacity` falls back to (below).
 - `CODE_SERVER_MAX_HEAP_MB` (default 384) caps the V8 heap of each
   node process a student's code-server runs: the server, extension host,
   pty host and file watcher (`workspace-control.py`). It is passed as a
@@ -699,7 +717,7 @@ the peak; nothing below lowers it. Three knobs bound it:
   rejects less, and the container refuses to start).
 
 These are set by hand in `.env`, not derived automatically. Run
-`./run.sh capacity --students <N>` **on the target machine**
+`./dojo capacity --students <N>` **on the target machine**
 (the Azure VM itself, or your Mac for local testing) before a real
 session — it reads that machine's actual memory and, if a couple of
 `--test` bot students are already live in `workshop_terminal`, calibrates
@@ -730,15 +748,15 @@ sits only on the internal-only `workshop_lab` network (see
 stack is up.
 
 **Facilitator ops below use plain `docker compose ...` commands** (on podman, read them as `podman-compose ...`,
-which `run.sh` prefers when it is installed). If the
+which `dojo` prefers when it is installed). If the
 running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
 plus one `-f` per file in `"files"` of `.build-state/current.json` to those commands too, and
 set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:
 `gitopsdojo/web-terminal:<workshop>`, or `:<workshop>.<module>` when only a
 module adds tools). A bare `docker compose ...` only sees the
 base file, and e.g. `--force-recreate web-terminal` would recreate it
-*without* that workshop's extra tooling. Simplest fix: `./run.sh restart web-terminal`
-(or a plain re-run of `./run.sh <workshop-name>`), which always passes the right
+*without* that workshop's extra tooling. Simplest fix: `./dojo restart web-terminal`
+(or a plain re-run of `./dojo <workshop-name>`), which always passes the right
 files and flags.
 
 ## Update workshop content mid-session
@@ -751,21 +769,21 @@ never overwritten. `lab/README.md` always reflects the current instructions.
 
 Rebuild is only required when `.env`, this Compose file, an image's
 Dockerfile, or `web-terminal/entrypoint.sh` / `gateway/Caddyfile` changes.
-Re-running `./run.sh <workshop-name>` already detects that: it hashes the
+Re-running `./dojo <workshop-name>` already detects that: it hashes the
 web-terminal/allocator/gateway build contexts individually (only rebuilding
-the ones that actually changed — see `build_if_changed` in `run.sh`), and
+the ones that actually changed — see `build_if_changed` in `dojo`), and
 hashes every module folder plus the workshop's `compose/` overlay directory
 as one unit to catch changes to any module or workshop service beyond that
 (the `runner-pool` module, cert-autorenewal's `dns-seed`/`step-ca`/`demo-app`, etc. —
-see `compose_overlay_build_if_changed`). Re-running `./run.sh` is the normal
+see `compose_overlay_build_if_changed`). Re-running `./dojo` is the normal
 way to pick up any of that. It also cleans up after itself: an image whose
-tag a rebuild moves would otherwise linger as `<none>`, so `run.sh` notes each
+tag a rebuild moves would otherwise linger as `<none>`, so `dojo` notes each
 image a build displaces and removes it once the containers are running on the
 new one (`track_superseded` / `reap_superseded`). Only images that rebuild
 displaced are touched, and only ones this project builds (`gitopsdojo/*` and
 Compose's own `engine_*` names): an image you tagged or built yourself is
 never a candidate. One still in use is kept in `.build-state/superseded-images`
-and retried next run. On podman, `run.sh` builds in Docker image format
+and retried next run. On podman, `dojo` builds in Docker image format
 (`BUILDAH_FORMAT=docker`) because the default OCI format has no `HEALTHCHECK`,
 and the change-detection hash is salted with that, so the first run after
 pulling it rebuilds every image once. `--dry-run` reports what would be rebuilt;
@@ -825,7 +843,7 @@ Use it when the class is full but seats are held by people who never started.
 
 **Slot-assignment rate limit.** New slots go out through a token bucket:
 `ASSIGN_BURST` at once (default 10), then `ASSIGN_PER_MINUTE` (default 20), set
-in `engine/.env`. A class of 30 is in within about a minute. A browser that
+in `dojo.local.toml`'s `[env]` section. A class of 30 is in within about a minute. A browser that
 already holds a slot, the facilitator and the `--test` demo bots are never
 limited. A visitor over the limit gets a "try again in N seconds" page (HTTP 429
 with a `Retry-After` header). This stops one client from draining every free slot by
@@ -857,15 +875,15 @@ The strip is facilitator-only by design: students are not shown service health.
 ## Demo bots (`--test`)
 
 ```sh
-./run.sh git-fundamentals --test        # 3 bots
-./run.sh git-fundamentals --test 14     # 14 bots, for load / bigger-cohort testing
-./run.sh git-fundamentals --test --fast # 3 bots at full speed, one round each: for checks
+./dojo git-fundamentals --test        # 3 bots
+./dojo git-fundamentals --test 14     # 14 bots, for load / bigger-cohort testing
+./dojo git-fundamentals --test --fast # 3 bots at full speed, one round each: for checks
 ```
 
 `--fast` (`BOT_FAST=1`) is for checking a pack, not for showing one. The bots print each command at once instead of
 typing it and skip every pause; the intermediate and novice bots make their mistakes in every round (the expert stays
 the clean path); a step that fails 3 times is skipped with a `FAST:` line instead of retried forever. After one round
-each bot writes `~/.dojo-bot-done` and stops. The bots hold round 1 until `./run.sh` releases them, once every
+each bot writes `~/.dojo-bot-done` and stops. The bots hold round 1 until `./dojo` releases them, once every
 container is up (`/run/dojo-bots-go` in the terminal; touch it by hand if a start was interrupted), and then until
 their Forgejo account works and each module's `bot_ready` hook passes (achievements: the bot's token and the service).
 Waits inside a pack's steps (CI runs, deploys) still apply. Wait for
@@ -939,7 +957,7 @@ within `BOT_SUPERVISOR_INTERVAL` seconds (15 by default) and resumes
 exactly where it left off, so Release is safe to use on a bot to test that
 flow without losing its progress.
 
-**Config** (all optional, in `.env` — see `.env.example`): `BOT_COUNT`
+**Config** (all optional: `[bots]` in `dojo.toml`, `BOT_PASSWORD` in `.env`): `BOT_COUNT`
 (`--test` defaults this to 3 if unset; `--test N` sets it to N and overrides `.env`), `BOT_PREFIX` (default `testuser`),
 `BOT_PASSWORD` (default `testuser123`). A bot's Forgejo account uses the
 same `FORGEJO_ORG`/`FORGEJO_REPO` as everything else, and is added to the
@@ -953,13 +971,13 @@ exist, so it won't crash against a different workshop's content, but it
 won't do anything workshop-specific for one either).
 
 **Stop the bots** without tearing down the rest of the stack: set
-`BOT_COUNT=0` in `.env` and re-run `./run.sh <workshop-name>` (without
+`BOT_COUNT=0` in `.env` and re-run `./dojo <workshop-name>` (without
 `--test`), then remove the leftover accounts/state the same way you'd reset
 a student's home directory (see below).
 
 ## Facilitator maintenance
 
-**Change student count or passwords** — edit `.env`, then re-run `./run.sh
+**Change student count or passwords** — edit `.env`, then re-run `./dojo
 <workshop-name>` (or `docker compose up -d --build` with no service names)
 to pick up the change. Don't pass a subset of service names to `up` on
 Podman — `podman-compose` re-derives the whole pod from whatever you list
@@ -981,7 +999,7 @@ the same running stack) without touching student home directories:
 
 ```sh
 podman exec workshop_allocator rm -f /var/lib/dojo-allocator/slots.json
-./run.sh restart allocator
+./dojo restart allocator
 ```
 
 The slot table survives a plain restart (so a crash doesn't hand a live
@@ -995,7 +1013,7 @@ Nothing here is meant to survive past the session. Run this when the
 workshop ends:
 
 ```sh
-./run.sh stop
+./dojo stop
 ```
 
 This is `docker compose down --volumes` — it deletes every student's
@@ -1008,7 +1026,7 @@ same command on the host, e.g.:
 
 ```sh
 # four hours from now
-echo "cd $(pwd) && ./run.sh stop" | at now + 4 hours
+echo "cd $(pwd) && ./dojo stop" | at now + 4 hours
 ```
 
 On a VM, deallocating/deleting the VM after the session is the cleanest
@@ -1036,13 +1054,13 @@ docker compose logs --tail 80 web-terminal
 docker compose exec web-terminal pgrep -a -u student01
 ```
 
-**`./run.sh` fails building `web-terminal` with a `wget`/TLS error while
+**`./dojo` fails building `web-terminal` with a `wget`/TLS error while
 fetching the pinned extensions** (`certificate ... not trusted` or
 `unable to get local issuer certificate`) — you're on a network with TLS
 inspection (a corporate proxy that re-signs outbound HTTPS), and `wget`
 needs to trust that proxy's CA to reach `open-vsx.org`. Point
 `CORP_CA_BUNDLE` (or `REQUESTS_CA_BUNDLE`, if your shell already sets it
-for other tools) at a PEM file and re-run `./run.sh` — it's passed through
+for other tools) at a PEM file and re-run `./dojo` — it's passed through
 as a BuildKit build secret (`--secret id=corp_ca_cert`), mounted only for
 that one build step and never written into the image. Try whatever
 CA/combined-bundle file your shell already uses for other HTTPS tools
@@ -1085,3 +1103,11 @@ or map 80/443 to them:
 ```sh
 docker compose logs gateway
 ```
+
+## Access code in front of the whole site (`--pass`)
+
+`./dojo <workshop> --pass CODE` (also `--cookie`, `--code`) puts an "Access code" page in front of every URL,
+sign-in included. The page sets a `dojo_gate` cookie (sha256 of `dojo-gate:CODE`, 12 hours); the gateway lets a
+request through only when the cookie matches `GATEWAY_GATE_TOKEN`. A wrong cookie is counted by the allocator
+(`/gate-fail`, 10 a minute per address, then 429). The page needs HTTPS or localhost (it hashes in the browser).
+The code is recorded with the start flags, so `restart` keeps it. Not a substitute for the real logins.

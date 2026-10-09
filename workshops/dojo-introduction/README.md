@@ -4,8 +4,8 @@ A show-and-tell of the GitOps Dojo, for a facilitator to click through as a stud
 a lab: nothing has to be completed. Forgejo with CI, DNS as code and Dojo Cloud are running at once.
 
 ```bash
-./run.sh dojo-introduction
-./run.sh stop
+./dojo dojo-introduction
+./dojo stop
 ```
 
 ## What you get
@@ -29,7 +29,7 @@ a lab: nothing has to be completed. Forgejo with CI, DNS as code and Dojo Cloud 
   workshop's `content/slides` under the presentation service at `/slides/w/<name>/`.
 - `compose/terminal/Dockerfile` repeats dns-as-code's and tofu-basics' tool pins (dnscontrol, tofu and its provider
   mirror). When one of those changes there, change it here too.
-- `engine/run.sh` makes the git-ignored `lab/*.md.txt` copies for every pack, not only the running one, so the
+- `dojo` makes the git-ignored `lab/*.md.txt` copies for every pack, not only the running one, so the
   library's lab links work on a fresh clone.
 
 ## Left out on purpose
@@ -43,7 +43,7 @@ Their slides and labs are in the library; to run those flows, start that worksho
 
 ## Demo bots
 
-`./run.sh dojo-introduction --test 5` adds bots that walk the tool tour (`content/bots/steps.sh`): a push and pipeline, a `dnscontrol`
+`./dojo dojo-introduction --test 5` adds bots that walk the tool tour (`content/bots/steps.sh`): a push and pipeline, a `dnscontrol`
 push and (the expert bot) an OpenTofu apply on Dojo Cloud. It fills the Roster, Runners and DNS Zones tabs.
 
 ## Keeping the tool pins in step
@@ -51,7 +51,7 @@ push and (the expert bot) an OpenTofu apply on Dojo Cloud. It fills the Roster, 
 This pack's terminal image is assembled from two others': dnscontrol from `dns-as-code`, OpenTofu and its provider
 mirror from `tofu-basics`. Two checks keep the copies honest, and CI runs both (`.github/scripts/dry-runs.sh`):
 
-- `engine/scripts/check-tool-pins.sh` (repo-wide, run by every `./run.sh <workshop> --dry-run`) fails if a tool
+- `engine/scripts/check-tool-pins.sh` (repo-wide, run by every `./dojo <workshop> --dry-run`) fails if a tool
   version shared by two Dockerfiles disagrees, or if the per-arch checksums under a shared version disagree.
 - `./check-pins-sync.sh` covers what that cannot see: the files copied byte-for-byte from `tofu-basics`
   (`mirror.tf`, `unpack-mirror.py`, `tofurc`, `disable-tofu-ls.py`).

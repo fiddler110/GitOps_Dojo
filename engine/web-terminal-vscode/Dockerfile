@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # The line above enables BuildKit's `RUN --mount=type=secret` used below --
-# needed for CORP_CA_BUNDLE (see run.sh), not for anything else in this
+# needed for CORP_CA_BUNDLE (see dojo), not for anything else in this
 # file. Must stay the literal first line.
 
 # The VS Code terminal flavor's own leaf: code-server plus its curated
@@ -9,7 +9,7 @@
 # it -- so a code-server-only change here never invalidates the Zellij
 # flavor's cache, and the Zellij flavor never pays this leaf's disk/build
 # cost at all (engine/README.md's "Terminal flavor" section). Every module
-# and workshop terminal/ link then chains onto whichever leaf `run.sh`
+# and workshop terminal/ link then chains onto whichever leaf `dojo`
 # selected for this run (TERMINAL_FLAVOR) -- this split is invisible to
 # them; they only ever see an opaque `ARG BASE`.
 #
@@ -139,7 +139,7 @@ RUN set -eux; \
 # RUN's shell and is never written into any image layer, so it's fine to
 # pass a corporate TLS-inspection CA cert through here without it ending
 # up in the shipped image. Optional -- if no secret named corp_ca_cert is
-# passed at build time (see run.sh's CORP_CA_BUNDLE), the mount target
+# passed at build time (see dojo's CORP_CA_BUNDLE), the mount target
 # simply doesn't exist and wget falls through to its normal system trust
 # store, same as every other wget call in this file.
 RUN --mount=type=secret,id=corp_ca_cert,target=/tmp/corp_ca.pem set -eux; \

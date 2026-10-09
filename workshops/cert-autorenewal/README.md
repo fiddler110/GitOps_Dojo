@@ -10,14 +10,14 @@ students issue are real X.509 certs, actually installed, actually serving HTTPS.
 ## Running it
 
 ```bash
-./run.sh cert-autorenewal            # the class
-./run.sh cert-autorenewal --test 3   # plus 3 demo bots that walk the labs
-./run.sh stop                        # removes every container and volume, the CA and issued certs with them
+./dojo cert-autorenewal            # the class
+./dojo cert-autorenewal --test 3   # plus 3 demo bots that walk the labs
+./dojo stop                        # removes every container and volume, the CA and issued certs with them
 ```
 
-`run.sh` picks this workshop's identity and overlay from [`workshop.env`](workshop.env) — see
+`dojo` picks this workshop's identity and overlay from [`workshop.env`](workshop.env) — see
 [`workshops/README.md`](../README.md) for how workshop selection works. First-time account/secret setup is
-`./run.sh setup` (shared by every workshop).
+`./dojo setup` (shared by every workshop).
 
 The facilitator's `/admin` has, besides the engine's tabs: **Site Inspector** (visit any student's site
 like a browser — redirects, certificate, HSTS and headers) and the **DNS Zones** view (each student's A

@@ -45,7 +45,7 @@ import personas
 from personas import Swarm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# dojo_http/adapter_client: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has
+# dojo_http/adapter_client: modules/_shared/ in the source tree, ./_shared/ once ./dojo has
 # copied it in (SHARED= in module.env).
 sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
 from adapter_client import AdapterClient  # noqa: E402

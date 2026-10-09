@@ -1,11 +1,11 @@
 #!/bin/sh
 # Bot smoke test for one workshop pack (RV19). Run from the repo root on a free machine:
 #   workshops/assets/smoke.sh <workshop> [--bots N] [--timeout MIN] [--reuse] [--split each|"0-1 2 3-4 ..."]
-# Starts `./run.sh <workshop> --test N --fast` with achievements on, waits for every bot's ~/.dojo-bot-done,
+# Starts `./dojo <workshop> --test N --fast` with achievements on, waits for every bot's ~/.dojo-bot-done,
 # then checks the achievements ledger with fired.py. FAIL when a bot doesn't finish in time or a core milestone
 # never fired; extra and funny items that never fired, and steps the bots skipped (FAST: lines), are listed but
 # don't fail it (bots stay lab-only, so challenges never fire here). --reuse checks a stack that is already up
-# (started the same way) instead of starting one. The stack is left running for a look; `./run.sh stop` after.
+# (started the same way) instead of starting one. The stack is left running for a look; `./dojo stop` after.
 # --split runs the labs side by side instead of one bot doing them all (a slow pack's waits then overlap): one bot
 # per range, `each` = one per lab (lab 0 rides with the first). Each bot makes its fork (step 1), then retest.sh moves
 # it to its first lab (lab-prep) and stops it after its last; the milestones are counted over all bots. A pack whose
@@ -52,9 +52,9 @@ if [ "$reuse" = 1 ]; then
 else
   [ "$running" = 0 ] || { echo "smoke: a stack is already running (podman ps); stop it or pass --reuse" >&2; exit 2; }
   start=$(date +%s)
-  ACHIEVEMENTS_ENABLED=1 ./run.sh "$ws" --test "$bots" --fast > "${TMPDIR:-/tmp}/smoke-$ws.log" 2>&1
+  ACHIEVEMENTS_ENABLED=1 ./dojo "$ws" --test "$bots" --fast > "${TMPDIR:-/tmp}/smoke-$ws.log" 2>&1
   rc=$?
-  [ "$rc" = 0 ] || { tail -20 "${TMPDIR:-/tmp}/smoke-$ws.log"; echo "FAIL: $ws (./run.sh exited $rc)"; exit 1; }
+  [ "$rc" = 0 ] || { tail -20 "${TMPDIR:-/tmp}/smoke-$ws.log"; echo "FAIL: $ws (./dojo exited $rc)"; exit 1; }
   echo "  stack up in $(( $(date +%s) - start ))s"
 fi
 

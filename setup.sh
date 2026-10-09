@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guided host setup for GitOps Dojo.
 #
-# Works out what this machine still needs before `./run.sh <workshop>` can run
+# Works out what this machine still needs before `./dojo <workshop>` can run
 # (a container engine plus git and openssl), tells you what it found, and only
 # installs anything after you say yes. Podman is the recommended engine; Docker
 # works too. It never touches the stack itself and never runs a workshop.
@@ -100,7 +100,7 @@ fi
 if [ "$OS" = windows ]; then
   step "Windows needs WSL2 first"
   cat <<'EOF'
-  The stack runs in Linux containers and run.sh is a bash script, so on Windows
+  The stack runs in Linux containers and dojo is a Python script, so on Windows
   you use it from inside WSL2 with Ubuntu. Native PowerShell/Git Bash is not supported.
 
   1. Open PowerShell as Administrator and run:
@@ -118,15 +118,15 @@ fi
 
 # --- 3. Which engine? --------------------------------------------------------
 
-# Look at what is installed rather than asking. This mirrors run.sh: podman when podman and
+# Look at what is installed rather than asking. This mirrors dojo: podman when podman and
 # podman-compose are both there, docker otherwise.
 if [ -z "$ENGINE" ]; then
   step "Which container engine?"
   if have podman-compose && have podman; then
-    ENGINE=podman; ok "podman and podman-compose are installed; ./run.sh will use podman"
+    ENGINE=podman; ok "podman and podman-compose are installed; ./dojo will use podman"
   elif have docker && docker compose version >/dev/null 2>&1; then
-    ENGINE=docker; ok "docker with the compose plugin is installed; ./run.sh will use docker"
-    have podman && warn "podman is installed too but has no podman-compose, so run.sh falls back to docker. Install podman-compose to prefer podman."
+    ENGINE=docker; ok "docker with the compose plugin is installed; ./dojo will use docker"
+    have podman && warn "podman is installed too but has no podman-compose, so dojo falls back to docker. Install podman-compose to prefer podman."
   elif have podman; then
     ENGINE=podman; warn "podman is installed but podman-compose is not"
   elif have docker; then
@@ -182,9 +182,9 @@ inspect_host() {
   else
     bad "$ENGINE is installed but not usable yet"; RUNNING=no
   fi
-  # run.sh uses podman whenever podman and podman-compose are installed, even if you chose docker here.
+  # dojo uses podman whenever podman and podman-compose are installed, even if you chose docker here.
   if [ "$ENGINE" = docker ] && have podman && have podman-compose; then
-    warn "podman and podman-compose are also installed. ./run.sh prefers podman when both are present, so it will use podman."
+    warn "podman and podman-compose are also installed. ./dojo prefers podman when both are present, so it will use podman."
     note "To run on docker, uninstall podman-compose."
   fi
 }
@@ -322,21 +322,21 @@ fi
 # --- 6. Dojo config and next steps -------------------------------------------
 
 step "Dojo configuration"
-if [ -f engine/.env ]; then
-  ok "engine/.env already exists"
+if [ -f .env ] || [ -f .env ]; then
+  ok ".env already exists"
 elif [ "$CHECK_ONLY" = 1 ]; then
-  warn "engine/.env not created yet (./run.sh setup makes it)"
-elif ask "  Create engine/.env now (generates the class and admin passwords)?" y; then
-  ./run.sh setup
+  warn ".env not created yet (./dojo setup makes it)"
+elif ask "  Create .env now (generates the class and admin passwords)?" y; then
+  ./dojo setup
 else
-  echo "  Skipped. Run ./run.sh setup before starting a workshop."
+  echo "  Skipped. Run ./dojo setup before starting a workshop."
 fi
 
 step "Ready"
 cat <<'EOF'
-  ./run.sh list                  see the workshops
-  ./run.sh git-fundamentals      build and start one (first run builds images: expect several minutes)
-  ./run.sh stop                  stop and wipe everything
+  ./dojo list                  see the workshops
+  ./dojo git-fundamentals      build and start one (first run builds images: expect several minutes)
+  ./dojo stop                  stop and wipe everything
 
   Then open http://localhost:8080
 EOF

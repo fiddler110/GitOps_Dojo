@@ -10,16 +10,15 @@ REPO = ENGINE.parent
 WORKSHOPS = REPO / "workshops"
 MODULES = REPO / "modules"
 
-ENV_FILE = ENGINE / ".env"
+ENV_FILE = REPO / ".env"                   # secrets (+ [profile] sections of them); git-ignored
+CONFIG = REPO / "dojo.toml"                # committed defaults
+LOCAL_CONFIG = REPO / "dojo.local.toml"    # this machine's settings and profiles; git-ignored
+LEGACY_ENV = ENGINE / ".env"               # before the single .env: migrate.py moves it
 STATE = ENGINE / ".build-state"
 LAST_OVERLAY = ENGINE / ".last-overlay"       # teardown's -f files (one per line)
 RUNNING_WORKSHOP = STATE / "running-workshop"
 LAST_START = STATE / "last-start"             # the workshop and its flags, for restart
 
-# How the user ran us, for help and advice: ./run.sh, or `dojo` (the ~/.local/bin script sets DOJO_PROG).
-PROG = os.environ.get("DOJO_PROG", "./run.sh")
+# How the user ran us, for help and advice: ./dojo, or `dojo` (the ~/.local/bin script sets DOJO_PROG).
+PROG = os.environ.get("DOJO_PROG", "./dojo")
 
-
-def env_variant(name: str) -> Path:
-    """engine/.env.<name>, loaded on top of engine/.env by --env NAME."""
-    return ENGINE / f".env.{name}"

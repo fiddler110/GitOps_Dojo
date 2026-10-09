@@ -99,7 +99,7 @@ COPY zshrc tmux-terminal.sh /opt/dojo-shell/
 RUN chmod 644 /opt/dojo-shell/zshrc \
     && chmod 755 /opt/dojo-shell/tmux-terminal.sh
 
-# Demo/test bots (--test, see run.sh and engine/README.md's "Demo bots"
+# Demo/test bots (--test, see dojo and engine/README.md's "Demo bots"
 # section) -- same "authored file, symlinked/copied by entrypoint.sh at
 # container start" pattern as the zshrc files above.
 COPY bot-runner.sh bot-supervisor.sh bot-askpass.sh /opt/dojo-shell/

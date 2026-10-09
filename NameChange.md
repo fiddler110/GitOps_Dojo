@@ -4,7 +4,7 @@
 
 Topiary runs short-lived, deeply immersive workshops where engineers do the real work in a meticulously curated environment. Students push commits, watch CI orchestrate dynamic DNS changes, provision TLS certificates from an internal ACME authority, and deploy containers into a private, mock public cloud that real-world infrastructure providers can interact with natively. 
 
-Every exercise is sculpted to strip away external noise, providing a direct, physical understanding of complex enterprise workflows. At the end of a session, `./run.sh stop` prunes the environment, removing it completely without a trace.
+Every exercise is sculpted to strip away external noise, providing a direct, physical understanding of complex enterprise workflows. At the end of a session, `./dojo stop` prunes the environment, removing it completely without a trace.
 
 ---
 

@@ -17,7 +17,8 @@ from rich.markup import escape
 from rich.table import Table
 
 from . import checks, paths, state
-from .envfiles import EnvError, operator_env, parse_literal, resolve
+from . import config
+from .envfiles import EnvError, operator_env, parse_literal, resolve, split_profiles
 from .runtime import Runtime, on_wsl, project_name
 from .stack import extra_files, mem_limits, read_state, services
 from .ui import console
@@ -44,10 +45,12 @@ def _mem_mb(value: str) -> Optional[int]:
 
 def _required_keys() -> List[str]:
     """Variables docker-compose.yml refuses to start without (${VAR:?...}) that
-    engine/.env is meant to provide (they appear in .env.example)."""
+    the operator is meant to provide (.env.example's secrets, dojo.toml's settings)."""
     compose = (paths.ENGINE / "docker-compose.yml").read_text()
     needed = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*):\?", compose))
-    example = {k for k, _, _ in parse_literal(paths.ENGINE / ".env.example")} if (paths.ENGINE / ".env.example").is_file() else set()
+    example_file = paths.REPO / ".env.example"
+    example = {k for k, _, _ in parse_literal(example_file)} if example_file.is_file() else set()
+    example |= set(config.BY_ENV)
     return sorted(needed & example) if example else sorted(needed)
 
 
@@ -60,6 +63,11 @@ def _port_free(host: str, port: int) -> bool:
             return True
         except OSError:
             return False
+
+
+def _strict_operator_env(env_name: str) -> Dict[str, str]:
+    split_profiles(env_name)   # raises for an unknown profile
+    return operator_env(env_name)
 
 
 def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) -> List[Check]:
@@ -103,17 +111,18 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         add(Check(level, "Disk space", f"{free_gb:.0f} GB free for images and volumes",
                   "" if level == OK else "A first build needs about 10 GB; free some space ('podman system prune')."))
 
-    # --- engine/.env -------------------------------------------------------
+    # --- .env, dojo.toml ---------------------------------------------------
     if not paths.ENV_FILE.is_file():
-        add(Check(FAIL, "engine/.env", "missing", f"Run '{paths.PROG} setup' (or '{paths.PROG} setup --default' for local use)."))
+        add(Check(FAIL, ".env", "missing", f"Run '{paths.PROG} setup' (or '{paths.PROG} setup --default' for local use)."))
         return out
     mode = stat.S_IMODE(paths.ENV_FILE.stat().st_mode)
-    add(Check(OK if mode & 0o077 == 0 else WARN, "engine/.env", f"present, mode {mode:o}",
-              "" if mode & 0o077 == 0 else "It holds every secret: chmod 600 engine/.env"))
-    if env_name and not paths.env_variant(env_name).is_file():
-        add(Check(FAIL, f"engine/.env.{env_name}", "missing (asked for with --env)"))
+    add(Check(OK if mode & 0o077 == 0 else WARN, ".env", f"present, mode {mode:o}",
+              "" if mode & 0o077 == 0 else "It holds every secret: chmod 600 .env"))
+    try:
+        env = operator_env(env_name) if not env_name else _strict_operator_env(env_name)
+    except EnvError as exc:
+        add(Check(FAIL, "dojo.toml / profile", str(exc)))
         return out
-    env = operator_env(env_name)
     missing = [k for k in _required_keys() if not env.get(k)]
     if missing:
         add(Check(FAIL, "Required settings", "empty or missing: " + ", ".join(missing),

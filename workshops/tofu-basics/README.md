@@ -5,7 +5,7 @@ IaC repo is laid out, using **OpenTofu**. Students can type `terraform` and get 
 and HCL are identical. For anyone who has done (or knows) [Git Fundamentals](../git-fundamentals/).
 
 ```sh
-cd engine && ./run.sh tofu-basics
+./dojo tofu-basics
 ```
 
 - **Track A — Sandbox** (offline, no cloud, ~37 min): `random_pet`, `local_file`, `terraform_data`.
@@ -20,15 +20,14 @@ technical reference. Design and decisions (archived, frozen): [`TOFU-BASICS-PLAN
 ## Running it
 
 ```sh
-cd engine
-./run.sh setup            # first time only: creates engine/.env
-./run.sh tofu-basics      # build (first time: several minutes) and start
-./run.sh stop             # stop and wipe everything, including all deployed containers
+./dojo setup            # first time only: creates `.env`
+./dojo tofu-basics      # build (first time: several minutes) and start
+./dojo stop             # stop and wipe everything, including all deployed containers
 ```
 
-- `engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the dojo-cloud module refuses to start without them.
-- Always start through `./run.sh`. A plain `podman build` / `docker build` drops the image HEALTHCHECK.
-- After changing any image source, run `./run.sh stop` first: Compose does not recreate a running
+- `.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`; the dojo-cloud module refuses to start without them.
+- Always start through `./dojo`. A plain `podman build` / `docker build` drops the image HEALTHCHECK.
+- After changing any image source, run `./dojo stop` first: Compose does not recreate a running
   container when its image was rebuilt.
 - Only the amd64 images have been built and run. The arm64 checksums are pinned but untested.
 
@@ -117,7 +116,7 @@ Everything a student can deploy is bounded by `modules/dojo-cloud/cloud-api/poli
   (`modules/dojo-cloud/cloud-host/entrypoint.sh`, `import_hello` for another version of hello; a different app needs
   its root filesystem baked into `modules/dojo-cloud/cloud-host/Dockerfile`). The executor still forces port 80 and no
   command. Update the labs that name `1.0` and `2.0` (Lab 6 and Lab 8's `validation` block).
-- After any change under `compose/` or `modules/dojo-cloud/`, `./run.sh stop` and start again. `run.sh` notices the changes.
+- After any change under `compose/` or `modules/dojo-cloud/`, `./dojo stop` and start again. `dojo` notices the changes.
 
 ## Security model, in short
 
@@ -145,7 +144,7 @@ Assume 30 curious students who each have a shell. Full table in TOFU-BASICS-PLAN
 
 | To… | Do |
 | --- | -- |
-| Wipe everything between classes | `./run.sh stop` (removes all volumes, including `cloud-host`'s Docker data, so all deployments, state and portal history). Verified live: after a normal stop, and after `podman kill workshop_cloud_host` then stop, no containers, volumes, networks or stray processes remained |
+| Wipe everything between classes | `./dojo stop` (removes all volumes, including `cloud-host`'s Docker data, so all deployments, state and portal history). Verified live: after a normal stop, and after `podman kill workshop_cloud_host` then stop, no containers, volumes, networks or stray processes remained |
 | Empty one student's cloud (they lost `terraform.tfstate`) | Portal **Home → Facilitator panel → Purge subscription** |
 | Stop students deleting things in the portal | Same panel, **Portal write actions** switch (OpenTofu is unaffected) |
 | Restart the control plane only | `docker restart workshop_cloud_api` (`podman restart` on podman). State lives in a volume and survives; verified with a real deployment |

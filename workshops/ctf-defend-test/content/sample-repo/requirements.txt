@@ -1,3 +1,0 @@
-# Pinned so the image rebuilds identically for years (CTF-D16 precedent).
-# sqlite3 is stdlib; Flask is the only dependency.
-Flask==3.0.3

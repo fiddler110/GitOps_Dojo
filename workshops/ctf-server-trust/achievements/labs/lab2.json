@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l2-flag",
+      "title": "The Server Made the Call For You",
+      "joke": "You asked it to fetch a URL. You didn't say which network.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for ssrf-fetcher",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "ssrf-fetcher"
+      }
+    }
+  ]
+}

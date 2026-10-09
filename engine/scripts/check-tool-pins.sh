@@ -7,7 +7,7 @@
 # labs quietly stop matching each other (RV25).
 #
 # Usage: engine/scripts/check-tool-pins.sh [DIR...]  (default: engine modules workshops)
-# `./run.sh <workshop> --dry-run` runs it on the whole repo, as CI does.
+# `./dojo <workshop> --dry-run` runs it on the whole repo, as CI does.
 #
 # What counts as one tool: an `ARG <TOOL>_VERSION=<value>` line. Everything
 # from there to the next such ARG (or the end of the file) is that tool's

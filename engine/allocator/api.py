@@ -5,7 +5,7 @@ import json
 import time
 import urllib.parse
 
-from accounts import check_login, is_bot_id, LOGIN_GUARD, make_session, SESSION_SECONDS
+from accounts import check_login, GATE_GUARD, is_bot_id, LOGIN_GUARD, make_session, SESSION_SECONDS
 from allocation import (
     claim_slot, held_slots, ide_port, local_path, release_slot, slot_snapshot, slots, term_port,
     UNUSED_AFTER_SECONDS, watch_port,
@@ -287,6 +287,22 @@ class ApiMixin:
         self.send_header("X-Session-User", account)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_gate_fail(self):
+        """The gateway sends here every request that carries a wrong access-code
+        cookie (gateway/Caddyfile, @gatebad): only failures count, 10 a minute
+        per address, then 429. The right cookie never gets this far."""
+        ip = self.client_ip()
+        blocked = GATE_GUARD.blocked(ip)
+        if not blocked:
+            GATE_GUARD.fail(ip)
+        config.audit("gate", ip=ip, result="rate-limited" if blocked else "failed")
+        self.send_response(429 if blocked else 401)
+        self.send_header("Retry-After", "60")
+        self.send_header("Content-Length", "0")
+        for k, v in NO_STORE_HEADERS:
+            self.send_header(k, v)
         self.end_headers()
 
     def handle_login(self):

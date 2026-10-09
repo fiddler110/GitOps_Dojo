@@ -6,7 +6,7 @@
 .build-state/history.jsonl  one line per start, restart, build or stop: when, what,
                             how long, the result. For "it worked last week".
 
-A stack started by the old shell run.sh left .last-overlay,
+A stack started by the old shell dojo left .last-overlay,
 .build-state/running-workshop and .build-state/last-start instead; read_current
 still understands those, and the next start replaces them.
 """
@@ -37,7 +37,7 @@ class Current:
 
     @property
     def command(self) -> str:
-        return "./run.sh " + " ".join(shlex.quote(a) for a in [self.workshop, *self.args])
+        return "./dojo " + " ".join(shlex.quote(a) for a in [self.workshop, *self.args])
 
 
 def write_current(cur: Current) -> None:
@@ -144,7 +144,7 @@ class RunLock:
             fresh = not pid and time.time() - self._mtime() < STALE_EMPTY_LOCK
             if fresh or (pid and _alive(pid)):
                 what = (self.dir / "what").read_text().strip() if (self.dir / "what").is_file() else "just started"
-                raise LockBusy(f"Another ./run.sh is building or starting a stack: {what}.\n"
+                raise LockBusy(f"Another ./dojo is building or starting a stack: {what}.\n"
                                f"Wait for it to finish. If none is running, remove {self.dir} and try again.")
             for f in self.dir.iterdir():
                 f.unlink()

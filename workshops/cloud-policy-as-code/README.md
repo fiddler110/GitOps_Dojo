@@ -6,7 +6,7 @@ exemptions; then Rego and conftest to check a plan before it is applied, `opa te
 For anyone who has done [OpenTofu Basics](../tofu-basics/) and [Git Fundamentals](../git-fundamentals/).
 
 ```sh
-cd engine && ./run.sh cloud-policy-as-code
+./dojo cloud-policy-as-code
 ```
 
 **Running it as the facilitator? Read [`FACILITATOR.md`](FACILITATOR.md).** Depth over length: the session is
@@ -15,13 +15,12 @@ about 4 to 5 hours of content (about 4.8 with the capstone) (below). Split it ov
 ## Running it
 
 ```sh
-cd engine
-./run.sh setup                       # first time only
-./run.sh cloud-policy-as-code        # build (first time: several minutes) and start
-./run.sh stop                        # stop and wipe everything
+./dojo setup                       # first time only
+./dojo cloud-policy-as-code        # build (first time: several minutes) and start
+./dojo stop                        # stop and wipe everything
 ```
 
-`engine/.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`. Always start through `./run.sh`; run `./run.sh stop`
+`.env` must set `PUBLIC_BASE_URL` and `GATEWAY_TOKEN`. Always start through `./dojo`; run `./dojo stop`
 before restarting after an image change. Only amd64 has been built.
 
 ## Labs
@@ -80,7 +79,7 @@ Unit-level checks (no stack): `opa test` over `content/sample-repo/policy/rego/`
 Stack runs (use the fast bots; plain `--test` is for demos):
 
 ```sh
-./run.sh cloud-policy-as-code --test 3 --fast                             # bots, one round, done markers
+./dojo cloud-policy-as-code --test 3 --fast                             # bots, one round, done markers
 workshops/assets/smoke.sh cloud-policy-as-code --bots 1 --timeout 120      # full smoke
 workshops/assets/retest.sh cloud-policy-as-code <lab> [--only]             # re-run from one lab (--only: just that lab)
 ```

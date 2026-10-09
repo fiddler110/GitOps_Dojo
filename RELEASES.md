@@ -7,6 +7,119 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## On `feat/ctf-pack-completion` (2026-10-09, not yet merged)
+
+**`ctf-secrets-config`/`ctf-trust-chain` complete their ladders; `ctf-defend-test` deleted.** The two packs each
+shipped only 2 of their 3 planned targets, because `tfstate-treasure` and `runner-escape` existed only inside the
+old shared facilitator harness, `workshops/ctf-defend-test`. Moved both hooks and their module wiring into the real
+packs instead (`openbao` into `ctf-secrets-config`'s `MODULES`, `runner-pool` into `ctf-trust-chain`'s), added a
+third lab, exploit guide and achievements milestone to each, and deleted the harness along with every reference to
+it across `docs/` and `modules/ctf-range/`. `ctf-trust-chain`'s Lab 3 (`runner-escape`) is written at a mechanics
+level rather than a literal exfiltration walkthrough, matching this repo's existing pattern of keeping the full
+technical detail in the spoiler-only exploit guide. **Live-verified** on a cold start of each pack (first build of
+the zellij terminal flavor's `ctf-range` layer, ~88 apt packages, took a while — not a bug): `ctf-secrets-config`'s
+moved `60-tfstate-treasure.sh`/`95-tfstate-treasure.sh` hooks seeded cleanly, both students solved independently via
+`exploit/solve.py` run inside their own terminal accounts, `dojo-flag submit` accepted each student's own flag and
+rejected student01's flag submitted as student02, and a student's own OpenBao login got `403` on the flag path with
+no token. `ctf-trust-chain`'s moved `96-runner-escape.sh` hook seeded both students' `ci-pipeline` repos, both
+solved independently with distinct flags, and the escalation probe confirmed the designed dead end live (own uid
+only, another runner's home `drwx------`/unreadable, no other job's process visible). Both stacks `./dojo stop`'d
+clean. 70 unit tests pass; found along the way: `tfstate-treasure`'s lab framing should be clearer that a
+classmate's Forgejo repo isn't actually private (any student can read it over the unauthenticated API) — the real
+protection is server-side flag verification, not repo privacy -- lab3.md now says so explicitly, in the
+briefing and the debrief.
+
+## On `feat/config-consolidation` (2026-10-08, not yet merged)
+
+**One settings layout instead of `engine/.env` plus `.env.home`, `.env.live` and the profiles.** Three files at the repo root:
+`dojo.toml` (committed, every non-secret default in sections, `[terminal] flavor = "code-server"|"zellij"`),
+`dojo.local.toml` (git-ignored: this machine's sizing and flavor, and the profiles) and `.env` (git-ignored secrets, with a
+`[home]`-style section per profile). `--env NAME` now selects a profile and takes a comma list (`--env mac-podman,home`), so the
+terminal flavor no longer needs its own overlay and cannot clash with `--env home`. TOML typos (unknown section or key, wrong
+type) stop the start with the file named. The first CLI command in an old checkout migrates `engine/.env*` automatically
+(secrets to `.env`, the rest to `dojo.local.toml`, originals kept as `*.migrated`). `env-profiles/` is gone: `mac-podman` is
+now `[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it or the `.env` profile sections. `tomli` (pinned
+wheel) covers Python below 3.11.
+**`./dojo` replaces `./run.sh` and `engine/run.sh`.** The root `dojo` is a ten-line Python launcher for `engine/dojo/`; the
+`python3` check is boot.py's, the one-time completion offer moved into the CLI, and the old `--setup`/`--capacity` spellings are
+gone. The `dojo` command that `alias-setup` installs runs it (old shims and the old marker blocks are still recognised and
+replaced). Completion files are `engine/completions/dojo.{bash,zsh}`. A three-line `run.sh` stub remains only so an installed
+old `dojo` shim or shell function keeps working; delete it when nothing calls it. Docs, messages and scripts say `./dojo`
+(older entries below keep the commands as they were then). Checked locally: 70 unit tests, `./dojo` from another directory,
+the installed shim in a scratch HOME, a real git-fundamentals start, login and stop.
+`--terminal code-server|zellij` picks the flavor for one run over every file (recorded, so `restart` repeats it).
+Checked locally: 70 unit tests (13 new: layering, sections, profiles, set/round-trip, migration); the migration run on this
+machine's real files (`config` shows the same flavor, URL and logins for plain and `--env home`); `git-fundamentals`
+dry-runs and `doctor`; a real start in both flavors (Zellij: `/ide/` 404, code-server: `/ide/` 200) with login and slot
+assignment, and `--terminal code-server` over a `zellij` local file (`/ide/` 200); `setup --default`, `setup` with every default accepted, and `--rotate-class` in a scratch tree (a `[home]`
+section survives both). Not checked: a live `--env home` start, the other workshops' live runs, the shell test helpers
+(`test-lib.sh` `load_env`, `e2e.sh`) that now read settings through `_operator-env`, and the `tomli` path itself (this machine's
+Python has `tomllib`).
+
+## CTF range build log (2026-10-04 to 2026-10-07, moved here from the CTF plan on 2026-10-09)
+
+What the `ctf-range` build delivered, condensed from the plan's old checkpoint and the ROADMAP's closed rows. All of it
+merged to `main` in PR #17 or is on the branches above; "locally" means a cold `./dojo` start on the WSL2 desktop, driven
+through the real gateway, with `exploit/solve.py` run from inside each student's own terminal. Design and decisions:
+[`docs/CTF-WORKSHOP-PLAN.md`](docs/CTF-WORKSHOP-PLAN.md), [`docs/CTF-SPIKES.md`](docs/CTF-SPIKES.md).
+
+**Control plane and defend loop.** `ctf-host` (privileged DinD, boxed) plus `ctf-controller` (the only client of its
+socket), `ctf-builder` and an in-lab `registry:2`. A real merge rebuilds and redeploys a student's `customer-portal` in
+place: **83s push to redeployed** (spike S6; the base-image load was cut from ~3 min to 6-17s with a hand-merged OCI
+layout, and `depends_on: service_healthy` closed the start-order race). `check-pins.sh` flags one `name:tag` resolving to
+two digests across files. `customer-portal` has an informational CWE-89 SAST stage; only the exploit re-check gates.
+**Flags and isolation.** `ctf-flags` verifies per-student HMAC flags and credits the `ctf`/`flag_solved` achievements
+source; `dojo-flag submit` is the CLI. Per-uid firewall rules limit each student to their own slot (checked both ways:
+the blocked uid times out). The hook retries up to 180s because `ctf-host` is slow to come up.
+**Start/stop/reset (CTF-D20).** `AttackManager`: a FIFO queue capped at `CTF_ATTACK_MAX_CONCURRENT`, a per-student state
+machine, idle auto-stop, and an "Attack Range" card per slot, generic over `CTF_ATTACK_TARGETS`. Each slot gets a
+three-port block (real app plus decoy banner listeners that fingerprint under `nmap -sV`).
+**Per-pack scoping (CTF-D26).** `ctf-host` has a shared `range-base` stage and named finals `ctf-host` (full catalog,
+1.89GB), `ctf-host-ctf1` to `ctf-host-ctf4` (about 900MB each); `module.env` carries the build target, tag and healthcheck list.
+**The 14 targets** (rows 0-14 of the plan's ladder, each with README and `exploit/solve.py`, each solved live by two
+students with distinct flags, cross-student submissions rejected):
+`sqli-login`, `idor-pcap`, `weak-auth-portal`, `cert-trust-bypass`, `ping-tool`, `ssrf-fetcher`, `api-mass-assignment`,
+`api-bfla`, `leaky-config`, `git-secrets`, `tfstate-treasure`, `policy-bypass`, `runner-escape`, `dns-resolver-cve`, and
+the defend-only `customer-portal`. Findings worth keeping:
+- Standalone `podman run` hid two bugs the real gateway to firewall to `ctf-host` path exposed: the firewall hook racing
+  `ctf-host`'s ~4-5 min start, and `ping-tool` hanging with no resolver (fixed with a wildcard `dnsmasq` stub, still offline).
+- `git-secrets` and `tfstate-treasure` have no image: the foothold is a per-student Forgejo repo (history, or a committed
+  `terraform.tfstate` leaking an AppRole). `ctf-controller` renders a second per-slot secret, `CTF_TARGET_TOKEN`; OpenBao's
+  setup hook derives the flag by hand with `sha256sum` (no python or openssl in that image), checked against RFC 4231.
+  A student's own OpenBao login gets 403 on the flag path, and the audit device records the AppRole login and read.
+  Vault ACL globs: `+` is a whole path segment, so the policy name uses `*`.
+- `policy-bypass` vendors `modules/dojo-cloud`'s `policy_engine.py` verbatim; the rule trusts a tag the requester sets.
+- `runner-escape` settled the old T0.3 spike: plain `pull_request` with same-repo secrets fires reliably, so
+  `pull_request_target` is never needed. The auto-issued Actions token cannot push (pre-receive hook), so the exploit
+  exfiltrates through a PR comment. The escalation fails by design (per-job user, unreadable runner homes, own PID namespace).
+- `dns-resolver-cve` cross-compiles a check-in agent against uClibc-ng 1.0.39 (pinned Bootlin toolchain, sha256 pinned);
+  20 lookups gave TXIDs 2..21. Only the TXID is predictable, the source port is kernel-ephemeral, and the inner
+  `--icc=false` forbids a cross-slot attack, so the spoof runs on loopback inside one slot.
+- Decoy services are scoped per lab, not uniform (`idor-pcap` also gets an FTP decoy for its leaked-creds story).
+**CTF-5 pressure layer.** One `attacker-bot` for the whole room (not a container per student), one thread per student, on
+one shared clock: green/recon, then yellow/escalating (delay ramps down, exploit probability climbs), then red/detonated
+(jittered 0-60s per student). The facilitator starts the swarm. A `soc` achievements source drives a "SOC Alerts" card, a
+room-wide admin tab with the countdown, the cyber map (`/map`, "Top 10 under siege"), per-target status lights
+(one-way green to red to yellow), mean-time-to-patch, per-student incident pages, and facilitator inject and hint-probe
+controls. The wall of shame ships as a minimal slice (`ctf`/`dump_success`, `GET /achievements/wall`). 103 achievements and
+43 attacker-bot tests pass; the bot to achievements to card chain was live-verified once `workshops/ctf-defend` gave
+achievements a real catalog.
+**Terminal and content.** Offensive tools (pinned, sha256 per architecture), the Lab Info library (a Linux primer plus one
+mechanics-only primer per tool, baked into `/etc/skel/lab-info`, also a browser reader at `/lab-info/`), `w3m`, and the
+Target Viewer (see PR #17 above).
+**Session packs.** `ctf-defend` (CTF-5) with its achievements catalog; `ctf-access` (CTF-1) in PR #17; `ctf-server-trust`
+(CTF-2), `ctf-secrets-config` (CTF-3) and `ctf-trust-chain` (CTF-4) in `7a819e9`. CTF-3 and CTF-4 each ship two of their
+three targets for now (see the ROADMAP).
+
+## On `feat/ctf-refinement` (2026-10-07, not yet merged)
+
+**Themed attack boxes, the rest.** Nine more targets got scenario themes (CSS at `/assets/theme.css`, own fictional brand):
+`customer-portal`, `dns-resolver-cve`, `git-secrets`, `leaky-config`, `ping-tool`, `policy-bypass`, `ssrf-fetcher`, plus
+a landing page for the JSON-only `api-bfla` and `api-mass-assignment`. Flags and bug behaviour unchanged (Flask test
+client per exploit path). Checked locally in headless Chromium through the gateway: eight of them load CSS with no
+4xx/5xx and no horizontal overflow. The Target Viewer card was browsed as a real student and as the facilitator
+(only the running box is a link; `/ctf-view/<student>/<target>/` works for the facilitator).
+
 ## Merged to `main` in PR #17 (2026-10-07)
 
 **ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack (locally, headless Chromium through the real

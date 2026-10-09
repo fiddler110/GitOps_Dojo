@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l3-flag",
+      "title": "Self-Promotion",
+      "joke": "Nobody approved your raise. You wrote it into the request body yourself.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for api-mass-assignment",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "api-mass-assignment"
+      }
+    }
+  ]
+}

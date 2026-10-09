@@ -1,6 +1,6 @@
 # openbao module: one OpenBao server for the class, with its web UI behind
 # the gateway (/ui, /v1, from extensions.json) and single sign-on through
-# Forgejo. Layered on top of engine/docker-compose.yml by engine/run.sh when a
+# Forgejo. Layered on top of engine/docker-compose.yml by dojo when a
 # workshop.env lists it in MODULES (see README.md). Relative paths resolve
 # against engine/, not this folder.
 
@@ -141,7 +141,7 @@ services:
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_OPENBAO_AUDIT:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       # What students do in the vault, posted to the achievements service when that module is in
-      # the run (audit/events.py). No `:?` here: `./run.sh stop` reads only engine/.env.
+      # the run (audit/events.py). No `:?` here: `./dojo stop` reads only .env.
       - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
       - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
     volumes:
@@ -193,7 +193,7 @@ services:
     restart: unless-stopped
 
   # The terminal image gets bao and the identity broker from terminal/ (built
-  # and chained by run.sh). The broker's key stays here; its public half is
+  # and chained by dojo). The broker's key stays here; its public half is
   # shared with openbao-setup.
   web-terminal:
     volumes:

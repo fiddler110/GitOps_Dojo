@@ -4,7 +4,7 @@ Change detection: each build context is hashed (hash_dir) and the hash is baked
 into the image as the dojo.src-hash label; an image whose label matches is
 reused as-is. Docker's own layer cache can't say "nothing changed" (apt-get
 update layers bust on every upstream index change). The hash text is exactly
-what engine/run.sh's shell version produced, so images it built stay valid.
+what dojo's shell version produced, so images it built stay valid.
 
 Old-image cleanup: rebuilding a tag leaves the image it used to point at as an
 untagged <none> image. Each build is wrapped in tracking that notes what it

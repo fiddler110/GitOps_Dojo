@@ -21,8 +21,8 @@ practice cloud. Once the images are built, a session needs no internet and no
 outside accounts. Every tool is baked in, pinned to a version and checked
 against a sha256.
 
-**Ephemeral by design.** `./run.sh <workshop>` starts a whole lab on a laptop or
-a single VM, and `./run.sh stop` removes it without a trace. Each class starts
+**Ephemeral by design.** `./dojo <workshop>` starts a whole lab on a laptop or
+a single VM, and `./dojo stop` removes it without a trace. Each class starts
 clean, and several workshops run on the same engine.
 
 **Safe to break.** Student terminals have no internet and no Docker socket. The
@@ -30,14 +30,14 @@ DNS zones, certificates and cloud resources belong to the lab, so a mistake
 is part of the lesson and never an incident.
 
 ```sh
-./run.sh setup              # first time only: writes engine/.env
-./run.sh doctor             # will a start work here? (exits 1 if not)
-./run.sh list               # which workshops exist
-./run.sh tofu-basics        # build and start one
-./run.sh tofu-basics --test # the same, with simulated students
-./run.sh status             # what is running, healthy, who is signed in
-./run.sh restart            # stuck? recreate every container, keep student work
-./run.sh stop               # tear down and wipe
+./dojo setup              # first time only: writes `.env`
+./dojo doctor             # will a start work here? (exits 1 if not)
+./dojo list               # which workshops exist
+./dojo tofu-basics        # build and start one
+./dojo tofu-basics --test # the same, with simulated students
+./dojo status             # what is running, healthy, who is signed in
+./dojo restart            # stuck? recreate every container, keep student work
+./dojo stop               # tear down and wipe
 ```
 
 ## What's here
@@ -60,7 +60,7 @@ workshop 2, OpenTofu Basics extends the plan-before-apply and drift ideas, Vault
 as a prerequisite, and Cloud-Policy-as-Code builds on OpenTofu Basics and comes last as the longest).
 
 The **Length** of each is its `WORKSHOP_DURATION` (`workshops/<name>/workshop.env`), which
-`./run.sh list` prints beside the name; each pack's `FACILITATOR.md` is where the figure comes from.
+`./dojo list` prints beside the name; each pack's `FACILITATOR.md` is where the figure comes from.
 
 Each workshop pack has its own slide deck, lab guides, cheat sheet and a seed
 repository. The lab guides are copied into every student's `~/lab` and shown
@@ -97,11 +97,11 @@ in the browser.
   intermediate and novice personas) who work through the labs for real, pushing
   branches and opening pull requests. Use them to rehearse solo, demo the
   admin dashboard or load-test a machine before a class.
-- **A live start-up view.** In a terminal, `./run.sh` shows one status table
-  that updates in place while the stack starts, and `./run.sh stop` shows one
+- **A live start-up view.** In a terminal, `./dojo` shows one status table
+  that updates in place while the stack starts, and `./dojo stop` shows one
   while it comes down (plain lines when piped or with `NO_COLOR`).
 - **Runs on one machine.** A laptop for rehearsal or a single cloud VM for a
-  real class, with Docker or Podman. `./run.sh capacity <workshop> --students 30`
+  real class, with Docker or Podman. `./dojo capacity <workshop> --students 30`
   sizes the per-student memory and process limits for that host, counting every
   service the workshop starts. Nothing persists once the
   stack is stopped.
@@ -127,7 +127,7 @@ in the browser.
 
 The facilitator's machine needs a container engine, git and openssl. Students need only a browser.
 **Podman** (with `podman-compose`) is the recommended engine; **Docker** with the Compose plugin also works.
-`run.sh` is bash and the containers are Linux, so:
+`dojo` is a Python script and the containers are Linux, so:
 
 | Host | What to use |
 |---|---|
@@ -136,7 +136,7 @@ The facilitator's machine needs a container engine, git and openssl. Students ne
 | macOS | `./setup.sh` (Homebrew; podman needs `podman machine`, or use Docker Desktop). Tested on Apple Silicon with podman: setup, a cold build, start, restart and stop, and every CLI command (see [`RELEASES.md`](RELEASES.md), "C5, Mac part"). Use ports 8080/8443, not 80/443 — rootless podman there can't bind `127.0.0.1:80`. |
 
 `./setup.sh` detects the OS, asks you to confirm, shows what is missing and asks before installing anything
-(`--check` only reports). `./run.sh` uses podman whenever `podman` and `podman-compose` are installed (rootless, no root daemon, so a
+(`--check` only reports). `./dojo` uses podman whenever `podman` and `podman-compose` are installed (rootless, no root daemon, so a
 container escape lands on an unprivileged user) and falls back to Docker otherwise.
 
 ## Who it's for
@@ -162,12 +162,12 @@ Rather than repeat it here, the two files that track it are kept current:
 ## Repository layout
 
 ```text
-├── run.sh                    # Forwards to engine/run.sh
+├── dojo                      # The command: ./dojo <workshop>, ./dojo stop (Python CLI in engine/dojo/)
 ├── engine/                   # The shared runtime: gateway, allocator, web-terminal, Forgejo, slides
 │   ├── README.md             # Setup, routing, auth, facilitator operations, troubleshooting
 │   └── scripts/              # env setup, capacity calculator, teardown, shell completion
 ├── modules/                  # Reusable services + tools a workshop lists in MODULES
-│   │                         # `./run.sh modules` prints these with who uses each one
+│   │                         # `./dojo modules` prints these with who uses each one
 │   ├── _shared/              # Single copies of helpers several modules build in (dojo_http.py, adapter_client.py)
 │   ├── achievements/         # Leaderboard, toasts, per-lab challenges and the certificate (ACHIEVEMENTS_ENABLED)
 │   ├── dns-gate/             # dns-api: PowerDNS API gate, per-account keys, CI by ID token
@@ -196,7 +196,7 @@ Rather than repeat it here, the two files that track it are kept current:
 ```mermaid
 graph LR
     Student(["Student's browser"]) -->|"one URL"| Gateway["engine/<br/>gateway + git server +<br/>terminal + slides"]
-    Facilitator(["Facilitator"]) -->|"./run.sh WORKSHOP"| Gateway
+    Facilitator(["Facilitator"]) -->|"./dojo WORKSHOP"| Gateway
     Gateway -->|"mounts WORKSHOP_CONTENT_DIR"| Content["workshops/NAME/content/<br/>slides, lab, sample-repo"]
     Gateway -.->|"optional overlay"| Extra["workshops/NAME/compose/<br/>extra services, custom terminal image"]
     Gateway -.->|"MODULES=..."| Mods["modules/NAME/<br/>shared services, tools, routes"]
@@ -666,7 +666,7 @@ Portal at `/cloud/` and each deployed site at `/cloud/site/<label>/`. The
 route, the landing-page card and the facilitator's matching **Dojo Cloud**
 tab in `/admin` come from the `dojo-cloud` module's `extensions.json`, so
 they exist only in a workshop that lists the module. `cloud_data` mirrors control-plane state to disk so a
-`cloud-api` restart doesn't forget what was deployed; `./run.sh stop` still
+`cloud-api` restart doesn't forget what was deployed; `./dojo stop` still
 wipes it.
 
 **Dataflow — Track A (sandbox).** Fully local; nothing leaves the
@@ -963,7 +963,7 @@ graph TB
 The gateway signs everyone in and tells the services behind it who each request
 is from. To make that claim impossible to forge, it always travels as a pair of
 headers that Caddy sets itself: `X-Auth-User` (who) and `X-Gateway-Token` (a
-secret from `engine/.env`, owner-only, that only Caddy and that one service know:
+secret from `.env`, owner-only, that only Caddy and that one service know:
 each upstream gets a token of its own, so one service can't replay another's).
 
 ```mermaid

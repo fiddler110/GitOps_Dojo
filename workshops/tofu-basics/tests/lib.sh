@@ -361,13 +361,13 @@ preflight() {
   section "Preflight"
   if is_dry; then dry "check containers $TERMINAL_CONTAINER $CLOUD_API_CONTAINER $CLOUD_HOST_CONTAINER are running, /readyz is 200, accounts exist"; STUDENT_COUNT_ACTUAL=99; return 0; fi
   for c in "$TERMINAL_CONTAINER" "$CLOUD_API_CONTAINER" "$CLOUD_HOST_CONTAINER"; do
-    if container_running "$c"; then say "  $c is running"; else say "  $c is NOT running (start the stack: cd engine && ./run.sh tofu-basics)"; ok=1; fi
+    if container_running "$c"; then say "  $c is running"; else say "  $c is NOT running (start the stack: ./dojo tofu-basics)"; ok=1; fi
   done
   [ "$ok" = 0 ] || return 1
   STUDENT_PREFIX=$(terminal_env STUDENT_PREFIX || true); : "${STUDENT_PREFIX:=student}"
   STUDENT_COUNT_ACTUAL=$(terminal_env STUDENT_COUNT || true)
   if [ -z "$STUDENT_COUNT_ACTUAL" ]; then
-    STUDENT_COUNT_ACTUAL=$(sed -n 's/^STUDENT_COUNT=//p' "$TB_REPO_ROOT/engine/.env" 2>/dev/null | head -n1)   # only this key is read from .env
+    STUDENT_COUNT_ACTUAL=$("$TB_REPO_ROOT/dojo" _config-get STUDENT_COUNT 2>/dev/null | head -n1)
   fi
   : "${STUDENT_COUNT_ACTUAL:=0}"
   say "  accounts: ${STUDENT_PREFIX}01..$(printf '%02d' "$STUDENT_COUNT_ACTUAL") (STUDENT_COUNT=$STUDENT_COUNT_ACTUAL)"

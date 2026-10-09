@@ -1,8 +1,8 @@
-"""`./run.sh stop` (also `teardown`): stop the stack and delete every volume.
+"""`./dojo stop` (also `teardown`): stop the stack and delete every volume.
 
 Uses the same -f files the last start used (state.Current), so module and
 overlay services and volumes go too; `down --remove-orphans` catches anything
-older. Only engine/.env (and the recorded .env.NAME) is loaded, never a
+older. Only the operator files (dojo.toml, dojo.local.toml, .env and the recorded profile) are loaded, never a
 workshop.env, so a compose fragment must not require (${VAR:?}) a variable
 only workshop.env or module.env sets. Nothing here can be undone.
 """

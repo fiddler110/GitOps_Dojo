@@ -1,11 +1,11 @@
 # Overlay for cloud-policy-as-code, layered on engine/docker-compose.yml and the
-# dojo-cloud, runner-pool and sensei modules by engine/run.sh. Relative paths
+# dojo-cloud, runner-pool and sensei modules by dojo. Relative paths
 # resolve against engine/, not this folder.
 #
 # CI jobs (labs 11-12) run inside runner-pool and must do what a student's terminal
 # does: run tofu against Dojo Cloud, then opa and conftest. That needs
 #   1. the binaries: JOB_TOOLS copies tofu, opa and conftest (static, so they run on
-#      runner-pool's Alpine) from the terminal image run.sh just built;
+#      runner-pool's Alpine) from the terminal image dojo just built;
 #   2. the offline provider mirror: tofu-mirror-init copies /opt/tofu-providers from
 #      the terminal image into a named volume that runner-pool mounts read-only, with
 #      a tofurc pointing at it (workflows set TF_CLI_CONFIG_FILE=/providers/tofurc);
@@ -50,7 +50,7 @@ services:
       - tofu_mirror:/providers
     restart: "no"
     # A one-shot copy: without this it inherits the terminal image's HEALTHCHECK, stays "starting" after it exits,
-    # and run.sh waits its whole timeout for it (as runner-pool's one-shot does, see its compose.yml).
+    # and dojo waits its whole timeout for it (as runner-pool's one-shot does, see its compose.yml).
     healthcheck:
       disable: true
 

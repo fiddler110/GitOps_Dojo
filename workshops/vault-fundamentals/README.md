@@ -8,9 +8,9 @@ identity and short-lived credentials. Fourteen labs (0-13, about 3½ hours) on a
 ## Running it
 
 ```bash
-./run.sh vault-fundamentals             # the class
-./run.sh vault-fundamentals --test 20   # plus 20 demo bots that walk labs 0-11
-./run.sh stop                           # removes every container and volume, the vault with them
+./dojo vault-fundamentals             # the class
+./dojo vault-fundamentals --test 20   # plus 20 demo bots that walk labs 0-11
+./dojo stop                           # removes every container and volume, the vault with them
 ```
 
 The facilitator's `/admin` has, besides the engine's tabs: **Vault** (the UI, signed in as the facilitator),

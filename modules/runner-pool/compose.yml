@@ -1,6 +1,6 @@
 # runner-pool module: single-use Forgejo Actions runners for every repo on
 # the instance, scaled by a controller, with a Runners panel in /admin.
-# Layered on top of engine/docker-compose.yml by engine/run.sh when a
+# Layered on top of engine/docker-compose.yml by dojo when a
 # workshop.env lists it in MODULES (see README.md). Relative paths resolve
 # against engine/, not this folder. It owns `runner_net` and turns on
 # Forgejo Actions; it is the only runner module.
@@ -28,7 +28,7 @@ services:
   # the user and its files when the job ends. Jobs run in this container (the
   # `host` label), so the tools they call are baked in: the basics here, plus
   # whatever the workshop names in JOB_TOOLS, copied from the terminal image
-  # run.sh has just built (so a tool has one pin, in the terminal's Dockerfile).
+  # dojo has just built (so a tool has one pin, in the terminal's Dockerfile).
   runner-pool:
     build:
       context: ../modules/runner-pool/pool
@@ -43,7 +43,7 @@ services:
     user: "0:0"
     # The two extra slots default to other spellings of no-new-privileges (Compose rejects equal items). A host whose
     # container runtime masks /proc or confines the pool with SELinux (rootful Podman on
-    # macOS) sets them in engine/.env so the runners can mount their own /proc; see README.
+    # macOS) sets them in .env so the runners can mount their own /proc; see README.
     security_opt:
       - no-new-privileges:true
       - ${RUNNER_POOL_SECURITY_OPT_1:-no-new-privileges=true}
@@ -64,7 +64,7 @@ services:
       - RUNNER_AS=${RUNNER_AS:-}
     volumes:
       - runner_pool_spool:/spool
-      # The runner image declares VOLUME /data: named, so ./run.sh stop removes it.
+      # The runner image declares VOLUME /data: named, so ./dojo stop removes it.
       - runner_pool_data:/data
       # The ID-token shim's CA, trusted by jobs on an https:// name.
       - runner_pool_shim_data:/shim:ro

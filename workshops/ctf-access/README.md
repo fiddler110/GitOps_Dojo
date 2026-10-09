@@ -7,9 +7,9 @@ access checks are weak. See the plan's section 8 for how this session fits with 
 ## Running it
 
 ```sh
-./run.sh ctf-access --dry-run    # what would build and start; checks manifests and image pins
-./run.sh ctf-access              # then open http://localhost:8080
-./run.sh ctf-access --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
+./dojo ctf-access --dry-run    # what would build and start; checks manifests and image pins
+./dojo ctf-access              # then open http://localhost:8080
+./dojo ctf-access --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
 ```
 
 ## The ladder, this session
@@ -31,7 +31,7 @@ on a merge).
 `ctf-range` is the reusable module (targets, firewall, the flag service, terminal tools, `ctf-host`/
 `ctf-controller`); every CTF session lists it in `MODULES=`. Per CTF-D26, `ctf-range`'s own
 `module.env` defaults build the **full** 14-target catalog into `ctf-host` -- fine for
-`workshops/ctf-defend-test`'s shared facilitator harness, wasteful for a real single-session pack that
+the module default's full catalog, wasteful for a real single-session pack that
 only exposes 4. This pack overrides three vars to scope the image to just its own four targets:
 
 ```sh
@@ -53,7 +53,7 @@ stage, for the mechanics.
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/): `lab1.md`-`lab4.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
-  spoiler walkthrough, deliberately not linked from the browser nav (`run.sh` only syncs `content/lab/*.md`
+  spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
   into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
   `cat`/`glow` but not one click away).
 - [`content/sample-repo/`](content/sample-repo/): seeded into Forgejo as `training/ctf-access`, but **not
@@ -76,11 +76,11 @@ is no attacker-bot swarm or SOC feed in CTF-1/CTF-2 -- that's CTF-5 only.
 
 ## Status
 
-Built on `feat/zellij-terminal`, live-verified 2026-10-06: a cold `./run.sh ctf-access` start, claimed a
+Built on `feat/zellij-terminal`, live-verified 2026-10-06: a cold `./dojo ctf-access` start, claimed a
 student slot through the real `/assign` flow, started `sqli-login` through the real `/ctf-attack`
 gateway route, solved it from inside the student's own terminal account (not a standalone `podman run`),
 and submitted the flag through `dojo-flag submit`. The other three targets were already proven against
-the same gateway/firewall/`ctf-controller` path on the shared `ctf-defend-test` harness
+the same gateway/firewall/`ctf-controller` path on the range's shared full-catalog image
 (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint); only this pack's own scoping and content were new here.
 
 Found and fixed in that pass: `CTF_HOST_EXPECTED_IMAGES` needs to be a quoted value in any `workshop.env`

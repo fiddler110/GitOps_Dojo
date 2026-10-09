@@ -2,18 +2,18 @@ version: '3.8'
 
 # Reusable workshop engine. Nothing here should need editing per-workshop —
 # point WORKSHOP_CONTENT_DIR (in .env, or a workshops/<name>/workshop.env
-# picked up by run.sh) at a workshops/<name>/content folder and configure
+# picked up by dojo) at a workshops/<name>/content folder and configure
 # accounts/ports/PUBLIC_BASE_URL in .env. See README.md.
 #
 # A workshop that needs more than different content (a different terminal
 # image, an extra backend service) layers a Compose override file on top of
-# this one instead of editing it — see workshops/README.md and run.sh.
+# this one instead of editing it — see workshops/README.md and dojo.
 #
 # The gateway is the only service with a published port. Everything else
 # sits on the internal network, unreachable from outside the stack.
 #
 # Every volume below is ephemeral by design: named volumes only, no host
-# bind mounts for runtime data. `./run.sh stop` (or
+# bind mounts for runtime data. `./dojo stop` (or
 # `docker compose down --volumes`) always returns to a clean slate.
 
 services:
@@ -26,7 +26,7 @@ services:
       - USER_GID=1000
       - FORGEJO__database__DB_TYPE=sqlite3
       - FORGEJO__server__LANDING_PAGE=explore
-      - FORGEJO__server__ROOT_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}/git/
+      - FORGEJO__server__ROOT_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}/git/
       - FORGEJO__security__INSTALL_LOCK=true
       - FORGEJO__service__DISABLE_REGISTRATION=true
       - FORGEJO__service__SHOW_REGISTRATION_BUTTON=false
@@ -62,8 +62,8 @@ services:
         condition: service_healthy
     user: "1000:1000"
     environment:
-      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
-      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in .env or dojo.toml}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in .env or dojo.toml}
       - FORGEJO_ADMIN_EMAIL=${FORGEJO_ADMIN_EMAIL:-admin@example.com}
       - FORGEJO_ORG=${FORGEJO_ORG:-training}
       - FORGEJO_REPO=${FORGEJO_REPO:-sample-training-repo}
@@ -71,10 +71,10 @@ services:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       # Per-student Forgejo passwords (dojo-secret.sh). STUDENT_PASSWORD is
-      # only the fallback for an engine/.env without a seed.
+      # only the fallback for an .env without a seed.
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
-      # Demo/test bots (--test) -- see run.sh and README.md. 0 (disabled)
+      # Demo/test bots (--test) -- see dojo and README.md. 0 (disabled)
       # unless a facilitator opted in.
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
@@ -83,7 +83,7 @@ services:
       - forgejo_data:/data
       - ./git-server/bootstrap.sh:/bootstrap.sh:ro
       - ./git-server/dojo-secret.sh:/dojo-secret.sh:ro
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/sample-repo:/seed:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/sample-repo:/seed:ro
     entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
     # Isolated to its own network, not workshop_lab -- bootstrap only ever
     # calls git-server (see bootstrap.sh), it never needs to reach allocator
@@ -99,7 +99,7 @@ services:
   presentation:
     # Local build instead of upstream marpteam/marp-cli (~1.07 GB, mostly
     # a Chromium layer only PDF/PPTX export uses) -- see
-    # presentation/Dockerfile. run.sh builds and tags it, same as
+    # presentation/Dockerfile. dojo builds and tags it, same as
     # allocator and gateway below.
     build:
       context: ./presentation
@@ -110,7 +110,7 @@ services:
     # tiny init as PID 1 that forwards the signal.
     init: true
     volumes:
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/slides:/home/marp/app:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/slides:/home/marp/app:ro
       # Shared slide CSS (workshops/assets/themes/*.css), mounted as a
       # subdirectory of the served root so slides can reference it with a
       # plain relative @import (e.g. 'assets/themes/hub.css') -- one file
@@ -132,7 +132,7 @@ services:
   web-terminal:
     build:
       context: ./web-terminal
-    # run.sh builds :base from ./web-terminal, then any module and workshop
+    # dojo builds :base from ./web-terminal, then any module and workshop
     # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
     # see docs/archive/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
     # last link. Overlays no longer set image: here themselves.
@@ -152,7 +152,7 @@ services:
       # environment, and /proc/1/environ is root's.
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
-      # Demo/test bots (--test) -- see run.sh and README.md's "Demo bots"
+      # Demo/test bots (--test) -- see dojo and README.md's "Demo bots"
       # section. BOT_COUNT=0 (the default) disables this entirely.
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
@@ -167,9 +167,9 @@ services:
       # No weak fallback -- entrypoint.sh grants this account passwordful
       # sudo, so a missing value must fail closed instead of defaulting to
       # a guessable password. Set a real value in .env.
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in .env or dojo.toml}
       # "web" (VS Code + tmux) or "zellij" (a Zellij terminal, no IDE) -- see
-      # engine/zellij-terminal/ and workspace-control.py. run.sh also builds the
+      # engine/zellij-terminal/ and workspace-control.py. dojo also builds the
       # matching image; allocator gets the same value (it hides the VS Code tab).
       - TERMINAL_FLAVOR=${TERMINAL_FLAVOR:-web}
       # Zellij flavor only: the browser terminal's font (a CSS font-family list) and size.
@@ -192,14 +192,14 @@ services:
       # a start/stop/status call actually came from the allocator, not some
       # other container on this internal network. Must match allocator's
       # own CONTROL_TOKEN below (allocator/allocation.py's control_request()).
-      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in engine/.env}
+      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in .env or dojo.toml}
     volumes:
       - terminal_home:/home
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}/lab:/opt/lab:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/lab:/opt/lab:ro
       # Whole content dir, for the workshop's own demo-bot steps
       # (content/bots/steps.sh, see bot-runner.sh). Mounted as the dir rather
       # than content/bots so a workshop without bots doesn't break the mount.
-      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in engine/.env}:/opt/workshop-content:ro
+      - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}:/opt/workshop-content:ro
     # Map form (not the usual list) for the alias: the gateway dials
     # web-terminal-ingress, which resolves only to this container's
     # terminal_ingress address. No fragment adds networks here; one that
@@ -238,7 +238,7 @@ services:
     build:
       context: ./allocator
     # Stable local tag, same reasoning as web-terminal's below -- lets
-    # run.sh check "has ./allocator changed since the last build?" against
+    # dojo check "has ./allocator changed since the last build?" against
     # a fixed name instead of guessing whatever tag Compose would have
     # auto-generated.
     image: gitopsdojo/allocator:local
@@ -248,15 +248,15 @@ services:
       # Read only to decide whether the session cookie should be marked
       # Secure (see allocator/config.py's COOKIE_SECURE) -- allocator never
       # constructs a URL from this itself, gateway already owns routing.
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}
       # The Slides status check calls the gateway at this address when set.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       # The sign-in page (/login) checks these; the Slides status check
       # signs in as the class account (/slides is behind it).
-      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in engine/.env}
-      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in engine/.env}
+      - TTYD_USERNAME=${TTYD_USERNAME:?Set TTYD_USERNAME in .env or dojo.toml}
+      - TTYD_PASSWORD=${TTYD_PASSWORD:?Set TTYD_PASSWORD in .env or dojo.toml}
       - WORKSHOP_DESCRIPTION=${WORKSHOP_DESCRIPTION:-}
-      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in engine/.env}
+      - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in .env or dojo.toml}
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
@@ -289,8 +289,8 @@ services:
       # (per-student passwords from the seed, dojo_secret.py).
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
-      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in engine/.env}
-      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in engine/.env}
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in .env or dojo.toml}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in .env or dojo.toml}
       # A student reset recreates a demo bot's Forgejo account with this
       # (allocator/reset.py), as bootstrap.sh made it.
       - BOT_PASSWORD=${BOT_PASSWORD:-testuser123}
@@ -298,22 +298,22 @@ services:
       # web-terminal's control API -- must match web-terminal's own
       # CONTROL_TOKEN above (workspace-control.py checks it on every
       # request).
-      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in engine/.env}
+      - CONTROL_TOKEN=${CONTROL_TOKEN:?Set CONTROL_TOKEN in .env or dojo.toml}
       # Shared secret allocator requires on EVERY request (checked before
       # resolve_identity() ever trusts X-Auth-User) -- proves the request
       # actually came through Caddy, not directly from some other
       # container on the shared workshop_lab network. Must match
       # gateway's own GATEWAY_TOKEN below (gateway/Caddyfile's header_up
       # X-Gateway-Token on every block that proxies to allocator:8080).
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in .env or dojo.toml}
       - ALLOCATOR_STATE_FILE=/var/lib/dojo-allocator/slots.json
     volumes:
       # The workshop's checked extensions (cards, /admin tabs, route gates,
-      # status checks), written by run.sh before every start.
+      # status checks), written by dojo before every start.
       - ./.generated/allocator:/etc/dojo/extensions:ro
       # The slot table (who holds which studentNN), saved on every claim and
       # release so a crash or OOM restart keeps every assignment. Named, so
-      # `./run.sh stop` wipes it with the rest of the class.
+      # `./dojo stop` wipes it with the rest of the class.
       - allocator_state:/var/lib/dojo-allocator
     networks:
       - workshop_lab
@@ -333,25 +333,27 @@ services:
     image: gitopsdojo/gateway:local
     container_name: workshop_gateway
     environment:
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in engine/.env}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}
       # Set only when another proxy terminates TLS in front of the lab.
       - GATEWAY_LISTEN=${GATEWAY_LISTEN:-}
       # The proxy in front of GATEWAY_LISTEN, as the gateway sees it (CIDR,
       # space-separated): the login limit then keys on the real client address.
       - GATEWAY_TRUSTED_PROXIES=${GATEWAY_TRUSTED_PROXIES:-}
+      # sha256 of "dojo-gate:<--pass code>"; empty = no access-code page.
+      - GATEWAY_GATE_TOKEN=${GATEWAY_GATE_TOKEN:-}
       # Shared secret the Caddyfile sends as X-Gateway-Token on every block
       # that proxies to allocator:8080 -- must match allocator's own
       # GATEWAY_TOKEN above (allocator/handler.py's gateway_authorized()).
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in engine/.env}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in .env or dojo.toml}
     # Same port on both sides: Caddy listens on whatever port PUBLIC_BASE_URL
     # names (e.g. http://localhost:8080 -> :8080 inside the container), and
-    # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
+    # dojo expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
-      - "${LAB_HOST_IP:?Set LAB_HOST_IP in engine/.env}:${GATEWAY_HTTPS_PORT:-8443}:${GATEWAY_HTTPS_PORT:-8443}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in .env or dojo.toml}:${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
+      - "${LAB_HOST_IP:?Set LAB_HOST_IP in .env or dojo.toml}:${GATEWAY_HTTPS_PORT:-8443}:${GATEWAY_HTTPS_PORT:-8443}"
     volumes:
       # The workshop's extension routes, rendered from its extensions.json
-      # by run.sh before every start; gateway/Caddyfile imports them.
+      # by dojo before every start; gateway/Caddyfile imports them.
       - ./.generated/gateway:/etc/caddy/extensions:ro
     networks:
       - public
@@ -378,7 +380,7 @@ networks:
   # (9000-9899) (remediation T2.2a, FIND-04): web-terminal drops them on
   # every other interface, so a CI job, runner or module service on
   # workshop_lab can't reach a workspace that skips Caddy's auth-check.
-  # Only gateway and web-terminal join it; run.sh refuses a module or
+  # Only gateway and web-terminal join it; dojo refuses a module or
   # workshop fragment that mentions it. Fixed subnet so entrypoint.sh can
   # find the interface; TERMINAL_INGRESS_SUBNET overrides a clash.
   terminal_ingress:

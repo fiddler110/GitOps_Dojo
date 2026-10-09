@@ -1,23 +1,25 @@
 #!/bin/sh
-# Helper for creating engine/.env from .env.example.
+# Helper for creating .env (secrets) from .env.example, and for writing this
+# machine's non-secret settings into dojo.local.toml.
 #
-# Normally run as `./run.sh setup [--default] [--force]` (same script, same
-# flags; `./run.sh setup --help` prints the usage).
+# Normally run as `./dojo setup [--default] [--force]` (same script, same
+# flags; `./dojo setup --help` prints the usage).
 #
 # Modes:
-#   ./run.sh setup                      # interactive: walks through every
+#   ./dojo setup                      # interactive: walks through every
 #                                        # setting with a short explanation.
-#                                        # If engine/.env already exists, its
+#                                        # If .env already exists, its
 #                                        # values are the defaults (Enter keeps
 #                                        # them), and settings this script
-#                                        # doesn't ask about are carried over.
+#                                        # doesn't ask about are carried over,
+#                                        # [profile] sections included.
 #                                        # A password that is still a public
 #                                        # default is replaced by a generated
 #                                        # one on a bare Enter.
 #
-#   ./run.sh setup --default            # non-interactive: fixed, easy-to-
+#   ./dojo setup --default            # non-interactive: fixed, easy-to-
 #                                        # remember "lazy" credentials from
-#                                        # .env.example's defaults. Machine-
+#                                        # dojo.toml's defaults. Machine-
 #                                        # to-machine secrets (CONTROL_TOKEN/
 #                                        # GATEWAY_TOKEN/STUDENT_PASSWORD_SEED) and
 #                                        # FORGEJO_ADMIN_PASSWORD (only the
@@ -25,50 +27,53 @@
 #                                        # still random. Also sizes the
 #                                        # terminal limits via capacity-calc.sh.
 #
-#   ./run.sh setup --rotate-class       # only a new TTYD_PASSWORD in the
-#                                        # existing engine/.env.
+#   ./dojo setup --rotate-class       # only a new TTYD_PASSWORD in the
+#                                        # existing .env.
 #
-# The new file is written to engine/.env.new and moved into place only at the
-# end, so stopping part way (Ctrl-C) leaves the old engine/.env untouched. The
-# old one is kept as engine/.env.previous (git-ignored like every .env.*).
+# The new file is written to .env.new and moved into place only at the end, so
+# stopping part way (Ctrl-C) leaves the old .env untouched. The old one is kept
+# as .env.previous (git-ignored). Settings that are not secrets (URL, ports,
+# student count, sizing ...) go to dojo.local.toml through `dojo _config-set`.
 #
-# --force skips the "engine/.env already exists -- overwrite?" prompt (also
+# --force skips the ".env already exists -- overwrite?" prompt (also
 # implied by --default, since that mode is meant to run unattended).
 set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh setup [--default] [--force] | --rotate-class
+Usage: ./dojo setup [--default] [--force] | --rotate-class
 
-Creates engine/.env from engine/.env.example.
+Creates .env (the secrets) from .env.example and writes this machine's other
+settings into dojo.local.toml (the committed defaults are in dojo.toml).
 
   (no flags)   interactive: prompts for every setting with a short
-               explanation. With an existing engine/.env, its values are the
+               explanation. With an existing .env, its values are the
                defaults (Enter keeps them) and everything it doesn't ask about
-               is carried over. A password that is still a public default
+               is carried over, [profile] sections included. A password that is still a public default
                (change-me, student, student123, admin) is replaced by a
                generated one on a bare Enter.
   --default    non-interactive: fixed, easy-to-remember credentials for
                local/throwaway use (student/student123/admin/admin) and
-               .env.example's other defaults (http://localhost:8080).
+               dojo.toml's other defaults (http://localhost:8080).
                CONTROL_TOKEN/GATEWAY_TOKEN and FORGEJO_ADMIN_PASSWORD are
-               still random. './run.sh <workshop>' refuses these defaults
+               still random. './dojo <workshop>' refuses these defaults
                unless the gateway is loopback-only. Implies --force.
-  --force      overwrite an existing engine/.env without asking.
+  --force      overwrite an existing .env without asking ([profile] sections are kept).
   --rotate-class
                only generate a new TTYD_PASSWORD (the shared class login) in
-               the existing engine/.env; restart the workshop to apply it.
+               the existing .env; restart the workshop to apply it.
   -h, --help   show this message.
 
-The old engine/.env is kept as engine/.env.previous. Stopping part way leaves
+The old .env is kept as .env.previous. Stopping part way leaves
 it untouched. Both modes try to size the terminal resource limits for this
-machine via './run.sh capacity'.
+machine via './dojo capacity'.
 EOF
 }
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 # shellcheck source=lib.sh
-. ./scripts/lib.sh
+. ./engine/scripts/lib.sh
+dojo=./dojo
 
 mode="interactive"
 force=0
@@ -87,28 +92,35 @@ done
 [ "$mode" = "default" ] && force=1
 
 if [ ! -f .env.example ]; then
-  echo ".env.example not found (expected at engine/.env.example)." >&2
+  echo ".env.example not found (expected at the repo root)." >&2
   exit 1
 fi
 
-# engine/.env holds every master secret (GATEWAY_TOKEN, CONTROL_TOKEN,
+# .env holds every master secret (GATEWAY_TOKEN, CONTROL_TOKEN,
 # FORGEJO_ADMIN_PASSWORD...): owner-only, like every file made on the way
 # (.env.new, .env.new.tmp, .env.previous). FIND-16.
 umask 077
 
-# The file set_var/current_value work on: engine/.env.new while building one,
-# engine/.env itself for --rotate-class.
+# The file set_var/current_value work on: .env.new while building one,
+# .env itself for --rotate-class.
 target=".env.new"
 
 # Replace KEY=... in $target. awk with the value from the environment, so a
 # value holding '#', '&' or '\' is written as typed (sed would mangle them).
+# Only the shared lines, above the first [profile] header: a profile's own
+# TTYD_PASSWORD stays as it is.
 set_var() {
   SET_VAR_VALUE="$2" awk -v k="$1" '
     BEGIN { v = ENVIRON["SET_VAR_VALUE"] }
-    index($0, k "=") == 1 { print k "=" v; next }
+    /^\[/ { hdr = 1 }
+    !hdr && index($0, k "=") == 1 { print k "=" v; next }
     { print }' "$target" > "${target}.tmp"
   mv "${target}.tmp" "$target"
 }
+
+# Non-secret settings live in dojo.local.toml, written and read by the CLI.
+cfg_set() { "$dojo" _config-set "$1" "$2"; }
+cfg_get() { "$dojo" _config-get "$1"; }
 
 # Prefer openssl (present almost everywhere); fall back to /dev/urandom.
 random_hex() {
@@ -135,21 +147,25 @@ file_value() {
   sed -n "s/^${1}=//p" "$2" | head -1 | tr -d '"'
 }
 
+# A secret is read from the file being built, anything else from the settings.
 current_value() {
-  file_value "$1" "$target"
+  case "$1" in
+    *PASSWORD | *TOKEN | *SEED) file_value "$1" "$target" ;;
+    *) cfg_get "$1" ;;
+  esac
 }
 
 # Public values nobody should rely on off this machine: .env.example's
-# placeholder and the `--default` passwords. run.sh refuses them off loopback.
+# placeholder and the `--default` passwords. dojo refuses them off loopback.
 is_weak() { [ -z "$1" ] || dojo_is_default_password "$1"; }
 
 if [ "$mode" = "rotate-class" ]; then
   if [ ! -f .env ]; then
-    echo "engine/.env not found -- run './run.sh setup' first." >&2
+    echo ".env not found -- run './dojo setup' first." >&2
     exit 1
   fi
   if ! grep -q '^TTYD_PASSWORD=' .env; then
-    echo "engine/.env has no TTYD_PASSWORD line to rotate." >&2
+    echo ".env has no TTYD_PASSWORD line to rotate." >&2
     exit 1
   fi
   target=".env"
@@ -157,12 +173,12 @@ if [ "$mode" = "rotate-class" ]; then
   set_var TTYD_PASSWORD "$new_password"
   chmod 600 .env
   echo "New class password (TTYD_PASSWORD): ${new_password}"
-  echo "Restart the workshop ('./run.sh <workshop>') for the gateway to use it."
+  echo "Restart the workshop ('./dojo <workshop>') for the gateway to use it."
   exit 0
 fi
 
 if [ -f .env ] && [ "$force" -ne 1 ]; then
-  printf 'engine/.env already exists. Its values will be the defaults and anything\n'
+  printf '.env already exists. Its values will be the defaults and anything\n'
   printf 'not asked about is kept. Continue? [Y/n] '
   read -r ans
   case "$ans" in
@@ -171,16 +187,20 @@ if [ -f .env ] && [ "$force" -ne 1 ]; then
 fi
 
 # Build the new file beside the old one; a Ctrl-C or error removes it and
-# leaves engine/.env as it was.
+# leaves .env as it was.
 trap 'rm -f .env.new .env.new.tmp' EXIT
-trap 'echo; echo "Stopped: engine/.env was not changed."; exit 130' INT TERM
+trap 'echo; echo "Stopped: .env was not changed (answers already given stay in dojo.local.toml)."; exit 130' INT TERM
 cp .env.example "$target"
 
-# Move the finished file into place, keeping the old one.
+# Move the finished file into place, keeping the old one. The old file's
+# [profile] sections (home, live ... secrets) are carried over untouched.
 install_env() {
   if [ -f .env ]; then
     cp .env .env.previous
     chmod 600 .env.previous
+    if awk '/^\[/ { keep = 1 } keep' .env.previous | grep -q .; then
+      { printf '\n'; awk '/^\[/ { keep = 1 } keep' .env.previous; } >> "$target"
+    fi
   fi
   mv "$target" .env
   chmod 600 .env
@@ -188,14 +208,14 @@ install_env() {
 }
 
 # Try to size WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for
-# this machine via capacity-calc.sh instead of leaving .env.example's fixed
+# this machine via capacity-calc.sh instead of leaving dojo.toml's fixed
 # rule-of-thumb numbers in place. Never fatal: capacity-calc.sh can fail for
 # plenty of reasons (no docker/podman, can't detect host memory, etc.) --
 # any failure just falls back to whatever's already in the file.
 apply_capacity_sizing() {
   students="$1"
-  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./run.sh capacity --students ${students})..."
-  if ! output="$(./scripts/capacity-calc.sh --students "$students" 2>&1)"; then
+  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./dojo capacity --students ${students})..."
+  if ! output="$(./engine/scripts/capacity-calc.sh --students "$students" 2>&1)"; then
     echo "  -> capacity-calc.sh couldn't size this machine; keeping the current values."
     return 1
   fi
@@ -206,38 +226,33 @@ apply_capacity_sizing() {
     echo "  -> couldn't parse capacity-calc.sh's output; keeping the current values."
     return 1
   fi
-  set_var WEB_TERMINAL_MEM_LIMIT "$mem"
-  set_var WEB_TERMINAL_PIDS_LIMIT "$pids"
-  set_var CODE_SERVER_MAX_HEAP_MB "$heap"
+  cfg_set WEB_TERMINAL_MEM_LIMIT "$mem"
+  cfg_set WEB_TERMINAL_PIDS_LIMIT "$pids"
+  cfg_set CODE_SERVER_MAX_HEAP_MB "$heap"
   echo "  -> WEB_TERMINAL_MEM_LIMIT=${mem} WEB_TERMINAL_PIDS_LIMIT=${pids} CODE_SERVER_MAX_HEAP_MB=${heap}"
   if echo "$output" | grep -q '^WARNING:'; then
     echo "  -> capacity-calc.sh warned this doesn't fit on this machine at ${students} students -- run it directly for details:"
-    echo "     ./run.sh capacity --students ${students}"
+    echo "     ./dojo capacity --students ${students}"
   fi
 }
 
-# Other env files (./run.sh <workshop> --env NAME) that override engine/.env.
+# Profiles (./dojo <workshop> --env NAME) that add to or override these settings.
 note_env_overrides() {
-  for f in .env.*; do
-    case "$f" in
-      .env.example | .env.previous | .env.new | .env.new.tmp | '.env.*') continue ;;
-    esac
-    [ -f "$f" ] || continue
-    keys="$(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' "$f" | tr '\n' ' ')"
-    echo "Note: engine/${f} (used with --env ${f#.env.}) overrides: ${keys:-nothing}"
-  done
+  names="$(sed -n 's/^\[\([a-z0-9-]*\)\]$/\1/p' .env | tr '\n' ' ')"
+  [ -n "$names" ] && echo "Note: .env keeps secrets for the profiles: ${names}(--env NAME; their settings are in dojo.local.toml)."
+  return 0
 }
 
 if [ "$mode" = "default" ]; then
-  echo "Writing engine/.env with fixed lazy defaults (--default) ..."
+  echo "Writing .env with fixed lazy defaults (--default) ..."
   echo
 
   # Human-typed credentials: fixed, easy-to-remember values. Fine for local/
   # throwaway use; run without --default (interactive mode) for a real
   # workshop where credentials should be unique per session.
-  set_var TTYD_USERNAME "student"
+  cfg_set TTYD_USERNAME "student"
   set_var TTYD_PASSWORD "student"
-  set_var FACILITATOR_USERNAME "admin"
+  cfg_set FACILITATOR_USERNAME "admin"
   set_var FACILITATOR_PASSWORD "admin"
 
   # Machine-to-machine secrets: always random, even in --default mode --
@@ -253,7 +268,7 @@ if [ "$mode" = "default" ]; then
 
   echo "Set: TTYD_USERNAME=student, TTYD_PASSWORD=student,"
   echo "     FACILITATOR_USERNAME=admin, FACILITATOR_PASSWORD=admin"
-  echo "     (PUBLIC_BASE_URL=$(current_value PUBLIC_BASE_URL) and everything else: .env.example's defaults)"
+  echo "     (PUBLIC_BASE_URL=$(current_value PUBLIC_BASE_URL) and everything else: dojo.toml's defaults)"
   echo "Generated random CONTROL_TOKEN / GATEWAY_TOKEN / STUDENT_PASSWORD_SEED / FORGEJO_ADMIN_PASSWORD."
   echo
 
@@ -261,25 +276,26 @@ if [ "$mode" = "default" ]; then
   echo
 
   install_env
-  echo "Wrote engine/.env$( [ -f .env.previous ] && echo ' (the old one is engine/.env.previous)')."
+  echo "Wrote .env$( [ -f .env.previous ] && echo ' (the old one is .env.previous)')."
   note_env_overrides
-  echo "These lazy credentials are for this machine only: './run.sh <workshop>'"
+  echo "These lazy credentials are for this machine only: './dojo <workshop>'"
   echo "refuses them unless PUBLIC_BASE_URL and LAB_HOST_IP are loopback."
   echo
-  ./scripts/alias-setup.sh --check || echo "Optional: './run.sh alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
-  echo "Next: ./run.sh <workshop-name>"
+  ./engine/scripts/alias-setup.sh --check || echo "Optional: './dojo alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
+  echo "Next: ./dojo <workshop-name>"
   exit 0
 fi
 
 # --- Interactive mode ------------------------------------------------------
 
-# Start from the old engine/.env's values: every KEY= it sets is copied over
-# (appended if .env.example has no such line, e.g. an uncommented BOT_COUNT),
+# Start from the old .env's shared values: every KEY= above its first [profile]
+# header is copied over (appended if .env.example has no such line, e.g. BOT_PASSWORD),
 # so the prompts below default to them and nothing unasked is lost.
 if [ -f .env ]; then
   carried=""
   while IFS= read -r line; do
     case "$line" in
+      "["*) break ;;
       [A-Z_]*=*) ;;
       *) continue ;;
     esac
@@ -290,13 +306,13 @@ if [ -f .env ]; then
       set_var "$key" "$value"
     else
       if [ -z "$carried" ]; then
-        printf '\n# --- Kept from the previous engine/.env -----------------------------------\n' >> "$target"
+        printf '\n# --- Kept from the previous .env -------------------------------------------\n' >> "$target"
       fi
       printf '%s\n' "$line" >> "$target"
       carried="${carried} ${key}"
     fi
   done < .env
-  echo "Using your existing engine/.env as the defaults (Enter keeps a value)."
+  echo "Using your existing .env as the defaults (Enter keeps a value)."
   [ -n "$carried" ] && echo "Also kept, not in .env.example:${carried}"
 fi
 
@@ -305,7 +321,7 @@ ask() {
   var="$1"; label="$2"; default="${3:-$(current_value "$1")}"
   printf '%s [%s]: ' "$label" "$default"
   read -r ans
-  set_var "$var" "${ans:-$default}"
+  cfg_set "$var" "${ans:-$default}"
 }
 
 # Secret setting. A good current value is kept on a bare Enter ('new'
@@ -339,8 +355,8 @@ confirm() {
   esac
 }
 
-echo "Setting up engine/.env -- press Enter on any prompt to accept the value shown in [brackets]."
-echo "Stopping part way (Ctrl-C) leaves engine/.env unchanged."
+echo "Setting up .env and dojo.local.toml -- press Enter on any prompt to accept the value shown in [brackets]."
+echo "Stopping part way (Ctrl-C) leaves .env unchanged."
 echo
 
 cat <<'EOF'
@@ -350,7 +366,7 @@ cat <<'EOF'
   unless something in front (a proxy, NAT) maps 80/443 to it.
   LAB_HOST_IP: 127.0.0.1 = this machine only; 0.0.0.0 = the LAN too (needed
   for other computers, or a proxy on another host, to reach the lab).
-  Off loopback, './run.sh <workshop>' refuses the public default passwords.
+  Off loopback, './dojo <workshop>' refuses the public default passwords.
 EOF
 # 80/443 were .env.example's defaults before 8080/8443; offer the new ones
 # (type 80/443 to keep them, e.g. on a VM with Docker or rootful podman).
@@ -373,7 +389,7 @@ cat <<'EOF'
 --- Class login (the browser's sign-in box) ---
   One username/password for the whole class, shown on a slide. It opens the
   portal, where each student picks a name. Change it per class
-  ('./run.sh setup --rotate-class' does only this).
+  ('./dojo setup --rotate-class' does only this).
 EOF
 ask TTYD_USERNAME "Class username"
 ask_secret TTYD_PASSWORD "Class password (TTYD_PASSWORD)" random_password
@@ -387,6 +403,17 @@ cat <<'EOF'
 EOF
 ask STUDENT_COUNT "Number of student accounts"
 ask STUDENT_PREFIX "Student account username prefix"
+echo
+
+cat <<'EOF'
+--- Terminal ---
+  code-server: VS Code in the browser plus a tmux terminal.
+  zellij:      a terminal only (file list, micro editor, shell): far less memory
+               per student.
+EOF
+flavor_default="$(current_value TERMINAL_FLAVOR)"
+case "$flavor_default" in web | '') flavor_default=code-server ;; esac
+ask TERMINAL_FLAVOR "Terminal students get (code-server or zellij)" "$flavor_default"
 echo
 
 cat <<'EOF'
@@ -420,7 +447,7 @@ cat <<'EOF'
 --- Web-terminal resource ceiling ---
   Memory/process limits for all students' VS Code and terminals together.
 EOF
-if confirm "Run './run.sh capacity' to size these for this machine (recommended)?"; then
+if confirm "Run './dojo capacity' to size these for this machine (recommended)?"; then
   apply_capacity_sizing "$(current_value STUDENT_COUNT)" || {
     echo "  Falling back to manual entry."
     ask WEB_TERMINAL_MEM_LIMIT "Container memory limit"
@@ -435,27 +462,28 @@ fi
 echo
 
 install_env
-echo "Wrote engine/.env$( [ -f .env.previous ] && echo ' (the old one is engine/.env.previous)')."
+echo "Wrote .env$( [ -f .env.previous ] && echo ' (the old one is .env.previous)')."
 echo
 echo "Summary:"
-echo "  Address:      $(file_value PUBLIC_BASE_URL .env)  (bound on $(file_value LAB_HOST_IP .env))"
-echo "  Class login:  $(file_value TTYD_USERNAME .env) / $(file_value TTYD_PASSWORD .env)  (on the slide)"
-echo "  Facilitator:  $(file_value FACILITATOR_USERNAME .env) / $(file_value FACILITATOR_PASSWORD .env)  (private)"
-echo "  Students:     $(file_value STUDENT_COUNT .env) x $(file_value STUDENT_PREFIX .env)NN, own Forgejo passwords (Roster > Password)"
+echo "  Address:      $(cfg_get PUBLIC_BASE_URL)  (bound on $(cfg_get LAB_HOST_IP))"
+echo "  Class login:  $(cfg_get TTYD_USERNAME) / $(file_value TTYD_PASSWORD .env)  (on the slide)"
+echo "  Facilitator:  $(cfg_get FACILITATOR_USERNAME) / $(file_value FACILITATOR_PASSWORD .env)  (private)"
+echo "  Students:     $(cfg_get STUDENT_COUNT) x $(cfg_get STUDENT_PREFIX)NN, own Forgejo passwords (Roster > Password)"
 note_env_overrides
 echo
+echo "Terminal flavor (VS Code or Zellij), ports and the rest: dojo.toml / dojo.local.toml."
 echo "WORKSHOP_CONTENT_DIR/WORKSHOP_NAME/FORGEJO_ORG/FORGEJO_REPO come from"
-echo "workshops/<name>/workshop.env when you run ./run.sh <workshop-name>."
-echo "New passwords reach a running stack only after './run.sh stop' (wipes its"
-echo "volumes) and './run.sh <workshop-name>': Forgejo keeps the accounts it seeded."
+echo "workshops/<name>/workshop.env when you run ./dojo <workshop-name>."
+echo "New passwords reach a running stack only after './dojo stop' (wipes its"
+echo "volumes) and './dojo <workshop-name>': Forgejo keeps the accounts it seeded."
 echo
-if ! ./scripts/alias-setup.sh --check && [ -t 0 ]; then
+if ! ./engine/scripts/alias-setup.sh --check && [ -t 0 ]; then
   if confirm "Install the 'dojo' command (dojo <workshop> from any directory, with tab completion)?"; then
-    ./scripts/alias-setup.sh || echo "  './run.sh alias-setup' tries again."
+    ./engine/scripts/alias-setup.sh || echo "  './dojo alias-setup' tries again."
   else
-    echo "  Skipped; './run.sh alias-setup' installs it any time."
+    echo "  Skipped; './dojo alias-setup' installs it any time."
   fi
-  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from run.sh
+  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from dojo
   echo
 fi
-echo "Next: ./run.sh <workshop-name>"
+echo "Next: ./dojo <workshop-name>"

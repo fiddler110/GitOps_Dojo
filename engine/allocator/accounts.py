@@ -109,6 +109,8 @@ class LoginGuard:
 
 
 LOGIN_GUARD = LoginGuard()
+# Wrong access-code cookies seen by the gateway (--pass): 10 a minute per address.
+GATE_GUARD = LoginGuard(limit=10)
 
 LOGIN_DIR = os.environ.get("LOGIN_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "login")
 LOGIN_ASSET_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",

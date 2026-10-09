@@ -19,7 +19,8 @@ class Recorded(unittest.TestCase):
     def test_round_trip(self):
         for flags in ([], ["--test"], ["--test", "14"], ["--env", "home"],
                       ["--test", "3", "--env", "home", "--allow-default-passwords"],
-                      ["--test", "--fast"], ["--test", "3", "--fast"]):
+                      ["--test", "--fast"], ["--test", "3", "--fast"],
+                      ["--terminal", "zellij"], ["--env", "home", "--terminal", "code-server"]):
             o = parse_recorded(["dns-as-code", *flags])
             self.assertEqual(o.workshop, "dns-as-code")
             self.assertEqual(o.flags, flags, flags)

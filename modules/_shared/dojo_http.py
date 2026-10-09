@@ -2,7 +2,7 @@
 security headers, and JSON replies for http.server handlers.
 
 One copy, here. A module lists it in its module.env (SHARED="<context>/dojo_http.py")
-and ./run.sh copies it into <context>/_shared/ before building, so it is inside a
+and ./dojo copies it into <context>/_shared/ before building, so it is inside a
 build context and inside a folder a service bind-mounts. A service puts both
 modules/_shared/ (the source tree: unit tests) and its own _shared/ (the
 container) on sys.path before importing it.

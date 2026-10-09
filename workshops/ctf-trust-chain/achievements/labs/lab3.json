@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l3-flag",
+      "title": "Your Branch, Your Rules",
+      "joke": "The pipeline ran exactly the workflow you handed it.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for runner-escape",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "runner-escape"
+      }
+    }
+  ]
+}

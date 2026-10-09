@@ -5,10 +5,10 @@ piece (opa tests, conftest, `tofu validate`); not run end to end with bots or a 
 
 ## Before the session
 
-1. `cd engine && ./run.sh setup` if there is no `engine/.env`; set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`, `STUDENT_COUNT`.
-2. `./run.sh cloud-policy-as-code`. Wait for **Forgejo**, **Terminals**, **Slides**, **Dojo Cloud** and the runner
+1. `./dojo setup` if there is no `.env`; set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`, `STUDENT_COUNT`.
+2. `./dojo cloud-policy-as-code`. Wait for **Forgejo**, **Terminals**, **Slides**, **Dojo Cloud** and the runner
    pool to go green in the `/admin` status strip. `tofu-mirror-init` runs once and exits (that is normal).
-3. `./run.sh capacity cloud-policy-as-code --students 30`: Dojo Cloud's `cloud-host` is the big one.
+3. `./dojo capacity cloud-policy-as-code --students 30`: Dojo Cloud's `cloud-host` is the big one.
 4. **Rehearse as a student** in a private window: Labs 0-3 at least. Check that `lab-prep 0` saves four secrets and
    protects `main`, and that a PR's `Policy check` job runs and can merge when green.
 5. Check the facilitator view: `/admin` has Roster, VS Code, Terminal, Forgejo, Slides and the Dojo Cloud tab (the
@@ -27,4 +27,4 @@ piece (opa tests, conftest, `tofu validate`); not run end to end with bots or a 
 
 ## After
 
-`./run.sh stop` wipes everything, including every deployed container and all policy objects.
+`./dojo stop` wipes everything, including every deployed container and all policy objects.

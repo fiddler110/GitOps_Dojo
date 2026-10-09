@@ -42,7 +42,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./dojo has copied it (SHARED= in module.env).
 sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "_shared"),
                 os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shared")]
 import dojo_http  # noqa: E402

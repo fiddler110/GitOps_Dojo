@@ -21,7 +21,7 @@ GATEWAY_LISTEN = os.environ.get("GATEWAY_LISTEN", "")
 
 STUDENT_COUNT = int(os.environ.get("STUDENT_COUNT", "30"))
 STUDENT_PREFIX = os.environ.get("STUDENT_PREFIX", "student")
-# Demo/test bots (--test, see engine/run.sh and README.md's "Demo bots"
+# Demo/test bots (--test, see dojo and README.md's "Demo bots"
 # section): unlike real students, these never go through /assign -- they're
 # always shown in the roster (see handle_sessions_api) so a facilitator can
 # watch/Release them without any browser having "joined" as them. 0 (the
@@ -110,7 +110,7 @@ GATEWAY_TOKEN = os.environ["GATEWAY_TOKEN"]
 
 # Workshop/module extensions (docs/archive/MODULES-PLAN.md §3): cards, /admin tabs,
 # route gates and status checks, already checked by render_extensions.py
-# (run.sh, before start) and mounted read-only. Missing means none.
+# (dojo, before start) and mounted read-only. Missing means none.
 EXTENSIONS_FILE = os.environ.get("EXTENSIONS_FILE", "/etc/dojo/extensions/extensions.json")
 
 

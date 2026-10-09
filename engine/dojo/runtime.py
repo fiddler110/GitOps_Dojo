@@ -19,7 +19,7 @@ PROBLEM = ("failed", "unhealthy")
 def classify(status: str) -> str:
     """A container's `ps` status line as one word: healthy, running (up, no
     health check), done (exited 0), starting, waiting (created, not started),
-    unhealthy or failed. Same buckets as run.sh's start-up display."""
+    unhealthy or failed. Same buckets as dojo's start-up display."""
     if "(unhealthy)" in status:
         return "unhealthy"
     if "(healthy)" in status:

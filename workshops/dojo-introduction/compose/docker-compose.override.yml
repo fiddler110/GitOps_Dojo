@@ -1,6 +1,6 @@
 # Overlay for dojo-introduction, layered on top of engine/docker-compose.yml
 # and the runner-pool, dojo-cloud, dns-ui and dns-gate modules (MODULES in
-# workshop.env) by engine/run.sh. Relative paths resolve against engine/, not
+# workshop.env) by dojo. Relative paths resolve against engine/, not
 # this folder.
 #
 # The tour shows Forgejo with CI, DNS as code and Dojo Cloud. It reuses the
@@ -23,7 +23,7 @@ services:
   dns-server:
     image: docker.io/powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
     container_name: workshop_powerdns
-    # `:-` not `:?`: ./run.sh stop reads this file without workshop.env.
+    # `:-` not `:?`: ./dojo stop reads this file without workshop.env.
     environment:
       - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-}
     cap_add:
@@ -47,7 +47,7 @@ services:
   # The slide hub links to each workshop's own index.md. Each pack's slides go
   # under /slides/w/<name>/, and the shared assets over its assets/ folder, as
   # the engine does for the running workshop. The lab copies (lab/*.md.txt) are
-  # made for every pack by engine/run.sh.
+  # made for every pack by dojo.
   presentation:
     volumes:
       - ../workshops/git-fundamentals/content/slides:/home/marp/app/w/git-fundamentals:ro
@@ -61,7 +61,7 @@ services:
       - ../workshops/vault-fundamentals/content/slides:/home/marp/app/w/vault-fundamentals:ro
       - ../workshops/assets:/home/marp/app/w/vault-fundamentals/assets:ro
 
-  # Image: compose/terminal/, built and selected by engine/run.sh.
+  # Image: compose/terminal/, built and selected by dojo.
   web-terminal:
     depends_on:
       - dns-server

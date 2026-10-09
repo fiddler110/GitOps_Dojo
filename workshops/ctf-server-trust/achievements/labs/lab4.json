@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l4-flag",
+      "title": "Valid Isn't the Same as Allowed",
+      "joke": "The route asked if you were logged in. It never asked who you were.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for api-bfla",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "api-bfla"
+      }
+    }
+  ]
+}

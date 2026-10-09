@@ -36,7 +36,7 @@ def collect(rt: Runtime) -> Dict[str, Any]:
         "running": bool(containers),
         "workshop": workshop or None,
         "title": None,
-        "started_as": cur.command if cur else ("./run.sh " + " ".join(last) if last else None),
+        "started_as": cur.command if cur else ("./dojo " + " ".join(last) if last else None),
         "started_at": cur.started_at if cur and cur.started_at else None,
         "address": op_env.get("PUBLIC_BASE_URL"),
         "project": project,
@@ -47,7 +47,7 @@ def collect(rt: Runtime) -> Dict[str, Any]:
         "students": None,
         "checks": None,
         # A start in flight shows up here before any container has appeared,
-        # so `dojo ps` can tell "nothing's up yet" from "another run.sh is
+        # so `dojo ps` can tell "nothing's up yet" from "another dojo is
         # mid-build": {pid, what, started_at} or None.
         "in_progress": state.RunLock.peek(),
     }
