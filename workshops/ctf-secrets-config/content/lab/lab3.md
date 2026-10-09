@@ -12,6 +12,11 @@ There's no target to scan for this one either. Your team keeps its infrastructur
 `secret/data/tfstate-treasure/<your-username>`. Log in to the vault as yourself and try to read it: your own
 identity is allowed to sign in and nothing more. Somewhere there is another way in.
 
+(Forgejo doesn't actually stop a classmate from reading your `infra-state` repo either -- the one check that
+really holds here is the flag itself: `dojo-flag submit` only credits a flag to the student it was derived
+for, so finding someone else's secret doesn't get you their points. Keep that in mind if you go looking at a
+classmate's repo out of curiosity.)
+
 ## 1. Check what your own login can do
 
 ```sh
@@ -60,6 +65,10 @@ Ask the facilitator to open the **Vault Audit** tab, and find your own two event
 read. Nobody stopped you, and the vault did its job; the breach is visible only afterwards, in the log. What
 would have prevented it? (A remote, access-controlled state backend; a state file that never holds the
 credential; a short-lived secret id.)
+
+Notice, too, that the vault wasn't the only place with no access control today: Forgejo let you read a
+repo that wasn't yours just as readily. In a real team, repo permissions would be the first line of
+defense, before the state file's contents ever mattered.
 
 ## Still stuck?
 

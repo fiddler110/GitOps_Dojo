@@ -37,9 +37,6 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    The S17 scanners for targets 8-11 stay parked: neither `git-secrets` nor `tfstate-treasure` needed one.
 4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
    themed page was only tested with the Flask client.
-5. **`tfstate-treasure`'s lab framing should be clearer.** Lab 3 implies a classmate's Forgejo repo is private; live
-   testing confirmed any student can read another's `infra-state` over the unauthenticated API (the real boundary
-   is server-side flag verification: `dojo-flag submit` rejects a flag that isn't the caller's own). Reword.
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 

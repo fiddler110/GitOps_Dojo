@@ -118,7 +118,6 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 | 1 | Content depth: audit every pack against plan section 9 (briefing, hint ladder, debrief per target), `ctf-defend` as the bar, then fill the gaps |
 | 2 | Class-sized run: 40-student capacity and isolation, the swarm with real dwell and ramp times, the Target Viewer card as a student |
 | 3 | Unbuilt design items: `CTF_WALL_OF_SHAME` toggle and route, bonus second flaws for targets 8-11, end-of-session scoring (CTF-D19), plan open questions 1-3 |
-| 4 | `tfstate-treasure`'s lab framing implies the student's Forgejo repo is private; in fact any student can read another's via the unauthenticated API (the real protection is server-side flag verification). Reword lab3.md/exploit-guide to say so |
 
 ### N3 9.4: class-sized run
 

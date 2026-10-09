@@ -26,7 +26,8 @@ solved independently with distinct flags, and the escalation probe confirmed the
 only, another runner's home `drwx------`/unreadable, no other job's process visible). Both stacks `./dojo stop`'d
 clean. 70 unit tests pass; found along the way: `tfstate-treasure`'s lab framing should be clearer that a
 classmate's Forgejo repo isn't actually private (any student can read it over the unauthenticated API) — the real
-protection is server-side flag verification, not repo privacy (tracked in ROADMAP).
+protection is server-side flag verification, not repo privacy -- lab3.md now says so explicitly, in the
+briefing and the debrief.
 
 ## On `feat/config-consolidation` (2026-10-08, not yet merged)
 
