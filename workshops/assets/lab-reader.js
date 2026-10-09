@@ -16,26 +16,31 @@
     contentEl.textContent = message;
   }
 
+  // Same-directory generated file names, or one level down (labN.md.txt,
+  // README.md.txt, cheat-sheet.md.txt, exploit-guide/sqli-login.md.txt, ...)
+  // -- never an absolute or parent-relative path (no ".." -- the directory
+  // segment's charset has no dot in it).
+  var LAB_FILE_RE = /^(?:[A-Za-z0-9_-]+\/)?[A-Za-z0-9_-]+\.md\.txt$/;
+
   function labFileFromQuery() {
     var params = new URLSearchParams(window.location.search);
     var file = params.get('file');
-    // Same-directory generated file names only (labN.md.txt, README.md.txt,
-    // cheat-sheet.md.txt, ...) -- never an absolute or parent-relative path.
-    if (!file || !/^[A-Za-z0-9_-]+\.md\.txt$/.test(file)) {
+    if (!file || !LAB_FILE_RE.test(file)) {
       return null;
     }
     return file;
   }
 
-  // Rewrite links between lab docs (e.g. "lab2.md", written for a reader
-  // opening these files in an editor) to stay inside this viewer instead of
-  // requesting the real .md path, which Marp would render as a slide deck.
-  // Leaves external URLs, in-page anchors, and mailto: links untouched.
+  // Rewrite links between lab docs (e.g. "lab2.md", or a subdirectory link
+  // like "exploit-guide/sqli-login.md", written for a reader opening these
+  // files in an editor) to stay inside this viewer instead of requesting the
+  // real .md path, which Marp would render as a slide deck. Leaves external
+  // URLs, in-page anchors, and mailto: links untouched.
   function rewriteLabLinks(container) {
     var links = container.querySelectorAll('a[href]');
     for (var i = 0; i < links.length; i++) {
       var href = links[i].getAttribute('href');
-      if (/^[A-Za-z0-9_-]+\.md$/.test(href)) {
+      if (/^(?:[A-Za-z0-9_-]+\/)?[A-Za-z0-9_-]+\.md$/.test(href)) {
         links[i].setAttribute('href', 'lab-reader.html?file=' + encodeURIComponent(href) + '.txt');
       }
     }

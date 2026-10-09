@@ -129,18 +129,23 @@ def bot_count(o: StartOptions, env: Dict[str, str]) -> Optional[str]:
 
 
 def sync_lab_docs(content_dir: Path) -> None:
-    """content/lab/*.md -> content/slides/lab/*.md.txt: the slides server serves a
-    .md.txt as a plain file (a .md it would render as a deck), and the lab reader
-    renders it. Copies whose source is gone are removed."""
+    """content/lab/**/*.md -> content/slides/lab/**/*.md.txt (recursive, so a
+    pack's exploit-guide/*.md mirrors too, not just top-level labs): the slides
+    server serves a .md.txt as a plain file (a .md it would render as a deck),
+    and the lab reader renders it. Copies whose source is gone are removed."""
     src, dst = content_dir / "lab", content_dir / "slides" / "lab"
     if not src.is_dir():
         return
     dst.mkdir(parents=True, exist_ok=True)
-    for old in dst.glob("*.md.txt"):
-        if not (src / old.name[:-len(".txt")]).is_file():
+    for old in dst.rglob("*.md.txt"):
+        rel = old.relative_to(dst).with_suffix("")  # strip the trailing ".txt"
+        if not (src / rel).is_file():
             old.unlink()
-    for md in src.glob("*.md"):
-        shutil.copyfile(md, dst / f"{md.name}.txt")
+    for md in src.rglob("*.md"):
+        rel = md.relative_to(src)
+        out = dst / rel.parent / f"{rel.name}.txt"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(md, out)
 
 
 def make_mountpoints(content_dir: Path) -> None:

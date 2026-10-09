@@ -52,9 +52,9 @@ stage, for the mechanics.
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/): `lab1.md`-`lab3.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
-  spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
-  into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
-  `cat`/`glow` but not one click away).
+  spoiler walkthrough, reachable both from a terminal `cat`/`glow` and, one click from the lab text,
+  through the browser lab reader (`dojo`'s `sync_lab_docs` mirrors `content/lab/**/*.md` recursively,
+  `exploit-guide/` included).
 - [`content/sample-repo/`](content/sample-repo/): seeded into Forgejo as `training/ctf-secrets-config`,
   separate from each student's own per-student `internal-tools` repo that `git-secrets`'s own terminal hook
   provisions (`modules/ctf-range/terminal/start.d/55-git-secrets.sh`) -- this one just mirrors the

@@ -52,9 +52,9 @@ stage, for the mechanics.
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/): `lab1.md`-`lab3.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
-  spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
-  into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
-  `cat`/`glow` but not one click away). `dns-resolver-cve` is two flags (a captured credential, then a
+  spoiler walkthrough, reachable both from a terminal `cat`/`glow` and, one click from the lab text,
+  through the browser lab reader (`dojo`'s `sync_lab_docs` mirrors `content/lab/**/*.md` recursively,
+  `exploit-guide/` included). `dns-resolver-cve` is two flags (a captured credential, then a
   replayed one) -- the lab walks both.
 - [`content/sample-repo/`](content/sample-repo/): seeded into Forgejo as `training/ctf-trust-chain`, but
   **not used by any lab** -- CTF-4 has no git exercise. It just mirrors the engagement brief for anyone who
