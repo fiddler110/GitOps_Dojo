@@ -291,8 +291,8 @@ ENTRYPOINT ["ctf-host-entrypoint"]
 # Each final stage below runs it after its own COPYs.
 
 # --- ctf-host: the full catalog (default `docker build` target, no --target
-# needed) — used by the shared workshops/ctf-defend-test harness, which
-# deliberately wants every target in one image (module.env's comment on
+# needed) — kept for ad-hoc local testing of every target at once
+# (module.env's comment on
 # CTF_ATTACK_TARGETS). entrypoint.sh's import_* functions each guard on
 # their own rootfs directory existing, so this is the only stage where every
 # guard actually fires.

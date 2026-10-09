@@ -31,7 +31,7 @@ Reset   -- return the current target to its untouched state
 ```
 
 Only one target is live in your slot at a time. The card shows your slot's **IP only** -- find the ports
-yourself. (Lab 2 has no Attack Range target of its own -- it's your Forgejo repo.)
+yourself. (Labs 2 and 3 have no Attack Range target of their own -- they use your Forgejo repos and the vault.)
 
 ---
 

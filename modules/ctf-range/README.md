@@ -305,7 +305,7 @@ clock, not independent per-persona timers).
   running achievements process (breach → red → map/incident/admin-state agree; contained →
   yellow with the right MTTP; inject/hint queued and drained exactly once; every new page
   renders 200).
-- **Not yet live-verified on a real stack build.** `workshops/ctf-defend-test` disables
+- **Not yet live-verified on a real stack build.** This was built against a harness pack that disabled
   achievements (no `achievements/catalog.json`), so none of the above has been watched through
   a real `./dojo` stack end to end — every check so far is either unit tests or direct HTTP
   calls against achievements' own process. `modules/ctf-range/tools/simulate-dump.py` still

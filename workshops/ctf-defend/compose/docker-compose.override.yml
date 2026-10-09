@@ -7,7 +7,7 @@
 # provision each student's own customer-portal repo and its Actions secrets/variable.
 # FORGEJO_ADMIN_USER/PASSWORD are already required in .env by the engine's own bootstrap
 # service (engine/docker-compose.yml); this just also hands them to web-terminal. Same mechanism
-# as workshops/ctf-defend-test, proved on a real stack first (docs/CTF-WORKSHOP-PLAN.md, CTF-S6).
+# proved on a real stack first with a now-retired facilitator harness (docs/CTF-WORKSHOP-PLAN.md, CTF-S6).
 #
 # attacker-bot: the room-wide swarm (plan §8.2-8.11), moved here from
 # modules/ctf-range/compose.yml on 2026-10-07. Its CTF_CHALLENGE=customer-portal

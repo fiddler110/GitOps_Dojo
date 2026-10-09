@@ -1,296 +1,58 @@
 # CTF workshop series: plan
 
-Status: **draft 2, 2026-10-03.** Has replaced `dojo_ctf_planning.md`, now deleted. Nothing here is built. Items
-marked **(spike)** are claims or designs that must be proven before anyone relies on them. The spike-answer log and
-the full decisions log (CTF-S1..S17, CTF-D1..D25) moved to [`CTF-SPIKES.md`](CTF-SPIKES.md) on 2026-10-05, to keep
-this file lighter to read; it's a companion file to this one, same status, same ownership.
+Status: **draft 3, 2026-10-09.** The range, all 14 attack-ladder targets and the CTF-5 defend tooling are built and
+live-verified; four of the five session packs exist. What is left is listed under "Where it stands" below. What was
+built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log"). The spike answers and the
+decisions log (CTF-S1..S17, CTF-D1..D26) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion file to this one.
+Sections 1-13 below are the design; where the build deviated from them, the section carries a note.
 
 ---
 
-### ⏩ Resume here (checkpoint 2026-10-06)
+## Where it stands (2026-10-09)
 
-**Phase:** CTF-P0 spikes answered; CTF-P1 build well underway on `feat/zellij-terminal`. **All 14 of the 14
-attack-ladder targets are now built and wired in** (CTF-S8, rows 0-3, 4/7/12/13, 5 `leaky-config`,
-8 `git-secrets`, 9 `policy-bypass`, 10 `runner-escape`, 11 `tfstate-treasure` and now 6 `dns-resolver-cve` —
-see below); target 14 `customer-portal` (CTF-5, defend-only) was already built and has a real session pack,
-`workshops/ctf-defend/`. The last open target-build item — "confirm uClibc-ng 1.0.39's monotonic TXID behaviour
-end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D). **CTF-D26 is now built** (per-pack
-`ctf-host` image scoping) — see below.
+**Built:**
 
-**Built and live-verified today (2026-10-06):**
+- **Range and control plane:** `ctf-host` (boxed DinD, per-pack scoped images, CTF-D26), `ctf-controller` (slot
+  reconcile for CTF-5, start/stop/reset queue for CTF-1 to CTF-4), `ctf-builder` + in-lab registry (the defend loop,
+  83s push-to-redeployed), `ctf-flags` + `dojo-flag`, per-uid isolation, Target Viewer (`ctf-view`), Lab Info library.
+- **Targets:** all 14 (rows 0-14 of section 7.3), each with a README and a reference `exploit/solve.py`. Rows 8, 10
+  and 11 have no image: they are seeded by hooks (Forgejo repos, an OpenBao AppRole, a CI workflow).
+- **CTF-5 pressure layer:** attacker-bot swarm on one shared clock, SOC feed, cyber map, red/yellow/green status
+  light, MTTP, incident summary, inject and hint probes, wall of shame (minimal slice).
+- **Packs:** `ctf-access` (CTF-1, targets 0-3), `ctf-server-trust` (CTF-2, targets 4/7/12/13), `ctf-secrets-config`
+  (CTF-3, all 3 of its targets: `leaky-config`, `git-secrets`, `tfstate-treasure`), `ctf-trust-chain` (CTF-4, all 3:
+  `dns-resolver-cve`, `policy-bypass`, `runner-escape`), `ctf-defend` (CTF-5). The old shared `ctf-defend-test` harness
+  is deleted; every pack is tested on its own now. `ctf-secrets-config` and `ctf-trust-chain`'s moved hooks
+  (`tfstate-treasure`, `runner-escape`) are live-verified end to end on their own cold starts (RELEASES.md).
 
-- **CTF-D26 (per-pack `ctf-host` image scoping), built as decided yesterday.** `ctf-host/Dockerfile` now has a
-  shared `range-base` stage plus three named final stages: `ctf-host` (default, full catalog — what every other
-  pack and `workshops/ctf-defend-test`'s shared harness still build, unaffected), `ctf-host-ctf1` (CTF-1's 4
-  targets only), `ctf-host-ctf2` (CTF-2's 4 targets only). `entrypoint.sh`'s import functions each skip gracefully
-  when their rootfs isn't baked into that particular image; `compose.yml`'s `ctf-host` service takes its build
-  target/image tag/healthcheck image list from three new `module.env` vars. **Live-verified**: `--target
-  ctf-host-ctf1`/`ctf-host-ctf2` builds each only build their own 4 target stages (confirmed from the build log —
-  the other pack's stages and the customer-portal/ctf-builder plumbing never execute); full catalog 1.89GB vs ≈900MB
-  per scoped image. CTF-1/CTF-2 still have no real session pack (that's still open, see "Next step" below) — this
-  only proves the mechanism works; a real pack just sets the three vars.
-- **Target 5 `leaky-config` (CTF-3 "Secrets and misconfiguration")**: an ops dashboard whose `/admin/logs` directory
-  was wired with no auth at all. Two files: one is noise (a stale DB-credential backup that unlocks nothing), the
-  other has the real leak (a failed-auth handler that logged a service account's Basic Auth credentials in
-  plaintext). Escalation is pure credential reuse against `/internal/metrics` — no second bug, same shape as
-  weak-auth-portal's "the check itself is fine" lesson but for logging instead of token derivation. Baked into
-  `ctf-host`'s full-catalog stage and wired as the 9th entry in `ctf-defend-test`'s `CTF_ATTACK_TARGETS`.
-  **Live-verified** end to end on a cold `./dojo ctf-defend-test` start: claimed student01's slot through the
-  real `/assign` flow, started the `leaky-config` target through the real `/ctf-attack/attack/start` gateway route
-  (queued → live), solved it with `exploit/solve.py` run from *inside* student01's own terminal account against
-  `ctf-host`'s published port (not a standalone `podman run`), confirmed student02's uid times out reaching the
-  same port (per-uid isolation holds), confirmed the decoy SSH banner on the port-base+1 slot, then stopped the
-  slot and `./dojo stop`'d the whole stack clean (no containers, no volumes left). All engine + ctf-range unit
-  suites (58+53+26+10+43) pass with both changes in.
-- **Target 8 `git-secrets` (CTF-3, ties `git-fundamentals`)**: the first target with no bug inside the image at
-  all — the foothold is entirely in a Forgejo repo's git history (CTF-SPIKES.md's S5 answer, finally built). A new
-  module-level hook, `terminal/start.d/55-git-secrets.sh` (a no-op unless a pack's `CTF_ATTACK_TARGETS` lists
-  `git-secrets`), gives each student their own `<user>/internal-tools` repo: commit 1 adds `deploy.sh` with a
-  plaintext `DEPLOY_TOKEN=...`, commit 2 "cleans it up" (the token is gone from the tree, still in history).
-  `app.py` is a correctly-checked, token-gated `/deploy/trigger` — recovering the token from history and presenting
-  it is the whole exploit. New generic plumbing this needed: `ctf-controller`'s `AttackManager._env_for` now hands
-  every attack-ladder slot a second rendered secret, `CTF_TARGET_TOKEN` (`flags.render(..., challenge=f"{target}-token")`,
-  same derivation as `CTF_FLAG`, just its own tag) — unused by every other target, read only by this one; the
-  provisioning hook recomputes the identical value independently (same two-copies-not-shared-code idiom as every
-  other flag/token in this range), so the value baked into history and the value the app checks are guaranteed to
-  match without the target container ever holding `STUDENT_PASSWORD_SEED`. **Live-verified** end to end: both
-  students' repos seeded with distinct history during a cold `./dojo ctf-defend-test` start; started the target
-  through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from *inside* student01's own terminal
-  walked Forgejo's real commits API, read the token out of the diff (one regex fix needed mid-verification — the
-  leaked line's value was quoted, `DEPLOY_TOKEN="flag{...}"`, and the first cut of the regex captured the quotes
-  too), and traded it for the flag; confirmed student02 is isolated from student01's slot and the decoy SSH banner
-  fingerprints. One infra finding along the way: `ctf-host`'s healthcheck retry budget (30×10s=300s) was tuned for
-  10 images and this run (11 images) took longer and transiently showed "unhealthy" before self-healing once the
-  last import landed — harmless (`ctf-controller`/`ctf-builder` still waited correctly) but bumped to 60 retries
-  (10 min) for headroom as the catalog grows toward 14. 54 ctf-controller unit tests pass (one new, for
-  `CTF_TARGET_TOKEN`).
-- **Target 11 `tfstate-treasure` (CTF-3, ties `tofu-basics` + `vault-fundamentals`)**: also no image — the second
-  target with the foothold entirely outside `ctf_net` (CTF-SPIKES.md's S5 answer, "the seed and the setup script,
-  no image"). Added `openbao` to `ctf-defend-test`'s `MODULES` (first time this pack has used it) with **no**
-  `student`/tenancy policy of its own: a student's SSO/CLI OpenBao login gets zero capability in this pack, by
-  design — the only way into `secret/data/tfstate-treasure/<user>` is an AppRole `role_id`/`secret_id` leaked via
-  each student's own `<user>/infra-state` Forgejo repo (a committed `terraform.tfstate` whose one resource is a
-  `vault_approle_auth_backend_login`), seeded by a new workshop hook, `compose/terminal/start.d/95-tfstate-treasure.sh`.
-  The Vault side (`compose/openbao-setup.d/60-tfstate-treasure.sh` + `provisioner.hcl`) writes the matching policy,
-  AppRole role and flag. Both hooks derive the flag and the role/secret id independently from
-  `STUDENT_PASSWORD_SEED` (same two-copies idiom as `git-secrets`'s `CTF_TARGET_TOKEN`) — but `openbao-setup` runs
-  in the openbao module's own Alpine image, which has **no python3 or openssl**, so that hook does HMAC-SHA256 by
-  hand with nothing but `sha256sum`/`printf`/`od`, checked against RFC 4231's test vector and against `flags.py`'s
-  own output for a real seed before being trusted for a real flag. **Live-verified** end to end on a cold
-  `./dojo ctf-defend-test` start: `exploit/solve.py` run from inside each student's own terminal read
-  `terraform.tfstate` off Forgejo's API, logged in to OpenBao's AppRole auth method with the recovered
-  `role_id`/`secret_id`, and read the flag at `secret/data/tfstate-treasure/<user>`; confirmed a student's own
-  identity gets a `403` on that same path with no AppRole login (the leak really is the only way in); confirmed the
-  file audit device (always on, `modules/openbao/config.hcl`) recorded both the AppRole login and the secret read
-  for each student, proving the debrief's "find the breach after the fact in the audit log" claim. One bug caught
-  mid-build: Vault/OpenBao ACL policy globs — `+` matches one whole path *segment*, not a mid-segment prefix, so
-  `sys/policies/acl/tfstate-treasure-+` 403'd every write; fixed to the suffix glob, `tfstate-treasure-*`. One
-  process note: podman-compose left `openbao-setup` and `openbao-audit` in `Created` (never auto-started) on this
-  run; a manual `podman start` on each was enough, same shape as the `./dojo stop` needing two runs noted
-  earlier — not chased further, not a regression from this target's changes.
-- **Target 9 `policy-bypass` (CTF-4, ties `cloud-policy-as-code`)**: a standalone Flask app again (back to the
-  shape most targets use, unlike 8/11's "no image" shape) — chosen over `dns-resolver-cve` and `runner-escape`
-  precisely because it has no open spike risk (see "Next step" below, both of those do). A04:2021 "Insecure
-  Design": `policy_engine.py` is vendored **verbatim** (not independently re-derived — a real deterministic
-  evaluator, not a secret, so copying it is the right call here, unlike every flag/token HMAC in this range) from
-  `modules/dojo-cloud/cloud-api/policy_engine.py`, the actual rule engine `cloud-policy-as-code` teaches against.
-  The vulnerable policy itself, defined in `app.py`, denies writes to a protected resource group
-  (`rg-vault-gateway`) **unless the write request's own `tags['provisioned-by']` already reads `security-team`**
-  — trusting a label the requester attaches to their own request as proof of who they are, the same category of
-  mistake as trusting an unsigned header or an attacker-controlled JSON field, one layer up in policy instead of
-  app code. `GET /api/policy` shows the whole rule in the open (no bug to find — the rule itself is wrong, and it
-  still "passes" every shape check). No new generic plumbing needed: `CTF_FLAG` was already provided to every
-  attack-ladder slot. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start: both students'
-  slots queued → live through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from inside each
-  student's own terminal account read the live policy over the real gateway → firewall → `ctf-host` path (never a
-  standalone `podman run`), extracted the tag name/value the rule treats as proof straight from the JSON (never
-  hardcoded), self-reported it on a provision request, and got back a correctly-derived, distinct flag per
-  student; confirmed a request with no self-reported tag still 403s with the real ARM-shaped policy error;
-  confirmed student02's uid times out reaching student01's slot (isolation holds); confirmed the decoy SSH banner
-  fingerprints; both flags accepted by the real `dojo-flag submit` CLI, and student01's flag correctly rejected
-  when tried against student02's own submission. All suites (58 engine + 54 ctf-controller, unchanged — this
-  target needed zero controller/ctf-flags code changes, config-only wiring) pass before and after.
-- **Target 10 `runner-escape` (CTF-4, GitOps, needs `runner-pool`)**: **no image** — the "no container slot"
-  shape (like 8 `git-secrets` and 11 `tfstate-treasure`), provisioned entirely by a terminal hook
-  (`workshops/ctf-defend-test/compose/terminal/start.d/96-runner-escape.sh`, this pack only, same scoping
-  reasoning as `tfstate-treasure` needing `openbao`: `runner-escape` needs `runner-pool` in `MODULES`). Each
-  student gets their own `<user>/ci-pipeline` Forgejo repo: a normal CI workflow on `main` (checkout + lint,
-  touches no secret) plus one Actions secret, `CTF_FLAG`, that workflow never reads. The foothold is CI trust:
-  Forgejo's `pull_request` runs the **PR branch's** version of the workflow file, so the student edits
-  `.forgejo/workflows/ci.yml` on a branch, opens a same-repo PR, and their added step runs on a shared
-  `runner-pool` runner with `secrets.CTF_FLAG` in scope — "attacker-controlled code on a shared runner" (row 10's
-  foothold), the single-tenant equivalent of a fork PR. **This settled `runner-escape`'s open spike** (whether
-  Forgejo's PR workflows reliably fire with repo secrets, left inconclusive in `docs/archive/REMEDIATION-PLAN.md`
-  T0.3): plain `pull_request` with same-repo secrets works reliably — proven both by this target's live run and by
-  `defend-pr.yml` (target 14) already relying on it — so `runner-escape` **never needs `pull_request_target`**,
-  the mode T0.3 actually left unsettled. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start,
-  both students, `exploit/solve.py` run from inside each student's own terminal account (via its own `~/.netrc`
-  Forgejo token): the injected step read `secrets.CTF_FLAG` and exfiltrated it, each student got a distinct,
-  correctly-derived flag, both accepted by the real `dojo-flag submit` and student01's rejected against
-  student02. **One design pivot caught mid-verification**: the auto-issued Actions `GITHUB_TOKEN` (confirmed
-  40 chars, present on every job) is blocked by the branch pre-receive hook from pushing to *any* branch on this
-  pinned Forgejo (`User 'forgejo-actions' is not allowed to push`), so the first design's "write the flag to a
-  file on the PR branch" exfil was a dead end; the token *can* post a PR comment (201), so the exploit
-  exfiltrates through a **PR comment** instead (base64, marker-prefixed) — the smallest reliable channel, no
-  Actions-log API needed. **The escalation deliberately fails, and that is the lesson** (row 10: "read another
-  job's leftover state; expected to fail, which is the point"): the same malicious PR's probe step ran as its own
-  per-job user (`uid=20005`), saw another runner's home present but `drwx------`/unreadable, and `ps aux` showed
-  only its own process tree — `runner-pool`'s per-job user + PID namespace + post-job wipe holding exactly as
-  designed. No second flag. Zero controller/ctf-flags/engine code changes — new files are the hook, the target
-  `README.md` and `exploit/solve.py` only (plus one line in the pack's terminal `Dockerfile` to install the
-  hook); 58 engine tests pass before and after.
-- **Target 6 `dns-resolver-cve` (CTF-3 "Vulnerable and outdated components", ties `dns-as-code`)**: **the last
-  attack-ladder target**, now built. CVE-2022-30295 in uClibc / uClibc-ng ≤ 1.0.40 — monotonically increasing DNS
-  TXIDs. A tiny C check-in agent is cross-compiled statically against uClibc-ng 1.0.39 using the pinned Bootlin
-  `x86-64--uclibc--stable-2021.11-5` toolchain (sha256 `e68fd1b2…`, tarball URL+hash pinned in a new
-  `dns-resolver-cve-agent-build` stage in `ctf-host/Dockerfile`), so the real CVE lives in the one binary the lab
-  resolves through. The target rootfs (new `dns-resolver-cve` stage, imported as `ctf-dns-resolver-cve:base`) runs
-  that agent + an in-process Python Flask control panel + a UDP DNS answerer on 127.0.0.1:5353 + a "real vault"
-  TCP receiver on 127.0.0.1:9000 + an "attacker's receiver" on 127.0.0.2:9000 + the standard decoy :2222.
-  **The open item that was blocking build-start — "confirm 1.0.39 emits a predictable monotonic TXID end-to-end" —
-  was settled empirically in the same session**: a probe agent made 20 getaddrinfo calls against a logging UDP
-  answerer and emitted TXIDs 2, 3, 4, …, 21 strictly +1 each query (`CTF-SPIKES.md` Run D). **One honest
-  correction to the plan draft**: the stub's source port is **kernel-ephemeral, not static :53** as some writeups
-  and the earlier plan draft claimed; only the TXID is predictable in 1.0.39 built this way, and the lab's
-  `/observations` exposes both facts. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start:
-  both students' slots up through the real `/attack/start` gateway route, real monotonic TXIDs visible on
-  `/observations`, `exploit/solve.py` run from inside each student's own terminal predicted the next TXID (`last+1`),
-  armed `/spoof`, waited one agent cycle, pulled the captured service token (`CTF_TARGET_TOKEN` = flag 1) and
-  replayed it at `/admin` for flag 2 (`CTF_FLAG`). All four distinct, correctly-derived flags accepted by the real
-  `dojo-flag submit`; cross-student submissions correctly rejected. **One deliberate deviation from the plan draft
-  on topology**: the plan imagined a cross-slot off-path attacker on `ctf_net`, but the range's inner dockerd runs
-  with `--icc=false` + a DOCKER-USER drop on NEW outbound — a slot cannot reach another slot across the inner
-  bridge at all, so the attack is architecturally impossible there. The CVE itself (predictable TXID,
-  kernel-ephemeral source port) stays real and observable; the mechanical staging is in-process on loopback inside
-  the one slot container. Both target `README.md` and `app.py`'s module docstring state this topology trade
-  honestly. The slot stays within the controller's central hardening (`CapDrop ALL`, no-new-privileges,
-  `ReadonlyRootfs`): the agent sets `_res.nsaddr_list[0]` to 127.0.0.1:5353 after `res_init()`, bypassing
-  `/etc/resolv.conf` so no privileged :53 bind is ever needed. Zero controller/ctf-flags/engine code changes.
-  58 engine + 54 ctf-controller tests pass unchanged.
-- **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
-  `./dojo` stack build/start starved the same podman image store and made `dojo`'s own post-build `reap()` step
-  time out and crash with a traceback (the containers it had already started kept running fine regardless — this
-  hit only the cleanup step, confirmed by the stack coming up healthy afterward). Confirms the existing "one stack
-  builder at a time" rule (`worktree-shared-image-tags.md`) extends to ad-hoc manual builds too, not just a second
-  `./dojo` invocation — don't run a manual `podman build`/`rmi` against the same image store while a `./dojo`
-  build/start is in flight.
+**Open, in order:**
 
-**Built and live-verified today, on top of everything in the "Closed since" rows in `ROADMAP.md`'s CTF table:**
+1. **Content depth is uneven.** `ctf-access` and `ctf-server-trust` have 6 lab files and 7 slide files each,
+   `ctf-secrets-config` and `ctf-trust-chain` 5 and 6, `ctf-defend` 2 and 7. Audit every pack against section 9
+   (briefing, hint ladder, debrief per target) with `ctf-defend` as the depth bar, then fill the gaps.
+2. **Class-sized runs (CTF-P4/P7).** Every live check so far was one or two seats. Still unwatched: 40-student
+   capacity and isolation, the swarm with real dwell and ramp durations, the Target Viewer card as a student.
+3. **Unbuilt design items:** per-pack `CTF_WALL_OF_SHAME` toggle and its own route (8.12), the bonus second flaws for
+   targets 8-11 (8.7, CTF-D17), the end-of-session scoring (8.10, CTF-D19), and open questions 1-3 (section 13).
+   The S17 scanners for targets 8-11 stay parked: neither `git-secrets` nor `tfstate-treasure` needed one.
+4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
+   themed page was only tested with the Flask client.
+5. **`tfstate-treasure`'s lab framing should be clearer.** Lab 3 implies a classmate's Forgejo repo is private; live
+   testing confirmed any student can read another's `infra-state` over the unauthenticated API (the real boundary
+   is server-side flag verification: `dojo-flag submit` rejects a flag that isn't the caller's own). Reword.
 
-- **Targets 0-3 (CTF-1 "Access and identity") and 4/7/12/13 (CTF-2 "Server-side trust and APIs")** — `sqli-login`,
-  `idor-pcap`, `weak-auth-portal`, `cert-trust-bypass`, `ping-tool`, `ssrf-fetcher`, `api-mass-assignment`,
-  `api-bfla`. Each a standalone Flask app under `modules/ctf-range/targets/<name>/`, with its own `app.py`
-  (vulnerability + inline fix comment), `Dockerfile`, `README.md` and `exploit/solve.py`.
-- **The HackTheBox-style multi-port shape, per the user's explicit request**: a student `nmap`s their box and
-  finds more than the one port they'll use. `docker_api.py`/`controller.py`'s `Config.attack_ports()` gives every
-  attack-ladder slot a fixed 3-port block (the real app + decoy ports), not one port; decoys are banner-only TCP
-  listeners (never real `sshd`/`vsftpd` — the universal `CapDrop: ["ALL"]` hardening makes that impossible anyway)
-  that fingerprint correctly under `nmap -sV` then always dead-end. SSH decoy on all 8; `idor-pcap` additionally
-  gets an FTP decoy, scoped to its own leaked-creds story per the user ("decoy services should be scoped around
-  what the lab is", not a uniform set).
-- **All 8 wired into the real `ctf-host`/`ctf-controller` path**, not just built in isolation: baked into
-  `ctf-host` (one `docker import` each, `ctf-<name>:base`) and set as the full catalog in
-  `workshops/ctf-defend-test/workshop.env`'s `CTF_ATTACK_TARGETS` (the CTF-D20 toggle's config surface).
-- **Two real bugs, found only by testing the actual gateway → per-uid-firewall → `ctf-host` path end to end (not
-  standalone `podman run`, which is what every target had only been checked against before today)**:
-  1. Baking 10 images into `ctf-host` instead of 2 pushed its own readiness (~4-5 min) past `web-terminal`'s
-     start.d window, so the per-uid `CTF_ISOLATION` firewall hook's one-shot "skip if `ctf-host` isn't resolvable
-     yet" guard fired every time and silently left **no isolation rules in place at all** — confirmed live,
-     student02 could reach student01's attack slot with zero delay. Fixed: `50-ctf-range.sh` now retries for up
-     to 180s instead of skipping once.
-  2. `ping-tool`'s whole command-injection lesson depends on `host` actually returning, but `ctf_ops`/`ctf_net`
-     are `internal: true` (CTF-D24) with no resolver reachable at all, so a DNS query had nowhere to go and the
-     injected second shell command never ran — the first one just hung until Flask's own subprocess timeout
-     killed the lot. Fixed: a `dnsmasq` stub inside `ctf-host` (`--dns 127.0.0.1`, `--no-resolv --no-hosts`,
-     wildcard-answers everything) so a lookup resolves or fails near-instantly either way — still fully offline,
-     just fast instead of hanging.
-- Verified: 53/53 unit tests; a cold `./dojo ctf-defend-test` start with no manual intervention now wires the
-  firewall correctly and holds isolation (blocked uid times out, correct uid gets through); logged in as the class
-  account, claimed a slot, and through the real gateway's `/ctf-attack` route toggled between all 8 targets one at
-  a time (confirmed via `docker ps` on `ctf-host`: the old slot container is replaced, never two live at once) and
-  solved every one with its own `exploit/solve.py`; every decoy port probed live and fingerprinted correctly. Full
-  detail and commit hashes in `git log` (`feat/zellij-terminal`) and `ROADMAP.md`'s CTF table.
+**Facts to keep in mind** (found while building, not obvious from the design below):
 
-**Also landed the same day, by a parallel session (not this checkpoint's own work, noted for context):** the real
-`workshops/ctf-defend/` session pack (CTF-5) — previously only the facilitator-only `ctf-defend-test` harness
-existed — plus its achievements catalog (milestones, funny unlocks, a capstone). This matters for "what's next"
-below: CTF-1/CTF-2 still have no real session pack of their own, only the shared test harness's full-catalog
-fixture.
-
-**New open item (CTF-D26 in `CTF-SPIKES.md`, user's suggestion, not yet built):** `ctf-host`'s Dockerfile bakes
-every attack-ladder target into one shared image regardless of which pack uses it — fine for today's full-catalog
-test harness, wasteful once real single-session packs exist (CTF-1's pack would still pay to build+import all 8+
-targets to expose only 4). Decided direction: per-pack `ctf-host:ctf-1`/`ctf-host:ctf-2` tags via named BuildKit
-multi-stage targets, each `COPY --from=` only its own session's stages — do this when CTF-1/CTF-2 become real packs,
-not before.
-
-**Built and live-verified, in order:** target 14 `customer-portal` scaffold + its informational SAST stage and
-defend pipeline; the range control plane (`ctf-host` + `ctf-controller`, CTF-D21/S14); spike S6's full defend loop —
-an in-lab registry + `ctf-builder` so a real merge rebuilds and redeploys a student's target in place, proven end to
-end on `workshops/ctf-defend-test` at **83s push-to-redeployed**, with both of S6's follow-on perf/race issues closed
-same day; the digest-sync check (`check-pins.sh`); the `ctf-flags` submission service (§5) and per-uid target
-isolation (CTF-S2/S3), live-verified with real submissions and firewall checks; the wall of shame (§8.12) **minimal
-slice** — event, storage, route — scoped down since the bot swarm/SOC feed it needs to mean anything isn't built
-yet; the offensive tool suite in the terminal image (§9); the **Lab Info library** (CTF-D16, CTF-P2b), content and
-browser route both; and now the **CTF-1 to CTF-4 start/stop toggle + queue (CTF-D20)**: a new `AttackManager` in
-`ctf-controller/controller.py`, entirely separate from the always-on CTF-5 reconcile loop it sits beside — a FIFO
-start/reset queue capped at `CTF_ATTACK_MAX_CONCURRENT`, a per-student state machine (stopped → queued → starting →
-live/error), and a time-based idle auto-stop (a documented simplification — the controller has no visibility into a
-target's actual traffic). Fully generic over `CTF_ATTACK_TARGETS` (`module.env`, empty by default, since the real
-target-1..4 images are CTF-S8), so wiring a real target is a config change, never a code change. The card
-(`extensions.json`'s `"ctf-attack"` id) is a small page `ctf-controller` now serves directly — it also joined
-`workshop_lab` — behind the gateway's `identity` gate, a different auth scheme (`GATEWAY_TOKEN` + `X-Auth-User`,
-`dojo_http.py`) from the existing `/redeploy`/`/slots` Bearer-token paths, which are untouched. **Live-verified** on
-`workshops/ctf-defend-test` with a temporary `CTF_ATTACK_TARGETS` override pointing one catalog id at the
-already-built customer-portal base image (kept in that pack's `workshop.env` as a reusable test fixture, same as
-its tokens): a real assigned student started it (queued → live), reset it (requeued, came back live), and stopped
-it; the facilitator's `/attack/status` correctly reports no slot of its own and the `/admin` page renders the
-"Attack Range" tab; the plan's "one request per student, not stacked" and "stop skips the queue" rules both held
-under a real HTTP sequence; and now the **attacker-bot persona swarm + SOC event feed (§8.2-8.11), REVISED from
-this section's original per-student-container sketch at the user's request**: ONE `attacker-bot` service for the
-whole room (not a fleet), one thread per student, reaching each target the exact same way the student's own
-terminal does over `ctf_net`'s published ports — no docker socket, no place inside `ctf-host`, zero collision with
-CTF-D20's work. Posts straight to achievements over `workshop_lab` (`ctf-flags`'s trust tier) — no separate
-soc-feed/log-tailing service needed. The whole room shares ONE clock (the user asked whether detonation should be
-synchronized — yes): green/recon → yellow/escalating (delay ramps down, exploit probability climbs) → red/detonated
-(every attempt is now the real payload, each student jittered 0-60s so it isn't one dead-simultaneous stampede).
-A new `soc` achievements adapter source drives a student "SOC Alerts" card and a facilitator room-wide admin tab,
-each showing the big green→yellow→red countdown the user asked for. Two more rounds the same day, both per user
-request: **(1)** the whole swarm/clock now waits for an explicit facilitator "Start Attack Swarm" button (the lab
-can build and sit idle while students are briefed — `store.py`'s `admin_soc_start()`/`admin_soc_reset()`,
-`bot.py`'s signed `POST /api/soc/control` poll); **(2)** the cyber map (§8.3), facilitator inject/hint-probe
-controls (§8.5, spike S12's channel — finally built, reusing the same control poll), mean-time-to-patch and the
-incident summary (§8.8-8.9), all built on a new persisted per-target status light (§8.10) as their foundation.
-103 achievements + 43 attacker-bot unit tests pass. The bot→achievements→SOC-card/map/incident chain through a
-real `./dojo` stack (this paragraph's own open item as of 2026-10-05d) is now closed: the parallel session's
-`workshops/ctf-defend/` pack (above) gave achievements a real catalog and live-verified a full stack start with it.
-Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks what's next.
-
-**👉 Next step (pick up here):**
-
-1. **All 14 attack-ladder target images are now built** (CTF-S8 complete). Row 6 `dns-resolver-cve` was closed
-   in the same session that opened this checkpoint, with its own open item (empirical TXID monotonicity) settled
-   first via a Bootlin uClibc-ng 1.0.39 probe (see `CTF-SPIKES.md` Run D) and the full target cold-stack
-   live-verified — real uClibc stub in the loop, real `/observations` evidence of TXIDs 2,3,4,...; two students'
-   slots up through the real `/attack/start` gateway route, `exploit/solve.py` landing both the captured token
-   (flag 1) and the replayed-admin flag (flag 2) from inside each student's own terminal, all four flags accepted
-   by `dojo-flag submit`, cross-student submissions rejected. The target's write-up (`modules/ctf-range/targets/
-   dns-resolver-cve/README.md`) corrects one plan draft claim honestly: TXIDs are monotonic (as expected) but the
-   stub's **source port is kernel-ephemeral**, not static :53 — only the TXID is predictable in 1.0.39 built this
-   way. The attack is modelled on in-container loopback because the inner dockerd's `--icc=false` topology forbids
-   a real cross-slot off-path attack; the CVE itself stays real and observable.
-2. **CTF-1/CTF-2 still have no real session pack of their own**, only the shared `ctf-defend-test` harness
-   fixture — CTF-D26's per-pack `ctf-host` scoping mechanism is now built and proven (see above), but nobody has
-   used it in a real pack yet. When that work happens: `workshops/ctf-access/` (CTF-1) and
-   `workshops/ctf-server-trust/` (CTF-2, names open), each setting `CTF_HOST_BUILD_TARGET`/`CTF_HOST_IMAGE`/
-   `CTF_HOST_EXPECTED_IMAGES` to its own stage and `CTF_ATTACK_TARGETS` to its own 4 targets, plus real slides/labs
-   content (CTF-5's `ctf-defend/` is the depth bar — not a copy of the test-harness fixture).
-3. **The SAST/IaC/secret/SCA scanners for targets 8-11** (S17 in `CTF-SPIKES.md`) — both `git-secrets` (8) and
-   `tfstate-treasure` (11) turned out not to need one: the CTF flow is flag-submission, not a graded PR check, so
-   neither ended up using `modules/achievements/achievements/forgejo.py`'s `history_absent` verb this was originally
-   sketched against. Revisit only if a later target actually needs it.
-4. **A class-sized dry run** of the CTF-5 attacker-bot swarm (many students, real dwell/ramp durations) — every
-   live check so far has been single-student, fast HTTP round-trips, not a timed room.
+- `ctf_net`/`ctf_ops` have no resolver, so `ctf-host` runs a wildcard `dnsmasq` stub; without it `ping-tool`'s
+  injection hangs.
+- `ctf-host` is slow to become healthy (about 4-5 minutes with every image baked in; the healthcheck allows 10), so the
+  per-uid firewall hook retries for up to 180s instead of skipping once. Test the real gateway to firewall to
+  `ctf-host` path; a standalone `podman run` hides these bugs.
+- `dns-resolver-cve`: only the TXID is predictable (uClibc-ng 1.0.39); the source port is kernel-ephemeral, not static
+  53. The inner dockerd's `--icc=false` forbids a cross-slot attack, so the spoof is staged on loopback in one slot.
+- `runner-escape`: plain `pull_request` with same-repo secrets is enough (never `pull_request_target`). The auto-issued
+  Actions token cannot push, so the exploit exfiltrates through a PR comment. The escalation fails by design.
+- A manual `podman build`/`rmi` while `./dojo` is building starves the image store; one image builder at a time.
 
 ---
 
@@ -554,8 +316,8 @@ The attack sessions were grouped by how the exploit works, not by tier, so each 
 8-11 are spread across them. Dependencies are confined: CTF-3 needs Forgejo and `openbao`; CTF-4 needs the DNS
 stack, the policy engine and `runner-pool`; CTF-1 and CTF-2 need nothing beyond `ctf-range`.
 
-Each session is its own workshop pack (`workshops/ctf-access/`, `ctf-server-trust/`, `ctf-secrets/`, `ctf-trust/`,
-`ctf-defend/`; names are open) with `FORGEJO_ORG`/`FORGEJO_REPO` for its seed content. Packs differ only in content
+Each session is its own workshop pack (`workshops/ctf-access/`, `ctf-server-trust/`, `ctf-secrets-config/`,
+`ctf-trust-chain/`, `ctf-defend/`) with `FORGEJO_ORG`/`FORGEJO_REPO` for its seed content. Packs differ only in content
 and in which target images and flags they enable, so a new session is content work, not infrastructure work. Every
 pack ships the same **Lab Info** library (section 9).
 

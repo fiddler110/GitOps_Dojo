@@ -6,11 +6,11 @@ entirely in a Forgejo repo and an OpenBao policy, not a container in
 `ctf-host`. This directory is docs + a reference exploit; the provisioning
 itself lives in two hooks:
 
-- `workshops/ctf-defend-test/compose/openbao-setup.d/60-tfstate-treasure.sh`
+- `workshops/ctf-secrets-config/compose/openbao-setup.d/60-tfstate-treasure.sh`
   (openbao-setup, provisioner token): per student, a `tfstate-treasure-<user>`
   policy that reads exactly `secret/data/tfstate-treasure/<user>` and nothing
   else, an AppRole role bound to it, and the flag itself written to that path.
-- `workshops/ctf-defend-test/compose/terminal/start.d/95-tfstate-treasure.sh`
+- `workshops/ctf-secrets-config/compose/terminal/start.d/95-tfstate-treasure.sh`
   (web-terminal): seeds each student's own `<user>/infra-state` Forgejo repo
   with a committed `terraform.tfstate` whose one resource is a
   `vault_approle_auth_backend_login` — the AppRole `role_id`/`secret_id`, in

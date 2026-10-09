@@ -1,4 +1,4 @@
-# ctf-defend-test setup hook, sourced by the openbao module's setup.sh on
+# ctf-secrets-config setup hook, sourced by the openbao module's setup.sh on
 # every start with the provisioner token (BAO_TOKEN, `log`, `retry`,
 # `enable_once`, `class_users`, `par_each` are set). Safe to re-run.
 #

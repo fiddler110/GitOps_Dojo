@@ -18,25 +18,20 @@ how far they reach. See the plan's section 8 for how this session fits with CTF-
 |---|---|---|
 | `leaky-config` | 1 | An ops admin panel exposes a debug log and a stale config backup; the log leaks a service credential reused on a second endpoint (A05) |
 | `git-secrets` | 2 | A deploy token committed, then "cleaned up" in a later commit -- still live in git history, not revoked (ties `git-fundamentals`) |
+| `tfstate-treasure` | 3 | A committed `terraform.tfstate` leaks a vault AppRole login; the flag sits at a path only that role can read (A09; ties `tofu-basics` + `vault-fundamentals`). No image: seeded by this pack's `compose/` hooks, so it is not in `CTF_ATTACK_TARGETS`. |
 
 Target source, images and reference solve scripts: `modules/ctf-range/targets/<id>/`. This pack only
 *wires* them (which two, and which image tag each builds into `ctf-host`) -- never rebuilds the images
 themselves (students attack, never patch them; CTF-5's `customer-portal` is the only target that rebuilds
 on a merge).
 
-**A planned third lab, not yet built:** row 11, `tfstate-treasure` (ties `tofu-basics` +
-`vault-fundamentals` -- a committed `terraform.tfstate` leaking an AppRole credential into a Vault path).
-Per the plan it belongs in this session, but it has no target image yet. It is deliberately **not** in
-`CTF_ATTACK_TARGETS` or `CTF_HOST_EXPECTED_IMAGES` above -- adding it is future work, not a missing wire-up
-in this pack. See `docs/CTF-WORKSHOP-PLAN.md` row 11 and `FACILITATOR.md`'s note.
-
 ## Why this pack exists on top of `ctf-range`
 
 `ctf-range` is the reusable module (targets, firewall, the flag service, terminal tools, `ctf-host`/
 `ctf-controller`); every CTF session lists it in `MODULES=`. Per CTF-D26, `ctf-range`'s own
 `module.env` defaults build the **full** 14-target catalog into `ctf-host` -- fine for
-`workshops/ctf-defend-test`'s shared facilitator harness, wasteful for a real single-session pack that
-only exposes 2. This pack overrides three vars to scope the image to just its own two targets:
+the module default's full catalog, wasteful for a real single-session pack that
+only exposes a few. This pack overrides three vars to scope the image to just its own container targets:
 
 ```sh
 CTF_HOST_BUILD_TARGET=ctf-host-ctf3      # ctf-host/Dockerfile's named stage for this session
@@ -55,7 +50,7 @@ stage, for the mechanics.
 - [`content/slides/`](content/slides/): the hub, a briefing deck that sets the scenario and the rules of
   engagement **without naming any target's specific bug**, the labs index/overview, and a session-mechanics
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
-- [`content/lab/`](content/lab/): `lab1.md`-`lab2.md`, one per target, each guiding toward the technique
+- [`content/lab/`](content/lab/): `lab1.md`-`lab3.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
   spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
   into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
@@ -81,7 +76,9 @@ is no attacker-bot swarm or SOC feed in CTF-1/CTF-2/CTF-3 -- that's CTF-5 only.
 
 Built from `workshops/ctf-access`'s structure on `feat/ctf-refinement`, content and manifest only --
 **not yet live-verified as its own pack**. `leaky-config` and `git-secrets` were already proven against the
-real gateway/firewall/`ctf-controller` path on the shared `ctf-defend-test` harness
-(`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint, `CTF-SPIKES.md` S8). What's new and unproven here is this pack's
-own `CTF_HOST_BUILD_TARGET=ctf-host-ctf3` scoping and its content; `./dojo ctf-secrets-config --dry-run`
-has been run, but no live stack start. Rehearse before a room (see `FACILITATOR.md`).
+real gateway/firewall/`ctf-controller` path on the range's shared full-catalog image
+(`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint, `CTF-SPIKES.md` S8); `tfstate-treasure`'s hook pair (moved here
+from the now-deleted `ctf-defend-test` harness) was proven there too, but not yet in this pack. What's new
+and unproven here is this pack's own `CTF_HOST_BUILD_TARGET=ctf-host-ctf3` scoping and its content;
+`./dojo ctf-secrets-config --dry-run` has been run, but no live stack start. Rehearse before a room
+(see `FACILITATOR.md`).

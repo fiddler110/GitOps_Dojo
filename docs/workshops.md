@@ -18,7 +18,6 @@ series and a test harness.
 | 101 | `ctf-server-trust` | CTF-2: Server-side Trust and APIs | ~150 min | 4 | ctf-range |
 | 102 | `ctf-secrets-config` | CTF-3: Secrets and Misconfiguration | ~115 min | 2 | ctf-range |
 | 103 | `ctf-trust-chain` | CTF-4: Trusting the Wrong Thing | ~115 min | 2 | ctf-range |
-| 99 | `ctf-defend-test` | CTF Defend Test (harness) | ~15 min | facilitator-only | ctf-range, runner-pool, openbao |
 
 ## The learning path
 
@@ -218,7 +217,7 @@ How it behaves:
 - **CTF-5 (Defend)**: the app (`customer-portal`) is attacked live by an **attacker-bot swarm** on a shared green →
   yellow → red clock; students patch the code, a PR runs the scan + exploit gate, and on merge `ctf-builder` builds
   and `ctf-controller` redeploys the slot in place. A SOC feed and a "wall of shame" show the room's state.
-  `ctf-defend-test` is the facilitator-only harness for this loop.
+  `ctf-defend` is the only pack that exercises this loop (target 14 is defend-only).
 - **Status**: the CTF series is newer than the main path; check each pack's `FACILITATOR.md` "Honest status" and
   [`CTF-WORKSHOP-PLAN.md`](CTF-WORKSHOP-PLAN.md) before a live room.
 

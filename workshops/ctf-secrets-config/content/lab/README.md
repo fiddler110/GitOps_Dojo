@@ -25,8 +25,9 @@ One target is **live** in your slot at a time, from the **Attack Range** card on
   ports are decoys, there on purpose, the way a real box would have noise too.
 - Only one target is live at a time -- starting another stops the current one.
 
-Lab 2 is different: it has no Attack Range target of its own. Instead, you already have your own
-`internal-tools` repository in Forgejo -- the lab is entirely about that repo's history.
+Labs 2 and 3 are different: they have no Attack Range target of their own. Lab 2 is about your own
+`internal-tools` repository in Forgejo and its history; Lab 3 is about your own `infra-state` repository and
+the vault.
 
 ## What you'll do
 
@@ -34,9 +35,10 @@ Lab 2 is different: it has no Attack Range target of its own. Instead, you alrea
 | --- | ------ | ----- | ---- |
 | [lab1.md](lab1.md) | Internal ops dashboard | A debug log that says a little too much | ~35 min |
 | [lab2.md](lab2.md) | Deploy trigger | A secret git remembers even after it's "removed" | ~45 min |
+| [lab3.md](lab3.md) | Infrastructure state | A state file that holds a credential for the vault | ~35 min |
 
 **These labs don't build on each other** -- do them in any order, and start each one fresh whenever you're
-ready. Budget roughly 115 minutes across both, plus the `nmap`/Linux primer at the start of the session.
+ready. Budget roughly 115 minutes across all three, plus the `nmap`/Linux primer at the start of the session.
 
 Open any lab file with:
 

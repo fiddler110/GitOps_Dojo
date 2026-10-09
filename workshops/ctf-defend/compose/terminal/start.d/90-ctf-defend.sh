@@ -9,7 +9,7 @@
 # same PUT .../actions/secrets/<name> call workshops/vault-fundamentals' lab 8 has students run by
 # hand -- nothing new here, just run automatically instead of by hand.
 #
-# Proven on a real stack first as workshops/ctf-defend-test's harness (docs/CTF-WORKSHOP-PLAN.md
+# Proven on a real stack first with a now-retired facilitator harness (docs/CTF-WORKSHOP-PLAN.md
 # §8/CTF-S6); this is that same mechanism, now wired into the real CTF-5 session pack.
 #
 # Runs as root, after student accounts exist (engine/web-terminal/entrypoint.sh's start.d

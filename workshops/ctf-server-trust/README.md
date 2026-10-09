@@ -32,7 +32,7 @@ on a merge).
 `ctf-range` is the reusable module (targets, firewall, the flag service, terminal tools, `ctf-host`/
 `ctf-controller`); every CTF session lists it in `MODULES=`. Per CTF-D26, `ctf-range`'s own
 `module.env` defaults build the **full** 14-target catalog into `ctf-host` -- fine for
-`workshops/ctf-defend-test`'s shared facilitator harness, wasteful for a real single-session pack that
+the module default's full catalog, wasteful for a real single-session pack that
 only exposes 4. This pack overrides three vars to scope the image to just its own four targets:
 
 ```sh
@@ -79,7 +79,7 @@ is no attacker-bot swarm or SOC feed in CTF-1/CTF-2 -- that's CTF-5 only.
 Content and wiring only -- not yet live-verified as its own pack. The four targets themselves
 (`ping-tool`, `ssrf-fetcher`, `api-mass-assignment`, `api-bfla`) were already built and have reference
 solve scripts under `modules/ctf-range/targets/<id>/exploit/solve.py`, proven against the shared
-`ctf-defend-test` harness's full-catalog image (plan checkpoint). This pack's own `CTF_HOST_BUILD_TARGET=
+range's shared full-catalog image (plan checkpoint). This pack's own `CTF_HOST_BUILD_TARGET=
 ctf-host-ctf2` scoping and its content are new and unproven as a pack -- rehearse before a room (see
 `FACILITATOR.md`).
 

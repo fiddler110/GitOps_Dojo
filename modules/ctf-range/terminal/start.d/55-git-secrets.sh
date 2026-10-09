@@ -11,7 +11,7 @@
 # always runs (part of the ctf-range terminal link) but only ever acts when
 # the pack actually enabled this target.
 #
-# Reuses the same curl+netrc idiom as 90-ctf-defend-test.sh and
+# Reuses the same curl+netrc idiom as 90-ctf-defend.sh and
 # engine/git-server/bootstrap.sh. Runs as root, after student accounts
 # exist (web-terminal's start.d contract). Never fails the container: every
 # wait is bounded, a timeout just skips that student with a warning.

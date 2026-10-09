@@ -32,9 +32,10 @@ One target is **live** in your slot at a time, from the **Attack Range** card on
 | --- | ------ | ----- | ---- |
 | [lab1.md](lab1.md) | Internal DNS-backed agent | A real CVE in a pinned-old resolver's transaction IDs -- two flags | ~45 min |
 | [lab2.md](lab2.md) | Cloud resource policy | A rule with no bug, just the wrong logic | ~40 min |
+| [lab3.md](lab3.md) | CI pipeline | A PR's own workflow file runs on a shared runner | ~40 min |
 
 Like `ctf-access`, **these labs don't build on each other** -- do them in any order, and start each one
-fresh from the Attack Range card whenever you're ready. Budget roughly 85 minutes across both, plus the
+fresh from the Attack Range card whenever you're ready. Budget roughly 125 minutes across all three, plus the
 `nmap`/Linux primer at the start of the session.
 
 Open any lab file with:

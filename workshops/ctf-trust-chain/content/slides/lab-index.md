@@ -32,4 +32,5 @@ landing page and each lab goes from there.</p>
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Internal DNS-backed agent</span></li>
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Cloud resource policy</span></li>
+<li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">CI pipeline</span></li>
 </ul>

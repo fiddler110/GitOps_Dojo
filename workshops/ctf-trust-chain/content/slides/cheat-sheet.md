@@ -51,7 +51,7 @@ Expect more than one open port. Some are decoys -- that's by design, not a bug i
 dojo-flag submit <target-id> '<flag>'
 ```
 
-`<target-id>` is the short name on the card: `dns-resolver-cve` (two separate submissions --
+`<target-id>` is the short name on the card or Lab 3's own repo: `dns-resolver-cve` (two separate submissions --
 `dns-resolver-cve-token` for the captured credential, `dns-resolver-cve` for the replay), `policy-bypass`.
 
 ---

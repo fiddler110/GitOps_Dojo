@@ -1,0 +1,15 @@
+# CTF-3 extras: the tfstate-treasure (row 11) hooks need the Forgejo admin login in the terminal
+# (95-tfstate-treasure.sh seeds each student's infra-state repo) and the seed in openbao-setup
+# (60-tfstate-treasure.sh writes the AppRole and the flag). This pack attaches no policy to a
+# student's own OpenBao login, so the leaked AppRole is the only way to the flag path.
+services:
+  web-terminal:
+    environment:
+      - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:?Set FORGEJO_ADMIN_USER in .env or dojo.toml}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:?Set FORGEJO_ADMIN_PASSWORD in .env or dojo.toml}
+
+  openbao-setup:
+    environment:
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+    volumes:
+      - ../workshops/ctf-secrets-config/compose/openbao-setup.d:/etc/openbao-setup.d:ro

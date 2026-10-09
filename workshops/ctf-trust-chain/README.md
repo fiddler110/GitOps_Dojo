@@ -18,27 +18,20 @@ a component, and a rule. See the plan's section 8 for how this session fits with
 |---|---|---|
 | `dns-resolver-cve` | 1 | A real CVE (CVE-2022-30295) in a pinned old DNS resolver -- the resolver itself is an attack surface (A06), ties `dns-as-code` |
 | `policy-bypass` | 2 | An authorization rule with no bug, just the wrong logic -- the policy compiles and passes its tests and is still wrong (A04), ties `cloud-policy-as-code` |
+| `runner-escape` | 3 | A PR's own branch controls the workflow file `pull_request` runs, so attacker-chosen code executes on a shared `runner-pool` runner with `CTF_FLAG` in scope; the cross-job escalation fails by design (A08; needs `runner-pool` in `MODULES`). No image: seeded by this pack's `compose/` hook. |
 
 Target source, images and reference solve scripts: `modules/ctf-range/targets/<id>/`. This pack only
-*wires* them (which two, and which image tag each builds into `ctf-host`) -- never rebuilds the images
+*wires* them (which, and which image tag each builds into `ctf-host`) -- never rebuilds the images
 themselves (students attack, never patch them; CTF-5's `customer-portal` is the only target that rebuilds
 on a merge).
-
-**A planned third lab, not yet built.** Target 10 `runner-escape` ("a workflow in a fork runs
-attacker-controlled code on a shared runner") belongs on this session's ladder per the plan but has no
-image yet (plan section 8: "no container slot" shape, like `tfstate-treasure`). It needs `runner-pool` in
-`MODULES=` and the pack's own start hook (the way `workshops/ctf-defend-test` does it, same scoping
-reasoning as `tfstate-treasure` needing `openbao`). Adding it later means: add `runner-pool` to `MODULES`,
-write `compose/terminal/start.d/96-runner-escape.sh`, add a third row to `content/lab/` and
-`content/slides/labs.md`, and a third achievement milestone -- no change to this pack's existing two labs.
 
 ## Why this pack exists on top of `ctf-range`
 
 `ctf-range` is the reusable module (targets, firewall, the flag service, terminal tools, `ctf-host`/
 `ctf-controller`); every CTF session lists it in `MODULES=`. Per CTF-D26, `ctf-range`'s own
 `module.env` defaults build the **full** 14-target catalog into `ctf-host` -- fine for
-`workshops/ctf-defend-test`'s shared facilitator harness, wasteful for a real single-session pack that
-only exposes 2. This pack overrides three vars to scope the image to just its own two targets:
+the module default's full catalog, wasteful for a real single-session pack that
+only exposes a few. This pack overrides three vars to scope the image to just its own container targets:
 
 ```sh
 CTF_HOST_BUILD_TARGET=ctf-host-ctf4      # ctf-host/Dockerfile's named stage for this session
@@ -57,7 +50,7 @@ stage, for the mechanics.
 - [`content/slides/`](content/slides/): the hub, a briefing deck that sets the scenario and the rules of
   engagement **without naming either target's specific bug**, the labs index/overview, and a session-mechanics
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
-- [`content/lab/`](content/lab/): `lab1.md`-`lab2.md`, one per target, each guiding toward the technique
+- [`content/lab/`](content/lab/): `lab1.md`-`lab3.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
   spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
   into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
@@ -82,8 +75,8 @@ attacker-bot swarm or SOC feed in CTF-1/CTF-4 -- that's CTF-5 only.
 
 ## Status
 
-Built by porting the `ctf-access` (CTF-1) pack's structure to targets 6 and 9, following
-`docs/CTF-WORKSHOP-PLAN.md` section 8. The two targets themselves (`dns-resolver-cve`, `policy-bypass`)
-and `ctf-host`'s `ctf-host-ctf4` stage already existed and were previously built; only this pack's own
-scoping and content are new here. Not yet live-verified as its own pack -- rehearse before a room
-(see `FACILITATOR.md`).
+Built by porting the `ctf-access` (CTF-1) pack's structure to targets 6 and 9, then adding `runner-escape`
+(10) as its own hook once `runner-pool` joined `MODULES`, following `docs/CTF-WORKSHOP-PLAN.md` section 8.
+`dns-resolver-cve`, `policy-bypass` and `ctf-host`'s `ctf-host-ctf4` stage already existed; this pack's own
+scoping, `runner-escape`'s hook, and all three labs' content are new here. Not yet live-verified as its own
+pack -- rehearse before a room (see `FACILITATOR.md`).

@@ -37,8 +37,8 @@ Budget ~115 minutes for both, on top of the session's `nmap`/Linux primer.
 
 ## How to work each one
 
-1. Start the target from the **Attack Range** card and note your slot's IP (Lab 2 also uses your own
-   Forgejo account -- no Attack Range target to start for the repo itself).
+1. Start the target from the **Attack Range** card and note your slot's IP (Labs 2 and 3 use your own
+   Forgejo repos and the vault -- no Attack Range target to start for them).
 2. `nmap` it -- every target publishes more than one port, some real, some decoys.
 3. Investigate using the lab's guiding questions, not the exploit guide.
 4. Stuck after a real attempt? Each lab's last line points at that target's exploit guide.

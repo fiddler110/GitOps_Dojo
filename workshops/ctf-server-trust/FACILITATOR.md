@@ -6,7 +6,7 @@ what to do when something breaks.
 
 **Honest status:** content and wiring built, not yet live-verified as its own pack. The four targets
 themselves (`ping-tool`, `ssrf-fetcher`, `api-mass-assignment`, `api-bfla`) have reference solve scripts
-and were already proven against the shared `ctf-defend-test` test harness's full-catalog image (plan
+and were already proven against the range's shared full-catalog image (plan
 checkpoint) — what's new and unproven here is this pack's own `CTF_HOST_BUILD_TARGET=ctf-host-ctf2`
 scoping and its content. Do the rehearsal below before a room.
 

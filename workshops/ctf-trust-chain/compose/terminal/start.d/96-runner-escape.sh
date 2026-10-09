@@ -30,7 +30,7 @@
 # is, because this target has no attack-ladder container slot at all (no
 # entry in CTF_ATTACK_TARGETS, same "no image" shape as tfstate-treasure).
 #
-# Reuses the curl+netrc idiom as 90-ctf-defend-test.sh / 55-git-secrets.sh.
+# Reuses the curl+netrc idiom as 55-git-secrets.sh.
 # Runs as root, after student accounts exist. Never fails the container:
 # every wait is bounded, a timeout just skips that student with a warning.
 set -u

@@ -1,0 +1,17 @@
+{
+  "milestones": [
+    {
+      "id": "l3-flag",
+      "title": "State Files Are Secrets Too",
+      "joke": "The credential was in the one file everybody agreed not to read.",
+      "core": true,
+      "points": 50,
+      "when": "ctf: flag_solved for tfstate-treasure",
+      "match": {
+        "source": "ctf",
+        "event": "flag_solved",
+        "challenge": "tfstate-treasure"
+      }
+    }
+  ]
+}

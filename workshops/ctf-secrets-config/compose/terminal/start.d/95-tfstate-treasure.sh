@@ -20,7 +20,7 @@
 # openbao-setup's Alpine image (see that hook's comment).
 #
 # This pack only (workshop-level hook, 90+ prefix): reuses the same
-# curl+netrc idiom as 90-ctf-defend-test.sh / 55-git-secrets.sh. Runs as
+# curl+netrc idiom as 55-git-secrets.sh. Runs as
 # root, after student accounts exist. Never fails the container: every wait
 # is bounded, a timeout just skips that student with a warning.
 set -u

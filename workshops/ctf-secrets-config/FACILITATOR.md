@@ -7,7 +7,7 @@ what to do when something breaks.
 **Honest status:** content and manifest built from `workshops/ctf-access`'s structure on
 `feat/ctf-refinement`, **not yet live-verified as its own pack**. The two targets themselves
 (`leaky-config`, `git-secrets`) were already built and live-verified against the real
-gateway/firewall/`ctf-controller` path on the shared `ctf-defend-test` test harness
+gateway/firewall/`ctf-controller` path on the range's shared full-catalog image
 (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint, `CTF-SPIKES.md` S8) — what's new and unproven here is this
 pack's own `CTF_HOST_BUILD_TARGET=ctf-host-ctf3` scoping and its content. Only `--dry-run` has been run
 against this pack so far. Do a full rehearsal below before a room.
@@ -19,6 +19,7 @@ against this pack so far. Do a full rehearsal below before a room.
 | Talk | ~15 | The scenario, rules of engagement, the Attack Range card, scanning before guessing |
 | Lab 1 | ~35 | `leaky-config` — an exposed admin log leaks a credential, reused on a second endpoint |
 | Lab 2 | ~45 | `git-secrets` — a deploy token "cleaned up" from a file, still live in git history |
+| Lab 3 | ~35 | `tfstate-treasure` — a committed `terraform.tfstate` leaks a vault AppRole login; debrief in the Vault Audit tab |
 | Recap | ~20 | What surprised them; the "deleting is not revoking" lesson; point out the exploit guides for anyone who didn't finish |
 
 **No lab depends on another.** Students can do them in any order and start fresh from the **Attack
@@ -26,9 +27,7 @@ Range** card each time — there is no `lab-prep <N>` here because there's nothi
 on. `git-secrets` runs longer in practice than `leaky-config`: reading `git log -p` output and finding the
 right commit takes most rooms longer than reading one log file, budget accordingly.
 
-**A planned third lab, not here yet.** The plan's row 11, `tfstate-treasure` (ties `tofu-basics` +
-`vault-fundamentals`), belongs in this session but has no target image. Don't promise it to a room; it's
-future work (see `README.md`).
+**Lab 3 needs OpenBao.** `openbao` is in `MODULES`, and this pack's hooks (`compose/terminal/start.d/95-tfstate-treasure.sh`, `compose/openbao-setup.d/60-tfstate-treasure.sh`) seed each student's `infra-state` repo and the AppRole behind it. No student policy is attached to a student's own vault login, so the leaked AppRole is the only way in. The debrief is the facilitator's **Vault Audit** tab: the role login and the read, per student.
 
 **One target live per student, by design (CTF-D20).** Starting a target stops whatever was live; this
 caps the room at one attack container per student regardless of how many targets exist. Flags are

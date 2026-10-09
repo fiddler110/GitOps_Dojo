@@ -27,9 +27,10 @@ footer: '[&larr; Hub](index.md)'
 </div>
 
 <p class="setup-label">No repo to clone for Lab 1 -- start the <b>Attack Range</b> card from the landing
-page. Lab 2 gives you your own repo in Forgejo instead.</p>
+page. Labs 2 and 3 use your own repos in Forgejo instead.</p>
 
 <ul class="lab-links">
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Internal ops dashboard</span></li>
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Deploy trigger</span></li>
+<li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">Infrastructure state</span></li>
 </ul>

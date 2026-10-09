@@ -5,19 +5,20 @@ speaker notes carry the talking points. This guide is the practical part: before
 what to do when something breaks.
 
 **Honest status:** both targets (`dns-resolver-cve`, `policy-bypass`) were already built and
-live-verified against the real gateway/firewall/`ctf-controller` path on the shared `ctf-defend-test`
+live-verified against the real gateway/firewall/`ctf-controller` path on the range's shared full-catalog
 test harness (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint) and `ctf-host`'s `ctf-host-ctf4` stage already
 exists. What's new and unproven here is this pack's own content and `CTF_HOST_BUILD_TARGET=ctf-host-ctf4`
 scoping as a standalone pack. Do the rehearsal below before a room.
 
-## The session at a glance (about 115 minutes)
+## The session at a glance (about 155 minutes)
 
 | Block | Minutes | What |
 | ----- | ------- | ---- |
 | Talk | ~20 | The scenario, rules of engagement, the Attack Range card, scanning before guessing |
 | Lab 1 | ~45 | `dns-resolver-cve` — a real CVE in a pinned old DNS resolver; two flags, a captured credential then a replay |
 | Lab 2 | ~40 | `policy-bypass` — a policy with no bug, just the wrong rule |
-| Recap | ~10 | What surprised them; point out the exploit guides for anyone who didn't finish; mention the planned `runner-escape` third lab |
+| Lab 3 | ~40 | `runner-escape` — a PR's own workflow file runs on a shared runner-pool runner |
+| Recap | ~10 | What surprised them; point out the exploit guides for anyone who didn't finish |
 
 **No lab depends on another.** Students can do them in any order and start fresh from the **Attack
 Range** card each time — there is no `lab-prep <N>` here because there's nothing sequential to catch up
@@ -33,9 +34,7 @@ lab already has two rounds of hints built in, closer to an answer each time. If 
 *where they've looked*, not *what the bug is* — and remind them the exploit guide exists before telling
 them what's in it.
 
-**A third lab is planned, not built.** Target 10 `runner-escape` belongs on this session's ladder per the
-plan but has no image yet and needs `runner-pool` in `MODULES=` plus a dedicated start hook. Don't
-promise it to a room until it exists; mention it only as "a future session" if asked.
+**Lab 3 needs `runner-pool`.** It's in `MODULES`, and this pack's hook (`compose/terminal/start.d/96-runner-escape.sh`) seeds each student's `ci-pipeline` repo and its `CTF_FLAG` Actions secret. No image: the foothold is the PR-branch-runs-its-own-workflow behavior, same as `defend-pr.yml` (CTF-5) relies on.
 
 ## Before the session
 
@@ -54,9 +53,10 @@ promise it to a room until it exists; mention it only as "a future session" if a
    `CTF_HOST_MEM_LIMIT`/`CTF_CONTROLLER_MEM_LIMIT`.
 5. **Rehearse as a student** in a private window: run the lab's own `nmap -sV -p- <ip>` command at least
    once and confirm the **recon-versions**/**recon-full-sweep** achievements fire (toast or the student's
-   achievements page), then start each of the two targets from the Attack Range card, solve each with
+   achievements page), then start each of `dns-resolver-cve` and `policy-bypass` from the Attack Range card, solve each with
    the lab's hints alone (or the exploit guide, to confirm it's accurate) — for `dns-resolver-cve`, submit
-   **both** flags — and confirm each milestone lands on the leaderboard. **The Attack Range card itself
+   **both** flags — open a PR on your own `ci-pipeline` repo for Lab 3's `runner-escape` and confirm its flag
+   lands too — and confirm each milestone lands on the leaderboard. **The Attack Range card itself
    still shows no solved state** (stopped/queued/starting/live only) -- the achievements leaderboard is
    where "solved" actually shows up in this pack. The recon milestones and the `dns-resolver-cve`
    two-flag chain in particular are the pieces not yet live-verified for this pack specifically — this

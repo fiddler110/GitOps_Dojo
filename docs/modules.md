@@ -10,7 +10,7 @@ one is in the [Authoring guide](authoring.md#6-writing-a-module); each module's 
 | [`dojo-cloud`](#dojo-cloud) | Azure-inspired training cloud: ARM-style API, portal, real containers | tofu-basics, cloud-policy-as-code, dojo-introduction |
 | [`dns-gate`](#dns-gate) | `dns-api`: a gate in front of PowerDNS with per-account keys and CI by ID token | dns-as-code, cert-autorenewal, dojo-introduction |
 | [`dns-ui`](#dns-ui) | Live DNS Zones page and PowerDNS-Admin for the facilitator | dns-as-code, cert-autorenewal, dojo-introduction |
-| [`openbao`](#openbao) | One OpenBao for the class, SSO through Forgejo, audit reader, `bao` CLI | vault-fundamentals (+ctf-defend-test) |
+| [`openbao`](#openbao) | One OpenBao for the class, SSO through Forgejo, audit reader, `bao` CLI | vault-fundamentals, ctf-secrets-config |
 | [`sensei`](#sensei) | PR reviewer, help desk (`sensei ask/why/hand`), stuck radar | all main-path workshops |
 | [`achievements`](#achievements) | Scoring, toasts, leaderboard, challenges, certificate | any pack with a catalog, when `ACHIEVEMENTS_ENABLED` |
 | [`ctf-range`](#ctf-range) | Vulnerable targets, boxed Docker host, flag service, attacker bots | ctf-* packs |
