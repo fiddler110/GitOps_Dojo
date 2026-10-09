@@ -30,19 +30,19 @@ anyway** and **comment**. Challenge PRs are never touched.
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env` (or `--default` for the stock
+1. `./dojo setup` if there is no `.env` (or `--default` for the stock
    `student`/`student123`, `admin`/`admin` logins). It must carry `PUBLIC_BASE_URL` (what students type,
    including the port if not 80/443) and `GATEWAY_TOKEN`. Set `STUDENT_COUNT`.
 2. **No password to announce.** Each student's terminal is signed in to Forgejo with their own token, so
    no lab asks for one. If you ever need it, **Password** on the student's Roster tile shows it.
-3. Build and start: `./run.sh git-fundamentals`. Open `/admin` and check the status strip (top right):
+3. Build and start: `./dojo git-fundamentals`. Open `/admin` and check the status strip (top right):
    **Forgejo**, **Terminals** and **Slides** green (Ready). Terminals is the slowest — it is creating every
    student account — so yellow there for up to a minute is normal, not a fault.
-4. **Size the machine:** `./run.sh capacity git-fundamentals --students 30`. This pack adds no backend, so
+4. **Size the machine:** `./dojo capacity git-fundamentals --students 30`. This pack adds no backend, so
    it is the lightest of the series; the terminals are the whole memory line.
 5. **Rehearse as a student.** Open the landing page in a private window — you get a real student account,
    the same experience the room will have. Do Lab 1, confirm the roster PR is auto-merged by Sensei and
-   appears on the `/admin` Sensei tab, then `./run.sh stop` and start clean. (Your facilitator workspace
+   appears on the `/admin` Sensei tab, then `./dojo stop` and start clean. (Your facilitator workspace
    never takes a student slot, so it does not show what students see.)
 6. Skim the deck once with its speaker notes on.
 
@@ -78,10 +78,10 @@ file a student has already edited is never overwritten.
 | Roster PR never merges | The **Sensei** tab says why (wrong file, YAML doesn't parse, entry missing). Fix the PR, or **merge anyway** if the content is fine |
 | One student's terminal is wedged | `/admin` Roster, **Release** on their tile; their next visit reassigns an account (the same one if still free) |
 | Student has made a mess of their repo | Roster tile → **Reset** puts them back to stack-start (optionally clearing their achievements/score), keeps the seat |
-| Terminals chip stays yellow/red | Account creation is slow on first start; give it a minute. If still red, `./run.sh logs web-terminal \| tail -40` |
+| Terminals chip stays yellow/red | Account creation is slow on first start; give it a minute. If still red, `./dojo logs web-terminal \| tail -40` |
 
 ## After the session
 
-- `./run.sh stop` wipes everything: every container and volume, all accounts and repos. Nothing is kept.
+- `./dojo stop` wipes everything: every container and volume, all accounts and repos. Nothing is kept.
 - If you learned something (a lab step that confused people, a timing that was wrong, a failure not in the
   table above), note it in `ROADMAP.md` (Manual checks) and fix the lab.

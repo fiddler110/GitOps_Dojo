@@ -5,7 +5,7 @@
 #
 # No browser on the dev machine, so run it in Playwright's image, with the
 # stack up (from the repo root; screenshots go to $OUT):
-#   eval "$(./engine/run.sh _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
+#   eval "$(./dojo _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
 #   podman run --rm --network host -v "$PWD/modules/openbao/tests:/t:ro" -v "$OUT:/s" \
 #     mcr.microsoft.com/playwright/python:v1.55.0-noble sh -c \
 #     'pip install -q --break-system-packages playwright==1.55.0 && python3 -B /t/sso_browser.py \

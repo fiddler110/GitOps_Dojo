@@ -3,7 +3,7 @@
 # the facilitator's Audit tab and the demo bots, and with --load watches a class of bots for a while and records
 # memory, CPU, runner and app-host load for the sizing notes (README.md, "Sizing"). From the repo root:
 #
-#   ./run.sh vault-fundamentals --test 20                       # the stack, with 20 demo bots
+#   ./dojo vault-fundamentals --test 20                       # the stack, with 20 demo bots
 #   bash workshops/vault-fundamentals/tests/e2e.sh              # every area but load
 #   bash workshops/vault-fundamentals/tests/e2e.sh --load 30    # also watch the bots for 30 minutes
 #   bash workshops/vault-fundamentals/tests/e2e.sh --only audit,bots
@@ -57,9 +57,9 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-eval "$(./engine/run.sh _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
+eval "$(./dojo _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
 [ ! -r engine/.generated/upstream-tokens.env ] || { set -a; . engine/.generated/upstream-tokens.env; set +a; }  # per-upstream tokens (FIND-16)
-podman container exists workshop_terminal 2>/dev/null || { echo "the stack isn't up (./run.sh vault-fundamentals)" >&2; exit 2; }
+podman container exists workshop_terminal 2>/dev/null || { echo "the stack isn't up (./dojo vault-fundamentals)" >&2; exit 2; }
 OUT="$(mktemp -d "${TMPDIR:-/tmp}/vf-e2e.XXXXXX")"
 echo "run directory: $OUT"
 bots="$(podman exec workshop_terminal printenv BOT_COUNT 2>/dev/null || echo 0)"
@@ -129,7 +129,7 @@ print("  ok:   the facilitator reads student01 only (%d entries of %d)" % (len(d
 
 bots() {
   local bad=0 i b log
-  if [ "${bots:-0}" -lt 1 ]; then echo "  no bots in this run (./run.sh vault-fundamentals --test N); nothing to check"; return 0; fi
+  if [ "${bots:-0}" -lt 1 ]; then echo "  no bots in this run (./dojo vault-fundamentals --test N); nothing to check"; return 0; fi
   local slots
   slots="$(term curl -s -H "X-Gateway-Token: $GATEWAY_TOKEN_APP_HOST" -H "X-Auth-User: $FACILITATOR_USERNAME" http://app-host:8080/api/status)"
   for i in $(seq 1 "$bots"); do
@@ -160,7 +160,7 @@ browser() {
 
 # load: sample every 15 s for $load_min minutes, then summarise.
 load() {
-  [ "${bots:-0}" -ge 1 ] || { echo "--load needs bots: ./run.sh vault-fundamentals --test 20"; return 1; }
+  [ "${bots:-0}" -ge 1 ] || { echo "--load needs bots: ./dojo vault-fundamentals --test 20"; return 1; }
   local end=$(( $(date +%s) + load_min * 60 )) now st ap
   echo "time,container,mem_mib,cpu_pct" > "$OUT/stats.csv"
   echo "time,runners_alive,runners_busy,jobs_waiting,apps_running" > "$OUT/queue.csv"

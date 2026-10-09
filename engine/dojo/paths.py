@@ -19,6 +19,6 @@ LAST_OVERLAY = ENGINE / ".last-overlay"       # teardown's -f files (one per lin
 RUNNING_WORKSHOP = STATE / "running-workshop"
 LAST_START = STATE / "last-start"             # the workshop and its flags, for restart
 
-# How the user ran us, for help and advice: ./run.sh, or `dojo` (the ~/.local/bin script sets DOJO_PROG).
-PROG = os.environ.get("DOJO_PROG", "./run.sh")
+# How the user ran us, for help and advice: ./dojo, or `dojo` (the ~/.local/bin script sets DOJO_PROG).
+PROG = os.environ.get("DOJO_PROG", "./dojo")
 

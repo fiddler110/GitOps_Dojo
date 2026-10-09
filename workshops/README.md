@@ -11,13 +11,13 @@ one workshop can use live in [`../modules/`](../modules/).
 
 | # | Workshop | What it teaches | Modules | Run it |
 | - | -------- | ---------------- | ------- | ------ |
-| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./run.sh dojo-introduction` |
-| 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./run.sh git-fundamentals` |
-| 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./run.sh dns-as-code` |
-| 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./run.sh cert-autorenewal` |
-| 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./run.sh tofu-basics` |
-| 5 | [`vault-fundamentals/`](vault-fundamentals/) | Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./run.sh vault-fundamentals` |
-| 6 | [`cloud-policy-as-code/`](cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, parameters, sets, modify and remediation, exemptions, then Rego and conftest checks on a plan, `opa test`, a CI pipeline and drift (labs 0-13 + capstone) | `dojo-cloud`, `runner-pool`, `sensei` | `./run.sh cloud-policy-as-code` |
+| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./dojo dojo-introduction` |
+| 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./dojo git-fundamentals` |
+| 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./dojo dns-as-code` |
+| 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./dojo cert-autorenewal` |
+| 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./dojo tofu-basics` |
+| 5 | [`vault-fundamentals/`](vault-fundamentals/) | Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./dojo vault-fundamentals` |
+| 6 | [`cloud-policy-as-code/`](cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, parameters, sets, modify and remediation, exemptions, then Rego and conftest checks on a plan, `opa test`, a CI pipeline and drift (labs 0-13 + capstone) | `dojo-cloud`, `runner-pool`, `sensei` | `./dojo cloud-policy-as-code` |
 
 ### Learning path
 
@@ -34,18 +34,18 @@ The numbers are the order to teach them in. `0` is the showcase for facilitators
 | 5 | `vault-fundamentals` | 1 (stated prerequisite). Also leans on 2's pull request and CI pipeline ideas for the Forgejo Actions labs; the longest of the single-topic courses. |
 | 6 | `cloud-policy-as-code` | 4 (its OpenTofu workflow and Dojo Cloud) and 1 for the git steps, with 2's preview-then-apply and drift ideas applied to policy. The longest of the courses; depth over length. |
 
-`./run.sh list` prints this same order from each workshop's `workshop.env`, with its
-`WORKSHOP_NAME` and `WORKSHOP_DURATION`; `./run.sh modules` lists the modules and which
+`./dojo list` prints this same order from each workshop's `workshop.env`, with its
+`WORKSHOP_NAME` and `WORKSHOP_DURATION`; `./dojo modules` lists the modules and which
 workshops use them.
 
 ## How workshop selection works
 
 ```sh
-./run.sh setup             # first time only: writes `.env` (accounts, secrets), shared by every workshop
-./run.sh <workshop-name>
+./dojo setup             # first time only: writes `.env` (accounts, secrets), shared by every workshop
+./dojo <workshop-name>
 ```
 
-`run.sh` (the root one forwards to `engine/run.sh`):
+`./dojo`:
 
 1. Loads `.env` (`TTYD_*`, `STUDENT_*`, `FACILITATOR_*`,
    `FORGEJO_ADMIN_*`, `PUBLIC_BASE_URL`, ports — the same regardless of
@@ -62,7 +62,7 @@ workshops use them.
    (`:<workshop>`). The last link is the image the stack runs.
 5. Runs `compose -f docker-compose.yml [-f modules/<m>/compose.yml ...] [-f <overlay>] up -d`
    and records that file list in `engine/.build-state/current.json`, so
-   `./run.sh stop` tears down exactly what was started.
+   `./dojo stop` tears down exactly what was started.
 
 ## Three kinds of workshop
 
@@ -85,19 +85,19 @@ want the same thing, make it a module instead.
 ## What a pack contains
 
 Every pack has the **required** set below; the **optional** files appear only for the kind of workshop
-that needs them (above). `./run.sh new-workshop <name>` scaffolds the required set plus the common
+that needs them (above). `./dojo new-workshop <name>` scaffolds the required set plus the common
 optional ones, each with TODOs.
 
 | Path | Required? | What it is |
 | ---- | --------- | ---------- |
-| `workshop.env` | **Required** | Identity picked up by `run.sh`: `WORKSHOP_NAME`, `WORKSHOP_DESCRIPTION`, `WORKSHOP_ORDER`, `WORKSHOP_DURATION`, `WORKSHOP_CONTENT_DIR`, `FORGEJO_ORG`/`FORGEJO_REPO`, and the optional `MODULES`, `COMPOSE_OVERLAY`, `TERMINAL_FLAVOR` |
+| `workshop.env` | **Required** | Identity picked up by `dojo`: `WORKSHOP_NAME`, `WORKSHOP_DESCRIPTION`, `WORKSHOP_ORDER`, `WORKSHOP_DURATION`, `WORKSHOP_CONTENT_DIR`, `FORGEJO_ORG`/`FORGEJO_REPO`, and the optional `MODULES`, `COMPOSE_OVERLAY`, `TERMINAL_FLAVOR` |
 | `README.md` | **Required** | The pack's technical reference: what it teaches, how to run it, what's in the folder |
 | `FACILITATOR.md` | **Required** | The guide for whoever runs the session: before / during / after and troubleshooting. Model a new one on an existing pack's |
 | `content/slides/presentation.md` | **Required** | The deck (Marp, on the shared theme) |
 | `content/lab/README.md` | **Required** | Lab instructions, seeded into every student's `~/lab` |
 | `content/sample-repo/` | **Required** | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO` by the `bootstrap` service |
 | `content/lab/cheat-sheet.md` | Optional | A condensed command reference students keep open beside the labs |
-| `MODULES=` (in `workshop.env`) | Optional | Opt into reusable services/tools from `modules/` (`./run.sh modules`) |
+| `MODULES=` (in `workshop.env`) | Optional | Opt into reusable services/tools from `modules/` (`./dojo modules`) |
 | `compose/docker-compose.override.yml` | Optional | Extra services, pointed at by `COMPOSE_OVERLAY` — only when no module provides them |
 | `compose/terminal/Dockerfile` | Optional | Extra terminal tools, found by convention; stacks on the base/module image |
 | `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional | Start-up hooks, per-account setup, student-reset hooks, and the `lab-prep N` helper |
@@ -108,12 +108,12 @@ optional ones, each with TODOs.
 
 ## Adding a new workshop
 
-1. `./run.sh new-workshop <name>` (`--title`, `--description`, `--modules "a b"`,
+1. `./dojo new-workshop <name>` (`--title`, `--description`, `--modules "a b"`,
    `--terminal` for step 4's Dockerfile, `--dry-run`; `--help` lists them) copies
    [`assets/template/`](assets/template/) into `workshops/<name>/`: `workshop.env`, a
    README, the slide hub, deck, labs index, lab overview and cheat sheet, a first lab
    and a sample repo, each with TODOs, already wired together and to the shared
-   themes. It starts as is (`./run.sh <name>`), so you can watch it fill in.
+   themes. It starts as is (`./dojo <name>`), so you can watch it fill in.
 2. Write `content/slides/presentation.md` (Marp, on the shared theme), `content/lab/README.md`
    (seeded into every student's `~/lab`), and `content/sample-repo/`
    (seeded into Forgejo by the `bootstrap` service — same mechanism for
@@ -126,12 +126,12 @@ optional ones, each with TODOs.
    ```sh
    WORKSHOP_NAME=<display name>
    WORKSHOP_DESCRIPTION="<one sentence, shown on the login page>"
-   WORKSHOP_ORDER=<n>    # place in the learning path (0 = showcase); ./run.sh list sorts by it
-   WORKSHOP_DURATION="<~2 h>"   # how long a session takes; ./run.sh list shows it beside the name
+   WORKSHOP_ORDER=<n>    # place in the learning path (0 = showcase); ./dojo list sorts by it
+   WORKSHOP_DURATION="<~2 h>"   # how long a session takes; ./dojo list shows it beside the name
    WORKSHOP_CONTENT_DIR=../workshops/<name>/content
    FORGEJO_ORG=<org name>
    FORGEJO_REPO=<repo name>
-   MODULES=""            # e.g. "runner-pool dojo-cloud"; see ./run.sh modules
+   MODULES=""            # e.g. "runner-pool dojo-cloud"; see ./dojo modules
    COMPOSE_OVERLAY=      # only if step 4 adds one
    TERMINAL_FLAVOR=web   # optional: "zellij" for a terminal-only workspace (no VS Code); see engine/README.md
    ```
@@ -143,7 +143,7 @@ optional ones, each with TODOs.
    for a worked example.
 4. If (and only if) the lab needs something no module provides:
    - **Extra services:** `compose/docker-compose.override.yml`, pointed at by
-     `COMPOSE_OVERLAY`. Don't set `image:` on `web-terminal` there: `run.sh`
+     `COMPOSE_OVERLAY`. Don't set `image:` on `web-terminal` there: `dojo`
      picks the terminal image (`WEB_TERMINAL_IMAGE`).
    - **Extra terminal tools:** `compose/terminal/Dockerfile`, found by
      convention (no setting). Start it with
@@ -174,16 +174,16 @@ optional ones, each with TODOs.
    step-ca uses 9443 for this reason. When adding a service, run
    `podman image inspect <img> --format '{{json .Config.Volumes}}'` and give
    every declared path a named volume, or each start leaves an anonymous
-   volume behind that `./run.sh stop` can't find.
+   volume behind that `./dojo stop` can't find.
    Pin every external image (`FROM` and `image:`) by digest, keeping the tag
    in front for people: `docker.io/library/alpine:3.20@sha256:<index digest>`.
    `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`).
-5. Optional: write `content/bots/steps.sh` so `./run.sh <name> --test` bots
+5. Optional: write `content/bots/steps.sh` so `./dojo <name> --test` bots
    work through *your* labs instead of the default git-fundamentals ones (see
    `engine/README.md`'s "Demo bots" section and `workshops/tofu-basics/content/bots/steps.sh`).
 6. Add a row to the table above. Keep `WORKSHOP_DURATION` in step with your `FACILITATOR.md`
    ("The session at a glance (about ...)"), which is the figure the other docs quote.
-7. `./run.sh <name> --dry-run` shows what would build and start and checks the
+7. `./dojo <name> --dry-run` shows what would build and start and checks the
    manifests and image pins. Then run it locally end to end, including the facilitator's
    `/admin` view, before trusting it for a live session.
 8. Optional: scripted lab tests in `tests/`, run from the repo root against the running stack.
@@ -289,7 +289,7 @@ A module is a folder under `modules/` that more than one workshop can list in
 
 ```
 modules/<name>/
-  README.md           # first line after the heading: a one-line summary (./run.sh modules shows it)
+  README.md           # first line after the heading: a one-line summary (./dojo modules shows it)
   module.env          # settings with defaults; workshop.env overrides them
   compose.yml         # services, volumes, networks; may extend engine services
   extensions.json     # cards, /admin tabs, routes, status checks (format above)
@@ -310,11 +310,11 @@ Rules for `compose.yml`:
   to add a network there, use the map form too (`runner_net: {}`).
 - Never join `terminal_ingress` or use `web-terminal-ingress`. It is the
   gateway's private path to the students' IDE and terminal ports, which answer
-  nowhere else (remediation T2.2a); `run.sh` refuses a fragment that mentions
+  nowhere else (remediation T2.2a); `dojo` refuses a fragment that mentions
   it. A module service that needs the terminal reaches it on `workshop_lab`,
   like the allocator does.
 - Name every volume, including paths an image declares as `VOLUME`, so
-  `./run.sh stop` removes them.
+  `./dojo stop` removes them.
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` or its `build.args` (later file wins); see "A workshop using it"
   in `modules/runner-pool/README.md`, and `workshops/dns-as-code/compose/docker-compose.override.yml`
@@ -345,5 +345,5 @@ set, and a full queue drops the event. Tests pass `send=` and call `flush()`.
 
 Existing modules: [`dojo-cloud`](../modules/dojo-cloud/), [`dns-gate`](../modules/dns-gate/),
 [`dns-ui`](../modules/dns-ui/), [`openbao`](../modules/openbao/), [`runner-pool`](../modules/runner-pool/),
-[`sensei`](../modules/sensei/) and [`achievements`](../modules/achievements/). `./run.sh modules` is the live
+[`sensei`](../modules/sensei/) and [`achievements`](../modules/achievements/). `./dojo modules` is the live
 list, with the workshops that use each one.

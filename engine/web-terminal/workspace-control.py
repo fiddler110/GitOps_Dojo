@@ -787,7 +787,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main():
     if ZELLIJ and shutil.which("zellij") is None:
         raise SystemExit("TERMINAL_FLAVOR=zellij but this image has no zellij: build the "
-                         "zellij-terminal image (run.sh does when the flavor is set).")
+                         "zellij-terminal image (dojo does when the flavor is set).")
     print(f"terminal flavor: {TERMINAL_FLAVOR}", flush=True)
     threading.Thread(target=reap_children, daemon=True).start()
     print(f"per-student process limit (RLIMIT_NPROC): "

@@ -41,15 +41,15 @@ promise it to a room until it exists; mention it only as "a future session" if a
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. Generate a real `CTF_CONTROL_TOKEN` for `workshop.env` (the committed value is a dev placeholder) —
    it gates the Attack Range's start/stop/reset API.
-3. `./run.sh ctf-trust-chain`. First build takes a few minutes longer than most packs: `ctf-host` builds
+3. `./dojo ctf-trust-chain`. First build takes a few minutes longer than most packs: `ctf-host` builds
    its `ctf-host-ctf4` stage (the 2-target image, not the full 14-target catalog — CTF-D26) on top of
    `docker:dind`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and **Attack Range**
    to go green.
-4. **Size the machine:** `./run.sh capacity ctf-trust-chain --students 30` if you expect a full room — the
+4. **Size the machine:** `./dojo capacity ctf-trust-chain --students 30` if you expect a full room — the
    range adds `ctf-host`/`ctf-controller` on top of the terminals; see `module.env`'s
    `CTF_HOST_MEM_LIMIT`/`CTF_CONTROLLER_MEM_LIMIT`.
 5. **Rehearse as a student** in a private window: run the lab's own `nmap -sV -p- <ip>` command at least
@@ -60,7 +60,7 @@ promise it to a room until it exists; mention it only as "a future session" if a
    still shows no solved state** (stopped/queued/starting/live only) -- the achievements leaderboard is
    where "solved" actually shows up in this pack. The recon milestones and the `dns-resolver-cve`
    two-flag chain in particular are the pieces not yet live-verified for this pack specifically — this
-   rehearsal is where that gets checked. Then `./run.sh stop` and start clean.
+   rehearsal is where that gets checked. Then `./dojo stop` and start clean.
 6. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
@@ -100,11 +100,11 @@ student's own work.
 | A solved flag won't resubmit / shows wrong | Flags are per-student HMACs — a flag copied from a classmate will never verify; confirm the student is submitting their own |
 | `dns-resolver-cve`'s `/spoof` never lands | The predicted TXID may be off by more than one cycle (the agent moved on); re-`GET /observations` for the latest TXID and re-arm `/spoof` with that + 1 |
 | `nmap` on the slot IP times out entirely | The per-uid firewall rule may not have landed yet (a known race on a very slow first boot, `50-ctf-range.sh` retries up to 180s) — wait and retry before assuming the target is broken |
-| A target never goes healthy after Start | `ctf-host`'s own healthcheck retry budget; give it a minute before treating it as stuck, especially right after `./run.sh ctf-trust-chain` first starts |
+| A target never goes healthy after Start | `ctf-host`'s own healthcheck retry budget; give it a minute before treating it as stuck, especially right after `./dojo ctf-trust-chain` first starts |
 | Student reused a classmate's target | Shouldn't be reachable at all — the firewall only permits a student's own slot IP; report this as a real bug, not a lab mistake |
 | One student's terminal wedged | Roster → **Release**; **Reset** on the Attack Range tab returns their current target to its clean image (their flag, if already submitted, still verifies the same way after) |
 
 ## After the session
 
-- `./run.sh stop` wipes everything — containers, volumes, every student's slot, every account.
+- `./dojo stop` wipes everything — containers, volumes, every student's slot, every account.
 - Note anything that confused the room or a wrong timing in `ROADMAP.md` and fix the lab.

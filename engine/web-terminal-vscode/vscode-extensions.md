@@ -79,7 +79,7 @@ otherwise use the per-workshop override below instead, per
    `fetch_ext` line if it's a Marketplace/Open VSX extension, not a
    built-in).
 2. Update the tables above.
-3. Rebuild: `./run.sh <workshop-name>` from `engine/` (rebuilds the base
+3. Rebuild: `./dojo <workshop-name>` from `engine/` (rebuilds the base
    `web-terminal` image).
 
 ## Installed by one workshop, not the base image
@@ -91,7 +91,7 @@ otherwise use the per-workshop override below instead, per
 ## Adding something for one workshop only
 
 The base image is built and tagged `gitopsdojo/web-terminal:base` before
-any workshop overlay builds (see `engine/run.sh` and the comment on the
+any workshop overlay builds (see `dojo` and the comment on the
 `web-terminal` service in `engine/docker-compose.yml`) specifically so a
 workshop can extend it without touching this Dockerfile or affecting any
 other workshop. `dns-as-code` and `cert-autorenewal` already do this for

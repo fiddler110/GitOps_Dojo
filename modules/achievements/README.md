@@ -90,7 +90,7 @@ button-masher rate limit. Every unlock kind toasts, funny and cheating ones incl
 
 ## The service (`service/server.py`)
 
-Runs on the allocator image (stdlib Python), added by `run.sh` when `ACHIEVEMENTS_ENABLED=1`.
+Runs on the allocator image (stdlib Python), added by `dojo` when `ACHIEVEMENTS_ENABLED=1`.
 `store.py` wraps the ledger with one lock and writes `state.json` to the `achievements_data`
 volume after every change. Routes: student pages and API under `/achievements` (identity
 gate), the facilitator tab under `/achievements-admin`. An event is `{user, event, ts, nonce,

@@ -1,4 +1,4 @@
-# Shared by run.sh and the scripts under engine/scripts/: sourced, never run.
+# Shared by dojo and the scripts under engine/scripts/: sourced, never run.
 # One copy of the facts every script needs to agree on.
 
 # Container engine: podman when podman-compose is installed too (rootless, no
@@ -24,7 +24,7 @@ dojo_compose() {
 dojo_project() { printf '%s' "${COMPOSE_PROJECT_NAME:-engine}"; }
 
 # Passwords anyone can know: .env.example's placeholder and the values
-# `./run.sh setup --default` writes. run.sh refuses them off loopback.
+# `./dojo setup --default` writes. dojo refuses them off loopback.
 dojo_is_default_password() {
   case "$1" in
     change-me | student | student123 | admin) return 0 ;;
@@ -34,6 +34,6 @@ dojo_is_default_password() {
 
 # The operator's settings (dojo.toml, dojo.local.toml, the secrets in .env, any profile) are
 # read by the CLI, literally: a password with '$', '`' or spaces is kept as typed.
-# For a script that needs them:   eval "$(./run.sh _operator-env [--env NAME])"
+# For a script that needs them:   eval "$(./dojo _operator-env [--env NAME])"
 # workshop.env and module.env are different: shell code by design (they derive tokens
 # with $(...)), which the CLI sources itself.

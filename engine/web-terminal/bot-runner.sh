@@ -147,7 +147,7 @@ portal_curl() { curl -s $PORTAL_CONNECT -b "$PORTAL_COOKIES" "$@"; }
 # mistake frequency -- not copies of the same script. entrypoint.sh picks
 # it and records it as BOT_PERSONA in $BOT_ENV_FILE: testuser1/2/3 are
 # always expert/intermediate/novice, and any bot numbered past 3 (from
-# `./run.sh <workshop> --test N`) gets a random one of the three. If
+# `./dojo <workshop> --test N`) gets a random one of the three. If
 # BOT_PERSONA is missing, fall back to the old number-based cycle
 # (1/4/7... -> expert, 2/5/8... -> intermediate, 3/6/9... -> novice).
 # Concretely the persona affects:
@@ -690,11 +690,11 @@ narrate "=== GitOps Dojo demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
 step_fail_count=0
 
 # --fast has no pacing to hide a stack that is still starting: a round can end before Forgejo has made this bot's
-# account, or before a module (achievements) can record anything. Wait for run.sh's go (/run/dojo-bots-go, made
+# account, or before a module (achievements) can record anything. Wait for dojo's go (/run/dojo-bots-go, made
 # once every container is up), then for the account and each module's bot_ready (a bot.d hook may define one).
 if [ "$BOT_FAST" = 1 ]; then
   ready_end=$(( SECONDS + 900 ))
-  [ -e /run/dojo-bots-go ] || narrate "FAST: waiting for run.sh to release the bots"
+  [ -e /run/dojo-bots-go ] || narrate "FAST: waiting for dojo to release the bots"
   until [ -e /run/dojo-bots-go ] && [ "$(api_curl -o /dev/null -w '%{http_code}' "http://${GIT_SERVER}/api/v1/user")" = 200 ] \
       && { ! declare -F bot_ready >/dev/null || bot_ready; }; do
     [ "$SECONDS" -lt "$ready_end" ] || { narrate "FAST: stack still not ready after 15 minutes -- starting anyway"; break; }

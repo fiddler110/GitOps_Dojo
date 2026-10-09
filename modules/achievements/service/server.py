@@ -59,7 +59,7 @@ import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "catalog"))
-# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./dojo has copied it (SHARED= in module.env).
 sys.path[:0] = [os.path.join(HERE, "..", "..", "_shared"), os.path.join(HERE, "_shared")]
 import catalog as cat  # noqa: E402
 import dojo_http  # noqa: E402

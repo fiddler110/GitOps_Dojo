@@ -1,4 +1,4 @@
-# dojo-cloud's link in the terminal build chain (engine/run.sh sets BASE to
+# dojo-cloud's link in the terminal build chain (dojo sets BASE to
 # the image below this one; see docs/archive/MODULES-PLAN.md §4.2).
 #
 # Dojo Cloud client side: a root-owned credential broker (SO_PEERCRED tells it

@@ -95,7 +95,7 @@
 	header @public_https Strict-Transport-Security "max-age=86400"
 
 	# Optional access code in front of everything, including /login
-	# (`./run.sh <workshop> --pass CODE`). GATEWAY_GATE_TOKEN is the sha256 of
+	# (`./dojo <workshop> --pass CODE`). GATEWAY_GATE_TOKEN is the sha256 of
 	# "dojo-gate:CODE", empty when no code is set (then nothing here matches).
 	# Without a dojo_gate cookie holding that value every request gets the
 	# code page (static/_gate/); gate.js sets the cookie. Anything to do with
@@ -302,7 +302,7 @@
 		}
 
 		# Workshop and module routes, declared in their extensions.json and
-		# rendered by run.sh (allocator/render_extensions.py) into fixed gate
+		# rendered by dojo (allocator/render_extensions.py) into fixed gate
 		# templates. After every engine route above, so none can shadow one;
 		# the renderer also rejects paths that collide with them.
 		import /etc/caddy/extensions/*.caddy

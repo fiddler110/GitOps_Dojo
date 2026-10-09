@@ -8,7 +8,7 @@ Two kinds of input, on purpose:
   * workshop.env and module.env are shell code written by workshop authors:
     they derive tokens with $(...) and trim values with ${VAR#...}. They are
     run by sh with the environment built so far (source_shell), exactly as
-    run.sh sources them.
+    dojo sources them.
 
 Operator layers, lowest first: dojo.toml, dojo.local.toml, .env; then, for each
 selected profile (--env a,b), that profile's dojo.toml, dojo.local.toml and .env

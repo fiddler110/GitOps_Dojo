@@ -7,9 +7,9 @@ how far they reach. See the plan's section 8 for how this session fits with CTF-
 ## Running it
 
 ```sh
-./run.sh ctf-secrets-config --dry-run    # what would build and start; checks manifests and image pins
-./run.sh ctf-secrets-config              # then open http://localhost:8080
-./run.sh ctf-secrets-config --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
+./dojo ctf-secrets-config --dry-run    # what would build and start; checks manifests and image pins
+./dojo ctf-secrets-config              # then open http://localhost:8080
+./dojo ctf-secrets-config --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
 ```
 
 ## The ladder, this session
@@ -57,7 +57,7 @@ stage, for the mechanics.
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/): `lab1.md`-`lab2.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
-  spoiler walkthrough, deliberately not linked from the browser nav (`run.sh` only syncs `content/lab/*.md`
+  spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
   into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
   `cat`/`glow` but not one click away).
 - [`content/sample-repo/`](content/sample-repo/): seeded into Forgejo as `training/ctf-secrets-config`,
@@ -83,5 +83,5 @@ Built from `workshops/ctf-access`'s structure on `feat/ctf-refinement`, content 
 **not yet live-verified as its own pack**. `leaky-config` and `git-secrets` were already proven against the
 real gateway/firewall/`ctf-controller` path on the shared `ctf-defend-test` harness
 (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint, `CTF-SPIKES.md` S8). What's new and unproven here is this pack's
-own `CTF_HOST_BUILD_TARGET=ctf-host-ctf3` scoping and its content; `./run.sh ctf-secrets-config --dry-run`
+own `CTF_HOST_BUILD_TARGET=ctf-host-ctf3` scoping and its content; `./dojo ctf-secrets-config --dry-run`
 has been run, but no live stack start. Rehearse before a room (see `FACILITATOR.md`).

@@ -11,7 +11,7 @@ the way GitHub's Actions Runner Controller works. It is the only runner module: 
 | Part | What it does |
 |---|---|
 | `compose.yml` | Turns on Actions in `git-server` (new forks included: Forgejo makes forks with Actions off by default) and puts it on the internal `runner_net`. Adds `runner-pool` (the runners, on `runner_net` only), `runner-pool-shim` (Caddy in the pool's network namespace) and `runner-controller` (on `workshop_lab` only), and their named volumes. |
-| `pool/Dockerfile` | `forgejo-runner:13` plus what the supervisor needs (`util-linux`, `shadow`, Python, `tini`) and what most steps call (`bash`, `curl`, `jq`, `git`). A workshop adds tools with the build arg `JOB_TOOLS` in its overlay (e.g. `"bao sops"`): they are copied from the terminal image `run.sh` has just built (`TOOLS_IMAGE`), so jobs run the students' own pinned binaries. They must be static binaries (this image is Alpine). |
+| `pool/Dockerfile` | `forgejo-runner:13` plus what the supervisor needs (`util-linux`, `shadow`, Python, `tini`) and what most steps call (`bash`, `curl`, `jq`, `git`). A workshop adds tools with the build arg `JOB_TOOLS` in its overlay (e.g. `"bao sops"`): they are copied from the terminal image `dojo` has just built (`TOOLS_IMAGE`), so jobs run the students' own pinned binaries. They must be static binaries (this image is Alpine). |
 | `pool/supervise.py` | The supervisor, with no network listener. For each config the controller drops in `/spool/start/`, it creates a Linux user of the runner's name (home `0700`, umask 077, its own `TMPDIR`) and runs `forgejo-runner one-job --wait` as that user inside its own user + PID namespace, with `prlimit` caps. When the runner exits it kills what the user left running, deletes its files in `/tmp`, `/var/tmp` and `/dev/shm`, and removes the user with its home (one `useradd`/`userdel` at a time). `/spool/stop/<name>` stops an idle runner; a busy one is never stopped. It writes each runner's state to `/spool/state.json` every second. Jobs run in this container (the `host` label). |
 | `shim/Caddyfile` | Answers for `PUBLIC_BASE_URL` inside the pool: Forgejo gives jobs its public URL for git and for the Actions ID token, and malforms the token URL under `/git/` (`/git//gitapi/...`). The shim sends both to `git-server`. On an `https://` name it serves with its own CA, which the supervisor adds to the pool's trust store before starting any runner. |
 | `controller/controller.py` | Stdlib Python on the allocator's image. Holds the Forgejo admin login (the pool never sees it). Every 3 s it reads the runners and waiting jobs from the admin API and the supervisor's state, deletes registrations whose runner is gone (Forgejo shows a dead runner as idle for a while), and in **Auto** keeps `RUNNER_MIN_IDLE` runners ready plus one per waiting job, up to the max, removing an idle one above that after `RUNNER_IDLE_TIMEOUT`. Three failed starts within a minute pause Auto's starts for a minute. **Manual** does nothing by itself. Every class starts in Auto. |
@@ -33,7 +33,7 @@ thrown away after one job. Hosts that block unprivileged user namespaces (e.g. U
 
 **Rootful Podman with SELinux (e.g. Podman on macOS)** stops them too (`unshare: mount /proc failed`): the runtime masks
 parts of `/proc`, and SELinux denies the mount. Both must be lifted, only for the pool, by running with the
-`mac-podman` profile (`./run.sh <workshop> --env mac-podman`, or `--env mac-podman,home` to join another), which
+`mac-podman` profile (`./dojo <workshop> --env mac-podman`, or `--env mac-podman,home` to join another), which
 sets `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*` and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`
 (`[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it). Unset, they default to `no-new-privileges=true` and bare `no-new-privileges` (Compose rejects two equal items), so nothing changes. Docker
 doesn't accept `unmask=`; leave them unset there.
@@ -71,6 +71,6 @@ The token is still admin-scoped: Forgejo's runner endpoints accept no narrower s
 Compose `secrets:` under podman-compose (evaluated from docs and existing behaviour only, not run here):
 1. podman-compose supports file-based `secrets:` (bind-mounted at `/run/secrets/<name>`) but not `environment:`
    secrets, and support for `mode`/`uid`/`gid` varies by version.
-2. That needs a host file holding the value, i.e. another plaintext copy beside `.env`, and `./run.sh stop`
+2. That needs a host file holding the value, i.e. another plaintext copy beside `.env`, and `./dojo stop`
    would have to delete it; the named volume above is wiped with the rest.
 3. Not adopted: revisit if the engine gains a secrets directory. Needs a live check on this machine's version.

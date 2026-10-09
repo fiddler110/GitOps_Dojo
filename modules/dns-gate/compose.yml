@@ -1,5 +1,5 @@
 # dns-gate module, layered on top of engine/docker-compose.yml by
-# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+# dojo when a workshop.env lists it in MODULES (see README.md).
 # Relative paths resolve against engine/, not this folder.
 #
 # Needs the workshop to run PowerDNS as service `dns-server` with its API on
@@ -18,7 +18,7 @@ services:
     image: gitopsdojo/dns-api:local
     container_name: workshop_dns_api
     init: true
-    # `:-` not `:?`: ./run.sh stop reads this file with .env only.
+    # `:-` not `:?`: ./dojo stop reads this file with .env only.
     environment:
       - PDNS_API_URL=http://dns-server:8081
       - PDNS_UPSTREAM_KEY=${POWERDNS_API_KEY:-}

@@ -5,7 +5,7 @@ About 35 minutes: a 10-minute look at the slides, then click around. Nothing her
 ## Before you start (5 minutes, ahead of time)
 
 ```bash
-./run.sh dojo-introduction --test 5     # 5 demo students that walk the tool tour: a busy Roster, Runners
+./dojo dojo-introduction --test 5     # 5 demo students that walk the tool tour: a busy Roster, Runners
 ```
 
 - The first start builds the terminal image (it downloads the tools and the OpenTofu provider mirror); later starts are quick.
@@ -24,7 +24,7 @@ About 35 minutes: a 10-minute look at the slides, then click around. Nothing her
 6. **One terminal with every tool.** No internet, no `docker.sock`, tools baked in.
 7. **What is in the box.** The five workshops; open the **Workshop library** from the link.
 8. **What you can click through.** Your map for the rest of the session.
-9. **Running it.** `./run.sh <workshop>`.
+9. **Running it.** `./dojo <workshop>`.
 
 ## The click-through (20 minutes)
 
@@ -44,12 +44,12 @@ About 35 minutes: a 10-minute look at the slides, then click around. Nothing her
 Say this before someone asks:
 
 - **No vault and no certificates.** OpenBao and the ACME lab are left out to keep the tour light. Run
-  `./run.sh vault-fundamentals` or `./run.sh cert-autorenewal` to show them.
-- **No shared `dojo.test` zone, CI preview or protected `main`.** dns-as-code's review flow isn't set up here. Each student's own `<user>.dojo.test` zone works. Run `./run.sh dns-as-code` for the review flow.
+  `./dojo vault-fundamentals` or `./dojo cert-autorenewal` to show them.
+- **No shared `dojo.test` zone, CI preview or protected `main`.** dns-as-code's review flow isn't set up here. Each student's own `<user>.dojo.test` zone works. Run `./dojo dns-as-code` for the review flow.
 - **No labs to finish.** The tour is a set of commands. The real labs are in the library, one workshop at a time.
 
 ## If something is off
 
 - **A tab is blank or red in the status strip:** wait 30 seconds after a start; the cloud takes longest.
 - **`tofu apply` says the cloud isn't ready:** the Dojo Cloud light in the status strip is still amber; retry in a minute.
-- **Start over:** `./run.sh stop` removes every container and volume, so do it only when you are done.
+- **Start over:** `./dojo stop` removes every container and volume, so do it only when you are done.

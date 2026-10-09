@@ -21,7 +21,7 @@ student_prefix="${STUDENT_PREFIX:-student}"
 # (remediation T2.1b, D13); see dojo-secret.sh.
 . /dojo-secret.sh
 
-# Demo/test bots (--test) -- see engine/run.sh and engine/README.md. 0 by
+# Demo/test bots (--test) -- see dojo and engine/README.md. 0 by
 # default, so this whole block is a no-op unless a facilitator opted in.
 bot_count="${BOT_COUNT:-0}"
 bot_prefix="${BOT_PREFIX:-testuser}"

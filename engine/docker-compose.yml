@@ -2,18 +2,18 @@ version: '3.8'
 
 # Reusable workshop engine. Nothing here should need editing per-workshop —
 # point WORKSHOP_CONTENT_DIR (in .env, or a workshops/<name>/workshop.env
-# picked up by run.sh) at a workshops/<name>/content folder and configure
+# picked up by dojo) at a workshops/<name>/content folder and configure
 # accounts/ports/PUBLIC_BASE_URL in .env. See README.md.
 #
 # A workshop that needs more than different content (a different terminal
 # image, an extra backend service) layers a Compose override file on top of
-# this one instead of editing it — see workshops/README.md and run.sh.
+# this one instead of editing it — see workshops/README.md and dojo.
 #
 # The gateway is the only service with a published port. Everything else
 # sits on the internal network, unreachable from outside the stack.
 #
 # Every volume below is ephemeral by design: named volumes only, no host
-# bind mounts for runtime data. `./run.sh stop` (or
+# bind mounts for runtime data. `./dojo stop` (or
 # `docker compose down --volumes`) always returns to a clean slate.
 
 services:
@@ -74,7 +74,7 @@ services:
       # only the fallback for an .env without a seed.
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
-      # Demo/test bots (--test) -- see run.sh and README.md. 0 (disabled)
+      # Demo/test bots (--test) -- see dojo and README.md. 0 (disabled)
       # unless a facilitator opted in.
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
@@ -99,7 +99,7 @@ services:
   presentation:
     # Local build instead of upstream marpteam/marp-cli (~1.07 GB, mostly
     # a Chromium layer only PDF/PPTX export uses) -- see
-    # presentation/Dockerfile. run.sh builds and tags it, same as
+    # presentation/Dockerfile. dojo builds and tags it, same as
     # allocator and gateway below.
     build:
       context: ./presentation
@@ -132,7 +132,7 @@ services:
   web-terminal:
     build:
       context: ./web-terminal
-    # run.sh builds :base from ./web-terminal, then any module and workshop
+    # dojo builds :base from ./web-terminal, then any module and workshop
     # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
     # see docs/archive/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
     # last link. Overlays no longer set image: here themselves.
@@ -152,7 +152,7 @@ services:
       # environment, and /proc/1/environ is root's.
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - STUDENT_PASSWORD=${STUDENT_PASSWORD:-student123}
-      # Demo/test bots (--test) -- see run.sh and README.md's "Demo bots"
+      # Demo/test bots (--test) -- see dojo and README.md's "Demo bots"
       # section. BOT_COUNT=0 (the default) disables this entirely.
       - BOT_COUNT=${BOT_COUNT:-0}
       - BOT_PREFIX=${BOT_PREFIX:-testuser}
@@ -169,7 +169,7 @@ services:
       # a guessable password. Set a real value in .env.
       - FACILITATOR_PASSWORD=${FACILITATOR_PASSWORD:?Set FACILITATOR_PASSWORD in .env or dojo.toml}
       # "web" (VS Code + tmux) or "zellij" (a Zellij terminal, no IDE) -- see
-      # engine/zellij-terminal/ and workspace-control.py. run.sh also builds the
+      # engine/zellij-terminal/ and workspace-control.py. dojo also builds the
       # matching image; allocator gets the same value (it hides the VS Code tab).
       - TERMINAL_FLAVOR=${TERMINAL_FLAVOR:-web}
       # Zellij flavor only: the browser terminal's font (a CSS font-family list) and size.
@@ -238,7 +238,7 @@ services:
     build:
       context: ./allocator
     # Stable local tag, same reasoning as web-terminal's below -- lets
-    # run.sh check "has ./allocator changed since the last build?" against
+    # dojo check "has ./allocator changed since the last build?" against
     # a fixed name instead of guessing whatever tag Compose would have
     # auto-generated.
     image: gitopsdojo/allocator:local
@@ -309,11 +309,11 @@ services:
       - ALLOCATOR_STATE_FILE=/var/lib/dojo-allocator/slots.json
     volumes:
       # The workshop's checked extensions (cards, /admin tabs, route gates,
-      # status checks), written by run.sh before every start.
+      # status checks), written by dojo before every start.
       - ./.generated/allocator:/etc/dojo/extensions:ro
       # The slot table (who holds which studentNN), saved on every claim and
       # release so a crash or OOM restart keeps every assignment. Named, so
-      # `./run.sh stop` wipes it with the rest of the class.
+      # `./dojo stop` wipes it with the rest of the class.
       - allocator_state:/var/lib/dojo-allocator
     networks:
       - workshop_lab
@@ -347,13 +347,13 @@ services:
       - GATEWAY_TOKEN=${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in .env or dojo.toml}
     # Same port on both sides: Caddy listens on whatever port PUBLIC_BASE_URL
     # names (e.g. http://localhost:8080 -> :8080 inside the container), and
-    # run.sh expects that port to match GATEWAY_HTTP(S)_PORT.
+    # dojo expects that port to match GATEWAY_HTTP(S)_PORT.
     ports:
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in .env or dojo.toml}:${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
       - "${LAB_HOST_IP:?Set LAB_HOST_IP in .env or dojo.toml}:${GATEWAY_HTTPS_PORT:-8443}:${GATEWAY_HTTPS_PORT:-8443}"
     volumes:
       # The workshop's extension routes, rendered from its extensions.json
-      # by run.sh before every start; gateway/Caddyfile imports them.
+      # by dojo before every start; gateway/Caddyfile imports them.
       - ./.generated/gateway:/etc/caddy/extensions:ro
     networks:
       - public
@@ -380,7 +380,7 @@ networks:
   # (9000-9899) (remediation T2.2a, FIND-04): web-terminal drops them on
   # every other interface, so a CI job, runner or module service on
   # workshop_lab can't reach a workspace that skips Caddy's auth-check.
-  # Only gateway and web-terminal join it; run.sh refuses a module or
+  # Only gateway and web-terminal join it; dojo refuses a module or
   # workshop fragment that mentions it. Fixed subnet so entrypoint.sh can
   # find the interface; TERMINAL_INGRESS_SUBNET overrides a clash.
   terminal_ingress:

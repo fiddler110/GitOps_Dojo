@@ -1,4 +1,5 @@
 #!/bin/sh
-# Repo-root entry point. All the logic lives in engine/run.sh; this just
-# forwards to it so `./run.sh <command>` works from the top of the repo.
-exec "$(dirname "$0")/engine/run.sh" "$@"
+# Retired: the command is ./dojo now. This stub only keeps an old `dojo` shim or
+# alias (which points here) working; delete it once nothing calls it.
+echo "run.sh is retired; use ./dojo (re-run './dojo alias-setup' to refresh the dojo command)." >&2
+exec "$(dirname "$0")/dojo" "$@"

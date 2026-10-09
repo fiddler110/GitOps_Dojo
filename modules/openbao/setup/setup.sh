@@ -63,7 +63,7 @@ retry() {
 }
 
 # class_users: every account that gets an entity, one per line: the students
-# (studentNN), then the demo bots (testuserN, only with `./run.sh --test`), so
+# (studentNN), then the demo bots (testuserN, only with `./dojo --test`), so
 # bots can walk the labs too. Loops read it as `for s in $(class_users)`.
 class_users() {
   _cu_i=1

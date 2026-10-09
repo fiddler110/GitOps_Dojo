@@ -18,10 +18,10 @@ full docs.
 ```sh
 cd ../../engine
 cp .env.example .env    # first time only — account/secret settings, skip if already done
-./run.sh dns-as-code
+./dojo dns-as-code
 ```
 
-This workshop's `workshop.env` points `run.sh` at a
+This workshop's `workshop.env` points `dojo` at a
 [Compose overlay](compose/docker-compose.override.yml) that adds a
 PowerDNS container (`dns-server`), swaps in a terminal image with
 `dnscontrol` + `dig` preinstalled, and lists three modules
@@ -100,7 +100,7 @@ Preview check and one approval) keeps an edited workflow from reaching
   `docs/dnsctl-cli.md` in the sample repo for why. `merge`/`validate` now
   find a real "DNS Preview"/"DNS Apply" status to check, same as they
   would against a GitHub repo with CI configured.
-- **Smoke-tested end to end** (`./run.sh dns-as-code` on podman, both
+- **Smoke-tested end to end** (`./dojo dns-as-code` on podman, both
   tracks) — three real bugs turned up and got fixed in the process:
   the runner's `host` label had a stray `://` (forgejo-runner rejects
   arguments on the `host` scheme — only `docker`/`lxc` take one), the

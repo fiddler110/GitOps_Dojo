@@ -11,7 +11,7 @@ services:
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_SENSEI:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
       - FORGEJO_URL=http://git-server:3000
-      # No `:?` here: `./run.sh stop` reads only .env.
+      # No `:?` here: `./dojo stop` reads only .env.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER:-}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:-}
       - SENSEI_ENABLED=${SENSEI_ENABLED:-1}

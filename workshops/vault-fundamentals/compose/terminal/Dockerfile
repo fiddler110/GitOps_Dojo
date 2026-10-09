@@ -1,4 +1,4 @@
-# vault-fundamentals' link in the terminal build chain (engine/run.sh sets
+# vault-fundamentals' link in the terminal build chain (dojo sets
 # BASE to the image below this one, here the openbao module's link with bao;
 # see workshops/README.md). Adds sops, gitleaks and Python's hvac. Student
 # terminals have no internet, so every tool is baked in here, version-pinned

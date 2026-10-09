@@ -2,11 +2,11 @@
 # Helper for creating .env (secrets) from .env.example, and for writing this
 # machine's non-secret settings into dojo.local.toml.
 #
-# Normally run as `./run.sh setup [--default] [--force]` (same script, same
-# flags; `./run.sh setup --help` prints the usage).
+# Normally run as `./dojo setup [--default] [--force]` (same script, same
+# flags; `./dojo setup --help` prints the usage).
 #
 # Modes:
-#   ./run.sh setup                      # interactive: walks through every
+#   ./dojo setup                      # interactive: walks through every
 #                                        # setting with a short explanation.
 #                                        # If .env already exists, its
 #                                        # values are the defaults (Enter keeps
@@ -17,7 +17,7 @@
 #                                        # default is replaced by a generated
 #                                        # one on a bare Enter.
 #
-#   ./run.sh setup --default            # non-interactive: fixed, easy-to-
+#   ./dojo setup --default            # non-interactive: fixed, easy-to-
 #                                        # remember "lazy" credentials from
 #                                        # dojo.toml's defaults. Machine-
 #                                        # to-machine secrets (CONTROL_TOKEN/
@@ -27,13 +27,13 @@
 #                                        # still random. Also sizes the
 #                                        # terminal limits via capacity-calc.sh.
 #
-#   ./run.sh setup --rotate-class       # only a new TTYD_PASSWORD in the
+#   ./dojo setup --rotate-class       # only a new TTYD_PASSWORD in the
 #                                        # existing .env.
 #
 # The new file is written to .env.new and moved into place only at the end, so
 # stopping part way (Ctrl-C) leaves the old .env untouched. The old one is kept
 # as .env.previous (git-ignored). Settings that are not secrets (URL, ports,
-# student count, sizing ...) go to dojo.local.toml through `run.sh _config-set`.
+# student count, sizing ...) go to dojo.local.toml through `dojo _config-set`.
 #
 # --force skips the ".env already exists -- overwrite?" prompt (also
 # implied by --default, since that mode is meant to run unattended).
@@ -41,7 +41,7 @@ set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh setup [--default] [--force] | --rotate-class
+Usage: ./dojo setup [--default] [--force] | --rotate-class
 
 Creates .env (the secrets) from .env.example and writes this machine's other
 settings into dojo.local.toml (the committed defaults are in dojo.toml).
@@ -56,7 +56,7 @@ settings into dojo.local.toml (the committed defaults are in dojo.toml).
                local/throwaway use (student/student123/admin/admin) and
                dojo.toml's other defaults (http://localhost:8080).
                CONTROL_TOKEN/GATEWAY_TOKEN and FORGEJO_ADMIN_PASSWORD are
-               still random. './run.sh <workshop>' refuses these defaults
+               still random. './dojo <workshop>' refuses these defaults
                unless the gateway is loopback-only. Implies --force.
   --force      overwrite an existing .env without asking ([profile] sections are kept).
   --rotate-class
@@ -66,14 +66,14 @@ settings into dojo.local.toml (the committed defaults are in dojo.toml).
 
 The old .env is kept as .env.previous. Stopping part way leaves
 it untouched. Both modes try to size the terminal resource limits for this
-machine via './run.sh capacity'.
+machine via './dojo capacity'.
 EOF
 }
 
 cd "$(dirname "$0")/../.."
 # shellcheck source=lib.sh
 . ./engine/scripts/lib.sh
-dojo=./engine/run.sh
+dojo=./dojo
 
 mode="interactive"
 force=0
@@ -156,12 +156,12 @@ current_value() {
 }
 
 # Public values nobody should rely on off this machine: .env.example's
-# placeholder and the `--default` passwords. run.sh refuses them off loopback.
+# placeholder and the `--default` passwords. dojo refuses them off loopback.
 is_weak() { [ -z "$1" ] || dojo_is_default_password "$1"; }
 
 if [ "$mode" = "rotate-class" ]; then
   if [ ! -f .env ]; then
-    echo ".env not found -- run './run.sh setup' first." >&2
+    echo ".env not found -- run './dojo setup' first." >&2
     exit 1
   fi
   if ! grep -q '^TTYD_PASSWORD=' .env; then
@@ -173,7 +173,7 @@ if [ "$mode" = "rotate-class" ]; then
   set_var TTYD_PASSWORD "$new_password"
   chmod 600 .env
   echo "New class password (TTYD_PASSWORD): ${new_password}"
-  echo "Restart the workshop ('./run.sh <workshop>') for the gateway to use it."
+  echo "Restart the workshop ('./dojo <workshop>') for the gateway to use it."
   exit 0
 fi
 
@@ -214,7 +214,7 @@ install_env() {
 # any failure just falls back to whatever's already in the file.
 apply_capacity_sizing() {
   students="$1"
-  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./run.sh capacity --students ${students})..."
+  echo "Sizing WEB_TERMINAL_MEM_LIMIT/PIDS_LIMIT/CODE_SERVER_MAX_HEAP_MB for this machine (./dojo capacity --students ${students})..."
   if ! output="$(./engine/scripts/capacity-calc.sh --students "$students" 2>&1)"; then
     echo "  -> capacity-calc.sh couldn't size this machine; keeping the current values."
     return 1
@@ -232,11 +232,11 @@ apply_capacity_sizing() {
   echo "  -> WEB_TERMINAL_MEM_LIMIT=${mem} WEB_TERMINAL_PIDS_LIMIT=${pids} CODE_SERVER_MAX_HEAP_MB=${heap}"
   if echo "$output" | grep -q '^WARNING:'; then
     echo "  -> capacity-calc.sh warned this doesn't fit on this machine at ${students} students -- run it directly for details:"
-    echo "     ./run.sh capacity --students ${students}"
+    echo "     ./dojo capacity --students ${students}"
   fi
 }
 
-# Profiles (./run.sh <workshop> --env NAME) that add to or override these settings.
+# Profiles (./dojo <workshop> --env NAME) that add to or override these settings.
 note_env_overrides() {
   names="$(sed -n 's/^\[\([a-z0-9-]*\)\]$/\1/p' .env | tr '\n' ' ')"
   [ -n "$names" ] && echo "Note: .env keeps secrets for the profiles: ${names}(--env NAME; their settings are in dojo.local.toml)."
@@ -278,11 +278,11 @@ if [ "$mode" = "default" ]; then
   install_env
   echo "Wrote .env$( [ -f .env.previous ] && echo ' (the old one is .env.previous)')."
   note_env_overrides
-  echo "These lazy credentials are for this machine only: './run.sh <workshop>'"
+  echo "These lazy credentials are for this machine only: './dojo <workshop>'"
   echo "refuses them unless PUBLIC_BASE_URL and LAB_HOST_IP are loopback."
   echo
-  ./engine/scripts/alias-setup.sh --check || echo "Optional: './run.sh alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
-  echo "Next: ./run.sh <workshop-name>"
+  ./engine/scripts/alias-setup.sh --check || echo "Optional: './dojo alias-setup' installs the 'dojo' command (dojo <workshop> from anywhere)."
+  echo "Next: ./dojo <workshop-name>"
   exit 0
 fi
 
@@ -366,7 +366,7 @@ cat <<'EOF'
   unless something in front (a proxy, NAT) maps 80/443 to it.
   LAB_HOST_IP: 127.0.0.1 = this machine only; 0.0.0.0 = the LAN too (needed
   for other computers, or a proxy on another host, to reach the lab).
-  Off loopback, './run.sh <workshop>' refuses the public default passwords.
+  Off loopback, './dojo <workshop>' refuses the public default passwords.
 EOF
 # 80/443 were .env.example's defaults before 8080/8443; offer the new ones
 # (type 80/443 to keep them, e.g. on a VM with Docker or rootful podman).
@@ -389,7 +389,7 @@ cat <<'EOF'
 --- Class login (the browser's sign-in box) ---
   One username/password for the whole class, shown on a slide. It opens the
   portal, where each student picks a name. Change it per class
-  ('./run.sh setup --rotate-class' does only this).
+  ('./dojo setup --rotate-class' does only this).
 EOF
 ask TTYD_USERNAME "Class username"
 ask_secret TTYD_PASSWORD "Class password (TTYD_PASSWORD)" random_password
@@ -447,7 +447,7 @@ cat <<'EOF'
 --- Web-terminal resource ceiling ---
   Memory/process limits for all students' VS Code and terminals together.
 EOF
-if confirm "Run './run.sh capacity' to size these for this machine (recommended)?"; then
+if confirm "Run './dojo capacity' to size these for this machine (recommended)?"; then
   apply_capacity_sizing "$(current_value STUDENT_COUNT)" || {
     echo "  Falling back to manual entry."
     ask WEB_TERMINAL_MEM_LIMIT "Container memory limit"
@@ -473,17 +473,17 @@ note_env_overrides
 echo
 echo "Terminal flavor (VS Code or Zellij), ports and the rest: dojo.toml / dojo.local.toml."
 echo "WORKSHOP_CONTENT_DIR/WORKSHOP_NAME/FORGEJO_ORG/FORGEJO_REPO come from"
-echo "workshops/<name>/workshop.env when you run ./run.sh <workshop-name>."
-echo "New passwords reach a running stack only after './run.sh stop' (wipes its"
-echo "volumes) and './run.sh <workshop-name>': Forgejo keeps the accounts it seeded."
+echo "workshops/<name>/workshop.env when you run ./dojo <workshop-name>."
+echo "New passwords reach a running stack only after './dojo stop' (wipes its"
+echo "volumes) and './dojo <workshop-name>': Forgejo keeps the accounts it seeded."
 echo
 if ! ./engine/scripts/alias-setup.sh --check && [ -t 0 ]; then
   if confirm "Install the 'dojo' command (dojo <workshop> from any directory, with tab completion)?"; then
-    ./engine/scripts/alias-setup.sh || echo "  './run.sh alias-setup' tries again."
+    ./engine/scripts/alias-setup.sh || echo "  './dojo alias-setup' tries again."
   else
-    echo "  Skipped; './run.sh alias-setup' installs it any time."
+    echo "  Skipped; './dojo alias-setup' installs it any time."
   fi
-  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from run.sh
+  mkdir -p .build-state && echo "answered in setup" > .build-state/.completion-checked   # no second offer from dojo
   echo
 fi
-echo "Next: ./run.sh <workshop-name>"
+echo "Next: ./dojo <workshop-name>"

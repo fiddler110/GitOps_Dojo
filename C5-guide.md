@@ -23,8 +23,8 @@ git fetch && git switch feat/achievements && git pull
 
 ```bash
 /usr/bin/python3 --version      # expect 3.9.x (Xcode command-line tools)
-which python3                   # if this isn't /usr/bin/python3, also try: PATH=/usr/bin:$PATH ./run.sh list
-./run.sh list
+which python3                   # if this isn't /usr/bin/python3, also try: PATH=/usr/bin:$PATH ./dojo list
+./dojo list
 ```
 
 The first run downloads the wheels into `engine/.cache/`, so `list` tests both Python 3.9 and the download.
@@ -34,7 +34,7 @@ The first run downloads the wheels into `engine/.cache/`, so `list` tests both P
 ```bash
 rm -rf engine/.cache
 export CORP_CA_BUNDLE=/path/to/corporate-ca.pem
-./run.sh list
+./dojo list
 ```
 
 Also worth seeing once: the same thing *without* `CORP_CA_BUNDLE`, to check the error message says what to do.
@@ -49,10 +49,10 @@ PYTHONPATH=engine:$(echo engine/.cache/pylib-*) /usr/bin/python3 -B -m unittest 
 ## 4. Setup and a plain workshop under Docker
 
 ```bash
-./run.sh setup --default        # writes `.env`; also runs the capacity sizing
-./run.sh doctor                 # "Container engine" should say docker
-./run.sh git-fundamentals --dry-run
-./run.sh git-fundamentals       # the first build is cold and takes a while
+./dojo setup --default        # writes `.env`; also runs the capacity sizing
+./dojo doctor                 # "Container engine" should say docker
+./dojo git-fundamentals --dry-run
+./dojo git-fundamentals       # the first build is cold and takes a while
 ```
 
 - On Apple Silicon this also tests the arm64 downloads and checksums of the terminal tools.
@@ -62,11 +62,11 @@ PYTHONPATH=engine:$(echo engine/.cache/pylib-*) /usr/bin/python3 -B -m unittest 
 Then the lifecycle commands:
 
 ```bash
-./run.sh status
-./run.sh logs gateway
-./run.sh restart gateway
-./run.sh restart
-./run.sh stop
+./dojo status
+./dojo logs gateway
+./dojo restart gateway
+./dojo restart
+./dojo stop
 docker ps -a                    # no dojo containers left
 docker volume ls | grep engine_ # prints nothing
 ```
@@ -74,10 +74,10 @@ docker volume ls | grep engine_ # prints nothing
 ## 5. A workshop with modules
 
 ```bash
-./run.sh dns-as-code --dry-run
-./run.sh dns-as-code
-./run.sh restart dns-server     # also recreates what depends on it under podman
-./run.sh stop
+./dojo dns-as-code --dry-run
+./dojo dns-as-code
+./dojo restart dns-server     # also recreates what depends on it under podman
+./dojo stop
 ```
 
 This exercises module builds, overlays and container names under Docker. The one-service restart is where Docker
@@ -87,14 +87,14 @@ Docker only `dns-server` should be recreated, and the stack should keep working.
 ## 6. The `dojo` command and tab completion in zsh
 
 ```bash
-./run.sh alias-setup             # writes ~/.local/bin/dojo; on macOS also adds ~/.local/bin to PATH
+./dojo alias-setup             # writes ~/.local/bin/dojo; on macOS also adds ~/.local/bin to PATH
 exec zsh                         # a fresh interactive shell
 which dojo                       # ~/.local/bin/dojo
 cd ~ && dojo status              # works from any directory; help and advice say 'dojo ...'
 dojo <Tab>                       # commands and workshops, with descriptions
 dojo restart <Tab>               # needs a running stack: its services
 dojo git-fundamentals --<Tab>    # the start options
-./run.sh <Tab>                   # the same completion for ./run.sh
+./dojo <Tab>                   # the same completion for ./dojo
 ```
 
 ## 7. The shell scripts on macOS
@@ -103,10 +103,10 @@ dojo git-fundamentals --<Tab>    # the start options
 3.2 and the BSD tools (`sed`, `awk`, `mktemp`, `stat`):
 
 ```bash
-./run.sh capacity --students 10
-./run.sh setup                   # the interactive path: answer a few prompts, then check `.env`
-./run.sh alias-setup             # run it twice: the block in ~/.zshrc is replaced, not duplicated
-./run.sh alias-setup --remove    # then once more to put it back
+./dojo capacity --students 10
+./dojo setup                   # the interactive path: answer a few prompts, then check `.env`
+./dojo alias-setup             # run it twice: the block in ~/.zshrc is replaced, not duplicated
+./dojo alias-setup --remove    # then once more to put it back
 ```
 
 ## What to report back

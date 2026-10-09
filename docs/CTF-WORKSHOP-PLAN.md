@@ -35,12 +35,12 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   plaintext). Escalation is pure credential reuse against `/internal/metrics` — no second bug, same shape as
   weak-auth-portal's "the check itself is fine" lesson but for logging instead of token derivation. Baked into
   `ctf-host`'s full-catalog stage and wired as the 9th entry in `ctf-defend-test`'s `CTF_ATTACK_TARGETS`.
-  **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start: claimed student01's slot through the
+  **Live-verified** end to end on a cold `./dojo ctf-defend-test` start: claimed student01's slot through the
   real `/assign` flow, started the `leaky-config` target through the real `/ctf-attack/attack/start` gateway route
   (queued → live), solved it with `exploit/solve.py` run from *inside* student01's own terminal account against
   `ctf-host`'s published port (not a standalone `podman run`), confirmed student02's uid times out reaching the
   same port (per-uid isolation holds), confirmed the decoy SSH banner on the port-base+1 slot, then stopped the
-  slot and `./run.sh stop`'d the whole stack clean (no containers, no volumes left). All engine + ctf-range unit
+  slot and `./dojo stop`'d the whole stack clean (no containers, no volumes left). All engine + ctf-range unit
   suites (58+53+26+10+43) pass with both changes in.
 - **Target 8 `git-secrets` (CTF-3, ties `git-fundamentals`)**: the first target with no bug inside the image at
   all — the foothold is entirely in a Forgejo repo's git history (CTF-SPIKES.md's S5 answer, finally built). A new
@@ -54,7 +54,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   provisioning hook recomputes the identical value independently (same two-copies-not-shared-code idiom as every
   other flag/token in this range), so the value baked into history and the value the app checks are guaranteed to
   match without the target container ever holding `STUDENT_PASSWORD_SEED`. **Live-verified** end to end: both
-  students' repos seeded with distinct history during a cold `./run.sh ctf-defend-test` start; started the target
+  students' repos seeded with distinct history during a cold `./dojo ctf-defend-test` start; started the target
   through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from *inside* student01's own terminal
   walked Forgejo's real commits API, read the token out of the diff (one regex fix needed mid-verification — the
   leaked line's value was quoted, `DEPLOY_TOKEN="flag{...}"`, and the first cut of the regex captured the quotes
@@ -77,7 +77,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   in the openbao module's own Alpine image, which has **no python3 or openssl**, so that hook does HMAC-SHA256 by
   hand with nothing but `sha256sum`/`printf`/`od`, checked against RFC 4231's test vector and against `flags.py`'s
   own output for a real seed before being trusted for a real flag. **Live-verified** end to end on a cold
-  `./run.sh ctf-defend-test` start: `exploit/solve.py` run from inside each student's own terminal read
+  `./dojo ctf-defend-test` start: `exploit/solve.py` run from inside each student's own terminal read
   `terraform.tfstate` off Forgejo's API, logged in to OpenBao's AppRole auth method with the recovered
   `role_id`/`secret_id`, and read the flag at `secret/data/tfstate-treasure/<user>`; confirmed a student's own
   identity gets a `403` on that same path with no AppRole login (the leak really is the only way in); confirmed the
@@ -86,7 +86,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   mid-build: Vault/OpenBao ACL policy globs — `+` matches one whole path *segment*, not a mid-segment prefix, so
   `sys/policies/acl/tfstate-treasure-+` 403'd every write; fixed to the suffix glob, `tfstate-treasure-*`. One
   process note: podman-compose left `openbao-setup` and `openbao-audit` in `Created` (never auto-started) on this
-  run; a manual `podman start` on each was enough, same shape as the `./run.sh stop` needing two runs noted
+  run; a manual `podman start` on each was enough, same shape as the `./dojo stop` needing two runs noted
   earlier — not chased further, not a regression from this target's changes.
 - **Target 9 `policy-bypass` (CTF-4, ties `cloud-policy-as-code`)**: a standalone Flask app again (back to the
   shape most targets use, unlike 8/11's "no image" shape) — chosen over `dns-resolver-cve` and `runner-escape`
@@ -100,7 +100,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   mistake as trusting an unsigned header or an attacker-controlled JSON field, one layer up in policy instead of
   app code. `GET /api/policy` shows the whole rule in the open (no bug to find — the rule itself is wrong, and it
   still "passes" every shape check). No new generic plumbing needed: `CTF_FLAG` was already provided to every
-  attack-ladder slot. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start: both students'
+  attack-ladder slot. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start: both students'
   slots queued → live through the real `/ctf-attack/attack/start` route; `exploit/solve.py` run from inside each
   student's own terminal account read the live policy over the real gateway → firewall → `ctf-host` path (never a
   standalone `podman run`), extracted the tag name/value the rule treats as proof straight from the JSON (never
@@ -123,7 +123,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   Forgejo's PR workflows reliably fire with repo secrets, left inconclusive in `docs/archive/REMEDIATION-PLAN.md`
   T0.3): plain `pull_request` with same-repo secrets works reliably — proven both by this target's live run and by
   `defend-pr.yml` (target 14) already relying on it — so `runner-escape` **never needs `pull_request_target`**,
-  the mode T0.3 actually left unsettled. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start,
+  the mode T0.3 actually left unsettled. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start,
   both students, `exploit/solve.py` run from inside each student's own terminal account (via its own `~/.netrc`
   Forgejo token): the injected step read `secrets.CTF_FLAG` and exfiltrated it, each student got a distinct,
   correctly-derived flag, both accepted by the real `dojo-flag submit` and student01's rejected against
@@ -152,7 +152,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   answerer and emitted TXIDs 2, 3, 4, …, 21 strictly +1 each query (`CTF-SPIKES.md` Run D). **One honest
   correction to the plan draft**: the stub's source port is **kernel-ephemeral, not static :53** as some writeups
   and the earlier plan draft claimed; only the TXID is predictable in 1.0.39 built this way, and the lab's
-  `/observations` exposes both facts. **Live-verified** end to end on a cold `./run.sh ctf-defend-test` start:
+  `/observations` exposes both facts. **Live-verified** end to end on a cold `./dojo ctf-defend-test` start:
   both students' slots up through the real `/attack/start` gateway route, real monotonic TXIDs visible on
   `/observations`, `exploit/solve.py` run from inside each student's own terminal predicted the next TXID (`last+1`),
   armed `/spoof`, waited one agent cycle, pulled the captured service token (`CTF_TARGET_TOKEN` = flag 1) and
@@ -168,11 +168,11 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
   `/etc/resolv.conf` so no privileged :53 bind is ever needed. Zero controller/ctf-flags/engine code changes.
   58 engine + 54 ctf-controller tests pass unchanged.
 - **One process note, not a product bug**: running manual `podman build`/`rmi` commands concurrently with a
-  `./run.sh` stack build/start starved the same podman image store and made `run.sh`'s own post-build `reap()` step
+  `./dojo` stack build/start starved the same podman image store and made `dojo`'s own post-build `reap()` step
   time out and crash with a traceback (the containers it had already started kept running fine regardless — this
   hit only the cleanup step, confirmed by the stack coming up healthy afterward). Confirms the existing "one stack
   builder at a time" rule (`worktree-shared-image-tags.md`) extends to ad-hoc manual builds too, not just a second
-  `./run.sh` invocation — don't run a manual `podman build`/`rmi` against the same image store while a `./run.sh`
+  `./dojo` invocation — don't run a manual `podman build`/`rmi` against the same image store while a `./dojo`
   build/start is in flight.
 
 **Built and live-verified today, on top of everything in the "Closed since" rows in `ROADMAP.md`'s CTF table:**
@@ -204,7 +204,7 @@ end-to-end" — settled empirically in the same session (`CTF-SPIKES.md` Run D).
      killed the lot. Fixed: a `dnsmasq` stub inside `ctf-host` (`--dns 127.0.0.1`, `--no-resolv --no-hosts`,
      wildcard-answers everything) so a lookup resolves or fails near-instantly either way — still fully offline,
      just fast instead of hanging.
-- Verified: 53/53 unit tests; a cold `./run.sh ctf-defend-test` start with no manual intervention now wires the
+- Verified: 53/53 unit tests; a cold `./dojo ctf-defend-test` start with no manual intervention now wires the
   firewall correctly and holds isolation (blocked uid times out, correct uid gets through); logged in as the class
   account, claimed a slot, and through the real gateway's `/ctf-attack` route toggled between all 8 targets one at
   a time (confirmed via `docker ps` on `ctf-host`: the old slot container is replaced, never two live at once) and
@@ -262,7 +262,7 @@ can build and sit idle while students are briefed — `store.py`'s `admin_soc_st
 controls (§8.5, spike S12's channel — finally built, reusing the same control poll), mean-time-to-patch and the
 incident summary (§8.8-8.9), all built on a new persisted per-target status light (§8.10) as their foundation.
 103 achievements + 43 attacker-bot unit tests pass. The bot→achievements→SOC-card/map/incident chain through a
-real `./run.sh` stack (this paragraph's own open item as of 2026-10-05d) is now closed: the parallel session's
+real `./dojo` stack (this paragraph's own open item as of 2026-10-05d) is now closed: the parallel session's
 `workshops/ctf-defend/` pack (above) gave achievements a real catalog and live-verified a full stack start with it.
 Full detail in `ROADMAP.md`'s CTF row and in git history; this checkpoint only tracks what's next.
 
@@ -924,7 +924,7 @@ worst moment — stolen data dumped on the open web — built entirely from in-l
 
 ## 9. Content and front door
 
-Per session pack, from `./run.sh new-workshop`:
+Per session pack, from `./dojo new-workshop`:
 
 - `content/slides/presentation.md` (Marp): the technique, the legal boundary, one example solved live.
 - `content/lab/README.md` and lab files: seeded into `~/lab`; each target has a briefing (what the box is, which
@@ -982,7 +982,7 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 
 - **CTF-S1, N targets from `STUDENT_COUNT`.** Compose cannot loop. Options: a generated compose fragment written by a
   module step before `up`; `deploy.replicas` plus a name scheme; one fleet container running N target processes.
-  Establish whether any existing module step can emit compose files without touching `engine/run.sh`. If none can,
+  Establish whether any existing module step can emit compose files without touching `dojo`. If none can,
   that is a separate engine-change proposal, not a design workaround (decision CTF-D15).
 - **CTF-S2, target-to-target isolation on both runtimes.** Which of per-target networks, `enable_icc=false` or a
   sidecar firewall works under Docker and rootless Podman (`netavark`), and what `web-terminal` joining N networks
@@ -1035,7 +1035,7 @@ another; cannot connect to another's listener; cannot reach `workshop_lab` servi
 - **CTF-S15, terminal footprint (CTF-D22).** Per-student memory with code-server open is about 260MB
   (`engine/README.md`, Capacity), which at 40 students is likely the largest memory line in a CTF session. Confirm
   code-server only starts on the first `/ide` request, so a pack whose students stay in the terminal never pays for
-  it; measure a terminal-only student against the 260MB figure with `./run.sh capacity` and a `--test` bot; and check
+  it; measure a terminal-only student against the 260MB figure with `./dojo capacity` and a `--test` bot; and check
   whether a pack can hide the VS Code tab without an engine change (the workspace page comes from the allocator, so it
   may not be possible, which would be a separate engine proposal per CTF-D15). Also decide how CTF-5, where students
   patch YAML, Rego and workflows, sizes for IDE use.

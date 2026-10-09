@@ -19,7 +19,7 @@ failed=0
 # load_env: the operator's settings and secrets (dojo.toml, .env, the DOJO_ENV profile), plus the
 # per-upstream gateway tokens a start writes (FIND-16), exported.
 load_env() {
-  eval "$(./engine/run.sh _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
+  eval "$(./dojo _operator-env ${DOJO_ENV:+--env "$DOJO_ENV"})"
   set -a
   [ ! -r engine/.generated/upstream-tokens.env ] || . engine/.generated/upstream-tokens.env
   set +a

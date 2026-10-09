@@ -2,7 +2,7 @@
 event to its adapter endpoint, best effort.
 
 One copy, here, shared like dojo_http.py: a module lists it in its module.env
-(SHARED="<context>/adapter_client.py") and ./run.sh copies it into <context>/_shared/.
+(SHARED="<context>/adapter_client.py") and ./dojo copies it into <context>/_shared/.
 
 Off unless both the URL and the secret are set (ACHIEVEMENTS_ADAPTER_URL and
 ACHIEVEMENTS_ADAPTER_SECRET). Each event is {"source": <module>, "event", "user", ...},

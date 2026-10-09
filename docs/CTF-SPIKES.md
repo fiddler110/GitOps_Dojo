@@ -41,7 +41,7 @@ still needs a Linux/Docker pass (CTF-P4).** Throwaway test scripts were not kept
   overlay. The only generating step is `_render_extensions` in `start.py`, and it renders `extensions.json` into
   `.generated/`, never compose. So no existing step can emit a compose fragment.
 - `deploy.replicas: 3` under podman-compose 1.6.0 started **one** container. Replicas and `--scale` are not an option,
-  because `run.sh` doesn't pass a scale flag.
+  because `dojo` doesn't pass a scale flag.
 - A fleet container (one container, N target processes) gives up per-slot addresses and per-target hardening.
 - **Answer:** don't make Compose own the fleet. D20 already needs a controller that starts and stops slots, so the
   controller creates the slot containers itself, from `STUDENT_COUNT`, when it starts. This needs no engine change,
@@ -227,7 +227,7 @@ only, `ctf-controller` on both `ctf_ops` and `runner_net`, and all new volumes/s
 
 **Run B (2026-10-05, live, on the real stack).** Built `workshops/ctf-defend-test/` — a new, minimal, uncommitted,
 facilitator-only harness pack (`MODULES="ctf-range runner-pool"`, `STUDENT_COUNT=2`; explicitly not a real lesson,
-not the CTF-5 pack) to run the actual S6 loop through the real `./run.sh`, `runner_net` and a real seeded Forgejo
+not the CTF-5 pack) to run the actual S6 loop through the real `./dojo`, `runner_net` and a real seeded Forgejo
 repo per student, instead of the isolated check in Run A. `--dry-run` passed; the stack came up with both slots
 reconciled and the pre-patch SQLi exploit dumping real rows against a live slot through `ctf-host`. The real PR-gate
 half of the loop is now proven, not stubbed: cloned a student's seeded repo, applied the real parameterized-query
@@ -291,7 +291,7 @@ in the design: the tag needed a `gitopsdojo/` prefix (`gitopsdojo/ctf-customer-p
 `engine/scripts/check-pins.sh` (which exempts this project's own images) doesn't flag it as an unpinned external
 image. **DESIGN CHANGE FROM BRIEF, found live:** `modules/ctf-range/compose.yml` also has a standalone dev-convenience
 `customer-portal` service that builds the same Dockerfile directly on the *outer* host engine (real network, no
-access to the tag that only ever exists inside `ctf-host`'s *inner*, offline dockerd) — this broke `./run.sh` outright
+access to the tag that only ever exists inside `ctf-host`'s *inner*, offline dockerd) — this broke `./dojo` outright
 (`short-name ... did not resolve`). Fixed with the project's existing `ARG BASE=... / FROM ${BASE}` convention: a
 `deps` stage mirroring `portal-deps` was added directly to `targets/customer-portal/Dockerfile`, defaulted to the
 real local tag via `ARG BASE`, with the dev-path compose service overriding `args: [BASE=deps]` — the default
@@ -638,7 +638,7 @@ registry/CI push half of S6 is no longer open — see S6's 2026-10-05 "Built" no
   opens `/ide` should never pay for it.
 - **Open:** whether anything else starts code-server eagerly; whether a pack can hide the VS Code tab (the workspace
   page is allocator-served, so possibly not without an engine change, which would be its own proposal); and how
-  CTF-5 sizes for IDE use. Measure with `./run.sh capacity` and a `--test` bot when the stack is next up.
+  CTF-5 sizes for IDE use. Measure with `./dojo capacity` and a `--test` bot when the stack is next up.
 
 ### S16, the CTF terminal workspace: first measurements
 
@@ -875,7 +875,7 @@ storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 fo
   stages (confirmed from the build log — `portal`/`portal-deps`/`base-image-fetch` and the other pack's stages
   never execute); full catalog = 1.89GB, each scoped image ≈ 900MB (roughly half, as expected with no
   customer-portal/ctf-builder plumbing and only 4 of 9 targets). All engine + ctf-range unit suites still pass, and
-  a cold `./run.sh ctf-defend-test` start still imports and serves its full 9-target catalog (now including
+  a cold `./dojo ctf-defend-test` start still imports and serves its full 9-target catalog (now including
   `leaky-config`, CTF-S8 below) with no regression. CTF-1/CTF-2 don't have real session packs yet (see the plan's
   checkpoint) — the mechanism is ready and proven; the next real pack just sets the three vars instead of building
   a one-off Dockerfile fork.

@@ -254,7 +254,7 @@ if [ "$N" -gt "$STUDENT_COUNT_ACTUAL" ]; then
   say ""
   say "  Cannot run $N students: $TERMINAL_CONTAINER only has $STUDENT_COUNT_ACTUAL accounts (${STUDENT_PREFIX}01..$(printf '%02d' "$STUDENT_COUNT_ACTUAL"))."
   say "  Either ask for at most $STUDENT_COUNT_ACTUAL (--students $STUDENT_COUNT_ACTUAL), or raise STUDENT_COUNT in .env and restart the stack"
-  say "  (./run.sh stop, then ./run.sh tofu-basics). Nothing was started."
+  say "  (./dojo stop, then ./dojo tofu-basics). Nothing was started."
   die "not enough student accounts: asked for $N, have $STUDENT_COUNT_ACTUAL"
 fi
 for ((i = 1; i <= N; i++)); do USERS+=("$(user_name "$i")"); done

@@ -35,18 +35,18 @@ else's. The `/admin` Sensei tab lists these.
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. **No password to announce** — each terminal is signed in with the student's own token. **Password** on
    the Roster tile shows it if ever needed.
-3. `./run.sh dns-as-code`. The first build takes several minutes (the terminal image carries `dnscontrol`
+3. `./dojo dns-as-code`. The first build takes several minutes (the terminal image carries `dnscontrol`
    + `dig`). Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides**, the **DNS Zones** view and
    the **runner pool** to go green. Terminals (account creation) is the slowest; yellow there is normal.
-4. **Size the machine:** `./run.sh capacity dns-as-code --students 30` — it counts PowerDNS, the runner
+4. **Size the machine:** `./dojo capacity dns-as-code --students 30` — it counts PowerDNS, the runner
    pool and the gate on top of the terminals.
 5. **Rehearse as a student** in a private window: Part 1 (push to your own zone, see it on `/dns`), then
    Lab 3 end to end — open a PR, watch **DNS Preview** go green, get it reviewed/merged, watch **DNS
-   Apply** go green, and `dig` the record. Then `./run.sh stop` and start clean.
+   Apply** go green, and `dig` the record. Then `./dojo stop` and start clean.
 6. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
@@ -76,7 +76,7 @@ overwritten.
 | Symptom | Likely cause and fix |
 | ------- | -------------------- |
 | `dnscontrol push` to `dojo.test` is refused | Correct: the shared zone is CI-only. Only `<user>.dojo.test` is pushable from a terminal |
-| **DNS Preview** / **DNS Apply** job red | Open the job log (Forgejo Actions or `/admin`). A real syntax error in `dnsconfig.js` is the lesson; a runner-pool stall shows in `./run.sh logs runner-pool \| tail -40` |
+| **DNS Preview** / **DNS Apply** job red | Open the job log (Forgejo Actions or `/admin`). A real syntax error in `dnsconfig.js` is the lesson; a runner-pool stall shows in `./dojo logs runner-pool \| tail -40` |
 | `dig` shows nothing after a merge | DNS Apply may still be running or red; check Actions. Then confirm on the `/dns` page before `dig` |
 | PR won't merge | Preview must be green and it needs one review. The `dns-bot` PR is there for the review step |
 | `git push` asks for a password / goes to the team repo | Token missing (`ls -l ~/.git-credentials`) or wrong remote (`git remote -v`). **Password** on the Roster tile as a stop-gap |
@@ -84,5 +84,5 @@ overwritten.
 
 ## After the session
 
-- `./run.sh stop` wipes everything — containers, volumes, PowerDNS data, every repo and account.
+- `./dojo stop` wipes everything — containers, volumes, PowerDNS data, every repo and account.
 - Note anything that confused the room or a wrong timing in `ROADMAP.md` (Manual checks) and fix the lab.

@@ -2,12 +2,12 @@
 #
 #   dojo.toml        this file, committed: defaults that suit any machine.
 #   dojo.local.toml  git-ignored, same layout: this machine's overrides and your
-#                    profiles (home, live ...). `./run.sh setup` writes it.
+#                    profiles (home, live ...). `./dojo setup` writes it.
 #   .env             git-ignored: passwords, tokens and seeds (see .env.example).
 #
 # Later layers win: dojo.toml < dojo.local.toml < .env < a profile
-# (`./run.sh <workshop> --env home`, or --env mac-podman,home to join several)
-# < the workshop's own workshop.env. `./run.sh config <workshop> KEY` shows which
+# (`./dojo <workshop> --env home`, or --env mac-podman,home to join several)
+# < the workshop's own workshop.env. `./dojo config <workshop> KEY` shows which
 # layer set a value. Unknown sections or keys are rejected, so a typo is an error.
 
 [general]
@@ -23,7 +23,7 @@ achievements = true               # toasts, leaderboard, support desk (workshops
 # What students type into their browser; the port must match http_port.
 #   local:  http://localhost:8080
 #   a VM:   https://<label>.<region>.cloudapp.azure.com
-# On a LAN use https (run.sh warns about plain http beyond localhost).
+# On a LAN use https (dojo warns about plain http beyond localhost).
 public_base_url = "http://localhost:8080"
 # Interface the gateway binds on THIS machine: 127.0.0.1 = this machine only,
 # 0.0.0.0 = the LAN too (a VM, or a proxy on another host).
@@ -47,14 +47,14 @@ https_port = 8443
 # What students get:
 #   "code-server"  VS Code in the browser plus a tmux terminal
 #   "zellij"       a Zellij terminal only (file list, micro editor, shell): far less memory
-#                  per student. run.sh builds the extra image (engine/zellij-terminal/).
+#                  per student. dojo builds the extra image (engine/zellij-terminal/).
 # A workshop's workshop.env can set TERMINAL_FLAVOR too, and wins.
 flavor = "code-server"
 # Zellij only: the browser terminal's font (a CSS list) and size.
 #   font_family = "Menlo,Consolas,monospace"
 #   font_size = 14
 # The container-wide ceiling for ALL students' code-server/ttyd processes together, and a per-process
-# V8 heap cap under it. Size them for the machine with `./run.sh capacity --students N`
+# V8 heap cap under it. Size them for the machine with `./dojo capacity --students N`
 # (`setup` does, into dojo.local.toml). By hand: ~650 MB RAM and 40-50 pids per student, plus ~1 GB.
 mem_limit = "4g"
 pids_limit = 2048
@@ -68,7 +68,7 @@ reconnection_grace_seconds = 300
 idle_timeout_seconds = 900
 
 [bots]
-# `./run.sh <workshop> --test [N]` starts demo "students" (testuser1-3 are expert/intermediate/
+# `./dojo <workshop> --test [N]` starts demo "students" (testuser1-3 are expert/intermediate/
 # novice personas). They never use a student slot. --test sets the count for you.
 #   count = 0
 #   prefix = "testuser"
@@ -79,7 +79,7 @@ idle_timeout_seconds = 900
 #   corp_ca_bundle = "/path/to/combined_ca_bundle.pem"
 
 [engine]
-# Fallbacks so `./run.sh stop` can read the compose file; a workshop's workshop.env sets
+# Fallbacks so `./dojo stop` can read the compose file; a workshop's workshop.env sets
 # the real values for each run.
 workshop_content_dir = "../workshops/git-fundamentals/content"
 workshop_name = "Git Training Lab"

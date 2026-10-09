@@ -22,7 +22,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "achievements", "service"))
-# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has copied it (SHARED= in module.env).
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./dojo has copied it (SHARED= in module.env).
 sys.path[:0] = [os.path.join(HERE, "..", "_shared"), os.path.join(HERE, "_shared")]
 import dojo_http  # noqa: E402
 import bot  # noqa: E402

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Install the `dojo` command: a small script in ~/.local/bin that runs this
-# repo's ./run.sh, so `dojo <workshop>`, `dojo stop`, etc. work from any
+# repo's ./dojo, so `dojo <workshop>`, `dojo stop`, etc. work from any
 # directory, in any shell and from scripts. It also adds one block to your
-# shell profile that loads the tab completion (completions/run.sh.zsh or
-# .bash, for both `dojo` and ./run.sh) and, only if ~/.local/bin isn't on your
+# shell profile that loads the tab completion (completions/dojo.zsh or
+# .bash, for both `dojo` and ./dojo) and, only if ~/.local/bin isn't on your
 # PATH, adds it. Safe to re-run: the block sits between marker lines and is
 # replaced in place; the older `dojo` function block and the first-run
 # completion lines are removed, so nothing is loaded twice.
@@ -19,11 +19,11 @@ set -eu
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 bindir="$HOME/.local/bin"
 shim="${bindir}/dojo"
-stamp="# Written by ./run.sh alias-setup"
-begin='# >>> dojo (./run.sh alias-setup) >>>'
+stamp="# Written by ./dojo alias-setup"
+begin='# >>> dojo (./dojo alias-setup) >>>'
 end='# <<< dojo <<<'
 
-ours() { [ -f "$shim" ] && grep -qF "$stamp" "$shim"; }
+ours() { [ -f "$shim" ] && { grep -qF "$stamp" "$shim" || grep -qF "# Written by ./run.sh alias-setup" "$shim"; }; }
 
 case "${1:-}" in
   -h | --help)
@@ -38,8 +38,8 @@ case "${1:-}" in
     exit 1 ;;
 esac
 
-if [ ! -f "${root}/run.sh" ]; then
-  echo "Cannot find ${root}/run.sh" >&2
+if [ ! -f "${root}/dojo" ]; then
+  echo "Cannot find ${root}/dojo" >&2
   exit 1
 fi
 
@@ -47,11 +47,11 @@ case "$(basename "${SHELL:-}")" in
   zsh)
     if [ -f "$HOME/.zshrc_aliases" ]; then target="$HOME/.zshrc_aliases"; else target="$HOME/.zshrc"; fi
     rc="${ZDOTDIR:-$HOME}/.zshrc"
-    comp="${root}/engine/completions/run.sh.zsh" ;;
+    comp="${root}/engine/completions/dojo.zsh" ;;
   *)
     if [ -f "$HOME/.bash_aliases" ]; then target="$HOME/.bash_aliases"; else target="$HOME/.bashrc"; fi
     rc="$HOME/.bashrc"
-    comp="${root}/engine/completions/run.sh.bash" ;;
+    comp="${root}/engine/completions/dojo.bash" ;;
 esac
 [ -f "$comp" ] || comp=""
 
@@ -61,11 +61,11 @@ strip() {
   [ -f "$1" ] || return 0
   tmp="$(mktemp)"
   awk -v b="$begin" -v e="$end" '
-    $0 == b || $0 == "# >>> dojo alias (./run.sh alias-setup) >>>" { skip = 1 }
+    $0 == b || $0 == "# >>> dojo (./run.sh alias-setup) >>>" || $0 == "# >>> dojo alias (./run.sh alias-setup) >>>" { skip = 1 }
     $0 == "# GitOps Dojo: ./run.sh tab-completion" { drop_next = 1; next }
-    drop_next { drop_next = 0; if ($0 ~ /completions\/run\.sh\.(zsh|bash)"?$/) next }
+    drop_next { drop_next = 0; if ($0 ~ /completions\/(run\.sh|dojo)\.(zsh|bash)"?$/) next }
     !skip { print }
-    $0 == e || $0 == "# <<< dojo alias <<<" { skip = 0 }' "$1" > "$tmp"
+    $0 == e || $0 == "# <<< dojo alias <<<" || $0 == "# <<< dojo <<<" { skip = 0 }' "$1" > "$tmp"
   if ! cmp -s "$tmp" "$1"; then cat "$tmp" > "$1"; fi
   rm -f "$tmp"
 }
@@ -89,11 +89,11 @@ cat > "$shim" <<EOF
 #!/bin/sh
 ${stamp}; re-run it if the repo moves.
 root='${q_root}'
-if [ ! -x "\$root/run.sh" ]; then
-  echo "dojo: \$root/run.sh not found (was the repo moved? run ./run.sh alias-setup in its new place)" >&2
+if [ ! -x "\$root/dojo" ]; then
+  echo "dojo: \$root/dojo not found (was the repo moved? run ./dojo alias-setup in its new place)" >&2
   exit 1
 fi
-DOJO_PROG=dojo exec "\$root/run.sh" "\$@"
+DOJO_PROG=dojo exec "\$root/dojo" "\$@"
 EOF
 chmod 755 "$shim"
 
@@ -106,14 +106,14 @@ esac
 if [ -n "$comp" ] && [ "${comp%.bash}" != "$comp" ]; then
   block="${block}
 if [ -f '${comp}' ]; then
-    . '${comp}'    # tab completion for dojo and ./run.sh
+    . '${comp}'    # tab completion for dojo and ./dojo
 fi"
 elif [ -n "$comp" ]; then
   # Completion needs compinit before the compdef inside the file runs; load it if the profile hasn't yet.
   block="${block}
 if [ -f '${comp}' ]; then
     (( \$+functions[compdef] )) || { autoload -Uz compinit && compinit; }
-    source '${comp}'    # tab completion for dojo and ./run.sh
+    source '${comp}'    # tab completion for dojo and ./dojo
 fi"
 fi
 block="${block}
@@ -141,13 +141,13 @@ for f in $profiles; do
 "
 done
 
-echo "Installed ${shim} (runs ${root}/run.sh)."
+echo "Installed ${shim} (runs ${root}/dojo)."
 if [ -n "$others" ]; then
   echo "Warning: these lines also load a dojo completion file, so it may load twice (remove them if they're stale):"
   printf '%s' "$others"
 fi
 if [ -n "$comp" ]; then
-  echo "${target} loads tab completion for 'dojo' and ./run.sh."
+  echo "${target} loads tab completion for 'dojo' and ./dojo."
 else
   echo "No tab completion for ${SHELL:-your shell} (bash and zsh only)."
 fi

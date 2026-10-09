@@ -73,7 +73,7 @@ fi
 # -- Content-aware DinD image-store cache --------------------------------
 # /var/lib/docker is a host bind mount (modules/ctf-range/compose.yml ->
 # .cache/ctf-docker on the host) so the ~90s-5min first-time import of the
-# baked target rootfses survives `./run.sh stop`. The ctf-host image bakes
+# baked target rootfses survives `./dojo stop`. The ctf-host image bakes
 # in /etc/ctf-host-content.sha at build time (Dockerfile: sha256 of every
 # file under /opt). On start, compare that stamp against the cached one and
 # wipe + re-import only when they diverge -- a target source change

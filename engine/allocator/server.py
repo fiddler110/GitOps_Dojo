@@ -22,7 +22,7 @@ Locking rules (keep them when touching shared state):
   writes to disk, taken only after `_state_lock` is released.
 
 The slot table survives an allocator crash or restart: every claim and
-release writes it to ALLOCATOR_STATE_FILE (a named volume, so `./run.sh
+release writes it to ALLOCATOR_STATE_FILE (a named volume, so `./dojo
 stop` still wipes it), and start-up reads it back. The write happens after
 the lock is released, under its own `_save_lock`, and a version number makes
 sure an older snapshot never overwrites a newer one. Everything else (rate

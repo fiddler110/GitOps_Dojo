@@ -114,7 +114,7 @@ class Config:
                 return int(env.get(name) or 0)
             except ValueError:
                 return 0
-        # A slot per student, then per demo bot (./run.sh --test).
+        # A slot per student, then per demo bot (./dojo --test).
         prefix, bots = env.get("STUDENT_PREFIX") or "student", env.get("BOT_PREFIX") or "testuser"
         self.slots = ([f"{prefix}{n:02d}" for n in range(1, count("STUDENT_COUNT") + 1)]
                       + [f"{bots}{n}" for n in range(1, count("BOT_COUNT") + 1)])

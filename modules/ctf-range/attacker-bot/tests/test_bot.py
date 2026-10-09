@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # adapter_client: see bot.py's own sys.path dance; running from a repo checkout, the canonical
-# copy lives at modules/_shared/, not under ./_shared/ (only populated once ./run.sh runs).
+# copy lives at modules/_shared/, not under ./_shared/ (only populated once ./dojo runs).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "_shared"))
 import bot  # noqa: E402
 

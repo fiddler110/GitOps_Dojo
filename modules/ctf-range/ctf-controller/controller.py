@@ -42,7 +42,7 @@ import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./run.sh has
+# dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./dojo has
 # copied it in (SHARED= in module.env) — the AttackManager HTTP paths below
 # are gateway-identity-gated (X-Auth-User + X-Gateway-Token), unlike this
 # file's existing Bearer-token paths, which dojo_http has nothing to do with.

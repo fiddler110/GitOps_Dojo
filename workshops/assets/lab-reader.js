@@ -2,10 +2,10 @@
 // document, for the "read it in the browser" path linked from each
 // workshop's labs.md. Marp itself can't do this: its server (engine/
 // presentation) treats every .md path as a slide deck and clips long-form
-// text into fixed-size slide boxes -- see engine/run.sh's sync_lab_docs,
+// text into fixed-size slide boxes -- see dojo's sync_lab_docs,
 // which mirrors content/lab/*.md into content/slides/lab/*.md.txt (a
 // non-.md extension so Marp's router passes it through unrendered) on every
-// `./run.sh <workshop>`. content/lab/*.md stays the single source of
+// `./dojo <workshop>`. content/lab/*.md stays the single source of
 // truth; never hand-edit the generated *.md.txt copies.
 (function () {
   'use strict';

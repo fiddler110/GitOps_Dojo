@@ -1,11 +1,11 @@
 """Safety rules shared by `doctor` and the start: public passwords, loopback,
-the published port and plain HTTP. Same rules run.sh has always applied."""
+the published port and plain HTTP. Same rules dojo has always applied."""
 from __future__ import annotations
 
 from typing import Dict, List, Optional
 
 # Passwords anyone can know: .env.example's placeholder and the values
-# `./run.sh setup --default` writes. Keep in step with engine/scripts/lib.sh
+# `./dojo setup --default` writes. Keep in step with engine/scripts/lib.sh
 # (tests/test_checks.py compares the two).
 DEFAULT_PASSWORDS = ("change-me", "student", "student123", "admin")
 

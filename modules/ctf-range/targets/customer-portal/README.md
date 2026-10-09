@@ -70,7 +70,7 @@ docker run --rm -p 5000:5000 \
 ```
 
 Or through the module's dev compose instance:
-`./run.sh <pack-using-ctf-range>` (none wired yet — build the image directly
+`./dojo <pack-using-ctf-range>` (none wired yet — build the image directly
 for now).
 
 ## Verify the flaw and the fix

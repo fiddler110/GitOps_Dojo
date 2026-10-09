@@ -2,13 +2,13 @@
 
 S6 proof harness for the defend-pipeline loop (target 14, customer-portal) -- NOT the CTF-5 session pack.
 
-Made with `./run.sh new-workshop ctf-defend-test`. Everything below marked TODO is a placeholder.
+Made with `./dojo new-workshop ctf-defend-test`. Everything below marked TODO is a placeholder.
 
 ## Running it
 
 ```sh
-./run.sh ctf-defend-test --dry-run    # what would build and start; checks manifests and image pins
-./run.sh ctf-defend-test              # then open http://localhost:8080
+./dojo ctf-defend-test --dry-run    # what would build and start; checks manifests and image pins
+./dojo ctf-defend-test              # then open http://localhost:8080
 ```
 
 ## What's here
@@ -24,7 +24,7 @@ Made with `./run.sh new-workshop ctf-defend-test`. Everything below marked TODO 
 
 1. Write the deck and the labs (TODOs in each file), and list every lab in `content/slides/lab-index.md` and
    `content/lab/README.md`.
-2. Need tools in the terminal, services or a web tool? Check `./run.sh modules` first, then see "Adding a new
+2. Need tools in the terminal, services or a web tool? Check `./dojo modules` first, then see "Adding a new
    workshop" in [`workshops/README.md`](../README.md).
 3. Add a row to the workshop table in [`workshops/README.md`](../README.md).
 4. Run it end to end, including the facilitator's `/admin` view, before a live session.

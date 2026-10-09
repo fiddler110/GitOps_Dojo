@@ -1,5 +1,5 @@
 # ctf-range module (scaffold). Layered onto engine/docker-compose.yml by
-# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+# dojo when a workshop.env lists it in MODULES (see README.md).
 # Relative paths resolve against engine/, NOT this folder.
 #
 # TWO PATHS live here:
@@ -65,7 +65,7 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      # The plaintext SQLite DB. Named so ./run.sh stop removes it; seeded on
+      # The plaintext SQLite DB. Named so ./dojo stop removes it; seeded on
       # first start from an empty volume (entrypoint.sh).
       - ctf_customer_portal_data:/data
     mem_limit: ${CTF_TARGET_MEM_LIMIT:-128m}
@@ -91,7 +91,7 @@ services:
     networks:
       - ctf_ops
     volumes:
-      # Named so ./run.sh stop removes pushed images with the rest of the range.
+      # Named so ./dojo stop removes pushed images with the rest of the range.
       - ctf_registry_data:/var/lib/registry
     cap_drop:
       - ALL
@@ -157,12 +157,12 @@ services:
       # docker:dind keeps images/containers in /var/lib/docker (an anonymous
       # volume in its base image). Bind-mount it to a project-local cache so
       # the ~90s-5min target-rootfs import on first start isn't repeated on
-      # every stop/start cycle (`./run.sh stop` wipes every named volume but
+      # every stop/start cycle (`./dojo stop` wipes every named volume but
       # not host bind mounts). The entrypoint checks a content-sha stamp
       # baked into this image at build time against the cached one and
       # wipes + re-imports when it has drifted; a target source change
       # therefore busts the cache automatically. The host dir is created by
-      # engine/run.sh before `up`.
+      # dojo before `up`.
       - ../.cache/ctf-docker:/var/lib/docker
     networks:
       - ctf_ops
@@ -476,7 +476,7 @@ services:
     restart: unless-stopped
 
   # The terminal's client side (dojo-flag, the ctf_net firewall hook) is
-  # terminal/, a link in the terminal build chain (engine/run.sh). web-terminal's
+  # terminal/, a link in the terminal build chain (dojo). web-terminal's
   # base `networks:` uses the MAP form (engine/docker-compose.yml, for the
   # terminal_ingress alias) — a fragment that adds networks here MUST use map
   # form too, or podman-compose fails mixing list and map (CLAUDE.md).

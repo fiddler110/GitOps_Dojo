@@ -17,7 +17,7 @@ real containers. Students deploy to it with the `azurerm` provider. Add it with
 
 **Settings** (set in `.env` or `workshop.env`): `CLOUD_HOST_MEM_LIMIT` (3g),
 `CLOUD_HOST_PIDS_LIMIT` (4096), `CLOUD_API_MEM_LIMIT` (256m). Needs `PUBLIC_BASE_URL` and
-`GATEWAY_TOKEN`, which `./run.sh setup` writes.
+`GATEWAY_TOKEN`, which `./dojo setup` writes.
 
 **Tests** (host Python, no containers):
 

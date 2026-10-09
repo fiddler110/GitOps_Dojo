@@ -1,5 +1,5 @@
 # Extends the shared web-terminal base image (see engine/docker-compose.yml
-# and engine/run.sh, which builds and tags gitopsdojo/web-terminal:base
+# and dojo, which builds and tags gitopsdojo/web-terminal:base
 # before this Dockerfile runs) with the ACME tooling this workshop's lab
 # needs: the `step` CLI (talks to step-ca, bootstraps trust), certbot and
 # acme.sh (the two ACME clients students compare), plus openssl/dig/jq/cron
@@ -7,7 +7,7 @@
 # provisioning, code-server/ttyd, shell helpers) is inherited unchanged
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
-# engine/run.sh sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
+# dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 

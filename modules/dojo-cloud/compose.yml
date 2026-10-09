@@ -1,5 +1,5 @@
 # dojo-cloud module, layered on top of engine/docker-compose.yml by
-# engine/run.sh when a workshop.env lists it in MODULES (see README.md).
+# dojo when a workshop.env lists it in MODULES (see README.md).
 #
 # IMPORTANT: Compose resolves every relative path in this file relative to
 # the base file's directory — engine/, not this folder. That's why
@@ -34,7 +34,7 @@ services:
     volumes:
       - cloud_run:/run/cloud
       # docker:dind keeps its images and containers in /var/lib/docker, which its image declares as an
-      # ANONYMOUS volume. `down --volumes` (./run.sh stop) leaves anonymous volumes behind, one per start,
+      # ANONYMOUS volume. `down --volumes` (./dojo stop) leaves anonymous volumes behind, one per start,
       # so name it: then stop removes it like every other volume.
       - cloud_docker:/var/lib/docker
     environment:
@@ -113,7 +113,7 @@ services:
   # (green once cloud-api's /readyz answers) are in extensions.json.
 
   # The terminal's client side (credential broker, dojo-env, CA trust) is
-  # terminal/, a link in the terminal build chain (engine/run.sh).
+  # terminal/, a link in the terminal build chain (dojo).
   web-terminal:
     # Started, not healthy: the start.d hook never waits for Dojo Cloud, so the
     # terminal is usable at once (a shell opened before the cloud is ready needs a new tab).

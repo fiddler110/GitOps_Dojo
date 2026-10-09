@@ -1,4 +1,4 @@
-"""Starting a workshop: `./run.sh <workshop> [flags]`, `restart`, `build-all`.
+"""Starting a workshop: `./dojo <workshop> [flags]`, `restart`, `build-all`.
 
 The steps, in order (each stops the run with a message that says what to do):
   1. resolve the environment (envfiles.resolve) and apply the safety gates:
@@ -383,11 +383,11 @@ def _check_running(p: Plan) -> None:
                                  f"Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or '{paths.PROG} stop' "
                                  "first (it deletes every volume).")
             if o.dry_run:
-                bad(f"{who} is still running: a real start would refuse until './run.sh stop'.")
+                bad(f"{who} is still running: a real start would refuse until './dojo stop'.")
                 console.print()
             else:
                 raise StartError(f"Refusing to start: {who} is still running. Starting {o.workshop} over it\n"
-                                 "would leave its extra services and volumes behind. Run './run.sh stop' first\n"
+                                 "would leave its extra services and volumes behind. Run './dojo stop' first\n"
                                  "(it deletes every volume: student homes and Forgejo data).")
     if o.recreate:
         unknown = [s for s in o.recreate if s not in p.services()]
@@ -395,7 +395,7 @@ def _check_running(p: Plan) -> None:
             raise StartError(f"restart: {', '.join(unknown)} is not a service of {o.workshop}. "
                              f"Its services: {' '.join(p.services())}")
         if not p.running:
-            raise StartError(f"restart: {o.workshop} isn't running; './run.sh restart' (no service names) starts all of it.")
+            raise StartError(f"restart: {o.workshop} isn't running; './dojo restart' (no service names) starts all of it.")
 
 
 def _build_and_up(p: Plan) -> int:
@@ -563,8 +563,8 @@ def _compose_up(p: Plan) -> int:
     if rc == 0 and p.o.fast and p.env.get("BOT_COUNT", "0") != "0":
         release_bots(p.rt)
     if rc != 0:
-        console.print("The run stays recorded so `./run.sh stop` can remove what did start; "
-                      "fix the error, then `./run.sh stop` and start again.")
+        console.print("The run stays recorded so `./dojo stop` can remove what did start; "
+                      "fix the error, then `./dojo stop` and start again.")
     return rc
 
 
@@ -609,7 +609,7 @@ def release_bots(rt) -> None:
 def run_restart(services_: List[str], clean: bool) -> int:
     last = state.last_start()
     if not last:
-        fail("Nothing to restart: no workshop has been started from this checkout yet ('./run.sh <workshop>').")
+        fail("Nothing to restart: no workshop has been started from this checkout yet ('./dojo <workshop>').")
         return 1
     o = parse_recorded(last)
     if clean:
@@ -617,7 +617,7 @@ def run_restart(services_: List[str], clean: bool) -> int:
             fail("--clean restarts the whole stack; leave out the service names.")
             return 1
         from .stop import run_stop
-        console.print(f"Clean restart: './run.sh stop', then './run.sh {' '.join(last)}'.")
+        console.print(f"Clean restart: './dojo stop', then './dojo {' '.join(last)}'.")
         code = run_stop(dry_run=False)
         if code != 0:
             return code

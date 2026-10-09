@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""The GitOps Dojo command: ./dojo <workshop>, ./dojo stop, ./dojo --help.
+
+All the work is the Python CLI in engine/dojo/ (Python 3.9+, which podman-compose
+needs anyway). This file only puts it on the path; boot.py fetches the pinned
+dependencies on the first run. `./dojo alias-setup` installs a `dojo` command that
+runs this from any directory.
+"""
+import os
+import sys
+
+sys.dont_write_bytecode = True   # never leave __pycache__ in engine/
+here = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(here, "engine", "dojo"))
+os.environ.setdefault("DOJO_PROG", "./dojo")
+import boot  # noqa: E402
+
+boot.main()

@@ -38,19 +38,19 @@ with a verified certificate, and a second visit upgraded by HSTS.
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. **No password to announce** — each terminal is signed in with the student's own token. **Password** on
    the Roster tile shows it if needed.
-3. `./run.sh cert-autorenewal`. The first build takes several minutes (the terminal image carries `step`,
+3. `./dojo cert-autorenewal`. The first build takes several minutes (the terminal image carries `step`,
    `certbot` and `acme.sh`; `step-ca`, `demo-app` and PowerDNS start alongside). Open `/admin` and wait for
    **Forgejo**, **Terminals**, **Slides**, **Site Inspector**, the **DNS Zones** view and the gate to go
    green. Terminals (account creation) is the slowest; yellow there is normal.
-4. **Size the machine:** `./run.sh capacity cert-autorenewal --students 30` — it counts `step-ca`,
+4. **Size the machine:** `./dojo capacity cert-autorenewal --students 30` — it counts `step-ca`,
    `demo-app` and PowerDNS on top of the terminals.
 5. **Rehearse as a student** in a private window: Labs 1-2 at least — trust the CA, issue with `certbot`,
    then open **Site Inspector** and confirm the `http → 301 → https` chain with a verified cert. If you have
-   time, Lab 5's dns-01 so you have seen the TXT records appear and clear on `/dns`. Then `./run.sh stop`
+   time, Lab 5's dns-01 so you have seen the TXT records appear and clear on `/dns`. Then `./dojo stop`
    and start clean.
 6. Skim the deck with speaker notes on.
 
@@ -93,6 +93,6 @@ overwritten.
 
 ## After the session
 
-- `./run.sh stop` wipes everything — containers, volumes, the CA's data, every issued cert, the webroot,
+- `./dojo stop` wipes everything — containers, volumes, the CA's data, every issued cert, the webroot,
   PowerDNS data, every account.
 - Note anything that confused the room or a wrong timing in `ROADMAP.md` (Manual checks) and fix the lab.

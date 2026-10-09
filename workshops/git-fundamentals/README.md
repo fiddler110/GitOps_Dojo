@@ -19,13 +19,13 @@ lab mechanics and facilitator setup.
 ```sh
 cd ../../engine
 cp .env.example .env    # first time only — account/secret settings
-./run.sh git-fundamentals
+./dojo git-fundamentals
 ```
 
-`run.sh` picks this workshop's identity (content dir, Forgejo org/repo) from
+`dojo` picks this workshop's identity (content dir, Forgejo org/repo) from
 [`workshop.env`](workshop.env) — see [`workshops/README.md`](../README.md)
 for how workshop selection works, and how to run a different workshop
-(e.g. `./run.sh dns-as-code`) instead.
+(e.g. `./dojo dns-as-code`) instead.
 
 Full facilitator setup, account provisioning, and troubleshooting:
 [`engine/README.md`](../../engine/README.md). Student-facing walkthrough:

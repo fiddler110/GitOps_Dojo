@@ -18,6 +18,13 @@ type) stop the start with the file named. The first CLI command in an old checko
 (secrets to `.env`, the rest to `dojo.local.toml`, originals kept as `*.migrated`). `env-profiles/` is gone: `mac-podman` is
 now `[profiles.mac-podman.env]` in `dojo.toml`; `setup` never touches it or the `.env` profile sections. `tomli` (pinned
 wheel) covers Python below 3.11.
+**`./dojo` replaces `./run.sh` and `engine/run.sh`.** The root `dojo` is a ten-line Python launcher for `engine/dojo/`; the
+`python3` check is boot.py's, the one-time completion offer moved into the CLI, and the old `--setup`/`--capacity` spellings are
+gone. The `dojo` command that `alias-setup` installs runs it (old shims and the old marker blocks are still recognised and
+replaced). Completion files are `engine/completions/dojo.{bash,zsh}`. A three-line `run.sh` stub remains only so an installed
+old `dojo` shim or shell function keeps working; delete it when nothing calls it. Docs, messages and scripts say `./dojo`
+(older entries below keep the commands as they were then). Checked locally: 70 unit tests, `./dojo` from another directory,
+the installed shim in a scratch HOME, a real git-fundamentals start, login and stop.
 `--terminal code-server|zellij` picks the flavor for one run over every file (recorded, so `restart` repeats it).
 Checked locally: 70 unit tests (13 new: layering, sections, profiles, set/round-trip, migration); the migration run on this
 machine's real files (`config` shows the same flavor, URL and logins for plain and `--env home`); `git-fundamentals`

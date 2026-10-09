@@ -1,5 +1,5 @@
-# Zsh tab-completion for ./run.sh (repo root or engine/) and the `dojo`
-# command from `./run.sh alias-setup` (~/.local/bin/dojo).
+# Zsh tab-completion for ./dojo (repo root or engine/) and the `dojo`
+# command from `./dojo alias-setup` (~/.local/bin/dojo).
 #
 # Everything it offers comes from the dojo CLI's own definitions (Click's
 # completion protocol), with descriptions: commands, workshop names, each
@@ -7,17 +7,17 @@
 # stack's services for `restart` and `logs`. Nothing here needs updating when
 # commands, workshops or options change.
 #
-# Install: source this file from ~/.zshrc after compinit (./run.sh alias-setup,
+# Install: source this file from ~/.zshrc after compinit (./dojo alias-setup,
 # or the first-run offer, does it for you).
 
 # This file's engine/, resolved once at source time.
-_run_sh_engine_dir="${${(%):-%x}:A:h:h}"
+_dojo_engine_dir="${${(%):-%x}:A:h:h}"
 
-_run_sh() {
+_dojo() {
   local -a completions completions_with_descriptions response
   local type key descr
   response=("${(@f)$(env COMP_WORDS="${words[*]}" COMP_CWORD=$((CURRENT - 1)) _DOJO_COMPLETE=zsh_complete \
-    python3 -B "${_run_sh_engine_dir}/dojo/boot.py" 2>/dev/null)}")
+    python3 -B "${_dojo_engine_dir}/dojo/boot.py" 2>/dev/null)}")
   for type key descr in ${response}; do
     if [[ "$type" == "plain" ]]; then
       if [[ "$descr" == "_" ]]; then
@@ -36,4 +36,4 @@ _run_sh() {
   return 0
 }
 
-compdef _run_sh run.sh ./run.sh ../run.sh engine/run.sh ./engine/run.sh dojo
+compdef _dojo dojo ./dojo ../dojo

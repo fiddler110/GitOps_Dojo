@@ -1,4 +1,4 @@
-# ctf-range module's link in the terminal build chain (engine/run.sh sets
+# ctf-range module's link in the terminal build chain (dojo sets
 # BASE to the image below this one; see workshops/README.md). Adds
 # `dojo-flag` (plan §5), the per-uid ctf_net firewall hook (CTF-S2/S3), the
 # offensive tool suite and the Lab Info library that documents it (plan §9,

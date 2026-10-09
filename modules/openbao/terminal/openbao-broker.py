@@ -30,7 +30,7 @@ LIFETIME = 120  # seconds
 
 def roster(env):
     # The accounts openbao-setup gives an entity: every student, the demo bots
-    # (./run.sh --test) and the facilitator.
+    # (./dojo --test) and the facilitator.
     def count(name):
         try:
             return int(env.get(name, "0") or 0)

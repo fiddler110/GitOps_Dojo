@@ -40,7 +40,7 @@ class NewWorkshop(unittest.TestCase):
         self.assertIn("WORKSHOP_CONTENT_DIR=../workshops/new-one/content", env)
         self.assertIn("training/new-one.git", (dest / "content/lab/lab1.md").read_text())
         self.assertIn('WORKSHOP_DURATION="TODO: e.g. ~2 h"', env)   # no --duration: a TODO like the description
-        # It shows up in ./run.sh list, after the last workshop in the path.
+        # It shows up in ./dojo list, after the last workshop in the path.
         found = workshops.find("new-one")
         self.assertEqual((found.title, found.order, found.modules), ("New One", 5, ["sensei", "dns-ui"]))
         self.assertEqual(found.duration, "TODO: e.g. ~2 h")

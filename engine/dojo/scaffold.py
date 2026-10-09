@@ -93,7 +93,7 @@ def create(s: Scaffold) -> List[Path]:
             text = re.sub(r"\{\{(\w+)\}\}", lambda m: values[m.group(1)], src.read_text())
             out.write_text(text)
             shutil.copymode(src, out)
-        tmp.rename(dest)  # all or nothing: a half-made pack would show up in ./run.sh list
+        tmp.rename(dest)  # all or nothing: a half-made pack would show up in ./dojo list
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return files

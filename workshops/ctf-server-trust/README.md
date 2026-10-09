@@ -8,9 +8,9 @@ CTF-1 and CTF-3 through CTF-5.
 ## Running it
 
 ```sh
-./run.sh ctf-server-trust --dry-run    # what would build and start; checks manifests and image pins
-./run.sh ctf-server-trust              # then open http://localhost:8080
-./run.sh ctf-server-trust --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
+./dojo ctf-server-trust --dry-run    # what would build and start; checks manifests and image pins
+./dojo ctf-server-trust              # then open http://localhost:8080
+./dojo ctf-server-trust --test 2 --fast   # demo bots, one round, no pacing (CLAUDE.md)
 ```
 
 ## The ladder, this session
@@ -54,7 +54,7 @@ stage, for the mechanics.
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/): `lab1.md`-`lab4.md`, one per target, each guiding toward the technique
   with two rounds of hints before pointing at that target's own `exploit-guide/<id>.md` -- the full
-  spoiler walkthrough, deliberately not linked from the browser nav (`run.sh` only syncs `content/lab/*.md`
+  spoiler walkthrough, deliberately not linked from the browser nav (`dojo` only syncs `content/lab/*.md`
   into the browsable lab reader, not the `exploit-guide/` subfolder, so it's reachable from a terminal
   `cat`/`glow` but not one click away).
 - [`content/sample-repo/`](content/sample-repo/): seeded into Forgejo as `training/ctf-server-trust`, but

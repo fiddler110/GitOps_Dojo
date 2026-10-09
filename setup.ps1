@@ -1,6 +1,6 @@
 # Guided Windows setup for GitOps Dojo.
 #
-# The stack runs in Linux containers and run.sh is a bash script, so on Windows
+# The stack runs in Linux containers and dojo is a Python script, so on Windows
 # it is used from inside WSL2 with Ubuntu. This script gets you that far:
 #   1. checks WSL2 and an Ubuntu distro are installed (offers to install them),
 #   2. makes sure the repo is cloned inside Ubuntu's Linux home (not on C:),
@@ -79,15 +79,15 @@ if ($exists -match 'yes') {
 }
 
 Step 'Container engine inside Ubuntu'
-# One line per tool: "name ok|missing". Same rule as run.sh: podman + podman-compose win, docker is the fallback.
+# One line per tool: "name ok|missing". Same rule as dojo: podman + podman-compose win, docker is the fallback.
 # --exec skips the distro shell (which would expand $c early). No double quotes inside: Windows PowerShell 5.1 strips them when handing the string to wsl.exe.
 $probe = & wsl.exe -d $ubuntu --exec bash -c 'for c in podman podman-compose docker; do command -v $c >/dev/null 2>&1 && echo $c ok || echo $c missing; done; docker compose version >/dev/null 2>&1 && echo docker-compose ok || echo docker-compose missing; podman-compose version >/dev/null 2>&1 && echo podman-compose-usable ok || echo podman-compose-usable missing'
 $has = @{}
 foreach ($l in $probe) { $p = ($l -replace "`0", '').Trim() -split ' '; if ($p.Count -eq 2) { $has[$p[0]] = ($p[1] -eq 'ok') } }
 if ($has['podman'] -and $has['podman-compose-usable']) {
-    Ok 'podman + podman-compose are installed and usable; run.sh will use podman'
+    Ok 'podman + podman-compose are installed and usable; dojo will use podman'
 } elseif ($has['docker'] -and $has['docker-compose']) {
-    Ok 'docker + compose plugin are installed and usable; run.sh will use docker'
+    Ok 'docker + compose plugin are installed and usable; dojo will use docker'
 } elseif ($has['podman'] -or $has['docker']) {
     Bad 'An engine is installed but its compose tool is missing or broken. setup.sh will offer to fix it.'
 } else {

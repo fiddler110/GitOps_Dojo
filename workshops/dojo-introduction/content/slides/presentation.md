@@ -190,10 +190,10 @@ flowchart LR
 ## Running it, and your route through it
 
 ```sh
-./run.sh setup                  # first time: accounts and secrets
-./run.sh dojo-introduction      # this tour
-./run.sh dns-as-code --test 20  # a workshop with 20 demo students
-./run.sh stop                   # removes every container and volume
+./dojo setup                  # first time: accounts and secrets
+./dojo dojo-introduction      # this tour
+./dojo dns-as-code --test 20  # a workshop with 20 demo students
+./dojo stop                   # removes every container and volume
 ```
 
 <div class="split">

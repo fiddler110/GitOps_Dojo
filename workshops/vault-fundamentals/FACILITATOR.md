@@ -36,7 +36,7 @@ CI runs on the single-use runner pool. The demo bots do the same.
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. **Rootful Podman on macOS only:** start with `--env mac-podman` (it sets `RUNNER_POOL_SECURITY_OPT_1=unmask=/proc/*`
    and `RUNNER_POOL_SECURITY_OPT_2=label=type:container_engine_t`), or neither the runner pool nor the app
@@ -44,15 +44,15 @@ CI runs on the single-use runner pool. The demo bots do the same.
    memory — it needs it to provision every namespace. (Details in `modules/runner-pool/README.md`.)
 3. **No password to announce** — each terminal is signed in with the student's own token. **Password** on
    the Roster tile shows it if needed.
-4. `./run.sh vault-fundamentals`. The first build is the longest of the series (OpenBao, `app-host`,
+4. `./dojo vault-fundamentals`. The first build is the longest of the series (OpenBao, `app-host`,
    `app-db`, the runner pool, and a terminal image with `sops`, `gitleaks`, `pass`, `psql`, `hvac`). Open
    `/admin` and wait for **Forgejo**, **Terminals**, **Slides**, the **runner pool**, and the vault to go
    green; `openbao-setup` provisions namespaces and seed secrets per student, which takes a while.
-5. **Size the machine:** `./run.sh capacity vault-fundamentals --students 30` — it counts OpenBao,
+5. **Size the machine:** `./dojo capacity vault-fundamentals --students 30` — it counts OpenBao,
    `app-host`, `app-db` and the runner pool on top of the terminals.
 6. **Rehearse as a student** in a private window: Labs 0-1 (identity sign-in, a git leak), then jump to
    Lab 8 (fork + CI) so you have seen a runner job go green, and the capstone slot come up. Then
-   `./run.sh stop` and start clean.
+   `./dojo stop` and start clean.
 7. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
@@ -92,8 +92,8 @@ overwritten.
 | Symptom | Likely cause and fix |
 | ------- | -------------------- |
 | Runner pool / app host won't start on macOS | The two `RUNNER_POOL_SECURITY_OPT_*` vars are not set: start with `--env mac-podman` |
-| `openbao-setup` fails or namespaces missing | It needs more than 64m; raise its memory. Check `./run.sh logs openbao-setup \| tail -40` |
-| Vault "sealed" after a restart | It should self-unseal from the share on `openbao_setup`. If it didn't, `./run.sh logs openbao \| tail`; a restart of the setup service re-runs unseal |
+| `openbao-setup` fails or namespaces missing | It needs more than 64m; raise its memory. Check `./dojo logs openbao-setup \| tail -40` |
+| Vault "sealed" after a restart | It should self-unseal from the share on `openbao_setup`. If it didn't, `./dojo logs openbao \| tail`; a restart of the setup service re-runs unseal |
 | CI job stuck "queued" | No free runner — single-use pool. Raise the count in the **Runners** tab |
 | Lab 8 push goes to the team repo | The student cloned the team repo, not their fork. `git remote -v`; the lab has them fork first |
 | App won't deploy / slot stuck | **Apps** tab shows each slot and its log. A student reset drops and remakes their database and empties both slots |
@@ -102,6 +102,6 @@ overwritten.
 
 ## After the session
 
-- `./run.sh stop` wipes everything — containers and volumes, the vault with them, every app slot and
+- `./dojo stop` wipes everything — containers and volumes, the vault with them, every app slot and
   database, all accounts.
 - Note anything that confused the room or a wrong timing in `ROADMAP.md` (Manual checks) and fix the lab.

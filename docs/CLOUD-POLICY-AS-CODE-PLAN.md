@@ -27,7 +27,7 @@ services".
   (`FORGEJO_FORK_WORKFLOW=1`) like tofu-basics: each student forks `platform-team/cloud-policy-as-code`.
 - **No new services.** All new runtime is inside `cloud-api` (module code, not engine) plus two static binaries in
   the terminal and runner images. Capacity should match tofu-basics + vault-fundamentals' runner pool; confirm with
-  `./run.sh capacity` in PC-P7.
+  `./dojo capacity` in PC-P7.
 
 ## 3. Two enforcement points
 
@@ -71,7 +71,7 @@ services".
 6. **Remediation** for `modify`: a "Remediate" button (and the matching ARM call, if the provider exposes it) applies
    the tag change to existing resources.
 7. **State.** Policy objects go in the existing `cloud-api` state, which already lives in a named volume, so
-   `./run.sh stop` wipes them with everything else.
+   `./dojo stop` wipes them with everything else.
 
 ## 5. Shift-left design
 
@@ -119,7 +119,7 @@ an engine file, so ask first) and a Prism one for the lab reader.
 | PC-P0 | Spikes PC-S1..S5 | Each has a written answer here |
 | PC-P1 | Policy engine + built-ins in `cloud-api` | Unit tests for the grammar and effects; the existing dojo-cloud suites and `tofu-basics --test 3` unchanged |
 | PC-P2 | ARM endpoints, compliance, exemptions, Policy blade, `/admin` view | A real `tofu apply` of each `azurerm_*policy*` resource works locally; portal checked with Playwright |
-| PC-P3 | Pack scaffold: `workshop.env`, terminal Dockerfile (opa, conftest), seed repo, workflows | `./run.sh cloud-policy-as-code --dry-run` clean; the stack starts; a PR pipeline runs on runner-pool |
+| PC-P3 | Pack scaffold: `workshop.env`, terminal Dockerfile (opa, conftest), seed repo, workflows | `./dojo cloud-policy-as-code --dry-run` clean; the stack starts; a PR pipeline runs on runner-pool |
 | PC-P4 | Labs 0-12, slides, cheat sheet, `lab-prep N` | Every lab walked by hand locally; slides checked for overflow by screenshot |
 | PC-P5 | Bots (`--test`), Sensei checks, achievements catalog | `--test 3` runs every lab green |
 | PC-P6 | Capstone + achievements isolation (A20) | Catalog validator passes |
@@ -196,7 +196,7 @@ an engine file, so ask first) and a Prism one for the lab reader.
   grammar.
 - **PC-D3:** Today's hard-coded guardrails become built-in definitions at a platform scope; tofu-basics behaviour
   must not change.
-- **PC-D4:** Policy state lives in the existing `cloud-api` named volume, wiped by `./run.sh stop`.
+- **PC-D4:** Policy state lives in the existing `cloud-api` named volume, wiped by `./dojo stop`.
 - **PC-D5 (user, 2026-10-02):** Full length. The goal is understanding the concept, not fitting a lunch hour:
   bigger within reason is better. No lunch-sized cut.
 - **PC-D6 (user, 2026-10-02):** Policy sets (initiatives) get their own lab (lab 6), so `policySetDefinitions` is

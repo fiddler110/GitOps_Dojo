@@ -8,7 +8,7 @@ the labs promise. They cover PLAN tasks T9.1, T9.6, the driver half of T9.3, and
 **Status (2026-09-21):** run live on the 9.9 GB dev box: `e2e.sh` (all areas incl. restart) 292 checks, 0 failed; `load.sh` at 5, 10 and 15 students all PASS (`apply` p95 51 / 69 / 76 s, peak memory at 15: terminal 1.2 GB, cloud-host 0.16 GB, no OOM). Not tried: 20 or more students (`STUDENT_COUNT=20` here). Stop at the first surprise; the cleanup is safe to rerun.
 
 ```sh
-cd engine && ./run.sh stop && ./run.sh tofu-basics                # STUDENT_COUNT=20 in `.env` already covers 15
+./dojo stop && ./dojo tofu-basics                # STUDENT_COUNT=20 in `.env` already covers 15
 # 1. Is the stack healthy? /admin shows the Dojo Cloud chip green. Note free memory:  free -m
 workshops/tofu-basics/tests/selftest/run.sh                       # optional: the harness itself, offline (about 1 minute)
 # 2. One student, everything (about 15 minutes). Fix anything that fails before going on.
@@ -27,10 +27,10 @@ Both scripts refuse to start (and touch nothing) if a student's subscription is 
 
 **What 15 students prove:** the Dojo Cloud side (ARM, the lock fix from T9.7, `cloud-host`, the portal) under 15 concurrent real `tofu`
 runs. They do not prove the class experience: no IDE, no browser and no Forgejo traffic beyond the clone. A real class of 15 with every IDE
-open needs about 19 GB by `./run.sh capacity`, which this machine does not have.
+open needs about 19 GB by `./dojo capacity`, which this machine does not have.
 
 ```sh
-cd engine && ./run.sh tofu-basics                       # the stack must be up, and Dojo Cloud green on /admin
+./dojo tofu-basics                       # the stack must be up, and Dojo Cloud green on /admin
 workshops/tofu-basics/tests/e2e.sh                      # one student, Labs 0-10 + policy + curl (about 15 min, an estimate)
 workshops/tofu-basics/tests/e2e.sh --with-restart       # also restart workshop_cloud_host (+1 min)
 workshops/tofu-basics/tests/load.sh --students 10 --wave-size 5     # a gentle first load run
@@ -146,7 +146,7 @@ the terminal's limit or 70% of the host. It also stresses `cloud-host` (60 conta
 ceiling is exactly what T9.3 is meant to measure.
 
 **Accounts.** `.env` on this box says `STUDENT_COUNT=20`, so `--students 30` is refused with instructions (raise
-`STUDENT_COUNT`, `./run.sh stop`, start again). The `testuserN` demo-bot accounts are not used.
+`STUDENT_COUNT`, `./dojo stop`, start again). The `testuserN` demo-bot accounts are not used.
 
 **What the load numbers are and are not.** The portal is polled through cloud-api's plain-HTTP port, so its latency excludes
 Caddy and the allocator. The load is real `tofu` + real `azurerm` against the real control plane, so `apply` latency includes the

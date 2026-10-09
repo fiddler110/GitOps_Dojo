@@ -52,15 +52,15 @@ them what's in it.
 
 **A day ahead**
 
-1. `./run.sh setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
+1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
 2. Generate a real `CTF_CONTROL_TOKEN` for `workshop.env` (the committed value is a dev placeholder) —
    it gates the Attack Range's start/stop/reset API.
-3. `./run.sh ctf-secrets-config`. First build takes a few minutes longer than most packs: `ctf-host` builds
+3. `./dojo ctf-secrets-config`. First build takes a few minutes longer than most packs: `ctf-host` builds
    its `ctf-host-ctf3` stage (the 2-target image, not the full 14-target catalog — CTF-D26) on top of
    `docker:dind`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and **Attack Range**
    to go green.
-4. **Size the machine:** `./run.sh capacity ctf-secrets-config --students 30` if you expect a full room —
+4. **Size the machine:** `./dojo capacity ctf-secrets-config --students 30` if you expect a full room —
    the range adds `ctf-host`/`ctf-controller` on top of the terminals; see `module.env`'s
    `CTF_HOST_MEM_LIMIT`/`CTF_CONTROLLER_MEM_LIMIT`.
 5. **Rehearse as a student** in a private window: run `nmap -sV -p- <ip>` at least once and confirm the
@@ -71,7 +71,7 @@ them what's in it.
    `<student>/internal-tools` repo exists in Forgejo and that `git log -p` on `deploy.sh` actually shows
    the token in the earlier commit. **The Attack Range card itself still shows no solved state**
    (stopped/queued/starting/live only) -- the achievements leaderboard is where "solved" actually shows up
-   in this pack. Then `./run.sh stop` and start clean.
+   in this pack. Then `./dojo stop` and start clean.
 6. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
@@ -113,15 +113,15 @@ student's own work.
 | ------- | -------------------- |
 | Attack Range card won't start a target | Check `/admin`'s Attack Range tab for a queue backlog or an error state; `CTF_CONTROL_TOKEN` mismatch fails closed with no mutation, not a crash |
 | A solved flag won't resubmit / shows wrong | Flags are per-student HMACs — a flag copied from a classmate will never verify; confirm the student is submitting their own |
-| A student's `internal-tools` repo is missing or empty | Forgejo's admin API likely wasn't ready when `55-git-secrets.sh` ran at terminal start; restart that student's terminal (Roster → Release, or `./run.sh restart web-terminal`) so the hook retries |
+| A student's `internal-tools` repo is missing or empty | Forgejo's admin API likely wasn't ready when `55-git-secrets.sh` ran at terminal start; restart that student's terminal (Roster → Release, or `./dojo restart web-terminal`) so the hook retries |
 | `nmap` on the slot IP times out entirely | The per-uid firewall rule may not have landed yet (a known race on a very slow first boot, `50-ctf-range.sh` retries up to 180s) — wait and retry before assuming the target is broken |
-| A target never goes healthy after Start | `ctf-host`'s own healthcheck retry budget; give it a minute before treating it as stuck, especially right after `./run.sh ctf-secrets-config` first starts |
+| A target never goes healthy after Start | `ctf-host`'s own healthcheck retry budget; give it a minute before treating it as stuck, especially right after `./dojo ctf-secrets-config` first starts |
 | Student reused a classmate's target | Shouldn't be reachable at all — the firewall only permits a student's own slot IP; report this as a real bug, not a lab mistake |
 | One student's terminal wedged | Roster → **Release**; **Reset** on the Attack Range tab returns their current target to its clean image (their flag, if already submitted, still verifies the same way after) |
 
 ## After the session
 
-- `./run.sh stop` wipes everything — containers, volumes, every student's slot, every account.
+- `./dojo stop` wipes everything — containers, volumes, every student's slot, every account.
 - Note anything that confused the room or a wrong timing in `ROADMAP.md` and fix the lab.
 - If `tfstate-treasure` gets built, this is the pack to extend: add it to `CTF_ATTACK_TARGETS` and
   `CTF_HOST_EXPECTED_IMAGES`, add `lab3.md` + its exploit guide + `l3-flag`, and update the timing above.
