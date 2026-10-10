@@ -84,10 +84,11 @@ def _pulls(api, repo):
 
 
 def _find_pr(api, a):
-    """The newest pull request that fits a's head (any head when not given), base, state and
-    title_prefix, and why not."""
+    """The newest pull request that fits a's head (any head when not given), base, state,
+    title_prefix and title_has, and why not."""
     head, base, state = a.get("head"), a.get("base", "main"), a.get("state", "open_or_merged")
     prefix = (a.get("title_prefix") or "").lower()
+    contains = (a.get("title_has") or "").lower()
     near = None
     for pr in sorted(_pulls(api, a["repo"]), key=lambda p: -p.get("number", 0)):
         if (head and (pr.get("head") or {}).get("ref") != head) or (pr.get("base") or {}).get("ref") != base:
@@ -98,8 +99,12 @@ def _find_pr(api, a):
         if not fits:
             near = near or "closed without merging"
             continue
-        if prefix and not (pr.get("title") or "").lower().startswith(prefix):
+        title = (pr.get("title") or "").lower()
+        if prefix and not title.startswith(prefix):
             near = near or f"its title doesn't start with '{a['title_prefix']}'"
+            continue
+        if contains and contains not in title:
+            near = near or f"its title doesn't contain '{a['title_has']}'"
             continue
         return pr, ""
     what = {"open": "open", "merged": "merged"}.get(state, "open or merged")
@@ -166,7 +171,8 @@ def pr_file_contains(api, a, ctx):
     pr, why = _find_pr(api, a)
     if not pr:
         return False, why
-    content = _raw(api, a["repo"], (pr.get("head") or {}).get("sha") or a["head"], a["path"])
+    head = pr.get("head") or {}
+    content = _raw(api, a["repo"], head.get("sha") or head.get("ref") or "", a["path"])
     if content is None:
         return False, f"{a['path']} is missing in the pull request"
     if not _content_ok(content, a):

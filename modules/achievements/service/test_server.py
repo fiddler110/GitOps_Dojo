@@ -879,7 +879,7 @@ class TokenHttpTests(unittest.TestCase):
             self.assertEqual(doc["clone_url"], "http://git-server:3000/dan/challenge-repo.git")
             vals = server.runner.values(server.store.ledger.index["c1"]["item"], "dan")
             role = vals["role"]
-            self.assertIn(role, doc["constraints"])
+            self.assertIn("hotfix", doc["constraints"])
             self.assertNotIn("{", doc["constraints"])
             st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})
             self.assertEqual((st, doc["passed"]), (200, False))

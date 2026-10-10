@@ -4,44 +4,26 @@
   "after": "after Lab 1 or 2",
   "space": "the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone",
   "goal": "Production has a typo in `roster/team.yaml`: your own role, on the `name: {user}` entry, is misspelled. Ship a fix without touching `main` directly. Prove it with a pull request.",
-  "constraints": "in `{user}/challenge-repo`; branch named `hotfix-{user}`; the PR changes only `roster/team.yaml`; PR title starts with `hotfix:`; your entry's role goes from `{role_typo}` to `{role}`. Each student's role and typo are picked per student, so an answer can't be copied.",
+  "constraints": "in `{user}/challenge-repo`; a pull request into `main` from a branch of your choice (`hotfix-{user}` is the suggested name, and any branch other than `main` passes); the PR changes only `roster/team.yaml`; the PR title contains the word `hotfix`. Only the process is checked, not the text of your fix.",
   "seed": "`dojo-challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); its roster lists the student as `name: {user}` with a per-student role spelled wrong (`role`/`role_typo`, a linked pair).",
-  "verify_text": "forgejo `pr_exists` (from `hotfix-{user}` into `main`, open or merged, title starts `hotfix:`), `pr_files == [roster/team.yaml]`, `pr_file_contains` the student's entry with the right role and no longer the typo at the PR's head, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).",
+  "verify_text": "forgejo `pr_exists` (from any branch but `main` into `main`, open or merged, title contains `hotfix`), `pr_files == [roster/team.yaml]`, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).",
   "seed_plan": "challenge-repo.json",
   "verify": [
     {
       "verb": "pr_exists",
       "repo": "{user}/challenge-repo",
-      "head": "hotfix-{user}",
       "base": "main",
       "state": "open_or_merged",
-      "title_prefix": "hotfix:"
+      "title_has": "hotfix"
     },
     {
       "verb": "pr_files",
       "repo": "{user}/challenge-repo",
-      "head": "hotfix-{user}",
       "base": "main",
       "files": [
         "roster/team.yaml"
-      ]
-    },
-    {
-      "verb": "pr_file_contains",
-      "repo": "{user}/challenge-repo",
-      "head": "hotfix-{user}",
-      "base": "main",
-      "path": "roster/team.yaml",
-      "regex": "^\\s*-\\s*name:\\s*[\"']?{user}[\"']?\\s*\\n\\s*role:\\s*[\"']?{role}[\"']?\\s*$"
-    },
-    {
-      "verb": "pr_file_contains",
-      "repo": "{user}/challenge-repo",
-      "head": "hotfix-{user}",
-      "base": "main",
-      "path": "roster/team.yaml",
-      "text": "{role_typo}",
-      "absent": true
+      ],
+      "title_has": "hotfix"
     },
     {
       "verb": "no_direct_push",
@@ -54,5 +36,5 @@
     "Everything you need is in Lab 1. What do you do before you edit anything?",
     "Find your own name in `roster/team.yaml`. Branch, fix that one line, commit, push, open the PR from Forgejo."
   ],
-  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` change your role (under `name: {user}`) from `{role_typo}` to `{role}`; `git commit -am \"hotfix: fix my role\"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title starting `hotfix:`; then `dojo-check c1`."
+  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` change your role (under `name: {user}`) from `{role_typo}` to `{role}`; `git commit -am \"hotfix: fix my role\"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title containing the word `hotfix`; then `dojo-check c1`."
 }
