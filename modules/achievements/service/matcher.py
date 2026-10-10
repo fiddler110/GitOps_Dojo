@@ -370,7 +370,9 @@ ADAPTER_EVENTS = {
     # student's own target. Severity lives in `event`, not a separate field (see catalog.py).
     "soc": ("recon", "probe", "exploit_attempt", "contained"),
 }
-ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge", "persona", "origin")
+ADAPTER_TEXT = ("reason", "mount", "role", "op", "path", "challenge", "persona", "origin",
+                # SIEM record of a soc/ctf event (store.py _present decides who sees what):
+                "method", "query", "ua", "tag", "klass")
 
 
 def adapter_event(body):
@@ -395,6 +397,9 @@ def adapter_event(body):
         v = body.get(k)
         ev[k] = v if isinstance(v, bool) else None
     st = body.get("status")
+    for k in ("bytes", "rows_returned"):
+        v = body.get(k)
+        ev[k] = v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10**9 else None
     ev["status"] = st if isinstance(st, int) and not isinstance(st, bool) and 100 <= st <= 599 else None
     return ev
 

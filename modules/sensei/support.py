@@ -289,6 +289,7 @@ class HelpDesk:
     def __init__(self, path=None, clock=time.time):
         self.path, self.clock = path, clock
         self.lock = threading.Lock()
+        self.changed = threading.Condition(self.lock)  # woken by reply(): long-polling `notify` callers
         self.next, self.requests = 1, {}
         if path and os.path.exists(path):
             try:
@@ -329,11 +330,16 @@ class HelpDesk:
         with self.lock:
             r = self.requests.get(rid)
             text = (text or "").strip()[:MAX_TEXT * 2]
-            if not r or not text:
+            if not r or not text or r["status"] == "closed" or (who != "facilitator" and r["user"] != who):
                 return False
             r["replies"].append({"from": who, "text": text, "at": self.clock(), "seen": False})
-            r["status"] = "answered"
+            if who == "facilitator":
+                r["status"] = "answered"
+            else:  # the student wrote back: it returns to the top of the facilitator's queue
+                r["status"] = "open"
+                r["waiting_since"] = self.clock()
             self._save()
+            self.changed.notify_all()
             return True
 
     def close(self, rid):
@@ -361,13 +367,42 @@ class HelpDesk:
                 self._save()
             return out
 
+    def _unannounced(self, user, surface):
+        out = []
+        for r in sorted(self.requests.values(), key=lambda r: r["id"]):
+            if r["user"] != user or r["status"] == "closed":
+                continue
+            for x in r["replies"]:
+                done = x["announced"] = x["announced"] if isinstance(x.get("announced"), list) else []
+                if x["from"] == "facilitator" and not x.get("seen") and surface not in done:
+                    done.append(surface)
+                    out.append({"id": r["id"], "text": x["text"]})
+        return out
+
+    def notify(self, user, surface="terminal", wait=0.0):
+        """Facilitator replies this student's `surface` has not been told about yet. Each surface (the prompt
+        banner, the VS Code popup, the Zellij popup) is told once per reply, independently, so a reply can show
+        in more than one place. Does not mark anything seen: `sensei inbox` still shows it as new. With `wait`,
+        holds the call open up to that many seconds for a reply to arrive (a long poll)."""
+        deadline = time.monotonic() + max(0.0, wait)
+        with self.changed:
+            while True:
+                out = self._unannounced(user, str(surface)[:20] or "terminal")
+                if out:
+                    self._save()
+                    return out
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return []
+                self.changed.wait(left)
+
     def snapshot(self):
         """Everything the facilitator's tab shows, open ones first, with minutes waiting."""
         now = self.clock()
         with self.lock:
-            rows = [dict(r, minutes=int((now - r["created"]) // 60)) for r in self.requests.values()
-                    if r["status"] != "closed"]
-        rows.sort(key=lambda r: (r["status"] != "open", r["id"]))
+            rows = [dict(r, minutes=int((now - r.get("waiting_since", r["created"])) // 60))
+                    for r in self.requests.values() if r["status"] != "closed"]
+        rows.sort(key=lambda r: (r["status"] != "open", r.get("waiting_since", r["created"]), r["id"]))
         return rows
 
     def open_count(self):

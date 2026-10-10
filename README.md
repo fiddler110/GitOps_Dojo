@@ -36,6 +36,7 @@ is part of the lesson and never an incident.
 ./dojo tofu-basics        # build and start one
 ./dojo tofu-basics --test # the same, with simulated students
 ./dojo status             # what is running, healthy, who is signed in
+./dojo test tofu-basics   # fast-bot check of a pack, then tears down (more: ./dojo help)
 ./dojo restart            # stuck? recreate every container, keep student work
 ./dojo stop               # tear down and wipe
 ```

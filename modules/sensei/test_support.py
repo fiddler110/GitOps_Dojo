@@ -1,4 +1,6 @@
+import threading
 import os
+import time
 import tempfile
 import unittest
 
@@ -120,6 +122,44 @@ class Desk(unittest.TestCase):
         self.assertEqual(self.desk.inbox("bob"), [])
         self.assertTrue(self.desk.close(r["id"]))
         self.assertEqual(self.desk.inbox("amy"), [])
+
+    def test_notify_reports_each_facilitator_reply_once(self):
+        r, _ = self.desk.raise_hand("amy", "stuck")
+        self.assertEqual(self.desk.notify("amy"), [])
+        self.desk.reply(r["id"], "pull first")
+        self.assertEqual(self.desk.notify("bob"), [])
+        self.assertEqual(self.desk.notify("amy"), [{"id": r["id"], "text": "pull first"}])
+        self.assertEqual(self.desk.notify("amy"), [])
+        self.assertFalse(self.desk.inbox("amy", mark_seen=False)[0]["replies"][0]["seen"])
+        self.desk.reply(r["id"], "then push")
+        self.assertEqual([x["text"] for x in self.desk.notify("amy")], ["then push"])
+
+    def test_notify_is_per_surface_and_long_polls(self):
+        r, _ = self.desk.raise_hand("amy", "stuck")
+        self.desk.reply(r["id"], "pull first")
+        self.assertEqual(len(self.desk.notify("amy", "vscode")), 1)
+        self.assertEqual(self.desk.notify("amy", "vscode"), [])
+        self.assertEqual(len(self.desk.notify("amy", "terminal")), 1)
+        got = []
+        t = threading.Thread(target=lambda: got.extend(self.desk.notify("amy", "vscode", wait=5)))
+        t.start()
+        time.sleep(0.2)
+        self.desk.reply(r["id"], "then push")
+        t.join(3)
+        self.assertEqual([x["text"] for x in got], ["then push"])
+        self.assertEqual(self.desk.notify("amy", "zellij", wait=0.1)[0]["text"], "pull first")
+
+    def test_student_reply_returns_request_to_the_queue(self):
+        r, _ = self.desk.raise_hand("amy", "stuck")
+        self.desk.reply(r["id"], "try pull")
+        self.assertEqual(self.desk.open_count(), 0)
+        self.assertFalse(self.desk.reply(r["id"], "not mine", who="bob"))
+        self.now[0] += 60
+        self.assertTrue(self.desk.reply(r["id"], "still rejected", who="amy"))
+        self.assertEqual(self.desk.open_count(), 1)
+        self.assertEqual([x["from"] for x in self.desk.snapshot()[0]["replies"]], ["facilitator", "amy"])
+        self.desk.close(r["id"])
+        self.assertFalse(self.desk.reply(r["id"], "late", who="amy"))
 
     def test_empty_message_is_refused_and_flooding_is_limited(self):
         self.assertIsNone(self.desk.raise_hand("amy", "  ")[0])

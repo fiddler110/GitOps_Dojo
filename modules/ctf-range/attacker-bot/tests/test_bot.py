@@ -170,6 +170,12 @@ class RunHintProbeTests(unittest.TestCase):
         self.assertEqual(len(sleeps), len(clients["soc"].posted))
         self.assertTrue(all(10.0 <= s <= 60.0 for s in sleeps))
 
+    def test_gaps_scale_with_the_test_clock(self):
+        clients = {"ctf": FakeClient(), "soc": FakeClient()}
+        sleeps = []
+        bot.run_hint_probe(clients, "customer-portal", "student03", random.Random(1), sleep=sleeps.append, scale=0.1)
+        self.assertTrue(all(1.0 <= s <= 6.0 for s in sleeps))
+
 
 class CommandLoopTests(unittest.TestCase):
     def test_dispatches_inject_and_hint_to_their_targets(self):
@@ -196,7 +202,7 @@ class CommandLoopTests(unittest.TestCase):
                 return [{"type": "inject", "user": "student01"}, {"type": "hint", "user": None}]
             raise SystemExit   # stop the (otherwise infinite) loop after one round
 
-        def fast_hint_probe(clients, challenge, user, rng, sleep=None):
+        def fast_hint_probe(clients, challenge, user, rng, sleep=None, scale=1.0):
             bot.post_event(clients, bot._HintPersona(user, "US"), "probe", challenge)
 
         bot.poll_commands, real_poll = fake_poll_commands, bot.poll_commands

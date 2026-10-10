@@ -6,7 +6,7 @@
   POST /api/merge      {number}: merge anyway (skips the review; still resolves the roster conflict)
   POST /api/comment    {number, text}
   GET  /api/radar      who looks stuck (needs the achievements service)
-  POST /api/student/{ask,why,hand,inbox,check,status,review,approve}  the `sensei` command (Forgejo token auth, lab network only)
+  POST /api/student/{ask,why,hand,inbox,notify,check,status,review,approve}  the `sensei` command (Forgejo token auth, lab network only)
   POST /api/scan       look now
   POST /api/enabled    {on}: pause or resume the bot
 Identity headers count only with X-Gateway-Token (the route is facilitator-gated at Caddy).
@@ -107,8 +107,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not req:
                 return self._json(200, {"ok": False, "message": problem})
             return self._json(200, {"ok": True, "id": req["id"], "why": auto.get("match"), "ask": auto_ask.get("found", [])[:2]})
+        if action == "reply":
+            rid = body.get("id")
+            ok = isinstance(rid, int) and desk.reply(rid, str(body.get("text", "")), who=user)
+            return self._json(200, {"ok": ok, "message": "" if ok else "I couldn't find an open request of yours with that number (`sensei inbox`)."})
         if action == "inbox":
             return self._json(200, {"requests": desk.inbox(user)})
+        if action == "notify":
+            surface = str(body.get("surface", "terminal"))
+            wait = body.get("wait", 0)
+            wait = min(float(wait), 25.0) if isinstance(wait, (int, float)) else 0.0
+            return self._json(200, {"replies": desk.notify(user, surface, wait)})
         if action == "check":
             prog = achievements.progress(user) if achievements else None
             if not prog:

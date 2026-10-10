@@ -37,11 +37,15 @@ import json
 import os
 import random
 import sys
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import personas
+import probes
+import traffic
 from personas import Swarm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -71,13 +75,30 @@ def target_url(host, port_base, index):
     return f"http://{host}:{port_base + index}"
 
 
-def post_event(clients, attacker, outcome, challenge):
+def post_event(clients, attacker, outcome, challenge, observed=None, rng=None, focused=False):
     """Signed POST to achievements, best effort (AdapterClient never blocks or raises) - plus a
-    plain stdout line, for a human watching container logs."""
+    plain stdout line, for a human watching container logs. The event carries the SIEM record of
+    the request it stands for (traffic.py): method, path, query, status, size, agent and the
+    detection tag. OBSERVED is what an exploit request really got back (make_exploit_fn's .last);
+    FOCUSED keeps a hint burst to probing instead of mixing in background scans. Which of these
+    fields a student may see is achievements' decision (store.py's _present), not ours."""
     source = "ctf" if outcome in CTF_EVENTS else "soc"
-    clients[source].post({"event": outcome, "user": attacker.user, "challenge": challenge,
-                          "persona": attacker.user, "origin": attacker.origin})
-    print(f"[attacker-bot] {attacker.user} {outcome} (origin {attacker.origin})", flush=True)
+    doc = {"event": outcome, "user": attacker.user, "challenge": challenge,
+           "persona": attacker.user, "origin": attacker.origin}
+    if outcome in ("recon", "probe"):
+        rec = (traffic.probe_request(rng) if focused and outcome == "probe"
+               else traffic.request_for(outcome, rng))
+    else:
+        rec = traffic.request_for(outcome, rng, observed=observed, payload_query=exploit_query())
+    doc.update(rec)
+    clients[source].post(doc)
+    print(f"[attacker-bot] {attacker.user} {outcome} {rec['method']} {rec['path']} {rec['status']} "
+          f"(origin {attacker.origin})", flush=True)
+
+
+def exploit_query():
+    import dump as dump_mod
+    return urllib.parse.urlencode({"q": dump_mod.PAYLOAD})
 
 
 def _poll(url, secret, timeout=5):
@@ -128,15 +149,24 @@ def wait_for_start(control_url, secret, poll_seconds=5, sleep=time.sleep, now=ti
 def make_exploit_fn(url, timeout=5):
     """() -> True if the real payload still works against URL right now. Reuses the exact same
     payload the CI gate checks (targets/customer-portal/exploit/dump.py), so the bot and the
-    gate can never disagree about what "patched" means."""
+    gate can never disagree about what "patched" means. The call also leaves what the target
+    answered (status, size, rows) in `exploit.observed()` for the thread that made it, so the
+    SOC event can report the request as it really went."""
     import dump as dump_mod   # modules/ctf-range/targets/customer-portal/exploit/dump.py
+    seen = threading.local()
 
     def exploit():
+        seen.last = None
         try:
-            rows = dump_mod.dump(url, timeout=timeout)
+            seen.last = dump_mod.dump_detail(url, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            seen.last = {"status": e.code, "bytes": 0, "rows": []}
+            return False
         except (urllib.error.URLError, OSError, ValueError, TimeoutError):
             return False     # an operational hiccup is not a breach
-        return bool(rows)
+        return bool(seen.last["rows"])
+
+    exploit.observed = lambda: getattr(seen, "last", None)
     return exploit
 
 
@@ -150,27 +180,32 @@ class _HintPersona:
         self.user, self.origin = user, origin
 
 
+def _observed(exploit_fn):
+    get = getattr(exploit_fn, "observed", None)
+    return get() if get else None
+
+
 def run_inject(clients, challenge, attacker, exploit_fn):
     """Facilitator's "Inject" control (plan §8.5): one additional, real exploit attempt right
     now, on its own thread so it never blocks (or is blocked by) that student's regular
     schedule. See Attacker.force_exploit for exactly what it does."""
     outcome = attacker.force_exploit(exploit_fn)
-    post_event(clients, attacker, outcome, challenge)
+    post_event(clients, attacker, outcome, challenge, observed=_observed(exploit_fn))
 
 
-def run_hint_probe(clients, challenge, user, rng, sleep=time.sleep):
+def run_hint_probe(clients, challenge, user, rng, sleep=time.sleep, scale=1.0):
     """Facilitator's "Hint probe" control (plan §8.5): a short burst of 3-6 non-exploiting
     probes at this one student, each with its own random delay (tighter than the regular
     30-180s range, so the burst reads inside a couple of minutes) and fake origin - never the
     real payload, and nothing in the event marks it as a hint. The only signal is the burst
     itself: this student suddenly getting hit far more than the swarm's usual pace."""
     for _ in range(rng.randint(3, 6)):
-        post_event(clients, _HintPersona(user, personas.pick_origin(rng)), "probe", challenge)
-        sleep(rng.uniform(10.0, 60.0))
+        post_event(clients, _HintPersona(user, personas.pick_origin(rng)), "probe", challenge, rng=rng, focused=True)
+        sleep(rng.uniform(10.0, 60.0) * scale)
 
 
 def command_loop(control_url, secret, swarm, exploit_fns, clients, challenge, users,
-                 poll_seconds=4, sleep=time.sleep, rng=None):
+                 poll_seconds=4, sleep=time.sleep, rng=None, scale=1.0):
     """Polls achievements for facilitator-fired commands (plan §8.5) and fires each one on its
     own short-lived thread, leaving the regular persona loops in `run()` untouched. Runs for
     the process lifetime, same as attacker_loop; a dropped poll just skips that round (see
@@ -189,11 +224,12 @@ def command_loop(control_url, secret, swarm, exploit_fns, clients, challenge, us
                                      args=(clients, challenge, by_user[u], exploit_fns[u]), daemon=True).start()
                 elif cmd.get("type") == "hint":
                     threading.Thread(target=run_hint_probe,
-                                     args=(clients, challenge, u, random.Random()), daemon=True).start()
+                                     args=(clients, challenge, u, random.Random()), kwargs={"scale": scale},
+                                     daemon=True).start()
 
 
 def run(users, target_urls, challenge, started_at, clients, clock=time.time, sleep=time.sleep, rng=None,
-       dwell_seconds=None, ramp_seconds=None, control_url=None, secret=""):
+       dwell_seconds=None, ramp_seconds=None, control_url=None, secret="", scale=1.0):
     """Runs forever (the caller's process lifetime is the session's). TARGET_URLS: user -> URL.
     CLIENTS: {"ctf": AdapterClient, "soc": AdapterClient}. One thread per user; nothing here
     blocks on another user's thread. CONTROL_URL/SECRET: when both are set, an extra thread
@@ -203,7 +239,7 @@ def run(users, target_urls, challenge, started_at, clients, clock=time.time, sle
 
     swarm = Swarm(users, rng=rng, started_at=started_at,
                  dwell_seconds=DWELL_SECONDS if dwell_seconds is None else dwell_seconds,
-                 ramp_seconds=RAMP_SECONDS if ramp_seconds is None else ramp_seconds)
+                 ramp_seconds=RAMP_SECONDS if ramp_seconds is None else ramp_seconds, scale=scale)
     exploit_fns = {u: make_exploit_fn(target_urls[u]) for u in users}
 
     def attacker_loop(attacker):
@@ -211,12 +247,13 @@ def run(users, target_urls, challenge, started_at, clients, clock=time.time, sle
             now = clock()
             sleep(max(0.5, swarm.next_delay(attacker, now)))
             outcome, _extra = swarm.attempt(attacker, clock(), exploit_fns[attacker.user])
-            post_event(clients, attacker, outcome, challenge)
+            post_event(clients, attacker, outcome, challenge, observed=_observed(exploit_fns[attacker.user]))
 
     threads = [threading.Thread(target=attacker_loop, args=(a,), daemon=True) for a in swarm.attackers]
     if control_url and secret:
         threads.append(threading.Thread(
             target=command_loop, args=(control_url, secret, swarm, exploit_fns, clients, challenge, users),
+            kwargs={"scale": scale},
             daemon=True))
     for t in threads:
         t.start()
@@ -233,8 +270,11 @@ def main():
     adapter_url = os.environ.get("ACHIEVEMENTS_ADAPTER_URL", "http://achievements:8080/api/adapter")
     adapter_secret = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET", "")
     control_url = os.environ.get("ACHIEVEMENTS_SOC_CONTROL_URL", "http://achievements:8080/api/soc/control")
-    dwell_seconds = int(os.environ.get("CTF_SOC_DWELL_SECONDS") or 0) or None
-    ramp_seconds = int(os.environ.get("CTF_SOC_RAMP_SECONDS") or 0) or None
+    scale = personas.time_scale()
+    dwell_seconds = round((int(os.environ.get("CTF_SOC_DWELL_SECONDS") or 0) or personas.DWELL_SECONDS) * scale)
+    ramp_seconds = round((int(os.environ.get("CTF_SOC_RAMP_SECONDS") or 0) or personas.RAMP_SECONDS) * scale)
+    if scale != 1.0:
+        print(f"[attacker-bot] CTF_TIME_SCALE={scale}: dwell {dwell_seconds}s, ramp {ramp_seconds}s", flush=True)
 
     users = roster(prefix, count)
     target_urls = {u: target_url(host, port_base, i) for i, u in enumerate(users)}
@@ -245,7 +285,7 @@ def main():
     started_at = wait_for_start(control_url, adapter_secret)
     print(f"[attacker-bot] started - dwell clock begins now ({started_at})", flush=True)
     run(users, target_urls, challenge, started_at, clients, dwell_seconds=dwell_seconds, ramp_seconds=ramp_seconds,
-       control_url=control_url, secret=adapter_secret)
+       control_url=control_url, secret=adapter_secret, scale=scale)
 
 
 if __name__ == "__main__":

@@ -65,4 +65,4 @@ check against your branch and blocks the merge until it comes back clean.
 
 Merging rebuilds the image and redeploys your slot in place -- no extra
 step. Re-run the exploit check against your slot to confirm `1`, then check
-the SOC Alerts panel for the flip from under attack to contained.
+the SIEM panel for the flip from under attack to contained.

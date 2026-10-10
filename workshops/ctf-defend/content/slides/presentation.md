@@ -46,7 +46,7 @@ Every other CTF session has you attacking something. This one flips it:
 **`customer-portal`**, a small internal lookup tool, is already running on
 your own slot, and InfoSec has opened an incident against it.
 
-The **SOC Alerts** panel on your landing page shows what they're seeing in
+The **SIEM** panel on your landing page shows what they're seeing in
 real time -- recon, then probing, then a live attack -- the same clock every
 other session's attacker swarm runs on, now pointed at your app instead of a
 stranger's.
@@ -122,7 +122,7 @@ Merge, and the pipeline rebuilds the image and redeploys your slot in
 place -- no extra step, no asking the facilitator.
 
 Re-run the exploit check against your redeployed slot and confirm it now
-exits `1`. Check SOC Alerts again: your status should flip from under
+exits `1`. Check SIEM again: your status should flip from under
 attack to contained. That flip is the actual lesson -- a fix that ships
 closes the incident, not just the ticket.
 

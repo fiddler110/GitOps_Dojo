@@ -1,6 +1,6 @@
 """customer-portal — CTF target 14 (CTF-5 app-code defend target, CTF-D25).
 
-A deliberately vulnerable customer lookup portal over a plaintext SQLite DB.
+A deliberately vulnerable customer lookup portal over a SQLite DB.
 This is the source the STUDENT edits in CTF-5: the graded flaw is a SQL
 injection in the search field, and the fix is to parameterize the query.
 
@@ -19,6 +19,7 @@ Nothing here is a secret the student shouldn't see — it's their own target's
 source. The only secret is the flag, which lives in the DB, not the code.
 """
 
+import hashlib
 import os
 import sqlite3
 
@@ -26,6 +27,11 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 DB_PATH = os.environ.get("CTF_DB_PATH", "/data/portal.db")
+
+
+def _hash(password):
+    """Same function as seed.py's `_hash`: customer passwords are stored hashed."""
+    return hashlib.pbkdf2_hmac("sha256", password.encode(), b"larkspur", 20000).hex()
 
 
 def _connect():
@@ -64,9 +70,9 @@ def search():
 
     conn = _connect()
     try:
-        # The query returns the whole row (password included — itself a
-        # careless over-exposure), so a successful injection dumps the cleartext
-        # passwords and the service account's flag, not just names.
+        # The query returns the whole row (password column included), so a
+        # successful injection dumps that column and the service account's flag,
+        # not just names.
         # --- VULNERABLE (remove this) -------------------------------------
         sql = "SELECT id, name, email, password, account_id, tier FROM customers " \
               "WHERE name LIKE '%" + q + "%'"
@@ -94,7 +100,7 @@ def login():
     reads as a portal, not a single query.
     """
     email = request.form.get("email", "")
-    password = request.form.get("password", "")
+    password = _hash(request.form.get("password", ""))
 
     conn = _connect()
     try:

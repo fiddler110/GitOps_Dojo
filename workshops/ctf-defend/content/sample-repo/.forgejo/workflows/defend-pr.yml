@@ -62,6 +62,21 @@ jobs:
           done
           echo "app did not become healthy"; cat /tmp/portal-ci.log; exit 2
 
+      - name: Gate premise (the seeded secret must still exist)
+        # The exploit re-run below only means something if the flag is still in the
+        # database for it to find. A change that removes it would "pass" the gate
+        # without fixing anything, so check the premise first.
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import os, sqlite3, sys
+          n = sqlite3.connect(os.environ["CTF_DB_PATH"]).execute(
+              "SELECT COUNT(*) FROM customers WHERE password = ?", (os.environ["CTF_FLAG"],)).fetchone()[0]
+          if n == 0:
+              print("GATE ERROR: the service account's secret is no longer stored where the gate expects it.")
+              sys.exit(2)
+          PY
+
       - name: Exploit re-run (CTF-D19 gate)
         # dump.py: exit 0 = still vulnerable, 1 = patched, 2 = unreachable.
         # The gate passes ONLY on a patched app (1); a vulnerable app (0) fails

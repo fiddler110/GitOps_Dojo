@@ -25,6 +25,7 @@ SOC screen shows; achievements' store.py computes the identical thing from the s
 (duplicated there with a comment back to here - no cross-module import between achievements and
 ctf-range) so the bot and the countdown everyone watches can never disagree about the phase.
 """
+import os
 import random
 
 DWELL_SECONDS = 8 * 60          # S9 proposal: 8 minutes of recon-only before any ramp
@@ -47,9 +48,23 @@ STYLES = {
 # Flavor only (§8.2): never derived from a real IP or real geolocation - everything here is
 # internal, synthetic traffic. Weighted toward a few commonly-cited regions, with real noise so
 # it doesn't read as a single-country pile-on.
-ORIGINS = (
-    ("CN", 3), ("RU", 3), ("Eastern Europe", 2), ("US", 1), ("Other", 1),
+ORIGINS = (   # ISO 3166 country codes
+    ("CN", 3), ("RU", 3), ("UA", 2), ("US", 2), ("NG", 1), ("ZA", 1), ("BR", 2), ("AR", 1),
+    ("AU", 1), ("AE", 1), ("IR", 1), ("TR", 1), ("IN", 2), ("VN", 2),
 )
+
+
+def time_scale(environ=None):
+    """CTF_TIME_SCALE (default 1; ./dojo --test sets 0.1): one multiplier for everything on the attack
+    timeline - dwell, ramp, per-attempt delays, the ramp floor, the detonation jitter and the hint-probe
+    gaps - so a test run plays the same story in a tenth of the time. Bad or non-positive values mean 1.
+    achievements' server.py applies the same multiplier to the countdown it reports."""
+    raw = (environ if environ is not None else os.environ).get("CTF_TIME_SCALE") or "1"
+    try:
+        scale = float(raw)
+    except ValueError:
+        return 1.0
+    return scale if 0.001 <= scale <= 10 else 1.0
 
 
 def pick_origin(rng):
@@ -93,7 +108,7 @@ class Attacker:
     this object carries no target URL itself (bot.py maps user -> URL at request time, since
     that mapping is a deployment fact, not something the scheduler needs to know)."""
 
-    def __init__(self, user, style, rng=None, ramp_seconds=RAMP_SECONDS):
+    def __init__(self, user, style, rng=None, ramp_seconds=RAMP_SECONDS, scale=1.0):
         if style not in STYLES:
             raise ValueError(f"unknown persona style {style!r}")
         self.user = user
@@ -101,8 +116,10 @@ class Attacker:
         self.rng = rng or random.Random()
         self.ramp_seconds = ramp_seconds
         self.origin = pick_origin(self.rng)
-        self.base_delay = self.rng.uniform(DELAY_MIN, DELAY_MAX)
-        self.detonate_jitter = self.rng.uniform(0.0, DETONATE_JITTER)
+        self.scale = scale
+        self.ramp_floor = RAMP_FLOOR * scale
+        self.base_delay = self.rng.uniform(DELAY_MIN, DELAY_MAX) * scale
+        self.detonate_jitter = self.rng.uniform(0.0, DETONATE_JITTER) * scale
         # Set the first time a dump_success fires, cleared the first time a later exploit
         # attempt against the same target comes back empty (the "contained" moment, §8.12).
         self.breached = False
@@ -119,7 +136,7 @@ class Attacker:
         if dwell_elapsed <= 0 or self.style == "benign":
             return self.base_delay
         frac = min(1.0, dwell_elapsed / self.ramp_seconds)
-        return self.base_delay + (RAMP_FLOOR - self.base_delay) * frac
+        return self.base_delay + (self.ramp_floor - self.base_delay) * frac
 
     def should_exploit(self, dwell_elapsed):
         """Is THIS attempt the real payload, rather than a probe/recon variant?"""
@@ -163,12 +180,13 @@ class Swarm:
     clock began (not necessarily when the bot process started, so a restart mid-session can be
     told the real elapsed time instead of resetting to full dwell)."""
 
-    def __init__(self, users, rng=None, started_at=0.0, dwell_seconds=DWELL_SECONDS, ramp_seconds=RAMP_SECONDS):
+    def __init__(self, users, rng=None, started_at=0.0, dwell_seconds=DWELL_SECONDS, ramp_seconds=RAMP_SECONDS,
+                 scale=1.0):
         self.rng = rng or random.Random()
         self.started_at = started_at
         self.dwell_seconds = dwell_seconds
         self.ramp_seconds = ramp_seconds
-        self.attackers = [Attacker(u, pick_style(self.rng), self.rng, ramp_seconds=ramp_seconds) for u in users]
+        self.attackers = [Attacker(u, pick_style(self.rng), self.rng, ramp_seconds=ramp_seconds, scale=scale) for u in users]
 
     def dwell_elapsed(self, now):
         return now - self.started_at - self.dwell_seconds

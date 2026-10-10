@@ -1,22 +1,28 @@
-"""Seed customer-portal's plaintext SQLite database.
+"""Seed customer-portal's SQLite database.
 
 Builds a small `customers` table of SYNTHETIC rows that reference this slot's
 student handle (CTF-D25, §8.12). One row is the "secret" service account whose
 password field holds the flag: a successful SQL-injection dump reveals it.
 
 Everything here is lab-local fake data derived from the in-lab handle — no real
-PII, ever. Plaintext at rest is deliberate scenario design so the dump is
-legible on screen (the graded flaw is the SQL injection; cleartext storage is a
-CTF-D17 bonus flaw).
+PII, ever. Customer passwords are stored as PBKDF2 hashes (app.py's `_hash` is
+the same function, so login can check them); the service account's value is an
+API token, not a password, and is stored as-is.
 
 Idempotent: safe to run on every start. If the DB already holds customers it
 does nothing, so a student's running app keeps its data across restarts.
 """
 
+import hashlib
 import os
 import sqlite3
 
 DB_PATH = os.environ.get("CTF_DB_PATH", "/data/portal.db")
+
+
+def _hash(password):
+    """Same function as app.py's `_hash` -- keep the two in step."""
+    return hashlib.pbkdf2_hmac("sha256", password.encode(), b"larkspur", 20000).hex()
 
 
 def _rows(student, flag):
@@ -39,7 +45,7 @@ def _rows(student, flag):
             i,
             name,
             f"{user}.{student}@portal.lab",   # email tied to the handle
-            pw,                                # cleartext password (bonus flaw)
+            _hash(pw),                         # stored hashed, never as typed
             f"{student}-{1000 + i}",           # account id tied to the handle
             tier,
         ))

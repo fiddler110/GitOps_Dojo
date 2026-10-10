@@ -29,6 +29,10 @@ base_url="http://git-server:3000"
 api="$base_url/api/v1"
 repo_name="${CTF_BUILDER_REPO_NAME:-customer-portal}"
 seed_dir="/opt/workshop-content/sample-repo"
+# CTF_BONUS_FLAWS=on|off (workshop.env, default on): "on" lays content/bonus/ over the clean seed so
+# the repo also carries the second (bonus) flaw and its extra CI check; "off" seeds the clean repo.
+bonus_dir="/opt/workshop-content/bonus"
+case "${CTF_BONUS_FLAWS:-on}" in on|ON|1|true|yes) bonus_on=1 ;; *) bonus_on=0 ;; esac
 student_count="${STUDENT_COUNT:-0}"
 student_prefix="${STUDENT_PREFIX:-student}"
 build_token="${CTF_BUILD_TOKEN:-}"
@@ -108,6 +112,9 @@ while [ "$counter" -le "$student_count" ]; do
     log "pushing seed content into '$username/$repo_name'"
     work="$(mktemp -d)"
     cp -R "$seed_dir"/. "$work/"
+    if [ "$bonus_on" = 1 ] && [ -d "$bonus_dir" ]; then
+      cp -R "$bonus_dir"/. "$work/"
+    fi
     git -C "$work" init -q -b main
     git -C "$work" config user.name "$admin_user"
     git -C "$work" config user.email "ctf-defend@example.com"

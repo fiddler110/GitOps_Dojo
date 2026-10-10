@@ -1,11 +1,46 @@
 {
   "version": 1,
   "cards": [
-    { "id": "soc-alerts", "label": "SOC Alerts", "icon": "terminal",
-      "desc": "Your target's traffic, as the attacker swarm sees it.",
-      "href": "/achievements/soc" }
+    {
+      "id": "soc-alerts",
+      "label": "SIEM",
+      "icon": "terminal",
+      "desc": "Your target's request log, a breach banner and your incident summary.",
+      "href": "/achievements/soc"
+    }
   ],
   "admin_tabs": [
-    { "id": "soc-alerts", "label": "SOC Alerts", "src": "/achievements-admin/soc" }
+    {
+      "id": "soc-alerts",
+      "label": "SOC (whole room)",
+      "src": "/achievements-admin/soc"
+    },
+    {
+      "id": "ctf-wall",
+      "label": "Wall of Shame",
+      "src": "/ctf-wall/"
+    }
+  ],
+  "widgets": [
+    {
+      "id": "ctf-wall",
+      "src": "/ctf-wall/",
+      "size": "medium"
+    }
+  ],
+  "routes": [
+    {
+      "id": "ctf-wall",
+      "path": "/ctf-wall",
+      "upstream": "ctf-controller:9000",
+      "gate": "identity",
+      "strip_prefix": false
+    }
+  ],
+  "status_checks": [
+    {
+      "label": "Range Controller",
+      "url": "http://ctf-controller:9000/healthz"
+    }
   ]
 }

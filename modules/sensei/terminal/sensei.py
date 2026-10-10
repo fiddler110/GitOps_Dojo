@@ -6,9 +6,12 @@
   sensei why              explain the last error on your screen, if it is one Sensei knows
   sensei hand "message"   raise your hand: the facilitator sees your message and your last screen of output
   sensei inbox            replies to your hand-raises
+  (sensei notify, popup and watch are run for you: they announce the facilitator's replies; you don't call them)
+  sensei reply N "text"   answer the facilitator on request N (it goes back to the top of their queue)
   sensei check            your progress: which steps of the current lab are done and what's next
   sensei status           where your pull request stands with Sensei
   sensei review           which pull request to review next (peer review unlocks your own approval)
+                          [only in workshops with peer review, e.g. dns-as-code; elsewhere Sensei merges for you]
   sensei approve          ask Sensei to approve your pull request (needs a review of someone else's first,
                           or a few minutes' wait)
   sensei approve --force  approve it right now, if it follows the rules (your own records only, one change)
@@ -20,6 +23,8 @@ import json
 import os
 import subprocess
 import sys
+import textwrap
+import time
 import urllib.error
 import urllib.request
 
@@ -40,7 +45,7 @@ def token():
     return None
 
 
-def call(path, body=None):
+def call(path, body=None, timeout=15):
     tok = token()
     if not tok:
         return 0, {"error": "no Forgejo token in ~/.git-credentials"}
@@ -48,7 +53,7 @@ def call(path, body=None):
                                  method="POST" if body is not None else "GET",
                                  headers={"Authorization": "token " + tok, "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, json.load(r)
     except urllib.error.HTTPError as e:
         try:
@@ -262,6 +267,82 @@ def inbox():
             print("      %s: %s" % (x["from"], x["text"]))
         if not r["replies"]:
             print("      (no answer yet)")
+        elif r["replies"][-1]["from"] == "facilitator":
+            print("      Answer back with: sensei reply %d \"...\"" % r["id"])
+    return 0
+
+
+def _opt(argv, name, default):
+    return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else default
+
+
+def notify(argv=()):
+    """`sensei notify [--surface S] [--wait SECONDS] [--json]`. Called by the prompt hook (dojo-sensei.zsh): print a
+    banner for each new facilitator reply, once per surface. Silent when there is nothing new or Sensei can't be
+    reached. With --wait it holds open until a reply arrives (the long poll the popup watchers use)."""
+    wait = float(_opt(argv, "--wait", 0) or 0)
+    code, doc = call("/api/student/notify", {"surface": _opt(argv, "--surface", "terminal"), "wait": wait},
+                     timeout=wait + 3 if wait else 1)
+    if code != 200:
+        return 0
+    replies = doc.get("replies", [])
+    if "--json" in argv:
+        print(json.dumps(replies))
+        return 0
+    for r in replies:
+        print("\n\033[1;44;97m \U0001F94B The facilitator answered your request #%d \033[0m" % r["id"])
+        print("\033[1;34m|\033[0m %s" % clip(r["text"], 300))
+        print("\033[1;34m|\033[0m reply: sensei reply %d \"...\"   or see everything: sensei inbox\n" % r["id"])
+    return 0
+
+
+def popup(argv):
+    """`sensei popup N "text"`: what the Zellij floating pane runs. Shows the answer and takes a reply in place."""
+    if len(argv) < 2 or not argv[0].isdigit():
+        return 2
+    rid, text = int(argv[0]), " ".join(argv[1:])
+    print("\n\033[1;44;97m \U0001F94B The facilitator answered your request #%d \033[0m\n" % rid)
+    for line in textwrap.wrap(text, 76) or [""]:
+        print("  " + line)
+    print("\n\033[2mType a reply and press Enter, or press Enter to close.\033[0m")
+    try:
+        answer = input("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return 0
+    if answer:
+        code, doc = call("/api/student/reply", {"id": rid, "text": answer})
+        print("  sent." if code == 200 and doc.get("ok") else "  couldn't send that: `sensei reply %d \"...\"`" % rid)
+        time.sleep(1.2)
+    return 0
+
+
+def watch():
+    """`sensei watch`: the Zellij flavor's popup watcher (started once per student by dojo-sensei.zsh). Long-polls
+    for facilitator replies and opens each in a floating pane of the student's `main` session."""
+    me = os.path.realpath(sys.argv[0])
+    while True:
+        code, doc = call("/api/student/notify", {"surface": "zellij", "wait": 25}, timeout=30)
+        if code != 200:
+            time.sleep(10)
+            continue
+        for r in doc.get("replies", []):
+            subprocess.run(["zellij", "--session", "main", "run", "--floating", "--close-on-exit", "--name",
+                            "Sensei: the facilitator answered", "--width", "70%", "--height", "50%", "--x", "15%",
+                            "--y", "25%", "--", sys.executable, me, "popup", str(r["id"]), r["text"]],
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+
+
+def reply(argv):
+    if len(argv) < 2 or not argv[0].lstrip("#").isdigit():
+        print('usage: sensei reply N "your answer"   (N is the request number from `sensei inbox`)')
+        return 2
+    code, doc = call("/api/student/reply", {"id": int(argv[0].lstrip("#")), "text": " ".join(argv[1:])})
+    if code != 200:
+        return fail(doc)
+    if not doc.get("ok"):
+        say(doc.get("message", "I couldn't send that."))
+        return 1
+    say("sent. The facilitator will see it at the top of their list; `sensei inbox` shows the answer.")
     return 0
 
 
@@ -301,6 +382,14 @@ def main(argv):
         return hand(argv[2:])
     if cmd == "inbox":
         return inbox()
+    if cmd == "notify":
+        return notify(argv[2:])
+    if cmd == "popup":
+        return popup(argv[2:])
+    if cmd == "watch":
+        return watch()
+    if cmd == "reply":
+        return reply(argv[2:])
     if cmd == "check":
         return check()
     if cmd == "status":

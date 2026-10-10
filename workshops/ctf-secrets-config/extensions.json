@@ -2,5 +2,11 @@
   "version": 1,
   "scripts": [
     { "id": "attack-cards", "src": "/ctf-attack/attack-cards.js" }
+  ],
+  "admin_tabs": [
+    { "id": "ctf-attack", "label": "Attack Range", "src": "/ctf-attack/" }
+  ],
+  "status_checks": [
+    { "label": "Attack Range", "url": "http://ctf-controller:9000/healthz" }
   ]
 }

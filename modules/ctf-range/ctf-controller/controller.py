@@ -156,6 +156,13 @@ def _ctf_host_addr():
         return ""
 
 
+def _int_env(env, key, default):
+    try:
+        return max(0, int(env.get(key, "") or default))
+    except ValueError:
+        return default
+
+
 class Config:
     def __init__(self, env=os.environ):
         self.socket = env.get("CTF_SOCKET", "/run/ctf/docker.sock")
@@ -177,6 +184,11 @@ class Config:
         # as GATEWAY_TOKEN, never the shared master).
         self.gateway_token = env.get("GATEWAY_TOKEN", "")
         self.facilitator = env.get("FACILITATOR_USERNAME", "")
+        # Wall of shame render toggle (plan 8.12, "wire it always; make visibility a toggle"):
+        # only gates whether the /ctf-wall page DRAWS the wall. The dump events, status light,
+        # MTTP and incident summary live in achievements and never read this.
+        self.wall_enabled = env.get("CTF_WALL_OF_SHAME", "off").strip().lower() in ("on", "1", "true", "yes")
+        self.wall_age_off = _int_env(env, "CTF_WALL_AGE_OFF_SECONDS", 300)
         self.attack_targets = parse_targets(env.get("CTF_ATTACK_TARGETS", ""))
         self.attack_port_base = int(env.get("CTF_ATTACK_PORT_BASE", "") or ATTACK_PORT_BASE)
         self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
@@ -644,6 +656,20 @@ def make_handler(ctl, atk):
             if path == "/attack-cards.js":
                 self._static(STATIC["attack-cards.js"], "application/javascript; charset=utf-8")
                 return
+            if path in ("/ctf-wall", "/ctf-wall/"):
+                self._static(STATIC["wall.html"], "text/html; charset=utf-8")
+                return
+            if path == "/ctf-wall/wall.js":
+                self._static(STATIC["wall.js"], "application/javascript; charset=utf-8")
+                return
+            if path == "/ctf-wall/wall.css":
+                self._static(STATIC["wall.css"], "text/css; charset=utf-8")
+                return
+            if path == "/ctf-wall/config":
+                # Same-origin and not secret: whether to draw, and when a disconnected
+                # (contained) entry ages off. The rows themselves come from achievements.
+                self._json(200, {"enabled": ctl.cfg.wall_enabled, "age_off": ctl.cfg.wall_age_off})
+                return
             if path == "/attack-cards.css":
                 self._static(STATIC["attack-cards.css"], "text/css; charset=utf-8")
                 return
@@ -747,7 +773,8 @@ def make_handler(ctl, atk):
 # set, loaded once at start, same pattern as dns-ui's zone-viewer).
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(HERE, "static"))
 STATIC = {}
-for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css"):
+for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css",
+              "wall.html", "wall.js", "wall.css"):
     with open(os.path.join(STATIC_DIR, _name), "rb") as _f:
         STATIC[_name] = _f.read()
 

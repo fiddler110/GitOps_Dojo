@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; --bg: #fff; --fg: #1b1f24; --dim: #667; --live: #c0392b; --cut: #2e8b57; --line: #8884; }
+@media (prefers-color-scheme: dark) { :root { --bg: #14171c; --fg: #e6e8eb; --dim: #9aa3ad; --live: #ff6b5e; --cut: #5fd08e; } }
+body { background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; margin: 0; padding: 12px 16px; }
+h1 { font-size: 1.3rem; margin: 0 0 6px; }
+.dim { color: var(--dim); }
+.hidden { display: none; }
+table { border-collapse: collapse; width: 100%; font-size: 1.1rem; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+td.live { color: var(--live); font-weight: 700; }
+td.cut { color: var(--cut); font-weight: 700; }

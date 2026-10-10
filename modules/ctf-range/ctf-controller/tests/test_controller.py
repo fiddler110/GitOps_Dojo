@@ -74,6 +74,12 @@ def make_controller(count=2, seed="s", registry="registry.ctf.internal"):
 
 
 class TestConfig(unittest.TestCase):
+    def test_wall_toggle_defaults_off_and_reads_on(self):
+        self.assertFalse(c.Config(env={}).wall_enabled)
+        self.assertTrue(c.Config(env={"CTF_WALL_OF_SHAME": "ON"}).wall_enabled)
+        self.assertFalse(c.Config(env={"CTF_WALL_OF_SHAME": "off"}).wall_enabled)
+        self.assertEqual(c.Config(env={"CTF_WALL_AGE_OFF_SECONDS": "x"}).wall_age_off, 300)
+
     def test_mem_bytes(self):
         self.assertEqual(c._mem_bytes("128m"), 128 * 1024 ** 2)
         self.assertEqual(c._mem_bytes("1g"), 1024 ** 3)

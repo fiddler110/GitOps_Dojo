@@ -259,16 +259,47 @@ class StoreTests(unittest.TestCase):
                         "persona": "alice", "origin": "RU"})
         self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
         data = self.s.map_data()
-        self.assertEqual(len(data["arcs"]), 1)           # dump_success never lands in soc_feed_all
-        self.assertEqual(data["top"], [{"user": self.s._label("alice"), "challenge": "c", "hits": 1}])
+        self.assertEqual([a["event"] for a in data["arcs"]], ["probe", "dump_success"])  # breaches are feed rows too
+        self.assertEqual(data["top"], [{"user": self.s._label("alice"), "challenge": "c", "hits": 2}])
         self.assertEqual(len(data["breaches"]), 1)
         self.assertEqual(data["breaches"][0]["status"], "red")
         self.assertIn("timer", data)
 
-    def test_map_breach_ages_out_of_the_window(self):
+    def test_map_breach_stays_listed_while_red_but_stops_being_recent(self):
         self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
+        self.assertTrue(self.s.map_data()["breaches"][0]["recent"])
         self.clock.t += self.s.MAP_WINDOW + 1
-        self.assertEqual(self.s.map_data()["breaches"], [])
+        b = self.s.map_data()["breaches"]
+        self.assertEqual((len(b), b[0]["recent"]), (1, False))
+        self.s.adapter({"source": "soc", "event": "contained", "user": "alice", "challenge": "c"})
+        self.clock.t += self.s.MAP_WINDOW + 1
+        self.assertEqual(self.s.map_data()["breaches"], [])      # patched and old: gone
+
+    def test_dump_success_streams_into_the_feed_throttled_and_counts_for_siege(self):
+        ev = {"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c", "origin": "CN"}
+        for _ in range(10):
+            self.s.adapter(ev)
+            self.clock.t += 2
+        rows = self.s.admin_soc_rows()
+        self.assertEqual([r["severity"] for r in rows], ["BREACH"] * len(rows))
+        self.assertTrue(0 < len(rows) < 10)
+        self.assertEqual(self.s.map_data()["top"][0]["hits"], 10)    # every dump counts, rows or not
+
+    def test_map_windows_follow_the_time_scale(self):
+        self.s.time_scale = 0.1
+        self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c"})
+        self.assertEqual(self.s.map_data()["window"], 12)
+        self.clock.t += 13
+        self.assertEqual(self.s.map_data()["top"], [])
+
+    def test_map_shows_every_student_at_the_home_fallback(self):
+        self.s.me("alice"); self.s.me("bob")
+        self.s.regions["alice"] = {"lat": 1.0, "lon": 2.0, "place": "Somewhere", "src": "admin"}
+        st = {r["user"]: r for r in self.s.map_data()["students"]}
+        self.assertEqual(len(st), 2)
+        self.assertEqual(st[self.s._label("alice")]["place"], "Somewhere")
+        self.assertEqual(st[self.s._label("bob")]["src"], "default")
+        self.assertNotIn("id", next(iter(st.values())))
 
     def test_incident_is_the_students_own_timeline_and_status(self):
         self.s.adapter({"source": "soc", "event": "probe", "user": "alice", "challenge": "c",
@@ -276,7 +307,7 @@ class StoreTests(unittest.TestCase):
         self.s.adapter({"source": "ctf", "event": "dump_success", "user": "alice", "challenge": "c"})
         doc = self.s.incident("alice")
         self.assertEqual(doc["user"], self.s._label("alice"))
-        self.assertEqual(len(doc["timeline"]), 1)
+        self.assertEqual([r["event"] for r in doc["timeline"]], ["dump_success", "probe"])   # newest first
         self.assertEqual(doc["targets"][0]["status"], "red")
 
     def test_admin_incident_needs_a_known_student(self):
@@ -848,7 +879,7 @@ class TokenHttpTests(unittest.TestCase):
             self.assertEqual(doc["clone_url"], "http://git-server:3000/dan/challenge-repo.git")
             vals = server.runner.values(server.store.ledger.index["c1"]["item"], "dan")
             role = vals["role"]
-            self.assertIn(role, doc["constraints"])
+            self.assertIn("hotfix", doc["constraints"])
             self.assertNotIn("{", doc["constraints"])
             st, doc = self.call("POST", "/api/check", token="tokD", body={"challenge": "c1"})
             self.assertEqual((st, doc["passed"]), (200, False))
@@ -1063,9 +1094,77 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.call("GET", "/api/map", user="erin")[1]["top"], [])
         st, doc, _ = self.call("GET", "/api/incident", user="erin")
         self.assertEqual((st, doc["targets"]), (200, []))
+        st, doc, _ = self.call("GET", "/api/incident", user="boss")      # facilitator on the student page
+        self.assertEqual((st, doc["targets"], doc["timeline"]), (200, [], []))
         self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=nobody", user="boss")[0], 404)
         self.assertEqual(self.call("GET", "/achievements-admin/api/incident?user=erin", user="boss")[0], 200)
         self.assertEqual(self.call("GET", "/achievements-admin/api/map", user="boss")[0], 200)
+
+    def test_old_map_and_incident_pages_redirect_to_the_one_page_soc(self):
+        for path, user, want in (("/map", "erin", "soc"), ("/incident", "erin", "soc"),
+                                 ("/achievements-admin/map", "boss", "soc"),
+                                 ("/achievements-admin/incident?user=erin", "boss", "soc?user=erin")):
+            st, _, r = self.call("GET", path, user=user)
+            self.assertEqual((st, r.getheader("Location")), (302, want), path)
+        self.assertEqual(self.call("GET", "/soc", user="erin")[0], 200)
+        self.assertEqual(self.call("GET", "/achievements-admin/soc", user="boss")[0], 200)
+        for asset in ("/map.js", "/mapdata.js", "/dash.css", "/soc.js"):
+            self.assertEqual(self.call("GET", asset, user="erin")[0], 200, asset)
+
+    def test_student_region_comes_from_the_forwarded_address_only_behind_the_gateway_token(self):
+        import test_geo
+        import geo
+        server.store.locator = geo.Locator(reader=geo.Reader(test_geo.DB), home="toronto")
+        ip = "24.80.10.5"
+        # no gateway token: identity headers are someone else's name, and no address is read
+        self.call("GET", "/api/map", user="mallory", token="wrong", extra={"X-Forwarded-For": ip})
+        self.assertNotIn("mallory", server.store.regions)
+        # with the token, the right-most public address picks the region; a forged left entry does not
+        self.call("GET", "/api/me", user="vera", extra={"X-Forwarded-For": "99.250.10.1, " + ip + ", 172.19.0.2"})
+        self.assertEqual(server.store.regions["vera"]["place"], "Vancouver, CA")
+        # a private-only address (WSL, a LAN) uses the home region
+        self.call("GET", "/api/me", user="wes", extra={"X-Forwarded-For": "172.19.0.4"})
+        self.assertEqual((server.store.regions["wes"]["src"], server.store.regions["wes"]["place"]), ("default", "Toronto, ON"))
+        # the facilitator has no map point
+        self.call("GET", "/api/me", user="boss", extra={"X-Forwarded-For": ip})
+        self.assertNotIn("boss", server.store.regions)
+        # the address appears nowhere a student, the facilitator or the disk can read it
+        server.store.flush()
+        with open(os.path.join(self.dir, "state.json")) as f:
+            on_disk = f.read()
+        pages = [json.dumps(self.call("GET", "/api/map", user="vera")[1]),
+                 json.dumps(self.call("GET", "/achievements-admin/api/map", user="boss")[1]),
+                 json.dumps(self.call("GET", "/achievements-admin/api/state", user="boss")[1]), on_disk]
+        for text in pages:
+            for frag in (ip, "99.250.10", "172.19.0"):
+                self.assertNotIn(frag, text)
+        mp = self.call("GET", "/api/map", user="vera")[1]["students"]
+        self.assertTrue(all(set(s) == {"user", "lat", "lon", "place", "src"} for s in mp))
+        server.store.locator = None
+
+    def test_admin_region_override(self):
+        import geo
+        server.store.locator = geo.Locator(home="toronto")
+        hdr = {"X-Requested-With": "dojo-admin"}
+        self.call("GET", "/api/me", user="xena", extra={"X-Forwarded-For": "172.19.0.4"})
+        path = "/achievements-admin/api/region"
+        self.assertEqual(self.call("POST", path, user="xena", extra=hdr, body={"user": "xena", "region": "Vancouver"})[0], 403)
+        self.assertEqual(self.call("POST", path, user="boss", extra=hdr, body={"user": "nobody", "region": "Vancouver"})[0], 404)
+        self.assertEqual(self.call("POST", path, user="boss", extra=hdr, body={"user": "xena", "region": "Atlantis"})[0], 400)
+        self.assertEqual(self.call("POST", path, user="boss", extra=hdr, body={"user": "xena", "region": "Vancouver"})[0], 200)
+        self.call("GET", "/api/map", user="xena", extra={"X-Forwarded-For": "172.19.0.4"})
+        self.assertEqual(server.store.regions["xena"]["place"], "Vancouver, BC")      # not replaced by a later lookup
+        admin = [s for s in self.call("GET", "/achievements-admin/api/map", user="boss")[1]["students"] if s["id"] == "xena"]
+        self.assertEqual(admin[0]["place"], "Vancouver, BC")
+        self.assertEqual(self.call("POST", path, user="boss", extra=hdr, body={"user": "xena", "region": ""})[0], 200)
+        self.assertNotIn("xena", server.store.regions)
+        server.store.locator = None
+
+    def test_time_scale(self):
+        self.assertEqual(server.time_scale({}), 1.0)
+        self.assertEqual(server.time_scale({"CTF_TIME_SCALE": "0.1"}), 0.1)
+        for bad in ("x", "0", "-2", "500"):
+            self.assertEqual(server.time_scale({"CTF_TIME_SCALE": bad}), 1.0)
 
     def test_unknown_paths(self):
         self.assertEqual(self.call("GET", "/nope")[0], 404)

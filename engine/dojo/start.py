@@ -128,6 +128,19 @@ def bot_count(o: StartOptions, env: Dict[str, str]) -> Optional[str]:
     return n
 
 
+TEST_TIME_SCALE = "0.1"
+
+
+def soc_time_scale(o: StartOptions, env: Dict[str, str]) -> Optional[str]:
+    """CTF_TIME_SCALE for this run: a --test run compresses the ctf-defend SOC timeline to a tenth
+    (modules read it; real sessions never see it). An explicit CTF_TIME_SCALE from the shell or an
+    operator file wins, so CTF_TIME_SCALE=1 ./dojo ctf-defend --test runs the real clock. None
+    (and nothing set) without --test."""
+    if o.test is None:
+        return None
+    return (env.get("CTF_TIME_SCALE") or "").strip() or TEST_TIME_SCALE
+
+
 def sync_lab_docs(content_dir: Path) -> None:
     """content/lab/**/*.md -> content/slides/lab/**/*.md.txt (recursive, so a
     pack's exploit-guide/*.md mirrors too, not just top-level labs): the slides
@@ -301,6 +314,9 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     if bots is not None:
         env["BOT_COUNT"] = bots
         env["BOT_FAST"] = "1" if o.fast else "0"
+        env["CTF_TIME_SCALE"] = soc_time_scale(o, env)
+        if env["CTF_TIME_SCALE"] != "1":
+            console.print(f"           SOC timeline x{env['CTF_TIME_SCALE']} (ctf-defend; CTF_TIME_SCALE=1 for the real clock).")
         verb = "would start" if o.dry_run else "starting"
         console.print(f"Test mode: {verb} {bots} demo bot student(s) (prefix: {env.get('BOT_PREFIX') or 'testuser'}).")
         if o.fast:
