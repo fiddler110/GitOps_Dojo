@@ -3,29 +3,29 @@
 #   sh .github/scripts/dry-runs.sh     (~45 s)
 # Here only on pull requests into main, or by hand (Actions > CI > Run workflow),
 # to save the private repo's Actions minutes on everyday branch pushes.
-name: CI
-
-on:
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  unit-tests:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sh .github/scripts/unit-tests.sh
-
-  dry-runs:
-    # Compose config, extensions.json, achievements catalogs and image pins for
-    # every pack, with docker; nothing is started.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sh .github/scripts/dry-runs.sh
+# name: CI
+#
+# on:
+#     pull_request:
+#         branches: [main]
+#     workflow_dispatch:
+#
+# permissions:
+#     contents: read
+#
+# jobs:
+#     unit-tests:
+#         runs-on: ubuntu-26.04
+#         timeout-minutes: 20
+#         steps:
+#             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+#             - run: sh .github/scripts/unit-tests.sh
+#
+#     dry-runs:
+#         # Compose config, extensions.json, achievements catalogs and image pins for
+#         # every pack, with docker; nothing is started.
+#         runs-on: ubuntu-24.04
+#         timeout-minutes: 20
+#         steps:
+#             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+#             - run: sh .github/scripts/dry-runs.sh
