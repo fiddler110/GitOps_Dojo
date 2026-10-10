@@ -37,12 +37,15 @@ import json
 import os
 import random
 import sys
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import personas
 import probes
+import traffic
 from personas import Swarm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,16 +75,30 @@ def target_url(host, port_base, index):
     return f"http://{host}:{port_base + index}"
 
 
-def post_event(clients, attacker, outcome, challenge):
+def post_event(clients, attacker, outcome, challenge, observed=None, rng=None, focused=False):
     """Signed POST to achievements, best effort (AdapterClient never blocks or raises) - plus a
-    plain stdout line, for a human watching container logs."""
+    plain stdout line, for a human watching container logs. The event carries the SIEM record of
+    the request it stands for (traffic.py): method, path, query, status, size, agent and the
+    detection tag. OBSERVED is what an exploit request really got back (make_exploit_fn's .last);
+    FOCUSED keeps a hint burst to probing instead of mixing in background scans. Which of these
+    fields a student may see is achievements' decision (store.py's _present), not ours."""
     source = "ctf" if outcome in CTF_EVENTS else "soc"
     doc = {"event": outcome, "user": attacker.user, "challenge": challenge,
            "persona": attacker.user, "origin": attacker.origin}
-    if outcome == "probe":
-        doc["path"] = probes.probe_path()     # which path the alert names (probes.py; bonus area if on)
+    if outcome in ("recon", "probe"):
+        rec = (traffic.probe_request(rng) if focused and outcome == "probe"
+               else traffic.request_for(outcome, rng))
+    else:
+        rec = traffic.request_for(outcome, rng, observed=observed, payload_query=exploit_query())
+    doc.update(rec)
     clients[source].post(doc)
-    print(f"[attacker-bot] {attacker.user} {outcome} (origin {attacker.origin})", flush=True)
+    print(f"[attacker-bot] {attacker.user} {outcome} {rec['method']} {rec['path']} {rec['status']} "
+          f"(origin {attacker.origin})", flush=True)
+
+
+def exploit_query():
+    import dump as dump_mod
+    return urllib.parse.urlencode({"q": dump_mod.PAYLOAD})
 
 
 def _poll(url, secret, timeout=5):
@@ -132,15 +149,24 @@ def wait_for_start(control_url, secret, poll_seconds=5, sleep=time.sleep, now=ti
 def make_exploit_fn(url, timeout=5):
     """() -> True if the real payload still works against URL right now. Reuses the exact same
     payload the CI gate checks (targets/customer-portal/exploit/dump.py), so the bot and the
-    gate can never disagree about what "patched" means."""
+    gate can never disagree about what "patched" means. The call also leaves what the target
+    answered (status, size, rows) in `exploit.observed()` for the thread that made it, so the
+    SOC event can report the request as it really went."""
     import dump as dump_mod   # modules/ctf-range/targets/customer-portal/exploit/dump.py
+    seen = threading.local()
 
     def exploit():
+        seen.last = None
         try:
-            rows = dump_mod.dump(url, timeout=timeout)
+            seen.last = dump_mod.dump_detail(url, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            seen.last = {"status": e.code, "bytes": 0, "rows": []}
+            return False
         except (urllib.error.URLError, OSError, ValueError, TimeoutError):
             return False     # an operational hiccup is not a breach
-        return bool(rows)
+        return bool(seen.last["rows"])
+
+    exploit.observed = lambda: getattr(seen, "last", None)
     return exploit
 
 
@@ -154,12 +180,17 @@ class _HintPersona:
         self.user, self.origin = user, origin
 
 
+def _observed(exploit_fn):
+    get = getattr(exploit_fn, "observed", None)
+    return get() if get else None
+
+
 def run_inject(clients, challenge, attacker, exploit_fn):
     """Facilitator's "Inject" control (plan §8.5): one additional, real exploit attempt right
     now, on its own thread so it never blocks (or is blocked by) that student's regular
     schedule. See Attacker.force_exploit for exactly what it does."""
     outcome = attacker.force_exploit(exploit_fn)
-    post_event(clients, attacker, outcome, challenge)
+    post_event(clients, attacker, outcome, challenge, observed=_observed(exploit_fn))
 
 
 def run_hint_probe(clients, challenge, user, rng, sleep=time.sleep, scale=1.0):
@@ -169,7 +200,7 @@ def run_hint_probe(clients, challenge, user, rng, sleep=time.sleep, scale=1.0):
     real payload, and nothing in the event marks it as a hint. The only signal is the burst
     itself: this student suddenly getting hit far more than the swarm's usual pace."""
     for _ in range(rng.randint(3, 6)):
-        post_event(clients, _HintPersona(user, personas.pick_origin(rng)), "probe", challenge)
+        post_event(clients, _HintPersona(user, personas.pick_origin(rng)), "probe", challenge, rng=rng, focused=True)
         sleep(rng.uniform(10.0, 60.0) * scale)
 
 
@@ -216,7 +247,7 @@ def run(users, target_urls, challenge, started_at, clients, clock=time.time, sle
             now = clock()
             sleep(max(0.5, swarm.next_delay(attacker, now)))
             outcome, _extra = swarm.attempt(attacker, clock(), exploit_fns[attacker.user])
-            post_event(clients, attacker, outcome, challenge)
+            post_event(clients, attacker, outcome, challenge, observed=_observed(exploit_fns[attacker.user]))
 
     threads = [threading.Thread(target=attacker_loop, args=(a,), daemon=True) for a in swarm.attackers]
     if control_url and secret:

@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  // The one-page SOC: live alerts, the cyber map and the incident summary on one screen
+  // The one-page SOC (facilitator) and the student SIEM page: live alerts, the cyber map and the incident summary on one screen
   // (plan 8.2, 8.3, 8.9). Students see their own feed and incident; the facilitator page
   // (soc-admin.html, data-mode="admin") sees the whole room and picks a student for the incident
   // panel. Every string that came from a student goes in through textContent.
@@ -46,10 +46,65 @@
     if (api.onTimer) { api.onTimer(timer); }
   }
 
-  // -- alert feed --------------------------------------------------------------------------
-  var head = $('feed-head'), rows = $('rows');
-  (admin ? ['When', 'Student', 'Severity', 'Persona', 'Origin', 'Target'] : ['When', 'Severity', 'Persona', 'Origin', 'Target', 'Path'])
-    .forEach(function (h) { var th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+  // -- request log -------------------------------------------------------------------------
+  // One SIEM-style line per event; click (or Enter/Space) opens the full record as pretty JSON.
+  // What a record contains was decided by the server for THIS caller (store.py's _present): a
+  // student's lines carry only method, path, status and rule until their own target is breached.
+  var log = $('log'), logScroll = $('log-scroll');
+  var expanded = {};      // event id -> true while its JSON is open (survives the 3 s refresh)
+  var DEFAULT_NOTE = 'Click a line for the full record.';
+  function span(cls, text) { var s = document.createElement('span'); s.className = cls; s.textContent = text == null ? '' : text; return s; }
+  function clock(r) { return r.at == null ? '--:--:--' : new Date(r.at * 1000).toLocaleTimeString([], { hour12: false }); }
+  function size(n) { return n == null ? '' : n < 1024 ? n + ' B' : (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB'; }
+  function statusClass(n) { return n >= 500 ? 'neg' : n >= 400 ? 'warn' : 'dim'; }
+  function toggle(entry, line, pre, id) {
+    var open = pre.classList.toggle('hidden') === false;
+    line.setAttribute('aria-expanded', open ? 'true' : 'false');
+    entry.classList.toggle('open', open);
+    if (open) { expanded[id] = true; } else { delete expanded[id]; }
+    logScroll.classList.toggle('has-open', Object.keys(expanded).length > 0);
+  }
+  function entryFor(r, detail) {
+    var entry = document.createElement('div'); entry.className = 'entry' + (r.severity === 'BREACH' ? ' breach' : '');
+    entry.setAttribute('role', 'listitem');
+    var line = document.createElement('div'); line.className = 'line';
+    if (admin) { line.appendChild(span('who', r.user)); }
+    var tm = span('t dim', clock(r)); if (r.count > 1) { tm.title = 'last seen ' + clock(r); }
+    line.appendChild(tm);
+    line.appendChild(span('cc', r.origin));
+    if (r.method) {
+      var target = r.path + (r.query ? '?' + r.query : '');
+      line.appendChild(span('m', r.method));
+      var p = span('p', target); p.title = target; line.appendChild(p);
+      line.appendChild(span('st ' + statusClass(r.status), r.status));
+      line.appendChild(span('sz dim', size(r.bytes)));
+      var tg = span('tag ' + sevClass(r.severity), r.tag || r.event);
+      if (r.count > 1) {
+        var bd = span('badge', 'x' + r.count); bd.title = r.count + ' identical requests, first ' + clock({ at: r.first_at });
+        tg.appendChild(bd);
+      }
+      line.appendChild(tg);
+    } else {     // an older record, or CTF_SIEM_DETAIL=off: the plain alert
+      line.appendChild(span('m', r.severity));
+      var q = span('p', (r.persona || '') + (r.path ? '  ' + r.path : '')); q.title = q.textContent; line.appendChild(q);
+      line.appendChild(span('st', ''));
+      line.appendChild(span('sz', ''));
+      line.appendChild(span('tag ' + sevClass(r.severity), r.challenge));
+    }
+    entry.appendChild(line);
+    if (detail) {
+      var pre = document.createElement('pre'); pre.className = 'json hidden';
+      pre.textContent = JSON.stringify(r, null, 2);
+      entry.appendChild(pre);
+      line.tabIndex = 0; line.setAttribute('role', 'button'); line.setAttribute('aria-expanded', 'false');
+      line.addEventListener('click', function () { toggle(entry, line, pre, r.id); });
+      line.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(entry, line, pre, r.id); }
+      });
+      if (expanded[r.id]) { pre.classList.remove('hidden'); line.setAttribute('aria-expanded', 'true'); entry.classList.add('open'); }
+    }
+    return entry;
+  }
   function loadFeed() {
     return fetch('api/soc', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -57,31 +112,32 @@
         if (!d) { return; }
         renderTimer(d.timer);
         var list = (d.rows || []).slice(0, FEED_MAX);
+        var detail = d.siem !== 'off';
         show($('empty'), !list.length);
-        show($('soc-card'), list.length > 0);
+        show(log, list.length > 0);
         $('feed-count').textContent = list.length ? list.length + ' recent' : '';
-        clear(rows);
-        var now = Date.now() / 1000;
-        list.forEach(function (r) {
-          var tr = document.createElement('tr');
-          if (r.severity === 'BREACH') { tr.className = 'breach'; }
-          tr.appendChild(cell(ago(now - r.at), 'dim'));
-          if (admin) { tr.appendChild(cell(r.user)); }
-          tr.appendChild(cell(r.severity, sevClass(r.severity)));
-          tr.appendChild(cell(r.persona));
-          tr.appendChild(cell(r.origin, 'dim'));
-          tr.appendChild(cell(r.challenge));
-          if (!admin) { tr.appendChild(cell(r.path || '-', 'dim')); }
-          rows.appendChild(tr);
-        });
-        fit(rows.parentNode.parentNode, rows);
+        var note = $('feed-note');
+        note.textContent = !detail ? '' : d.unlocked ? DEFAULT_NOTE + ' Your target was breached: payloads and sizes are shown.'
+          : DEFAULT_NOTE + ' Payload and size detail unlocks once your target is breached.';
+        show(note, detail && !admin);
+        var keep = {};
+        clear(log);
+        list.forEach(function (r) { keep[r.id] = true; log.appendChild(entryFor(r, detail)); });
+        Object.keys(expanded).forEach(function (id) { if (!keep[id]) { delete expanded[id]; } });
+        logScroll.classList.toggle('has-open', Object.keys(expanded).length > 0);
+        // Nothing open: trim whole lines until none is half-cut (the projector layout never scrolls).
+        if (window.innerWidth > 900 && !Object.keys(expanded).length) {
+          while (log.lastChild && logScroll.scrollHeight > logScroll.clientHeight + 1) { log.removeChild(log.lastChild); }
+        }
       })
       .catch(function () {});
   }
 
   // -- map + lists -------------------------------------------------------------------------
+  var hasMap = !!$('world-canvas');
   var seenAt = 0, seenBreach = 0, firstMap = true;
   function loadMap() {
+    if (!hasMap) { return Promise.resolve(); }
     return fetch('api/map', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
@@ -124,6 +180,29 @@
       .catch(function () {});
   }
 
+  // -- breach banner (student page) --------------------------------------------------------
+  // Red while their own target is breached; then a calm "Contained" with the time to patch.
+  // It names what happened and where to look, never the fix.
+  function renderBanner(targets) {
+    var bn = $('banner'); if (!bn) { return; }
+    var red = null, fixed = null;
+    targets.forEach(function (t) { if (t.status === 'red') { red = red || t; } else if (t.fixed_at != null) { fixed = fixed || t; } });
+    var main = $('banner-main'), sub = $('banner-sub');
+    if (red) {
+      bn.className = 'banner breached';
+      main.textContent = 'BREACHED - customer data left your ' + red.challenge + ' at ' + clock({ at: red.breached_at });
+      sub.textContent = 'Find the request in the log below that caused it.';
+    } else if (fixed) {
+      bn.className = 'banner contained';
+      main.textContent = 'Contained - ' + fixed.challenge + ' patched in ' + duration(fixed.mttp);
+      sub.textContent = 'Breached ' + clock({ at: fixed.breached_at }) + ', fixed ' + clock({ at: fixed.fixed_at }) + '.';
+    } else {
+      bn.className = 'banner watch';
+      main.textContent = 'Monitoring';
+      sub.textContent = '';
+    }
+  }
+
   // -- incident summary --------------------------------------------------------------------
   function loadIncident() {
     if (admin && !pickedUser) {
@@ -138,6 +217,7 @@
       .then(function (d) {
         if (!d) { return; }
         var targets = d.targets || [], timeline = (d.timeline || []).slice(0, 12);
+        renderBanner(targets);
         $('inc-who').textContent = admin ? d.user || '' : '';
         $('inc-empty').textContent = 'No activity recorded yet.';
         show($('inc-empty'), !(targets.length || timeline.length));
@@ -180,9 +260,9 @@
   // Legacy links: /incident?user=NAME redirects here with the query intact.
   var qs = /[?&]user=([^&]+)/.exec(location.search);
   if (admin && qs) { try { pickedUser = decodeURIComponent(qs[1]); } catch (e) { pickedUser = ''; } }
-  window.DojoMap.init($('world-canvas'), $('inset-canvas'));
+  if (hasMap) { window.DojoMap.init($('world-canvas'), $('inset-canvas')); }
   refresh();
   setInterval(loadFeed, 3000);
   setInterval(loadMap, 3000);
-  setInterval(loadIncident, 6000);
+  setInterval(loadIncident, admin ? 6000 : 3000);
 })();

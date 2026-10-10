@@ -82,7 +82,7 @@ blockquote {
   background: rgba(61, 214, 195, 0.08) !important;
   border-left: 7px solid var(--teal) !important;
   color: var(--text) !important;
-  font-size: 38px;
+  font-size: 30px;
   font-weight: 600;
   padding: 16px 24px;
 }

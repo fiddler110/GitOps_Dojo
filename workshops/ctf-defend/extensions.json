@@ -3,16 +3,16 @@
   "cards": [
     {
       "id": "soc-alerts",
-      "label": "SOC Alerts",
+      "label": "SIEM",
       "icon": "terminal",
-      "desc": "Live alerts, the attack map and your incident summary, on one screen.",
+      "desc": "Your target's request log, a breach banner and your incident summary.",
       "href": "/achievements/soc"
     }
   ],
   "admin_tabs": [
     {
       "id": "soc-alerts",
-      "label": "SOC Alerts",
+      "label": "SOC (whole room)",
       "src": "/achievements-admin/soc"
     },
     {
@@ -35,6 +35,12 @@
       "upstream": "ctf-controller:9000",
       "gate": "identity",
       "strip_prefix": false
+    }
+  ],
+  "status_checks": [
+    {
+      "label": "Range Controller",
+      "url": "http://ctf-controller:9000/healthz"
     }
   ]
 }

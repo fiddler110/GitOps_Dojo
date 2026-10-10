@@ -424,7 +424,7 @@ services:
 
   # attacker-bot lives in workshops/ctf-defend/compose/docker-compose.override.yml:
   # the swarm's hardcoded CTF_CHALLENGE=customer-portal and its "Start Attack
-  # Swarm" trigger (SOC Alerts admin tab) are both defend-only (CTF-5), so
+  # Swarm" trigger (SOC admin tab) are both defend-only (CTF-5), so
   # having it in the shared ctf-range module meant every attack pack (ctf-access,
   # ctf-server-trust, ctf-secrets-config, ctf-trust-chain) ran it idle, wasting a container and
   # ~64MB on nothing. 2026-10-07 move.

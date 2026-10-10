@@ -125,7 +125,7 @@ class Store:
         # attacker still connected right now" signal, not a record worth keeping across a
         # restart. See wall_rows().
         self.ctf_dumps = {}
-        # SOC feed (plan §8.2): one bounded deque per student (their own "SOC Alerts" card) plus
+        # SOC feed (plan §8.2): one bounded deque per student (their own "SIEM" page) plus
         # one room-wide deque (the facilitator admin tab). Same deliberately-ephemeral treatment
         # as ctf_dumps above - a rolling live feed, not a record worth a restart.
         self.soc_feed = {}
@@ -149,6 +149,7 @@ class Store:
         self.time_scale = 1.0           # CTF_TIME_SCALE, set by server.py: shrinks the map's "recent" windows
         self.ctf_hits = {}              # (user, challenge) -> deque of dump_success times (memory only)
         self._breach_row_at = {}        # (user, challenge) -> clock of the last breach row in the feed
+        self._breach_sig = {}           # (user, challenge, request line) -> its collapsed breach row
         self._region_checked = {}       # user -> clock of the last lookup (memory only)
         self.soc_dwell_seconds = soc_dwell_seconds
         self.soc_ramp_seconds = soc_ramp_seconds
@@ -156,6 +157,10 @@ class Store:
         # next control poll. Ephemeral like the feeds above - a missed poll just means "try
         # again next poll", not a record worth a restart.
         self.soc_commands = []
+        # CTF_SIEM_DETAIL (full|paths|off, set by server.py): how much of each logged request a
+        # student's own feed carries. The facilitator always gets the whole record (_present).
+        self.siem_detail = "full"
+        self._soc_seq = 0
         self._saved_at = None
         self.save_delay = save_delay
         self._dirty = False
@@ -639,7 +644,8 @@ class Store:
         now = self.clock()
         window = max(10.0, self.MAP_WINDOW * self.time_scale)
         with self.lock:
-            arcs = list(self.soc_feed_all)[-self.MAP_ARCS_MAX:]
+            arcs = [{k: r[k] for k in self.ARC_KEYS if k in r}      # no request detail on the room-wide map
+                    for r in list(self.soc_feed_all)[-self.MAP_ARCS_MAX:]]
             counts = {}
             for r in self.soc_feed_all:
                 if now - r["at"] <= window and r["event"] != "dump_success":
@@ -684,7 +690,8 @@ class Store:
         with self.lock:
             self._student(user)
             label = self._label(user)
-            timeline = list(reversed(self.soc_feed.get(user, ())))
+            b = self._breached(user)
+            timeline = [self._present(r, b) for r in reversed(self.soc_feed.get(user, ()))]
         targets = [r for r in self.target_statuses() if r["user"] == label]
         return {"user": label, "targets": targets, "timeline": timeline}
 
@@ -695,7 +702,7 @@ class Store:
             if user not in self.ledger.users:
                 raise Denied(404, "no such student")
             label = self._label(user)
-            timeline = list(reversed(self.soc_feed.get(user, ())))
+            timeline = [self._present(r, True, admin=True) for r in reversed(self.soc_feed.get(user, ()))]
         targets = [r for r in self.target_statuses() if r["user"] == label]
         return {"user": label, "targets": targets, "timeline": timeline}
 
@@ -730,7 +737,7 @@ class Store:
         return doc
 
     # SOC feed (plan §8.2). One alert per persona attempt against a student's own target,
-    # bounded per-student (their "SOC Alerts" card) and room-wide (the admin tab). Severity is
+    # bounded per-student (their "SIEM" page) and room-wide (the admin tab). Severity is
     # derived from `event` here, once, rather than trusted as a free-text field from the poster.
     SOC_SEVERITY = {"recon": "INFO", "probe": "WARN", "exploit_attempt": "CRITICAL", "contained": "INFO",
                     "dump_success": "BREACH"}
@@ -738,12 +745,53 @@ class Store:
     SOC_PER_STUDENT_MAX = 50
     SOC_ROOM_MAX = 300
 
+    # The SIEM record behind each feed row: a request line, what the target answered and the rule
+    # that fired. What a student may see of it is decided HERE, per request, never in the browser:
+    #   off   -> the old alert columns only (no method/status/tag, no payload);
+    #   paths -> + method, path, status and the detection tag, never the query/size/rows/agent;
+    #   full  -> as paths until THIS student's target has been breached, then the whole record
+    #            (payload, response size, rows returned, agent), earlier rows included.
+    # `tag` names the attack class, never the fix. The facilitator is never filtered.
+    SIEM_BASE = ("id", "ts", "at", "user", "event", "severity", "persona", "origin", "challenge")
+    SIEM_PATHS = SIEM_BASE + ("method", "path", "status", "tag", "count", "first_at")
+    SIEM_FULL = SIEM_PATHS + ("query", "bytes", "rows_returned", "ua", "klass")
+    ARC_KEYS = ("user", "event", "severity", "origin", "challenge", "at", "persona")
+
+    def _breached(self, user):
+        """Has this student's own target ever gone red (caller holds the lock)?"""
+        prefix = f"{user}\x1c"
+        return any(k.startswith(prefix) for k in self.target_status)
+
+    def _present(self, row, breached, admin=False):
+        """One feed row as THIS caller may see it."""
+        if admin:
+            return {k: v for k, v in row.items() if v is not None}
+        level = self.siem_detail
+        if level == "off":
+            out = {k: row.get(k) for k in self.SIEM_BASE}
+            path = row.get("path")
+            if path and row.get("event") == "probe":     # the old feed's one detail: where the probe went
+                out["path"] = path + ("?" + row["query"] if row.get("query") else "")
+            return out
+        keys = self.SIEM_FULL if (level == "full" and breached) else self.SIEM_PATHS
+        return {k: row[k] for k in keys if row.get(k) is not None}
+
     def _soc_alert(self, user, event, now):
         """Append one soc alert to both feeds (caller holds the lock)."""
-        row = {"user": self._label(user), "event": event.get("event"),
+        self._soc_seq += 1
+        row = {"id": self._soc_seq, "user": self._label(user), "event": event.get("event"),
                "severity": self.SOC_SEVERITY.get(event.get("event"), "INFO"),
                "persona": event.get("persona"), "origin": event.get("origin"),
-               "challenge": event.get("challenge"), "path": event.get("path"), "at": now}
+               "challenge": event.get("challenge"), "path": event.get("path"), "at": now,
+               "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))}
+        if row["severity"] == "BREACH":
+            row["count"] = 1
+            row["first_at"] = now
+        for k in ("method", "query", "status", "bytes", "rows_returned", "ua", "tag", "klass"):
+            if event.get(k) is not None:
+                row[k] = event[k]
+        if row.get("klass") == "scan" and row["severity"] == "WARN":
+            row["severity"] = "INFO"                       # internet background noise is not a warning
         self.soc_feed.setdefault(user, deque(maxlen=self.SOC_PER_STUDENT_MAX)).append(row)
         self.soc_feed_all.append(row)
 
@@ -754,19 +802,37 @@ class Store:
         counts toward "under siege" via ctf_hits (caller holds the lock)."""
         key = (user, event.get("challenge") or "")
         self.ctf_hits.setdefault(key, deque(maxlen=600)).append(now)
+        # An identical breach request line is one row with a count and a last-seen time, not a new
+        # row every few seconds: the log stays readable and the scans are not pushed out of the feed.
+        sig = key + tuple(event.get(k) for k in ("method", "path", "query", "status", "tag"))
+        prev = self._breach_sig.get(sig)
+        if prev is not None and any(r is prev for r in self.soc_feed.get(user, ())):
+            prev["count"] = prev.get("count", 1) + 1
+            prev["at"] = now
+            prev["ts"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+            return
         if now - self._breach_row_at.get(key, -1e18) >= self.BREACH_ROW_GAP * self.time_scale:
             self._breach_row_at[key] = now
             self._soc_alert(user, event, now)
+            self._breach_sig[sig] = self.soc_feed[user][-1]
 
     def soc_rows(self, user):
-        """This student's own recent alerts, newest first (their "SOC Alerts" card)."""
+        """This student's own recent alerts, newest first (their "SIEM" page)."""
         with self.lock:
-            return list(reversed(self.soc_feed.get(user, ())))
+            b = self._breached(user)
+            rows = sorted(self.soc_feed.get(user, ()), key=lambda r: (r["at"], r["id"]), reverse=True)
+            return [self._present(r, b) for r in rows]
+
+    def siem_state(self, user=None):
+        """{"siem": level, "unlocked": bool} for the feed's header: which view this caller got."""
+        with self.lock:
+            return {"siem": self.siem_detail, "unlocked": bool(user) and self._breached(user)}
 
     def admin_soc_rows(self):
         """Every student's recent alerts, newest first (the facilitator admin tab)."""
         with self.lock:
-            return list(reversed(self.soc_feed_all))
+            rows = sorted(self.soc_feed_all, key=lambda r: (r["at"], r["id"]), reverse=True)
+            return [self._present(r, True, admin=True) for r in rows]
 
     def admin_soc_start(self):
         """The facilitator's "Start Attack Swarm" button. Idempotent - a second click (or a

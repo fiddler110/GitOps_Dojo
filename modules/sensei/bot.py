@@ -322,7 +322,7 @@ class Sensei:
         """Pick a pull request for `login` to review: not theirs, not a bot's, not one they already reviewed;
         the one with the fewest reviews first, then the longest waiting, Sensei's practice PR last."""
         if self.mode != "approve":
-            return {"ok": False, "message": "Nobody needs a review in this workshop."}
+            return {"ok": False, "message": "Peer review isn't part of this workshop: Sensei checks and merges your pull request for you. See where it stands with `sensei status`."}
         choices = []
         for pr in self._open_prs():
             author = (pr.get("user") or {}).get("login", "")
@@ -343,7 +343,7 @@ class Sensei:
         """`sensei approve [--force]`: approve the student's own open PR if it follows the rules and they have
         reviewed someone else's (or have waited long enough); `--force` skips that wait, never the rules."""
         if self.mode != "approve":
-            return {"ok": False, "message": "Nothing to approve in this workshop."}
+            return {"ok": False, "message": "There is nothing for you to approve here: Sensei merges your pull request itself once it passes. See where it stands with `sensei status`."}
         mine = self._my_open(login)
         if not mine:
             return {"ok": False, "message": "You have no open pull request into %s." % self.base}

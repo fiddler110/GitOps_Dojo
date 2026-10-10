@@ -10,7 +10,7 @@ watched the deploy happen because you merged, not because you asked anyone to.
 
 `customer-portal` is a small internal lookup tool: search customers by name,
 or log in as one. It's already running — your copy, on your own slot, nobody
-else's. InfoSec has opened an incident against it. The SOC Alerts panel on
+else's. InfoSec has opened an incident against it. The SIEM panel on
 your landing page shows what they're seeing in real time; the facilitator
 will start the clock when the room's ready.
 
@@ -73,5 +73,5 @@ Merge the PR. `defend-main.yml` rebuilds the image and redeploys your slot in
 place — no extra step, no asking the facilitator. Re-run the exploit check
 against your (now redeployed) slot and confirm it exits `1`.
 
-Check the SOC Alerts panel again: your status should flip from under attack
+Check the SIEM panel again: your status should flip from under attack
 to contained.

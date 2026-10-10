@@ -36,13 +36,15 @@ class ProbePathTests(unittest.TestCase):
         self.assertTrue(probes.bonus_enabled({"CTF_BONUS_FLAWS": "on"}))
         self.assertFalse(probes.bonus_enabled({"CTF_BONUS_FLAWS": "off"}))
 
-    def test_only_probes_carry_a_path_and_none_are_exploits(self):
+    def test_probe_and_recon_carry_a_request_line_and_none_are_exploits(self):
         clients = {"ctf": FakeClient(), "soc": FakeClient()}
         attacker = bot.Swarm(["student01"], rng=random.Random(1), started_at=0.0).attackers[0]
         bot.post_event(clients, attacker, "probe", "customer-portal")
         bot.post_event(clients, attacker, "recon", "customer-portal")
-        self.assertIn("path", clients["soc"].posted[0])
-        self.assertNotIn("path", clients["soc"].posted[1])
+        for doc in clients["soc"].posted:
+            self.assertIn("path", doc)
+            self.assertNotEqual(doc["klass"], "exploit")
+            self.assertNotIn("%27+OR", doc["query"])
 
 
 if __name__ == "__main__":

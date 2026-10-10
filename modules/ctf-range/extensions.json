@@ -10,7 +10,6 @@
   ],
   "admin_tabs": [
     { "id": "lab-info", "label": "Lab Info", "src": "/lab-info/" },
-    { "id": "ctf-attack", "label": "Attack Range", "src": "/ctf-attack/" },
     { "id": "ctf-view", "label": "Target Viewer", "src": "/ctf-view/" }
   ],
   "routes": [
@@ -23,7 +22,6 @@
   ],
   "status_checks": [
     { "label": "Lab Info", "url": "http://ctf-lab-info:8080/" },
-    { "label": "Attack Range", "url": "http://ctf-controller:9000/healthz" },
     { "label": "Target Viewer", "url": "http://ctf-view:9100/healthz" }
   ]
 }

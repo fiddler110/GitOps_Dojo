@@ -31,7 +31,7 @@ CTF pack that lists `runner-pool` purely for its own students' pipelines, not fo
 (`ctf-trust-chain` also lists it, but for `runner-escape`'s target, not the student's own CI).
 
 This pack also runs the **attacker-bot swarm and SOC feed** (plan §8.2-8.11): one container for the whole
-room, idle until the facilitator presses **Start Attack Swarm** on the SOC Alerts `/admin` tab, then
+room, idle until the facilitator presses **Start Attack Swarm** on the SOC `/admin` tab, then
 driving the green → yellow → red clock against every student's slot at once. No other CTF pack runs it
 live by default -- see `compose/docker-compose.override.yml`'s header comment.
 
@@ -75,7 +75,7 @@ fixed once the main fix is on `main`: 10/5/0 and +5. Achievements items `d-patch
 
 ## Facilitator view
 
-The `/admin` workspace's **SOC Alerts** tab is this session's equivalent of CTF-1 through CTF-4's Attack
+The `/admin` workspace's **SOC** tab is this session's equivalent of CTF-1 through CTF-4's Attack
 Range tab: it shows the room-wide swarm clock and is where the facilitator starts it. There is no
 start/stop/reset per student -- the target is always on.
 

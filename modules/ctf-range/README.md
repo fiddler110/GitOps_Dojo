@@ -63,7 +63,8 @@ it enables, and ships its own labs and slides.
 > `CTF_ATTACK_TARGETS` (`module.env`), which defaults to empty — the real
 > target-1..4 images are CTF-S8, not built yet — so wiring one in is a
 > config change, never a code change. The card itself
-> (`ctf-controller/static/`, `extensions.json`'s `"ctf-attack"` id) is a
+> (`ctf-controller/static/`; the `ctf-attack` /admin tab and its "Attack Range" status check live in
+> each attack pack's own `extensions.json`, not in this module's, so ctf-defend has no such tab) is a
 > small page `ctf-controller` serves directly behind the gateway's
 > `identity` gate, polling `GET attack/status` and driving
 > `POST attack/{start,stop,reset}`. Do not wire a workshop to this
@@ -81,7 +82,7 @@ it enables, and ships its own labs and slides.
 > (recon) → yellow (escalating, delay ramping down and exploit odds
 > climbing) → red (detonated — every attempt is now the real payload,
 > each student jittered 0-60s). Drives a new `soc` achievements event
-> source, a student "SOC Alerts" card and a facilitator room-wide admin
+> source, a student "SIEM" page and a facilitator room-wide admin
 > tab, both showing the green/yellow/red countdown. **Not yet live-verified
 > on a running stack** — see "Wall of shame" below.
 
@@ -265,7 +266,7 @@ clock, not independent per-persona timers).
   (`SOC_SEVERITY`), never trusted as a free-text field from the poster.
 - **Storage and pages**: `store.py`'s `soc_feed`/`soc_feed_all` (bounded in-memory deques, same
   deliberately-ephemeral treatment as `wall_rows()`'s `ctf_dumps`) back a student's own
-  "SOC Alerts" card (`GET /achievements/soc`) and a facilitator room-wide admin tab
+  "SIEM" page (`GET /achievements/soc`) and a facilitator room-wide admin tab
   (`GET /achievements-admin/soc`), both rendering the big green/yellow/red countdown
   (`store.py`'s `soc_timer()`, mirroring `personas.py`'s `room_timer()` so the two processes
   agree on the phase without talking to each other). Wired into this module's
@@ -275,7 +276,7 @@ clock, not independent per-persona timers).
   **DISCONNECTED** once they stop, dropped once quiet past `WALL_MAX_AGE` (30 min).
 - **Facilitator-gated start (2026-10-05, same day, user request).** The lab can build and sit
   idle — zero bot traffic — while students are walked through the briefing: `attacker-bot` does
-  nothing until the facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab
+  nothing until the facilitator presses "Start Attack Swarm" on the SOC admin tab
   (`store.py`'s `admin_soc_start()`, idempotent; `admin_soc_reset()` re-arms for a fresh
   section). `bot.py` polls a new signed `POST /api/soc/control` (same HMAC scheme as
   `/api/adapter`, but anonymous — no event, just "has it started, and since when") every few
@@ -298,7 +299,7 @@ clock, not independent per-persona timers).
     (at-most-once, fine for one bot process). "Inject" forces one real exploit attempt right
     now, bypassing that student's delay (`Attacker.force_exploit`); "Hint probe" fires 3-6
     non-exploiting probes tagged exactly like ordinary recon — nothing marks it as a hint.
-    The admin tab's SOC Alerts page has per-student pick buttons plus Inject-all/Hint-all.
+    The admin tab's SOC page has per-student pick buttons plus Inject-all/Hint-all.
   - **Incident summary** (`/api/incident`, facilitator `/achievements-admin/api/incident?user=ID`):
     status light(s) with MTTP and the SOC timeline, a panel of the one-page SOC for the debrief.
   - **One-page SOC (2026-10-09).** `/achievements/soc` (student: own feed and incident) and
@@ -351,7 +352,7 @@ clock, not independent per-persona timers).
   `content/bonus/` over the clean seed repo (the flawed `seed.py`/`app.py`, `exploit/bonus_check.py`, and a
   `defend-pr.yml` with one extra informational step that runs only after the exploit gate passed);
   `attacker-bot/probes.py` mixes data-at-rest paths (`/portal.db`, ...) into a share of the ordinary WARN
-  probes, unlabelled (the alert's new `path` is shown in the student's SOC Alerts card); the achievements
+  probes, unlabelled (the alert's new `path` is shown in the student's SIEM page); the achievements
   challenge `c1` ("Second Look", two hints, answer) is worth one more unit. Off: the repo is seeded clean,
   probes only name the graded paths, there is no bonus step, and `c1` is hidden (a `enabled: false` copy
   is mounted over it). The bots never exploit a bonus flaw, so it never moves the status light. Scoring
@@ -359,6 +360,21 @@ clock, not independent per-persona timers).
   achievements points (`d-patched`, `d-unbreached`, `c1`). Known gap: the pre-merge live slot is built
   from `targets/customer-portal` (always the as-typed passwords); the toggle governs the student's repo,
   so with it off a student's first redeploy is what makes the live data match their clean repo.
+- **SIEM request log (`CTF_SIEM_DETAIL=full|paths|off`, default full; built, not live-verified).** The SOC
+  page's alert feed is one log line per event (time, origin country code, method, path?query, status, size,
+  detection tag), each expandable to the pretty-printed JSON record. `attacker-bot/traffic.py` gives each
+  event the shape of its class: **scan** (background noise: `/robots.txt`, `/.env`, `/wp-login.php`, banner
+  grabs, varied user-agents), **probe** (quote and boolean tests in `q=`, login guessing, and with
+  `CTF_BONUS_FLAWS=on` guesses at `/portal.db` and `/export/customers.csv`; none is the exploit) and
+  **exploit** (the real payload: `exploit/dump.py`'s `dump_detail()` returns the status, size and rows the
+  target actually sent, which the bot reports, so a breach reads as a 200 with a big body tagged
+  `bulk data egress`). Probe and scan requests are synthetic (never sent); every origin is an ISO country
+  code. Tags name the attack class, never the fix. achievements decides who sees what, in `store.py`'s
+  `_present()`, never in the browser: until a student's own target has been breached even `full` shows only
+  method, path, status and tag; after it, the payload, size, rows and agent unlock for that student (earlier
+  lines too). `paths` never unlocks them; `off` is the old plain alert table. The facilitator's room view
+  always gets the whole record, and the room map arcs carry no request detail. The setting lives in
+  `workshops/ctf-defend/workshop.env` and reaches achievements through `modules/achievements/compose.yml`.
 - **Still not built:** §8.11's traffic-pivot/attention-budget across a student's targets (moot until
   the CTF-S8 target-1..4 images exist — CTF-5's one `customer-portal` target has nothing to
   pivot across yet); §8.7's bonus flaws on targets 8-11 (not part of ctf-defend yet; see the next entry for the one that is built); row payloads richer than `(user, challenge)` for the wall itself (e.g.

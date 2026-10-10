@@ -40,3 +40,40 @@ body.dash { height: 100vh; box-sizing: border-box; display: grid; grid-template-
 }
 tr.breach td { background: rgba(239, 68, 68, 0.16); color: var(--bad); font-weight: 700; }
 tr.breach td.dim { color: var(--bad); }
+
+/* Request log: one SIEM line per event, expandable to its JSON record. */
+.dash .note { font-size: 0.72rem; margin: -0.15rem 0 0.25rem; }
+.dash .scroll.has-open { overflow-y: auto; }
+.log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.72rem; }
+.log .entry { border-bottom: 1px solid var(--line); }
+.log .line { display: grid; grid-template-columns: 3.9rem 1.5rem 3.1rem minmax(3rem, 1fr) 1.8rem 3rem minmax(0, 1.3fr);
+  gap: 0.4rem; align-items: baseline; padding: 0.16rem 0.2rem; white-space: nowrap; }
+body[data-mode="admin"] .log .line { grid-template-columns: 6rem 3.9rem 1.5rem 3.1rem minmax(3rem, 1fr) 1.8rem 3rem minmax(0, 1.3fr); }
+.log .line[role="button"] { cursor: pointer; }
+.log .line[role="button"]:hover, .log .line[role="button"]:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
+.log .line > span { overflow: hidden; text-overflow: ellipsis; }
+.log .m { font-weight: 700; }
+.log .tag { font-weight: 600; }
+.log .entry.open .line { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.log .json { margin: 0 0 0.25rem; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 0.3rem; background: var(--bg);
+  white-space: pre-wrap; word-break: break-all; font-size: 0.7rem; }
+.log .entry.breach .line { background: rgba(239, 68, 68, 0.16); color: var(--bad); font-weight: 700; }
+
+/* Log flood collapse: "x37" badge on a repeated identical breach line. */
+.log .badge { margin-left: 0.4rem; padding: 0 0.35rem; border-radius: 0.7rem; background: var(--bad); color: #fff; font-size: 0.68rem; font-weight: 700; }
+
+/* Student SIEM page: banner, request log, incident summary; no maps, no whole-room tables. */
+.student .dash-main { grid-template-columns: none; grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); }
+.banner { display: flex; flex-direction: column; justify-content: center; gap: 0.15rem; padding: 0.35rem 1rem; border-radius: 0.6rem; }
+.banner .b-main { font-weight: 800; }
+.banner.watch { padding: 0.2rem 0.8rem; background: var(--card); border: 1px solid var(--line); color: var(--dim, #94a3b8); }
+.banner.watch .b-main { font-size: 0.85rem; font-weight: 600; }
+.banner.breached { background: #b91c1c; color: #fff; border: 2px solid #fecaca; padding: 0.8rem 1.2rem; animation: breach-pulse 2s ease-in-out infinite; }
+.banner.breached .b-main { font-size: 2.2rem; line-height: 1.15; }
+.banner.breached .b-sub { font-size: 1.3rem; font-weight: 600; }
+.banner.contained { background: #14532d; color: #dcfce7; border: 2px solid #4ade80; padding: 0.55rem 1.2rem; }
+.banner.contained .b-main { font-size: 1.6rem; }
+.banner.contained .b-sub { font-size: 1rem; }
+@keyframes breach-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 50% { box-shadow: 0 0 0 0.45rem rgba(239, 68, 68, 0.45); } }
+@media (prefers-reduced-motion: reduce) { .banner.breached { animation: none; } }
+@media (max-width: 900px) { .student .dash-main { display: block; } .banner.breached .b-main { font-size: 1.5rem; } }

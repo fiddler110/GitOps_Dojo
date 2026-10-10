@@ -2,48 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SOC Dashboard</title>
+<title>SIEM</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="dash.css">
 </head>
-<body class="dash" data-mode="student">
+<body class="dash student" data-mode="student">
 <div class="dash-head">
-  <h1>SOC</h1>
-  <div class="dim">Your target's traffic as the attacker swarm sees it. Synthetic, in-lab only: attacker origins are flavor, never a real IP.</div>
+  <h1>SIEM</h1>
+  <div class="dim">Your target's request log, as your security monitoring sees it. Synthetic, in-lab only: attacker origins are flavor, never a real IP.</div>
   <div class="card timer" id="timer-card"><div class="row"><span class="dim" id="timer-label">Loading...</span><span class="big" id="timer-clock">--:--</span></div></div>
 </div>
 <div class="toolbar hidden"></div>
+<div class="banner watch" id="banner" role="status" aria-live="polite"><span class="b-main" id="banner-main">Monitoring</span><span class="b-sub" id="banner-sub"></span></div>
 <div class="dash-main">
-  <div class="map-stack">
-    <div class="panel map-panel" id="world-wrap"><canvas id="world-canvas"></canvas><div class="map-tag">Live attack map</div></div>
-    <div class="low-row">
-      <div class="panel map-panel inset" id="inset-wrap"><canvas id="inset-canvas"></canvas><div class="map-tag">Where the class sits</div>
-        <div class="map-credit">Outline: Natural Earth (public domain). Student locations are city-level only, from <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">IP geolocation by DB-IP</a> (CC BY 4.0) when installed.</div></div>
-      <div class="lists">
-        <div class="panel list"><h2>Top under siege <span class="dim" id="top-window">last 2 min</span></h2>
-          <div class="dim empty" id="top-empty">Quiet for now.</div>
-          <div class="scroll"><table class="hidden" id="top-card"><thead><tr><th>Student</th><th>Target</th><th>Hits</th></tr></thead><tbody id="top-rows"></tbody></table></div></div>
-        <div class="panel list"><h2>Breached <span class="dim">still red</span></h2>
-          <div class="dim empty" id="breach-empty">None right now.</div>
-          <div class="scroll"><table class="hidden" id="breach-card"><thead><tr><th>Student</th><th>Target</th><th>When</th></tr></thead><tbody id="breach-rows"></tbody></table></div></div>
-      </div>
-    </div>
-  </div>
-  <div class="side-col">
-    <div class="panel feed"><h2>Live alerts <span class="dim" id="feed-count"></span></h2>
-      <div class="dim empty" id="empty">No alerts yet.</div>
-      <div class="scroll"><table class="hidden" id="soc-card"><thead><tr id="feed-head"></tr></thead><tbody id="rows"></tbody></table></div></div>
-    <div class="panel inc"><h2>Incident summary <span class="dim" id="inc-who"></span></h2>
-      <div class="dim empty" id="inc-empty">No activity recorded yet.</div>
-      <div class="scroll">
-        <table class="hidden" id="targets-card"><thead><tr><th>Target</th><th>Status</th><th>Breached</th><th>Fixed</th><th>Time to patch</th><th>Retries</th></tr></thead><tbody id="target-rows"></tbody></table>
-        <table class="hidden" id="timeline-card"><thead><tr><th>When</th><th>Severity</th><th>Persona</th><th>Origin</th><th>Target</th></tr></thead><tbody id="timeline-rows"></tbody></table>
-      </div></div>
-  </div>
+  <div class="panel feed"><h2>Request log <span class="dim" id="feed-count"></span></h2>
+    <div class="dim note hidden" id="feed-note"></div>
+    <div class="dim empty" id="empty">No alerts yet.</div>
+    <div class="scroll" id="log-scroll"><div class="log hidden" id="log" role="list"></div></div></div>
+  <div class="panel inc"><h2>Incident summary <span class="dim" id="inc-who"></span></h2>
+    <div class="dim empty" id="inc-empty">No activity recorded yet.</div>
+    <div class="scroll">
+      <table class="hidden" id="targets-card"><thead><tr><th>Target</th><th>Status</th><th>Breached</th><th>Fixed</th><th>Time to patch</th><th>Retries</th></tr></thead><tbody id="target-rows"></tbody></table>
+      <table class="hidden" id="timeline-card"><thead><tr><th>When</th><th>Severity</th><th>Persona</th><th>Origin</th><th>Target</th></tr></thead><tbody id="timeline-rows"></tbody></table>
+    </div></div>
 </div>
-<script src="mapdata.js"></script>
-<script src="map.js"></script>
 <script src="soc.js"></script>
 </body>
 </html>

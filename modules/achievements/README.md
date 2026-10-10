@@ -97,11 +97,16 @@ gate), the facilitator tab under `/achievements-admin`. An event is `{user, even
 sig}` signed with the service's gateway token; a forged one is charged (-1, "Nice Try,
 Hackerman") only to a caller the gateway identified, never to the user named in the body.
 Tests: `python3 -B -m unittest test_service test_server test_geo` from `service/`.
-The ctf-defend SOC (`/soc`: live alerts, cyber map with a Canada inset, incident summary on one 16:9 page;
-`/map` and `/incident` redirect to it) places each student by a coarse, city-level region from the forwarded
+The ctf-defend SOC (facilitator `/achievements-admin/soc`, tab "SOC (whole room)": live alerts, cyber map with a Canada inset, incident summary on one 16:9 page;
+`/map` and `/incident` redirect to it). Students get a separate, per-caller **SIEM** page (`/achievements/soc`, `soc.html`): a breach banner (red while their target is breached, "Contained" with time to patch after, slim "Monitoring" before), their own request log and incident summary only; no map or room tables, and the server filters every row to the caller. Repeated identical breach request lines collapse into one row with `count`/`first_at` and the latest time (`x37` badge). The SOC places each student by a coarse, city-level region from the forwarded
 client address (`geo.py`, optional offline DB-IP database from `tools/fetch_geoip.sh`, else `CTF_HOME_REGION`;
 the address itself is never stored or shown), and honours `CTF_TIME_SCALE` for its countdown. Details:
 `modules/ctf-range/README.md`.
+The live-alerts panel is a SIEM request log: `soc`/`ctf` adapter events may carry `method`, `query`, `status`,
+`bytes`, `rows_returned`, `ua`, `tag` and `klass`; `store.py`'s `_present()` filters them per caller on the
+server (`CTF_SIEM_DETAIL` = full | paths | off, default full; until the student's own target is breached even
+`full` shows only method, path, status and tag; the facilitator and the room's map arcs are handled separately).
+Tests: `test_siem.py`.
 Sensei's two reads (`GET /api/sensei/activity`: per-student command times and failure counts, no command text; and
 `/api/sensei/progress?user=`: a student's core milestones by lab) need the `X-Sensei-Key` header equal to `SENSEI_KEY`
 (compose passes Sensei's gateway token to both); unset, they answer 403.

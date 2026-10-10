@@ -5,7 +5,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   GET  /                  the leaderboard page
   GET  /widget            the landing-page widget (score, completion, recent, Moments)
   GET  /wall, /api/wall   the wall of shame (plan §8.12): room-wide, any signed-in caller
-  GET  /soc, /api/soc     the caller's own SOC Alerts feed (plan §8.2): their target's traffic
+  GET  /soc, /api/soc     the caller's own SIEM page (request log, breach banner, incident) (plan §8.2): their target's traffic
                           as the attacker swarm sees it
   GET  /map, /api/map     the cyber map widget (plan §8.3): room-wide recent traffic arcs plus
                           the "Top 10 under siege" list - any signed-in caller, same tier as /wall
@@ -29,7 +29,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
-  GET  /achievements-admin/soc, /api/soc   the room-wide SOC Alerts feed (plan §8.2)
+  GET  /achievements-admin/soc, /api/soc   the room-wide SOC feed (map, region inset, alerts) (plan §8.2)
   GET  /achievements-admin/api/map   the same cyber map data, facilitator-side (+ student ids)
   POST /achievements-admin/api/region   {user, region}: override one student's map point
   (/soc is one page: alerts + map + incident; /map and /incident redirect to it)
@@ -165,6 +165,8 @@ def make_store():
     # Student map points: an optional offline DB-IP city database (CC BY 4.0) at CTF_GEOIP_DB, else
     # every student sits in CTF_HOME_REGION with a small per-student offset. See geo.py.
     store.time_scale = scale
+    detail = (env.get("CTF_SIEM_DETAIL") or "full").strip().lower()
+    store.siem_detail = detail if detail in ("full", "paths", "off") else "full"
     store.locator = geo.Locator(env.get("CTF_GEOIP_DB") or GEOIP_DB, env.get("CTF_HOME_REGION") or "toronto")
     store.signature = env.get("ACHIEVEMENTS_SIGNATURE", "")[:80]
     store.class_date = env.get("ACHIEVEMENTS_CLASS_DATE", "")[:40]
@@ -350,10 +352,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # class" view: any signed-in caller, not bound to one student's own rows.
             return self._json(200, {"rows": store.wall_rows()})
         if path == "/api/soc":
-            # The caller's own SOC feed (plan §8.2's "SOC Alerts" card) - not room-wide, unlike
+            # The caller's own SOC feed (plan §8.2's "SIEM" page) - not room-wide, unlike
             # /api/wall/board above; the room-wide view is the facilitator's admin tab. `timer`
             # (the green/yellow/red countdown) IS room-wide - every caller sees the same clock.
-            return self._json(200, {"rows": store.soc_rows(self._need(caller)), "timer": store.soc_timer()})
+            user = self._need(caller)
+            return self._json(200, dict(store.siem_state(user), rows=store.soc_rows(user), timer=store.soc_timer()))
         if path == "/api/map":
             # The cyber map widget (plan §8.3): room-wide, same "any signed-in caller" tier as
             # /api/wall above.
@@ -471,7 +474,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/soc":
             # Room-wide SOC feed (plan §8.2), the admin-tab counterpart of the student's own
             # /api/soc above.
-            return self._json(200, {"rows": store.admin_soc_rows(), "timer": store.soc_timer()})
+            return self._json(200, {"siem": "full", "unlocked": True, "rows": store.admin_soc_rows(),
+                                    "timer": store.soc_timer()})
         if path == "/api/map":
             return self._json(200, store.map_data(admin=True))
         if path == "/api/incident":

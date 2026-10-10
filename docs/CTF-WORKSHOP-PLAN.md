@@ -25,6 +25,69 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
   is deleted; every pack is tested on its own now. `ctf-secrets-config` and `ctf-trust-chain`'s moved hooks
   (`tfstate-treasure`, `runner-escape`) are live-verified end to end on their own cold starts (RELEASES.md).
 
+**Added 2026-10-09 (branch `feat/ctf-wall-and-bonus`, pushed up to commit `5163bf5`; later work uncommitted, see the
+handoff below):**
+
+- **Wall of shame (8.12):** `/ctf-wall` on `ctf-controller`, `CTF_WALL_OF_SHAME` (module default off, `ctf-defend` on),
+  its own identity-gated route plus a facilitator tab. Live-checked: page 200, `/ctf-wall/config`, three LIVE rows.
+- **Bonus second flaw (8.7, CTF-D17) for `customer-portal` only:** cleartext password storage, `CTF_BONUS_FLAWS`
+  (default on). Off means a clean repo, no bonus CI step, no `c1` challenge, no lab mention, bots skip data-at-rest
+  probes. A "Gate premise" CI step stops a hashing-only fix passing the main gate. Live-checked on a real PR:
+  premise step passes, `bonus_check` informational, merge redeploys, target goes yellow (breached then fixed).
+- **Scoring (8.10):** green 10 / yellow 5 / red 0 (x`CTF_SCORE_FACTOR`, default 5 units of 2/1/0), plus 5 for the
+  bonus only after the main gate is green. First-blood and class-clear are off for `ctf-defend` so the arithmetic is exact.
+- **One-page SOC:** map, alerts and incident summary on one screen (`/achievements/soc`; `/map` and `/incident`
+  redirect). Offline Natural Earth world map with a Canada inset; attacker origins are ISO country codes (CN, US, RU,
+  UA, NG, ZA, BR, AR, AU, AE, IR, TR, IN, VN) shown as unlabelled glints. Student regions come from the forwarded
+  client IP via an optional offline DB-IP database (`modules/achievements/tools/fetch_geoip.sh`, not run yet); no
+  database, a private IP or WSL falls back to `CTF_HOME_REGION` (Toronto). Raw IPs are never stored.
+- **Test clock:** `./dojo <pack> --test` sets `CTF_TIME_SCALE=0.1` (dwell 48s, ramp 60s). Override with
+  `CTF_TIME_SCALE=1`. The wall's 90s LIVE window and age-off are not scaled.
+- **Student SIEM request log (uncommitted when this was written):** log-line feed (time, country, method,
+  path?query, status, bytes, detection tag) expandable to JSON; bots emit scan noise, probes and the real exploit
+  (`attacker-bot/traffic.py`); `CTF_SIEM_DETAIL=full|paths|off`; spoiler control (payload, size and JSON unlock only
+  after that student's own target is red, enforced server-side). Live-checked as facilitator: exploit shows
+  `GET /search?q=...`, 200, 873 B, 6 rows, "bulk data egress".
+- **Attack Range tab moved:** it now lives in the manifests of the four attack packs, not the `ctf-range` module, so
+  `ctf-defend` has no dead tab (it gets a "Range Controller" status check instead).
+- **`./dojo` CLI additions:** `test`, `exec`/`shell`, `urls`, `open`, `wait`, `version`, `roster`, `reset-student`,
+  `export-results`, `backup`/`restore`, `prune`, `validate`, `doctor --fix`, `status --watch`, `logs --all/--since/
+  --grep/--errors`, `--json` on list/modules/doctor (`docs/cli-reference.md`).
+
+**Handoff: pick up here (written 2026-10-09, tokens ran short):**
+
+1. **Built but uncommitted and not live-tested (unit tests and mock screenshots pass):** the student SIEM request
+   log, `CTF_SIEM_DETAIL`, the Attack Range tab move, and the student page reshape. Students get a tab named **SIEM**
+   with only their own request log, their own incident summary and a big breach banner across the top (red
+   "BREACHED ... Find the request in the log below", green "Contained - patched in Xm Ys" after a fix, slim
+   "Monitoring" bar before any breach; no maps, no whole-room panels). The facilitator keeps the full SOC (admin tab
+   "SOC (whole room)", id `soc-alerts`). Repeated identical breach lines collapse to one line with an `xN` count.
+   Run `git status` (about 40 paths), do the live test below, then commit in themed commits and push. The git-ignored
+   `content/slides/lab/lab1.md.txt` copy still says "SOC Alerts" until `./dojo` regenerates it.
+2. **Live test to run (needs a stack):** `./dojo ctf-defend --test 3 --fast`, wait for 3 `~/.dojo-bot-done` markers
+   (`podman exec workshop_terminal ls /home/*/.dojo-bot-done`), click Start Attack Swarm (as the facilitator on
+   `/admin`; the `soc-alerts` tab), wait about 2 minutes (1/10 clock), then check: SIEM student view (banner, own log
+   only, spoilers locked until red; log in as a real student such as `student01`, not the class login `student`),
+   facilitator SOC, `CTF_SIEM_DETAIL=paths` and `off`, and `CTF_BONUS_FLAWS=off ./dojo ctf-defend --test 3 --fast`
+   (no bonus probes or CI step, no `c1`). Then `./dojo stop`.
+3. **Never live-tested:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy, WSL
+   always shows private so it falls back), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
+   `status --watch`, `CTF_TIME_SCALE=1` full-length run, 40-student class run.
+4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
+   repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
+   `targets/customer-portal` and always stores cleartext passwords, so with the bonus off the live dump still shows
+   cleartext until their first redeploy (fix: env passthrough in `ctf-controller._env_for`); (c) `/achievements/wall`
+   is still reachable when the wall toggle is off; (d) wall rows carry no dumped-record payload; (e) the bonus
+   appears as a challenge titled "Second Look" when on; (f) the pre-breach `full` SIEM detail equals `paths`, and
+   bonus-path probes are synthetic 404s whatever the real app answers.
+5. **Housekeeping:** update `ROADMAP.md` and `RELEASES.md` once item 2 passes (wall, bonus, scoring, one-page SOC,
+   SIEM view, CLI commands; delete the wall/bonus/scoring rows from the roadmap); `docs/CTF-WORKSHOP-PLAN.md`
+   line ~385 still says "Eastern Europe" (origins are country codes now); sections 8.3 and 8.12 should describe the
+   one-page SOC and the SIEM student view.
+6. **Observed live:** `./dojo logs --errors` found no errors in 20 services; breach rows only appear at most once
+   per 15s x scale per student; the student bots in `ctf-defend` do not open fix PRs, so a bot run only exercises the
+   attack side (a PR was driven by hand for the CI path).
+
 **Open, in order:**
 
 1. **Content depth is uneven.** `ctf-access` and `ctf-server-trust` have 6 lab files and 7 slide files each,
@@ -32,8 +95,9 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    (briefing, hint ladder, debrief per target) with `ctf-defend` as the depth bar, then fill the gaps.
 2. **Class-sized runs (CTF-P4/P7).** Every live check so far was one or two seats. Still unwatched: 40-student
    capacity and isolation, the swarm with real dwell and ramp durations, the Target Viewer card as a student.
-3. **Unbuilt design items:** per-pack `CTF_WALL_OF_SHAME` toggle and its own route (8.12), the bonus second flaws for
-   targets 8-11 (8.7, CTF-D17), the end-of-session scoring (8.10, CTF-D19), and open questions 1-3 (section 13).
+3. **Unbuilt design items:** the bonus second flaws for targets 8-11 (8.7, CTF-D17; only `customer-portal` is done,
+   see the handoff above), the end-of-session scoring summary (8.10, CTF-D19; the per-target arithmetic is built),
+   and open questions 1-3 (section 13). The wall toggle and route (8.12) are built.
    The S17 scanners for targets 8-11 stay parked: neither `git-secrets` nor `tfstate-treasure` needed one.
 4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
    themed page was only tested with the Flask client.

@@ -69,6 +69,8 @@ services:
       - CTF_SOC_DWELL_SECONDS=${CTF_SOC_DWELL_SECONDS:-480}
       - CTF_SOC_RAMP_SECONDS=${CTF_SOC_RAMP_SECONDS:-600}
       - CTF_TIME_SCALE=${CTF_TIME_SCALE:-1}
+      # What a student's SOC request log shows (full | paths | off); the facilitator always sees all of it.
+      - CTF_SIEM_DETAIL=${CTF_SIEM_DETAIL:-full}
       # Where students with no usable client address (a LAN, WSL) sit on the map; a city or "lat,lon,Label".
       - CTF_HOME_REGION=${CTF_HOME_REGION:-Toronto}
       - ACHIEVEMENTS_CHALLENGE_POINTS=${ACHIEVEMENTS_CHALLENGE_POINTS:-100}

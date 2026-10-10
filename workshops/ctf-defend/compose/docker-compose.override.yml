@@ -12,7 +12,7 @@
 # attacker-bot: the room-wide swarm (plan §8.2-8.11), moved here from
 # modules/ctf-range/compose.yml on 2026-10-07. Its CTF_CHALLENGE=customer-portal
 # is hardcoded to CTF-5's always-on slot and it only ever activates when the
-# facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab, so
+# facilitator presses "Start Attack Swarm" on the SOC admin tab, so
 # every pack but ctf-defend ran it idle before this move.
 services:
   web-terminal:
@@ -34,7 +34,7 @@ services:
   # posts straight to achievements over `workshop_lab`, same trust tier as
   # ctf-flags (it holds the adapter secret; no student can ever reach it). No
   # docker socket, no place inside ctf-host. Idle (no traffic) until the
-  # facilitator presses "Start Attack Swarm" on the SOC Alerts admin tab.
+  # facilitator presses "Start Attack Swarm" on the SOC admin tab.
   attacker-bot:
     build:
       context: ../modules/ctf-range

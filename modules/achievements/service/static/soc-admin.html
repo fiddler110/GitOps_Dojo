@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SOC Dashboard - room</title>
+<title>SOC (whole room)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="dash.css">
@@ -39,9 +39,10 @@
     </div>
   </div>
   <div class="side-col">
-    <div class="panel feed"><h2>Live alerts <span class="dim" id="feed-count"></span></h2>
+    <div class="panel feed"><h2>Request log <span class="dim" id="feed-count"></span></h2>
+      <div class="dim note hidden" id="feed-note"></div>
       <div class="dim empty" id="empty">No alerts yet.</div>
-      <div class="scroll"><table class="hidden" id="soc-card"><thead><tr id="feed-head"></tr></thead><tbody id="rows"></tbody></table></div></div>
+      <div class="scroll" id="log-scroll"><div class="log hidden" id="log" role="list"></div></div></div>
     <div class="panel inc"><h2>Incident summary <span class="dim" id="inc-who"></span></h2>
       <div class="dim empty" id="inc-empty">No activity recorded yet.</div>
       <div class="scroll">
