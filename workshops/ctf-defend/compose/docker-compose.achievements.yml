@@ -1,0 +1,12 @@
+services:
+  web-terminal:
+    extends:
+      file: docker-compose.override.yml
+      service: web-terminal
+  attacker-bot:
+    extends:
+      file: docker-compose.override.yml
+      service: attacker-bot
+  achievements:
+    volumes:
+      - ${CTF_ACH_C1_FILE:-../workshops/ctf-defend/achievements/challenges/c1.json}:/opt/workshop/achievements/challenges/c1.json:ro

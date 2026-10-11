@@ -670,12 +670,17 @@ class SaveTests(unittest.TestCase):
         deadline = time.monotonic() + 10
         while True:
             try:
-                urllib.request.urlopen(req, timeout=2).read()
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=2).read()
                 break
             except OSError:
                 if time.monotonic() > deadline:
                     self.fail("the service never answered")
                 time.sleep(0.1)
+        while not os.path.isfile(os.path.join(self.dir, "state.json")):
+            if time.monotonic() > deadline:
+                self.fail("the service never wrote its initial state")
+            time.sleep(0.05)
+        urllib.request.urlopen(req, timeout=2).read()
         with open(os.path.join(self.dir, "state.json")) as f:
             self.assertNotIn("student07", f.read())     # the writer waits 60 s
         proc.send_signal(signal.SIGTERM)

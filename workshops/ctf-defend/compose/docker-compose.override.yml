@@ -77,11 +77,3 @@ services:
     # No healthcheck: a background poller with no listener of its own (see bot.py's module
     # docstring) - there is nothing on a port to ask.
     restart: unless-stopped
-
-  # Bonus-flaw scoring toggle (workshop.env CTF_BONUS_FLAWS). The bonus is one achievements challenge,
-  # achievements/challenges/c1.json; with the toggle off workshop.env points CTF_ACH_C1_FILE at a copy
-  # of it that has "enabled": false (hidden and inert), mounted over the real file. The default path
-  # is the real file itself, so a plain start mounts c1.json as-is. Lists append.
-  achievements:
-    volumes:
-      - ${CTF_ACH_C1_FILE:-../workshops/ctf-defend/achievements/challenges/c1.json}:/opt/workshop/achievements/challenges/c1.json:ro
