@@ -1,11 +1,11 @@
 services:
   web-terminal:
     extends:
-      file: docker-compose.override.yml
+      file: ${CTF_DEFEND_OVERLAY_FILE:?Select this overlay via dojo}
       service: web-terminal
   attacker-bot:
     extends:
-      file: docker-compose.override.yml
+      file: ${CTF_DEFEND_OVERLAY_FILE:?Select this overlay via dojo}
       service: attacker-bot
   achievements:
     volumes:

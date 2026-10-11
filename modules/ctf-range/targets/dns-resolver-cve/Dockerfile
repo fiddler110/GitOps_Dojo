@@ -5,7 +5,7 @@
 # /opt/dns-resolver-cve-rootfs (ctf-host/Dockerfile), so this standalone
 # Dockerfile is dev-only — a straight `docker build .` to exercise the target
 # image on its own, mirroring targets/policy-bypass/Dockerfile et al.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS agent-build
+FROM --platform=linux/amd64 docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS agent-build
 ARG TOOLCHAIN_URL=https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--uclibc--stable-2021.11-5.tar.bz2
 ARG TOOLCHAIN_SHA256=e68fd1b23f4a5c5132f2122e4012c17eb24e5179b2ff45bb793a27ac30dd454f
 RUN apt-get update \
@@ -20,7 +20,7 @@ RUN set -eux; \
 COPY agent.c /tmp/agent.c
 RUN set -eux; \
     /opt/x86-64--uclibc--stable-2021.11-5/bin/x86_64-buildroot-linux-uclibc-gcc \
-      -static -O2 -s -o /agent /tmp/agent.c; \
+    -static -O2 -s -o /agent /tmp/agent.c; \
     test -s /agent && head -c 4 /agent | od -An -tx1 | grep -q '7f 45 4c 46'
 
 FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
