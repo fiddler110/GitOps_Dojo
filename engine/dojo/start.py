@@ -26,12 +26,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from . import checks, paths, state
-from .build import Builder, BuildError, sync_shared
+from .build import Builder, BuildError, build_input_hash, sync_shared, terminal_input_hashes
 from . import config
 from .envfiles import EnvError, Resolution, parse_literal, resolve
 from .monitor import StartMonitor, explain_not_ready
 from .runtime import Container, Runtime, project_name
-from .stack import compose_args, extra_files, services
+from .stack import (compose_args, config_document, extra_files, parse_build_specs,
+                    render_image_override, services)
 from .ui import bad, changed, console, fail, ok, step
 
 MAX_BOTS = 35
@@ -43,6 +44,7 @@ MAX_BOTS = 35
 TERMINAL_FLAVORS = ("web", "zellij")
 VSCODE_BASE_IMAGE = "gitopsdojo/web-terminal:base"
 ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
+ENGINE_BUILD_SERVICES = frozenset({"web-terminal", "allocator", "gateway", "presentation"})
 
 
 class StartError(Exception):
@@ -220,6 +222,10 @@ class Plan:
     ca: str                        # corporate CA bundle for the terminal build, or ""
     running: List[Container] = field(default_factory=list)
     _services: List[str] = field(default_factory=list)
+    image_tags: Dict[str, str] = field(default_factory=dict)
+    build_tags: Dict[str, str] = field(default_factory=dict)
+    build_hashes: Dict[str, str] = field(default_factory=dict)
+    terminal_hashes: Dict[str, str] = field(default_factory=dict)
 
     @property
     def env(self) -> Dict[str, str]:
@@ -242,7 +248,6 @@ class Plan:
                 raise StartError(f"Could not list this run's Compose services ('compose {' '.join(compose_args(self.files))} "
                                  f"config --services' failed):\n{exc}")
         return self._services
-
 
 def run_start(o: StartOptions) -> int:
     t_start = time.time()
@@ -353,6 +358,7 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
               for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
         links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
+    terminal_hashes = terminal_input_hashes(links, Builder(rt).salt)
     env["WEB_TERMINAL_IMAGE"] = links[-1][0]
 
     files = extra_files(res)
@@ -360,7 +366,43 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     if env.get("COMPOSE_OVERLAY"):
         overlay_dirs.append(os.path.dirname(env["COMPOSE_OVERLAY"]))
     _check_fragments(files)
-    return Plan(o, rt, res, project_name(env), links, files, overlay_dirs, ca)
+    sync_shared(res.modules)
+    build_tags, build_hashes, image_overrides = _content_image_tags(rt, files, env, terminal_hashes)
+    image_tags = dict(build_tags)
+    image_tags.update({f"__terminal_{n}": image for n, (image, _) in enumerate(links)})
+    if image_overrides:
+        override = render_image_override(image_overrides, build_hashes)
+        generated = paths.ENGINE / ".generated" / ("dry-run" if o.dry_run else "") / "image-tags"
+        override_path = generated / f"{o.workshop}.yml"
+        override_path.parent.mkdir(parents=True, exist_ok=True)
+        if not override_path.is_file() or override_path.read_text() != override:
+            override_path.write_text(override)
+        files.append(str(override_path.relative_to(paths.ENGINE)))
+    return Plan(o, rt, res, project_name(env), links, files, overlay_dirs, ca,
+                image_tags=image_tags, build_tags=build_tags, build_hashes=build_hashes,
+                terminal_hashes=terminal_hashes)
+
+
+def _content_image_tags(rt: Runtime, files: List[str], env: Dict[str, str],
+                        aliases: Optional[Dict[str, str]] = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+    """Map local Compose builds to stable aliases and build-input fingerprints."""
+    try:
+        config_doc = config_document(rt, files, env)
+        build_specs = parse_build_specs(config_doc)
+    except (RuntimeError, ValueError) as exc:
+        raise StartError(f"Could not inspect this run's Compose build inputs:\n{exc}") from exc
+    builder = Builder(rt)
+    build_tags: Dict[str, str] = {}
+    build_hashes: Dict[str, str] = {}
+    image_overrides: Dict[str, str] = {}
+    for service, spec in build_specs.items():
+        if service in ENGINE_BUILD_SERVICES:
+            continue
+        image = str(spec["image"])
+        build_tags[service] = image
+        build_hashes[service] = build_input_hash(spec["build"], builder.salt, aliases)
+        image_overrides[service] = image
+    return build_tags, build_hashes, image_overrides
 
 
 def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
@@ -388,17 +430,25 @@ def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
                       "         name, or a TLS proxy in front (engine/README.md, \"LAN class over HTTPS\").[/]")
 
 
+def _source_compose_files(files: List[str]) -> List[str]:
+    """Exclude the generated image override when comparing user stack layers."""
+    return [f for f in files if not f.startswith((".generated/image-tags/", ".generated/dry-run/image-tags/"))]
+
+
 def _check_running(p: Plan) -> None:
     """Step 2: refuse a start over a different running stack; check restart's service names."""
     o = p.o
     p.running = p.rt.containers(p.project)
     if p.running and not o.build_only:
         cur = state.read_current()
-        if cur is None or cur.workshop != o.workshop or cur.files != p.files:
+        same_files = cur is not None and _source_compose_files(cur.files) == _source_compose_files(p.files)
+        if cur is None or cur.workshop != o.workshop or not same_files:
             who = cur.workshop if cur and cur.workshop else "a stack this checkout didn't start"
             if cur is not None and cur.workshop == o.workshop and not o.dry_run:
-                added = [f for f in p.files if f not in cur.files]
-                gone = [f for f in cur.files if f not in p.files]
+                planned_files = _source_compose_files(p.files)
+                current_files = _source_compose_files(cur.files)
+                added = [f for f in planned_files if f not in current_files]
+                gone = [f for f in current_files if f not in planned_files]
                 raise StartError(f"Refusing to start: {o.workshop} is running with other Compose files "
                                  f"(now adds {' '.join(added) or 'nothing'}, drops {' '.join(gone) or 'nothing'}).\n"
                                  f"Start it with the same settings (MODULES, ACHIEVEMENTS_ENABLED), or '{paths.PROG} stop' "
@@ -438,11 +488,11 @@ def _build_and_up(p: Plan) -> int:
 def _build_images(p: Plan) -> Builder:
     """Step 3: build what changed. The Builder is returned to reap superseded images once the start succeeds."""
     step("Checking images (dry run)" if p.o.dry_run else "Checking images")
-    sync_shared(p.res.modules)   # before hashing: the copies are part of each build context
     b = Builder(p.rt, dry_run=p.o.dry_run, ca_bundle=p.ca or None)
-    b.images(p.links)
+    b.images(p.links, p.terminal_hashes)
     if p.overlay_dirs:
-        b.overlay_if_changed(p.overlay_dirs, paths.STATE / f"{p.o.workshop}.overlay-hash", p.compose, p.env, p.services())
+        b.overlay_if_changed(p.overlay_dirs, paths.STATE / f"{p.o.workshop}.overlay-hash", p.compose, p.env,
+                             p.services(), p.build_tags, p.build_hashes)
     return b
 
 
@@ -499,6 +549,9 @@ def _dry_run_checks(p: Plan) -> int:
     console.print()
     step("Checking the Compose config")
     ok(f"valid ({len(p.services())} services)")
+    console.print()
+    step("Checking image tags")
+    ok(f"{len(set(p.image_tags.values()))} stable image tag(s), fingerprinted by build inputs")
     console.print()
     step("Checking image pins")
     pins = subprocess.run(["sh", "scripts/check-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)

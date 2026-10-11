@@ -128,11 +128,12 @@ def render(catalog):
         out.extend(_challenge_block(ch, 3))
         out.append("")
     cap = catalog["capstone"]
-    cap_off = "" if cat.is_enabled(cap) else OFF
-    out.append(f"## Capstone ({cat.points_of(cap, 'capstone')} points, optional): {cap['title']}{cap_off}")
-    out.append("")
-    out.extend(_challenge_block(cap, 3)[2:])
-    out.append("")
+    if cap:
+        cap_off = "" if cat.is_enabled(cap) else OFF
+        out.append(f"## Capstone ({cat.points_of(cap, 'capstone')} points, optional): {cap['title']}{cap_off}")
+        out.append("")
+        out.extend(_challenge_block(cap, 3)[2:])
+        out.append("")
     core = cat.core_milestones(catalog)
     ms = cat.milestones(catalog)
     funny = [f for f in catalog["funny"] if cat.is_active(f)]
@@ -140,7 +141,7 @@ def render(catalog):
     core_pts = sum(cat.points_of(m, "milestone") for m in core)
     all_ms_pts = sum(cat.points_of(m, "milestone") for m in ms)
     ch_pts = sum(cat.points_of(c, "challenge") for c in chs)
-    cap_pts = cat.points_of(cap, "capstone") if cat.is_active(cap) else 0
+    cap_pts = cat.points_of(cap, "capstone") if cap and cat.is_active(cap) else 0
     out.append("## Totals (computed)")
     out.append("")
     out.append(f"{len(core)} core milestones ({core_pts} points) of {len(ms)} milestones ({all_ms_pts}) · "

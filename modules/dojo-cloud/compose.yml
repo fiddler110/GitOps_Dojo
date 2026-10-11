@@ -28,7 +28,7 @@ services:
   cloud-host:
     build:
       context: ../modules/dojo-cloud/cloud-host
-    image: gitopsdojo/cloud-host:local
+    image: gitopsdojo/cloud-host:${WORKSHOP_SLUG:-local}
     container_name: workshop_cloud_host
     privileged: true
     volumes:
@@ -54,7 +54,7 @@ services:
   cloud-api:
     build:
       context: ../modules/dojo-cloud/cloud-api
-    image: gitopsdojo/cloud-api:local
+    image: gitopsdojo/cloud-api:${WORKSHOP_SLUG:-local}
     container_name: workshop_cloud_api
     # Started, not healthy: cloud-api listens at once and reports its own readiness
     # (/readyz), so a slow cloud-host must not hold anything else back.

@@ -130,10 +130,10 @@ class RestartKeepsAchievements(unittest.TestCase):
 
 class RunningStackGate(unittest.TestCase):
     """Step 2 of a start: what may start over a running stack, and restart's service names."""
-    def check(self, o, running, cur, svcs=("gateway", "step-ca")):
+    def check(self, o, running, cur, svcs=("gateway", "step-ca"), files=("a.yml",)):
         rt = mock.Mock(spec=Runtime)
         rt.containers.return_value = running
-        p = start.Plan(o, rt, mock.Mock(), "engine", [], ["a.yml"], [], "")
+        p = start.Plan(o, rt, mock.Mock(), "engine", [], list(files), [], "")
         p._services.extend(svcs)
         with mock.patch.object(state, "read_current", return_value=cur):
             start._check_running(p)
@@ -145,6 +145,13 @@ class RunningStackGate(unittest.TestCase):
         self.check(StartOptions("x"), [], None)
         self.check(StartOptions("x"), self.up, state.Current("x", [], ["a.yml"], None))
         self.check(StartOptions("y", build_only=True), self.up, None)   # a build doesn't touch the stack
+
+    def test_generated_image_override_does_not_change_stack_identity(self):
+        cur = state.Current("x", [], ["a.yml", ".generated/image-tags/x.yml"], None)
+        with mock.patch.object(start, "bad") as bad:
+            self.check(StartOptions("x", dry_run=True), self.up, cur,
+                       files=("a.yml", ".generated/dry-run/image-tags/x.yml"))
+        bad.assert_not_called()
 
     def test_refuses_another_stack_or_other_files(self):
         for cur in (None, state.Current("y", [], ["a.yml"], None), state.Current("x", [], ["b.yml"], None)):

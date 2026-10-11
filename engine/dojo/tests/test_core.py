@@ -66,6 +66,36 @@ class AchievementsToggle(unittest.TestCase):
         self.assertEqual(res.origins["ACHIEVEMENTS_ENABLED"][-1].source, "environment")
 
 
+class WorkshopSlug(unittest.TestCase):
+    """WORKSHOP_SLUG is the pack's folder name, readable by the files dojo sources
+    (image tags are built out of it) and not settable by any of them."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        (self.root / "workshops" / "w").mkdir(parents=True)
+        (self.root / "modules" / "m").mkdir(parents=True)
+        (self.root / "workshops" / "w" / "workshop.env").write_text(
+            'MODULES="m"\nMY_IMAGE="gitopsdojo/x:${WORKSHOP_SLUG}"\n')
+        (self.root / "modules" / "m" / "module.env").write_text(
+            'MOD_IMAGE="gitopsdojo/y:${WORKSHOP_SLUG}"\nWORKSHOP_SLUG=hijacked\n')
+        (self.root / ".env").write_text("WORKSHOP_SLUG=from-dot-env\n")
+        self.saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG)
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = (
+            self.root / "workshops", self.root / "modules", self.root / ".env",
+            self.root / "dojo.toml", self.root / "dojo.local.toml")
+
+    def tearDown(self):
+        paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = self.saved
+        import shutil
+        shutil.rmtree(self.root)
+
+    def test_tags_derive_from_it_and_no_layer_can_change_it(self):
+        env = envfiles.resolve("w", base={"PATH": os.environ["PATH"], "WORKSHOP_SLUG": "from-the-shell"}).env
+        self.assertEqual(env["WORKSHOP_SLUG"], "w")
+        self.assertEqual(env["MY_IMAGE"], "gitopsdojo/x:w")
+        self.assertEqual(env["MOD_IMAGE"], "gitopsdojo/y:w")
+
+
 class SharedFacts(unittest.TestCase):
     def test_default_passwords_match_lib_sh(self):
         lib = (paths.ENGINE / "scripts" / "lib.sh").read_text()

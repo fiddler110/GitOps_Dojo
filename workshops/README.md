@@ -9,20 +9,20 @@ one workshop can use live in [`../modules/`](../modules/).
 
 ## Available workshops
 
-| # | Workshop | What it teaches | Modules | Run it |
-| - | -------- | ---------------- | ------- | ------ |
-| 0 | [`dojo-introduction/`](dojo-introduction/) | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./dojo dojo-introduction` |
-| 1 | [`git-fundamentals/`](git-fundamentals/) | Core git workflow: clone, branch, commit, push, PR | — | `./dojo git-fundamentals` |
-| 2 | [`dns-as-code/`](dns-as-code/) | Managing DNS records via git + dnscontrol, building on Session 1 | `runner-pool`, `dns-ui`, `dns-gate` | `./dojo dns-as-code` |
-| 3 | [`cert-autorenewal/`](cert-autorenewal/) | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh) | `dns-ui`, `dns-gate` | `./dojo cert-autorenewal` |
-| 4 | [`tofu-basics/`](tofu-basics/) | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu) | `dojo-cloud` | `./dojo tofu-basics` |
-| 5 | [`vault-fundamentals/`](vault-fundamentals/) | Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool` | `./dojo vault-fundamentals` |
-| 6 | [`cloud-policy-as-code/`](cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, parameters, sets, modify and remediation, exemptions, then Rego and conftest checks on a plan, `opa test`, a CI pipeline and drift (labs 0-13 + capstone) | `dojo-cloud`, `runner-pool`, `sensei` | `./dojo cloud-policy-as-code` |
-| 100 | [`ctf-access/`](ctf-access/) | CTF-1: a capture-the-flag warm-up on getting in when auth or access checks are weak -- SQL-injection login bypass, a derivable reset token, an IDOR, a client-cert check with no real verification (4 targets) | `ctf-range` | `./dojo ctf-access` |
-| 101 | [`ctf-server-trust/`](ctf-server-trust/) | CTF-2: the server trusting input or the caller a little too much -- SSRF, mass assignment, BFLA, and a trust-the-note ping tool (4 targets) | `ctf-range` | `./dojo ctf-server-trust` |
-| 102 | [`ctf-secrets-config/`](ctf-secrets-config/) | CTF-3: leaked credentials and how far they reach -- an exposed debug log, a secret still live in git history, a committed `tfstate` leaking a vault login (3 targets) | `ctf-range` | `./dojo ctf-secrets-config` |
-| 103 | [`ctf-trust-chain/`](ctf-trust-chain/) | CTF-4: trusting the wrong thing -- a component (a DNS resolver CVE) and a rule (an OPA policy bypass, a CI runner escape) (3 targets) | `ctf-range`, `runner-pool` | `./dojo ctf-trust-chain` |
-| 104 | [`ctf-defend/`](ctf-defend/) | CTF-5: the one session where students patch instead of attack -- find a live SQL-injection incident in your own app, fix it, ship it through a PR a CI gate re-tests, watch the redeploy | `ctf-range`, `runner-pool` | `./dojo ctf-defend` |
+| #   | Workshop                                         | What it teaches                                                                                                                                                                                                                                                                                                                    | Modules                                                     | Run it                        |
+| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------- |
+| 0   | [`dojo-introduction/`](dojo-introduction/)       | A show-and-tell of the platform, not a lab: a platform-tour deck, one page linking every workshop's slides and labs, and Forgejo, runners, DNS and Dojo Cloud running at once                                                                                                                                                      | `runner-pool`, `dojo-cloud`, `dns-ui`, `dns-gate`, `sensei` | `./dojo dojo-introduction`    |
+| 1   | [`git-fundamentals/`](git-fundamentals/)         | Core git workflow: clone, branch, commit, push, PR                                                                                                                                                                                                                                                                                 | —                                                           | `./dojo git-fundamentals`     |
+| 2   | [`dns-as-code/`](dns-as-code/)                   | Managing DNS records via git + dnscontrol, building on Session 1                                                                                                                                                                                                                                                                   | `runner-pool`, `dns-ui`, `dns-gate`                         | `./dojo dns-as-code`          |
+| 3   | [`cert-autorenewal/`](cert-autorenewal/)         | Automated TLS certificate issuance/renewal via ACME (step-ca, certbot, acme.sh)                                                                                                                                                                                                                                                    | `dns-ui`, `dns-gate`                                        | `./dojo cert-autorenewal`     |
+| 4   | [`tofu-basics/`](tofu-basics/)                   | OpenTofu/Terraform basics: `init`/`plan`/`apply`/`destroy` and repo layout (`terraform` runs OpenTofu)                                                                                                                                                                                                                             | `dojo-cloud`                                                | `./dojo tofu-basics`          |
+| 5   | [`vault-fundamentals/`](vault-fundamentals/)     | Secrets management with OpenBao: signing in by identity, leaks in git, secrets encrypted on your own machine (`pass`), KV secrets and policies, your own namespace, secrets in code and in git, CI that logs in with its own identity, deploys with a platform identity, dynamic database logins and an incident drill (labs 0-13) | `openbao`, `runner-pool`                                    | `./dojo vault-fundamentals`   |
+| 6   | [`cloud-policy-as-code/`](cloud-policy-as-code/) | Writing the rules that keep a cloud safe as code: Dojo Cloud Policy definitions, assignments, parameters, sets, modify and remediation, exemptions, then Rego and conftest checks on a plan, `opa test`, a CI pipeline and drift (labs 0-13 + capstone)                                                                            | `dojo-cloud`, `runner-pool`, `sensei`                       | `./dojo cloud-policy-as-code` |
+| 100 | [`ctf-access/`](ctf-access/)                     | CTF-1: a capture-the-flag warm-up on getting in when auth or access checks are weak -- SQL-injection login bypass, a derivable reset token, an IDOR, a client-cert check with no real verification (4 targets)                                                                                                                     | `ctf-range`                                                 | `./dojo ctf-access`           |
+| 101 | [`ctf-server-trust/`](ctf-server-trust/)         | CTF-2: the server trusting input or the caller a little too much -- SSRF, mass assignment, BFLA, and a trust-the-note ping tool (4 targets)                                                                                                                                                                                        | `ctf-range`                                                 | `./dojo ctf-server-trust`     |
+| 102 | [`ctf-secrets-config/`](ctf-secrets-config/)     | CTF-3: leaked credentials and how far they reach -- an exposed debug log, a secret still live in git history, a committed `tfstate` leaking a vault login (3 targets)                                                                                                                                                              | `ctf-range`                                                 | `./dojo ctf-secrets-config`   |
+| 103 | [`ctf-trust-chain/`](ctf-trust-chain/)           | CTF-4: trusting the wrong thing -- a component (a DNS resolver CVE) and a rule (an OPA policy bypass, a CI runner escape) (3 targets)                                                                                                                                                                                              | `ctf-range`, `runner-pool`                                  | `./dojo ctf-trust-chain`      |
+| 104 | [`ctf-defend/`](ctf-defend/)                     | CTF-5: the one session where students patch instead of attack -- find a live SQL-injection incident in your own app, fix it, ship it through a PR a CI gate re-tests, watch the redeploy                                                                                                                                           | `ctf-range`, `runner-pool`                                  | `./dojo ctf-defend`           |
 
 The CTF series (100-104) is a separate five-session track, not part of the numbered 0-6 learning path below
 -- see `docs/CTF-WORKSHOP-PLAN.md` for how the five sessions relate to each other and to the numbered
@@ -34,15 +34,15 @@ workshops (`ctf-secrets-config`'s `tfstate-treasure` target ties `tofu-basics` +
 The numbers are the order to teach them in. `0` is the showcase for facilitators and visitors, not a course.
 `1` to `6` build on each other; a later workshop assumes the earlier ones' ideas, not their files.
 
-| # | Workshop | Builds on |
-| - | -------- | --------- |
-| 0 | `dojo-introduction` | Nothing. A tour of the platform and every workshop; no student learning goals. |
-| 1 | `git-fundamentals` | Nothing. Clone, branch, commit, push, pull request, undo, stash, history, conflicts. |
-| 2 | `dns-as-code` | 1: the same git flow, now with CI. First look at declarative config, preview vs apply, drift, and a pull request that runs a pipeline. |
-| 3 | `cert-autorenewal` | 2 (lightly): its dns-01 capstone drives the PowerDNS API that `dnscontrol` wraps in workshop 2. Otherwise stands alone: ACME, `certbot`, `acme.sh`, renewal automation. |
-| 4 | `tofu-basics` | 1 for the git steps, and 2 for the ideas of declarative config, plan before apply and drift, taken further with state, `for_each`, policy and quotas on a real provider. |
-| 5 | `vault-fundamentals` | 1 (stated prerequisite). Also leans on 2's pull request and CI pipeline ideas for the Forgejo Actions labs; the longest of the single-topic courses. |
-| 6 | `cloud-policy-as-code` | 4 (its OpenTofu workflow and Dojo Cloud) and 1 for the git steps, with 2's preview-then-apply and drift ideas applied to policy. The longest of the courses; depth over length. |
+| #   | Workshop               | Builds on                                                                                                                                                                       |
+| --- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | `dojo-introduction`    | Nothing. A tour of the platform and every workshop; no student learning goals.                                                                                                  |
+| 1   | `git-fundamentals`     | Nothing. Clone, branch, commit, push, pull request, undo, stash, history, conflicts.                                                                                            |
+| 2   | `dns-as-code`          | 1: the same git flow, now with CI. First look at declarative config, preview vs apply, drift, and a pull request that runs a pipeline.                                          |
+| 3   | `cert-autorenewal`     | 2 (lightly): its dns-01 capstone drives the PowerDNS API that `dnscontrol` wraps in workshop 2. Otherwise stands alone: ACME, `certbot`, `acme.sh`, renewal automation.         |
+| 4   | `tofu-basics`          | 1 for the git steps, and 2 for the ideas of declarative config, plan before apply and drift, taken further with state, `for_each`, policy and quotas on a real provider.        |
+| 5   | `vault-fundamentals`   | 1 (stated prerequisite). Also leans on 2's pull request and CI pipeline ideas for the Forgejo Actions labs; the longest of the single-topic courses.                            |
+| 6   | `cloud-policy-as-code` | 4 (its OpenTofu workflow and Dojo Cloud) and 1 for the git steps, with 2's preview-then-apply and drift ideas applied to policy. The longest of the courses; depth over length. |
 
 `./dojo list` prints this same order from each workshop's `workshop.env`, with its
 `WORKSHOP_NAME` and `WORKSHOP_DURATION`; `./dojo modules` lists the modules and which
@@ -98,23 +98,23 @@ Every pack has the **required** set below; the **optional** files appear only fo
 that needs them (above). `./dojo new-workshop <name>` scaffolds the required set plus the common
 optional ones, each with TODOs.
 
-| Path | Required? | What it is |
-| ---- | --------- | ---------- |
-| `workshop.env` | **Required** | Identity picked up by `dojo`: `WORKSHOP_NAME`, `WORKSHOP_DESCRIPTION`, `WORKSHOP_ORDER`, `WORKSHOP_DURATION`, `WORKSHOP_CONTENT_DIR`, `FORGEJO_ORG`/`FORGEJO_REPO`, and the optional `MODULES`, `COMPOSE_OVERLAY`, `TERMINAL_FLAVOR` |
-| `README.md` | **Required** | The pack's technical reference: what it teaches, how to run it, what's in the folder |
-| `FACILITATOR.md` | **Required** | The guide for whoever runs the session: before / during / after and troubleshooting. Model a new one on an existing pack's |
-| `content/slides/presentation.md` | **Required** | The deck (Marp, on the shared theme) |
-| `content/lab/README.md` | **Required** | Lab instructions, seeded into every student's `~/lab` |
-| `content/sample-repo/` | **Required** | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO` by the `bootstrap` service |
-| `content/lab/cheat-sheet.md` | Optional | A condensed command reference students keep open beside the labs |
-| `MODULES=` (in `workshop.env`) | Optional | Opt into reusable services/tools from `modules/` (`./dojo modules`) |
-| `compose/docker-compose.override.yml` | Optional | Extra services, pointed at by `COMPOSE_OVERLAY` — only when no module provides them |
-| `compose/terminal/Dockerfile` | Optional | Extra terminal tools, found by convention; stacks on the base/module image |
-| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional | Start-up hooks, per-account setup, student-reset hooks, and the `lab-prep N` helper |
-| `extensions.json` | Optional | A front door: landing cards, `/admin` tabs, routes and status checks (see [Front door](#front-door-extensionsjson)) |
-| `content/bots/steps.sh` | Optional | Demo-bot steps so `--test` walks *this* workshop's labs, not the default git ones |
-| `achievements/` + `ACHIEVEMENTS.md` | Optional | The achievements catalog (labs, challenges, capstone, funny unlocks, seeds), loaded when `ACHIEVEMENTS_ENABLED` |
-| `tests/` | Optional | Scripted lab tests run from the repo root against the running stack (source `workshops/assets/test-lib.sh`) |
+| Path                                                              | Required?    | What it is                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workshop.env`                                                    | **Required** | Identity picked up by `dojo`: `WORKSHOP_NAME`, `WORKSHOP_DESCRIPTION`, `WORKSHOP_ORDER`, `WORKSHOP_DURATION`, `WORKSHOP_CONTENT_DIR`, `FORGEJO_ORG`/`FORGEJO_REPO`, and the optional `MODULES`, `COMPOSE_OVERLAY`, `TERMINAL_FLAVOR` |
+| `README.md`                                                       | **Required** | The pack's technical reference: what it teaches, how to run it, what's in the folder                                                                                                                                                 |
+| `FACILITATOR.md`                                                  | **Required** | The guide for whoever runs the session: before / during / after and troubleshooting. Model a new one on an existing pack's                                                                                                           |
+| `content/slides/presentation.md`                                  | **Required** | The deck (Marp, on the shared theme)                                                                                                                                                                                                 |
+| `content/lab/README.md`                                           | **Required** | Lab instructions, seeded into every student's `~/lab`                                                                                                                                                                                |
+| `content/sample-repo/`                                            | **Required** | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO` by the `bootstrap` service                                                                                                                                                         |
+| `content/lab/cheat-sheet.md`                                      | Optional     | A condensed command reference students keep open beside the labs                                                                                                                                                                     |
+| `MODULES=` (in `workshop.env`)                                    | Optional     | Opt into reusable services/tools from `modules/` (`./dojo modules`)                                                                                                                                                                  |
+| `compose/docker-compose.override.yml`                             | Optional     | Extra services, pointed at by `COMPOSE_OVERLAY` — only when no module provides them                                                                                                                                                  |
+| `compose/terminal/Dockerfile`                                     | Optional     | Extra terminal tools, found by convention; stacks on the base/module image                                                                                                                                                           |
+| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional     | Start-up hooks, per-account setup, student-reset hooks, and the `lab-prep N` helper                                                                                                                                                  |
+| `extensions.json`                                                 | Optional     | A front door: landing cards, `/admin` tabs, routes and status checks (see [Front door](#front-door-extensionsjson))                                                                                                                  |
+| `content/bots/steps.sh`                                           | Optional     | Demo-bot steps so `--test` walks *this* workshop's labs, not the default git ones                                                                                                                                                    |
+| `achievements/` + `ACHIEVEMENTS.md`                               | Optional     | The achievements catalog (labs, challenges, capstone, funny unlocks, seeds), loaded when `ACHIEVEMENTS_ENABLED`                                                                                                                      |
+| `tests/`                                                          | Optional     | Scripted lab tests run from the repo root against the running stack (source `workshops/assets/test-lib.sh`)                                                                                                                          |
 
 ## Adding a new workshop
 
@@ -154,7 +154,16 @@ optional ones, each with TODOs.
 4. If (and only if) the lab needs something no module provides:
    - **Extra services:** `compose/docker-compose.override.yml`, pointed at by
      `COMPOSE_OVERLAY`. Don't set `image:` on `web-terminal` there: `dojo`
-     picks the terminal image (`WEB_TERMINAL_IMAGE`).
+     picks the terminal image (`WEB_TERMINAL_IMAGE`). Give each locally built
+     service a stable image family:
+     ```yaml
+     image: gitopsdojo/<name>:${WORKSHOP_SLUG:-local}
+     ```
+    When run through `dojo`, a generated override labels the stable image tag
+    with a fingerprint of the resolved build context and options. Packs with
+    identical inputs reuse the same image under their own stable tags; changed
+    args, targets, or contexts replace that pack's tag. Keep the image family
+    stable across packs. The slug fallback is for raw Compose use outside `dojo`.
    - **Extra terminal tools:** `compose/terminal/Dockerfile`, found by
      convention (no setting). Start it with
      ```dockerfile
@@ -243,15 +252,15 @@ Caddy config or HTML. `cert-autorenewal/extensions.json`:
 }
 ```
 
-| Key | Fields |
-|---|---|
-| `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns` |
-| `admin_tabs` | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page |
-| `widgets` | `id`, `src` (same-origin), `size` (`small`, `medium` or `large`, default `small`); a page framed at the top of the student's landing page, above the cards. It is a page you also serve through a `routes` entry, so it has its own gate and identity |
-| `scripts` | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it |
-| `routes` | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account) |
-| `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200 |
-| `resets` | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30), `optional` (default false: true shows it as a checkbox in the dialog, off by default, and runs it only when ticked); a student reset hook, see below |
+| Key             | Fields                                                                                                                                                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cards`         | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon`: one of `code terminal git slides rocket cloud key dns`                                                                                                                                                                       |
+| `admin_tabs`    | `id`, `label`, `src` (same-origin); framed in the facilitator's `/admin` page                                                                                                                                                                                                                                             |
+| `widgets`       | `id`, `src` (same-origin), `size` (`small`, `medium` or `large`, default `small`); a page framed at the top of the student's landing page, above the cards. It is a page you also serve through a `routes` entry, so it has its own gate and identity                                                                     |
+| `scripts`       | `id`, `src` (same-origin path); a script every student page loads (landing, `/workspace`, slides, lab reader) through one loader, `/workspace/extra.js`, which passes the page's name as `data-surface`. A script that finds itself in a frame of the same site should do nothing, so the top page owns it                |
+| `routes`        | `id`, `path` (`/name`, serves `/name` and `/name/*`), `upstream` (`service:port`, must be a service in this run), `gate`, `strip_prefix` (default `false`), `host` (upstream `Host`; `{user}` stands for the caller's account)                                                                                            |
+| `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green in the `/admin` status strip when it answers 200                                                                                                                                                                                                                  |
+| `resets`        | `id`, `label` (≤40, listed in the Roster's Reset dialog), `upstream` (`service:port` in this run), `path` (contains `{user}` once), `timeout` (1-120 s, default 30), `optional` (default false: true shows it as a checkbox in the dialog, off by default, and runs it only when ticked); a student reset hook, see below |
 
 **Student reset hooks.** When the facilitator resets one student from the Roster, the allocator calls each `resets`
 entry twice, in manifest order: `POST <upstream><path>?phase=teardown` before the student's Forgejo account is deleted,
@@ -271,11 +280,11 @@ their browser.
 
 **Gates** pick who gets through a route:
 
-| Gate | Who | The upstream receives |
-|---|---|---|
-| `shared` | anyone past the shared login | no identity (`Authorization`, `X-Auth-User`, `X-Gateway-Token` stripped) |
-| `identity` | a browser holding a student slot, or the facilitator | `X-Auth-User: <account>` and `X-Gateway-Token`, both set by Caddy |
-| `facilitator` | the facilitator only (403 for students) | same as `identity` |
+| Gate          | Who                                                  | The upstream receives                                                    |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `shared`      | anyone past the shared login                         | no identity (`Authorization`, `X-Auth-User`, `X-Gateway-Token` stripped) |
+| `identity`    | a browser holding a student slot, or the facilitator | `X-Auth-User: <account>` and `X-Gateway-Token`, both set by Caddy        |
+| `facilitator` | the facilitator only (403 for students)              | same as `identity`                                                       |
 
 The service behind an `identity` or `facilitator` route must still check
 `X-Gateway-Token` against `GATEWAY_TOKEN`: students can reach it directly on
@@ -325,6 +334,15 @@ Rules for `compose.yml`:
   like the allocator does.
 - Name every volume, including paths an image declares as `VOLUME`, so
   `./dojo stop` removes them.
+- Give each service you `build:` a stable image family, e.g.
+  `image: gitopsdojo/<name>:${WORKSHOP_SLUG:-local}`. `dojo` labels it with the
+  resolved context and build options, reusing matching images across packs while
+  `runner-pool` tool/terminal variants and `ctf-host` target variants stay distinct.
+  Changed inputs replace the stable tag, and the old image is reaped after startup.
+  An overlay normally need not re-tag a module service. An engine image a module only *reuses*
+  (`gitopsdojo/allocator:local` for a
+  sidecar, `gitopsdojo/gateway:local` for a shim) stays `:local`: `engine/`
+  builds those from workshop-independent sources.
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` or its `build.args` (later file wins); see "A workshop using it"
   in `modules/runner-pool/README.md`, and `workshops/dns-as-code/compose/docker-compose.override.yml`

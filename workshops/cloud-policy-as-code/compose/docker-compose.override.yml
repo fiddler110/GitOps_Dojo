@@ -16,7 +16,6 @@
 
 services:
   runner-pool:
-    image: gitopsdojo/runner-pool:cloud-policy-as-code
     build:
       args:
         JOB_TOOLS: "tofu opa conftest"

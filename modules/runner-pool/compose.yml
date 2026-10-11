@@ -36,6 +36,10 @@ services:
       # appends build args across files instead of replacing them.
       args:
         TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    # dojo derives the final tag from TOOLS_IMAGE, JOB_TOOLS, and the build
+    # context, so packs share only when those inputs match. WORKSHOP_SLUG is the
+    # fallback for raw Compose; an overlay does not need to retag this service.
+    image: gitopsdojo/runner-pool:${WORKSHOP_SLUG:-local}
     container_name: workshop_runner_pool
     # Root inside the container: it creates and deletes the runner users.
     # Only what useradd/userdel, su, chown and killing a job's processes need
@@ -77,7 +81,7 @@ services:
     mem_limit: ${RUNNER_POOL_MEM_LIMIT:-2g}
     pids_limit: ${RUNNER_POOL_PIDS:-2048}
     healthcheck:
-      test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /spool/state.json) )) -lt 15"]
+      test: [ "CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /spool/state.json) )) -lt 15" ]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -90,8 +94,8 @@ services:
   runner-pool-shim:
     image: gitopsdojo/gateway:local
     container_name: workshop_runner_pool_shim
-    entrypoint: ["caddy"]
-    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    entrypoint: [ "caddy" ]
+    command: [ "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile" ]
     network_mode: "service:runner-pool"
     # Root: binds 443 on the HTTPS name, and writes its CA to the volume.
     # NET_BIND_SERVICE is the only capability it needs (default seccomp
@@ -113,7 +117,7 @@ services:
       - runner-pool
     # The image's check asks Caddy's admin API, which the shim turns off.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null --no-check-certificate \"$$PUBLIC_BASE_URL/git/api/healthz\" || exit 1"]
+      test: [ "CMD-SHELL", "wget -q -O /dev/null --no-check-certificate \"$$PUBLIC_BASE_URL/git/api/healthz\" || exit 1" ]
       interval: 15s
       timeout: 3s
       retries: 3
@@ -127,7 +131,7 @@ services:
   runner-token-init:
     image: gitopsdojo/allocator:local
     container_name: workshop_runner_token_init
-    entrypoint: ["python3", "-B", "/opt/runner-controller/mint_token.py"]
+    entrypoint: [ "python3", "-B", "/opt/runner-controller/mint_token.py" ]
     environment:
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
@@ -155,7 +159,7 @@ services:
   runner-controller:
     image: gitopsdojo/allocator:local
     container_name: workshop_runner_controller
-    entrypoint: ["python3", "-B", "/opt/runner-controller/controller.py"]
+    entrypoint: [ "python3", "-B", "/opt/runner-controller/controller.py" ]
     environment:
       # No admin password here (T5.2c): runner-token-init mints a scoped token.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
@@ -187,7 +191,7 @@ services:
         condition: service_completed_successfully
     # The image's own check sends the gateway token to /; /healthz needs none.
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz" ]
       interval: 15s
       timeout: 3s
       retries: 3

@@ -31,14 +31,17 @@ on a merge).
 `ctf-controller`); every CTF session lists it in `MODULES=`. Per CTF-D26, `ctf-range`'s own
 `module.env` defaults build the **full** 14-target catalog into `ctf-host` -- fine for
 the module default's full catalog, wasteful for a real single-session pack that
-only exposes a few. This pack overrides three vars to scope the image to just its own container targets:
+only exposes a few. This pack overrides two vars to scope the image to just its own container targets:
 
 ```sh
 CTF_HOST_BUILD_TARGET=ctf-host-ctf4      # ctf-host/Dockerfile's named stage for this session
-CTF_HOST_IMAGE=gitopsdojo/ctf-host:ctf4  # a distinct tag, so building this pack never clobbers another's cache
 CTF_HOST_EXPECTED_IMAGES=...             # the subset that stage actually bakes in
 CTF_ATTACK_TARGETS=dns-resolver-cve=...,policy-bypass=...
 ```
+
+The image *tag* needs no override: `dojo` fingerprints the resolved target and build context.
+Matching inputs share a cached image; a different target gets a different tag. The slug tag is only
+the fallback when using raw Compose outside `dojo`.
 
 See `modules/ctf-range/module.env`'s own comment on these vars, and `ctf-host/Dockerfile`'s `ctf-host-ctf4`
 stage, for the mechanics.

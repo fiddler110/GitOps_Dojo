@@ -15,6 +15,11 @@ selected profile (--env a,b), that profile's dojo.toml, dojo.local.toml and .env
 section. Then workshop.env; and, if the workshop has modules, each module.env
 followed by the operator layers and workshop.env again, so a module only
 supplies defaults and the operator and the workshop win.
+
+WORKSHOP_SLUG is the one value no layer may set: it is the pack's folder name,
+re-asserted on top of each operator layer and once more at the end. Compose image
+declarations use it as a fallback for raw Compose runs; dojo replaces those tags
+with identities derived from resolved build inputs.
 """
 from __future__ import annotations
 
@@ -209,6 +214,9 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
         if shell_toggle is not None:
             b.env["ACHIEVEMENTS_ENABLED"] = shell_toggle
             b._note("ACHIEVEMENTS_ENABLED", "environment", shell_toggle)
+        # Keep raw Compose fallback tags tied to the selected pack, regardless
+        # of shell, .env, profile, module, or workshop settings.
+        b.row("WORKSHOP_SLUG", workshop, "dojo (the workshop's folder name)")
         b.shell(workshop_env)
 
     operator_and_workshop()
@@ -224,6 +232,7 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
             if module_env.is_file():
                 b.shell(module_env)
         operator_and_workshop()
+    b.row("WORKSHOP_SLUG", workshop, "dojo (the workshop's folder name)")
     return Resolution(b.env, b.origins, mods, warnings)
 
 

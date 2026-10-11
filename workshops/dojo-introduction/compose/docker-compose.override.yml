@@ -39,7 +39,6 @@ services:
 
   # CI jobs get the terminal's own dnscontrol (the hello workflow calls it).
   runner-pool:
-    image: gitopsdojo/runner-pool:dojo-introduction
     build:
       args:
         JOB_TOOLS: "dnscontrol"

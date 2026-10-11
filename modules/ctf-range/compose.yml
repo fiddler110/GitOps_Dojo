@@ -40,7 +40,7 @@ services:
       # itself instead.
       args:
         - BASE=deps
-    image: gitopsdojo/ctf-customer-portal:local
+    image: gitopsdojo/ctf-customer-portal:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_customer_portal
     environment:
       # Which student this slot's data references, and the flag it yields when
@@ -213,7 +213,7 @@ services:
   ctf-controller:
     build:
       context: ../modules/ctf-range/ctf-controller
-    image: gitopsdojo/ctf-controller:local
+    image: gitopsdojo/ctf-controller:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_controller
     depends_on:
       ctf-host:
@@ -294,7 +294,7 @@ services:
   # only to reach the slot IPs and on workshop_lab to be reached by the
   # gateway, which stays the sole way in (it checks X-Gateway-Token itself).
   ctf-view:
-    image: gitopsdojo/ctf-controller:local
+    image: gitopsdojo/ctf-controller:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_view
     entrypoint: ["python3", "/app/view.py"]
     depends_on:
@@ -349,7 +349,7 @@ services:
   ctf-builder:
     build:
       context: ../modules/ctf-range/ctf-builder
-    image: gitopsdojo/ctf-builder:local
+    image: gitopsdojo/ctf-builder:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_builder
     depends_on:
       ctf-host:
@@ -400,7 +400,7 @@ services:
   ctf-flags:
     build:
       context: ../modules/ctf-range/ctf-flags
-    image: gitopsdojo/ctf-flags:local
+    image: gitopsdojo/ctf-flags:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_flags
     environment:
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}

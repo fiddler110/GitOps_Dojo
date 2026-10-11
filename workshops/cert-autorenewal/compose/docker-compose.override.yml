@@ -82,6 +82,7 @@ services:
   dns-seed:
     build:
       context: ../workshops/cert-autorenewal/compose/dns-seed
+    image: gitopsdojo/cert-dns-seed:${WORKSHOP_SLUG:-local}
     container_name: workshop_cert_dns_seed
     depends_on:
       - dns-server
@@ -108,6 +109,7 @@ services:
   step-ca:
     build:
       context: ../workshops/cert-autorenewal/compose/step-ca
+    image: gitopsdojo/step-ca:${WORKSHOP_SLUG:-local}
     container_name: workshop_step_ca
     environment:
       # step-ca validates ACME challenges (http-01 and dns-01) by looking up
@@ -138,6 +140,7 @@ services:
   demo-app:
     build:
       context: ../workshops/cert-autorenewal/compose/demo-app
+    image: gitopsdojo/cert-demo-app:${WORKSHOP_SLUG:-local}
     container_name: workshop_cert_demo_app
     volumes:
       - cert_lab_webroot:/srv/webroot
@@ -154,7 +157,7 @@ services:
   site-inspector:
     build:
       context: ../workshops/cert-autorenewal/compose/site-inspector
-    image: gitopsdojo/site-inspector:local
+    image: gitopsdojo/site-inspector:${WORKSHOP_SLUG:-local}
     container_name: workshop_cert_site_inspector
     init: true
     depends_on:

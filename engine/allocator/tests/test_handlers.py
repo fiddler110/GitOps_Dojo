@@ -353,7 +353,8 @@ class SessionCheck(HandlerTest):
 
     def test_tampered_session_is_401(self):
         cookie = self.login(config.TTYD_USERNAME)
-        cookie["Cookie"] = cookie["Cookie"][:-2] + "00"
+        replacement = "1" if cookie["Cookie"].endswith("0") else "0"
+        cookie["Cookie"] = cookie["Cookie"][:-1] + replacement
         self.assertEqual(self.request("GET", "/session-check", headers=cookie)[0], 401)
 
     def test_class_login_passes_but_not_for_the_facilitator_role(self):

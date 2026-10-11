@@ -57,14 +57,14 @@ but not `presentation:8080` (slides are browser-only).
 
 ### Engine services (`engine/docker-compose.yml`)
 
-| Service | Built from | Role | Notable details |
-|---|---|---|---|
-| `gateway` | `engine/gateway/` (Caddy) | TLS, `/login` session gate, routing, identity headers, optional access-code gate | `Caddyfile` imports the rendered `extensions.caddy`. Always strips `Authorization` before Forgejo. HSTS on https |
-| `allocator` | `engine/allocator/` (stdlib Python, threaded) | Slot table, `/auth-check`, Forgejo SSO, landing page, `/workspace`, `/admin`, student reset, status probes | Never touches a container engine; talks only to `web-terminal`'s control port and Forgejo. Slot table persisted to the `allocator_state` volume |
-| `web-terminal` | `engine/web-terminal/` (`:core`) + flavor leaf + module/workshop links | Runs each student's code-server and ttyd, spawned on demand by `workspace-control.py` | One Linux user per student; per-uid firewall; PID namespace per student |
-| `git-server` | Forgejo image (digest-pinned) | Repos, PRs, review, Actions, OIDC provider (vault workshop) | Data in `forgejo_data` |
-| `bootstrap` | Forgejo image, one-shot | Creates admin, org, seed repo, `students` team, accounts | Idempotent. On `bootstrap_net` only |
-| `presentation` | `engine/presentation/` (Marp) | Serves decks and lab copies as HTML | No PDF/Chromium |
+| Service        | Built from                                                             | Role                                                                                                       | Notable details                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gateway`      | `engine/gateway/` (Caddy)                                              | TLS, `/login` session gate, routing, identity headers, optional access-code gate                           | `Caddyfile` imports the rendered `extensions.caddy`. Always strips `Authorization` before Forgejo. HSTS on https                                |
+| `allocator`    | `engine/allocator/` (stdlib Python, threaded)                          | Slot table, `/auth-check`, Forgejo SSO, landing page, `/workspace`, `/admin`, student reset, status probes | Never touches a container engine; talks only to `web-terminal`'s control port and Forgejo. Slot table persisted to the `allocator_state` volume |
+| `web-terminal` | `engine/web-terminal/` (`:core`) + flavor leaf + module/workshop links | Runs each student's code-server and ttyd, spawned on demand by `workspace-control.py`                      | One Linux user per student; per-uid firewall; PID namespace per student                                                                         |
+| `git-server`   | Forgejo image (digest-pinned)                                          | Repos, PRs, review, Actions, OIDC provider (vault workshop)                                                | Data in `forgejo_data`                                                                                                                          |
+| `bootstrap`    | Forgejo image, one-shot                                                | Creates admin, org, seed repo, `students` team, accounts                                                   | Idempotent. On `bootstrap_net` only                                                                                                             |
+| `presentation` | `engine/presentation/` (Marp)                                          | Serves decks and lab copies as HTML                                                                        | No PDF/Chromium                                                                                                                                 |
 
 ### Terminal flavors
 
@@ -89,12 +89,12 @@ both. Module and workshop Dockerfiles only ever see an opaque `ARG BASE`, so the
 
 ### Ports inside `web-terminal`
 
-| Range | Used for |
-|---|---|
-| 9000 + N | Student N's code-server (`/ide`) |
-| 9500 + N | Student N's ttyd terminal (`/term`) |
-| 9600 + N | Student N's read-only watch view (`/admin/watch/studentNN`) |
-| 9700.., 9750.., 9800.. | Demo bots' IDE, terminal and watch ports |
+| Range                  | Used for                                                    |
+| ---------------------- | ----------------------------------------------------------- |
+| 9000 + N               | Student N's code-server (`/ide`)                            |
+| 9500 + N               | Student N's ttyd terminal (`/term`)                         |
+| 9600 + N               | Student N's read-only watch view (`/admin/watch/studentNN`) |
+| 9700.., 9750.., 9800.. | Demo bots' IDE, terminal and watch ports                    |
 
 The gateway reaches these over a private network, `terminal_ingress`, that only the gateway and `web-terminal` join.
 The entrypoint drops these ports on every other interface, so nothing on `workshop_lab` can skip the allocator's
@@ -103,17 +103,17 @@ auth check by dialling the port directly. Workshop services a student must reach
 
 ## 3. Networks
 
-| Network | Internal? | Members | Purpose |
-|---|---|---|---|
-| `public` (default) | no | `gateway` | The one way in |
-| `workshop_lab` | yes | allocator, web-terminal, git-server, gateway, most module/workshop services | Where the lab lives; no route to the internet |
-| `web_lab` | yes | gateway, presentation | Slides only |
-| `bootstrap_net` | yes | bootstrap, git-server | Provisioning reaches Forgejo and nothing else |
-| `terminal_ingress` | yes | gateway, web-terminal | The gateway's private path to workspace ports. Fragments may not join it |
-| `runner_net` | yes | runner-pool, shim, git-server, selected services | Student-written CI reaches only what a workshop lists |
-| `cloud_net` | yes | cloud-api, cloud-host | The privileged Docker-in-Docker host's only neighbour |
-| `ctf_net`, `ctf_ops` | yes | ctf-range services | Vulnerable targets and the range's control plane |
-| `dns_admin_net` | yes | gateway, dns-server, dns-admin | Keeps PowerDNS-Admin out of student reach |
+| Network              | Internal? | Members                                                                     | Purpose                                                                  |
+| -------------------- | --------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `public` (default)   | no        | `gateway`                                                                   | The one way in                                                           |
+| `workshop_lab`       | yes       | allocator, web-terminal, git-server, gateway, most module/workshop services | Where the lab lives; no route to the internet                            |
+| `web_lab`            | yes       | gateway, presentation                                                       | Slides only                                                              |
+| `bootstrap_net`      | yes       | bootstrap, git-server                                                       | Provisioning reaches Forgejo and nothing else                            |
+| `terminal_ingress`   | yes       | gateway, web-terminal                                                       | The gateway's private path to workspace ports. Fragments may not join it |
+| `runner_net`         | yes       | runner-pool, shim, git-server, selected services                            | Student-written CI reaches only what a workshop lists                    |
+| `cloud_net`          | yes       | cloud-api, cloud-host                                                       | The privileged Docker-in-Docker host's only neighbour                    |
+| `ctf_net`, `ctf_ops` | yes       | ctf-range services                                                          | Vulnerable targets and the range's control plane                         |
+| `dns_admin_net`      | yes       | gateway, dns-server, dns-admin                                              | Keeps PowerDNS-Admin out of student reach                                |
 
 ## 4. From command to running stack
 
@@ -148,8 +148,13 @@ Key points:
   (they derive tokens with `$(...)`), run by `sh`; the TOML files are mapped to env vars by `dojo/config.py`.
 - **Compose files**: `docker-compose.yml`, then each module's `compose.yml` in `MODULES` order, then the workshop
   overlay. The exact list is recorded in `.build-state/current.json`, so `./dojo stop` removes precisely what was started.
-- **Build change detection** hashes each build context, every module folder and the overlay folder; unchanged
-  things are reused. `--dry-run` reports the plan without touching anything.
+- **Build change detection** labels stable Compose image aliases with a fingerprint of the resolved context and
+  build options. Matching inputs across workshops reuse the same image ID under each workshop's stable tag; changed
+  inputs rebuild and replace that tag. The displaced image is reaped after the new stack is up. `--dry-run` reports
+  the plan without building or starting.
+- **Image identity follows inputs, not workshop names**: for example, `runner-pool` reuses only when its terminal
+  image and tool list match; CTF host images differ by target. Engine images (`allocator`, `gateway`, `presentation`)
+  keep their established shared tags.
 - **Image housekeeping**: images a rebuild displaced are removed after the new containers run. Only `gitopsdojo/*`
   and Compose's own `engine_*` images are ever candidates. On podman, builds use Docker image format so the
   `HEALTHCHECK` is kept.
@@ -194,18 +199,18 @@ each browser rather than the proxy.
 Stdlib Python on `ThreadingHTTPServer`, one thread per connection with a 3 s socket timeout, so an idle client
 stalls only itself.
 
-| Module | Responsibility |
-|---|---|
-| `server.py` | Entry point; the locking rules live in its header |
-| `handler.py` | Request plumbing, identity, GET/POST routing |
-| `accounts.py` | Signed login cookies, password checks, login rate guard, `/login` assets |
-| `allocation.py` | Slot table, state file, per-student ports, workspace-control client |
-| `api.py` | `/auth-check`, assign, release, reset, admin JSON endpoints |
-| `views.py`, `pages.py` | Landing, confirmation, `/workspace` and `/admin` pages, CSP |
-| `probes.py` | Background health probes for the status strip |
-| `reset.py` | One-student reset worker |
-| `render_extensions.py` | Validates and renders manifests (also run standalone by `dojo`) |
-| `config.py`, `dojo_secret.py` | Environment and the derived-secret functions |
+| Module                        | Responsibility                                                           |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `server.py`                   | Entry point; the locking rules live in its header                        |
+| `handler.py`                  | Request plumbing, identity, GET/POST routing                             |
+| `accounts.py`                 | Signed login cookies, password checks, login rate guard, `/login` assets |
+| `allocation.py`               | Slot table, state file, per-student ports, workspace-control client      |
+| `api.py`                      | `/auth-check`, assign, release, reset, admin JSON endpoints              |
+| `views.py`, `pages.py`        | Landing, confirmation, `/workspace` and `/admin` pages, CSP              |
+| `probes.py`                   | Background health probes for the status strip                            |
+| `reset.py`                    | One-student reset worker                                                 |
+| `render_extensions.py`        | Validates and renders manifests (also run standalone by `dojo`)          |
+| `config.py`, `dojo_secret.py` | Environment and the derived-secret functions                             |
 
 Rules that keep it safe and fast:
 
@@ -236,16 +241,16 @@ Rules that keep it safe and fast:
 
 ## 8. State and volumes
 
-| State | Where | Lifetime |
-|---|---|---|
-| Forgejo data (repos, accounts, PRs) | `forgejo_data` volume | until `./dojo stop` |
-| Student homes | `terminal_home` volume | until `./dojo stop` |
-| Slot table | `allocator_state` volume (`slots.json`) | survives restarts, wiped by `stop` |
-| Module state (DNS zones, CA keys, cloud data, vault raft, achievements `state.json`) | each module's named volumes | until `stop` |
-| Running stack record | `.build-state/current.json` | until `stop` |
-| History | `.build-state/history.jsonl` (one line per start/restart/build/stop with timing and outcome) | kept |
-| Generated config | `engine/.generated/` (git-ignored) | regenerated every start |
-| Dependencies | `engine/.cache/` (git-ignored) | until deleted |
+| State                                                                                | Where                                                                                        | Lifetime                           |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Forgejo data (repos, accounts, PRs)                                                  | `forgejo_data` volume                                                                        | until `./dojo stop`                |
+| Student homes                                                                        | `terminal_home` volume                                                                       | until `./dojo stop`                |
+| Slot table                                                                           | `allocator_state` volume (`slots.json`)                                                      | survives restarts, wiped by `stop` |
+| Module state (DNS zones, CA keys, cloud data, vault raft, achievements `state.json`) | each module's named volumes                                                                  | until `stop`                       |
+| Running stack record                                                                 | `.build-state/current.json`                                                                  | until `stop`                       |
+| History                                                                              | `.build-state/history.jsonl` (one line per start/restart/build/stop with timing and outcome) | kept                               |
+| Generated config                                                                     | `engine/.generated/` (git-ignored)                                                           | regenerated every start            |
+| Dependencies                                                                         | `engine/.cache/` (git-ignored)                                                               | until deleted                      |
 
 **Every volume is named**, including paths an image declares as `VOLUME`; otherwise an anonymous volume survives
 `./dojo stop`. Volumes are prefixed `engine_`.

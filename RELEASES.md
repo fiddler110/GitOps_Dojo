@@ -7,6 +7,26 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Stable image tags with input reuse (2026-10-11, not yet merged)
+
+Compose keeps its stable workshop tags, e.g. `gitopsdojo/web-terminal:git-fundamentals`. `dojo` fingerprints each
+resolved local build's context and options and places the fingerprint in the image's `dojo.src-hash` label. If an
+image with that label already exists under another workshop's stable tag, `dojo` retags the same image for this
+workshop instead of rebuilding. If the inputs changed, Compose builds the new image under the existing stable tag;
+the replaced image becomes dangling and the superseded-image reaper removes it after the new containers are up.
+If an old container still uses it, removal is retried on a later run.
+
+The terminal chain uses the same input identity, including each parent layer, so downstream `runner-pool` images
+share only when their terminal image and `JOB_TOOLS` match. Service aliases such as `ctf-view` continue to point at
+the stable tag of the image they reuse. The configs for all 12 packs were compared: `sensei`, DNS/cloud images and
+common CTF services share matching inputs; `ctf-host` has five target variants and `runner-pool` has four
+terminal/tool variants. Engine allocator, gateway and presentation images retain their existing shared tags.
+
+Live validation caught an unsupported `podman tag --force` flag in cross-workshop reuse; retagging now uses the
+portable command, with Docker and Podman regression coverage. The unit-test gate also exposed existing macOS
+lock/path issues, a nondeterministic cookie-tampering test, and missing CTF achievements documents. Those are
+fixed, capstone-free catalogs render correctly, and CTF catalog JSON follows the editor's round-trip format.
+
 ## On `fix/ctf-pack-content-gaps` (2026-10-09, not yet merged)
 
 **Content-depth audit of all 5 CTF packs (ROADMAP item 1), two fixes, then a line-by-line verification pass.**

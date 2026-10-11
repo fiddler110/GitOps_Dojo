@@ -11,14 +11,14 @@ doc to read before touching anything in here.
 It runs six services by default (a workshop's overlay can add more — see
 `../workshops/dns-as-code/` for an example that adds a PowerDNS backend):
 
-| Service         | Image                           | Purpose                                                                    |
-| ---------------- | --------------------------------- | ----------------------------------------------------------------------------- |
-| `gateway`        | built from `gateway/` (Caddy)     | The **only** service exposed to students. One hostname, TLS, routing, auth |
-| `git-server`     | `codeberg.org/forgejo/forgejo`    | Git hosting (branches, PRs, review)                                        |
-| `bootstrap`      | same, one-shot                    | Creates the admin user, org, sample repo, and student accounts on Forgejo  |
-| `presentation`   | built from `presentation/` (Marp) | Serves `WORKSHOP_CONTENT_DIR/slides` (HTML only; no Chromium/PDF export)   |
-| `allocator`      | built from `allocator/`           | Assigns each browser session a student account, drives the facilitator dashboard (name/IP/status/Release) |
-| `web-terminal`   | built from `web-terminal/`        | Hosts each assigned student's code-server + ttyd processes, spawned on demand |
+| Service        | Image                             | Purpose                                                                                                   |
+| -------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `gateway`      | built from `gateway/` (Caddy)     | The **only** service exposed to students. One hostname, TLS, routing, auth                                |
+| `git-server`   | `codeberg.org/forgejo/forgejo`    | Git hosting (branches, PRs, review)                                                                       |
+| `bootstrap`    | same, one-shot                    | Creates the admin user, org, sample repo, and student accounts on Forgejo                                 |
+| `presentation` | built from `presentation/` (Marp) | Serves `WORKSHOP_CONTENT_DIR/slides` (HTML only; no Chromium/PDF export)                                  |
+| `allocator`    | built from `allocator/`           | Assigns each browser session a student account, drives the facilitator dashboard (name/IP/status/Release) |
+| `web-terminal` | built from `web-terminal/`        | Hosts each assigned student's code-server + ttyd processes, spawned on demand                             |
 
 Everything runtime-related lives in Docker/Podman **named volumes** — there
 are no host bind mounts for account data or Forgejo's database. Nothing
@@ -187,16 +187,16 @@ sequenceDiagram
 
 Students only ever talk to `gateway`, at one address (`PUBLIC_BASE_URL`):
 
-| Path            | Goes to        | Auth                                                              |
-| ---------------- | --------------- | -------------------------------------------------------------------- |
-| `/slides/*`      | `presentation`  | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login |
-| `/`              | `allocator`     | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin` |
-| `/workspace`, `/workspace/*` | `allocator` | Shared gate. The student's tabbed workspace (Labs, VS Code, Terminal, Forgejo, Slides and one tab per landing card, each an iframe loaded on first click) and its three static assets. A facilitator gets a redirect to `/admin`, a browser with no slot one to `/`. The landing page's "Open workspace" card remembers the choice (`localStorage` key `dojo-mode`), and `/` then goes straight to the workspace unless the URL has `?split`. |
-| `/whoami`        | `allocator`     | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX` |
-| `/ide/*`, `/term/*` | `web-terminal` | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process |
-| `/admin/*`       | `allocator`     | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
-| `/git/*`         | `git-server`    | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing |
-| `/<name>`, `/<name>/*` | whatever a workshop or module declares (e.g. `/cloud` → `cloud-api`, `/demo` → `demo-app`) | Shared gate, then one of three fixed gates. For `identity`/`facilitator`, `forward_auth` to `allocator`'s `/auth-check?route=<id>`, and Caddy itself sets `X-Auth-User` and `X-Gateway-Token` for the upstream. Only exists while that workshop runs (see [Workshop extensions](#workshop-extensions-extensionsjson)) |
+| Path                         | Goes to                                                                                    | Auth                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/slides/*`                  | `presentation`                                                                             | Shared gate. Decks, cheat sheets and the lab reader's lab copies; the facilitator's `/admin` Slides tab passes with the facilitator login                                                                                                                                                                                                                                                                                                                                                    |
+| `/`                          | `allocator`                                                                                | Shared gate (a signed-in class **or** facilitator session) — name entry, tool picker; a facilitator identity here 303s straight to `/admin`                                                                                                                                                                                                                                                                                                                                                  |
+| `/workspace`, `/workspace/*` | `allocator`                                                                                | Shared gate. The student's tabbed workspace (Labs, VS Code, Terminal, Forgejo, Slides and one tab per landing card, each an iframe loaded on first click) and its three static assets. A facilitator gets a redirect to `/admin`, a browser with no slot one to `/`. The landing page's "Open workspace" card remembers the choice (`localStorage` key `dojo-mode`), and `/` then goes straight to the workspace unless the URL has `?split`.                                                |
+| `/whoami`                    | `allocator`                                                                                | Shared gate. Returns `{"user": "<studentId>"}` for a browser holding a slot, `{"user": null}` otherwise (the facilitator too). The lab reader uses it to swap the reader's username in for `studentXX`                                                                                                                                                                                                                                                                                       |
+| `/ide/*`, `/term/*`          | `web-terminal`                                                                             | Shared gate, **then** `forward_auth` to `allocator`'s `/auth-check` — only a browser session holding a live assignment reaches the actual code-server/ttyd process                                                                                                                                                                                                                                                                                                                           |
+| `/admin/*`                   | `allocator`                                                                                | Sign-in check for the facilitator account only (`session_gate facilitator`); the class login gets 403. Renders one tabbed page: a live roster of watch tiles (Roster tab) plus the facilitator's own VS Code/Terminal/Forgejo/Slides as further tabs. `/admin/watch/<studentId>` is a second, distinct route under the same auth block — a read-only view onto *that* student's terminal, keyed by student ID via its own `forward_auth /auth-check-watch` rather than the caller's identity |
+| `/git/*`                     | `git-server`                                                                               | Shared gate to reach it, then Forgejo's own per-student login for anything beyond public browsing                                                                                                                                                                                                                                                                                                                                                                                            |
+| `/<name>`, `/<name>/*`       | whatever a workshop or module declares (e.g. `/cloud` → `cloud-api`, `/demo` → `demo-app`) | Shared gate, then one of three fixed gates. For `identity`/`facilitator`, `forward_auth` to `allocator`'s `/auth-check?route=<id>`, and Caddy itself sets `X-Auth-User` and `X-Gateway-Token` for the upstream. Only exists while that workshop runs (see [Workshop extensions](#workshop-extensions-extensionsjson))                                                                                                                                                                        |
 
 Sign-in is the allocator's `/login` page (`allocator/login/`), not a browser
 popup. A correct username and password (the class login, or the
@@ -335,10 +335,20 @@ this is how the engine uses it.
 - **Compose files.** `-f docker-compose.yml`, each module's `compose.yml`, then
   the workshop's `COMPOSE_OVERLAY`. The list is recorded in
   `.build-state/current.json` so `./dojo stop` brings down the same set.
-  Build-change detection hashes each module folder and the overlay folder.
-- **Terminal chain.** `gitopsdojo/web-terminal:base` → each module's
-  `terminal/` as `:<workshop>.<module>` → the workshop's `compose/terminal/` as
-  `:<workshop>`. Each link is `ARG BASE` / `FROM ${BASE}` and inherits the
+  Build-change detection hashes each module folder and the overlay folder,
+  plus the stable image aliases and build fingerprints below.
+- **Stable tags, input-based reuse.** Compose keeps readable stable aliases
+  such as `gitopsdojo/web-terminal:git-fundamentals`. `dojo` labels builds with
+  a fingerprint of their context and resolved options. A matching image from
+  another pack is retagged for this alias rather than rebuilt. Changed inputs
+  rebuild under the same alias; after successful startup the displaced image
+  becomes dangling and the reaper removes it (or retries if still in use).
+  Terminal fingerprints include their parent layer, so `runner-pool` shares
+  only when its terminal image and `JOB_TOOLS` match. Engine images (`allocator`,
+  `gateway`, `presentation`, and terminal `:core`) keep their shared tags.
+- **Terminal chain.** `gitopsdojo/web-terminal:core` → the selected flavor
+  image → each module's `terminal/` → the workshop's `compose/terminal/`. Each
+  derived link has a stable tag, is `ARG BASE` / `FROM ${BASE}`, and inherits the
   entrypoint and HEALTHCHECK. The final tag reaches `docker-compose.yml` as
   `WEB_TERMINAL_IMAGE`, so no overlay sets `image:` on `web-terminal`.
 - **Start-up hooks.** `web-terminal/entrypoint.sh` runs every
@@ -391,11 +401,11 @@ settings, same file.
 
 **Where settings live.** Three files at the repo root, and nothing under `engine/`:
 
-| File | In git? | Holds |
-|---|---|---|
-| `dojo.toml` | yes | every non-secret default, in sections: `[general]` (student count, usernames, achievements), `[network]` (URL, ports, proxy), `[terminal]` (`flavor = "code-server"` or `"zellij"`, memory/pid limits, idle timers), `[bots]`, `[build]`, `[engine]`, and `[env]` for any other variable |
-| `dojo.local.toml` | no | this machine's overrides in the same layout, plus your profiles (`[profiles.home.network]` ...). `setup` writes the machine sizing here |
-| `.env` | no, mode 0600 | secrets only (`TTYD_PASSWORD`, `FACILITATOR_PASSWORD`, the tokens and seeds), see `.env.example` |
+| File              | In git?       | Holds                                                                                                                                                                                                                                                                                    |
+| ----------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dojo.toml`       | yes           | every non-secret default, in sections: `[general]` (student count, usernames, achievements), `[network]` (URL, ports, proxy), `[terminal]` (`flavor = "code-server"` or `"zellij"`, memory/pid limits, idle timers), `[bots]`, `[build]`, `[engine]`, and `[env]` for any other variable |
+| `dojo.local.toml` | no            | this machine's overrides in the same layout, plus your profiles (`[profiles.home.network]` ...). `setup` writes the machine sizing here                                                                                                                                                  |
+| `.env`            | no, mode 0600 | secrets only (`TTYD_PASSWORD`, `FACILITATOR_PASSWORD`, the tokens and seeds), see `.env.example`                                                                                                                                                                                         |
 
 Later layers win: `dojo.toml` < `dojo.local.toml` < `.env` < the selected profile
 (`--env`) < the workshop's `workshop.env`. Unknown sections or keys in a TOML file
@@ -407,18 +417,18 @@ old `engine/.env` and `engine/.env.NAME` files are split into these three and ke
 Which workshop to run (content, Forgejo org/repo, any extra
 services) is selected separately, by name, via `./dojo` below.
 
-| Variable                                          | Purpose                                                        |
-| -------------------------------------------------- | --------------------------------------------------------------- |
-| `WORKSHOP_CONTENT_DIR`                             | Path to a `workshops/<name>/content` folder (slides, lab, sample-repo) |
-| `WORKSHOP_NAME`                                    | Name shown in the terminal welcome message                     |
-| `PUBLIC_BASE_URL`                                  | What students type into their browser. See **Deployment scenarios** below |
-| `LAB_HOST_IP`                                      | Interface the gateway binds to on this machine — see below     |
-| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`          | Host ports the gateway publishes (default 8080/8443: rootless podman can't bind below 1024) |
-| `TTYD_USERNAME`, `TTYD_PASSWORD`                   | Shared gate in front of the terminal and Forgejo browsing       |
-| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD_SEED` | Linux terminal accounts *and* matching Forgejo accounts (1-99); each Forgejo password is derived from the seed (see **Student credentials**) |
-| `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`     | Facilitator's Linux login, sudo-capable                        |
-| `FORGEJO_ADMIN_USER`, `FORGEJO_ADMIN_PASSWORD`, `FORGEJO_ADMIN_EMAIL` | Forgejo admin created by `bootstrap` (avoid the reserved name `admin`) |
-| `FORGEJO_ORG`, `FORGEJO_REPO`                      | Where the seeded sample repo lives                              |
+| Variable                                                              | Purpose                                                                                                                                      |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WORKSHOP_CONTENT_DIR`                                                | Path to a `workshops/<name>/content` folder (slides, lab, sample-repo)                                                                       |
+| `WORKSHOP_NAME`                                                       | Name shown in the terminal welcome message                                                                                                   |
+| `PUBLIC_BASE_URL`                                                     | What students type into their browser. See **Deployment scenarios** below                                                                    |
+| `LAB_HOST_IP`                                                         | Interface the gateway binds to on this machine — see below                                                                                   |
+| `GATEWAY_HTTP_PORT`, `GATEWAY_HTTPS_PORT`                             | Host ports the gateway publishes (default 8080/8443: rootless podman can't bind below 1024)                                                  |
+| `TTYD_USERNAME`, `TTYD_PASSWORD`                                      | Shared gate in front of the terminal and Forgejo browsing                                                                                    |
+| `STUDENT_COUNT`, `STUDENT_PREFIX`, `STUDENT_PASSWORD_SEED`            | Linux terminal accounts *and* matching Forgejo accounts (1-99); each Forgejo password is derived from the seed (see **Student credentials**) |
+| `FACILITATOR_USERNAME`, `FACILITATOR_PASSWORD`                        | Facilitator's Linux login, sudo-capable                                                                                                      |
+| `FORGEJO_ADMIN_USER`, `FORGEJO_ADMIN_PASSWORD`, `FORGEJO_ADMIN_EMAIL` | Forgejo admin created by `bootstrap` (avoid the reserved name `admin`)                                                                       |
+| `FORGEJO_ORG`, `FORGEJO_REPO`                                         | Where the seeded sample repo lives                                                                                                           |
 
 These are workshop credentials, not production secrets — rotate them for
 every session. `.env` is gitignored.
@@ -758,12 +768,14 @@ stack is up.
 **Facilitator ops below use plain `docker compose ...` commands** (on podman, read them as `podman-compose ...`,
 which `dojo` prefers when it is installed). If the
 running workshop has modules or a Compose overlay, add `-f docker-compose.yml`
-plus one `-f` per file in `"files"` of `.build-state/current.json` to those commands too, and
-set `WEB_TERMINAL_IMAGE` to the last link of the terminal chain (below:
-`gitopsdojo/web-terminal:<workshop>`, or `:<workshop>.<module>` when only a
-module adds tools). A bare `docker compose ...` only sees the
-base file, and e.g. `--force-recreate web-terminal` would recreate it
-*without* that workshop's extra tooling. Simplest fix: `./dojo restart web-terminal`
+plus one `-f` per file in `"files"` of `.build-state/current.json` to those commands too.
+Raw Compose bypasses `dojo`'s fingerprint-based image reuse: include the generated
+`.generated/image-tags/<workshop>.yml` override and set `WEB_TERMINAL_IMAGE` to the
+final stable terminal tag shown by `./dojo <workshop> --dry-run`.
+`WORKSHOP_SLUG` is the fallback for source Compose declarations. A bare
+`docker compose ...` sees only the base file, and `--force-recreate web-terminal`
+would omit workshop tooling and may select the wrong images. Simplest fix:
+`./dojo restart web-terminal`
 (or a plain re-run of `./dojo <workshop-name>`), which always passes the right
 files and flags.
 
@@ -941,12 +953,12 @@ three personas at random (picked once by `entrypoint.sh`, recorded as
 restarts) — so `--test 14` gives you the three fixed bots plus 11 randomly
 mixed ones. Each persona changes more than just typing speed:
 
-| | Expert (`testuser1`) | Intermediate (`testuser2`) | Novice (`testuser3`) |
-| --- | --- | --- | --- |
-| Pacing | Fast, brief pauses | Moderate | Slow, hesitant |
-| Extra commands | Rare (`git status -sb`) | Occasional (`ls`, `pwd`, `git status`) | Frequent (`pwd`, `ls -la`, `whoami`, `cat`, re-reading the lab file) |
-| Mistakes | Rare | Occasional (forgets to stage, deletes the branch it's on) | Frequent, plus wrong-directory `git status`, typo'd commands |
-| How far into the labs | All of Lab 1-5, every round | Lab 1-4 | Lab 1-2 only |
+|                       | Expert (`testuser1`)        | Intermediate (`testuser2`)                                | Novice (`testuser3`)                                                 |
+| --------------------- | --------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
+| Pacing                | Fast, brief pauses          | Moderate                                                  | Slow, hesitant                                                       |
+| Extra commands        | Rare (`git status -sb`)     | Occasional (`ls`, `pwd`, `git status`)                    | Frequent (`pwd`, `ls -la`, `whoami`, `cat`, re-reading the lab file) |
+| Mistakes              | Rare                        | Occasional (forgets to stage, deletes the branch it's on) | Frequent, plus wrong-directory `git status`, typo'd commands         |
+| How far into the labs | All of Lab 1-5, every round | Lab 1-4                                                   | Lab 1-2 only                                                         |
 
 That last row is deliberate, not just slower pacing: the novice's round
 never includes the Lab 3-5 steps at all, no matter how long it runs. Over a

@@ -53,7 +53,15 @@ def fix_stale_lock() -> str:
     if not lock.is_dir():
         return ""
     pid = (lock / "pid").read_text().strip() if (lock / "pid").is_file() else ""
-    alive = pid.isdigit() and os.path.exists(f"/proc/{pid}")
+    alive = False
+    if pid.isdigit():
+        try:
+            os.kill(int(pid), 0)
+            alive = True
+        except PermissionError:
+            alive = True
+        except ProcessLookupError:
+            pass
     if alive:
         return ""
     for f in lock.iterdir():

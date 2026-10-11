@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from . import paths
 
-# A workshop or module name becomes an image tag and a file name.
+# Workshop and module names identify config files and raw-Compose fallback tags.
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 

@@ -9,7 +9,9 @@
       "match": {
         "source": "shell",
         "cmd": "nmap",
-        "flags": ["-sV"],
+        "flags": [
+          "-sV"
+        ],
         "exit": 0
       }
     },
@@ -22,7 +24,9 @@
       "match": {
         "source": "shell",
         "cmd": "nmap",
-        "flags": ["-p-"],
+        "flags": [
+          "-p-"
+        ],
         "exit": 0
       }
     },

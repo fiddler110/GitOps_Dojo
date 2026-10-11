@@ -405,6 +405,15 @@ class Render(unittest.TestCase):
         c, _ = w.load()
         self.assertIn("2 core milestones (30 points)", render_md.render(c))
 
+    def test_render_without_a_capstone(self):
+        workshop = Workshop()
+        self.addCleanup(workshop.cleanup)
+        catalog, _ = workshop.load()
+        catalog["capstone"] = None
+        text = render_md.render(catalog)
+        self.assertNotIn("## Capstone", text)
+        self.assertIn("capstone 0", text)
+
 
 class Enabled(unittest.TestCase):
     """`"enabled": false`: hidden and inert, out of completion and totals; ids stay."""

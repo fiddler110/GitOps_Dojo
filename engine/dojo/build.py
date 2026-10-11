@@ -25,6 +25,7 @@ Those _shared/ folders are git-ignored and synced exactly (extra files removed).
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -80,6 +81,45 @@ def hash_dir(context: str, salt: str = "") -> str:
         lines.append(f"{salt}\n")
     return hashlib.sha256("".join(lines).encode()).hexdigest()
 
+def build_input_hash(build: Dict[str, object], salt: str = "", aliases: Optional[Dict[str, str]] = None) -> str:
+    """Fingerprint a local Compose build context and its resolved build options."""
+    context = build.get("context")
+    if not isinstance(context, str):
+        raise BuildError("a build context must be a local path to fingerprint")
+    if "://" in context or context.startswith("git@"):
+        raise BuildError(f"cannot fingerprint remote build context {context!r}; use a pinned local context")
+    context_root = Path(context)
+    if not context_root.is_absolute():
+        context_root = paths.ENGINE / context_root
+    if not context_root.is_dir():
+        raise BuildError(f"build context does not exist: {context}")
+    entries = []
+    for path in _files(context):
+        full = paths.ENGINE / path
+        relative = Path(path).relative_to(Path(context)).as_posix()
+        entries.append(f"{hashlib.sha256(full.read_bytes()).hexdigest()}  {relative}\n")
+        if os.stat(full).st_mode & 0o100:
+            entries.append(f"exec {relative}\n")
+    context_hash = hashlib.sha256(("".join(entries) + salt + "\n").encode()).hexdigest()
+    options = dict(build)
+    options.pop("context", None)
+    args = options.get("args")
+    if isinstance(args, dict) and aliases:
+        options["args"] = {key: aliases.get(str(value), value) for key, value in args.items()}
+    serialized = json.dumps(options, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(f"{context_hash}\n{serialized}".encode()).hexdigest()
+
+
+def terminal_input_hashes(links: List[tuple], salt: str = "") -> Dict[str, str]:
+    """Fingerprint terminal layers for normalizing their use as build args."""
+    parent_hash = hashlib.sha256((hash_dir("./web-terminal", salt) + "\n").encode()).hexdigest()
+    hashes = {}
+    for image, context in links:
+        build = {"context": context, "args": {"BASE": parent_hash}}
+        parent_hash = build_input_hash(build, salt)
+        hashes[image] = parent_hash
+    return hashes
+
 
 @dataclass
 class Builder:
@@ -109,6 +149,19 @@ class Builder:
 
     def image_id(self, image: str) -> str:
         return self.rt.out("inspect", "-f", "{{.Id}}", image).strip()
+
+    def image_with_label(self, key: str, value: str) -> str:
+        ids = self.rt.out("images", "--filter", f"label={key}={value}", "--format", "{{.ID}}").split()
+        return next((image_id for image_id in ids if self.label(image_id, key) == value), "")
+
+    def tag_image(self, source: str, target: str) -> None:
+        source_id = self.image_id(source)
+        if source_id and source_id == self.image_id(target):
+            return
+        with self.tracking():
+            res = self.rt.run("tag", source, target)
+        if res.returncode != 0:
+            raise BuildError(f"tagging {source} as {target} failed (exit {res.returncode}).")
 
     def _ids(self, dangling: bool) -> Set[str]:
         return set(self.rt.out("images", "--filter", f"dangling={str(dangling).lower()}", "--format", "{{.ID}}").split())
@@ -162,11 +215,20 @@ class Builder:
 
     # --- builds --------------------------------------------------------------
     def build_if_changed(self, image: str, context: str, extra: Optional[List[str]] = None,
-                         salt_extra: str = "", with_ca: bool = False, quiet: bool = False) -> None:
+                         salt_extra: str = "", with_ca: bool = False, quiet: bool = False,
+                         input_hash: Optional[str] = None) -> None:
         """quiet: the build's output goes to a log file, shown only if it fails."""
-        new_hash = hash_dir(context, self.salt + salt_extra)
+        new_hash = input_hash or hash_dir(context, self.salt + salt_extra)
         if self.label(image, "dojo.src-hash") == new_hash:
             ok(f"{image}: unchanged")
+            return
+        existing = self.image_with_label("dojo.src-hash", new_hash)
+        if existing:
+            if self.dry_run:
+                ok(f"{image}: matching image available, would reuse")
+            else:
+                self.tag_image(existing, image)
+                ok(f"{image}: reused matching image")
             return
         if self.dry_run:
             changed(f"{image}: changed, would build")
@@ -198,23 +260,23 @@ class Builder:
         secs = int(time.time() - start)
         ok(f"{image}: built in {secs // 60}:{secs % 60:02d}")
 
-    def images(self, links: List[tuple]) -> None:
+    def images(self, links: List[tuple], input_hashes: Optional[Dict[str, str]] = None) -> None:
         """The terminal chain and the engine images, built concurrently. Every build
         runs to the end, then the first failure is raised."""
         if self.dry_run:  # nothing builds: keep the report in a stable order
-            self.terminal_chain(links)
+            self.terminal_chain(links, input_hashes)
             for image, context in ENGINE_IMAGES:
                 self.build_if_changed(image, context)
             return
         with ThreadPoolExecutor(max_workers=1 + len(ENGINE_IMAGES)) as pool:
-            jobs = [pool.submit(self.terminal_chain, links)]
+            jobs = [pool.submit(self.terminal_chain, links, input_hashes)]
             jobs += [pool.submit(self.build_if_changed, image, context, quiet=True) for image, context in ENGINE_IMAGES]
             errors = [j.exception() for j in jobs]
         for exc in errors:
             if exc is not None:
                 raise exc
 
-    def terminal_chain(self, links: List[tuple]) -> None:
+    def terminal_chain(self, links: List[tuple], input_hashes: Optional[Dict[str, str]] = None) -> None:
         """:core (the flavor-agnostic root both leaves build from), then each
         (image, context) link built FROM the one before -- the first link is
         always the one flavor leaf (web-terminal-vscode or zellij-terminal)
@@ -229,24 +291,50 @@ class Builder:
                 self.would_build.add(image)
             else:
                 self.build_if_changed(image, context, ["--build-arg", f"BASE={parent}"],
-                                      salt_extra=self.image_id(parent), with_ca=True)
+                                      salt_extra=self.image_id(parent), with_ca=True,
+                                      input_hash=(input_hashes or {}).get(image))
             parent = image
 
     def overlay_if_changed(self, dirs: List[str], state_file, compose_cmd: List[str], env: Dict[str, str],
-                           services: List[str]) -> None:
+                           services: List[str], images: Optional[Dict[str, str]] = None,
+                           hashes: Optional[Dict[str, str]] = None) -> None:
         """The modules' and overlay's own build: blocks (runner-pool, step-ca, ...).
-        No image of our own to label, so one hash over their directories is kept in a
+        Compose labels each stable image alias with its build-input hash; one hash over their directories is kept in a
         state file. web-terminal/allocator/gateway/presentation are left out: Compose's
-        build would overwrite their tags without our label."""
-        new_hash = hashlib.sha256("".join(f"{hash_dir(d, self.salt)}\n" for d in dirs).encode()).hexdigest()
-        if state_file.is_file() and state_file.read_text().strip() == new_hash:
+        build would overwrite their tags without our label.
+
+        images ({service: stable image alias}) and hashes ({service: build input hash})
+        are part of the state. A matching input hash under another pack's alias is
+        re-tagged locally instead of rebuilt."""
+        images = images or {}
+        hashes = hashes or {}
+        tags = "".join(f"{s}={images[s]}:{hashes.get(s, '')}\n" for s in sorted(images))
+        new_hash = hashlib.sha256((tags + "".join(f"{hash_dir(d, self.salt)}\n" for d in dirs)).encode()).hexdigest()
+        missing = {}
+        for service, image in images.items():
+            if self.label(image, "dojo.src-hash") == hashes.get(service):
+                continue
+            source = self.image_with_label("dojo.src-hash", hashes.get(service, "")) if hashes.get(service) else ""
+            if source:
+                if not self.dry_run:
+                    self.tag_image(source, image)
+                continue
+            missing[service] = image
+        unchanged = state_file.is_file() and state_file.read_text().strip() == new_hash
+        if unchanged and not missing:
             ok("overlay images: unchanged")
+            return
+        if not missing:
+            ok("overlay images: reused matching images")
+            if not self.dry_run:
+                state_file.parent.mkdir(exist_ok=True)
+                state_file.write_text(new_hash + "\n")
             return
         if self.dry_run:
             changed("overlay images: changed, would build")
             return
         changed("overlay images: changed, building...")
-        others = [s for s in services if s not in ("web-terminal", "allocator", "gateway", "presentation")]
+        others = list(missing)
         if others:
             with self.tracking():
                 res = subprocess.run([*compose_cmd, "build", *others], cwd=str(paths.ENGINE),

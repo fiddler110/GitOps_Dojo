@@ -16,7 +16,7 @@ class Sandbox(unittest.TestCase):
     """paths.* pointed at a temp checkout holding one workshop `w`."""
 
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp())
+        self.root = Path(tempfile.mkdtemp()).resolve()
         (self.root / "engine").mkdir()
         (self.root / "modules").mkdir()
         (self.root / "workshops" / "w").mkdir(parents=True)

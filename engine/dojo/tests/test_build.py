@@ -16,6 +16,13 @@ from dojo import build, envfiles, paths
 from dojo.build import Builder, hash_dir
 
 
+class Done:
+    """A CompletedProcess stand-in for the compose builds overlay_if_changed shells out to."""
+
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+
+
 class FakeRuntime:
     """Just the image queries build.py makes. images: id -> repo (None = untagged)."""
 
@@ -29,6 +36,12 @@ class FakeRuntime:
 
     def out(self, *args):
         if args[0] == "images":
+            label_filter = next((a for a in args if a.startswith("label=")), None)
+            if label_filter:
+                _, pair = label_filter.split("=", 1)
+                key, value = pair.split("=", 1)
+                return "".join(f"{name}\n" for name, label in self.labels.items()
+                               if label == value and name in self.ids)
             dangling = "dangling=true" in args
             rows = [(i, r) for i, r in self.images.items() if (r is None) == dangling]
             if "{{.ID}} {{.Repository}}" in args:
@@ -40,6 +53,16 @@ class FakeRuntime:
         raise AssertionError(args)
 
     def run(self, *args):
+        if args[0] == "tag":
+            source, target = args[-2:]
+            old_id = self.ids.get(target)
+            new_id = self.ids.get(source, "")
+            if old_id and old_id != new_id:
+                self.images[old_id] = None
+            self.ids[target] = new_id
+            if new_id:
+                self.images[new_id] = "gitopsdojo/sensei"
+            return subprocess.CompletedProcess(args, 0)
         assert args[0] == "rmi", args
         i = args[1]
         if i in self.stuck:
@@ -102,6 +125,29 @@ class HashDir(unittest.TestCase):
         self.assertNotEqual(hash_dir("./ctx", "salt"), hash_dir("./ctx"))
 
 
+class BuildInputHash(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        for name in ("one", "two"):
+            context = self.root / name
+            context.mkdir()
+            (context / "Dockerfile").write_text("FROM scratch\n")
+        pe = mock.patch.object(paths, "ENGINE", self.root)
+        pe.start()
+        self.addCleanup(pe.stop)
+
+    def test_build_argument_changes_the_image_tag(self):
+        first = {"context": "one", "args": {"JOB_TOOLS": "tofu"}}
+        second = {"context": "one", "args": {"JOB_TOOLS": "bao"}}
+        self.assertNotEqual(build.build_input_hash(first), build.build_input_hash(second))
+
+    def test_identical_contexts_in_different_workshop_folders_match(self):
+        first = {"context": "one", "args": {}}
+        second = {"context": "two", "args": {}}
+        self.assertEqual(build.build_input_hash(first), build.build_input_hash(second))
+
+
 class TerminalChain(Quiet):
     LINKS = [("gitopsdojo/web-terminal:w.mod-a", "../modules/mod-a/terminal"),
              ("gitopsdojo/web-terminal:w", "../workshops/w/compose/terminal")]
@@ -142,6 +188,19 @@ class TerminalChain(Quiet):
         with mock.patch.object(build.subprocess, "run") as run:
             self.builder(rt).terminal_chain(self.LINKS)
         run.assert_not_called()
+
+    def test_matching_build_under_another_tag_is_reused(self):
+        for cli in ("docker", "podman"):
+            with self.subTest(cli=cli):
+                rt = FakeRuntime(cli=cli)
+                builder = self.builder(rt)
+                with mock.patch.object(build, "hash_dir", return_value="same-inputs"), \
+                        mock.patch.object(builder, "image_with_label", return_value="shared-id"), \
+                        mock.patch.object(rt, "run", return_value=subprocess.CompletedProcess([], 0)) as tag, \
+                        mock.patch.object(build.subprocess, "run") as build_run:
+                    builder.build_if_changed("gitopsdojo/web-terminal:git-fundamentals", "../workshops/git-fundamentals/compose/terminal")
+                tag.assert_called_once_with("tag", "shared-id", "gitopsdojo/web-terminal:git-fundamentals")
+                build_run.assert_not_called()
 
     def test_dry_run_marks_children_of_a_changed_parent(self):
         rt = FakeRuntime(cli="docker")
@@ -279,6 +338,81 @@ class Superseded(Quiet):
         Builder(rt).reap()
         self.assertEqual(self.recorded(), ["busy"])
         self.assertEqual(rt.removed, ["gone"])
+
+    def test_replacing_a_stable_alias_reaps_its_old_image(self):
+        rt = FakeRuntime(images={"old-id": "gitopsdojo/sensei", "shared-id": "gitopsdojo/sensei"},
+                         labels={"shared-source": "new-inputs"})
+        rt.ids.update({"gitopsdojo/sensei:git-fundamentals": "old-id", "shared-source": "shared-id"})
+        builder = Builder(rt)
+        builder.tag_image("shared-source", "gitopsdojo/sensei:git-fundamentals")
+        self.assertEqual(self.recorded(), ["old-id"])
+        builder.reap()
+        self.assertNotIn("old-id", rt.images)
+        self.assertEqual(rt.ids["gitopsdojo/sensei:git-fundamentals"], "shared-id")
+
+
+class OverlayHash(unittest.TestCase):
+    """overlay_if_changed keeps one hash per pack in a state file. A retag has to
+    land in that hash, or `up` would look for an image nothing ever built."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        pe = mock.patch.object(paths, "ENGINE", self.root)
+        pe.start()
+        self.addCleanup(pe.stop)
+        (self.root / "ovl").mkdir()
+        (self.root / "ovl" / "Dockerfile").write_text("FROM scratch\n")
+        self.state = self.root / "overlay-hash"
+        self.built = []
+        self.runtime = FakeRuntime()
+
+    def run_overlay(self, images, dry_run=False, state=None, hashes=None):
+        hashes = hashes or {service: "same-inputs" for service in images}
+        b = Builder(self.runtime, dry_run=dry_run)
+
+        def compose_build(*args, **kwargs):
+            self.built.append(args[0])
+            for image in images.values():
+                self.runtime.ids[image] = f"id-{image}"
+                self.runtime.labels[image] = hashes["sensei"]
+                self.runtime.labels[f"id-{image}"] = hashes["sensei"]
+            return Done(0)
+
+        with mock.patch.object(build.subprocess, "run",
+                               side_effect=compose_build):
+            b.overlay_if_changed(["./ovl"], state or self.state, ["compose"], {}, ["sensei"], images, hashes)
+
+    def test_matching_inputs_reuse_an_image_under_a_different_stable_alias(self):
+        self.run_overlay({"sensei": "gitopsdojo/sensei:git-fundamentals"})
+        self.assertEqual(len(self.built), 1)
+        self.run_overlay({"sensei": "gitopsdojo/sensei:git-fundamentals"})
+        self.assertEqual(len(self.built), 1)
+        self.run_overlay({"sensei": "gitopsdojo/sensei:tofu-basics"}, state=self.root / "other-state")
+        self.assertEqual(len(self.built), 1)
+        self.assertEqual(self.runtime.ids["gitopsdojo/sensei:tofu-basics"],
+                         self.runtime.ids["gitopsdojo/sensei:git-fundamentals"])
+
+    def test_context_change_still_rebuilds(self):
+        image = "gitopsdojo/sensei:git-fundamentals"
+        self.run_overlay({"sensei": image}, hashes={"sensei": "old-inputs"})
+        (self.root / "ovl" / "Dockerfile").write_text("FROM alpine\n")
+        self.run_overlay({"sensei": image}, hashes={"sensei": "new-inputs"})
+        self.assertEqual(len(self.built), 2)
+
+    def test_dry_run_leaves_the_state_file_alone(self):
+        self.run_overlay({"sensei": "gitopsdojo/sensei:w"}, dry_run=True)
+        self.assertEqual(self.built, [])
+        self.assertFalse(self.state.exists())
+
+    def test_another_workshops_existing_content_tag_is_reused(self):
+        image = "gitopsdojo/sensei:git-fundamentals"
+        self.runtime.ids[image] = "already-built"
+        self.runtime.labels[image] = "same-inputs"
+        other_workshop_state = self.root / "other-overlay-hash"
+        self.run_overlay({"sensei": "gitopsdojo/sensei:tofu-basics"}, state=other_workshop_state)
+        self.assertEqual(self.built, [])
+        self.assertTrue(other_workshop_state.is_file())
 
 
 class Modules(unittest.TestCase):

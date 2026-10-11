@@ -7,11 +7,11 @@ per-workshop engine flag. (If you believe the engine needs a change, ask the mai
 
 ## 1. Decide what kind of pack
 
-| Kind | When | Example |
-|---|---|---|
-| **Content-only** | The default terminal image and Forgejo are enough | `git-fundamentals` |
-| **Content + modules** | A module already provides the services/tools | `tofu-basics` (`dojo-cloud`) |
-| **Content + own infrastructure** | The lab needs a service no module provides | `cert-autorenewal` |
+| Kind                             | When                                              | Example                      |
+| -------------------------------- | ------------------------------------------------- | ---------------------------- |
+| **Content-only**                 | The default terminal image and Forgejo are enough | `git-fundamentals`           |
+| **Content + modules**            | A module already provides the services/tools      | `tofu-basics` (`dojo-cloud`) |
+| **Content + own infrastructure** | The lab needs a service no module provides        | `cert-autorenewal`           |
 
 Reach for the simplest. If a second workshop would want the same extra service, make it a module.
 
@@ -30,23 +30,23 @@ already wired to the shared themes in `workshops/assets/themes/`.
 
 ### Pack anatomy
 
-| Path | Required | What |
-|---|---|---|
-| `workshop.env` | **yes** | Identity and wiring (below) |
-| `README.md` | **yes** | Technical reference: what it teaches, how to run, what is in the folder |
-| `FACILITATOR.md` | **yes** | Run-of-show: before/during/after/troubleshooting; "Honest status" and a timing table |
-| `content/slides/presentation.md` | **yes** | The Marp deck |
-| `content/lab/README.md` | **yes** | Lab overview, seeded into every `~/lab` |
-| `content/sample-repo/` | **yes** | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO` |
-| `content/lab/cheat-sheet.md` | no | Condensed command reference |
-| `compose/docker-compose.override.yml` | no | Extra services, via `COMPOSE_OVERLAY` |
-| `compose/terminal/Dockerfile` | no | Extra tools, found by convention |
-| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | no | Start hooks, per-account setup, student-reset hooks, late-joiner helper |
-| `extensions.json` | no | Cards, `/admin` tabs, routes, status checks (section 4) |
-| `content/bots/steps.sh` | no | Demo-bot steps for this workshop |
-| `achievements/` + `ACHIEVEMENTS.md` | no | Achievement catalog |
-| `sensei/answers.json`, `patterns.json` | no | Pack-specific Sensei answers and error patterns |
-| `tests/` | no | Scripted lab tests |
+| Path                                                              | Required | What                                                                                 |
+| ----------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `workshop.env`                                                    | **yes**  | Identity and wiring (below)                                                          |
+| `README.md`                                                       | **yes**  | Technical reference: what it teaches, how to run, what is in the folder              |
+| `FACILITATOR.md`                                                  | **yes**  | Run-of-show: before/during/after/troubleshooting; "Honest status" and a timing table |
+| `content/slides/presentation.md`                                  | **yes**  | The Marp deck                                                                        |
+| `content/lab/README.md`                                           | **yes**  | Lab overview, seeded into every `~/lab`                                              |
+| `content/sample-repo/`                                            | **yes**  | Seeded into Forgejo as `FORGEJO_ORG/FORGEJO_REPO`                                    |
+| `content/lab/cheat-sheet.md`                                      | no       | Condensed command reference                                                          |
+| `compose/docker-compose.override.yml`                             | no       | Extra services, via `COMPOSE_OVERLAY`                                                |
+| `compose/terminal/Dockerfile`                                     | no       | Extra tools, found by convention                                                     |
+| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | no       | Start hooks, per-account setup, student-reset hooks, late-joiner helper              |
+| `extensions.json`                                                 | no       | Cards, `/admin` tabs, routes, status checks (section 4)                              |
+| `content/bots/steps.sh`                                           | no       | Demo-bot steps for this workshop                                                     |
+| `achievements/` + `ACHIEVEMENTS.md`                               | no       | Achievement catalog                                                                  |
+| `sensei/answers.json`, `patterns.json`                            | no       | Pack-specific Sensei answers and error patterns                                      |
+| `tests/`                                                          | no       | Scripted lab tests                                                                   |
 
 ### `workshop.env`
 
@@ -123,15 +123,15 @@ validates it and renders fixed templates; a manifest never supplies raw Caddy or
 }
 ```
 
-| Key | Fields |
-|---|---|
-| `cards` | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon` ∈ `code terminal git slides rocket cloud key dns` |
-| `admin_tabs` | `id`, `label`, `src` (same-origin); framed in `/admin` |
-| `widgets` | `id`, `src`, `size` (`small`/`medium`/`large`); a page framed above the student's landing cards. Serve it through a `routes` entry |
-| `scripts` | `id`, `src`; loaded by every student page (landing, `/workspace`, slides, lab reader) via `/workspace/extra.js`, passing `data-surface`. Do nothing when running in a same-site frame |
-| `routes` | `id`, `path` (`/name` serves `/name` and `/name/*`), `upstream` (`service:port` in this run), `gate`, `strip_prefix` (default false), `host` (upstream `Host`; `{user}` is the caller's account; not allowed on `shared`) |
-| `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green when it answers 200 |
-| `resets` | `id`, `label` (≤40), `upstream`, `path` (contains `{user}` once), `timeout` (1-120 s, default 30), `optional` (checkbox, off by default) |
+| Key             | Fields                                                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cards`         | `id`, `label` (≤40), `desc` (≤120, optional), `href` (same-origin, starts with `/`), `icon` ∈ `code terminal git slides rocket cloud key dns`                                                                             |
+| `admin_tabs`    | `id`, `label`, `src` (same-origin); framed in `/admin`                                                                                                                                                                    |
+| `widgets`       | `id`, `src`, `size` (`small`/`medium`/`large`); a page framed above the student's landing cards. Serve it through a `routes` entry                                                                                        |
+| `scripts`       | `id`, `src`; loaded by every student page (landing, `/workspace`, slides, lab reader) via `/workspace/extra.js`, passing `data-surface`. Do nothing when running in a same-site frame                                     |
+| `routes`        | `id`, `path` (`/name` serves `/name` and `/name/*`), `upstream` (`service:port` in this run), `gate`, `strip_prefix` (default false), `host` (upstream `Host`; `{user}` is the caller's account; not allowed on `shared`) |
+| `status_checks` | `label`, `url` (`http(s)://service[:port]/path`); green when it answers 200                                                                                                                                               |
+| `resets`        | `id`, `label` (≤40), `upstream`, `path` (contains `{user}` once), `timeout` (1-120 s, default 30), `optional` (checkbox, off by default)                                                                                  |
 
 **Gates**: `shared` (anyone past the class login, no identity forwarded), `identity` (a slot holder or the facilitator),
 `facilitator` (facilitator only). For the last two the upstream receives `X-Auth-User` and its own `X-Gateway-Token`.
@@ -160,6 +160,11 @@ Only if no module provides it.
 **Extra services** (`compose/docker-compose.override.yml`):
 
 - Do **not** set `image:` on `web-terminal`; `dojo` passes the final terminal image as `WEB_TERMINAL_IMAGE`.
+- Give every locally built service a stable image family such as `gitopsdojo/<name>:${WORKSHOP_SLUG:-local}`.
+  `dojo` keeps that tag and labels the built image with a fingerprint of the resolved context and build options.
+  Matching builds across packs reuse the same image ID under their respective stable tags; changed inputs replace
+  the existing tag and the displaced image is cleaned up after the stack starts. Keep the source `image:` family
+  stable across workshops; `WORKSHOP_SLUG` remains the fallback for raw Compose use outside `dojo`.
 - On engine services use the **list form** of `networks:` and list only what you add (lists append). Mixing list and
   map fails at `up` under podman-compose. `web-terminal` is the exception: it uses map form, so add `net: {}`.
 - **Name every volume**, including paths an image declares as `VOLUME`, or `./dojo stop` leaves one behind. Check with
@@ -219,13 +224,13 @@ on failure (the runner retries with backoff). For fork workshops set `FORGEJO_FO
 
 ### Checking a pack
 
-| Check | Command |
-|---|---|
-| Static (no start) | `./dojo <name> --dry-run`: manifests, pins, compose, achievements catalog |
-| Fast bots | `./dojo <name> --test 3 --fast`, wait for `~/.dojo-bot-done` markers (not log settling) |
-| Bot smoke test | `workshops/assets/smoke.sh <name> [--bots N] [--split each]`: runs the fast bots, then checks the achievements ledger (`fired.py`) for missing core milestones |
-| Re-run one lab | `workshops/assets/retest.sh <name> <lab> [--only | --to LAST]` |
-| Slide overflow | `workshops/assets/slide-overflow.sh <name>` |
+| Check              | Command                                                                                                                                                                                                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static (no start)  | `./dojo <name> --dry-run`: manifests, pins, compose, achievements catalog                                                                                                                                                                                                               |
+| Fast bots          | `./dojo <name> --test 3 --fast`, wait for `~/.dojo-bot-done` markers (not log settling)                                                                                                                                                                                                 |
+| Bot smoke test     | `workshops/assets/smoke.sh <name> [--bots N] [--split each]`: runs the fast bots, then checks the achievements ledger (`fired.py`) for missing core milestones                                                                                                                          |
+| Re-run one lab     | `workshops/assets/retest.sh <name> <lab> [--only                                                                                                                                                                                                                                        | --to LAST]` |
+| Slide overflow     | `workshops/assets/slide-overflow.sh <name>`                                                                                                                                                                                                                                             |
 | Scripted lab tests | `tests/lab_N.sh` sourcing `workshops/assets/test-lib.sh` (helpers `as`, `ok`, `has`, `lacks`, `denied`, `check`, `absent`, `api`, `job_logs`, `new_logs`, `md_blocks`, `md_line`, `md_range`; end with `finish`). `sh workshops/assets/test-lib-selftest.sh` checks the library offline |
 
 Always use the **fast** bots for checks; plain `--test` is for demos. Stop the stack when you are done testing.

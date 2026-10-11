@@ -1,7 +1,10 @@
 """A workshop's Compose files and services."""
 from __future__ import annotations
 
+import json
 import re
+import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -68,13 +71,87 @@ def parse_mem_limits(config: str) -> Tuple[Dict[str, Optional[int]], List[str]]:
     return limits, oneshot
 
 
-def mem_limits(rt: Runtime, files: List[str], env: Dict[str, str]) -> Tuple[Dict[str, Optional[int]], List[str]]:
-    """This stack's services' memory limits (see parse_mem_limits); raises with Compose's message."""
+def parse_build_specs(config: Dict[str, object]) -> Dict[str, Dict[str, object]]:
+    """Return each Compose-built service's resolved image and build options."""
+    services_config = config.get("services", {})
+    if not isinstance(services_config, dict):
+        raise ValueError("Compose config has no services mapping")
+    found = {}
+    for name, service in services_config.items():
+        if not isinstance(service, dict) or not isinstance(service.get("build"), dict):
+            continue
+        image = service.get("image") or f"engine_{name}"
+        found[name] = {"image": image, "build": service["build"]}
+    return found
+
+
+def parse_service_images(config: Dict[str, object]) -> Dict[str, str]:
+    """Return resolved image references, including Compose's default names."""
+    services_config = config.get("services", {})
+    if not isinstance(services_config, dict):
+        raise ValueError("Compose config has no services mapping")
+    return {name: service.get("image") or f"engine_{name}"
+            for name, service in services_config.items() if isinstance(service, dict)}
+
+
+def render_image_override(images: Dict[str, str], hashes: Dict[str, str]) -> str:
+    """Render stable image aliases and content labels for Compose builds."""
+    rows = ["services:"]
+    for service, image in sorted(images.items()):
+        rows.extend((f"  {json.dumps(service)}:", f"    image: {json.dumps(image)}",
+                     "    build:", "      labels:", f"        dojo.src-hash: {json.dumps(hashes[service])}"))
+    return "\n".join(rows) + "\n"
+
+
+def config_document(rt: Runtime, files: List[str], env: Dict[str, str]) -> Dict[str, object]:
+    """Return Compose's resolved config as structured data."""
+    command = [*rt.compose_cmd, *compose_args(files), "config"]
+    docker_compose = (len(rt.compose_cmd) > 1 and Path(rt.compose_cmd[0]).name == "docker"
+                      and rt.compose_cmd[1] == "compose")
+    if docker_compose:
+        command += ["--format", "json"]
+    res = subprocess.run(command, cwd=str(paths.ENGINE), env=env, capture_output=True,
+                         text=True, timeout=120)
+    if res.returncode != 0:
+        raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
+    if docker_compose:
+        return json.loads(res.stdout)
+    try:
+        import yaml
+        return yaml.safe_load(res.stdout)
+    except ImportError:
+        executable = shutil.which(rt.compose_cmd[0])
+        if not executable:
+            raise RuntimeError("could not locate the Compose provider to parse its YAML config")
+        with open(executable, "rb") as provider:
+            shebang = provider.readline().decode("utf-8", errors="replace").strip()
+        interpreter = shlex.split(shebang[2:]) if shebang.startswith("#!") else []
+        if interpreter and Path(interpreter[0]).name == "env":
+            interpreter = interpreter[2:] if len(interpreter) > 1 and interpreter[1] == "-S" else interpreter[1:]
+            if interpreter:
+                interpreter[0] = shutil.which(interpreter[0]) or ""
+        if not interpreter or not interpreter[0] or "python" not in Path(interpreter[0]).name.lower():
+            raise RuntimeError("podman-compose's Python interpreter is unavailable to parse its YAML config")
+        script = "import json,sys,yaml; sys.stdout.write(json.dumps(yaml.safe_load(sys.stdin.read())))"
+        parsed = subprocess.run([interpreter[0], "-c", script], input=res.stdout,
+                                capture_output=True, text=True, timeout=30)
+        if parsed.returncode != 0:
+            raise RuntimeError((parsed.stderr or "could not parse podman-compose config").strip())
+        return json.loads(parsed.stdout)
+
+
+def config_yaml(rt: Runtime, files: List[str], env: Dict[str, str]) -> str:
+    """The merged Compose config, or a RuntimeError with Compose's own message."""
     res = subprocess.run([*rt.compose_cmd, *compose_args(files), "config"],
                          cwd=str(paths.ENGINE), env=env, capture_output=True, text=True, timeout=120)
     if res.returncode != 0:
         raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
-    return parse_mem_limits(res.stdout)
+    return res.stdout
+
+
+def mem_limits(rt: Runtime, files: List[str], env: Dict[str, str]) -> Tuple[Dict[str, Optional[int]], List[str]]:
+    """This stack's services' memory limits (see parse_mem_limits); raises with Compose's message."""
+    return parse_mem_limits(config_yaml(rt, files, env))
 
 
 def read_state(path: Path) -> str:

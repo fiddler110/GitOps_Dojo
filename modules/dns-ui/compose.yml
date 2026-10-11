@@ -22,7 +22,7 @@ services:
   zone-viewer:
     build:
       context: ../modules/dns-ui/zone-viewer
-    image: gitopsdojo/zone-viewer:local
+    image: gitopsdojo/zone-viewer:${WORKSHOP_SLUG:-local}
     container_name: workshop_zone_viewer
     init: true
     depends_on:
@@ -47,7 +47,7 @@ services:
   dns-admin:
     build:
       context: ../modules/dns-ui/dns-admin
-    image: gitopsdojo/dns-admin:local
+    image: gitopsdojo/dns-admin:${WORKSHOP_SLUG:-local}
     container_name: workshop_dns_admin
     init: true
     depends_on:

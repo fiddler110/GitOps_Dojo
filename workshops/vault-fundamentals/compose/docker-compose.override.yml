@@ -28,7 +28,6 @@ services:
       - runner_net
 
   runner-pool:
-    image: gitopsdojo/runner-pool:vault-fundamentals
     build:
       args:
         JOB_TOOLS: "bao sops"
@@ -37,7 +36,7 @@ services:
   # runner_net; apps reach OpenBao and app-db, and the gateway reaches the
   # /apps page, over workshop_lab.
   app-host:
-    image: gitopsdojo/app-host:vault-fundamentals
+    image: gitopsdojo/app-host:${WORKSHOP_SLUG:-local}
     build:
       context: ../workshops/vault-fundamentals/compose/app-host
       args:
