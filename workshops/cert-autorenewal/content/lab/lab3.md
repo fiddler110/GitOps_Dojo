@@ -92,12 +92,23 @@ Next: [lab4.md](lab4.md), automating renewal.
 Give a second name, `shop.$USER.certs.dojo.test`, its own trusted certificate, with either tool, and leave your
 first site alone. The name already points at the demo site; the vhost is yours to write.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c1`: it makes your own repo `$USER/cert-shop` and
-clones it to `~/lab/cert-shop`, with a brief and starter files. The goal is printed there, with your own names in it.
-When you think it's done, push your files and run `dojo-check c1`. A wrong answer costs nothing;
-`dojo-check hint c1` gives a hint for part of the points, and `dojo-challenge reset c1` starts the repo over.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c1
+cd ~/lab/cert-shop
+```
+
+That makes your own repo `$USER/cert-shop` and clones it to `~/lab/cert-shop`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+
+```sh
+dojo-check c1
+```
+
 Keep keys out of the repo: the check looks through its whole history for a private key.
+
+A wrong answer costs nothing. `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c1 -->
 
@@ -110,11 +121,22 @@ CA, and turn everyone else away. Until now only the server proved who it was; he
 services talk to each other without passwords. Any fresh certificate from the lab CA doubles as the client
 certificate to test with.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c3`: it makes your own repo `$USER/cert-members` and
-clones it to `~/lab/cert-members`, with a brief and starter files. The goal is printed there, with your own names in
-it. When you think it's done, push your files and run `dojo-check c3`. A wrong answer costs nothing;
-`dojo-check hint c3` gives a hint for part of the points, and `dojo-challenge reset c3` starts the repo over.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c3
+cd ~/lab/cert-members
+```
+
+That makes your own repo `$USER/cert-members` and clones it to `~/lab/cert-members`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+
+```sh
+dojo-check c3
+```
+
 Keep keys out of the repo: the check looks through its whole history for a private key.
+
+A wrong answer costs nothing. `dojo-check hint c3` gives a hint for part of the points, and
+`dojo-challenge reset c3` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c3 -->

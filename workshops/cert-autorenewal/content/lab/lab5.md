@@ -143,11 +143,22 @@ under your name), with renewal that covers both. Then make HTTPS the only way in
 good, and HTTPS tells browsers never to try plain HTTP again (HSTS). `api` also sends two headers from the slides'
 bonus wall: `X-Content-Type-Options: nosniff` and a `Content-Security-Policy`.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/cert-heist` and
-clones it to `~/lab/cert-heist`, with a brief and starter files. The goal is printed there, with your own names in it.
-When you think it's done, push your files and run `dojo-check capstone`. A wrong answer costs nothing;
-`dojo-check hint capstone` gives a hint for part of the points, and `dojo-challenge reset capstone` starts the repo over.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start capstone
+cd ~/lab/cert-heist
+```
+
+That makes your own repo `$USER/cert-heist` and clones it to `~/lab/cert-heist`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+
+```sh
+dojo-check capstone
+```
+
 Keep keys out of the repo: the check looks through its whole history for a private key.
+
+A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: capstone -->

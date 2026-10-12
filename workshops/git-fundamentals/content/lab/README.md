@@ -41,7 +41,7 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `c2` | The Detective | end of [Lab 4](lab4.md) |
 | `capstone` | The Great Merge | end of [Lab 5](lab5.md) |
 
-Start one from its box in the lab or with `dojo-challenge start <id>`, and check it with `dojo-check <id>`. A wrong
+Start one in the terminal with `dojo-challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo-check <id>`. A wrong
 answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
 with what each is worth.
 

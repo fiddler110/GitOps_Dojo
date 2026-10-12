@@ -130,11 +130,22 @@ Keep your site's certificate valid for 20 minutes straight without touching it. 
 run `dojo-check c2` once: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
 renewals and no gap.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/cert-fuse` and
-clones it to `~/lab/cert-fuse`, with a brief and starter files. The goal is printed there, with your own names in it.
-When you think it's done, push your files and run `dojo-check c2`. A wrong answer costs nothing;
-`dojo-check hint c2` gives a hint for part of the points, and `dojo-challenge reset c2` starts the repo over.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c2
+cd ~/lab/cert-fuse
+```
+
+That makes your own repo `$USER/cert-fuse` and clones it to `~/lab/cert-fuse`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+
+```sh
+dojo-check c2
+```
+
 Keep keys out of the repo: the check looks through its whole history for a private key.
+
+A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c2 -->

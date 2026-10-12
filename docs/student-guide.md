@@ -114,8 +114,8 @@ In some workshops Sensei acts as a friendly reviewer:
 
 - Points for milestones, a leaderboard on the landing page, and "achievement unlocked" toasts in the browser and
   terminal. Some are jokes. Nothing you type is stored; only whether a milestone was reached.
-- End-of-lab **challenges** give a goal and no steps, in a space of your own. Start one with the button at the end of
-  the lab (or `dojo-challenge start c1`), check it with `dojo-check c1`, and use `dojo-check hint c1` if you need a
+- End-of-lab **challenges** give a goal and no steps, in a space of your own. Start one in the terminal with
+  `dojo-challenge start c1` (it builds your repo and clones it into `~/lab`), check it with `dojo-check c1`, and use `dojo-check hint c1` if you need a
   hint (hints cost points). Challenges are bonus points; they never count against finishing the workshop.
 - Do not try to tamper with the scoring client or forge events. It costs points and is part of the joke.
 

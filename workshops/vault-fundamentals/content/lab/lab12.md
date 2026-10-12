@@ -151,10 +151,20 @@ unset BAO_NAMESPACE PGPASSWORD OTHER
 
 Database logins that last 2 minutes and never more than 10 in total, on a new role `c2-app`, and one login from it.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-lease` and
-clones it to `~/lab/challenge-lease`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` starts you over from a fresh copy.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c2
+cd ~/lab/challenge-lease
+```
+
+That makes your own repo `$USER/challenge-lease` and clones it to `~/lab/challenge-lease`, and prints the goal, with your own names in it. When you think it's done:
+
+```sh
+dojo-check c2
+```
+
+A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c2 -->

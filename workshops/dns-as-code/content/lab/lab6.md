@@ -152,10 +152,20 @@ You've now covered DNS as code in your own zone (Labs 1-2), the change process o
 Someone pushed one good record and one bad one in the same commit. Keep the good one, drop the bad one, and don't
 rewrite history. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/challenge-badpush` and
-clones it to `~/lab/challenge-badpush`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check capstone`. A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
-`dojo-challenge reset capstone` starts you over from a fresh copy.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start capstone
+cd ~/lab/challenge-badpush
+```
+
+That makes your own repo `$USER/challenge-badpush` and clones it to `~/lab/challenge-badpush`, and prints the goal, with your own names in it. When you think it's done:
+
+```sh
+dojo-check capstone
+```
+
+A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: capstone -->
