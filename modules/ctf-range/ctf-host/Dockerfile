@@ -173,7 +173,7 @@ RUN set -eux; \
 COPY targets/dns-resolver-cve/agent.c /tmp/agent.c
 RUN set -eux; \
     /opt/x86-64--uclibc--stable-2021.11-5/bin/x86_64-buildroot-linux-uclibc-gcc \
-    -static -O2 -s -o /agent /tmp/agent.c; \
+      -static -O2 -s -o /agent /tmp/agent.c; \
     test -s /agent && head -c 4 /agent | od -An -tx1 | grep -q '7f 45 4c 46'
 
 # dns-resolver-cve runtime rootfs: python:3.12-slim + Flask + the static
@@ -236,15 +236,15 @@ RUN chmod 0755 /app/agent \
 #     runs), `docker image load` dropped from ~58s to ~6-17s for this one
 #     image — the fetch below only ever touches amd64 bytes, so the
 #     student-facing ~3min startup cost shrinks accordingly.
-FROM quay.io/skopeo/stable@sha256:e5d5d2815b94d74767d40be7111647c3e9cdc84406a638ffe1c7ea1f286f52a3 AS base-image-fetch
+FROM quay.io/skopeo/stable@sha256:dcb473551681437c514d5eabd9d01f7f69d5be1218d36b9be3ad1a40e5add9e4 AS base-image-fetch
 RUN set -eux; \
     mkdir -p /tmp/idx-only /tmp/amd64-only /out/merged/blobs/sha256; \
     skopeo copy --multi-arch index-only \
-    docker://docker.io/library/python@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d \
-    oci:/tmp/idx-only:docker.io/library/python:3.12-slim; \
+      docker://docker.io/library/python@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d \
+      oci:/tmp/idx-only:docker.io/library/python:3.12-slim; \
     skopeo copy --multi-arch system \
-    docker://docker.io/library/python@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d \
-    oci:/tmp/amd64-only:docker.io/library/python:3.12-slim; \
+      docker://docker.io/library/python@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d \
+      oci:/tmp/amd64-only:docker.io/library/python:3.12-slim; \
     cp /tmp/idx-only/index.json /tmp/idx-only/oci-layout /out/merged/; \
     cp /tmp/idx-only/blobs/sha256/* /tmp/amd64-only/blobs/sha256/* /out/merged/blobs/sha256/; \
     tar -C /out/merged -cf /out/python-3.12-slim.tar .
