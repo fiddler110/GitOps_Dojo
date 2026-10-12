@@ -1,4 +1,4 @@
-"""`./dojo stop` (also `teardown`): stop the stack and delete every volume.
+"""`./dojo stop` (also `down`, `teardown`): stop the stack and delete every volume.
 
 Uses the same -f files the last start used (state.Current), so module and
 overlay services and volumes go too; `down --remove-orphans` catches anything
