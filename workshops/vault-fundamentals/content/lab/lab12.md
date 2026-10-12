@@ -84,6 +84,8 @@ If nobody renews it, the same happens by itself when the lease runs out. A login
 
 ## 5. The app gets its own
 
+**Starting here?** Steps 1 to 4 need nothing from earlier labs: your database and its connection are already set up. This step works on the app you deployed in [Lab 11](lab11.md): its `app/agent.hcl`, its `jwt-platform` role and your fork in `~/lab/vault-fundamentals`. Without them, do Lab 11 first, or stop after step 4.
+
 Your app on `app-host` (Lab 11) can ask for a login the same way. Make a policy that may read `database/creds/app`, and rewrite the app's role from Lab 11 with it added (`token_policies=app-read,db-app`):
 
 ```bash

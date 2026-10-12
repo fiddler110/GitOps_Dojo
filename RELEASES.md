@@ -7,6 +7,13 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## vault-fundamentals: late-joiner note instead of a lab-prep (2026-10-12, `docs/vault-lab12-standalone`)
+
+The audit flagged the pack for having no `lab-prep` like the other packs. Reading the labs showed it does not need one:
+Labs 6, 9, 10, 11 and 13 open with a catch-up block that makes what they need, and Labs 0-5, 7, 8 make their own
+state. The one real gap was Lab 12 step 5, which uses the app deployed in Lab 11 and did not say so; it now has a
+"Starting here?" note, and the lab README says which parts depend on a lab you really did.
+
 ## git-fundamentals bots solve the challenges (2026-10-12, `feat/git-fundamentals-bots`)
 
 `workshops/git-fundamentals/content/bots/steps.sh` keeps the engine's default Labs 1-5 steps and adds `c1`, `c2` and the

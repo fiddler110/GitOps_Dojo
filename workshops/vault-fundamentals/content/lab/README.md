@@ -52,7 +52,7 @@ Only have the plain **Terminal** tab? Use `nano <file>` instead: paste with **Ct
 | [lab12.md](lab12.md) | Dynamic database credentials: logins made on demand, leases, renew, revoke | ~15 min | 6: Secrets in deployments |
 | [lab13.md](lab13.md) | Incident drill: a leaked token, the audit trail, revoke the tree, rotate, recover | ~15 min | 6: Secrets in deployments |
 
-Do them in order. Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
+Do them in order. If you join late or skip one, every lab opens with a catch-up block that makes what it needs (Labs 6, 9, 10, 11 and 13), or says it needs nothing (Lab 4). Two parts depend on a lab you really did: Lab 12, step 5, and Lab 13, step 7, both use the app you deployed to `app-host` in Lab 11. Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
 
 Open any lab file with:
 
