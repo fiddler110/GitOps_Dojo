@@ -118,7 +118,7 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 | Step | Work |
 |---|---|
 | 1 | Class-sized run: 40-student capacity and isolation, the swarm with real dwell and ramp times, the Target Viewer card as a student |
-| 2 | Unbuilt design items: `CTF_WALL_OF_SHAME` toggle and route, bonus second flaws for targets 8-11, end-of-session scoring (CTF-D19), plan open questions 1-3 |
+| 2 | Unbuilt design items: bonus second flaws for targets 8-11, end-of-session scoring summary (CTF-D19), plan open questions 1-3 |
 
 ### N3 9.4: class-sized run
 

@@ -77,21 +77,18 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
 
 1. **Verified live 2026-10-12, locally:** `./dojo ctf-defend --test 3 --fast` after the fixes above: 20 services
    healthy, three `~/.dojo-bot-done` markers, `./dojo logs --errors` clean, `./dojo stop` removed everything,
-   `./dojo validate` clean for all packs. **Not exercised in that run:** the attack swarm (nobody clicked Start
-   Attack Swarm), so the SIEM student view, the facilitator SOC, `CTF_SIEM_DETAIL=paths|off` and
-   `CTF_BONUS_FLAWS=off` are still unchecked live, and so are the checks below. The full unit suite last passed on
-   the tag-consolidation branch before the three fixes; those touch only a Dockerfile, a compose fragment and
-   `workshop.env`.
-2. **Live test still owed (needs a stack):** `./dojo ctf-defend --test 3 --fast`, wait for the markers
-   (`podman exec workshop_terminal ls /home/*/.dojo-bot-done`), click Start Attack Swarm as the facilitator on `/admin`
-   (the `soc-alerts` tab), wait about 2 minutes (1/10 clock), then check the SIEM student view (banner, own log only,
-   spoilers locked until red; log in as a real student such as `student01`, not the class login `student`), the
-   facilitator SOC, `CTF_SIEM_DETAIL=paths` and `off`, and `CTF_BONUS_FLAWS=off ./dojo ctf-defend --test 3 --fast`
-   (no bonus probes or CI step, no `c1`). Then `./dojo stop`.
+   `./dojo validate` clean for all packs. The full unit suite last passed on the tag-consolidation branch before the
+   three fixes; those touch only a Dockerfile, a compose fragment and `workshop.env`.
+2. **Swarm and SIEM live test passed 2026-10-12, locally:** Start Attack Swarm (`POST /achievements-admin/api/soc/start`,
+   class logins `admin`/`admin` and `student`/`student` under `--test`) ran green, yellow, red with about 130 alerts.
+   A student saw only their own persona's rows; `CTF_SIEM_DETAIL=paths` and `off` stripped detail for students and
+   not for the facilitator; `CTF_BONUS_FLAWS=off` gave a clean seed repo; logs clean. Small observation: after a
+   restart of `achievements` alone the SOC timer resets to "waiting" while the stored rows stay and `unlocked` is
+   still true.
 3. **Never live-tested:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy, WSL
    always shows private so it falls back), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
    `status --watch`, `CTF_TIME_SCALE=1` full-length run, 40-student class run, and a build of the other CTF packs
-   under the new tag scheme (only `ctf-defend` was started).
+   under the new tag scheme (only `ctf-defend` was started; being checked next).
 4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
    repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
    `targets/customer-portal` and always stores cleartext passwords, so with the bonus off the live dump still shows
@@ -99,10 +96,8 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    is still reachable when the wall toggle is off; (d) wall rows carry no dumped-record payload; (e) the bonus
    appears as a challenge titled "Second Look" when on; (f) the pre-breach `full` SIEM detail equals `paths`, and
    bonus-path probes are synthetic 404s whatever the real app answers.
-5. **Housekeeping still owed:** `RELEASES.md` has no entry yet for the wall, bonus flaw, scoring, one-page SOC, SIEM
-   view or the new CLI commands, and `ROADMAP.md` (the "Unbuilt design items" row near line 121) still lists the wall
-   toggle and route as unbuilt. Do both once item 2 passes. (The stale "not yet merged" headings in `RELEASES.md` were
-   fixed 2026-10-12.)
+5. **Housekeeping done 2026-10-12:** `RELEASES.md` has an entry for the wall, bonus flaw, scoring, one-page SOC,
+   SIEM view and the new CLI commands, and the `ROADMAP.md` row no longer lists the wall toggle as unbuilt.
 6. **Observed live:** breach rows only appear at most once per 15s x scale per student; the student bots in
    `ctf-defend` do not open fix PRs, so a bot run only exercises the attack side (a PR was driven by hand for the CI
    path).

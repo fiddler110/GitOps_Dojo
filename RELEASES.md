@@ -7,6 +7,40 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## CTF-5 defend: wall, bonus flaw, scoring, one-page SOC and student SIEM (merged 2026-10-10, PR #23)
+
+**`ctf-defend` gains the pieces that make the swarm worth defending against.** All of it is in
+`modules/ctf-range`, `modules/achievements` and `workshops/ctf-defend`; none of it touches `engine/`.
+
+- **Wall of shame:** `/ctf-wall` on `ctf-controller`, behind `CTF_WALL_OF_SHAME` (module default off, `ctf-defend`
+  on), with its own identity-gated route and a facilitator tab.
+- **Bonus second flaw (`customer-portal` only):** cleartext password storage, behind `CTF_BONUS_FLAWS` (default on).
+  Off gives a clean seed repo, no bonus CI step, no `c1` challenge, and bots skip data-at-rest probes. A "Gate
+  premise" CI step stops a hashing-only fix passing the main gate.
+- **Scoring:** green 10 / yellow 5 / red 0 (x`CTF_SCORE_FACTOR`), plus 5 for the bonus only after the main gate is
+  green. First-blood and class-clear are off for `ctf-defend` so the arithmetic is exact.
+- **One-page SOC** (`/achievements/soc`): map, alerts and incident summary on one screen, with an offline Natural
+  Earth map and a Canada inset; `/map` and `/incident` redirect. Attacker origins are country codes; student regions
+  come from the forwarded client IP through an optional offline DB-IP database (`fetch_geoip.sh`), falling back to
+  `CTF_HOME_REGION`. Raw IPs are never stored.
+- **Student SIEM request log:** each student sees only their own target's log lines (time, country, method,
+  path?query, status, bytes, detection tag), expandable to JSON, with `CTF_SIEM_DETAIL=full|paths|off`. Payload, size
+  and JSON stay locked until that student's own target is red, enforced server-side.
+- **Test clock:** `--test` sets `CTF_TIME_SCALE=0.1`; override with `CTF_TIME_SCALE=1`.
+- **Attack Range tab** moved from the `ctf-range` module into the four attack packs' manifests, so `ctf-defend` has no
+  dead tab (it has a "Range Controller" status check instead).
+- **New `./dojo` commands:** `test`, `exec`/`shell`, `urls`, `open`, `wait`, `version`, `roster`, `reset-student`,
+  `export-results`, `backup`/`restore`, `prune`, `validate`, `doctor --fix`, `status --watch`, `logs --all/--since/
+  --grep/--errors`, and `--json` on list/modules/doctor (see `docs/cli-reference.md`).
+
+Verified locally on 2026-10-12 with `./dojo ctf-defend --test 3 --fast`, Start Attack Swarm clicked as facilitator:
+the clock ran green, yellow, red and produced about 130 alerts; the facilitator SOC listed every student's rows at full
+detail; a student saw only their own persona's rows (`unlocked` true at red). `CTF_SIEM_DETAIL=paths` dropped query,
+user-agent and byte counts from the student rows, `off` kept only time, event, severity and origin, and the
+facilitator kept full detail in both. `CTF_BONUS_FLAWS=off` gave student repos the hashed-password code (no overlay),
+`./dojo logs --errors` was clean and `./dojo stop` removed everything. Not exercised: a real student opening a fix PR
+under this run (checked by hand earlier), the geo database path, `CTF_TIME_SCALE=1`, and a class-sized run.
+
 ## Stable image tags with input reuse (2026-10-11)
 
 Compose keeps its stable workshop tags, e.g. `gitopsdojo/web-terminal:git-fundamentals`. `dojo` fingerprints each
