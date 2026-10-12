@@ -87,8 +87,8 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    still true.
 3. **Never live-tested:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy, WSL
    always shows private so it falls back), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
-   `status --watch`, `CTF_TIME_SCALE=1` full-length run, 40-student class run, and a build of the other CTF packs
-   under the new tag scheme (only `ctf-defend` was started; being checked next).
+   `status --watch`, `CTF_TIME_SCALE=1` full-length run, 40-student class run, (the other four CTF packs were started under
+   the new tag scheme on 2026-10-12, see item 7).
 4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
    repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
    `targets/customer-portal` and always stores cleartext passwords, so with the bonus off the live dump still shows
@@ -101,6 +101,12 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
 6. **Observed live:** breach rows only appear at most once per 15s x scale per student; the student bots in
    `ctf-defend` do not open fix PRs, so a bot run only exercises the attack side (a PR was driven by hand for the CI
    path).
+7. **Other four packs started 2026-10-12, locally** (`--test 2 --fast`, one at a time, each stopped after): `ctf-access`
+   15/15 healthy, `ctf-server-trust` 15/15, `ctf-secrets-config` 21/21, `ctf-trust-chain` 19/19; every pack got both
+   bot-done markers. Logs were clean except `ctf-secrets-config`: `openbao-server` logged 5 x `[ERROR] core: failed to
+   audit response: request_path=auth/token/lookup-self` in one second. Not investigated (the stack was already
+   stopped); a rerun with `./dojo logs openbao-server --grep audit` would show whether it is the start-up race or a
+   real audit-file permission problem.
 
 **Open, in order:**
 
