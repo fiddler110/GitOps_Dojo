@@ -27,12 +27,18 @@ You'll meet each one when you need it, and the "Your turn" steps expect you to p
 
 Every "undo" in git is really "copy this file from one place to another", so first know the places:
 
-```text
-  working tree          index (staging area)         HEAD (last commit)
-  the files you    -->  what the NEXT commit    -->  what the branch
-  actually edit         will contain                 already contains
-        git add               git commit
+```mermaid
+flowchart LR
+  WT["<b>Working tree</b><br/>the files you actually edit"]
+  IX["<b>Index (staging area)</b><br/>what the next commit will contain"]
+  HD["<b>HEAD</b><br/>what the branch already contains"]
+  WT -->|"git add"| IX
+  IX -->|"git commit"| HD
+  HD -.->|"git restore --staged"| IX
+  IX -.->|"git restore"| WT
 ```
+
+Solid arrows move work forward. Dotted arrows are the two ways of stepping back, which is what the rest of this lab is about.
 
 - The **working tree** is the files on disk, the ones your editor opens.
 - The **index** (also called the staging area) is a draft of your next commit. `git add` copies a file from the working tree into it.
