@@ -37,7 +37,9 @@ services:
   # facilitator presses "Start Attack Swarm" on the SOC admin tab.
   attacker-bot:
     build:
-      context: ../modules/ctf-range
+      # Absolute when the achievements overlay `extends:` this file (Compose then resolves relative
+      # paths against this folder, not engine/); workshop.env sets CTF_RANGE_CONTEXT in that case.
+      context: ${CTF_RANGE_CONTEXT:-../modules/ctf-range}
       dockerfile: attacker-bot/Dockerfile
     image: gitopsdojo/ctf-attacker-bot:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_attacker_bot
