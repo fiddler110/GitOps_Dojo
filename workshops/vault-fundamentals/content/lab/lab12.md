@@ -145,6 +145,8 @@ unset BAO_NAMESPACE PGPASSWORD OTHER
 
 **Rules used:** 3 (short-lived and revocable), 2 (the app's identity, not a password), 1 (one database, read and insert only), 7 (revoke is a normal operation), 6 (every login is its own name in the database's logs).
 
+**Next:** [lab13.md](lab13.md): an incident drill, a token leaked and you have to say what it did.
+
 ---
 
 ## Challenge c2: The Right Lease (bonus)

@@ -13,7 +13,10 @@ All 16 challenge and capstone sections in `git-fundamentals`, `dns-as-code`, `ce
 `vault-fundamentals` now lead with `dojo-challenge start <id>` and `cd ~/lab/<folder>`, then `dojo-check <id>`, then
 hint and reset, in one shape. The lab's Start box only built the repo on Forgejo and the student still had to run the
 command to clone it, so the text no longer offers the two as alternatives. Pack READMEs and the student guide match.
-Dry runs pass for all five packs; not yet run on a live stack.
+`cloud-policy-as-code` had `c1`, `c2` and the capstone in its catalog but no lab section or box, so students were never
+told about them; `lab5.md`, `lab8.md` and `capstone.md` now carry them, with a table in the lab README. The four CTF lab
+READMEs linked a `cheat-sheet.md` the lab reader cannot serve; they point at `/slides/cheat-sheet.md`. `vault-fundamentals`
+`lab12.md` gains its missing pointer to Lab 13. Dry runs pass for the packs touched; not yet run on a live stack.
 
 ## CTF-5 defend: wall, bonus flaw, scoring, one-page SOC and student SIEM (merged 2026-10-10, PR #23)
 

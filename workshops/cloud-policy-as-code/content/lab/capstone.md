@@ -106,3 +106,25 @@ Use `tofu fmt` and `opa fmt` before committing. The assignment's non-compliance 
 Press **Run workflow** on the **Drift** workflow once more, and read the result. Then ask yourself the two questions a reviewer would: *Is this rule too narrow?* (what slips through?) and *Is it too strict?* (what would a developer be annoyed by?) Both answers go in the pull request description.
 
 You have written a policy, tested it, shifted it left, gated it behind review, applied it by pipeline, proved it works, and checked it for drift. That is the whole practice.
+
+---
+
+## Score the capstone (bonus)
+
+Only when your class has achievements on (you see a score on your landing page). This one has no repo of its own: you
+work in your fork, `~/lab/cloud-policy-as-code`. Print the goal in the terminal:
+
+```sh
+dojo-challenge start capstone
+```
+
+When the pull request is merged, the pipeline is green and your prod test was refused, run the check. Run it twice: once
+after the merge and the refused test, then again after you clean up (the first check says what's next):
+
+```sh
+dojo-check capstone
+```
+
+A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points.
+
+<!-- dojo-challenge: capstone -->

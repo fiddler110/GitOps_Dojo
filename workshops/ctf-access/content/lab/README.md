@@ -66,4 +66,4 @@ If you've genuinely tried and you're still stuck, each lab's last section points
 using it after a real attempt is normal, using it first just means you skip the part that teaches you
 something.
 
-Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
+Keep the [cheat sheet](/slides/cheat-sheet.md) open in a second browser tab while you work.

@@ -318,3 +318,29 @@ git commit -m "Allowed images: one definition, two assignments; app on 2.0"
 - Look at the compliance report before you enforce.
 
 **Next:** [Lab 6](lab6.md): you now have several assignments to manage. Bundle them into a **policy set**.
+
+---
+
+## Challenge c1: Allowed Environments (bonus)
+
+Write your own parameterised `audit` rule: flag any resource whose `env` tag is not in a list you pass in, and see it
+report a seeded resource group as non-compliant. It works on one resource group of your own, so the lab's assignments
+stay as they are.
+
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c1
+cd ~/lab/challenge-c1
+```
+
+That makes your own repo `$USER/challenge-c1` and clones it to `~/lab/challenge-c1`, and prints the goal, with your own names in it. Push `main` when you think it's done, then:
+
+```sh
+dojo-check c1
+```
+
+A wrong answer costs nothing. `dojo-check hint c1` gives a hint for part of the points, and
+`dojo-challenge reset c1` throws the repo away and starts you over from a fresh copy.
+
+<!-- dojo-challenge: c1 -->
