@@ -7,7 +7,7 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
-## Stable image tags with input reuse (2026-10-11, not yet merged)
+## Stable image tags with input reuse (2026-10-11)
 
 Compose keeps its stable workshop tags, e.g. `gitopsdojo/web-terminal:git-fundamentals`. `dojo` fingerprints each
 resolved local build's context and options and places the fingerprint in the image's `dojo.src-hash` label. If an
