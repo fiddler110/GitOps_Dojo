@@ -7,6 +7,15 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## git-fundamentals bots solve the challenges (2026-10-12, `feat/git-fundamentals-bots`)
+
+`workshops/git-fundamentals/content/bots/steps.sh` keeps the engine's default Labs 1-5 steps and adds `c1`, `c2` and the
+capstone before the round ends, each as the lab page says (`dojo-challenge reset`, work in `~/lab/challenge-repo`,
+`dojo-check`). Run locally with `./dojo git-fundamentals --test 2 --fast`: both bots finished and `dojo-check` passed
+`c1` (+100), `c2` (+100) and `capstone` (+300) for each. The run found a real student bug, now fixed in
+`modules/achievements/terminal/dojo-check.py`: `dojo-challenge reset` run from inside `~/lab/challenge-repo` removed the
+folder it was standing in, so `git clone` failed with "Unable to read current working directory"; it now starts in `$HOME`.
+
 ## Lab challenge sections start with the terminal command (2026-10-12, `docs/challenge-lab-start`)
 
 All 16 challenge and capstone sections in `git-fundamentals`, `dns-as-code`, `cert-autorenewal`, `tofu-basics` and
