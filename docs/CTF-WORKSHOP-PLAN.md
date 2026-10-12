@@ -103,10 +103,13 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    path).
 7. **Other four packs started 2026-10-12, locally** (`--test 2 --fast`, one at a time, each stopped after): `ctf-access`
    15/15 healthy, `ctf-server-trust` 15/15, `ctf-secrets-config` 21/21, `ctf-trust-chain` 19/19; every pack got both
-   bot-done markers. Logs were clean except `ctf-secrets-config`: `openbao-server` logged 5 x `[ERROR] core: failed to
-   audit response: request_path=auth/token/lookup-self` in one second. Not investigated (the stack was already
-   stopped); a rerun with `./dojo logs openbao-server --grep audit` would show whether it is the start-up race or a
-   real audit-file permission problem.
+   bot-done markers. Logs were clean except `ctf-secrets-config`: `openbao-server`
+   logged 5 `[ERROR]` lines in one second at start-up (`failed to audit request/response: path=auth/token/lookup-self`,
+   `error fetching salt: failed to persist salt: cannot write to readonly storage`). A rerun the same day reproduced it
+   identically: the file audit device is enabled while raft is still read-only, so setup's first `lookup-self` is
+   not audited; the device re-enables a second later and `audit.log` then held 129 entries. A start-up race, not a
+   permission problem and not related to the tag scheme; it costs one unaudited setup call and makes
+   `./dojo logs --errors` report this pack as noisy. Not fixed.
 
 **Open, in order:**
 
