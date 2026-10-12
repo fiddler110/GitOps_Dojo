@@ -27,7 +27,7 @@ portable command, with Docker and Podman regression coverage. The unit-test gate
 lock/path issues, a nondeterministic cookie-tampering test, and missing CTF achievements documents. Those are
 fixed, capstone-free catalogs render correctly, and CTF catalog JSON follows the editor's round-trip format.
 
-## On `fix/ctf-pack-content-gaps` (2026-10-09, not yet merged)
+## On `fix/ctf-pack-content-gaps` (2026-10-09, merged in PR #22)
 
 **Content-depth audit of all 5 CTF packs (ROADMAP item 1), two fixes, then a line-by-line verification pass.**
 First pass checked each pack's structure (briefing, hint ladder, debrief, attack boxes, achievement-to-lab counts)
@@ -50,7 +50,7 @@ clean: no stale commands, wrong paths, broken exploit-guide links, or achievemen
 anywhere. `ctf-defend`'s capstone check regexes were verified character-for-character against `app.py`'s two
 SQL-injection sinks.
 
-## On `feat/ctf-pack-completion` (2026-10-09, not yet merged)
+## On `feat/ctf-pack-completion` (2026-10-09, merged in PR #20)
 
 **`ctf-secrets-config`/`ctf-trust-chain` complete their ladders; `ctf-defend-test` deleted.** The two packs each
 shipped only 2 of their 3 planned targets, because `tfstate-treasure` and `runner-escape` existed only inside the
@@ -72,7 +72,7 @@ classmate's Forgejo repo isn't actually private (any student can read it over th
 protection is server-side flag verification, not repo privacy -- lab3.md now says so explicitly, in the
 briefing and the debrief.
 
-## On `feat/config-consolidation` (2026-10-08, not yet merged)
+## On `feat/config-consolidation` (2026-10-08)
 
 **One settings layout instead of `engine/.env` plus `.env.home`, `.env.live` and the profiles.** Three files at the repo root:
 `dojo.toml` (committed, every non-secret default in sections, `[terminal] flavor = "code-server"|"zellij"`),
@@ -154,7 +154,7 @@ Target Viewer (see PR #17 above).
 (CTF-2), `ctf-secrets-config` (CTF-3) and `ctf-trust-chain` (CTF-4) in `7a819e9`. CTF-3 and CTF-4 each ship two of their
 three targets for now (see the ROADMAP).
 
-## On `feat/ctf-refinement` (2026-10-07, not yet merged)
+## On `feat/ctf-refinement` (2026-10-07)
 
 **Themed attack boxes, the rest.** Nine more targets got scenario themes (CSS at `/assets/theme.css`, own fictional brand):
 `customer-portal`, `dns-resolver-cve`, `git-secrets`, `leaky-config`, `ping-tool`, `policy-bypass`, `ssrf-fetcher`, plus
