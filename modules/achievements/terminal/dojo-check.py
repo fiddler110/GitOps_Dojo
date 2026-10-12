@@ -172,6 +172,7 @@ def check(cid):
 def challenge(action, cid):
     """Build (or rebuild) your challenge repo on the server, then clone it into ~/lab."""
     cid = challenge_id(cid)
+    os.chdir(HOME)  # `reset` removes the old copy, which may be the folder this was run from
     code, doc = call("POST", "/api/challenge", {"challenge": cid, "action": action}, timeout=120)
     if code != 200:
         return fail(code, doc)

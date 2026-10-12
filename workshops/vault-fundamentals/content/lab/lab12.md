@@ -84,6 +84,8 @@ If nobody renews it, the same happens by itself when the lease runs out. A login
 
 ## 5. The app gets its own
 
+**Starting here?** Steps 1 to 4 need nothing from earlier labs: your database and its connection are already set up. This step works on the app you deployed in [Lab 11](lab11.md): its `app/agent.hcl`, its `jwt-platform` role and your fork in `~/lab/vault-fundamentals`. Without them, do Lab 11 first, or stop after step 4.
+
 Your app on `app-host` (Lab 11) can ask for a login the same way. Make a policy that may read `database/creds/app`, and rewrite the app's role from Lab 11 with it added (`token_policies=app-read,db-app`):
 
 ```bash
@@ -145,16 +147,28 @@ unset BAO_NAMESPACE PGPASSWORD OTHER
 
 **Rules used:** 3 (short-lived and revocable), 2 (the app's identity, not a password), 1 (one database, read and insert only), 7 (revoke is a normal operation), 6 (every login is its own name in the database's logs).
 
+**Next:** [lab13.md](lab13.md): an incident drill, a token leaked and you have to say what it did.
+
 ---
 
 ## Challenge c2: The Right Lease (bonus)
 
 Database logins that last 2 minutes and never more than 10 in total, on a new role `c2-app`, and one login from it.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-lease` and
-clones it to `~/lab/challenge-lease`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` starts you over from a fresh copy.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c2
+cd ~/lab/challenge-lease
+```
+
+That makes your own repo `$USER/challenge-lease` and clones it to `~/lab/challenge-lease`, and prints the goal, with your own names in it. When you think it's done:
+
+```sh
+dojo-check c2
+```
+
+A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c2 -->

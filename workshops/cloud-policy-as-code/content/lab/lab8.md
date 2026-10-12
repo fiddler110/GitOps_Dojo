@@ -145,3 +145,28 @@ git pull
 ## Recap
 
 A rule that is right but cannot be met by one resource yet needs an exception, not a weaker rule. A good exception has a narrow scope, a reason, an owner and an end date, and it goes through review like any other change. **Next:** [lab9.md](lab9.md): catching violations earlier than the cloud does, before anything is applied.
+
+---
+
+## Challenge c2: Waiver With a Deadline (bonus)
+
+Assign a `deny` rule to one resource group of your own, waive the group that already exists with an exemption that
+expires within 14 days, all as code, and then destroy it again so nothing stays assigned.
+
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c2
+cd ~/lab/challenge-c2
+```
+
+That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. Push `main` when you think it's done. Run the check twice: once while it is applied, then again after `tofu destroy` (the first check says what's next):
+
+```sh
+dojo-check c2
+```
+
+A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
+
+<!-- dojo-challenge: c2 -->

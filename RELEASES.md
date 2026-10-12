@@ -7,6 +7,33 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## vault-fundamentals: late-joiner note instead of a lab-prep (2026-10-12, `docs/vault-lab12-standalone`)
+
+The audit flagged the pack for having no `lab-prep` like the other packs. Reading the labs showed it does not need one:
+Labs 6, 9, 10, 11 and 13 open with a catch-up block that makes what they need, and Labs 0-5, 7, 8 make their own
+state. The one real gap was Lab 12 step 5, which uses the app deployed in Lab 11 and did not say so; it now has a
+"Starting here?" note, and the lab README says which parts depend on a lab you really did.
+
+## git-fundamentals bots solve the challenges (2026-10-12, `feat/git-fundamentals-bots`)
+
+`workshops/git-fundamentals/content/bots/steps.sh` keeps the engine's default Labs 1-5 steps and adds `c1`, `c2` and the
+capstone before the round ends, each as the lab page says (`dojo-challenge reset`, work in `~/lab/challenge-repo`,
+`dojo-check`). Run locally with `./dojo git-fundamentals --test 2 --fast`: both bots finished and `dojo-check` passed
+`c1` (+100), `c2` (+100) and `capstone` (+300) for each. The run found a real student bug, now fixed in
+`modules/achievements/terminal/dojo-check.py`: `dojo-challenge reset` run from inside `~/lab/challenge-repo` removed the
+folder it was standing in, so `git clone` failed with "Unable to read current working directory"; it now starts in `$HOME`.
+
+## Lab challenge sections start with the terminal command (2026-10-12, `docs/challenge-lab-start`)
+
+All 16 challenge and capstone sections in `git-fundamentals`, `dns-as-code`, `cert-autorenewal`, `tofu-basics` and
+`vault-fundamentals` now lead with `dojo-challenge start <id>` and `cd ~/lab/<folder>`, then `dojo-check <id>`, then
+hint and reset, in one shape. The lab's Start box only built the repo on Forgejo and the student still had to run the
+command to clone it, so the text no longer offers the two as alternatives. Pack READMEs and the student guide match.
+`cloud-policy-as-code` had `c1`, `c2` and the capstone in its catalog but no lab section or box, so students were never
+told about them; `lab5.md`, `lab8.md` and `capstone.md` now carry them, with a table in the lab README. The four CTF lab
+READMEs linked a `cheat-sheet.md` the lab reader cannot serve; they point at `/slides/cheat-sheet.md`. `vault-fundamentals`
+`lab12.md` gains its missing pointer to Lab 13. Dry runs pass for the packs touched; not yet run on a live stack.
+
 ## CTF-5 defend: wall, bonus flaw, scoring, one-page SOC and student SIEM (merged 2026-10-10, PR #23)
 
 **`ctf-defend` gains the pieces that make the swarm worth defending against.** All of it is in

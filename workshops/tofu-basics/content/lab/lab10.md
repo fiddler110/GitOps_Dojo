@@ -164,11 +164,21 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 The code declares five sites; your subscription holds two container groups. Make the apply succeed without asking
 for more quota. Start it now that this lab has freed your quota.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start c2`: it makes your own repo `$USER/challenge-c2` and
-clones it to `~/lab/challenge-c2`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` starts you over from a fresh copy.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start c2
+cd ~/lab/challenge-c2
+```
+
+That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. When you think it's done:
+
+```sh
+dojo-check c2
+```
+
+A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
+`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: c2 -->
 
@@ -179,10 +189,20 @@ clones it to `~/lab/challenge-c2`. The goal is printed there, with your own name
 From a near-empty repo: two differently named sites from one `for_each`, each with the required tags, an output map
 of names to URLs, then a clean destroy that leaves nothing running.
 
-Only when your class has achievements on (you see a score on your landing page).
-Click **Start challenge** below, or run `dojo-challenge start capstone`: it makes your own repo `$USER/site-factory` and
-clones it to `~/lab/site-factory`. The goal is printed there, with your own names in it. When you think it's done, run
-`dojo-check capstone` twice: while both sites run, then again after `tofu destroy` (the first check says what's next). A wrong answer costs nothing; `dojo-check hint capstone` gives a hint for part of the points, and
-`dojo-challenge reset capstone` starts you over from a fresh copy.
+Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+
+```sh
+dojo-challenge start capstone
+cd ~/lab/site-factory
+```
+
+That makes your own repo `$USER/site-factory` and clones it to `~/lab/site-factory`, and prints the goal, with your own names in it. When you think it's done, run it twice: while both sites run, then again after `tofu destroy` (the first check says what's next):
+
+```sh
+dojo-check capstone
+```
+
+A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points, and
+`dojo-challenge reset capstone` throws the repo away and starts you over from a fresh copy.
 
 <!-- dojo-challenge: capstone -->

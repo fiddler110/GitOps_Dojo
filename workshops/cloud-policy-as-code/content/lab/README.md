@@ -24,6 +24,20 @@ You are working in your own student account. Keep all lab work under this `~/lab
 
 The [capstone](capstone.md) (a new rule end to end) closes Lab 12; allow about 45 minutes.
 
+## Challenges and the capstone (bonus)
+
+Only when your class has achievements on. They are bonus points and never count against finishing the workshop.
+
+| Id | Challenge | Where |
+| -- | --------- | ----- |
+| `c1` | Allowed Environments | end of [Lab 5](lab5.md) |
+| `c2` | Waiver With a Deadline | end of [Lab 8](lab8.md) |
+| `capstone` | A New Rule, Start to Finish | end of the [capstone](capstone.md) |
+
+Start one in the terminal with `dojo-challenge start <id>` (c1 and c2 build your repo and clone it into `~/lab`; the
+capstone works in your fork), and check it with `dojo-check <id>`. A wrong answer costs nothing; `dojo-check hint <id>`
+gives a hint for part of the points.
+
 **The timings are estimates.** Labs that apply policy (3, 4, 5, 6, 7, 8) include waits of 2 to 3.5 minutes. Creating or destroying a policy definition or assignment takes about 100 seconds, because the provider waits until the cloud's policy service has replicated the change everywhere (eventual consistency). Each of those labs says so up front and gives you something to read while it runs. The waits are part of the lesson, not a fault.
 
 ## How the labs fit
