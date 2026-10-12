@@ -4,6 +4,34 @@ A quick reference for the commands used across [lab1.md](lab1.md)-[lab5.md](lab5
 
 ---
 
+## Command map
+
+Every command in the course, and the lab that teaches it. The sections below have the flags and examples.
+
+| Command | What it does | Lab |
+|---|---|---|
+| `git clone <url>` | Download a repo and its whole history to your machine | 1 |
+| `git status` | Show what's modified, staged and untracked. Run it constantly | 1 |
+| `git branch` / `git checkout -b <name>` | List branches / create one and switch to it | 1 |
+| `git add <file>` | Stage a change: put it in the draft of your next commit | 1 |
+| `git commit -m "msg"` | Save everything staged as a permanent snapshot on this branch | 1 |
+| `git push` | Send your commits to the remote so others can see them | 1 |
+| `git pull` | Fetch the remote's new commits and merge them into your branch | 1 |
+| `git diff` / `git diff --staged` | Show the exact changes: unstaged / staged | 2 |
+| `git restore <file>` | Throw away uncommitted edits to a file (destructive) | 2 |
+| `git restore --staged <file>` | Unstage a file but keep your edit | 2 |
+| `.gitignore` | Not a command: a file listing what git should never track | 2 |
+| `git stash` / `git stash pop` | Set uncommitted work aside, then bring it back | 3 |
+| `git log` / `git show <commit>` | Browse history / see exactly what one commit changed | 4 |
+| `git blame <file>` | Show who last changed each line, and in which commit | 4 |
+| `git merge <branch>` | Combine another branch's commits into the current one | 5 |
+| `git revert <commit>` | Undo a commit by adding a new one (safe once pushed) | 5 |
+| `git reset --soft` / `--hard HEAD~1` | Undo your last *local* commit, keeping or discarding its changes (never after pushing) | 5 |
+
+The pattern behind most of these: your work moves from the **working tree** (your files) to the **index** (the next commit's draft) to **HEAD** (your last commit) to the **remote** (the shared copy). Almost every command moves work one step along that line, or back. Lab 2 makes that picture concrete.
+
+---
+
 ## Setup (already done for you here)
 
 Your Git identity is pre-configured to match your student account. This is how you'd set it yourself on any machine:

@@ -10,15 +10,15 @@ Do this from your `sample-training-repo` clone. This lab creates its own throwaw
 
 ## In this lab
 
-| Command | What it does | Section |
-|---|---|---|
-| `git merge <branch>` | Combine another branch's commits into the current branch | A |
-| `git merge --abort` | Back out of a conflicted merge and return to before it | A |
-| `git add` + `git commit` | Mark a conflict resolved and finish the merge | A |
-| `git reset --soft HEAD~1` | Undo the last commit, keeping its changes staged | B |
-| `git reset --hard HEAD~1` | Undo the last commit and discard its changes | B |
-| `git revert <commit>` | Undo a commit by adding a new commit that reverses it | B |
-| `git log --oneline -n` | Show only the last `n` commits | B |
+| Command | What it does |
+|---|---|
+| `git merge <branch>` | Combine another branch's commits into the current branch |
+| `git merge --abort` | Back out of a conflicted merge and return to before it |
+| `git add` + `git commit` | Mark a conflict resolved and finish the merge |
+| `git reset --soft HEAD~1` | Undo the last commit, keeping its changes staged |
+| `git reset --hard HEAD~1` | Undo the last commit and discard its changes |
+| `git revert <commit>` | Undo a commit by adding a new commit that reverses it |
+| `git log --oneline -n` | Show only the last `n` commits |
 
 ---
 

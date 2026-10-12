@@ -10,14 +10,14 @@ Do this from your `sample-training-repo` clone, on your `add-yourname` branch.
 
 ## In this lab
 
-| Command | What it does | Section |
-|---|---|---|
-| `git stash` | Save your uncommitted changes on a stack and reset the working tree to HEAD | 2 |
-| `git stash list` | Show everything on the stash stack | 2 |
-| `git checkout <branch>` | Switch to an existing branch | 3 |
-| `git stash pop` | Re-apply the newest stash and remove it from the stack | 4 |
-| `git stash apply` | Re-apply the newest stash but keep it on the stack | 4 |
-| `git restore <file>` | Discard uncommitted edits (Lab 2), used here for cleanup | 4 |
+| Command | What it does |
+|---|---|
+| `git stash` | Save your uncommitted changes on a stack and reset the working tree to HEAD |
+| `git stash list` | Show everything on the stash stack |
+| `git checkout <branch>` | Switch to an existing branch |
+| `git stash pop` | Re-apply the newest stash and remove it from the stack |
+| `git stash apply` | Re-apply the newest stash but keep it on the stack |
+| `git restore <file>` | Discard uncommitted edits (Lab 2), used here for cleanup |
 
 ---
 

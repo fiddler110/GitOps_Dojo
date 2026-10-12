@@ -10,15 +10,15 @@ Do this from your `sample-training-repo` clone (Lab 1, step 1, if you haven't cl
 
 ## In this lab
 
-| Command | What it does | Section |
-|---|---|---|
-| `git log` | Browse history, one commit at a time, full detail | 1 |
-| `git log --oneline` | One line per commit: short hash and message | 1 |
-| `git log --oneline --graph --all` | The same, drawn as a graph of every branch | 1 |
-| `git show <commit>` | Show one commit's message and exactly what it changed | 2 |
-| `git blame <file>` | Show which commit and author last changed each line | 3 |
-| `git log -p <file>` | Show every change ever made to one file | 3 |
-| `git diff <a>..<b>` | Show everything that differs between two branches | 4 |
+| Command | What it does |
+|---|---|
+| `git log` | Browse history, one commit at a time, full detail |
+| `git log --oneline` | One line per commit: short hash and message |
+| `git log --oneline --graph --all` | The same, drawn as a graph of every branch |
+| `git show <commit>` | Show one commit's message and exactly what it changed |
+| `git blame <file>` | Show which commit and author last changed each line |
+| `git log -p <file>` | Show every change ever made to one file |
+| `git diff <a>..<b>` | Show everything that differs between two branches |
 
 ---
 

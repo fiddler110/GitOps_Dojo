@@ -4,49 +4,23 @@ By the end of this lab you'll have personally cloned a repo, created a branch, m
 
 ---
 
-## The command map
-
-Skim this once now; you don't need to memorise it. Later labs say "your turn" and leave the command to you, so this is the page to come back to. Each command is introduced properly in the lab named in the last column, and the [cheat sheet](cheat-sheet.md) has the full flags and examples.
-
-| Command | What it does | Lab |
-|---|---|---|
-| `git clone <url>` | Download a repo and its whole history to your machine | 1 |
-| `git status` | Show what's modified, staged and untracked. Run it constantly | 1 |
-| `git branch` / `git checkout -b <name>` | List branches / create one and switch to it | 1 |
-| `git add <file>` | Stage a change: put it in the draft of your next commit | 1 |
-| `git commit -m "msg"` | Save everything staged as a permanent snapshot on this branch | 1 |
-| `git push` | Send your commits to the remote so others can see them | 1 |
-| `git pull` | Fetch the remote's new commits and merge them into your branch | 1 |
-| `git diff` / `git diff --staged` | Show the exact changes: unstaged / staged | 2 |
-| `git restore <file>` | Throw away uncommitted edits to a file (destructive) | 2 |
-| `git restore --staged <file>` | Unstage a file but keep your edit | 2 |
-| `.gitignore` | Not a command: a file listing what git should never track | 2 |
-| `git stash` / `git stash pop` | Set uncommitted work aside, then bring it back | 3 |
-| `git log` / `git show <commit>` | Browse history / see exactly what one commit changed | 4 |
-| `git blame <file>` | Show who last changed each line, and in which commit | 4 |
-| `git merge <branch>` | Combine another branch's commits into the current one | 5 |
-| `git revert <commit>` | Undo a commit by adding a new one (safe once pushed) | 5 |
-| `git reset --soft` / `--hard HEAD~1` | Undo your last *local* commit, keeping or discarding its changes (never after pushing) | 5 |
-
-The pattern behind most of these: your work moves from the **working tree** (your files) to the **index** (the next commit's draft) to **HEAD** (your last commit) to the **remote** (the shared copy). Almost every command moves work one step along that line, or back. Lab 2 makes that picture concrete.
-
----
-
 ## In this lab
 
-| Command | What it does | Section |
-|---|---|---|
-| `git clone <url>` | Copy a remote repo, with its whole history, to your machine | 1 |
-| `git checkout -b <name>` | Create a branch and switch to it | 2 |
-| `git status` | Show which files are modified, staged or untracked | 4 |
-| `git diff` | Show the exact lines you changed | 4 |
-| `git add <file>` | Stage a change for the next commit | 5 |
-| `git commit -m "msg"` | Save the staged changes as a commit | 5 |
-| `git log -1` | Show your latest commit | 5 |
-| `git push -u origin <branch>` | Upload the branch and remember its remote | 6 |
-| `git pull` | Bring the remote's new commits into your branch | 8 |
-| `git fetch --prune` | Forget remote-tracking branches deleted on the server | 8 |
-| `git branch -d <name>` | Delete a merged local branch | 8 |
+| Command | What it does |
+|---|---|
+| `git clone <url>` | Copy a remote repo, with its whole history, to your machine |
+| `git checkout -b <name>` | Create a branch and switch to it |
+| `git status` | Show which files are modified, staged or untracked |
+| `git diff` | Show the exact lines you changed |
+| `git add <file>` | Stage a change for the next commit |
+| `git commit -m "msg"` | Save the staged changes as a commit |
+| `git log -1` | Show your latest commit |
+| `git push -u origin <branch>` | Upload the branch and remember its remote |
+| `git pull` | Bring the remote's new commits into your branch |
+| `git fetch --prune` | Forget remote-tracking branches deleted on the server |
+| `git branch -d <name>` | Delete a merged local branch |
+
+Later labs say "your turn" and leave the command to you. The [cheat sheet](cheat-sheet.md) has a map of every command in the course, with the lab that teaches it.
 
 ---
 

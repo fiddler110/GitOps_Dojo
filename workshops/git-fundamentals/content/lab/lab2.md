@@ -10,14 +10,14 @@ Do this from your `sample-training-repo` clone, on your `add-yourname` branch fr
 
 ## In this lab
 
-| Command | What it does | Section |
-|---|---|---|
-| `git diff` | Show unstaged changes: working tree compared with the index | 1 |
-| `git restore <file>` | Discard uncommitted edits: copy index to working tree | 1 |
-| `git diff --staged` | Show staged changes: index compared with HEAD | 2 |
-| `git restore --staged <file>` | Unstage a file but keep the edit: copy HEAD to index | 2 |
-| `.gitignore` | A file of patterns that tells git to ignore untracked files | 3 |
-| `git check-ignore -v <file>` | Show which rule is ignoring a file | 3 |
+| Command | What it does |
+|---|---|
+| `git diff` | Show unstaged changes: working tree compared with the index |
+| `git restore <file>` | Discard uncommitted edits: copy index to working tree |
+| `git diff --staged` | Show staged changes: index compared with HEAD |
+| `git restore --staged <file>` | Unstage a file but keep the edit: copy HEAD to index |
+| `.gitignore` | A file of patterns that tells git to ignore untracked files |
+| `git check-ignore -v <file>` | Show which rule is ignoring a file |
 
 You'll meet each one when you need it, and the "Your turn" steps expect you to pick the right one from here.
 
