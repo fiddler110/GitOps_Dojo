@@ -4,6 +4,52 @@ By the end of this lab you'll have personally cloned a repo, created a branch, m
 
 ---
 
+## The command map
+
+Skim this once now; you don't need to memorise it. Later labs say "your turn" and leave the command to you, so this is the page to come back to. Each command is introduced properly in the lab named in the last column, and the [cheat sheet](cheat-sheet.md) has the full flags and examples.
+
+| Command | What it does | Lab |
+|---|---|---|
+| `git clone <url>` | Download a repo and its whole history to your machine | 1 |
+| `git status` | Show what's modified, staged and untracked. Run it constantly | 1 |
+| `git branch` / `git checkout -b <name>` | List branches / create one and switch to it | 1 |
+| `git add <file>` | Stage a change: put it in the draft of your next commit | 1 |
+| `git commit -m "msg"` | Save everything staged as a permanent snapshot on this branch | 1 |
+| `git push` | Send your commits to the remote so others can see them | 1 |
+| `git pull` | Fetch the remote's new commits and merge them into your branch | 1 |
+| `git diff` / `git diff --staged` | Show the exact changes: unstaged / staged | 2 |
+| `git restore <file>` | Throw away uncommitted edits to a file (destructive) | 2 |
+| `git restore --staged <file>` | Unstage a file but keep your edit | 2 |
+| `.gitignore` | Not a command: a file listing what git should never track | 2 |
+| `git stash` / `git stash pop` | Set uncommitted work aside, then bring it back | 3 |
+| `git log` / `git show <commit>` | Browse history / see exactly what one commit changed | 4 |
+| `git blame <file>` | Show who last changed each line, and in which commit | 4 |
+| `git merge <branch>` | Combine another branch's commits into the current one | 5 |
+| `git revert <commit>` | Undo a commit by adding a new one (safe once pushed) | 5 |
+| `git reset --soft` / `--hard HEAD~1` | Undo your last *local* commit, keeping or discarding its changes (never after pushing) | 5 |
+
+The pattern behind most of these: your work moves from the **working tree** (your files) to the **index** (the next commit's draft) to **HEAD** (your last commit) to the **remote** (the shared copy). Almost every command moves work one step along that line, or back. Lab 2 makes that picture concrete.
+
+---
+
+## In this lab
+
+| Command | What it does | Section |
+|---|---|---|
+| `git clone <url>` | Copy a remote repo, with its whole history, to your machine | 1 |
+| `git checkout -b <name>` | Create a branch and switch to it | 2 |
+| `git status` | Show which files are modified, staged or untracked | 4 |
+| `git diff` | Show the exact lines you changed | 4 |
+| `git add <file>` | Stage a change for the next commit | 5 |
+| `git commit -m "msg"` | Save the staged changes as a commit | 5 |
+| `git log -1` | Show your latest commit | 5 |
+| `git push -u origin <branch>` | Upload the branch and remember its remote | 6 |
+| `git pull` | Bring the remote's new commits into your branch | 8 |
+| `git fetch --prune` | Forget remote-tracking branches deleted on the server | 8 |
+| `git branch -d <name>` | Delete a merged local branch | 8 |
+
+---
+
 ## 1. Clone the sample repo
 
 Use the internal Forgejo URL from inside this terminal:
@@ -111,22 +157,32 @@ Check it landed:
 git log -1
 ```
 
+**Check yourself:** `git add` and `git commit` are two separate steps. Run `git status` after `git add` but before `git commit` the next time you do this: what would it show you, and what's different about it afterwards?
+
+<!-- dojo-reveal: Show the answer -->
+Between the two, `git status` lists the file under **"Changes to be committed"**: it's staged, in the draft of your next commit, but not yet part of history. After `git commit` the tree is clean ("nothing to commit"), and the change is a commit you can see in `git log`. Staging is the step where you choose *what* goes into a commit; committing is the step that records it.
+<!-- /dojo-reveal -->
+
 ---
 
 ## 6. Push
 
-Try just a simple `git push` now and see what git tells you. 
+Everything so far has been local: nobody else can see your branch or your commit. `git push` is the command that sends them to the shared server.
 
-Your local branch doesn't exist on the remote repository, so you need to push the current branch and set the remote as *upstream* for it to be added to the repo.
+**Your turn:** run a plain `git push` and read what git tells you. It will refuse. Work out why from the message, and from what you know about where this branch exists.
+
+<!-- dojo-reveal: Show why it fails and the fix -->
+Your branch exists only on your machine, so git has no remote branch to send it to and doesn't know what to call it there. The error even prints the fix:
 
 ```sh
 git push -u origin add-yourname
 
-# or the more verbose 
-git push --set-upstream origin <branch>
+# or the more verbose
+git push --set-upstream origin add-yourname
 ```
 
-This uploads your branch and its commit to the shared Forgejo server. Until this point, everything you did was entirely local — nobody else could see it. `-u origin add-yourname` also remembers this branch's remote, so future pushes from this branch just need `git push`.
+This uploads your branch and its commit to the shared Forgejo server. `origin` is the name git gave the remote you cloned from, and `-u` records "this local branch tracks that remote branch", so from now on a plain `git push` from this branch just works.
+<!-- /dojo-reveal -->
 
 Git didn't ask for a password. Your terminal came with a Forgejo **access token** for your account, saved in `~/.git-credentials`; git's `store` helper (set in your `~/.gitconfig`) sends it with every push. Look at the file:
 
@@ -192,6 +248,13 @@ Before moving on, be ready to show or say:
 - The URL of your pull request.
 - In your own words: what changed locally at `git commit`, and what changed remotely at `git push`?
 - What `git fetch --prune` cleaned up, and why `git branch -d` refuses to delete an unmerged branch.
+
+<!-- dojo-reveal: Check your answers -->
+- **At `git commit`:** a new commit was added to your local `add-yourname` branch. Only your machine changed.
+- **At `git push`:** the Forgejo server received the branch and the commit, so now others can see them (and open a pull request).
+- **`git fetch --prune`:** removed your local record of `origin/add-yourname` once the server's copy was deleted.
+- **`git branch -d` refuses unmerged branches** so you can't throw away commits that exist nowhere else by accident; `-D` overrides it when you mean it.
+<!-- /dojo-reveal -->
 
 **Next:** [lab2.md](lab2.md) — reviewing and undoing changes before you commit.
 
