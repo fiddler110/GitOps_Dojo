@@ -7,6 +7,14 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Lab challenge sections start with the terminal command (2026-10-12, `docs/challenge-lab-start`)
+
+All 16 challenge and capstone sections in `git-fundamentals`, `dns-as-code`, `cert-autorenewal`, `tofu-basics` and
+`vault-fundamentals` now lead with `dojo-challenge start <id>` and `cd ~/lab/<folder>`, then `dojo-check <id>`, then
+hint and reset, in one shape. The lab's Start box only built the repo on Forgejo and the student still had to run the
+command to clone it, so the text no longer offers the two as alternatives. Pack READMEs and the student guide match.
+Dry runs pass for all five packs; not yet run on a live stack.
+
 ## CTF-5 defend: wall, bonus flaw, scoring, one-page SOC and student SIEM (merged 2026-10-10, PR #23)
 
 **`ctf-defend` gains the pieces that make the swarm worth defending against.** All of it is in
