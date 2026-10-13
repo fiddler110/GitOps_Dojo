@@ -199,8 +199,9 @@ git commit -m "Add workshop notes"
 git log --oneline -2
 ```
 
-That commit is sitting on your local `main`, where it doesn't belong. (If your class has achievements on, this is
-the one and only time the lab tells you to earn **Living Dangerously**.)
+That commit is sitting on your local `main`, where it doesn't belong. (If your class has achievements on, this is the
+one and only time the lab tells you to earn **Living Dangerously** — and there's a second one waiting for you once
+you've put `main` back.)
 
 ### Why nothing is lost
 

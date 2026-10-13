@@ -20,9 +20,13 @@ with the demo bots and the student-reset live pass; the per-lab times below are 
 **Every lab is mandatory and they build in order** (Lab 1 first, then 2-5 go deeper each). In a shorter
 slot, Lab 1 alone is the whole everyday workflow; drop from Lab 5 back. In a hard 60-minute slot, Lab 1
 step 9 (the wrong-branch drill) is the one piece to cut — nothing later depends on it, and the recipe is
-in the cheat sheet under **Committed on the wrong branch** for them to read afterwards. It is worth
-keeping if you can: in the room it is the question that comes up most, and it is the only place students
-see that a branch is a label, not a container.
+in the cheat sheet under **Committed on the wrong branch** for them to read afterwards. Cutting it costs
+one milestone (`l1-rescue`), which still leaves a class above the 80% completion bar. It is worth keeping
+if you can: in the room it is the question that comes up most, and it is the only place students see that
+a branch is a label, not a container.
+
+Step 9 tells the student to commit on `main` on purpose, so with achievements on the whole class earns the
+`f-main` "Living Dangerously" unlock there. That is deliberate and worth no points — nobody is in trouble.
 
 **Sensei (the only module here)** auto-merges the Lab 1 roster PR: a student adds their entry to
 `roster/team.yaml`, opens a PR, and Sensei reviews it against the rules (allowed files, YAML parses,
