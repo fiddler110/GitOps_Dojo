@@ -1,4 +1,6 @@
 /.env
+# `./dojo setup` keeps the superseded secrets file as `.env.previous` (docs/cli-reference.md).
+/.env.previous
 /dojo.local.toml
 # Leftovers of the old engine/.env layout (the CLI renames them *.migrated).
 engine/.env
