@@ -95,6 +95,7 @@ git branch                        # list local branches (* marks the current one
 git branch -a                     # list remote branches too
 git checkout <branch-name>        # switch to an existing branch
 git checkout -b <branch-name>     # create and switch, in one step
+git branch <branch-name>          # create a label here WITHOUT switching to it
 git branch -d <branch-name>       # delete a branch (only if it's merged)
 git branch -D <branch-name>       # delete a branch, even if it isn't merged
 git fetch --prune                 # remove remote-tracking branches deleted on the server
@@ -145,6 +146,21 @@ git reset --hard HEAD~1     # undo the last commit, discard the changes entirely
 git commit --amend -m "New message"   # fix the last commit's message
 git commit --amend --no-edit          # add staged changes to the last commit, message unchanged
 ```
+
+Prefer `git reset --hard origin/<branch>` over counting commits with `HEAD~N` whenever the branch tracks a remote (`git fetch` first, so `origin/<branch>` is current). "Match the server" can't be off by one; `HEAD~2` when you meant `HEAD~3` silently discards a commit. `--hard` also throws away uncommitted edits in your working directory, with no confirmation — commit or stash them first.
+
+### Committed on the wrong branch (not pushed)
+
+```sh
+git branch <new-branch>            # 1. label the commits where they are (you don't switch)
+git fetch                          # 2. refresh your record of the server
+git reset --hard origin/<wrong-branch>   # 3. move the wrong branch back to the server's version
+git checkout <new-branch>          # 4. carry on, on the right branch
+```
+
+A branch is a label pointing at a commit, not a container, so the commits never move — you add a second label, then move the first one off them. Create the new label **before** the `reset`: that's what makes the destructive step safe. See [lab1.md](lab1.md) step 9 for the walkthrough.
+
+If you already pushed to the wrong branch, don't reset it — `git revert` the commit on the shared branch instead (below).
 
 ### Already pushed (shared with others) — never rewrite history
 
@@ -214,6 +230,16 @@ git diff <branch-1>..<branch-2>    # everything that differs between two branche
 ---
 
 ## Common Scenarios & Quick Fixes
+
+**"I made my commits on `main` (or any wrong branch) and haven't pushed"**
+
+```sh
+git branch good-branch                 # label the commits first
+git fetch && git reset --hard origin/main   # move main back to the server's version
+git checkout good-branch
+```
+
+Nothing is lost — see **Committed on the wrong branch** above, and [lab1.md](lab1.md) step 9.
 
 **"I forgot to add a file to my last commit"**
 

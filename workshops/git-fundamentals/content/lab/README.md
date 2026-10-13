@@ -10,7 +10,7 @@ The session slides cover the *why*. This lab is the *how* — five short, self-c
 
 | Lab | Topic | Time |
 | --- | ----- | ---- |
-| [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request | ~15 min |
+| [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request, and rescuing commits made on the wrong branch | ~20 min |
 | [lab2.md](lab2.md) | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | [lab3.md](lab3.md) | Stashing — switching gears without committing | ~8 min |
 | [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min |
