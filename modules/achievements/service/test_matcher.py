@@ -213,8 +213,9 @@ class RecordedSequences(unittest.TestCase):
                 ledger = self.replay(SEQUENCES[lab], ledger)
         all_milestones = {m["id"] for m in catalog.milestones(load())}
         self.assertEqual(all_milestones - ledger.unlocked_ids("amy"), set())
-        # doing the labs as written is not funny
-        self.assertFalse([i for i in ledger.unlocked_ids("amy") if i.startswith("f-")])
+        # Doing the labs as written trips exactly one funny unlock, on purpose: Lab 1 step 9
+        # has the student commit on `main` so they can practise moving it off again.
+        self.assertEqual({i for i in ledger.unlocked_ids("amy") if i.startswith("f-")}, {"f-main"})
         self.assertTrue(ledger.completion("amy")[3])
 
     def test_funny_unlocks(self):

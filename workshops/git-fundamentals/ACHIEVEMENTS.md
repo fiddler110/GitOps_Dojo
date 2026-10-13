@@ -26,7 +26,9 @@ module, not in a workshop.
 **Every lab is mandatory** (decided). `core` is every lab milestone, so the certificate and the "Workshop complete"
 banner come at 80% of them, and the student's home page shows a running completion percentage. Challenges, the capstone
 and the funny unlocks are optional bonuses and never count toward completion. `l1-merged` counts too: the Sensei bot
-merges the roster PR.
+merges the roster PR. Lab 1 step 9 has the student commit on `main` on purpose before moving it off again, so the
+whole class earns the `f-main` funny unlock there (worth nothing); `l1-rescue` is the milestone for putting `main`
+back, and it fires on the local `git reset --hard` with nothing pushed.
 
 ## Rules for challenges and capstones (apply to every workshop)
 
@@ -62,6 +64,7 @@ structured `verify` assertion mentions `{user}`.
 | l1-prune | Tidy Desk | "Pruned the stale branches. Marie Kondo would nod." | 10 | yes | shell: `git fetch --prune` or `git fetch -p` |
 | l1-cleanup | Deleted Without Regrets | "Safe delete, no drama." | 10 | yes | shell: `git branch -d` (exit 0) |
 | l1-merged | Merged, Baby! | "Someone approved your work. Frame it." | 10 | yes | forgejo: PR merged |
+| l1-rescue | Wrong Branch, Right Fix | "Committed on `main`, moved the work to a branch, put `main` back. Nobody need ever know." | 10 | yes | shell: `git reset --hard` while on `main` (exit 0) |
 
 ## Lab 2: reviewing and undoing before you commit
 
@@ -94,7 +97,7 @@ structured `verify` assertion mentions `{user}`.
 | l5-conflict | Conflict Zone | "Two edits, one line, zero chill." | 10 | yes | shell: `git merge` exits non-zero and leaves a conflict |
 | l5-resolved | The Peacemaker | "You picked a side. Or both. Diplomat." | 10 | yes | shell: `git commit` completes a merge (conflict resolved) |
 | l5-revert | Time Traveller | "Undid a commit the polite way." | 10 | yes | shell: `git revert` (exit 0) |
-| l5-reset | Nuclear Option | "Used reset. Hopefully on purpose." | 10 | yes | shell: `git reset --hard` (exit 0) |
+| l5-reset | Nuclear Option | "Used reset. Hopefully on purpose." | 10 | yes | shell: `git reset --hard` on a branch other than `main` (exit 0) |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
@@ -160,4 +163,4 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 ## Totals (computed)
 
-22 core milestones (220 points) of 22 milestones (220) · 7 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 720 points.
+23 core milestones (230 points) of 23 milestones (230) · 7 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 730 points.

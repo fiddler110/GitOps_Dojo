@@ -44,7 +44,7 @@ nothing to set up yourself.
 
 | Lab | Topic | Time |
 | --- | ----- | ---- |
-| **1** | Core workflow: clone → branch → edit → commit → push → PR | ~15 min |
+| **1** | Core workflow: clone → branch → edit → commit → push → PR, and the wrong-branch rescue | ~20 min |
 | 2 | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | 3 | Stashing — switching gears without committing | ~8 min |
 | 4 | Investigating history: log, blame, show | ~10 min |
@@ -73,7 +73,8 @@ nothing to set up yourself.
 </div>
 
 Clone the repo, branch, edit a file, review with `status`/`diff`, stage
-and commit, push, and open a pull request into `main`.
+and commit, push, and open a pull request into `main`. Then the mistake
+everyone makes once: committing on `main` and moving it to a branch.
 
 ---
 

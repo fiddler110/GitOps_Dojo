@@ -35,7 +35,7 @@ cd sample-training-repo
 ```
 
 <ul class="lab-links">
-<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Core workflow: clone → branch → edit → commit → push → PR</span></li>
+<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Core workflow: clone → branch → edit → commit → push → PR, and the wrong-branch rescue</span></li>
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Reviewing changes and undoing mistakes</span></li>
 <li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">Stashing — switching gears without committing</span></li>
 <li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Investigating history: log, blame, show</span></li>

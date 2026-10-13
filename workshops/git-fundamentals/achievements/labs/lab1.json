@@ -154,6 +154,25 @@
         "event": "pull_request",
         "action": "merged"
       }
+    },
+    {
+      "id": "l1-rescue",
+      "title": "Wrong Branch, Right Fix",
+      "joke": "Committed on `main`, moved the work to a branch, put `main` back. Nobody need ever know.",
+      "core": true,
+      "when": "shell: `git reset --hard` while on `main` (exit 0)",
+      "match": {
+        "source": "shell",
+        "cmd": "git reset",
+        "flags": [
+          "--hard"
+        ],
+        "branch": [
+          "main",
+          "master"
+        ],
+        "exit": 0
+      }
     }
   ]
 }

@@ -61,12 +61,16 @@
       "title": "Nuclear Option",
       "joke": "Used reset. Hopefully on purpose.",
       "core": true,
-      "when": "shell: `git reset --hard` (exit 0)",
+      "when": "shell: `git reset --hard` on a branch other than `main` (exit 0)",
       "match": {
         "source": "shell",
         "cmd": "git reset",
         "flags": [
           "--hard"
+        ],
+        "branch_not": [
+          "main",
+          "master"
         ],
         "exit": 0
       }

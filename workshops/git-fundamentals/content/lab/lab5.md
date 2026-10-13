@@ -106,7 +106,9 @@ The right way to undo something depends on whether anyone else could already hav
 
 **Not committed yet:** see [lab2.md](lab2.md) — `git restore`.
 
-**Committed, but not pushed (nobody else has it):** you can rewrite history freely.
+**Committed, but not pushed (nobody else has it):** you can rewrite history freely. You already did this once —
+[lab1.md](lab1.md) step 9 used `git reset --hard` to move `main` back after committing on it by mistake. Here it's
+the same command for its own sake, on a throwaway branch.
 
 ```sh
 git checkout -b undo-demo
