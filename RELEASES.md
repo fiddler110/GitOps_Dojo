@@ -7,6 +7,19 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `ctf-defend`: three simultaneous targets, seeded attack order, incident-triage gate (2026-10-14, `feat/ctf-defend-three-targets`)
+
+Each student gets `customer-portal` (high), `policy-bypass` (medium) and `leaky-config` (low) live at once. The
+controller deals one of six attack orders per student from a seed and the bot attacks each target on a staggered
+timer, each with a different SIEM signal. Students fix in three repos; `dojo-check` shows
+exploitable/contained/broke-normal-use/unreachable per target through a server-side checker, and the PR gate uses the
+same checks and requires an `INCIDENT.md` (advisory: it does not block a merge). `dojo-reset <target>` puts a broken
+box back to the starting app. Scoring is green/yellow/red x weight per target. Bonus second flaw dropped.
+Tested locally: unit suites; `./dojo ctf-defend --dry-run`; live `--test` runs with fast bots covering slots and
+schedule, the defend loop (fix, gate, merge, build, redeploy, contained), SIEM rows and breaches on all three targets,
+`dojo-check`, and `dojo-reset` (success, bad target, overlap refusal). Not tested: student-side SOC feed in a browser,
+pilot tuning of stagger/dwell, 20 students, real-time dwell.
+
 ## CTF packs: every required fact discoverable, core-command cheat sheets (2026-10-14, `feat/ctf-discoverability`, PR #30)
 
 Rule: a student must be able to learn every path, field, header, port, identity and technique from the scan, the
