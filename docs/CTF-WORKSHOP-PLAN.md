@@ -145,9 +145,28 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
   PR gate requires an `INCIDENT.md` (what was hit, how you know, impact). Containment stays an optional separate step.
 - **Toolset:** git, an editor, `python3`, `curl`, the exploit check and the SIEM panel; no scanners, no internet.
 - **Class size:** at most 20 students for this lab (about 60 slots); more than that becomes two workshops.
-- **Still to decide:** the third target (`leaky-config` is the lean; `policy-bypass` needs a trusted identity source
-  to be fixable), the severity mapping (`customer-portal` high, `git-secrets` medium, `leaky-config` low), the stagger
-  interval (from a pilot run; start near half the median fix time), and the `INCIDENT.md` gate.
+- **Decided 2026-10-14 (second pass):**
+  - **Targets and severity:** `customer-portal` high, `policy-bypass` medium, `leaky-config` low. `git-secrets` is a
+    stretch target only if a rotation mechanism proves out (its fix is operational, not a code diff).
+  - **Identity for `policy-bypass` (option B):** a small proxy in front of each target sets a caller identity the way
+    Caddy does for the platform; the app trusts that, never the request-body tag. The checker's positive test sends a
+    legitimate security-team request through it.
+  - **`dojo check`:** a terminal command that asks a server-side checker to run all three exploit checks against the
+    student's live slots and prints a verdict per target (`still exploitable` / `contained` / `unreachable`), never a
+    payload or row count. Exploit scripts are not student-readable (they live in the checker image, like the attacker
+    bot's), and each check also sends one legitimate request so "contained" means "blocked and still usable". The PR gate
+    uses the same checks. Light rate limit only.
+  - **Signals must be strong indicators:** each target emits a signal that is specific, countable and separable from
+    the benign noise (see the per-target signal table once written). Still to define per target.
+  - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time) and the `INCIDENT.md`
+    gate (per PR recommended).
+- **Build map (from the 2026-10-14 survey; everything is under `workshops/` or `modules/`, no `engine/` edit):**
+  `ctf-controller` is single-target for defend today (slot name `ctf-customer-portal-<user>`, one port per student,
+  `/redeploy` takes `{user,image}`), so it needs `slot_name(user, target)`/`host_port(user, target)`, a `target` on
+  `/redeploy`, and a schedule. The swarm bot has one `CTF_CHALLENGE` and one URL per student. The SIEM already has
+  severity and a free-text `challenge`, but `_breached(user)` is per user, not per target (verify). The per-student repo
+  is seeded by `90-ctf-defend.sh` (customer-portal only); the PR gate runs the exploit from the student's own repo,
+  which is why it is readable today.
 
 **Open, in order:**
 
