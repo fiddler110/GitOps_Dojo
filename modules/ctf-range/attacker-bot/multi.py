@@ -1,4 +1,4 @@
-"""Three-target mode for attacker-bot (ctf-defend redesign; docs/ctf-defend-build-contract.md).
+"""Three-target mode for attacker-bot (ctf-defend redesign; docs/CTF-WORKSHOP-PLAN.md 8.13).
 
 Active only when CTF_DEFEND_TARGETS lists several targets. After the facilitator's Start each student
 thread fetches its own schedule row from ctf-controller (`GET /schedule?user=`, Bearer
@@ -97,7 +97,7 @@ def _call(method, url, body=None, headers=None, timeout=TIMEOUT):
     try:
         parsed = json.loads(raw.decode("utf-8", "replace")) if raw else None
     except ValueError:
-        parsed = None
+        parsed = raw.decode("utf-8", "replace")   # plain text (the leaky log): callers regex it
     return status, len(raw), parsed
 
 
@@ -106,11 +106,14 @@ def customer_portal_request(url, outcome, exploit_fn, rng):
     """Same request shapes the single-target bot already posts; only the dispatch (per-target
     timers, own URL) is new in this module."""
     if outcome in ("recon", "probe"):
-        return traffic.request_for(outcome, rng)
+        return traffic.request_for(outcome, rng), outcome
     import dump as dump_mod
     try:
-        observed = exploit_fn()
-        breached = bool(observed and observed.get("rows"))
+        res = exploit_fn()
+        # make_exploit_fn's callable returns a bool and leaves the answer in .observed();
+        # a callable that returns the observed dict itself is accepted too.
+        observed = res if isinstance(res, dict) else (exploit_fn.observed() if hasattr(exploit_fn, "observed") else None)
+        breached = bool(observed and observed.get("rows")) if isinstance(res, dict) else bool(res)
     except Exception:  # noqa: BLE001 - an operational hiccup is not a verdict
         observed, breached = None, False
     rec = traffic.exploit_request(urllib.parse.urlencode({"q": dump_mod.PAYLOAD}), observed, breached, rng)

@@ -212,5 +212,42 @@ class RunTargetTimerTests(unittest.TestCase):
         self.assertTrue(state["now"] >= 5.0 * 0.01)
 
 
+class CustomerPortalRequestTests(unittest.TestCase):
+    """Regressions from the first live run: recon/probe returned a bare record, a bool exploit_fn was
+    read as a dict (never breached), and plain-text bodies were dropped."""
+
+    def test_recon_and_probe_return_record_and_outcome(self):
+        for outcome in ("recon", "probe"):
+            rec, out = multi.customer_portal_request("http://x", outcome, None, random.Random(1))
+            self.assertIsInstance(rec, dict)
+            self.assertEqual(out, outcome)
+
+    def test_bool_exploit_fn_with_observed_is_a_breach(self):
+        def fn():
+            return True
+        fn.observed = lambda: {"status": 200, "bytes": 99, "rows": [1, 2, 3, 4, 5]}
+        rec, out = multi.customer_portal_request("http://x", "exploit", fn, random.Random(1))
+        self.assertEqual(out, "dump_success")
+        self.assertEqual(rec["status"], 200)
+        self.assertEqual(rec["rows_returned"], 5)
+
+    def test_failed_exploit_is_not_a_breach(self):
+        def fn():
+            return False
+        fn.observed = lambda: {"status": 200, "bytes": 5, "rows": []}
+        _, out = multi.customer_portal_request("http://x", "exploit", fn, random.Random(1))
+        self.assertNotEqual(out, "dump_success")
+
+    def test_plain_text_body_is_returned_as_text(self):
+        class R:
+            status = 200
+            def read(self): return b"line one\npassword=abc"
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        with mock.patch.object(multi.urllib.request, "urlopen", return_value=R()):
+            status, size, body = multi._call("GET", "http://x/log")
+        self.assertEqual((status, body), (200, "line one\npassword=abc"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -297,6 +297,7 @@ def run_multi(users, host, port_base, stride, started_at, clients, control_addr,
     the process lifetime, same as run()."""
     import threading
     exploit_fns = {}
+    timers = []
 
     def user_thread(user, user_index):
         rows = fetch_schedule_with_retry(control_addr, control_token, user)
@@ -317,12 +318,16 @@ def run_multi(users, host, port_base, stride, started_at, clients, control_addr,
                 kwargs={"dwell_seconds": dwell_seconds, "ramp_seconds": ramp_seconds, "scale": scale,
                        "rng": random.Random(), "stop": stop},
                 daemon=True)
+            timers.append(t)
             t.start()
 
     threads = [threading.Thread(target=user_thread, args=(u, i), daemon=True) for i, u in enumerate(users)]
     for t in threads:
         t.start()
     for t in threads:
+        t.join()
+    # The per-target timers are daemon threads: keep the process alive for them.
+    for t in timers:
         t.join()
 
 
