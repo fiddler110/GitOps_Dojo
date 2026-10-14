@@ -39,12 +39,19 @@ def repo_ref(registry_prefix, image=IMAGE_NAME):
     return f"{registry_prefix}/{image}"
 
 
-def image_tag_for(user, registry_prefix, image=IMAGE_NAME):
+def tag_name_for(user, target=""):
+    """The tag part (after the colon). Single-target: just the user (today's
+    behaviour). Multi-target defend: "<user>-<target>", one tag per
+    (user, target) so three builds never overwrite each other."""
+    return f"{user}-{target}" if target else user
+
+
+def image_tag_for(user, registry_prefix, image=IMAGE_NAME, target=""):
     """The ONE tag a build for `user` may ever produce: the slot's own name
     under the approved prefix. Matches docker_api.allowed_image's check in
     ctf-controller, so whatever ctf-builder pushes, a redeploy is allowed to
     pull — and nothing else is."""
-    return f"{repo_ref(registry_prefix, image)}:{user}"
+    return f"{repo_ref(registry_prefix, image)}:{tag_name_for(user, target)}"
 
 
 def build_query(tag):
@@ -54,9 +61,9 @@ def build_query(tag):
     return urlencode({"t": tag, "rm": "1", "forcerm": "1", "pull": "0"})
 
 
-def push_query(user):
-    """`user` IS the tag (image_tag_for ties them together one-to-one)."""
-    return urlencode({"tag": user})
+def push_query(user, target=""):
+    """tag_name_for(user, target) IS the tag (image_tag_for ties them together)."""
+    return urlencode({"tag": tag_name_for(user, target)})
 
 
 def stream_had_error(raw):
@@ -111,9 +118,9 @@ class Executor:
         if stream_had_error(data):
             raise DockerError(f"build reported an error: {data[-400:]!r}")
 
-    def push(self, user, registry_prefix, image=IMAGE_NAME, timeout=120):
+    def push(self, user, registry_prefix, image=IMAGE_NAME, timeout=120, target=""):
         repo = repo_ref(registry_prefix, image)
-        path = f"/images/{quote(repo, safe='')}/push?{push_query(user)}"
+        path = f"/images/{quote(repo, safe='')}/push?{push_query(user, target)}"
         # The in-lab registry is unauthenticated (internal-only, CTF-D24), but
         # the Engine API still wants an X-Registry-Auth header present; an
         # empty auth config is the documented way to say "no credentials".

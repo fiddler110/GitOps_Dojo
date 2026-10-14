@@ -40,6 +40,7 @@ import socketserver
 import sys
 import threading
 import time
+from urllib.parse import parse_qs, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # dojo_http: modules/_shared/ in the source tree, ./_shared/ once ./dojo has
@@ -51,6 +52,7 @@ import dojo_http  # noqa: E402
 
 import docker_api
 import flags
+import schedule
 
 TICK = 10          # reconcile loop period, seconds
 # Per-slot published port inside ctf-host: BASE + index. Overridable
@@ -165,6 +167,7 @@ def _int_env(env, key, default):
 
 class Config:
     def __init__(self, env=os.environ):
+        self._env = env
         self.socket = env.get("CTF_SOCKET", "/run/ctf/docker.sock")
         self.control_token = env.get("CTF_CONTROL_TOKEN", "")
         self.registry = env.get("CTF_REGISTRY", "").rstrip("/")
@@ -175,6 +178,18 @@ class Config:
         self.seed = env.get("STUDENT_PASSWORD_SEED", "")
         self.host_port_base = int(env.get("CTF_HOST_PORT_BASE", "") or HOST_PORT_BASE)
         self.users = roster(env)
+        # Multi-target defend (build contract): one slot per (user, target).
+        # Empty = today's single customer-portal slot, names/ports unchanged.
+        self.targets = env.get("CTF_DEFEND_TARGETS", "").split()
+        self.port_stride = int(env.get("CTF_PORT_STRIDE", "") or 100)
+        self.dwell_s = int(env.get("CTF_DWELL_S", "") or 480)
+        try:
+            self.stagger = float(env.get("CTF_TARGET_STAGGER", "") or 0.5)
+        except ValueError:
+            self.stagger = 0.5
+        # Default seed is chosen once per controller start, so a restart
+        # reshuffles unless the operator pins CTF_SCHEDULE_SEED.
+        self.schedule_seed = env.get("CTF_SCHEDULE_SEED", "") or os.urandom(6).hex()
         # Stable per-user index → container name and published port, so a
         # recreate keeps the same address (§4 "Stable slot address").
         self.index = {u: i for i, u in enumerate(self.users)}
@@ -219,11 +234,41 @@ class Config:
             if len(parts) == 4:
                 self.attack_subnet_prefix = ".".join(parts[:3])
 
-    def slot_name(self, user):
-        return f"ctf-{flags.CHALLENGE}-{user}"
+    def slot_targets(self):
+        """The targets a user gets a slot for ([CHALLENGE] when unset)."""
+        return self.targets or [flags.CHALLENGE]
 
-    def host_port(self, user):
-        return self.host_port_base + self.index.get(user, 0)
+    def slot_name(self, user, target=None):
+        return f"ctf-{target or flags.CHALLENGE}-{user}"
+
+    def host_port(self, user, target=None):
+        tidx = self.targets.index(target) if target in self.targets else 0
+        return self.host_port_base + tidx * self.port_stride + self.index.get(user, 0)
+
+    def base_image_for(self, target=None):
+        """CTF_BASE_IMAGE for the single-target / first-target case; with
+        several targets each other target defaults to ctf-<target>:base
+        (override: CTF_BASE_IMAGE_<TARGET>, upper-case, '-' -> '_')."""
+        if target and len(self.targets) > 1:
+            key = "CTF_BASE_IMAGE_" + target.upper().replace("-", "_")
+            return self._env.get(key) or (
+                self.base_image if target == flags.CHALLENGE else f"ctf-{target}:base")
+        return self.base_image
+
+    def base_images(self):
+        return {self.base_image_for(t) for t in self.slot_targets()}
+
+    def schedule(self, user=None):
+        doc = schedule.build(self.users, self.targets, self.schedule_seed, self.dwell_s, self.stagger)
+        if user is None:
+            return doc
+        # The swarm bot plays the security team's own benign writes, so it needs the same
+        # per-student key the policy-bypass proxy checks (Bearer-gated route, bot-only).
+        for row in doc["users"].get(user) or []:
+            if row.get("target") == "policy-bypass":
+                row["secteam_key"] = flags.render(user, self.seed, challenge="policy-bypass-secteam")
+        return {"seed": doc["seed"], "t0": doc["t0"], "dwell_s": doc["dwell_s"],
+                "stagger": doc["stagger"], "user": user, "targets": doc["users"].get(user)}
 
     def attack_slot_name(self, user):
         return f"ctf-attack-{user}"
@@ -296,65 +341,92 @@ class Controller:
 
     # -- slot operations ---------------------------------------------------
 
-    def _env_for(self, user):
-        return [
+    def _env_for(self, user, target=None):
+        target = target or flags.CHALLENGE
+        env = [
             ("CTF_STUDENT", user),
-            ("CTF_FLAG", flags.render(user, self.cfg.seed)),
+            ("CTF_FLAG", flags.render(user, self.cfg.seed, challenge=target)),
             ("PORT", str(self.cfg.container_port)),
         ]
+        if self.cfg.targets:
+            env.append(("CTF_TARGET", target))
+            # Per-(user, target) secrets for targets that front the app with
+            # an identity proxy (policy-bypass); same derivation family as
+            # CTF_FLAG, never the seed itself.
+            env.append(("CTF_PROXY_TOKEN", flags.render(user, self.cfg.seed, challenge=f"{target}-proxy")))
+            env.append(("CTF_SECTEAM_KEY", flags.render(user, self.cfg.seed, challenge=f"{target}-secteam")))
+            if target == "policy-bypass":
+                env.append(("CTF_DEFEND_PROXY", "1"))
+            if target == "leaky-config":
+                env.append(("CTF_METRICS_PASS", flags.render(user, self.cfg.seed, challenge="leaky-config-metrics")))
+        return env
 
-    def _create_slot(self, user, image):
-        """Create (replacing any existing) one slot for `user` from `image`."""
-        name = self.cfg.slot_name(user)
+    def _create_slot(self, user, image, target=None):
+        """Create (replacing any existing) one slot for (user, target) from `image`."""
+        name = self.cfg.slot_name(user, target)
         self.ex.remove(name)
+        labels = {docker_api.LABEL_SLOT: user, docker_api.LABEL_USER: user}
+        if target and self.cfg.targets:
+            labels[docker_api.LABEL_TARGET] = target
         self.ex.create(
             name=name,
             image=image,
-            env_pairs=self._env_for(user),
-            ports=[(self.cfg.container_port, self.cfg.host_port(user))],
+            env_pairs=self._env_for(user, target),
+            ports=[(self.cfg.container_port, self.cfg.host_port(user, target))],
             memory_bytes=self.cfg.mem_bytes,
             pids_limit=self.cfg.pids,
-            labels={docker_api.LABEL_SLOT: user, docker_api.LABEL_USER: user},
+            labels=labels,
         )
 
-    def redeploy(self, user, image=None):
-        """The S6 live tail. Pull (if a registry tag) and recreate the user's
-        slot in place from `image` (default: the base image). Returns (ok, msg)."""
+    def redeploy(self, user, image=None, target=None):
+        """The S6 live tail. Pull (if a registry tag) and recreate the slot for
+        (user, target) in place from `image` (default: that target's base
+        image). `target` is required when several targets are configured.
+        Returns (ok, msg)."""
         if user not in self.cfg.index:
             return False, f"unknown slot {user!r}"
-        image = image or self.cfg.base_image
+        if len(self.cfg.targets) > 1 and not target:
+            return False, "target required"
+        if target and self.cfg.targets and target not in self.cfg.targets:
+            return False, f"unknown target {target!r}"
+        if not target and self.cfg.targets:
+            target = self.cfg.targets[0]
+        base = self.cfg.base_image_for(target)
+        image = image or base
         with self.lock:
             try:
-                if image != self.cfg.base_image:
+                if image not in self.cfg.base_images():
                     # A registry tag: pull it first (base is already imported).
                     self.ex.pull(image)
                 elif not self.ex.image_present(image):
                     return False, f"base image {image!r} not present on ctf-host"
-                self._create_slot(user, image)
+                self._create_slot(user, image, target)
             except docker_api.DockerError as exc:
                 return False, str(exc)
-        return True, f"redeployed {self.cfg.slot_name(user)} <- {image}"
+        return True, f"redeployed {self.cfg.slot_name(user, target)} <- {image}"
 
     def reconcile(self):
-        """Ensure every student has a running slot. A slot already running a
-        (patched) image is left as-is — reconcile never downgrades a fix."""
+        """Ensure every (student, target) has a running slot. A slot already
+        running a (patched) image is left as-is: reconcile never downgrades a fix."""
         try:
             present = set(self.ex.list_managed())
         except docker_api.DockerError as exc:
             self.error = str(exc)
             return
         for user in self.cfg.users:
-            name = self.cfg.slot_name(user)
-            try:
-                state = self.ex.state(name) if name in present else None
-                if state is None:
-                    self._create_slot(user, self.cfg.base_image)
-                elif state != "running":
-                    # Recreate from whatever image it already carries, so a
-                    # patched slot that stopped comes back patched.
-                    self._create_slot(user, self.ex.image_of(name) or self.cfg.base_image)
-            except docker_api.DockerError as exc:
-                self.error = f"{name}: {exc}"
+            for target in self.cfg.slot_targets():
+                name = self.cfg.slot_name(user, target)
+                base = self.cfg.base_image_for(target)
+                try:
+                    state = self.ex.state(name) if name in present else None
+                    if state is None:
+                        self._create_slot(user, base, target)
+                    elif state != "running":
+                        # Recreate from whatever image it already carries, so a
+                        # patched slot that stopped comes back patched.
+                        self._create_slot(user, self.ex.image_of(name) or base, target)
+                except docker_api.DockerError as exc:
+                    self.error = f"{name}: {exc}"
 
     # -- state for callers / readiness -------------------------------------
 
@@ -368,13 +440,14 @@ class Controller:
         rows = []
         try:
             for user in self.cfg.users:
-                name = self.cfg.slot_name(user)
-                rows.append({
-                    "user": user, "name": name,
-                    "state": self.ex.state(name) or "absent",
-                    "image": self.ex.image_of(name) or "",
-                    "port": self.cfg.host_port(user),
-                })
+                for target in self.cfg.slot_targets():
+                    name = self.cfg.slot_name(user, target)
+                    rows.append({
+                        "user": user, "target": target, "name": name,
+                        "state": self.ex.state(name) or "absent",
+                        "image": self.ex.image_of(name) or "",
+                        "port": self.cfg.host_port(user, target),
+                    })
         except docker_api.DockerError as exc:
             self.error = str(exc)
         with self.lock:
@@ -697,6 +770,14 @@ def make_handler(ctl, atk):
             if path == "/slots":
                 self._json(200, ctl.snapshot)
                 return
+            if path == "/schedule":
+                q = parse_qs(urlsplit(self.path).query)
+                who = (q.get("user") or [""])[0]
+                if who and who not in ctl.cfg.index:
+                    self._json(404, {"error": "unknown user"})
+                    return
+                self._json(200, ctl.cfg.schedule(who or None))
+                return
             self._json(404, {"error": "not found"})
 
         do_HEAD = do_GET
@@ -756,8 +837,12 @@ def make_handler(ctl, atk):
                 if image is not None and not isinstance(image, str):
                     self._json(400, {"error": "bad image"})
                     return
-                ok, msg = ctl.redeploy(user, image)
-                self._audit(f"redeploy {user} {image or '(base)'}", "ok" if ok else msg)
+                target = body.get("target")
+                if target is not None and not isinstance(target, str):
+                    self._json(400, {"error": "bad target"})
+                    return
+                ok, msg = ctl.redeploy(user, image, target or None)
+                self._audit(f"redeploy {user} {target or '-'} {image or '(base)'}", "ok" if ok else msg)
                 self._json(200 if ok else 409, {"ok": ok, "message": msg})
                 return
             if path == "/reconcile":
@@ -788,7 +873,7 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     cfg = Config()
     ex = docker_api.Executor(cfg.socket, registry_prefix=cfg.registry,
-                             extra_images=set(cfg.attack_targets.values()))
+                             extra_images=set(cfg.attack_targets.values()) | cfg.base_images())
     ctl = Controller(cfg, ex)
     atk = AttackManager(cfg, ex)
     threading.Thread(target=ctl.loop, daemon=True).start()

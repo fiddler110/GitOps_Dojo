@@ -123,3 +123,37 @@ class TestHTTP(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTarget(unittest.TestCase):
+    def test_unknown_target_rejected(self):
+        cfg = make_config(CTF_DEFEND_TARGETS="customer-portal policy-bypass")
+        ok, msg = b.do_build(cfg, FakeExecutor(), "student01", "main", "nope")
+        self.assertEqual((ok, msg), (False, "bad target"))
+
+    def test_target_required_when_multi(self):
+        cfg = make_config(CTF_DEFEND_TARGETS="customer-portal policy-bypass")
+        ok, msg = b.do_build(cfg, FakeExecutor(), "student01", "main")
+        self.assertEqual((ok, msg), (False, "target required"))
+
+    def test_tag_per_user_target(self):
+        from docker_build import image_tag_for, push_query
+        a = image_tag_for("student01", "r:5000", target="policy-bypass")
+        self.assertTrue(a.endswith(":student01-policy-bypass"))
+        self.assertTrue(image_tag_for("student01", "r:5000").endswith(":student01"))
+        self.assertEqual(push_query("student01", "policy-bypass"), "tag=student01-policy-bypass")
+
+
+class TestOverlay(unittest.TestCase):
+    def test_overlay_overwrites_student_files(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as ov, tempfile.TemporaryDirectory() as dest:
+            os.makedirs(os.path.join(ov, "policy-bypass"))
+            with open(os.path.join(ov, "policy-bypass", "proxy.py"), "w") as f:
+                f.write("platform")
+            with open(os.path.join(dest, "proxy.py"), "w") as f:
+                f.write("student")
+            cfg = make_config(CTF_OVERLAY_DIR=ov)
+            self.assertEqual(b.apply_overlay(cfg, "policy-bypass", dest), ["proxy.py"])
+            self.assertEqual(open(os.path.join(dest, "proxy.py")).read(), "platform")
+            self.assertEqual(b.apply_overlay(cfg, "", dest), [])
