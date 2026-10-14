@@ -28,6 +28,15 @@ Open the real port in a browser or with `curl`. The front page doesn't ask you t
 Poke around the paths it links to, and the paths it doesn't -- an "admin" area that lists files is worth
 trying even without a link to it.
 
+Not every path is linked from the front page. `ffuf` tries a wordlist of likely paths for you and shows
+which ones exist; when you find a section, run it again one level down:
+
+```sh
+ffuf -w /usr/local/share/wordlists/common.txt -u http://<your-slot-ip>:5000/FUZZ -fc 404 -ic
+```
+
+`-fc 404` hides "not found" responses and `-ic` ignores the comment lines in the wordlist.
+
 Once you find a directory of files, you'll see two: a config backup and a log. Read both.
 
 > **Hint 1.** One of those two files is a believable red herring -- it looks exactly like a leaked secret
@@ -44,6 +53,15 @@ Once you find a directory of files, you'll see two: a config backup and a log. R
 That credential was good enough to authenticate somewhere once. There's a second endpoint on this same
 dashboard, gated by the exact kind of check you'd expect (HTTP Basic Auth) -- correctly implemented, no
 bug in the check itself. The only way in is already having a valid credential.
+
+HTTP Basic Auth takes a username and password on the command line with `curl -u`. The path to try is
+whichever one the log line you found was trying to reach:
+
+```sh
+curl -s -u "<username>:<password>" http://<your-slot-ip>:5000/<path-from-the-log>
+```
+
+If you get `401 Unauthorized` back, the credential or the path is wrong. If you get a body, you're in.
 
 ## 4. Submit
 
