@@ -12,15 +12,17 @@ ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
 COPY dojo-flag.py /usr/local/bin/dojo-flag
+COPY dojo-check.py /usr/local/bin/dojo-check
 COPY start.d/50-ctf-range.sh /etc/dojo/start.d/50-ctf-range.sh
 # git-secrets (target 8) provisioning: a no-op for every pack that doesn't
 # list git-secrets in CTF_ATTACK_TARGETS (module.env) — see the hook itself.
 COPY start.d/55-git-secrets.sh /etc/dojo/start.d/55-git-secrets.sh
-RUN chmod 0755 /usr/local/bin/dojo-flag /etc/dojo/start.d/50-ctf-range.sh /etc/dojo/start.d/55-git-secrets.sh
+RUN chmod 0755 /usr/local/bin/dojo-flag /usr/local/bin/dojo-check /etc/dojo/start.d/50-ctf-range.sh /etc/dojo/start.d/55-git-secrets.sh
 
 # dojo-flag talks to ctf-flags directly on workshop_lab, not through the
 # gateway (same shape as openbao's BAO_ADDR - see modules/openbao/terminal).
-ENV CTF_FLAGS_ADDR=http://ctf-flags:8080
+ENV CTF_FLAGS_ADDR=http://ctf-flags:8080 \
+    CTF_CHECKER_ADDR=http://ctf-checker:9200
 
 # Debian-packaged tools (plan §9): apt itself verifies these against
 # Debian's signed repo metadata, the same trust basis every other apt
