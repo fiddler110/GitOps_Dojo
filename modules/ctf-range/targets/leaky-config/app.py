@@ -72,7 +72,7 @@ FLAG = os.environ.get("CTF_FLAG", "flag{leaky-config-dev0000000000}")
 # set, and the failure handler logs the attempted credentials "for
 # debugging" instead of redacting them.
 METRICS_USER = "metrics-agent"
-METRICS_PASS = secrets.token_hex(8)
+METRICS_PASS = os.environ.get("CTF_METRICS_PASS") or secrets.token_hex(8)
 
 # Flavor-only noise: a DB connection string that LOOKS like a leaked secret
 # but unlocks nothing here -- the actual gating credential is the metrics

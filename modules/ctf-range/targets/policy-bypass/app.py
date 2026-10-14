@@ -28,7 +28,10 @@ Env:
   CTF_FLAG      this slot's flag value (plan §5).
   PORT          listen port (default 5000).
 """
+import hmac
+import json
 import os
+import sys
 import threading
 import socket
 
@@ -125,6 +128,15 @@ ASSIGNMENT = {
 
 def _lookup(definition_id):
     return DEFINITION if definition_id == DEFINITION_ID else None
+
+
+def _caller_role():
+    """Role the platform proxy attached to this request, or "unknown" when the proxy token is absent/wrong."""
+    expected = os.environ.get("CTF_PROXY_TOKEN", "")
+    got = request.headers.get("X-Gateway-Token", "")
+    if expected and hmac.compare_digest(got, expected):
+        return request.headers.get("X-Caller-Role", "unknown")
+    return "unknown"
 
 
 _PROVISIONED = []  # flavor-only audit trail, shown back on /api/resources
@@ -235,6 +247,9 @@ def provision():
     resource = engine.resource_view("containerGroup", name, LOCATION, tags, props, SUB, rg)
     assignments = [ASSIGNMENT] if rg == PROTECTED_RG else []
     outcome = engine.evaluate_write(resource, assignments, _lookup)
+    print(json.dumps({"audit": True, "method": "POST", "path": "/api/provision", "caller": _caller_role(),
+                      "resource_group": rg, "asserted_tag": str(tags.get("provisioned-by", "")),
+                      "outcome": "denied" if outcome.denied else "allowed"}), file=sys.stderr, flush=True)
     if outcome.denied:
         v = outcome.denied[0]
         return jsonify({"error": {
@@ -285,4 +300,7 @@ def _start_decoy(port, handler):
 _start_decoy(2222, _decoy_ssh_handler)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)
+    if os.environ.get("CTF_DEFEND_PROXY") == "1":
+        app.run(host="127.0.0.1", port=5001, threaded=False)
+    else:
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)
