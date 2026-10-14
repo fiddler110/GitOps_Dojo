@@ -55,7 +55,7 @@ http -a user:pass $TARGET/secure
 ## Other HTTP methods
 
 ```text
-http PATCH http://$TARGET/users/me role=admin
+http PATCH http://$TARGET/api/profile nickname=sam
 http DELETE http://$TARGET/users/5
 ```
 

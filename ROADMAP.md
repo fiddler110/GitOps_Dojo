@@ -117,7 +117,7 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Defend lab redesign (decided 2026-10-14, plan "Defend lab redesign"): three live targets per student attacked in a per-student order (six permutations, seeded, time-driven), different SIEM signal per target, low/medium/high severity, `INCIDENT.md` triage gate, at most 20 students. To decide: third target, severity mapping, stagger interval (pilot), the gate. Supersedes the bonus second flaw for targets 8-11 |
+| 1 | Defend lab redesign: built on `feat/ctf-defend-three-targets` (as-built contract: plan 8.13); open until verified: the live loop run, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, a 20-student run, real-time dwell (`CTF_TIME_SCALE=1`). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
 | 2 | Class-sized run: capacity and isolation (40 for the attack packs, 20 for defend), the swarm with real dwell and ramp times, the Target Viewer card as a student |
 | 3 | End-of-session scoring summary (CTF-D19), plan open questions 1-3 |
 | 4 | The four attack packs have no demo-bot steps (`content/bots/steps.sh`), so `--test` bots run only the generic git workflow and never solve an attack lab (checked 2026-10-14: zero unlocks in `ctf-access` and `ctf-trust-chain`). Add steps per pack if a bot run should exercise the labs, as `git-fundamentals` does; look at `ssrf-fetcher` fetching its own `127.0.0.1:5000` (500) |

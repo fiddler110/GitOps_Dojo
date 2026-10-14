@@ -30,7 +30,7 @@ import random
 
 DWELL_SECONDS = 8 * 60          # S9 proposal: 8 minutes of recon-only before any ramp
 RAMP_SECONDS = 10 * 60          # CTF-D18: 10 minute ramp from dwell end to detonation
-RAMP_FLOOR = 7.5                # CTF-D18: "a floor well below 30s (starting guess 5-10s)"
+RAMP_FLOOR = 5.0                # decided 2026-10-14 (plan 13.2): 5s at real time so signals stay countable
 DETONATE_JITTER = 60.0          # each student detonates up to this many seconds after the room
 DELAY_MIN, DELAY_MAX = 30.0, 180.0
 BENIGN_FRACTION = 0.15          # §8.6: a noise-only persona, flavor-assigned to ~1 in 7 students

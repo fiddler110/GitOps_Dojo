@@ -12,9 +12,9 @@ not this library's (see the top-level Lab Info README for why).
 ## Pointing it at a request
 
 ```text
-sqlmap -u "http://$TARGET/search?q=test"
+sqlmap -u "http://$TARGET/catalog?item=test"
 ```
-sqlmap treats `q`'s value as the thing to test, sends a battery of probes
+sqlmap treats `item`'s value as the thing to test, sends a battery of probes
 varying it, and reports what it finds. Run against a parameter that
 *isn't* injectable (most ordinary, well-written code), it correctly
 reports nothing — that's expected, not a failure of the tool.

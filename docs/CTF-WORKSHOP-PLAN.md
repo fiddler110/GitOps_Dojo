@@ -121,7 +121,7 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
   they expected), labs state required facts in the step text, each CTF cheat sheet has three core-command slides,
   and Lab Info has a `curl` primer. Flaws, flags and `solve.py` are unchanged.
 
-**Defend lab redesign (decided with the user 2026-10-14, not built):** `ctf-defend` becomes three live targets per
+**Defend lab redesign (decided with the user 2026-10-14; built on `feat/ctf-defend-three-targets`, live verification pending; as-built contract in 8.13):** `ctf-defend` becomes three live targets per
 student at once, attacked in a per-student order, and the bonus second flaw (8.7, CTF-D17) is dropped.
 
 - **Shape:** three targets up at once per student, the lab as incident triage ("a mess") rather than the sequential
@@ -160,13 +160,8 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
     the benign noise (see the per-target signal table once written). Still to define per target.
   - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time) and the `INCIDENT.md`
     gate (per PR recommended).
-- **Build map (from the 2026-10-14 survey; everything is under `workshops/` or `modules/`, no `engine/` edit):**
-  `ctf-controller` is single-target for defend today (slot name `ctf-customer-portal-<user>`, one port per student,
-  `/redeploy` takes `{user,image}`), so it needs `slot_name(user, target)`/`host_port(user, target)`, a `target` on
-  `/redeploy`, and a schedule. The swarm bot has one `CTF_CHALLENGE` and one URL per student. The SIEM already has
-  severity and a free-text `challenge`, but `_breached(user)` is per user, not per target (verify). The per-student repo
-  is seeded by `90-ctf-defend.sh` (customer-portal only); the PR gate runs the exploit from the student's own repo,
-  which is why it is readable today.
+- **Build map:** superseded by the as-built contract in 8.13 (controller, builder, checker, bot, SIEM and pack all
+  under `workshops/` or `modules/`, no `engine/` edit).
 
 **Open, in order:**
 
@@ -854,6 +849,77 @@ worst moment — stolen data dumped on the open web — built entirely from in-l
   storage is available as a CTF-D17 **bonus second flaw** (encrypt/hash at rest) that bots surface but that never
   moves the status light on its own.
 
+### 8.13 Three-target defend build, as built (2026-10-14)
+
+Interface the pieces share. Nothing here touches `engine/`. Verdicts and names below are the code's, not proposals.
+
+**Targets**
+
+| target | index | severity | weight | signal kind |
+|---|---|---|---|---|
+| `customer-portal` | 0 | high | 3 | request log (SQL injection) |
+| `policy-bypass` | 1 | medium | 2 | audit log (protected write allowed for the wrong caller) |
+| `leaky-config` | 2 | low | 1 | file-access + auth log (unauthenticated log read, then reuse of a logged credential) |
+
+- **Env** (pack level): `CTF_DEFEND_TARGETS="customer-portal policy-bypass leaky-config"` (index = position),
+  `CTF_PORT_STRIDE=100`, `CTF_TARGET_STAGGER=0.5`, optional `CTF_SCHEDULE_SEED` (default random per controller start),
+  `CTF_DWELL_S` 480. Unset or one target keeps the single-target behaviour the attack packs use.
+- **Slots:** container `ctf-<target>-<user>`; host port `CTF_HOST_PORT_BASE + target_index * STRIDE + user_index`;
+  service port 5000 inside. Flag per `(user, target)` from `flags.render(user, seed, challenge=target)`.
+- **Student repos:** one per target, named the target, with `app.py`, `Dockerfile`, a README stating what the app is and
+  what the platform provides, and `defend-pr.yml` / `defend-main.yml`. No exploit script. `content/sync-sample-repos.sh`
+  rebuilds the seeds from the targets.
+
+**Verdicts and checks.** `exploitable`, `contained`, `broke-normal-use`, `unreachable`. Each
+`targets/<t>/exploit/check.py --url U [--expect-flag F] [--legit-key K]` prints `{"verdict","note"}` and exits 0
+exploitable / 1 contained / 3 broke-normal-use / 2 unreachable. `contained` means exploit blocked AND one legitimate
+request still succeeds. `note` is one sentence, never a payload or row count.
+
+**`policy-bypass` identity (option B).** `proxy.py` (image only, not in the student repo) listens on 5000 and forwards to
+`app.py` on 127.0.0.1:5001. It sets `X-Caller-Role` (`security-team` iff `Authorization: Bearer $CTF_SECTEAM_KEY`, else
+`developer`) and `X-Gateway-Token: $CTF_PROXY_TOKEN`, replacing client values. The app trusts the role only when the
+token matches. The flaw stays in the policy trusting the body tag; the fix is about two lines. Switch:
+`CTF_DEFEND_PROXY=1` in `entrypoint.sh`, so attack packs are unaffected.
+
+**`leaky-config`.** The app reads `CTF_METRICS_PASS`; the controller sets it per slot to
+`flags.render(user, seed, challenge="leaky-config-metrics")`, the checker derives the same value. Per-slot proxy token
+and security-team key are `<target>-proxy` / `<target>-secteam` rendered from `STUDENT_PASSWORD_SEED`.
+
+**Services**
+
+- **`ctf-checker`** (`modules/ctf-range/ctf-checker/`, port 9200): `POST /check {"user"[,"target"]}` (one run per user
+  per 3 s, else 429) and `POST /gate` (Bearer `CTF_BUILD_TOKEN`, `{user,target,ref}`: clones the student repo, overlays
+  only the candidate `app.py` onto the image's seed directory, runs it, runs `check.py`, returns
+  `{verdict,note,pass}`). Check scripts live in the image, not student-readable. Terminal command `dojo-check
+  [<target>]`, address `CTF_CHECKER_ADDR`.
+- **`ctf-controller`:** `slot_name`/`host_port` per `(user,target)`, `POST /redeploy {user,target,image}`, `GET /slots`
+  rows with `target`, `GET /schedule[?user=]` (Bearer `CTF_CONTROL_TOKEN`; `t0` is null, the bot uses its own start).
+  Schedule: six permutations shuffled once by the seed, dealt round-robin by roster index; `start_offset_s = position *
+  stagger * dwell_s`. The policy-bypass row also carries `secteam_key` for the bot's benign writes.
+- **`ctf-builder`:** `POST /build` takes `target`; tag `<registry>/<image>:<user>-<target>`; returns `{"tag"}`, which
+  `defend-main.yml` passes to `/redeploy`. Overlay files come from `CTF_OVERLAY_DIR` (default `/app/overlay`).
+- **Bot and SIEM:** `attacker-bot/multi.py` runs three independent timers per student at `t0 + start_offset_s`
+  (scaled by `CTF_TIME_SCALE`) with about 15% benign traffic. `dump_success` is the breach event, one per
+  `(user, target)`; `_breached` and visibility tiers are per `(user, target)`; the wall is red if any target is breached
+  and groups by target with severity.
+
+**Signals** (each specific, countable and separable from benign traffic)
+
+- `customer-portal`: `method, path, query, status, bytes, rows_returned, ua, klass`. Strong: `GET /search` with SQL
+  metacharacters and `rows_returned` far above the benign 0-3.
+- `policy-bypass`: `method, path, caller, resource_group, outcome, asserted_tag, klass`. Strong: `allowed` into
+  `rg-vault-gateway` by `caller=developer` with `asserted_tag=security-team`, usually after `denied` rows.
+- `leaky-config`: `method, path, auth, account, ua, status, klass`. Strong: `GET /admin/logs/...` with `auth=none`
+  `status=200`, then `auth=basic-ok` for `ops-admin` from a `ua` absent from benign traffic.
+
+**Scoring and gate.** Green 10 / yellow 5 / red 0 per target times weight; time to contain and MTTP are display only.
+`INCIDENT.md` per PR, presence and non-empty headings only ("What was hit", "How I know", "Impact"). Stagger default
+0.5 x dwell, to be tuned in a pilot with 2-3 people.
+
+**Not yet verified:** a full live loop, a 20-student run, real-time dwell, stagger tuning (see ROADMAP).
+
+---
+
 ## 9. Content and front door
 
 Per session pack, from `./dojo new-workshop`:
@@ -1001,8 +1067,8 @@ throughout this plan point to that file.
 
 Questions 1-13 of draft 1 are resolved in [`CTF-SPIKES.md`](CTF-SPIKES.md) (CTF-D12 to D18). What remains:
 
-1. **Multiplier.** Start at x5 (10/5/0, bonus +5), or lower the bonus to 0.5 unit if it feels too large?
-2. **Ramp floor.** The fully ramped delay (5-10s guess) is set in spike S13.
+1. **Multiplier.** Decided 2026-10-14: x5 (10/5/0, bonus +5).
+2. **Ramp floor.** Decided 2026-10-14: 5 s (`personas.RAMP_FLOOR`), scaled by `CTF_TIME_SCALE`.
 3. **Lab Info ownership.** Who reviews the primers for leaked payloads? Proposed: a checklist in CTF-P2b, checked
    against every solve script.
 
