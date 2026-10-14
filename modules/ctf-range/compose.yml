@@ -455,6 +455,9 @@ services:
       - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-customer-portal policy-bypass leaky-config}
       - CTF_GIT_SERVER=${CTF_GIT_SERVER:-git-server:3000}
       - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+      # POST /reset forwards to the controller's /redeploy (base image); the terminal never holds this.
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      - CTF_CONTROLLER_URL=${CTF_CONTROLLER_URL:-http://ctf-controller:9000}
     networks:
       - workshop_lab
       - ctf_net

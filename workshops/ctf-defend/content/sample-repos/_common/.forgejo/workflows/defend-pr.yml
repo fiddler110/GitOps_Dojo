@@ -23,7 +23,7 @@ jobs:
           git checkout --quiet "$CTF_REF"
 
       - name: Incident note (INCIDENT.md)
-        # Presence check only: the file exists and has the three headings with something under each.
+        # Presence check only: the file is non-empty and has the three headings. What you write is yours to get right.
         run: |
           set -eu
           cd repo
@@ -49,7 +49,8 @@ jobs:
           print("verdict:", r.get("verdict")); print("note:   ", r.get("note", ""))
           if r.get("pass") is True:
               print("GATE PASS - attack blocked, normal use still works."); sys.exit(0)
-          print("GATE FAIL - not contained (a fix that breaks normal use fails too)."); sys.exit(1)
+          print("GATE FAIL - not contained (a fix that breaks normal use fails too). The gate is advisory: "
+                "you can still merge, and the box will run what you merge. `dojo-reset <target>` undoes a box you broke."); sys.exit(1)
           PY
         env:
           CTF_BUILD_TOKEN: ${{ secrets.CTF_BUILD_TOKEN }}

@@ -4,6 +4,11 @@
       Student-facing (via `dojo-check`). Identity is the caller's $USER, as for
       dojo-flag; the worst a spoofed name does is check someone else's slot,
       which only reveals a verdict word. One run per user per RATE_S seconds.
+  POST /reset  {"user": "student01", "target": "policy-bypass"} -> {ok, message}
+      Student-facing (via `dojo-reset`). Puts that one slot back on the target's
+      base image by asking ctf-controller to redeploy it (the checker holds the
+      control token so the terminal never does). One reset per user per
+      RESET_RATE_S seconds. The student's repo is not touched.
   POST /gate   Bearer CTF_BUILD_TOKEN, {"user","target","ref"}
       Clones the student's repo at ref itself, runs the candidate app.py
       locally (seed files from the image, only app.py comes from the repo),
@@ -25,11 +30,15 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 
 import gitref
 
 MAX_BODY = 1024
 RATE_S = 3.0
+RESET_RATE_S = 15.0
+RESET_TIMEOUT = 90
 CHECK_TIMEOUT = 40
 CLONE_TIMEOUT = 60
 VERDICTS = ("exploitable", "contained", "broke-normal-use", "unreachable")
@@ -59,6 +68,8 @@ class Config:
         self.build_token = env.get("CTF_BUILD_TOKEN", "")
         self.seed = env.get("STUDENT_PASSWORD_SEED", "")
         self.git_server = env.get("CTF_GIT_SERVER", "git-server:3000")
+        self.controller_url = (env.get("CTF_CONTROLLER_URL") or "http://ctf-controller:9000").rstrip("/")
+        self.control_token = env.get("CTF_CONTROL_TOKEN", "")
 
     def slot_port(self, user, target):
         return (self.port_base + self.targets.index(target) * self.stride
@@ -266,13 +277,36 @@ def do_gate(cfg, user, target, ref, runner=subprocess.run):
         shutil.rmtree(work, ignore_errors=True)
 
 
+def do_reset(cfg, user, target):
+    """Redeploy (user, target) from its base image via ctf-controller. -> (ok, message)."""
+    if not cfg.control_token:
+        return False, "reset is not configured on this platform"
+    req = urllib.request.Request(
+        f"{cfg.controller_url}/redeploy", method="POST",
+        data=json.dumps({"user": user, "target": target}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {cfg.control_token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=RESET_TIMEOUT) as resp:
+            doc = json.load(resp)
+    except urllib.error.HTTPError as exc:
+        try:
+            doc = json.load(exc)
+        except ValueError:
+            doc = {}
+        return False, str(doc.get("message") or doc.get("error") or f"controller said {exc.code}")[:200]
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return False, "could not reach the range controller"
+    return bool(doc.get("ok")), str(doc.get("message") or "")[:200]
+
+
 def _audit(action, result):
     print(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                       "event": "ctf-checker", "action": action, "result": result},
                      separators=(",", ":")), flush=True)
 
 
-def make_handler(cfg, limiter, gate_lock):
+def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
+    reset_limiter = reset_limiter or RateLimiter(RESET_RATE_S)
     class Handler(http.server.BaseHTTPRequestHandler):
         server_version = "ctf-checker"
 
@@ -314,13 +348,25 @@ def make_handler(cfg, limiter, gate_lock):
 
         def do_POST(self):
             path = self.path.split("?", 1)[0]
-            if path not in ("/check", "/gate"):
+            if path not in ("/check", "/gate", "/reset"):
                 return self._json(404, {"error": "not found"})
             if path == "/gate" and not self._authed():
                 return self._json(403, {"error": "build token required"})
             body = self._body()
             if body is None:
                 return self._json(400, {"error": "bad request"})
+            if path == "/reset":
+                user, err = validate_check(body, cfg)
+                if err:
+                    return self._json(400, {"error": err})
+                target = body.get("target")
+                if target not in cfg.targets:
+                    return self._json(400, {"error": "name a target: " + ", ".join(cfg.targets)})
+                if not reset_limiter.allow(user):
+                    return self._json(429, {"error": "slow down: one reset every few seconds"})
+                ok, msg = reset(cfg, user, target)
+                _audit(f"reset {user} {target}", "ok" if ok else msg)
+                return self._json(200 if ok else 409, {"ok": ok, "message": msg})
             if path == "/check":
                 user, err = validate_check(body, cfg)
                 if err:

@@ -60,6 +60,16 @@ target is `contained` only when the attack is blocked **and** normal use still w
 the app off, you will see `broke-normal-use`. It never shows you the payload or the data, so it tells you whether,
 not how. Do not expect it to find the bug for you.
 
+### `dojo-reset`
+
+```sh
+dojo-reset policy-bypass      # one target, back to the starting app
+```
+
+If you break a box (it is down, or a merge made it worse), this replaces the running container with the original,
+vulnerable app. It does not touch your repo: your commits stay, and the next merge to `main` redeploys them. To
+undo a bad merge in the repo, `git revert` it. A reset costs you nothing but the time the target stays open.
+
 | Verdict | Meaning |
 |---|---|
 | `exploitable` | the attack still works |

@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -73,6 +74,53 @@ class Rate(unittest.TestCase):
         self.assertTrue(r.allow("b"))
         t[0] = 3.1
         self.assertTrue(r.allow("a"))
+
+
+class ResetTests(unittest.TestCase):
+    def setUp(self):
+        self.cfg = checker.Config(dict(ENV, CTF_CONTROL_TOKEN="tok"))
+        self.calls = []
+
+    def _post(self, body, reset=None, limiter=None):
+        import http.client
+        import threading
+        fake = reset or (lambda cfg, u, t: (self.calls.append((u, t)) or (True, "redeployed")))
+        handler = checker.make_handler(self.cfg, checker.RateLimiter(), threading.Lock(),
+                                       reset_limiter=limiter or checker.RateLimiter(60), reset=fake)
+        srv = checker.Server(("127.0.0.1", 0), handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+            c.request("POST", "/reset", json.dumps(body), {"Content-Type": "application/json"})
+            r = c.getresponse()
+            return r.status, json.loads(r.read())
+        finally:
+            srv.shutdown()
+
+    def test_reset_forwards_user_and_target(self):
+        status, doc = self._post({"user": "student02", "target": "policy-bypass"})
+        self.assertEqual((status, doc["ok"], self.calls), (200, True, [("student02", "policy-bypass")]))
+
+    def test_reset_needs_a_known_target_and_user(self):
+        self.assertEqual(self._post({"user": "student02"})[0], 400)
+        self.assertEqual(self._post({"user": "student02", "target": "ping-tool"})[0], 400)
+        self.assertEqual(self._post({"user": "student99", "target": "leaky-config"})[0], 400)
+        self.assertEqual(self.calls, [])
+
+    def test_reset_is_rate_limited_per_user(self):
+        lim = checker.RateLimiter(60)
+        body = {"user": "student01", "target": "leaky-config"}
+        self.assertEqual(self._post(body, limiter=lim)[0], 200)
+        self.assertEqual(self._post(body, limiter=lim)[0], 429)
+
+    def test_controller_refusal_is_a_409_with_its_message(self):
+        status, doc = self._post({"user": "student01", "target": "leaky-config"},
+                                 reset=lambda c, u, t: (False, "base image not present"))
+        self.assertEqual((status, doc["ok"], doc["message"]), (409, False, "base image not present"))
+
+    def test_unconfigured_token_is_refused(self):
+        cfg = checker.Config(ENV)
+        self.assertEqual(checker.do_reset(cfg, "student01", "leaky-config")[0], False)
 
 
 if __name__ == "__main__":
