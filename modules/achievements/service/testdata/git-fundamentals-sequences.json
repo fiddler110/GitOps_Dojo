@@ -393,6 +393,226 @@
     "merging_after": false
    },
    "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "echo \"# Notes from the workshop\" > notes.md",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git add notes.md",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git commit -m \"Add workshop notes\"",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-main"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git log --oneline -2",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch notes-amy",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git log --oneline --graph --decorate -2",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git fetch",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git reset --hard origin/main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "l1-rescue"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "git log --oneline --graph --decorate -2",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git status",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout notes-amy",
+    "exit": 0,
+    "branch": "notes-amy",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git log --oneline -2",
+    "exit": 0,
+    "branch": "notes-amy",
+    "branch_before": "notes-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "batcat notes.md",
+    "exit": 0,
+    "branch": "notes-amy",
+    "branch_before": "notes-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git checkout main",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "notes-amy",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch -d notes-amy",
+    "exit": 1,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch -D notes-amy",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "git branch",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
   }
  ],
  "lab2": [

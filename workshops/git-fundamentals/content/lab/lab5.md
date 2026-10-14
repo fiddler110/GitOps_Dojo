@@ -138,6 +138,8 @@ The right way to undo something depends on whether anyone else could already hav
 
 ### Committed, but not pushed
 
+Nobody else has it, so you can rewrite history freely. You already did this once: [lab1.md](lab1.md) step 9 used `git reset --hard` to move `main` back after committing on it by mistake. Here it's the same command for its own sake, on a throwaway branch.
+
 `git reset` moves your branch pointer (and `HEAD`) back to an earlier commit. `HEAD~1` means "one commit before `HEAD`": `HEAD` is your current commit, so `HEAD~1` is its parent. The flag decides what happens to the changes in the commit you stepped back over:
 
 | Flag | The commit | Staging area | Working tree |

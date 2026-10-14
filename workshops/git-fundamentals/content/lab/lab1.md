@@ -213,6 +213,112 @@ Make `git fetch --prune` a habit at the start of every work session — it keeps
 
 ---
 
+## 9. When you commit on the wrong branch
+
+Step 2 was "create a branch" — and sooner or later everyone forgets it, edits away, commits, and only then notices
+the prompt still says `main`. Nothing is broken and nothing is lost: the fix is three short steps, and it's worth doing
+once now, deliberately, so you recognise it later.
+
+You're on `main` and up to date from step 8, which is exactly where the mistake starts. Make it on purpose:
+
+```sh
+git status                      # confirms: On branch main
+echo "# Notes from the workshop" > notes.md
+git add notes.md
+git commit -m "Add workshop notes"
+git log --oneline -2
+```
+
+That commit is sitting on your local `main`, where it doesn't belong. (If your class has achievements on, this is the
+one and only time the lab tells you to earn **Living Dangerously** — and there's a second one waiting for you once
+you've put `main` back.)
+
+### Why nothing is lost
+
+A branch in git is just a **label pointing at a commit** — it is not a container holding your work. Your commit
+exists on its own; `main` merely happens to point at it. So you don't need to move the commit anywhere. You add a
+second label, then move `main` off it.
+
+### Step 1: label the commits before you touch anything
+
+```sh
+git branch notes-yourname
+git log --oneline --graph --decorate -2
+```
+
+```text
+* 4f1c2ab (HEAD -> main, notes-yourname) Add workshop notes
+* 9cc890c (origin/main) Add Your Name to team roster
+```
+
+`git branch <name>` (no `-b`, no `checkout`) creates the label at your current commit **without switching you onto
+it** — that's what `HEAD ->` points at. `--decorate` is what prints the names in brackets, and they are the whole
+point here: one commit with two labels on it, and `origin/main` still back where the server is. Your commit is now
+safe whatever happens to `main` next.
+
+Do this first, always. The label is the safety net, so it goes in *before* the destructive command, not after.
+
+### Step 2: move `main` back to where the server has it
+
+```sh
+git fetch
+git reset --hard origin/main
+git log --oneline --graph --decorate -2
+git status
+```
+
+`origin/main` is your local record of what the server's `main` looked like at your last `fetch` — so `git fetch`
+first, to make sure that record is current. `git reset --hard origin/main` then moves your `main` to exactly that
+commit and makes your working directory match it. Your accidental commit is no longer on `main`; `notes.md` is gone
+from the working directory, and `git status` is clean.
+
+You'll often see this written as `git reset --hard HEAD~1` instead ("one commit before where I am"), and that works
+too — but it makes you count. Two accidental commits need `HEAD~2`, three need `HEAD~3`, and `--hard` with the wrong
+number silently throws away work you meant to keep. Resetting to `origin/main` says "match the server" and needs no
+arithmetic, so prefer it whenever the branch tracks a remote.
+
+`--hard` also discards *uncommitted* edits in your working directory, with no confirmation and no undo. If you have
+any, commit or stash them ([lab3.md](lab3.md)) before you reset.
+
+### Step 3: switch to your branch and carry on
+
+```sh
+git checkout notes-yourname
+git log --oneline -2
+batcat notes.md
+```
+
+There's your commit, and there's `notes.md` back in your working directory — on a branch this time. From here it's
+the normal loop again: push with `-u`, open a pull request.
+
+### Already pushed to the wrong branch?
+
+Then stop and don't use `git reset`. Rewriting a branch other people have pulled breaks their clone — and in most
+real repositories `main` is protected, so the force-push it would need is refused anyway. Use `git revert` on the
+shared branch instead: [lab5.md](lab5.md) covers it. The question is never "is it committed", it's **"has anyone
+else already got it"**.
+
+Clean up this exercise before moving on:
+
+```sh
+git checkout main
+git branch -d notes-yourname
+```
+
+`-d` refuses, exactly as described in step 8 — your commit was never merged into `main`, which is the whole point of
+this exercise. You're sure you don't need it, so force it:
+
+```sh
+git branch -D notes-yourname
+git branch
+```
+
+> **If you ever lose track of a commit**, it is almost certainly still there. `git reflog` lists every commit `HEAD`
+> has pointed at recently, including ones no branch points to any more, and `git checkout -b rescue <hash>` brings
+> one back. Ask your facilitator rather than trying more commands blind.
+
+---
+
 ## Checkpoint
 
 Before moving on, be ready to show or say:
@@ -222,6 +328,8 @@ Before moving on, be ready to show or say:
 - The URL of your pull request.
 - In your own words: what changed locally at `git commit`, and what changed remotely at `git push`?
 - What `git fetch --prune` cleaned up, and why `git branch -d` refuses to delete an unmerged branch.
+- Why a commit made on the wrong branch is never lost, and which of the three rescue commands is the
+  destructive one.
 
 <!-- dojo-reveal: Check your answers -->
 - **At `git commit`:** a new commit was added to your local `add-yourname` branch. Only your machine changed.

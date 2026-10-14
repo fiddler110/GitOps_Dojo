@@ -1,9 +1,14 @@
 # Workshop bot steps for git-fundamentals (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE).
-# Keeps the engine's default steps, which already walk Labs 1-5, and adds the three challenges (c1 The
-# Hotfix, c2 The Detective, capstone The Great Merge) right before step_wrap_round, each one the way the
-# lab page says to do it: `dojo-challenge start`, work in ~/lab/challenge-repo, `dojo-check`.
-# Each step ends with `dojo-check ID`, so the result is in the bot's log (~/.dojo-bot.log) and in
-# `dojo-check status` for that account.
+# Keeps the engine's default steps, which already walk Labs 1-5, and adds two things the engine's
+# shared steps don't cover:
+#   * Lab 1 step 9's wrong-branch drill (step_gf_wrong_branch), right after the Lab 1 PR step. It is
+#     the only step that earns `l1-rescue`, so without it a --test run leaves every bot one core
+#     milestone short and `l1-rescue` never gets a class-clear bonus.
+#   * the three challenges (c1 The Hotfix, c2 The Detective, capstone The Great Merge) right before
+#     step_wrap_round, each one the way the lab page says to do it: `dojo-challenge start`, work in
+#     ~/lab/challenge-repo, `dojo-check`.
+# Each challenge step ends with `dojo-check ID`, so the result is in the bot's log (~/.dojo-bot.log)
+# and in `dojo-check status` for that account.
 
 GF_REPO="$BOT_USER/challenge-repo"
 GF_DIR="$HOME/lab/challenge-repo"
@@ -21,6 +26,37 @@ gf_start() { # start challenge $1 from a clean copy and cd into it
 gf_open_pr() { # $1 = branch, $2 = title; echoes the PR number
   api_curl -X POST "$API/repos/$GF_REPO/pulls" -H 'Content-Type: application/json' \
     -d "{\"head\":\"$1\",\"base\":\"main\",\"title\":\"$2\"}" | grep -o '"number":[0-9]*' | head -1 | cut -d: -f2
+}
+
+step_gf_wrong_branch() {
+  # Lab 1 step 9: commit on `main` by mistake, carry the commit to a branch, put `main` back.
+  # Entirely local -- nothing is pushed and `main` is only ever reset to what the server already
+  # has, so this touches no shared state. Earns f-main ("Living Dangerously", worth nothing) on the
+  # commit and l1-rescue on the reset; the branch is what tells l1-rescue from Lab 5's l5-reset, so
+  # the reset has to happen while on `main`.
+  cd "$REPO_DIR" || return 1
+  local branch notes; branch="$(branch_name "notes")"; notes="notes-${BOT_USER}.md"
+  narrate "Lab 1, step 9 -- the mistake everyone makes once: editing straight on main"
+  run_cmd "git checkout main"
+  # A restart re-enters the whole step, so drop anything a half-finished run left behind.
+  git branch -D "$branch" >/dev/null 2>&1
+  run_cmd "printf '# Notes from round %s\\n' '$ROUND' > '$notes'"
+  run_cmd "git add '$notes'"
+  run_cmd "git commit -m 'Add $BOT_USER notes (round $ROUND)'"
+  run_cmd "git log --oneline -2"
+  narrate "...that went on main. Label the commit first, then move main off it"
+  run_cmd "git branch '$branch'"
+  run_cmd "git log --oneline --graph --decorate -2"
+  run_cmd "git fetch"
+  run_cmd "git reset --hard origin/main"
+  run_cmd "git status"
+  narrate "main is back to the server's version -- and the commit is safe on $branch"
+  run_cmd "git checkout '$branch'"
+  run_cmd "git log --oneline -1"
+  run_cmd "git checkout main"
+  run_cmd "git branch -d '$branch'"
+  narrate "-d refuses an unmerged branch, as the lab says -- forcing it, this was only a drill"
+  run_cmd "git branch -D '$branch'"
 }
 
 step_gf_c1() {
@@ -74,12 +110,15 @@ step_gf_capstone() {
   run_cmd "dojo-check capstone"
 }
 
-# Challenges go after the labs, just before the round ends.
-if command -v dojo-challenge >/dev/null 2>&1; then
-  gf_steps=()
-  for s in "${STEPS[@]}"; do
-    [ "$s" = step_wrap_round ] && gf_steps+=(step_gf_c1 step_gf_c2 step_gf_capstone)
-    gf_steps+=("$s")
-  done
-  STEPS=("${gf_steps[@]}")
-fi
+# The wrong-branch drill follows the Lab 1 PR step (every persona reaches Lab 1, so every bot runs
+# it); the challenges go after the labs, just before the round ends, and only where dojo-challenge
+# exists (achievements off = no challenges).
+gf_challenges=0
+command -v dojo-challenge >/dev/null 2>&1 && gf_challenges=1
+gf_steps=()
+for s in "${STEPS[@]}"; do
+  [ "$s" = step_wrap_round ] && [ "$gf_challenges" = 1 ] && gf_steps+=(step_gf_c1 step_gf_c2 step_gf_capstone)
+  gf_steps+=("$s")
+  [ "$s" = step_lab1_push_and_pr ] && gf_steps+=(step_gf_wrong_branch)
+done
+STEPS=("${gf_steps[@]}")

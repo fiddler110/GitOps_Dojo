@@ -338,7 +338,7 @@ class StoreTests(unittest.TestCase):
         me = self.s.me("a")
         self.assertEqual([m["id"] for m in me["moments"]], ["f-wrongdir"])
         self.assertEqual(me["completion"]["percent"], 0)
-        self.assertEqual(me["completion"]["needed"], 18)
+        self.assertEqual(me["completion"]["needed"], 19)   # 80% of git-fundamentals' 23 core milestones
         self.assertEqual(me["score"], 0)
 
     def test_state_survives_a_restart(self):
