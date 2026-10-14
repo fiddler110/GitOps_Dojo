@@ -48,6 +48,17 @@ python3 exploit/dump.py --url http://<your-slot-address>
 Exit `0` means it's still vulnerable; `1` means patched. Right now it should
 say `0`.
 
+If you're stuck, work these in order. They point at where to look, not at the
+answer.
+
+> **Hint 1.** Look at the SIEM panel's request log. Out of all the paths the
+> swarm touches, which one gets hit far more than the rest, and with what in
+> its query string?
+
+> **Hint 2.** Find the line in `app.py` that handles that path. Follow the
+> value the visitor sends from the request to wherever it's finally used. What
+> is it joined to, and by what means?
+
 ---
 
 ## 4. Branch, fix, push, PR
@@ -75,3 +86,28 @@ against your (now redeployed) slot and confirm it exits `1`.
 
 Check the SIEM panel again: your status should flip from under attack
 to contained.
+
+---
+
+## 6. Debrief
+
+You can read this once your status is green or yellow.
+
+The bug was a query built by pasting visitor input into the SQL text, so the
+database couldn't tell the data from the instruction. The fix is a
+parameterised query: the statement is fixed, the value travels separately. A
+gate that re-runs the real exploit is what proved your fix worked, not your
+reading of the diff.
+
+Three things worth taking away:
+
+- **Status and time.** Compare your time to contain with the room's on the
+  SOC summary. The bug was equally easy to fix for everyone; what differed was
+  how quickly you read the log and got to the right line.
+- **The merge is the deploy.** Nothing was pushed to the server by hand. The
+  pipeline rebuilt the image from `main`, so the repo is the source of truth
+  for what's running. That is the GitOps point.
+- **Think about what the dump contained.** If the table held cleartext
+  passwords, a fixed query stops new dumps but not the damage already done.
+  What should be stored instead, and what would you have to do about the
+  accounts that were exposed?

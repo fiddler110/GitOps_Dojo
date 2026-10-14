@@ -51,6 +51,20 @@ bug in the check itself. The only way in is already having a valid credential.
 dojo-flag submit leaky-config '<flag>'
 ```
 
+## Debrief
+
+The flaw was not a clever bug. An admin route served log files with no login check, because the reverse
+proxy that was meant to guard it had gone, and a developer's debug logging had recorded a credential in full.
+Both happen because a control lives somewhere else (a proxy, a convention) and nobody reviews what a running
+service quietly writes to disk. The credential then worked because it was never rotated. The real-world fix
+is layered: put the authentication check in the app itself, never log secrets (redact at the logger), and
+rotate any credential that has ever touched a log or a backup. This is OWASP Top 10 2021 **A05 Security
+Misconfiguration**. No Dojo workshop teaches this one head on, but the habits sit in `vault-fundamentals`,
+where secrets live in a vault rather than in files.
+
+Reflect: which of your own services rely on something else in front of them for access control, and what
+happens if that layer is removed? When did you last rotate a password that appeared in a log?
+
 ## Still stuck?
 
 Read [exploit-guide/leaky-config.md](exploit-guide/leaky-config.md) for the full walkthrough -- try the

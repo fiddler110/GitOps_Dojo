@@ -48,6 +48,17 @@ Once you're logged in as `admin`, the flag is right there on the welcome page.
 dojo-flag submit sqli-login '<flag>'
 ```
 
+## Debrief
+
+The login built its SQL query by gluing your text straight into the statement, so the database could not
+tell your data from the program's own instructions. Input that closes the quote and adds logic became part of
+the query, and the password check simply stopped mattering. The real fix is parameterized queries (prepared
+statements), which send the values separately from the SQL, plus least-privilege database accounts and
+hashed passwords so a slip does less damage. This is **OWASP A03:2021 Injection**.
+
+Reflect: input validation or escaping at the form would also have helped, but why is parameterization the
+more dependable defense? Where else in your own stack does user text end up inside a command or query?
+
 ## Still stuck?
 
 Read [exploit-guide/sqli-login.md](exploit-guide/sqli-login.md) for the full walkthrough -- try the hints

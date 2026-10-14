@@ -51,6 +51,17 @@ Once you've reset `ops-admin`'s password and logged in, the flag is on their lan
 dojo-flag submit weak-auth-portal '<flag>'
 ```
 
+## Debrief
+
+The reset token was derived only from values anyone can know: the username and the current minute. With no
+server-side secret mixed in, a "secret" token was just a formula, and you could compute it for any account
+without ever requesting a reset. Real fixes: generate tokens from a cryptographically secure random source (or
+an HMAC keyed with a server secret), store them server-side, make them single-use and short-lived, and rate
+limit attempts. This is **OWASP A07:2021 Identification and Authentication Failures**.
+
+Reflect: what would an attacker need to know if the token were random and single-use? And how would you
+notice someone resetting a privileged account's password?
+
 ## Still stuck?
 
 Read [exploit-guide/weak-auth-portal.md](exploit-guide/weak-auth-portal.md) for the full walkthrough -- try

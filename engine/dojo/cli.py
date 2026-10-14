@@ -112,7 +112,7 @@ class DojoGroup(click.Group):
         formatter.write_text(f"Run '{PROG} <command> --help' for a command's own options.")
 
 
-QUIET_COMMANDS = {"help", "stop", "teardown", "alias-setup", "restart", "status", "doctor", "config", "list",
+QUIET_COMMANDS = {"help", "stop", "down", "teardown", "alias-setup", "restart", "status", "doctor", "config", "list",
                   "modules", "logs", "completion", "exec", "shell", "urls", "open", "wait", "version", "roster",
                   "reset-student", "backup", "restore", "export-results", "prune", "validate", "test", "ps"}
 
@@ -168,6 +168,14 @@ def restart(services: Tuple[str, ...], clean: bool) -> None:
 @click.option("--dry-run", is_flag=True, help="List what would be removed; remove nothing.")
 def stop(dry_run: bool) -> None:
     """Stop the stack and delete ALL its volumes (student homes, Forgejo data). No undo."""
+    from .stop import run_stop
+    sys.exit(run_stop(dry_run))
+
+
+@cli.command("down", context_settings=SETTINGS)
+@click.option("--dry-run", is_flag=True, help="List what would be removed; remove nothing.")
+def down(dry_run: bool) -> None:
+    """Same as stop: stop the stack and delete ALL its volumes. No undo."""
     from .stop import run_stop
     sys.exit(run_stop(dry_run))
 

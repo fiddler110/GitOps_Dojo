@@ -60,6 +60,16 @@ field before letting you through.
 dojo-flag submit api-mass-assignment '<flag>'
 ```
 
+## Debrief
+
+The update route copied every key in the request body onto the user record, so a field that was only ever meant to be set by the server was writable by its owner. Frameworks that bind a JSON body straight onto an object make this easy to do by accident, and the interface never shows the extra fields, which is why it goes unnoticed.
+
+The real fix is an explicit allow-list of client-settable fields, or separate input and storage models, with sensitive attributes such as role changed only through a privileged path.
+
+OWASP API Security Top 10 2023: API3 Broken Object Property Level Authorization (mass assignment). In the 2021 web list it sits under A04 Insecure Design.
+
+Reflect: which fields on your own models would be dangerous if a client set them?
+
 ## Still stuck?
 
 Read [exploit-guide/api-mass-assignment.md](exploit-guide/api-mass-assignment.md) for the full
