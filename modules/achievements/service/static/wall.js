@@ -3,6 +3,7 @@
   var body = document.getElementById('rows');
   var empty = document.getElementById('empty');
   var card = document.getElementById('wall-card');
+  var banner = document.getElementById('wall-banner');
   function cell(text, cls) { var td = document.createElement('td'); td.textContent = text; if (cls) { td.className = cls; } return td; }
   function ago(seconds) {
     if (seconds < 60) { return Math.floor(seconds) + 's ago'; }
@@ -17,11 +18,15 @@
         empty.className = rows.length ? 'card hidden' : 'card';
         card.className = rows.length ? 'card' : 'card hidden';
         while (body.firstChild) { body.removeChild(body.firstChild); }
+        var live = rows.filter(function (r) { return r.state === 'LIVE'; }).length;
+        banner.className = live ? 'card neg' : 'card hidden';
+        banner.textContent = live ? 'BREACH IN PROGRESS - ' + live + ' target' + (live > 1 ? 's' : '') + ' leaking now' : '';
         var now = Date.now() / 1000;
         rows.forEach(function (r) {
           var tr = document.createElement('tr');
           tr.appendChild(cell(r.user));
-          tr.appendChild(cell(r.challenge));
+          tr.appendChild(cell(r.target || r.challenge));
+          tr.appendChild(cell(r.severity || '', 'dim'));
           tr.appendChild(cell(r.state, r.state === 'LIVE' ? 'neg' : 'dim'));
           tr.appendChild(cell(ago(now - r.last_seen), 'dim'));
           body.appendChild(tr);

@@ -31,6 +31,18 @@ Then think about what the server has to do with what you typed to decide whether
 your username and password turn into a question the server asks its own records: *does a user matching
 these two things exist?* The question is built out of **text you control**.
 
+A login like this is usually backed by a SQL query that the program assembles as text. In a made-up
+example, a notes site might build:
+
+```text
+SELECT * FROM notes WHERE owner = 'USER_TEXT' AND archived = 0
+```
+
+with `USER_TEXT` replaced by whatever was typed. The single quotes mark where a text value starts and
+ends. If the typed text contains a quote of its own, the database sees the value end early and reads
+whatever follows as part of the query. Whether this server does that is something you can test with the
+login form and read from how the response changes.
+
 > **Hint 1.** Try putting a single quote (`'`) into the username field by itself and see what changes in
 > the response, if anything. A quote means something specific inside a database query -- what is it, and
 > what happens if yours shows up somewhere the server didn't expect it?

@@ -263,6 +263,13 @@ services:
       # (socket.gethostbyname -- podman-compose does not honour
       # ipv4_address pins, so we read the actual IP instead of pinning).
       - CTF_NET_SUBNET=10.42.0.0/24
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-}
+      - CTF_PORT_STRIDE=${CTF_PORT_STRIDE:-}
+      - CTF_TARGET_STAGGER=${CTF_TARGET_STAGGER:-}
+      - CTF_DWELL_S=${CTF_DWELL_S:-}
+      - CTF_SCHEDULE_SEED=${CTF_SCHEDULE_SEED:-}
+      - CTF_BASE_IMAGE_POLICY_BYPASS=${CTF_BASE_IMAGE_POLICY_BYPASS:-}
+      - CTF_BASE_IMAGE_LEAKY_CONFIG=${CTF_BASE_IMAGE_LEAKY_CONFIG:-}
     volumes:
       - ctf_run:/run/ctf
     # The ctf-host socket is 0660 root:ctf (gid 1901); the controller is the
@@ -363,8 +370,11 @@ services:
       # Its OWN token, deliberately different from CTF_CONTROL_TOKEN (a
       # leaked build-trigger credential should never also grant /redeploy).
       - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-}
     volumes:
       - ctf_run:/run/ctf
+      # proxy.py / entrypoint.sh are platform files, not in the student's repo; the builder lays them over the clone.
+      - ../modules/ctf-range/targets:/app/overlay:ro
       # A clone is tiny (one Flask app); tmpfs keeps the read-only root happy
       # without ever touching a real disk path.
     tmpfs:
@@ -420,6 +430,53 @@ services:
       interval: 15s
       timeout: 3s
       retries: 3
+    restart: unless-stopped
+
+  # ctf-checker: runs each target's check.py (held only in this image, never
+  # in a student repo) against a student's live slot (POST /check, called by
+  # `dojo-check` from the terminal) and gates a candidate app.py before merge
+  # (POST /gate, Bearer CTF_BUILD_TOKEN, called by the PR workflow). Reaches
+  # slots over ctf_net at ctf-host:<slot port>; clones from git-server itself
+  # via runner_net/workshop_lab. No docker socket, no volume.
+  ctf-checker:
+    build:
+      # Module root so the build can COPY targets/ and ctf-controller/flags.py.
+      context: ../modules/ctf-range
+      dockerfile: ctf-checker/Dockerfile
+    image: gitopsdojo/ctf-checker:${WORKSHOP_SLUG:-local}
+    container_name: workshop_ctf_checker
+    environment:
+      - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
+      - CTF_HOST=ctf-host
+      - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}
+      - CTF_PORT_STRIDE=${CTF_PORT_STRIDE:-100}
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-customer-portal policy-bypass leaky-config}
+      - CTF_GIT_SERVER=${CTF_GIT_SERVER:-git-server:3000}
+      - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
+      # POST /reset forwards to the controller's /redeploy (base image); the terminal never holds this.
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      - CTF_CONTROLLER_URL=${CTF_CONTROLLER_URL:-http://ctf-controller:9000}
+    networks:
+      - workshop_lab
+      - ctf_net
+      - runner_net
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_CHECKER_MEM_LIMIT:-256m}
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9200/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     restart: unless-stopped
 
   # attacker-bot lives in workshops/ctf-defend/compose/docker-compose.override.yml:
@@ -498,6 +555,9 @@ services:
       # services' own copies; see controller.py's ATTACK_IP_BASE_OCTET.
       - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
       - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
+      # Three-target defend: the firewall hook opens one port per target.
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-}
+      - CTF_PORT_STRIDE=${CTF_PORT_STRIDE:-100}
     networks:
       ctf_net: {}
 

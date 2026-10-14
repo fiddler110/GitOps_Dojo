@@ -37,8 +37,10 @@ curl -s -X POST http://<ip>:5000/login \
 curl -s http://<ip>:5000/me -H "Authorization: Bearer <token>" | jq
 ```
 
-`GET /me` confirms it: you're logged in, and your role is `student`. There's also an administrative route,
-`POST /admin/reset-all`, that a facilitator would use to reset the whole room's progress. Think about the
+`GET /me` confirms it: you're logged in, and your role is `student`. The API also documents its own
+routes at `GET /spec` (linked from the API's root page): it lists `POST /admin/reset-all`, states that
+route is meant for `role=facilitator` accounts, and shows the `X-Confirm-Reset` header it accepts. A
+facilitator would use that route to reset the whole room's progress. Think about the
 *two* separate questions a route like that should ask before doing anything: is this request from someone
 who successfully logged in, and is this request from someone who's *allowed to do this specific thing*.
 A route can get the first answer right and never ask the second.

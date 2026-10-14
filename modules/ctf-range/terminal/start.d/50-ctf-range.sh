@@ -97,6 +97,10 @@ if [ -n "${CTF_NET_SUBNET:-}" ]; then
   attack_prefix="$(printf '%s' "$CTF_NET_SUBNET" | sed -E 's#\.[0-9]+/[0-9]+$##')."
 fi
 
+port_stride="${CTF_PORT_STRIDE:-100}"
+defend_target_count=0
+for _t in ${CTF_DEFEND_TARGETS:-}; do defend_target_count=$((defend_target_count + 1)); done
+
 counter=1
 while [ "$counter" -le "$student_count" ]; do
   username="$(printf '%s%02d' "$student_prefix" "$counter")"
@@ -106,6 +110,14 @@ while [ "$counter" -le "$student_count" ]; do
     # CTF-5 always-on slot: one port on ctf-host (reconcile path keeps the
     # port-block scheme; ctf-defend uses this).
     iptables -A CTF_ISOLATION -p tcp --dport "$port" -d "$ctf_host_ip" -m owner --uid-owner "$uid" -j ACCEPT
+    # Three-target defend: target t's slot for this user is at
+    # base + t*CTF_PORT_STRIDE + index (target 0 is the rule above).
+    t=1
+    while [ "$t" -lt "$defend_target_count" ]; do
+      iptables -A CTF_ISOLATION -p tcp --dport "$((port + t * port_stride))" -d "$ctf_host_ip" \
+        -m owner --uid-owner "$uid" -j ACCEPT
+      t=$((t + 1))
+    done
     # CTF-1..4 attack slots (2026-10-07): each student uid can reach their
     # own K reserved IPs on ctf_net, native target ports and all. ctf-host
     # added these addresses to its own eth1; the inner dockerd publishes

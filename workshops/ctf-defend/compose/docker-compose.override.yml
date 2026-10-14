@@ -10,8 +10,7 @@
 # proved on a real stack first with a now-retired facilitator harness (docs/CTF-WORKSHOP-PLAN.md, CTF-S6).
 #
 # attacker-bot: the room-wide swarm (plan §8.2-8.11), moved here from
-# modules/ctf-range/compose.yml on 2026-10-07. Its CTF_CHALLENGE=customer-portal
-# is hardcoded to CTF-5's always-on slot and it only ever activates when the
+# modules/ctf-range/compose.yml on 2026-10-07. It attacks all three targets and it only ever activates when the
 # facilitator presses "Start Attack Swarm" on the SOC admin tab, so
 # every pack but ctf-defend ran it idle before this move.
 services:
@@ -22,9 +21,8 @@ services:
       - CTF_BUILD_TOKEN=${CTF_BUILD_TOKEN:-}
       - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
       - CTF_REGISTRY=${CTF_REGISTRY:-registry:5000}
-      - CTF_BUILDER_REPO_NAME=${CTF_BUILDER_REPO_NAME:-customer-portal}
-      # The bonus-second-flaw toggle (workshop.env): on = 90-ctf-defend.sh lays content/bonus/ over the seed.
-      - CTF_BONUS_FLAWS=${CTF_BONUS_FLAWS:-on}
+      # One repo per target per student (workshop.env); the repo name is the target.
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-customer-portal policy-bypass leaky-config}
 
   # ONE container for the whole room (revised 2026-10-05 - not a fleet of per-
   # student bots living inside ctf-host). One thread per student; it reaches each
@@ -48,7 +46,13 @@ services:
       - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
-      - CTF_CHALLENGE=customer-portal
+      # No CTF_CHALLENGE: the bot reads its per-student schedule (target order + start offsets) from
+      # ctf-controller's GET /schedule and attacks every target in CTF_DEFEND_TARGETS.
+      - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-customer-portal policy-bypass leaky-config}
+      - CTF_PORT_STRIDE=${CTF_PORT_STRIDE:-100}
+      - CTF_TARGET_STAGGER=${CTF_TARGET_STAGGER:-0.5}
+      - CTF_CONTROL_TOKEN=${CTF_CONTROL_TOKEN:-}
+      - CTF_CONTROLLER_URL=${CTF_CONTROLLER_URL:-http://ctf-controller:9000}
       - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
       - ACHIEVEMENTS_ADAPTER_URL=${ACHIEVEMENTS_ADAPTER_URL:-http://achievements:8080/api/adapter}
       # Where this polls (signed, no event) for "has the facilitator pressed Start yet" - see
@@ -62,8 +66,8 @@ services:
       # One multiplier for the whole attack timeline (dwell, ramp, delays, jitter, hint gaps): 1 for a
       # real session, 0.1 under ./dojo --test (engine/dojo/start.py sets it; CTF_TIME_SCALE=1 overrides).
       - CTF_TIME_SCALE=${CTF_TIME_SCALE:-1}
-      # Bonus-flaw toggle (workshop.env): on = a share of the WARN probes name data-at-rest paths (probes.py).
-      - CTF_BONUS_FLAWS=${CTF_BONUS_FLAWS:-on}
+      # The bonus second flaw is gone in the three-target design.
+      - CTF_BONUS_FLAWS=off
     networks:
       - ctf_net
       - workshop_lab

@@ -21,48 +21,52 @@ Keep this open in a split pane or another tab while you work.
 
 ---
 
-## Clone your repo
+## The loop
+
+**Detect** -> **Triage** -> **Contain** -> **Fix** -> **Verify**
+
+Three apps, one clock. Work the worst, best-evidenced one first.
+
+---
+
+## Clone your repos
 
 ```sh
 cd ~/lab
 git clone http://git-server:3000/$USER/customer-portal.git
-cd customer-portal
+git clone http://git-server:3000/$USER/policy-bypass.git
+git clone http://git-server:3000/$USER/leaky-config.git
 ```
-
-Your copy, not a shared seed. Whatever you push to `main` is what runs on
-your slot.
 
 ---
 
-## Check your own theory
+## Check your slots
 
 ```sh
-# the same check the PR gate runs against your branch
-python3 exploit/dump.py --url http://<your-slot-address>
+dojo-check                  # all three
+dojo-check leaky-config     # one
 ```
 
-Exit `0` -- still vulnerable. Exit `1` -- patched. Run it as often as you
-like; it never costs you anything.
+`contained` = blocked and still usable. `broke-normal-use` = you broke it.
+
+`dojo-reset <target>` = back to the starting app (repo untouched).
 
 ---
 
-## Branch, fix, push, PR
+## Branch, fix, PR
 
 ```sh
-git checkout -b fix-search
-# edit app.py
-git add app.py
-git commit -m "Fix the customer lookup"
-git push -u origin fix-search
+git checkout -b fix-<target>
+# edit, and write INCIDENT.md
+git add -A && git commit -m "Fix <target>"
+git push -u origin fix-<target>
 ```
 
-Open the PR in Forgejo, then watch the Actions tab -- it reruns the exploit
-check against your branch and blocks the merge until it comes back clean.
+`INCIDENT.md`: *What was hit*, *How I know*, *Impact*.
 
 ---
 
 ## After merge
 
-Merging rebuilds the image and redeploys your slot in place -- no extra
-step. Re-run the exploit check against your slot to confirm `1`, then check
-the SIEM panel for the flip from under attack to contained.
+Merge redeploys that slot in place. Run `dojo-check <target>`, then
+watch the SIEM go from under attack to contained.

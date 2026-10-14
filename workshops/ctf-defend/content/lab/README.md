@@ -7,7 +7,7 @@ lab work under this `~/lab` folder.
 
 | Lab | Topic | Time |
 | --- | ----- | ---- |
-| [lab1.md](lab1.md) | Defend customer-portal: find the bug, branch, PR, merge, watch it redeploy | ~2 h |
+| [lab1.md](lab1.md) | Incident triage: three live apps, detect, triage, contain, fix, verify | ~2 h |
 
 Open any lab file with:
 

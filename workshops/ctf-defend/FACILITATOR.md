@@ -4,8 +4,8 @@ For the person running the session. The technical reference is [`README.md`](REA
 speaker notes carry the talking points. This guide is the practical part: before, during, after, and
 what to do when something breaks.
 
-**Honest status:** the range, target 14 (`customer-portal`), its SAST stage and defend pipeline, the
-attacker-bot swarm and SOC feed are all built (see `docs/CTF-WORKSHOP-PLAN.md`, `RELEASES.md`). This
+**Honest status:** the range, the three defend targets, the checker and the defend pipeline, the
+attacker-bot swarm and SOC feed are built (the three-target conversion has not had a live class run yet) (see `docs/CTF-WORKSHOP-PLAN.md`, `RELEASES.md`). This
 pack's own content (this guide, the deck, the cheat sheet) was finished alongside a content audit of
 the whole CTF series and has not yet had its own live rehearsal in a room. Do the rehearsal below before
 a class.
@@ -14,16 +14,21 @@ a class.
 
 | Block | Minutes | What |
 | ----- | ------- | ---- |
-| Talk | ~15 | The incident framing, the clone-and-fix flow, the exploit check, the PR gate |
-| Lab 1 | ~90 | `customer-portal` — find the SQL injection, branch, PR, merge, watch it redeploy |
-| Recap | ~15 | What the SOC clock showed; point at the capstone for anyone who finishes early |
+| Talk | ~15 | Three apps on fire, the loop, `dojo-check`, the PR gate and `INCIDENT.md` |
+| Lab 1 | ~90 | Incident triage: detect, triage, contain, fix, verify, on all three targets |
+| Recap | ~15 | Order of work vs the room's; the per-target debriefs; the capstone for early finishers |
 
-**One lab, one target, always on.** Unlike CTF-1 through CTF-4, there is no Attack Range card and no
-start/stop/reset — `customer-portal` is already running on every student's slot from the moment the
-stack comes up (CTF-D20/D25: the "always-on, one app-code target" model, not the student-controlled
-ladder). Each student has their **own Forgejo repo** (`<student>/customer-portal`, provisioned by
-`compose/terminal/start.d/90-ctf-defend.sh`), not a shared seed — what they push to `main` is what's
-actually running on their slot.
+**One lab, three targets, always on.** There is no Attack Range card and no start/stop/reset: `customer-portal`
+(high), `policy-bypass` (medium) and `leaky-config` (low) run on every student's slot from the moment the stack
+comes up. Each student has **three own Forgejo repos** (`<student>/<target>`, provisioned by
+`compose/terminal/start.d/90-ctf-defend.sh`), and what they push to `main` is what runs on that slot. The attack
+order differs per student (six permutations dealt from a seed; set `CTF_SCHEDULE_SEED` to reproduce a run) and each
+target starts on a stagger (`CTF_TARGET_STAGGER`), so breaches pile up. Class size is at most 20.
+
+**The loop is the lesson**: detect, triage, contain, fix, verify. `dojo-check` runs the attack against a live slot
+and one legitimate request, so a student sees `exploitable`, `contained`, `broke-normal-use` or `unreachable`
+per target. The PR gate runs the same checks and also needs an `INCIDENT.md` with `What was hit`, `How I
+know` and `Impact` (presence only; read a few in the recap, the content is the triage).
 
 **The clock is a facilitator action, not automatic.** The attacker-bot swarm (SOC' green → yellow
 → red countdown) sits idle until you press **Start Attack Swarm** on the SOC `/admin` tab. Nothing
@@ -40,11 +45,9 @@ Students' points come from a city-level lookup of where they connect from (optio
 `modules/achievements/tools/fetch_geoip.sh`; no addresses are stored or shown) or, on a LAN or WSL,
 sit around `CTF_HOME_REGION` (default Toronto).
 
-**Don't name the bug from the stage.** The deck describes the app and the pipeline, never the SQL
-injection itself — students find it by using the app and reading `app.py`, the same file they already
-have in their cloned repo. If someone's stuck, point them at the exploit check
-(`python3 exploit/dump.py --url ...`, the same one the PR gate runs) and at re-reading the source, not at
-the line number.
+**Don't name the bugs from the stage.** The deck describes the apps and the pipeline, never a flaw. Students find
+each one in its own signal and source. If someone is stuck, point at `dojo-check` and the lab's hints for that
+target, in order; never at a line number.
 
 ## Before the session
 
@@ -59,12 +62,11 @@ the line number.
    **SOC** to go green. Confirm the `attacker-bot` container is up (idle) — `podman ps`.
 4. **Size the machine:** `./dojo capacity ctf-defend --students 30` if you expect a full room — the
    range's `ctf-host`/`ctf-controller` plus the `attacker-bot` swarm sit alongside the terminals.
-5. **Rehearse as a student** in a private window: clone your own `customer-portal`, confirm
-   `python3 exploit/dump.py --url <your-slot>` exits `0`, fix `app.py`'s `/search` query, PR it, watch
-   the PR gate's Actions run block a bad fix and pass a good one, merge, confirm the exploit check now
-   exits `1` against the redeployed slot, and check the `m-opened`/`m-shipped`/`m-contained`
-   achievements land. Then try the capstone (`app.py`'s `/login` has the same bug) to confirm the
-   second fix verifies too. `./dojo stop` and start clean afterward.
+5. **Rehearse as a student** in a private window: clone all three repos, run `dojo-check` (all
+   `exploitable`), fix each, PR it with and without `INCIDENT.md`, watch the gate block a bad fix and pass a
+   good one, merge, confirm `dojo-check` says `contained`, and check the per-target milestones land. Then try
+   the capstone (`customer-portal`'s `/login` has the same bug). `./dojo stop` and start clean afterward.
+   Run `content/sync-sample-repos.sh` first if a target's source changed.
 6. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
@@ -80,15 +82,15 @@ the line number.
 
 - **Press Start Attack Swarm once the room has cloned their repos and read the briefing** — not before.
   Starting it too early just burns the green/recon window while people are still reading the deck.
-- **The exploit check is the fastest way to confirm a theory.** A student can run it as many times as
-  they like against their own slot; nudge anyone guessing blind back toward it.
+- **`dojo-check` is the fastest way to confirm a theory** (lightly rate limited). It says whether, never how.
+- **Triage is visible.** On the SOC tab, watch who works the high-severity target first and who is
+  still on the quiet one while a breach sits unattended.
 - **The PR gate is the real judge.** If a "fix" merges without the Actions check passing, something's
   wrong with the pipeline, not the lesson — report it, don't wave it through.
 - **Lagging student:** there's no `lab-prep` to fast-forward with — one lab, no sequence. If someone's
-  stuck well past the hint in `app.py`'s commented-out safe example, that's the point to intervene
-  directly.
+  stuck well past the second hint for a target, that's the point to intervene directly.
 - **Early finisher:** point them at the capstone achievement (`achievements/capstone.json`) — the same
-  bug lives in `/login` too, and the PR gate only ever re-tests `/search`.
+  bug lives in `customer-portal`'s `/login` too, and the gate only re-tests `/search`.
 
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show
 immediately, an edited lab file reaches `~/lab` on the next terminal restart, never overwriting a
@@ -115,44 +117,23 @@ only method, path, status and tag; once it is breached, their lines also show th
 rows returned and user-agent (including earlier lines), which is the material for the debrief: "what did the
 exploit actually look like in the logs, and which earlier lines were the warning?". You always see the full
 record on your room view. Set `CTF_SIEM_DETAIL` in `.env` or the shell: `paths` never unlocks payload and
-size (a harder class), `off` restores the plain alert table. With `CTF_BONUS_FLAWS=off` no line mentions
-`/portal.db` or `/export/customers.csv`. The Attack Range /admin tab does not appear in this pack (it has no
-attack targets); the Range Controller status check covers the controller.
+size (a harder class), `off` restores the plain alert table. `off` restores the plain alert table. Each target shows a different signal (request log, audit log, file-access
+and auth log), grouped by target with its severity; benign traffic (about 15%) is mixed in. The Attack Range
+/admin tab does not appear in this pack; the Range Controller status check covers the controller.
 
-## The bonus second flaw (`CTF_BONUS_FLAWS`, default on)
-
-Set `CTF_BONUS_FLAWS=off` (in `.env` or the shell) to run without it: the repo ships clean, probes skip the
-area, there is no bonus check or points, and the "Second Look" challenge is hidden. Nothing in the deck or lab
-mentions a bonus either way.
-
-With it on, `customer-portal` also stores customer passwords as typed. The bots never exploit this, so it
-never moves a status light; the PR gate runs one extra informational check after the exploit gate passes
-(`exploit/bonus_check.py`, never blocks a merge) and a share of the swarm's WARN probes name data-at-rest
-paths (`/portal.db`, `/backup/customers.sql`, ...), unlabelled, shown in each student's SIEM page.
-It scores one extra unit (5 points at the default factor) through the achievements challenge "Second Look",
-which verifies on `main` that the search query is parameterized and both `seed.py` and `app.py` hash passwords.
-Its two hints are in `achievements/challenges/c1.json` (hints cost points, as for any challenge).
-
-**Debrief note.** Ask who noticed the odd cluster of probes at paths the SQL fix never touched, and what
-those paths were asking for. The point: the gate proved one fix, and a fix that passes the gate is not the
-same as an app that is safe. Even with the injection closed, anyone holding a copy of the database
-(a backup, an insider, the next bug) reads every customer's password. Hash them (salted, slow), change
-both ends (the seed and the login check), and keep a real customer able to log in. Students who stopped
-at the gate lost nothing: the bonus is a reward for thoroughness, not a trap.
-
-**A deliberate misfix to watch for.** Hashing the service account's token too makes the exploit check pass
-without fixing the injection; the PR gate has a premise step that fails a change which removes the seeded
-secret, so tell students the token is not a customer password.
+**Debrief notes.** `policy-bypass`: the fix trusts the platform-set `X-Caller-Role`, never the body tag, and a
+header is only as trustworthy as the proxy that sets it. `leaky-config`: the credential already exposed is burned;
+rotation is operational. `customer-portal`: a fixed query does not undo what was dumped.
 
 ## When something breaks
 
 | Symptom | Likely cause and fix |
 | ------- | -------------------- |
-| A student has no `customer-portal` repo in Forgejo | `90-ctf-defend.sh` skips silently if `FORGEJO_ADMIN_USER`/`PASSWORD` weren't set before start, or if Forgejo wasn't up yet when the terminal booted; check the terminal container's start-up log for `[ctf-defend]` lines |
+| A student is missing one of the three repos in Forgejo | `90-ctf-defend.sh` skips silently if `FORGEJO_ADMIN_USER`/`PASSWORD` weren't set before start, or if Forgejo wasn't up yet when the terminal booted; check the terminal container's start-up log for `[ctf-defend]` lines |
 | PR gate never runs / stays pending | Confirm the repo's Actions secrets (`CTF_BUILD_TOKEN`, `CTF_CONTROL_TOKEN`) exist — the same provisioning hook sets them; a student who force-pushed over the initial seed may have lost them |
 | Merge doesn't redeploy the slot | `defend-main.yml` calls `ctf-controller`'s `/redeploy`; check `/admin`'s SOC tab and `ctf-controller` logs for a rejected control token |
 | SOC shows nothing after pressing Start | Confirm `attacker-bot` is actually running (`podman ps`) — it's idle-but-present before the press, not absent |
-| Exploit check errors instead of exiting 0/1 | Exit code 2 means it couldn't reach the target at all — check the slot address on the landing card, not the app |
+| `dojo-check` says `unreachable` | The checker could not reach that slot: check `ctf-checker` and `ctf-controller` are up and the slot exists (`/slots`) |
 | One student's terminal wedged | Roster → **Release**; their Forgejo repo and running slot are untouched by a terminal release |
 
 ## After the session

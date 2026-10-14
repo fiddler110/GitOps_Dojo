@@ -162,6 +162,14 @@ YAML
 
 A small repo with its own CI. Open a PR and see what the pipeline does with
 your branch's version of `.forgejo/workflows/ci.yml` -- not main's.
+
+Every job here also gets an automatic `secrets.GITHUB_TOKEN`, scoped to this
+repo only, in addition to whatever secrets you've set yourself (this repo has
+one: `CTF_FLAG`). By default that token can read the repo but not push to any
+branch; a workflow step can still use it to call this Forgejo's own API
+(`http://git-server:3000/api/v1/...`) for anything the token's default scope
+allows, such as commenting on an issue or pull request. A workflow that needs
+more than the default can request it with a top-level `permissions:` key.
 MD
     git -C "$work" init -q -b main
     git -C "$work" config user.name "$admin_user"

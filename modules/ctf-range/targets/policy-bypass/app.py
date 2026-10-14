@@ -28,7 +28,10 @@ Env:
   CTF_FLAG      this slot's flag value (plan §5).
   PORT          listen port (default 5000).
 """
+import hmac
+import json
 import os
+import sys
 import threading
 import socket
 
@@ -127,6 +130,15 @@ def _lookup(definition_id):
     return DEFINITION if definition_id == DEFINITION_ID else None
 
 
+def _caller_role():
+    """Role the platform proxy attached to this request, or "unknown" when the proxy token is absent/wrong."""
+    expected = os.environ.get("CTF_PROXY_TOKEN", "")
+    got = request.headers.get("X-Gateway-Token", "")
+    if expected and hmac.compare_digest(got, expected):
+        return request.headers.get("X-Caller-Role", "unknown")
+    return "unknown"
+
+
 _PROVISIONED = []  # flavor-only audit trail, shown back on /api/resources
 
 
@@ -139,6 +151,7 @@ def index():
         f"<code>{PROTECTED_RG}</code>, is restricted to the security team.</p>"
         '<ul><li><a href="/api/policy">GET /api/policy</a> — the active policy, in full</li>'
         '<li><a href="/api/resources">GET /api/resources</a> — what has been provisioned</li>'
+        '<li><a href="/spec">GET /spec</a> — API reference: routes, request/response shapes</li>'
         "<li>POST /api/provision — request a new resource</li></ul>"
     )
 
@@ -149,6 +162,68 @@ def get_policy():
     # its rules openly (`opa test` is public too) -- the gap is in the rule,
     # never in keeping it secret.
     return jsonify({"definitions": [DEFINITION], "assignments": [ASSIGNMENT]})
+
+
+@app.get("/spec")
+def spec():
+    # An OpenAPI-style description of the API's shape -- what every route
+    # takes and returns. It describes the surface, not the policy's logic:
+    # it says tags is a free-form object a caller sets, same as name or
+    # properties, never that the engine treats one of its keys as proof of
+    # identity. A student who hasn't read /api/policy yet should still be
+    # able to construct a well-formed request from this page alone.
+    return jsonify({
+        "openapi": "3.0.0",
+        "info": {"title": "CloudGuard Policy API", "version": "1.0"},
+        "paths": {
+            "/api/policy": {
+                "get": {
+                    "summary": "The deployed policy definitions and assignments, in full.",
+                    "responses": {"200": {"description": "definitions[] and assignments[]"}},
+                },
+            },
+            "/api/resources": {
+                "get": {
+                    "summary": "Resources provisioned so far in this slot.",
+                    "responses": {"200": {"description": "provisioned[]"}},
+                },
+            },
+            "/api/provision": {
+                "post": {
+                    "summary": "Provision a resource into a resource group.",
+                    "requestBody": {
+                        "required": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "required": True,
+                                          "description": "resource name"},
+                                "resourceGroup": {"type": "string", "required": True,
+                                                   "enum": [SANDBOX_RG, PROTECTED_RG],
+                                                   "description": "must be a known resource group"},
+                                "tags": {"type": "object", "required": False,
+                                         "description": "free-form key/value tags attached to the resource",
+                                         "additionalProperties": {"type": "string"}},
+                                "properties": {"type": "object", "required": False,
+                                                "description": "free-form resource properties"},
+                            },
+                        },
+                    },
+                    "responses": {
+                        "201": {"description": "Succeeded; includes 'flag' when the target resource "
+                                                "group was the protected one and the policy allowed it.",
+                                "schema": {"status": "Succeeded", "resourceGroup": "string",
+                                           "name": "string", "flag": "string (only if granted)"}},
+                        "400": {"description": "name and a known resourceGroup are required, and "
+                                                "tags (if present) must be an object.",
+                                "schema": {"error": {"code": "InvalidRequestContent", "message": "string"}}},
+                        "403": {"description": "Denied by policy evaluation.",
+                                "schema": {"error": {"code": "RequestDisallowedByPolicy", "message": "string"}}},
+                    },
+                },
+            },
+        },
+    })
 
 
 @app.get("/api/resources")
@@ -165,11 +240,16 @@ def provision():
     props = body.get("properties") or {}
     if not name or rg not in (PROTECTED_RG, SANDBOX_RG) or not isinstance(tags, dict):
         return jsonify({"error": {"code": "InvalidRequestContent",
-                                   "message": "name and a known resourceGroup are required."}}), 400
+                                   "message": f"'name' (string, required), 'resourceGroup' (string, "
+                                              f"required, one of {SANDBOX_RG!r}/{PROTECTED_RG!r}) and "
+                                              f"'tags' (object, if present) are required."}}), 400
 
     resource = engine.resource_view("containerGroup", name, LOCATION, tags, props, SUB, rg)
     assignments = [ASSIGNMENT] if rg == PROTECTED_RG else []
     outcome = engine.evaluate_write(resource, assignments, _lookup)
+    print(json.dumps({"audit": True, "method": "POST", "path": "/api/provision", "caller": _caller_role(),
+                      "resource_group": rg, "asserted_tag": str(tags.get("provisioned-by", "")),
+                      "outcome": "denied" if outcome.denied else "allowed"}), file=sys.stderr, flush=True)
     if outcome.denied:
         v = outcome.denied[0]
         return jsonify({"error": {
@@ -220,4 +300,7 @@ def _start_decoy(port, handler):
 _start_decoy(2222, _decoy_ssh_handler)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)
+    if os.environ.get("CTF_DEFEND_PROXY") == "1":
+        app.run(host="127.0.0.1", port=5001, threaded=False)
+    else:
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)

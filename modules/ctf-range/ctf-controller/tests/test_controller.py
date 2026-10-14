@@ -477,3 +477,63 @@ class TestHTTP(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMultiTarget(unittest.TestCase):
+    TARGETS = "customer-portal policy-bypass leaky-config"
+
+    def make(self, targets=None):
+        env = {"STUDENT_COUNT": "2", "STUDENT_PASSWORD_SEED": "s", "CTF_CONTROL_TOKEN": TOKEN,
+               "CTF_DEFEND_TARGETS": targets or self.TARGETS, "CTF_SCHEDULE_SEED": "fixed",
+               "CTF_REGISTRY": "registry.ctf.internal"}
+        cfg = c.Config(env=env)
+        ex = FakeExecutor(extra_images=cfg.base_images())
+        ex.images |= cfg.base_images()
+        return c.Controller(cfg, ex), cfg, ex
+
+    def test_names_and_ports(self):
+        _, cfg, _ = self.make()
+        self.assertEqual(cfg.slot_name("student02", "policy-bypass"), "ctf-policy-bypass-student02")
+        self.assertEqual(cfg.host_port("student01", "customer-portal"), c.HOST_PORT_BASE)
+        self.assertEqual(cfg.host_port("student02", "leaky-config"), c.HOST_PORT_BASE + 201)
+
+    def test_reconcile_one_slot_per_user_target_with_own_flags(self):
+        ctl, cfg, ex = self.make()
+        ctl.reconcile()
+        self.assertEqual(len(ex.containers), 6)
+        f = {n: v["env"]["CTF_FLAG"] for n, v in ex.containers.items()}
+        self.assertEqual(len(set(f.values())), 6)
+        self.assertEqual(ex.containers["ctf-policy-bypass-student01"]["env"]["CTF_DEFEND_PROXY"], "1")
+        self.assertNotIn("CTF_DEFEND_PROXY", ex.containers["ctf-leaky-config-student01"]["env"])
+        self.assertIn("CTF_METRICS_PASS", ex.containers["ctf-leaky-config-student01"]["env"])
+        self.assertEqual(ex.containers["ctf-leaky-config-student01"]["env"]["CTF_TARGET"], "leaky-config")
+        ctl._snapshot()
+        self.assertEqual({r["target"] for r in ctl.snapshot["slots"]}, set(cfg.targets))
+
+    def test_redeploy_needs_target(self):
+        ctl, _, ex = self.make()
+        ctl.reconcile()
+        self.assertFalse(ctl.redeploy("student01")[0])
+        tag = "registry.ctf.internal/ctf-policy-bypass:student01-policy-bypass"
+        ok, _ = ctl.redeploy("student01", tag, "policy-bypass")
+        self.assertTrue(ok)
+        self.assertEqual(ex.image_of("ctf-policy-bypass-student01"), tag)
+        self.assertNotEqual(ex.image_of("ctf-leaky-config-student01"), tag)
+        self.assertFalse(ctl.redeploy("student01", tag, "nope")[0])
+
+    def test_single_entry_is_legacy_compatible(self):
+        ctl, cfg, ex = self.make("customer-portal")
+        ctl.reconcile()
+        self.assertEqual(sorted(ex.containers), ["ctf-customer-portal-student01", "ctf-customer-portal-student02"])
+        self.assertTrue(ctl.redeploy("student01")[0])
+
+    def test_schedule_endpoint(self):
+        ctl, cfg, ex = self.make()
+        doc = cfg.schedule()
+        self.assertEqual(doc["seed"], "fixed")
+        self.assertEqual([r["start_offset_s"] for r in doc["users"]["student01"]], [0, 240, 480])
+        one = cfg.schedule("student02")
+        self.assertEqual(one["user"], "student02")
+        strip = lambda rows: [{k: v for k, v in r.items() if k != "secteam_key"} for r in rows]
+        self.assertEqual(strip(one["targets"]), doc["users"]["student02"])
+        self.assertTrue(all(r["secteam_key"] for r in one["targets"] if r["target"] == "policy-bypass"))

@@ -96,6 +96,7 @@ def index():
         "<h1>Internal API</h1>"
         "<p>POST a client certificate PEM to /internal/ops to authenticate.</p>"
         "<p>Endpoint: <code>POST /internal/ops</code> &mdash; mutual-auth required.</p>"
+        f"<p>Accepted client identity (certificate Subject CN): <code>{REQUIRED_CN}</code></p>"
     ))
 
 
@@ -120,7 +121,7 @@ def internal_ops():
     # right CN is accepted as proof of identity.
     cn = common_name(decoded)
     if cn != REQUIRED_CN:
-        return _page("Rejected", "<p>Wrong identity.</p>"), 403
+        return _page("Rejected", f"<p>Wrong identity. Expected Subject CN: {REQUIRED_CN}.</p>"), 403
 
     return _page("Authenticated", f"<p>Welcome, {cn}. {FLAG}</p>")
 

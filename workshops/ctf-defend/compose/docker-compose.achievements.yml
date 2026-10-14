@@ -7,6 +7,3 @@ services:
     extends:
       file: ${CTF_DEFEND_OVERLAY_FILE:-docker-compose.override.yml}
       service: attacker-bot
-  achievements:
-    volumes:
-      - ${CTF_ACH_C1_FILE:-../workshops/ctf-defend/achievements/challenges/c1.json}:/opt/workshop/achievements/challenges/c1.json:ro

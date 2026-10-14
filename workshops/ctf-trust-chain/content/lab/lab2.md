@@ -20,7 +20,10 @@ Open the **Attack Range** card, start `policy-bypass`, and note your slot's IP. 
 nmap -sV -p- <your-slot-ip>
 ```
 
-As before: more than one port, and only one is the API you care about.
+As before: more than one port, and only one is the API you care about. The index page links a `GET
+/spec` -- an OpenAPI-style reference for every route, including the exact JSON body
+`POST /api/provision` expects (`name`, `resourceGroup`, `tags`, `properties`) and what each response
+code means. Read it before you send anything.
 
 ## 2. Read the rule -- it's not hidden
 

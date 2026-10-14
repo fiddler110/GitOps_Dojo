@@ -37,16 +37,17 @@ ffuf -w /usr/local/share/wordlists/common.txt -u http://<your-slot-ip>:5000/FUZZ
 
 `-fc 404` hides "not found" responses and `-ic` ignores the comment lines in the wordlist.
 
-Once you find a directory of files, you'll see two: a config backup and a log. Read both.
+Once you find a directory of files, you'll see two: a config backup and a log. Read both, every line of the
+log too, not just the `INFO` ones -- logs record what happened, including, sometimes, a failed attempt that
+a developer "helpfully" logged in full for debugging: a username and a password, in plain text, typed into
+a login attempt that failed.
 
 > **Hint 1.** One of those two files is a believable red herring -- it looks exactly like a leaked secret
 > (a database connection string), but nothing on this target actually checks it against anything. Don't
 > stop at the first secret-shaped string you find; ask whether it actually *unlocks* something.
 
-> **Hint 2.** The other file is a log, and logs record what happened -- including, sometimes, a failed
-> attempt that a developer "helpfully" logged in full for debugging. Read every line of it, not just the
-> `INFO` ones. Somewhere in there is a username and a password, in plain text, that were typed into a
-> login attempt that failed. Why would it fail *then* but work *now*?
+> **Hint 2.** Why would that logged login attempt fail *then* but work *now*? That's your signal you found
+> the right one.
 
 ## 3. Reuse it
 

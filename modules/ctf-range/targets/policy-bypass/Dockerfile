@@ -2,13 +2,19 @@
 # See app.py's module docstring for the flaw; policy_engine.py is vendored
 # verbatim from modules/dojo-cloud/cloud-api/policy_engine.py (its own header
 # says why that's a copy, not a reimplementation, for this one file).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
+#
+# BASE is this project's own locally-built Flask 3.0.3 image (the same one
+# customer-portal uses, imported into ctf-host's inner dockerd at start): ctf-builder
+# rebuilds this Dockerfile inside an air-gapped dockerd, so there is no `pip install`
+# on the default path.
+ARG BASE=gitopsdojo/ctf-customer-portal-base:pinned
+FROM ${BASE}
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY policy_engine.py /app/policy_engine.py
 COPY app.py /app/app.py
+COPY proxy.py entrypoint.sh /app/
 
 RUN useradd --uid 10025 --no-create-home --home-dir /app --shell /usr/sbin/nologin policybypass
 
@@ -20,4 +26,4 @@ EXPOSE 5000 2222
 
 USER policybypass
 WORKDIR /app
-ENTRYPOINT ["python3", "/app/app.py"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -36,9 +36,9 @@ what it needs to *say* about itself to pass, since nobody is going to vouch for 
 > a cert you make this way. A real verifier checks the signer against a trusted CA bundle. Does this one?
 
 > **Hint 2.** The one field the handler is checking is the certificate's identity -- its Subject Common
-> Name. If a self-signed cert with the *right* CN is accepted with no chain check at all, the exact CN this
-> endpoint expects is the only unknown left, and the response from a wrong attempt may tell you more than
-> you'd expect.
+> Name. The service's own front page says which identity it accepts. If a self-signed cert carrying that
+> name is accepted with no chain check at all, what else would you need to make one? (`openssl req
+> -x509 -subj "/CN=..."` sets the Subject without prompting.)
 
 ## 3. Submit
 

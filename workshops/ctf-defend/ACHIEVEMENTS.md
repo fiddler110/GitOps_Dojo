@@ -21,7 +21,7 @@ what they did to earn it, in their own "Moments" table on the landing page. Chea
 bonuses and never count toward completion. The shared cheating and "bumped into your neighbour" unlocks live with the
 module, not in a workshop.
 
-Every unlock here is *retrospective* — something the student (or the attacker bot) already did, never a pointer to where the bug is. That's deliberate: the lab's only hint mechanism is the SOC Alerts panel's own pattern (recon, then probes, then the real payload), and nothing in this catalog may spell out the flaw or the fix (see ROADMAP.md's achievements-design note). Triggers here: `soc:` (the attacker-bot swarm's own traffic against the student's `customer-portal` slot — `recon`, `probe`, `exploit_attempt`, `contained`), `ctf:` (`dump_success`, the bot's own successful exfiltration), `forgejo:` (the student's PR against their own `{user}/customer-portal` repo). Milestones are the green, 'you did something' track; funny unlocks are the red, 'something happened to you' track — neither carries real points pressure (funny is always 0; milestones use the house default, kept small on purpose, since CTF-5 is a cooperative incident, not a leaderboard race). Scoring: `d-patched` and `d-unbreached` are worth one unit each (green is both, yellow is `d-patched` alone, red neither), at the factor `CTF_SCORE_FACTOR` (workshop.env, default 5 points per unit). Targets 8-11 (the config/secret/workflow/state-backend fixes, plan §7.3) aren't wired here yet — their target images and event contract are a separate build (spike CTF-S5); this catalog covers target 14, `customer-portal`, the one that's live today.
+Every unlock here is *retrospective* — something the student (or the attacker bot) already did, never a pointer to where the bug is. That's deliberate: the lab's only hint mechanism is the SOC Alerts panel's own pattern (recon, then probes, then the real payload), and nothing in this catalog may spell out the flaw or the fix (see ROADMAP.md's achievements-design note). Triggers here: `soc:` (the attacker-bot swarm's own traffic against the student's `customer-portal` slot — `recon`, `probe`, `exploit_attempt`, `contained`), `ctf:` (`dump_success`, the bot's own successful exfiltration), `forgejo:` (the student's PR against their own `{user}/customer-portal` repo). Milestones are the green, 'you did something' track; funny unlocks are the red, 'something happened to you' track — neither carries real points pressure (funny is always 0; milestones use the house default, kept small on purpose, since CTF-5 is a cooperative incident, not a leaderboard race). Scoring: `d-patched` and `d-unbreached` are worth one unit each (green is both, yellow is `d-patched` alone, red neither), at the factor `CTF_SCORE_FACTOR` (workshop.env, default 5 points per unit). Three targets are live per student (`customer-portal`, `policy-bypass`, `leaky-config`); soc/ctf triggers are matched on the event's `challenge` (the target name) and forgejo triggers on the student's own repo of that name. Ids without a suffix are `customer-portal`'s (kept stable); `-pb` and `-lc` are `policy-bypass` and `leaky-config`. Scoring weights (3 / 2 / 1) are applied by the SOC scoring, not here.
 
 ## Rules for challenges and capstones (apply to every workshop)
 
@@ -44,15 +44,26 @@ breaks for the second person to try it. Every challenge and capstone must follow
 The catalog validator enforces what it can: every challenge declares a `space` containing `{user}`, and every
 structured `verify` assertion mentions `{user}`.
 
-## Lab 1: defend customer-portal
+## Lab 1: incident triage
 
 | ID | Title | Joke | Pts | Core | When |
 |---|---|---|---|---|---|
 | m-opened | Filed | "A pull request. Against your own app. Welcome to the job." | 10 | no | forgejo: you opened a PR against your own customer-portal repo |
 | m-shipped | Shipped It | "Merged to main. The gate only let it through clean." | 10 | yes | forgejo: your PR against your own customer-portal repo was merged |
-| m-contained | Contained | "The next probe comes back with nothing. That's the whole job, done." | 10 | yes | soc: the bot's live re-probe against your slot comes back empty |
+| m-contained | Contained | "The next probe comes back with nothing. That's the whole job, done." | 10 | yes | soc: the bot's live re-probe against your customer-portal slot comes back empty |
 | d-patched | Patched | "One unit on the board: the fix is on main, and the gate said so." | 10 | no | your fix reached main (a merged PR on your customer-portal repo), or the swarm's re-probe came back empty |
-| d-unbreached | Never Breached | "The swarm tried the real payload and got nothing. It never landed once." | 10 | no | soc: the swarm's real attempt against your slot failed, and no dump ever succeeded against it |
+| d-unbreached | Never Breached | "The swarm tried the real payload and got nothing. It never landed once." | 10 | no | soc: the swarm's real attempt against your customer-portal slot failed, and no dump ever succeeded against it |
+| m-opened-pb | Filed (policy-bypass) | "One more pull request. The pile grows." | 10 | no | forgejo: you opened a PR against your own policy-bypass repo |
+| m-shipped-pb | Shipped Gatekeeper | "Merged to main, and the gate let it through clean." | 10 | yes | forgejo: your PR against your own policy-bypass repo was merged |
+| m-contained-pb | Contained (policy-bypass) | "Closed the door the policy left open." | 10 | yes | soc: the bot's live re-probe against your policy-bypass slot comes back empty |
+| d-patched-pb | Patched (policy-bypass) | "A unit on the board for this one too." | 10 | no | your fix reached main (a merged PR on your policy-bypass repo), or the swarm's re-probe came back empty |
+| d-unbreached-pb | Never Breached (policy-bypass) | "The swarm tried and got nothing, here at least." | 10 | no | soc: the swarm's real attempt against your policy-bypass slot failed, and no dump ever succeeded against it |
+| m-opened-lc | Filed (leaky-config) | "One more pull request. The pile grows." | 10 | no | forgejo: you opened a PR against your own leaky-config repo |
+| m-shipped-lc | Shipped Plugged | "Merged to main, and the gate let it through clean." | 10 | yes | forgejo: your PR against your own leaky-config repo was merged |
+| m-contained-lc | Contained (leaky-config) | "The log no longer tells strangers anything." | 10 | yes | soc: the bot's live re-probe against your leaky-config slot comes back empty |
+| d-patched-lc | Patched (leaky-config) | "A unit on the board for this one too." | 10 | no | your fix reached main (a merged PR on your leaky-config repo), or the swarm's re-probe came back empty |
+| d-unbreached-lc | Never Breached (leaky-config) | "The swarm tried and got nothing, here at least." | 10 | no | soc: the swarm's real attempt against your leaky-config slot failed, and no dump ever succeeded against it |
+| m-all-contained | Triage Complete | "Three fires out. Time to write it up." | 20 | no | all three targets contained |
 
 ## Funny unlocks (0 points, any time; shown in the student's Moments table)
 
@@ -60,26 +71,15 @@ structured `verify` assertion mentions `{user}`.
 |---|---|---|---|---|
 | f-under-siege | Under Siege | "The swarm found you. It finds everyone, eventually." | 0 | soc: the attacker bot's first recon pass against your slot |
 | f-noticed | They Noticed | "First real attempt. Still just background noise -- for now." | 0 | soc: the attacker bot's first exploit attempt against your slot |
-| f-wall | Hall of Shame | "Your data, on the projector, in front of everyone." | 0 | ctf: a successful dump against your slot (see the wall of shame) |
+| f-wall | Hall of Shame | "Your data, on the projector, in front of everyone." | 0 | ctf: a successful dump against your customer-portal slot (see the wall of shame) |
+| f-wall-pb | Hall of Shame (policy-bypass) | "Another one on the projector." | 0 | ctf: a successful dump against your policy-bypass slot |
+| f-wall-lc | Hall of Shame (leaky-config) | "Another one on the projector." | 0 | ctf: a successful dump against your leaky-config slot |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 
 ## Challenges (100 points, optional, no steps given)
 
 Each has two hints (25% each by default) and an answer that scores zero. The check is by outcome, so any way of doing it counts.
-
-### C1: Second Look (after your fix is on main)
-
-- **Points:** 100
-- **Where it runs:** the student's own `{user}/customer-portal` repo and live slot
-- **Goal shown to the student:** The PR gate checked one thing, and your fix passed it. Look at how this app keeps its customers' data once nobody is attacking it. If something else is wrong, fix it too and ship it to main.
-- **Constraints:** in `{user}/customer-portal`, on `main`, through the same PR flow as the lab; customers must still be able to log in afterwards.
-- **Seed:** Nothing extra to start: the same repo and the same PR flow as the lab, just looked at more closely.
-- **Verify:** On `main` of `{user}/customer-portal`: the search query is no longer string-built (the gated fix has landed), and both `seed.py` and `app.py` use a password hash function (pbkdf2, scrypt, bcrypt, argon2, or a hashlib digest) instead of storing and comparing the password as typed.
-- **Hint 1:** Read the dump from lab step 3 again, column by column. Even if the injection had never existed, what in that table would you not want an attacker, or an insider with a copy of the database, to read? The quieter hits in the SOC Alerts panel point at the same data.
-- **Hint 2:** Compare how `seed.py` writes a customer's password with how `app.py`'s login checks it. A fix has to change both ends together, and a real customer must still be able to log in afterwards.
-- **Answer:** Customer passwords are stored exactly as typed. Hash them (a salted, slow hash such as PBKDF2 from the standard library) in `seed.py` where the rows are written, and hash the submitted password the same way in `app.py`'s login before comparing. Keep the service account's token as it is, since it is not a customer password. Then PR and merge to main.
-- **Collision check:** entirely the student's own `{user}/customer-portal` repo; the check reads only that repo's `main` branch, nothing shared.
 
 ## Capstone (300 points, optional): Fully Patched
 
@@ -96,4 +96,4 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 
 ## Totals (computed)
 
-2 core milestones (20 points) of 5 milestones (50) · 3 funny unlocks (0 points each) · 1 challenges (100) · capstone 300 · plus first blood and class-clear bonuses. Everything: 450 points.
+6 core milestones (60 points) of 16 milestones (170) · 5 funny unlocks (0 points each) · 0 challenges (0) · capstone 300 · plus first blood and class-clear bonuses. Everything: 470 points.

@@ -57,6 +57,14 @@ class Config:
         self.git_server = env.get("CTF_GIT_SERVER", "git-server:3000")
         self.repo_name = env.get("CTF_REPO_NAME", "customer-portal")
         self.image = env.get("CTF_IMAGE", docker_build.IMAGE_NAME)
+        # Multi-target defend: the allow-list of repo names a build may name.
+        # Empty = single-target (repo_name, tag per user), as before.
+        self.targets = env.get("CTF_DEFEND_TARGETS", "").split()
+        # Platform-owned files copied over the student's clone before the
+        # build (per target: <overlay_dir>/<target>/<name>). The student's own
+        # versions are overwritten. Missing files/dir = no overlay.
+        self.overlay_dir = env.get("CTF_OVERLAY_DIR", "/app/overlay")
+        self.overlay_files = env.get("CTF_OVERLAY_FILES", "proxy.py entrypoint.sh").split()
 
 
 def _audit(action, result):
@@ -77,7 +85,25 @@ def _tar_bytes(src_dir):
     return buf.getvalue()
 
 
-def do_build(cfg, ex, user, ref):
+def apply_overlay(cfg, target, dest):
+    """Copy the platform's own files for `target` over the clone. Returns the
+    list of names copied. Only plain files from the fixed allow-list."""
+    if not target:
+        return []
+    done = []
+    for name in cfg.overlay_files:
+        src = os.path.join(cfg.overlay_dir, target, name)
+        if os.path.isfile(src) and not os.path.islink(src):
+            out = os.path.join(dest, name)
+            if os.path.islink(out) or os.path.isdir(out):
+                (os.unlink if os.path.islink(out) else shutil.rmtree)(out)
+            shutil.copyfile(src, out)
+            shutil.copymode(src, out)
+            done.append(name)
+    return done
+
+
+def do_build(cfg, ex, user, ref, target=""):
     """Clone `user`'s own repo at `ref`, tar it, build+push under the slot's
     own tag. Returns (ok, tag_or_error). Validation happens here, before any
     subprocess or daemon call, so a bad request never touches git or
@@ -88,7 +114,13 @@ def do_build(cfg, ex, user, ref):
         return False, "bad user"
     if not gitref.safe_ref(ref):
         return False, "bad ref"
-    repo_url = gitref.repo_url_for(user, cfg.git_server, cfg.repo_name)
+    if target and target not in cfg.targets:
+        return False, "bad target"
+    if cfg.targets and not target and len(cfg.targets) > 1:
+        return False, "target required"
+    if not target and len(cfg.targets) == 1:
+        target = cfg.targets[0] if cfg.targets[0] != cfg.repo_name else ""
+    repo_url = gitref.repo_url_for(user, cfg.git_server, target or cfg.repo_name)
     workdir = tempfile.mkdtemp(prefix="ctf-build-")
     try:
         dest = os.path.join(workdir, "repo")
@@ -96,10 +128,11 @@ def do_build(cfg, ex, user, ref):
                        timeout=CLONE_TIMEOUT, capture_output=True)
         subprocess.run(gitref.checkout_argv(dest, ref), check=True,
                        timeout=CLONE_TIMEOUT, capture_output=True)
-        tag = docker_build.image_tag_for(user, cfg.registry, cfg.image)
+        tag = docker_build.image_tag_for(user, cfg.registry, cfg.image, target)
+        apply_overlay(cfg, target, dest)
         tar_bytes = _tar_bytes(dest)
         ex.build(tar_bytes, tag, timeout=BUILD_TIMEOUT)
-        ex.push(user, cfg.registry, cfg.image, timeout=PUSH_TIMEOUT)
+        ex.push(user, cfg.registry, cfg.image, timeout=PUSH_TIMEOUT, target=target)
         return True, tag
     except subprocess.TimeoutExpired:
         return False, "git clone/checkout timed out"
@@ -170,9 +203,13 @@ def make_handler(cfg, ex, build_lock):
                 return
             user = str(body.get("user") or "")
             ref = str(body.get("ref") or "")
+            target = body.get("target") or ""
+            if not isinstance(target, str):
+                self._json(400, {"error": "bad request"})
+                return
             with build_lock:  # one build at a time against the shared dind
-                ok, msg = do_build(cfg, ex, user, ref)
-            _audit(f"build {user} {ref}", msg if ok else msg)
+                ok, msg = do_build(cfg, ex, user, ref, target)
+            _audit(f"build {user} {target or '-'} {ref}", msg if ok else msg)
             doc = {"ok": ok}
             doc["tag" if ok else "error"] = msg
             self._json(200 if ok else 400, doc)

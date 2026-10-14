@@ -17,9 +17,9 @@ footer: '[&larr; Labs](lab-index.md) &nbsp;|&nbsp; CTF-5: Defend | Lab Overview'
 
 ## What each lab covers, before you dive in
 
-One lab, one live incident: you'll find a real vulnerability in your own
-running app and ship the fix through a normal PR — no answers handed to you,
-but the pipeline is the honest judge of whether it's actually fixed.
+One lab, one incident with three things on fire: triage three live apps,
+fix each through a normal PR, and prove it. No answers handed to you, but
+the checker is the honest judge of whether it's actually fixed.
 
 <p class="nav">Keep <a href="cheat-sheet.md">the cheat sheet</a> open in another tab while you work.</p>
 
@@ -29,7 +29,7 @@ but the pipeline is the honest judge of whether it's actually fixed.
 
 | Lab | Topic | Time |
 | --- | ----- | ---- |
-| **1** | Defend customer-portal: find the bug, branch, PR, merge, watch it redeploy | ~2 h |
+| **1** | Incident triage: three live apps, detect, triage, contain, fix, verify | ~2 h |
 
 ---
 

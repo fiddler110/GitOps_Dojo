@@ -89,7 +89,8 @@ def index():
         '<input name="username" placeholder="username">'
         '<input name="password" type="password" placeholder="password">'
         "<button>Log in</button></form>"
-        '<p><a href="/forgot-password">Forgot password?</a></p>'
+        '<p><a href="/forgot-password">Forgot password?</a> '
+        '<a href="/reset">Have a reset code?</a></p>'
         '<p class="note">Operations staff only. Infrastructure change window: Tue 02:00.</p>'
     ))
 
@@ -123,6 +124,41 @@ def forgot_password():
     if user in _PASSWORDS:
         return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
     return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
+
+
+_LEGACY_JS = """\
+// Legacy reset-code helper, kept for the support console. Remove once the
+// new token service replaces it.
+async function legacyResetCode(username, nowSeconds) {
+  const minute = Math.floor(nowSeconds / 60);
+  const bytes = new TextEncoder().encode("reset:" + username + ":" + minute);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 6);
+}
+"""
+
+
+@app.get("/assets/reset-legacy.js")
+def reset_legacy_js():
+    return Response(_LEGACY_JS, mimetype="application/javascript")
+
+
+@app.get("/reset")
+def reset_form():
+    # The form shows the field names a student needs. The page loads a legacy
+    # helper script, a realistic leftover from a support console: reading the
+    # script a page loads is what shows a student every input is public.
+    return _page("Use a reset code", (
+        "<h1>Use a reset code</h1>"
+        '<form method="post" action="/reset">'
+        '<input name="username" placeholder="username">'
+        '<input name="token" placeholder="reset code">'
+        '<input name="new_password" type="password" placeholder="new password">'
+        "<button>Reset password</button></form>"
+        '<script src="/assets/reset-legacy.js"></script>'
+    ))
 
 
 @app.post("/reset")

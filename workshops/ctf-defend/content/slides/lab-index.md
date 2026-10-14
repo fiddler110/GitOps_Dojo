@@ -26,7 +26,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every lab works in the sample repo. Clone it once:</p>
+<p class="setup-label">Three repos, one per app. Clone the first (the lab has all three):</p>
 
 ```sh
 cd ~/lab
@@ -35,5 +35,5 @@ cd customer-portal
 ```
 
 <ul class="lab-links">
-<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Defend customer-portal</span></li>
+<li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Incident triage</span></li>
 </ul>

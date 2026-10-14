@@ -236,6 +236,20 @@ never redeploy a slot.
 
 Targets 0–13 (the attack ladder, §7.3) are not built yet.
 
+## Discoverability rule for targets and labs
+
+A student starts with an `nmap` scan and the lab text. Everything they need must be learnable from what they can
+see: the scan, the target's own pages, links and error messages, the lab text, Lab Info or the cheat sheet. Never
+assume they know a route, field or command exists, and never let a hint be the only source of a required fact.
+
+- **Surface existence and shape, never values or the flaw.** An index that links its routes, a landing page for each
+  section, a linked `GET /spec` for JSON APIs, an error that names what it expected.
+- **`ffuf` only knows section stubs.** `terminal/wordlist-common.txt` has generic words (`admin`, `internal`, `api`,
+  `login`), not leaf routes, so give a hidden section a 200 landing page that links onward.
+- **Teach techniques on a made-up target** (`example.target`, `<user>:<pass>`) in the lab text and in
+  `terminal/content/lab-info/` (`curl.md` covers methods, JSON bodies, `-u`, headers, cookies and status codes).
+- Keep each pack's cheat sheet "Core commands" slides in step with Lab Info.
+
 ## Wall of shame (§8.12), the SOC feed and the attacker-bot swarm (§8.2-8.11)
 
 The wall's plumbing was built first, as a minimal vertical slice exercised only by a manual
@@ -390,3 +404,13 @@ clock, not independent per-persona timers).
   from outside `ctf_net`.
 - All lab data is synthetic and derived from the student's in-lab handle — no
   real PII, ever (CTF-P2b review rule).
+
+## Three-target defend mode (CTF-5, 2026-10-14 redesign)
+
+`ctf-defend` runs `customer-portal`, `policy-bypass` and `leaky-config` at once per student, from
+`CTF_DEFEND_TARGETS` (slot `ctf-<target>-<user>`, host port `CTF_HOST_PORT_BASE + target_index *
+CTF_PORT_STRIDE + user_index`). The controller serves the per-student attack order at `GET /schedule`, the
+checker (`ctf-checker`, `POST /check` and `/gate`) runs each target's `exploit/check.py` and returns a verdict
+(`exploitable`, `contained`, `broke-normal-use`, `unreachable`), and `dojo-check` in the terminal prints them. The
+pack's lab and Lab Info page (`lab-info/defend-loop.md`) teach the detect/triage/contain/fix/verify loop. See
+`workshops/ctf-defend/README.md`.

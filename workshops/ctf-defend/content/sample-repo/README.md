@@ -1,24 +1,15 @@
 # customer-portal
 
-A small internal lookup tool for support staff: search customers by name, or
-log in as one. Product wants it live, and InfoSec just opened an incident
-against it — see your lab for the briefing.
+A small customer lookup service for a credit union, written in Flask over a SQLite database.
 
-## Running it yourself
+- `GET /` is a search form; `GET /search?q=NAME` returns the customers whose name contains `NAME` as JSON
+  (`{"results": [...]}`); `POST /login` takes `email` and `password` form fields; `GET /healthz` answers `ok`.
+- The database lives at `$CTF_DB_PATH` and is seeded when the container starts. The service account row
+  holds this slot's secret.
 
-```sh
-python3 seed.py                 # builds data/portal.db (idempotent)
-python3 app.py                  # listens on :5000 (PORT to change it)
-```
+What the platform provides:
 
-```sh
-# the same check the PR gate runs
-python3 exploit/dump.py --url http://127.0.0.1:5000
-```
-
-## What happens on a PR / merge
-
-`.forgejo/workflows/defend-pr.yml` scans the source (informational — it never
-blocks a PR on its own) and re-runs the check above as the actual gate: the
-PR can only merge once that check comes back clean. `defend-main.yml` rebuilds
-and redeploys your live instance the moment your fix lands on `main`.
+- The app is built from this repo's `Dockerfile` and listens on port 5000.
+- Your pull request is built and tested before it can be merged; merging to `main` redeploys your slot.
+- `dojo-check customer-portal` in your terminal reports whether the live app is still exploitable.
+- Request logs from your slot appear in the security dashboard.

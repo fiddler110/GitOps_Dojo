@@ -56,10 +56,48 @@ dojo-flag submit <target-id> '<flag>'
 
 ---
 
-## Generic request tools
+## Core commands: look around
 
 ```sh
-curl -s http://<ip>:5000/<path>                                  # GET
-curl -s -X POST http://<ip>:5000/<path> -H 'Content-Type: application/json' -d '{"k":"v"}'
-curl -s -X POST http://<ip>:5000/<path> -H "Authorization: Bearer <token>" -d '{}'
+nmap -sV -p- <ip>                           # open ports and services
+curl -s http://<ip>:<port>/                 # read the front page first
+curl -si http://<ip>:<port>/<path>          # plus status line and headers
+ffuf -w /usr/local/share/wordlists/common.txt \
+     -u http://<ip>:<port>/FUZZ -fc 404 -ic # guess paths
 ```
+
+Read links, forms and page source before you guess. When `ffuf` finds a section, run it again one level
+down (`/<section>/FUZZ`).
+
+---
+
+## Core commands: send a request
+
+```sh
+curl -s -X POST <url> -d 'a=1&b=2'                                    # form
+curl -s -X POST <url> -H 'Content-Type: application/json' \
+     -d '{"name": "x"}'                                              # JSON body
+curl -s -u 'user:pass' <url>                                         # HTTP Basic
+curl -s -H 'Authorization: Bearer <token>' <url>                     # token header
+curl -s -X POST <url> --data-binary @file.pem                        # raw body
+```
+
+Cookies: `-c jar` saves them, `-b jar` sends them back.
+
+---
+
+## Core commands: read the answer
+
+```text
+400 malformed: read the message      401 needs credentials: see WWW-Authenticate
+403 understood, refused              404 nothing there
+```
+
+```sh
+curl -s <url> | jq .                         # pretty-print JSON
+curl -s <url> | jq -r '.items[].name'        # pick fields
+printf '%s' 'text' | sha256sum               # hash a string
+echo '<b64>' | base64 -d                     # decode base64
+```
+
+More on every tool is on the **Lab Info** card (`curl`, `jq`, `ffuf`, `nmap`).

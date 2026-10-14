@@ -24,10 +24,33 @@
       "id": "f-wall",
       "title": "Hall of Shame",
       "joke": "Your data, on the projector, in front of everyone.",
-      "when": "ctf: a successful dump against your slot (see the wall of shame)",
+      "when": "ctf: a successful dump against your customer-portal slot (see the wall of shame)",
       "match": {
         "source": "ctf",
-        "event": "dump_success"
+        "event": "dump_success",
+        "challenge": "customer-portal"
+      }
+    },
+    {
+      "id": "f-wall-pb",
+      "title": "Hall of Shame (policy-bypass)",
+      "joke": "Another one on the projector.",
+      "when": "ctf: a successful dump against your policy-bypass slot",
+      "match": {
+        "source": "ctf",
+        "event": "dump_success",
+        "challenge": "policy-bypass"
+      }
+    },
+    {
+      "id": "f-wall-lc",
+      "title": "Hall of Shame (leaky-config)",
+      "joke": "Another one on the projector.",
+      "when": "ctf: a successful dump against your leaky-config slot",
+      "match": {
+        "source": "ctf",
+        "event": "dump_success",
+        "challenge": "leaky-config"
       }
     }
   ]

@@ -1,0 +1,56 @@
+# Defend PR gate. The platform's checker runs the attack against your branch for you: the check
+# scripts are not in this repo, and neither is the identity proxy a target may sit behind. Pass means
+# (1) the attack is blocked, (2) one legitimate request still works, and (3) INCIDENT.md is filled in.
+name: Defend - PR gate
+on:
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: host
+    env:
+      CTF_STUDENT: ${{ github.repository_owner }}
+      CTF_TARGET: ${{ github.event.repository.name }}
+      CTF_REF: ${{ github.sha }}
+      CTF_GATE_URL: http://ctf-checker:9200/gate
+    steps:
+      - name: Checkout PR source
+        run: |
+          set -eu
+          rm -rf repo
+          git clone --quiet "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout --quiet "$CTF_REF"
+
+      - name: Incident note (INCIDENT.md)
+        # Presence check only: the file is non-empty and has the three headings. What you write is yours to get right.
+        run: |
+          set -eu
+          cd repo
+          [ -s INCIDENT.md ] || { echo "GATE FAIL - INCIDENT.md is missing or empty."; exit 1; }
+          for h in "What was hit" "How I know" "Impact"; do
+            grep -qi "^#\+ *$h" INCIDENT.md || { echo "GATE FAIL - INCIDENT.md has no '$h' heading."; exit 1; }
+          done
+          echo "INCIDENT.md present"
+
+      - name: Attack check (ctf-checker)
+        run: |
+          set -eu
+          body=$(printf '{"user":"%s","target":"%s","ref":"%s"}' "$CTF_STUDENT" "$CTF_TARGET" "$CTF_REF")
+          resp=$(curl -sS -X POST "$CTF_GATE_URL" \
+            -H "Authorization: Bearer ${CTF_BUILD_TOKEN}" \
+            -H "Content-Type: application/json" -d "$body")
+          python3 - "$resp" <<'PY'
+          import json, sys
+          try:
+              r = json.loads(sys.argv[1])
+          except ValueError:
+              print("GATE ERROR - the checker did not answer:", sys.argv[1][:200]); sys.exit(2)
+          print("verdict:", r.get("verdict")); print("note:   ", r.get("note", ""))
+          if r.get("pass") is True:
+              print("GATE PASS - attack blocked, normal use still works."); sys.exit(0)
+          print("GATE FAIL - not contained (a fix that breaks normal use fails too). The gate is advisory: "
+                "you can still merge, and the box will run what you merge. `dojo-reset <target>` undoes a box you broke."); sys.exit(1)
+          PY
+        env:
+          CTF_BUILD_TOKEN: ${{ secrets.CTF_BUILD_TOKEN }}

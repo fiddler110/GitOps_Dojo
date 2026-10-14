@@ -32,13 +32,13 @@ actually keeps in `infra-state`.
 Clone `infra-state` from Forgejo (or browse it there) and list every file, not just the README. Ask of each
 one: could a machine have written this? Does it hold values rather than instructions?
 
-> **Hint 1.** Infrastructure tools remember what they built. That memory has to live somewhere, and by default
-> it is a plain file next to the code. Look for a file with a name you'd recognise from the `tofu-basics`
-> workshop.
+Infrastructure tools remember what they built, and that memory has to live somewhere -- by default a plain
+file next to the code, the `terraform.tfstate` you saw in the `tofu-basics` workshop. It records every
+resource's attributes, including any that were passed in as credentials: look at its `resources` section for
+anything that looks like an identity, an id and a secret that belong together.
 
-> **Hint 2.** That file records every resource's attributes, including the ones that were passed in as
-> credentials. Read its `resources` section for anything that looks like an identity: an id and a secret
-> that belong together.
+> **Hint.** Not sure a JSON blob counts as "readable"? `jq` turns it into something you can actually scan --
+> see the one-liner in step 3 below.
 
 ## 3. Use what you found
 
@@ -47,8 +47,23 @@ automation is another, and it takes two values rather than a password. Find the 
 the vault's documentation (or `bao auth list`), sign in with what you found, and note which token comes back
 and what it is allowed to read.
 
+Two things to learn first, using a made-up example (`corp-ci` is not your method's name):
+
 ```sh
-curl -s -X POST "http://openbao:8200/v1/auth/<method>/login" -d '{"role_id":"...","secret_id":"..."}'
+# List the sign-in methods the vault has enabled: the left column is each method's mount path,
+# the second column is its type (one of them is the role-based type, called "approle").
+bao auth list
+# A method mounted at "corp-ci/" is logged into at /v1/auth/corp-ci/login (path = auth/<mount>/login).
+
+# Pull values out of a state file (JSON) with jq: list every resource's attributes, then pick fields.
+jq '.resources[] | {type, name, attrs: .instances[].attributes}' terraform.tfstate
+```
+
+Then sign in with the two values you found, at the login path for the mount you found in `bao auth list`:
+
+```sh
+curl -s -X POST "http://openbao:8200/v1/auth/<mount>/login" -d '{"role_id":"...","secret_id":"..."}'
+# -> .auth.client_token
 ```
 
 Then read your secret with *that* token (`X-Vault-Token` header, path under `/v1/secret/data/`).

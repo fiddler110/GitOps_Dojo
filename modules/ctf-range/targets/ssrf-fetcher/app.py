@@ -35,6 +35,13 @@ INTERNAL_PORT = int(os.environ.get("INTERNAL_PORT", "5001"))
 internal_app = Flask("internal")
 
 
+@internal_app.get("/")
+def internal_index():
+    # Landing page so a student who finds the open loopback port can see what lives on it.
+    return ("<h1>Internal admin service</h1><p>Loopback only. Routes:</p><ul>"
+            "<li>/internal/admin/status</li><li>/internal/admin/flag</li></ul>")
+
+
 @internal_app.get("/internal/admin/status")
 def internal_status():
     return "<p>internal admin: ok (flavor only, no auth — see module docstring)</p>"
@@ -122,6 +129,8 @@ def preview():
             body = resp.read(2000).decode("utf-8", "replace")
     except (urllib.error.URLError, ValueError) as exc:
         body = f"(fetch failed: {exc})"
+        if "refused" in str(exc):
+            body += "\n(nothing is listening on that host and port)"
     return render_template_string(PAGE, body=body)
 
 

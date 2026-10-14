@@ -11,3 +11,16 @@ FROM ${BASE}
 # each student their own customer-portal repo and its Actions secrets).
 COPY start.d/90-ctf-defend.sh /etc/dojo/start.d/90-ctf-defend.sh
 RUN chmod 0755 /etc/dojo/start.d/90-ctf-defend.sh
+
+# Two programs want the name `dojo-check`: the achievements module's (score, hints, --echo
+# prompt hook) and ctf-range's target checker (installed here as dojo-check-targets). Keep
+# both: no argument or a target name goes to the checker, anything else to achievements.
+RUN if [ -x /usr/local/bin/dojo-check-targets ] && [ -f /usr/local/bin/dojo-check ] && ! grep -q dojo-check-targets /usr/local/bin/dojo-check; then \
+      mv /usr/local/bin/dojo-check /usr/local/bin/dojo-check-achievements; \
+      printf '%s\n' '#!/bin/sh' \
+        'case "$1" in' \
+        '  ""|customer-portal|policy-bypass|leaky-config) exec /usr/local/bin/dojo-check-targets "$@" ;;' \
+        '  *) exec /usr/local/bin/dojo-check-achievements "$@" ;;' \
+        'esac' > /usr/local/bin/dojo-check; \
+      chmod 0755 /usr/local/bin/dojo-check; \
+    fi

@@ -147,6 +147,7 @@ class Store:
         self.regions = {u: r for u, r in (state.get("regions") or {}).items() if isinstance(r, dict)}
         self.locator = None             # geo.Locator, set by server.py (None = the toronto fallback)
         self.time_scale = 1.0           # CTF_TIME_SCALE, set by server.py: shrinks the map's "recent" windows
+        self.target_meta = {}           # target -> {"severity", "weight"} as last reported (memory only)
         self.ctf_hits = {}              # (user, challenge) -> deque of dump_success times (memory only)
         self._breach_row_at = {}        # (user, challenge) -> clock of the last breach row in the feed
         self._breach_sig = {}           # (user, challenge, request line) -> its collapsed breach row
@@ -520,7 +521,11 @@ class Store:
         with self.lock:
             self._student(user)
             now = self.clock()
-            challenge = event.get("challenge") or ""
+            # `target` (ctf-defend: three targets per student) is the same value as `challenge`;
+            # breach state, tiers and wall rows are all keyed (user, target).
+            challenge = event.get("target") or event.get("challenge") or ""
+            if event.get("target_severity") and challenge:
+                self.target_meta[challenge] = {"severity": event["target_severity"], "weight": event.get("weight")}
             if event.get("source") == "ctf" and event.get("event") == "dump_success":
                 self.ctf_dumps[(user, challenge)] = now
                 self._mark_breach(user, challenge, now)
@@ -568,7 +573,10 @@ class Store:
             for key, rec in self.target_status.items():
                 user, challenge = key.split("\x1c", 1)
                 mttp = (rec["fixed_at"] - rec["breached_at"]) if rec["fixed_at"] is not None else None
-                rows.append({"user": self._label(user), "challenge": challenge, "status": rec["status"],
+                meta = self.target_meta.get(challenge, {})
+                rows.append({"user": self._label(user), "challenge": challenge, "target": challenge,
+                            "severity": meta.get("severity"), "weight": meta.get("weight"),
+                            "status": rec["status"],
                             "breached_at": rec["breached_at"], "fixed_at": rec["fixed_at"],
                             "mttp": mttp, "retries": rec["retries"]})
         rows.sort(key=lambda r: r["breached_at"])
@@ -690,7 +698,7 @@ class Store:
         with self.lock:
             self._student(user)
             label = self._label(user)
-            b = self._breached(user)
+            b = self._breached_targets(user)
             timeline = [self._present(r, b) for r in reversed(self.soc_feed.get(user, ()))]
         targets = [r for r in self.target_statuses() if r["user"] == label]
         return {"user": label, "targets": targets, "timeline": timeline}
@@ -752,21 +760,33 @@ class Store:
     #   full  -> as paths until THIS student's target has been breached, then the whole record
     #            (payload, response size, rows returned, agent), earlier rows included.
     # `tag` names the attack class, never the fix. The facilitator is never filtered.
-    SIEM_BASE = ("id", "ts", "at", "user", "event", "severity", "persona", "origin", "challenge")
-    SIEM_PATHS = SIEM_BASE + ("method", "path", "status", "tag", "count", "first_at")
-    SIEM_FULL = SIEM_PATHS + ("query", "bytes", "rows_returned", "ua", "klass")
-    ARC_KEYS = ("user", "event", "severity", "origin", "challenge", "at", "persona")
+    SIEM_BASE = ("id", "ts", "at", "user", "event", "severity", "persona", "origin", "challenge",
+                 "target", "target_severity", "weight")
+    SIEM_PATHS = SIEM_BASE + ("method", "path", "status", "tag", "count", "first_at", "outcome")
+    SIEM_FULL = SIEM_PATHS + ("query", "bytes", "rows_returned", "ua", "klass",
+                              "caller", "resource_group", "asserted_tag", "auth", "account")
+    ARC_KEYS = ("user", "event", "severity", "origin", "challenge", "target", "at", "persona")
 
-    def _breached(self, user):
-        """Has this student's own target ever gone red (caller holds the lock)?"""
+    def _breached(self, user, target=None):
+        """Has this student's target (any of theirs when TARGET is None) ever gone red (caller
+        holds the lock)? Per (user, target): one breached target never unlocks another's detail."""
+        if target is not None:
+            return self._status_key(user, target) in self.target_status
         prefix = f"{user}\x1c"
         return any(k.startswith(prefix) for k in self.target_status)
+
+    def _breached_targets(self, user):
+        prefix = f"{user}\x1c"
+        return {k[len(prefix):] for k in self.target_status if k.startswith(prefix)}
 
     def _present(self, row, breached, admin=False):
         """One feed row as THIS caller may see it."""
         if admin:
             return {k: v for k, v in row.items() if v is not None}
         level = self.siem_detail
+        if isinstance(breached, (set, frozenset)):     # this student's breached targets: judge the row's own
+            tgt = row.get("target") or row.get("challenge")
+            breached = (tgt in breached) if tgt else bool(breached)
         if level == "off":
             out = {k: row.get(k) for k in self.SIEM_BASE}
             path = row.get("path")
@@ -782,12 +802,16 @@ class Store:
         row = {"id": self._soc_seq, "user": self._label(user), "event": event.get("event"),
                "severity": self.SOC_SEVERITY.get(event.get("event"), "INFO"),
                "persona": event.get("persona"), "origin": event.get("origin"),
-               "challenge": event.get("challenge"), "path": event.get("path"), "at": now,
+               "challenge": event.get("target") or event.get("challenge"), "path": event.get("path"), "at": now,
                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))}
         if row["severity"] == "BREACH":
             row["count"] = 1
             row["first_at"] = now
-        for k in ("method", "query", "status", "bytes", "rows_returned", "ua", "tag", "klass"):
+        if event.get("target"):
+            row["target"] = event["target"]
+        for k in ("method", "query", "status", "bytes", "rows_returned", "ua", "tag", "klass",
+                  "caller", "resource_group", "outcome", "asserted_tag", "auth", "account",
+                  "target_severity", "weight"):
             if event.get(k) is not None:
                 row[k] = event[k]
         if row.get("klass") == "scan" and row["severity"] == "WARN":
@@ -800,7 +824,7 @@ class Store:
         probes, but as a row at most every BREACH_ROW_GAP seconds per (student, target), so a
         streaming dump can't push every other alert out of the bounded feed. Every dump still
         counts toward "under siege" via ctf_hits (caller holds the lock)."""
-        key = (user, event.get("challenge") or "")
+        key = (user, event.get("target") or event.get("challenge") or "")
         self.ctf_hits.setdefault(key, deque(maxlen=600)).append(now)
         # An identical breach request line is one row with a count and a last-seen time, not a new
         # row every few seconds: the log stays readable and the scans are not pushed out of the feed.
@@ -819,14 +843,15 @@ class Store:
     def soc_rows(self, user):
         """This student's own recent alerts, newest first (their "SIEM" page)."""
         with self.lock:
-            b = self._breached(user)
+            b = self._breached_targets(user)
             rows = sorted(self.soc_feed.get(user, ()), key=lambda r: (r["at"], r["id"]), reverse=True)
             return [self._present(r, b) for r in rows]
 
     def siem_state(self, user=None):
         """{"siem": level, "unlocked": bool} for the feed's header: which view this caller got."""
         with self.lock:
-            return {"siem": self.siem_detail, "unlocked": bool(user) and self._breached(user)}
+            return {"siem": self.siem_detail, "unlocked": bool(user) and self._breached(user),
+                    "unlocked_targets": sorted(self._breached_targets(user)) if user else []}
 
     def admin_soc_rows(self):
         """Every student's recent alerts, newest first (the facilitator admin tab)."""
@@ -888,7 +913,9 @@ class Store:
                 del self.ctf_dumps[key]
             rows = [{"user": self._label(user), "challenge": challenge,
                     "state": "LIVE" if now - t < self.WALL_LIVE_WINDOW else "DISCONNECTED",
-                    "last_seen": t}
+                    "target": challenge, "last_seen": t,
+                    "severity": self.target_meta.get(challenge, {}).get("severity"),
+                    "weight": self.target_meta.get(challenge, {}).get("weight")}
                    for (user, challenge), t in self.ctf_dumps.items()]
         rows.sort(key=lambda r: -r["last_seen"])
         return rows
