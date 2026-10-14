@@ -25,6 +25,13 @@ Two files, two different lessons:
 Auth, correctly checked — the bug is never in the check itself), which
 returns the flag.
 
+## Discoverable with ffuf
+
+`/admin` and `/internal` are landing pages (200) that link to `logs` and
+`metrics`, so `ffuf` with the shared `common.txt` finds `admin`, `internal`
+and `status` at the root, then `logs` under `/admin/FUZZ`. They carry no
+content and no flaw of their own; missing paths are a plain 404.
+
 ## Decoy port (nmap)
 
 Also publishes a decoy SSH listener on container port 2222 (plan §7.3's

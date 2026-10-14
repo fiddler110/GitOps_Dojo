@@ -116,6 +116,29 @@ def status():
     return "<p>All systems nominal.</p>"
 
 
+# Section landing pages. /admin and /internal have no content of their own;
+# they exist so a path-guessing tool (ffuf) gets a 200 for the section and
+# a link to follow, instead of a flat 404 that hides everything beneath it.
+@app.get("/admin")
+def admin_index():
+    return _shell(
+        "Admin - Brightwave",
+        "<h1>Admin</h1><ul>"
+        '<li><a href="/admin/logs">Logs</a></li>'
+        "</ul>",
+    )
+
+
+@app.get("/internal")
+def internal_index():
+    return _shell(
+        "Internal - Brightwave",
+        "<h1>Internal</h1><ul>"
+        '<li><a href="/internal/metrics">Metrics</a> (service accounts only)</li>'
+        "</ul>",
+    )
+
+
 # THE BUG: this directory was meant to be reachable only from the office
 # VPN's own reverse proxy, which added the auth check. Here (no reverse
 # proxy, no auth) it is wired straight into the app with none at all --
