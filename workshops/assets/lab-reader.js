@@ -146,6 +146,42 @@
     return source.replace(CHALLENGE_MARKER, function (_, id) { return '\nDOJOCHALLENGE' + id + '\n'; });
   }
 
+  // Click-to-reveal answers. A lab asks the student to try something, then
+  // hides the commands and the explanation behind a button:
+  //   <!-- dojo-reveal: Show the command -->
+  //   ...any Markdown, code fences included...
+  //   <!-- /dojo-reveal -->
+  // Forgejo and editors hide the comments and show the body, so the lab still
+  // reads straight through there. Here the block becomes a <details>; its body
+  // is rendered by the same markdown-it (html: false), so it stays text only.
+  var REVEAL_BLOCK = /^[ \t]*<!--[ \t]*dojo-reveal:[ \t]*(.+?)[ \t]*-->[ \t]*\n([\s\S]*?)^[ \t]*<!--[ \t]*\/dojo-reveal[ \t]*-->[ \t]*$/gm;
+  var REVEAL_TOKEN = /^DOJOREVEAL([0-9]+)$/;
+
+  function markReveals(source, reveals) {
+    return source.replace(REVEAL_BLOCK, function (_, title, body) {
+      reveals.push({ title: title, body: body });
+      return '\nDOJOREVEAL' + (reveals.length - 1) + '\n';
+    });
+  }
+
+  function fillReveals(container, reveals, md) {
+    var paras = container.querySelectorAll('p');
+    for (var i = 0; i < paras.length; i++) {
+      var m = REVEAL_TOKEN.exec(paras[i].textContent.trim());
+      if (!m || !reveals[+m[1]]) continue;
+      var det = document.createElement('details');
+      det.className = 'lab-reveal';
+      var sum = document.createElement('summary');
+      sum.textContent = reveals[+m[1]].title;
+      var body = document.createElement('div');
+      body.className = 'lab-reveal-body';
+      body.innerHTML = md.render(reveals[+m[1]].body);
+      det.appendChild(sum);
+      det.appendChild(body);
+      paras[i].parentNode.replaceChild(det, paras[i]);
+    }
+  }
+
   function challengeSlots(container) {
     var slots = [];
     var paras = container.querySelectorAll('p');
@@ -270,7 +306,9 @@
 
   function render(markdownSource, file, isStudent) {
     var md = window.markdownit({ html: false, linkify: true, breaks: false, highlight: highlight });
-    contentEl.innerHTML = md.render(markChallenges(markdownSource));
+    var reveals = [];
+    contentEl.innerHTML = md.render(markChallenges(markReveals(markdownSource, reveals)));
+    fillReveals(contentEl, reveals, md);
     renderChallenges(challengeSlots(contentEl), isStudent);
     rewriteLabLinks(contentEl);
     drawMermaid(contentEl);

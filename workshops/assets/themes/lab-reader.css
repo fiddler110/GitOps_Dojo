@@ -188,3 +188,21 @@ body {
 .lab-content .lab-challenge-status.ok { color: var(--accent); }
 .lab-content .lab-challenge-status.error { color: #f78c6c; }
 .lab-content .lab-challenge-goal { margin: 8px 0 0; }
+
+/* Click-to-reveal answers (<!-- dojo-reveal: Title --> in a lab) */
+.lab-content .lab-reveal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  margin: 16px 0;
+  padding: 0 16px;
+}
+.lab-content .lab-reveal > summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 12px 0;
+}
+.lab-content .lab-reveal[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.lab-content .lab-reveal-body > :last-child { margin-bottom: 16px; }
