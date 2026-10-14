@@ -67,7 +67,27 @@ def _shell(title, inner):
 
 @app.get("/")
 def index():
-    return _shell('Helix Ops API', '<h1>Helix Ops API</h1><p>JSON API for the Helix operations console. Authenticate with <code>POST /login</code>, then call <code>GET /me</code>. Administrative routes live under <code>/admin</code>.</p>')
+    return _shell('Helix Ops API', '<h1>Helix Ops API</h1><p>JSON API for the Helix operations console. Authenticate with <code>POST /login</code>, then call <code>GET /me</code>. Administrative routes live under <code>/admin</code>. Full route list: <a href="/spec">GET /spec</a>.</p>')
+
+
+_SPEC = {
+    "routes": [
+        {"method": "POST", "path": "/login", "auth": "none",
+         "request_fields": ["username", "password"],
+         "response_fields": ["token"]},
+        {"method": "GET", "path": "/me", "auth": "bearer token",
+         "response_fields": ["username", "role"]},
+        {"method": "POST", "path": "/admin/reset-all", "auth": "bearer token, role=facilitator",
+         "description": "Intended for facilitator accounts only: resets every student's progress.",
+         "request_headers": ["X-Confirm-Reset (yes/no; dry-run without it)"],
+         "response_fields": ["reset", "accounts", "flag"]},
+    ],
+}
+
+
+@app.get("/spec")
+def spec():
+    return jsonify(_SPEC)
 
 FLAG = os.environ.get("CTF_FLAG", "flag{api-bfla-dev0000000000}")
 STUDENT_USER = os.environ.get("CTF_STUDENT", "student07")

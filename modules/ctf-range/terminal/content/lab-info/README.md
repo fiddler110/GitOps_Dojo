@@ -40,6 +40,7 @@ authorized pentests, your own homelab); the authorization does not.
 ## Talking to a service once you've found it
 
 - [`ncat.md`](ncat.md) — raw TCP/UDP: probing ports, catching a listener, reading banners
+- [`curl.md`](curl.md) — HTTP requests by hand: methods, JSON bodies, headers, credentials, reading status codes
 - [`httpie.md`](httpie.md) — a readable, JSON-first HTTP client
 - [`jq.md`](jq.md) — slicing and filtering JSON on the command line
 
@@ -62,7 +63,7 @@ table always matches what you actually have:
 
 | Tool | Version | How it's pinned |
 |---|---|---|
-| `nmap`, `ncat`, `tcpdump`, `tshark`, `sqlmap`, `jq`, `john`, `dig` (`dnsutils`), `dnsrecon`, `httpie`, `whois` | Debian stable's packaged version | `apt-get install`, verified against Debian's signed repo metadata |
+| `nmap`, `ncat`, `curl`, `tcpdump`, `tshark`, `sqlmap`, `jq`, `john`, `dig` (`dnsutils`), `dnsrecon`, `httpie`, `whois` | Debian stable's packaged version | `apt-get install`, verified against Debian's signed repo metadata |
 | `ffuf` | 2.3.0 | static binary, sha256-pinned per architecture |
 | `opa` | 1.21.1 | static binary, sha256-pinned per architecture |
 

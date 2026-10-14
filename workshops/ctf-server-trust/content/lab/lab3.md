@@ -38,9 +38,11 @@ Save the token you get back, then:
 curl -s http://<ip>:5000/users/me -H "Authorization: Bearer <token>" | jq
 ```
 
-You'll see your record, including a `role` field set to `student`. Nothing on this page tells you how to
-change that -- think about what `PATCH /users/me` is actually *for*, and what it does with a JSON body
-it wasn't told to filter.
+You'll see your record, including a `role` field set to `student`. The API also documents its own
+routes -- check `GET /spec` (linked from the API's root page) for the full list of routes, the fields
+each one accepts, and which routes are meant to require which role. Nothing there tells you how to
+change your role -- think about what `PATCH /users/me` is actually *for*, and what it does with a JSON
+body it wasn't told to filter.
 
 > **Hint 1.** A `PATCH` is supposed to update specific fields. Try `PATCH`ing your `bio` -- it works, as
 > expected. Now ask: does the server check *which* fields it writes, or does it write whatever keys show

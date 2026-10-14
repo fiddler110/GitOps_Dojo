@@ -23,24 +23,21 @@ If the file itself holds nothing today, that doesn't mean nothing was ever there
 
 ## 2. Look at the repo as it used to be
 
-A file's current contents are only the most recent chapter. Git keeps every chapter.
+A file's current contents are only the most recent chapter. Git keeps every chapter, and `git log` can show
+you a commit's full diff, not just its message -- the `-p` ("patch") flag:
 
 ```sh
-git log --oneline -- deploy.sh
+git log -p -- deploy.sh
 ```
 
-> **Hint 1.** You should see more than one commit touching this file. One of them added something; a
-> later one took it back out (or swapped it for an environment-variable read). Look at *each* commit's
-> full diff, not just the file's current state:
->
-> ```sh
-> git log -p -- deploy.sh
-> ```
+You should see more than one commit touching this file. One of them added something as a plain `+` line in
+its diff; a later one took it back out (or swapped it for an environment-variable read). Deleting a file in
+a later commit, or editing it to no longer contain the secret, does not remove that earlier diff from
+history. (Forgejo's own web UI shows the same thing: open the repo, click **Commits**, and open the diff for
+the commit that first added the file.)
 
-> **Hint 2.** Once you find the commit that added the credential, it's right there in that commit's diff
-> -- a `+` line, in plain text. Deleting a file in a later commit, or editing it to no longer contain the
-> secret, does not remove that earlier diff from history. (Forgejo's own web UI shows the same thing: open
-> the repo, click **Commits**, and open the diff for the commit that first added the file.)
+> **Hint.** Skimmed past it? `git log --oneline -- deploy.sh` first, to see how many commits touched the
+> file at all, then come back to `-p` on the one that looks like it added something.
 
 ## 3. Use it
 

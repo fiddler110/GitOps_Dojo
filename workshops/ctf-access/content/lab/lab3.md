@@ -31,12 +31,17 @@ Once you've found a ticket with an actual `.pcap` attached, you have a real pack
 puzzle to solve by eye. **Lab Info**'s `tcpdump-tshark.md` covers reading a capture for cleartext protocol
 exchanges -- this one has one, and the protocol doesn't encrypt its login step.
 
+Whatever you recover from the capture was valid for something once. Other pages on this same service may
+ask for a username and password too (a page that answers `401` and a `WWW-Authenticate` header is asking
+for HTTP Basic credentials; `curl -si <url>` shows it). The index page and a path scan with `ffuf` are how
+you find what else is there.
+
 > **Hint 1.** Not every ticket number has something interesting. Think about what "for reference" tickets
 > would realistically be numbered in the single digits, and read the ones that *do* return a capture file,
 > not just the first one you try.
 
-> **Hint 2.** Whatever credential you find in that capture was good enough to log in somewhere once -- it's
-> worth trying it again, somewhere else on this same box that asks for a username and password.
+> **Hint 2.** Credentials are rarely used in only one place. If a page asks for a login, try what you
+> recovered there, exactly as it appeared in the capture.
 
 ## 3. Submit
 

@@ -39,9 +39,12 @@ reach.
 > feature's own fetch runs *inside* that same container. What address would let a process inside the box
 > reach something nothing outside the box ever could?
 
-> **Hint 2.** The internal app on loopback listens on a different port than the public one. Guessing one
-> port over from the public port is a reasonable start for an internal "admin" service that was never
-> meant to need a firewall, because nothing outside was ever supposed to reach it directly.
+> **Hint 2.** You don't have to guess the internal port blind. Try previewing `http://127.0.0.1:<port>/`
+> for a handful of ports near the public one. A closed port and an open-but-empty one read differently in
+> what the preview hands back (compare previewing `http://127.0.0.1:1` on `example.target` -- nothing is
+> listening there -- against a real site). Once you land on an open port, the page it fetches is a real
+> app with its own landing page: read what it says about itself and follow any routes it lists, the same
+> way you'd explore any site you'd just discovered.
 
 ## 3. Submit
 

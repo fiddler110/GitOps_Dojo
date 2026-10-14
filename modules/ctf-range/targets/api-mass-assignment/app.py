@@ -60,7 +60,30 @@ def _shell(title, inner):
 
 @app.get("/")
 def index():
-    return _shell('Kestrel Accounts API', '<h1>Kestrel Accounts API</h1><p>JSON API for Kestrel account holders. Authenticate with <code>POST /login</code>, then use <code>/users/me</code> to read or update your profile.</p>')
+    return _shell('Kestrel Accounts API', '<h1>Kestrel Accounts API</h1><p>JSON API for Kestrel account holders. Authenticate with <code>POST /login</code>, then use <code>/users/me</code> to read or update your profile. Full route list: <a href="/spec">GET /spec</a>.</p>')
+
+
+_SPEC = {
+    "routes": [
+        {"method": "POST", "path": "/login", "auth": "none",
+         "request_fields": ["username", "password"],
+         "response_fields": ["token"]},
+        {"method": "GET", "path": "/users/me", "auth": "bearer token",
+         "response_fields": ["username", "role", "bio"]},
+        {"method": "PATCH", "path": "/users/me", "auth": "bearer token",
+         "description": "Update your own profile.",
+         "client_settable_fields": ["bio"],
+         "response_fields": ["username", "role", "bio"]},
+        {"method": "GET", "path": "/admin/report", "auth": "bearer token, role=admin",
+         "description": "Intended for admin accounts only.",
+         "response_fields": ["flag"]},
+    ],
+}
+
+
+@app.get("/spec")
+def spec():
+    return jsonify(_SPEC)
 
 FLAG = os.environ.get("CTF_FLAG", "flag{api-mass-assignment-dev0000000000}")
 STUDENT_USER = os.environ.get("CTF_STUDENT", "student07")

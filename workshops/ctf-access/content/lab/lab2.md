@@ -38,10 +38,10 @@ on, and whether every one of those inputs is already public.
 > who knows both, without ever requesting it. What's the actual window size, and could you compute today's
 > value yourself?
 
-> **Hint 2.** If you can derive the token independently -- no network request needed to "get" it -- you
-> can reset `ops-admin`'s password directly. You'll need to figure out the exact inputs and the hash/window
-> scheme it's built from; read the response from a normal reset attempt closely, it may tell you more than
-> it should.
+> **Hint 2.** Look at every page in the reset flow the way you would look at a document you are
+> auditing: the forms, and the page source (`curl -s <url>`), where developers sometimes leave notes to
+> themselves. Once you know how the code is built, you can compute it yourself with `sha256sum` or a few
+> lines of Python (`python3 -c 'import hashlib; print(hashlib.sha256(b"text").hexdigest())'`).
 
 ## 3. Submit
 

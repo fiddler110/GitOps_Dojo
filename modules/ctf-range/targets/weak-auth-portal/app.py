@@ -89,7 +89,8 @@ def index():
         '<input name="username" placeholder="username">'
         '<input name="password" type="password" placeholder="password">'
         "<button>Log in</button></form>"
-        '<p><a href="/forgot-password">Forgot password?</a></p>'
+        '<p><a href="/forgot-password">Forgot password?</a> '
+        '<a href="/reset">Have a reset code?</a></p>'
         '<p class="note">Operations staff only. Infrastructure change window: Tue 02:00.</p>'
     ))
 
@@ -123,6 +124,25 @@ def forgot_password():
     if user in _PASSWORDS:
         return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
     return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
+
+
+@app.get("/reset")
+def reset_form():
+    # The form shows the field names a student needs. The HTML comment is a
+    # realistic developer leftover: the legacy scheme described in plain
+    # words. Finding it is what lets a student see that every input is public.
+    return _page("Use a reset code", (
+        "<h1>Use a reset code</h1>"
+        '<form method="post" action="/reset">'
+        '<input name="username" placeholder="username">'
+        '<input name="token" placeholder="reset code">'
+        '<input name="new_password" type="password" placeholder="new password">'
+        "<button>Reset password</button></form>"
+        "<!-- TODO(ops): retire the legacy reset codes once the new token service ships."
+        " Legacy code = first 6 hex chars of sha256(\"reset:\" + username + \":\" + minute),"
+        " where minute = unix time in seconds // 60."
+        " The current minute and the one either side are accepted. -->"
+    ))
 
 
 @app.post("/reset")
