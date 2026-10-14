@@ -43,6 +43,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import multi
 import personas
 import probes
 import traffic
@@ -261,6 +262,70 @@ def run(users, target_urls, challenge, started_at, clients, clock=time.time, sle
         t.join()
 
 
+def post_multi_event(clients, user, target, severity_weight, outcome, rec, rng):
+    """One signed POST for the three-target swarm (multi.py): same ctf/soc split as post_event,
+    plus the per-target fields the contract adds (`target`, `target_severity`, `weight`) so
+    achievements can track breaches, tiers and wall rows per (user, target)."""
+    source = "ctf" if outcome in CTF_EVENTS else "soc"
+    severity, weight = severity_weight
+    doc = {"event": outcome, "user": user, "challenge": target, "target": target,
+          "persona": user, "origin": personas.pick_origin(rng),
+          "target_severity": severity, "weight": weight}
+    doc.update(rec)
+    clients[source].post(doc)
+    print(f"[attacker-bot] {user} {target} {outcome} {rec.get('method')} {rec.get('path')} "
+         f"{rec.get('status')}", flush=True)
+
+
+def fetch_schedule_with_retry(addr, token, user, retries=2, sleep=time.sleep):
+    """Up to RETRIES+1 attempts at the student's own schedule row (controller may not be up
+    yet right at Start); an empty result after that just means this student sits out (no rows
+    to time), never a crash."""
+    for attempt in range(retries + 1):
+        rows = multi.fetch_schedule(addr, token, user)
+        if rows:
+            return rows
+        if attempt < retries:
+            sleep(2.0)
+    return []
+
+
+def run_multi(users, host, port_base, stride, started_at, clients, control_addr, control_token,
+             dwell_seconds, ramp_seconds, scale, severities, stop=None):
+    """Three-target mode (CTF_DEFEND_TARGETS has several entries): each student thread fetches
+    its own schedule row, then runs one independent timer per target - see multi.py. Runs for
+    the process lifetime, same as run()."""
+    import threading
+    exploit_fns = {}
+
+    def user_thread(user, user_index):
+        rows = fetch_schedule_with_retry(control_addr, control_token, user)
+        rng = random.Random()
+        for row in rows:
+            target = row["target"]
+            url = f"http://{host}:{multi.target_port(port_base, int(row.get('index', 0)), stride, user_index)}"
+            exploit_fns[(user, target)] = make_exploit_fn(url)
+            sev_weight = severities.get(target, (row.get("severity"), row.get("weight")))
+
+            def post(u, t, outcome, rec, _sw=sev_weight):
+                post_multi_event(clients, u, t, _sw, outcome, rec, rng)
+
+            t = threading.Thread(
+                target=multi.run_target_timer,
+                args=(user, user_index, row, host, port_base, stride, started_at, post,
+                     exploit_fns[(user, target)], row.get("secteam_key", "")),
+                kwargs={"dwell_seconds": dwell_seconds, "ramp_seconds": ramp_seconds, "scale": scale,
+                       "rng": random.Random(), "stop": stop},
+                daemon=True)
+            t.start()
+
+    threads = [threading.Thread(target=user_thread, args=(u, i), daemon=True) for i, u in enumerate(users)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+
 def main():
     host = os.environ.get("CTF_HOST", "ctf-host")
     port_base = int(os.environ.get("CTF_HOST_PORT_BASE", "15000"))
@@ -277,13 +342,26 @@ def main():
         print(f"[attacker-bot] CTF_TIME_SCALE={scale}: dwell {dwell_seconds}s, ramp {ramp_seconds}s", flush=True)
 
     users = roster(prefix, count)
-    target_urls = {u: target_url(host, port_base, i) for i, u in enumerate(users)}
     clients = {"ctf": AdapterClient(adapter_url, adapter_secret, source="ctf"),
               "soc": AdapterClient(adapter_url, adapter_secret, source="soc")}
     print(f"[attacker-bot] {len(users)} students ready, targeting {host}:{port_base}+ - "
          "waiting for the facilitator to start the session...", flush=True)
     started_at = wait_for_start(control_url, adapter_secret)
     print(f"[attacker-bot] started - dwell clock begins now ({started_at})", flush=True)
+
+    targets = multi.parse_targets(os.environ.get("CTF_DEFEND_TARGETS", ""))
+    if len(targets) > 1:
+        stride = int(os.environ.get("CTF_PORT_STRIDE", "100"))
+        control_addr = os.environ.get("CTF_CONTROLLER_URL") or os.environ.get("CTF_CONTROLLER_ADDR") or "http://ctf-controller:9000"
+        control_token = os.environ.get("CTF_CONTROL_TOKEN", "")
+        severities = {"customer-portal": ("high", 3), "policy-bypass": ("medium", 2),
+                      "leaky-config": ("low", 1)}
+        print(f"[attacker-bot] three-target mode: {targets}", flush=True)
+        run_multi(users, host, port_base, stride, started_at, clients, control_addr, control_token,
+                 dwell_seconds, ramp_seconds, scale, severities)
+        return
+
+    target_urls = {u: target_url(host, port_base, i) for i, u in enumerate(users)}
     run(users, target_urls, challenge, started_at, clients, dwell_seconds=dwell_seconds, ramp_seconds=ramp_seconds,
        control_url=control_url, secret=adapter_secret, scale=scale)
 

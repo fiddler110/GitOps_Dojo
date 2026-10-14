@@ -72,6 +72,10 @@
     var tm = span('t dim', clock(r)); if (r.count > 1) { tm.title = 'last seen ' + clock(r); }
     line.appendChild(tm);
     line.appendChild(span('cc', r.origin));
+    if (r.target) {
+      var ts = span('tgt dim', r.target + (r.target_severity ? ' [' + r.target_severity + ']' : ''));
+      ts.title = ts.textContent; line.appendChild(ts);
+    }
     if (r.method) {
       var target = r.path + (r.query ? '?' + r.query : '');
       line.appendChild(span('m', r.method));
@@ -117,12 +121,30 @@
         show(log, list.length > 0);
         $('feed-count').textContent = list.length ? list.length + ' recent' : '';
         var note = $('feed-note');
-        note.textContent = !detail ? '' : d.unlocked ? DEFAULT_NOTE + ' Your target was breached: payloads and sizes are shown.'
+        var ut = d.unlocked_targets || [];
+        note.textContent = !detail ? '' : ut.length > 1 ? DEFAULT_NOTE + ' Breached: ' + ut.join(', ') + ' - payloads and sizes are shown for those targets.'
+          : d.unlocked ? DEFAULT_NOTE + ' Your target was breached: payloads and sizes are shown.'
           : DEFAULT_NOTE + ' Payload and size detail unlocks once your target is breached.';
         show(note, detail && !admin);
         var keep = {};
         clear(log);
-        list.forEach(function (r) { keep[r.id] = true; log.appendChild(entryFor(r, detail)); });
+        // Group by target when the room runs several: a header per target, busiest first.
+        var groups = {}, order = [];
+        list.forEach(function (r) {
+          var k = r.target || r.challenge || '';
+          if (!groups[k]) { groups[k] = []; order.push(k); }
+          groups[k].push(r);
+        });
+        var grouped = order.length > 1;
+        order.forEach(function (k) {
+          if (grouped) {
+            var sev = groups[k][0].target_severity;
+            var h = document.createElement('div'); h.className = 'group dim'; h.setAttribute('role', 'presentation');
+            h.textContent = k + (sev ? '  -  ' + sev + ' severity' : '');
+            log.appendChild(h);
+          }
+          groups[k].forEach(function (r) { keep[r.id] = true; log.appendChild(entryFor(r, detail)); });
+        });
         Object.keys(expanded).forEach(function (id) { if (!keep[id]) { delete expanded[id]; } });
         logScroll.classList.toggle('has-open', Object.keys(expanded).length > 0);
         // Nothing open: trim whole lines until none is half-cut (the projector layout never scrolls).
@@ -185,12 +207,14 @@
   // It names what happened and where to look, never the fix.
   function renderBanner(targets) {
     var bn = $('banner'); if (!bn) { return; }
-    var red = null, fixed = null;
-    targets.forEach(function (t) { if (t.status === 'red') { red = red || t; } else if (t.fixed_at != null) { fixed = fixed || t; } });
+    var red = null, fixed = null, nred = 0;
+    targets.forEach(function (t) { if (t.status === 'red') { nred += 1; red = red || t; } else if (t.fixed_at != null) { fixed = fixed || t; } });
     var main = $('banner-main'), sub = $('banner-sub');
     if (red) {
       bn.className = 'banner breached';
-      main.textContent = 'BREACHED - customer data left your ' + red.challenge + ' at ' + clock({ at: red.breached_at });
+      main.textContent = nred > 1 ? 'BREACHED - ' + nred + ' targets: ' + targets.filter(function (t) { return t.status === 'red'; })
+          .map(function (t) { return t.challenge; }).join(', ')
+        : 'BREACHED - customer data left your ' + red.challenge + ' at ' + clock({ at: red.breached_at });
       sub.textContent = 'Find the request in the log below that caused it.';
     } else if (fixed) {
       bn.className = 'banner contained';
@@ -216,7 +240,7 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d) { return; }
-        var targets = d.targets || [], timeline = (d.timeline || []).slice(0, 12);
+        var targets = (d.targets || []).slice().sort(function (a, b) { return (b.weight || 0) - (a.weight || 0); }), timeline = (d.timeline || []).slice(0, 12);
         renderBanner(targets);
         $('inc-who').textContent = admin ? d.user || '' : '';
         $('inc-empty').textContent = 'No activity recorded yet.';
@@ -227,6 +251,7 @@
         targets.forEach(function (t) {
           var tr = document.createElement('tr');
           tr.appendChild(cell(t.challenge));
+          tr.appendChild(cell(t.severity || ''));
           tr.appendChild(cell(t.status, t.status === 'red' ? 'neg' : 'warn'));
           tr.appendChild(cell(when(t.breached_at), 'dim'));
           tr.appendChild(cell(when(t.fixed_at), 'dim'));

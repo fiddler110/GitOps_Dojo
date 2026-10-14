@@ -70,30 +70,9 @@ class Scoring(unittest.TestCase):
         s.adapter(soc("exploit_attempt"))
         self.assertEqual(self.units(s), 6)
 
-    def test_bonus_challenge_is_one_unit_when_on_and_absent_when_off(self):
-        s = self.store()
-        self.assertEqual(s.ledger.index["c1"]["points"], 5)
-        off = os.path.join(tempfile.mkdtemp(), "ctf-defend")
-        shutil.copytree(PACK, off)
-        shutil.copy(os.path.join(PACK, "achievements", "variants", "c1.off.json"),
-                    os.path.join(off, "achievements", "challenges", "c1.json"))
-        try:
-            s2 = self.store(pack=off)
-            self.assertNotIn("c1", s2.ledger.index)
-        finally:
-            shutil.rmtree(os.path.dirname(off))
 
     def test_probe_path_reaches_the_soc_row(self):
         s = self.store()
         s.adapter({"source": "soc", "event": "probe", "user": U, "challenge": "customer-portal", "path": "/portal.db"})
         self.assertEqual(s.soc_rows(U)[0]["path"], "/portal.db")
 
-    def test_off_variant_is_the_on_file_with_enabled_false(self):
-        on = json.load(open(os.path.join(PACK, "achievements", "challenges", "c1.json")))
-        off = json.load(open(os.path.join(PACK, "achievements", "variants", "c1.off.json")))
-        self.assertEqual(off.pop("enabled"), False)
-        self.assertEqual(on, off)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -156,6 +156,39 @@ class SiemTests(unittest.TestCase):
         self.feed(BREACH, dict(BREACH, path="/export"))
         self.assertEqual(len([r for r in self.s.soc_rows("alice") if r["severity"] == "BREACH"]), 2)
 
+    def test_breach_tiers_are_per_target(self):
+        pb_probe = dict(PROBE, challenge="policy-bypass", target="policy-bypass", target_severity="medium",
+                        weight=2, method="POST", path="/api/provision", caller="developer",
+                        resource_group="rg-vault-gateway", outcome="denied", asserted_tag="security-team")
+        self.feed(PROBE, pb_probe, dict(BREACH, target="customer-portal", target_severity="high", weight=3))
+        rows = {r["target"] if "target" in r else r["challenge"]: r for r in self.s.soc_rows("alice")
+                if r["severity"] != "BREACH"}
+        self.assertIn("query", rows["customer-portal"])                     # breached target: full
+        self.assertNotIn("caller", rows["policy-bypass"])                   # other target: still paths tier
+        self.assertEqual(rows["policy-bypass"]["outcome"], "denied")
+        st = self.s.siem_state("alice")
+        self.assertEqual(st["unlocked_targets"], ["customer-portal"])
+        self.feed(dict(BREACH, challenge="policy-bypass", target="policy-bypass", caller="developer",
+                       resource_group="rg-vault-gateway", asserted_tag="security-team", outcome="allowed"))
+        full = [r for r in self.s.soc_rows("alice") if r.get("target") == "policy-bypass"]
+        self.assertTrue(full and all(r.get("caller") == "developer" for r in full))
+        self.assertEqual(sorted(self.s.siem_state("alice")["unlocked_targets"]),
+                         ["customer-portal", "policy-bypass"])
+
+    def test_wall_rows_one_per_user_and_target_with_severity(self):
+        self.feed(dict(BREACH, target="customer-portal", target_severity="high", weight=3),
+                  dict(BREACH, challenge="leaky-config", target="leaky-config", target_severity="low", weight=1))
+        rows = {r["target"]: r for r in self.s.wall_rows()}
+        self.assertEqual(set(rows), {"customer-portal", "leaky-config"})
+        self.assertEqual((rows["leaky-config"]["severity"], rows["customer-portal"]["weight"]), ("low", 3))
+        self.assertEqual({r["target"] for r in self.s.incident("alice")["targets"]},
+                         {"customer-portal", "leaky-config"})
+
+    def test_signal_fields_survive_the_adapter(self):
+        ev = matcher.adapter_event({"source": "soc", "event": "probe", "user": "alice", "target": "leaky-config",
+                                    "auth": "basic-ok", "account": "ops-admin", "weight": 1})
+        self.assertEqual((ev["auth"], ev["account"], ev["target"], ev["weight"]), ("basic-ok", "ops-admin", "leaky-config", 1))
+
 
 if __name__ == "__main__":
     unittest.main()
