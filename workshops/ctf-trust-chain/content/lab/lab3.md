@@ -20,16 +20,27 @@ Open `.forgejo/workflows/ci.yml` and the repo's README. Which events trigger a r
 when a pull request is the trigger -- the workflow file as it exists on the branch being merged *into*, or
 the one on the branch the PR comes *from*? That's the question this whole lab turns on.
 
+## What a job can reach
+
+Two facts about CI that the rest of this lab leans on:
+
+- **A job is handed a token.** Every job gets an automatic `secrets.GITHUB_TOKEN`, scoped to its own
+  repository. What it may do depends on the workflow's `permissions:` block, and it cannot push to a branch
+  on this server. Forgejo's API is at `http://git-server:3000/api/v1`, and `GITHUB_REPOSITORY` and
+  `GITHUB_EVENT_PATH` in the job's environment tell a step which repo and which pull request it belongs
+  to. Posting a comment on a pull request is an API call like any other.
+- **Logs are masked.** The job log replaces any secret's exact value with `***`. That is a string match on
+  the value, so output that no longer contains that exact string is not masked.
+
+A step that wants to get a value out of a job has those two channels: the log, and a call back to the API.
+
 > **Hint 1.** A `pull_request` trigger on most CI systems, Forgejo included, runs the workflow file from the
 > *source* branch of the PR, not the target. If you can edit that file on a branch, you decide what the job
 > does, before anyone reviews it.
 
-> **Hint 2.** Once your own branch's job runs, it's an ordinary shell step with the repo's secrets available
-> to it. You don't need write access anywhere else -- only a way to get a value back out of the job and into
-> something you can read. Forgejo's own API is reachable from inside the job with the token every run is
-> handed; check what that token is allowed to post, and remember secrets get masked in raw log output, so a
-> value you want to actually read needs to leave in a form the masking won't catch (not plaintext in a log
-> line).
+> **Hint 2.** Once your own branch's job runs, it's an ordinary shell step with the repo's secrets
+> available to it. You don't need write access anywhere else, only a way to get a value back out of the
+> job and into something you can read. Which of the two channels above can you read from your terminal?
 
 ## 2. Try the escalation too, and expect it to fail
 

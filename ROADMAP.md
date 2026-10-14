@@ -117,9 +117,11 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Class-sized run: 40-student capacity and isolation, the swarm with real dwell and ramp times, the Target Viewer card as a student |
-| 2 | Unbuilt design items: end-of-session scoring summary (CTF-D19), plan open questions 1-3 |
-| 3 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure exploitation or escalation path per target would be their bonus challenge; the bonus second flaw for targets 8-11 is the same idea, so it waits with this |
+| 1 | Defend lab redesign (decided 2026-10-14, plan "Defend lab redesign"): three live targets per student attacked in a per-student order (six permutations, seeded, time-driven), different SIEM signal per target, low/medium/high severity, `INCIDENT.md` triage gate, at most 20 students. To decide: third target, severity mapping, stagger interval (pilot), the gate. Supersedes the bonus second flaw for targets 8-11 |
+| 2 | Class-sized run: capacity and isolation (40 for the attack packs, 20 for defend), the swarm with real dwell and ramp times, the Target Viewer card as a student |
+| 3 | End-of-session scoring summary (CTF-D19), plan open questions 1-3 |
+| 4 | Confirm the demo bots solve every lab after the discoverability changes (`ctf-server-trust`, `ctf-secrets-config`, `ctf-trust-chain` were only spot-checked); look at `ssrf-fetcher` fetching its own `127.0.0.1:5000` (500) |
+| 5 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run
 

@@ -111,19 +111,57 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    permission problem and not related to the tag scheme; it costs one unaudited setup call and makes
    `./dojo logs --errors` report this pack as noisy. Not fixed.
 
+**Done 2026-10-13 to 2026-10-14 (PRs #28, #29, #30):**
+
+- **Debriefs and hint ladders (PR #28):** every attack lab has a debrief; `ctf-defend` lab 1 has a two-step hint
+  ladder (SIEM log pattern, then the code path) and a debrief. `git-secrets` is tied to CWE-798 rather than forced
+  into the OWASP Top 10.
+- **Discoverability audit (PRs #29, #30):** see the rule in "Facts to keep in mind". Targets surface existence and
+  shape (landing pages, `GET /spec` on `api-mass-assignment`, `api-bfla` and `policy-bypass`, errors that name what
+  they expected), labs state required facts in the step text, each CTF cheat sheet has three core-command slides,
+  and Lab Info has a `curl` primer. Flaws, flags and `solve.py` are unchanged.
+
+**Defend lab redesign (decided with the user 2026-10-14, not built):** `ctf-defend` becomes three live targets per
+student at once, attacked in a per-student order, and the bonus second flaw (8.7, CTF-D17) is dropped.
+
+- **Shape:** three targets up at once per student, the lab as incident triage ("a mess") rather than the sequential
+  attack-then-next shape of the attack packs. Reuse the target apps and exploit checks from the attack packs; write one
+  new defend lab (briefing, per-target hint ladders, per-target and overall debrief).
+- **Attack order:** six permutations of three targets, dealt to students deterministically from a per-run seed, so
+  student01 is not always 1-2-3 but a given run is reproducible and roughly balanced (about 3-4 per permutation for 20
+  students). **Time-driven:** each target's attack starts on a dwell timer inside a global timebox, not when the
+  previous target is fixed, so unfixed breaches pile up. A ceiling stops a stuck student drowning.
+- **Where the order lives:** recommended in `ctf-controller` (computes and stores `student -> [(target, start)]`),
+  with the swarm bot executing its row, because scoring, the facilitator view and the SIEM all need the same
+  schedule. Not yet verified against the controller code; ask before any `engine/` change.
+- **Signals:** each target shows a different kind of signal in the SIEM (request log, auth or audit events,
+  pipeline or repo events), because finding the signal is the defender's job. Plus some benign-but-noisy traffic.
+- **Severity:** low, medium and high, all exploitable, so any breached target shows the red "exploited" banner on the
+  wall. Severity is impact, not difficulty: every fix is a small diff (about 10 lines).
+- **Scoring:** per-target time to contain, summed. The severity weight belongs to the target, and each target's clock
+  starts at that target's own breach time, so the order a student happens to get does not change fairness.
+  Suggested 3 / 2 / 1 for high / medium / low.
+- **Loop, enforced:** detect, triage, contain, fix, verify, stated in the Lab Info preamble. Proposed enforcement: the
+  PR gate requires an `INCIDENT.md` (what was hit, how you know, impact). Containment stays an optional separate step.
+- **Toolset:** git, an editor, `python3`, `curl`, the exploit check and the SIEM panel; no scanners, no internet.
+- **Class size:** at most 20 students for this lab (about 60 slots); more than that becomes two workshops.
+- **Still to decide:** the third target (`leaky-config` is the lean; `policy-bypass` needs a trusted identity source
+  to be fixable), the severity mapping (`customer-portal` high, `git-secrets` medium, `leaky-config` low), the stagger
+  interval (from a pilot run; start near half the median fix time), and the `INCIDENT.md` gate.
+
 **Open, in order:**
 
-1. **Content depth is uneven.** `ctf-access` and `ctf-server-trust` have 6 lab files and 7 slide files each,
-   `ctf-secrets-config` and `ctf-trust-chain` 5 and 6, `ctf-defend` 2 and 7. Audit every pack against section 9
-   (briefing, hint ladder, debrief per target) with `ctf-defend` as the depth bar, then fill the gaps.
-2. **Class-sized runs (CTF-P4/P7).** Every live check so far was one or two seats. Still unwatched: 40-student
-   capacity and isolation, the swarm with real dwell and ramp durations, the Target Viewer card as a student.
-3. **Unbuilt design items:** the bonus second flaws for targets 8-11 (8.7, CTF-D17; only `customer-portal` is done,
-   see the handoff above), the end-of-session scoring summary (8.10, CTF-D19; the per-target arithmetic is built),
-   and open questions 1-3 (section 13). The wall toggle and route (8.12) are built.
-   The S17 scanners for targets 8-11 stay parked: neither `git-secrets` nor `tfstate-treasure` needed one.
+1. **Class-sized runs (CTF-P4/P7).** Every live check so far was one or two seats. Still unwatched: 40-student
+   capacity and isolation, the swarm with real dwell and ramp durations, the Target Viewer card as a student. The
+   defend lab is now sized for 20.
+2. **The defend redesign above:** decisions, then spec into section 8, then build.
+3. **End-of-session scoring summary** (8.10, CTF-D19; the per-target arithmetic is built) and open questions 1-3
+   (section 13). The wall toggle and route (8.12) are built. The S17 scanners for targets 8-11 stay parked.
 4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
    themed page was only tested with the Flask client.
+5. **Bot rounds for the discoverability changes** were not confirmed for `ctf-server-trust`, `ctf-secrets-config`
+   and `ctf-trust-chain` (the surfaces were checked by hand). `ssrf-fetcher` previewing `127.0.0.1:5000` returns a 500
+   (not confirmed as new).
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 
@@ -137,6 +175,13 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
 - `runner-escape`: plain `pull_request` with same-repo secrets is enough (never `pull_request_target`). The auto-issued
   Actions token cannot push, so the exploit exfiltrates through a PR comment. The escalation fails by design.
 - A manual `podman build`/`rmi` while `./dojo` is building starves the image store; one image builder at a time.
+- **Discoverability rule for every target and lab (2026-10-14).** A student starts with `nmap` and the lab text. Every
+  path, field, header, port, identity, credential format and technique they need must be learnable from: the scan, the
+  target's own pages, links and error messages, the lab text, Lab Info or the cheat sheet. Never assume they know a
+  route or a command exists. A hint may nudge between things they can already see; if a hint is the only place a
+  required fact appears, that is a lab defect. Teach a technique on a made-up target (`example.target`,
+  `<user>:<pass>`), never with the lab's own values. APIs get a linked `GET /spec`; hidden sections get a landing page
+  so `ffuf` has something to report (the shared wordlist only knows section stubs like `admin` and `internal`).
 
 ---
 
@@ -613,6 +658,10 @@ opposite failure mode from "the exploit landed because nobody looked." No new me
 template that's simply never allowed into the escalating phase.
 
 ### 8.7 A second, bonus vulnerability: defense in depth
+
+> **Superseded 2026-10-14.** The defend lab is being redesigned around three simultaneous targets per student (see
+> "Defend lab redesign" under Where it stands). The bonus second flaw for targets 8-11 is dropped; the
+> `customer-portal` bonus that is already built stays until the redesign replaces it. Kept below for the reasoning.
 
 Each defend target (8-11) ships a second, smaller flaw, a **bonus** the swarm never exploits (decision CTF-D17):
 

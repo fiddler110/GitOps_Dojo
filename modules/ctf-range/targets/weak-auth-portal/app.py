@@ -126,11 +126,30 @@ def forgot_password():
     return _page("Portal", "<p>If this account exists, a reset link has been sent.</p>")
 
 
+_LEGACY_JS = """\
+// Legacy reset-code helper, kept for the support console. Remove once the
+// new token service replaces it.
+async function legacyResetCode(username, nowSeconds) {
+  const minute = Math.floor(nowSeconds / 60);
+  const bytes = new TextEncoder().encode("reset:" + username + ":" + minute);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 6);
+}
+"""
+
+
+@app.get("/assets/reset-legacy.js")
+def reset_legacy_js():
+    return Response(_LEGACY_JS, mimetype="application/javascript")
+
+
 @app.get("/reset")
 def reset_form():
-    # The form shows the field names a student needs. The HTML comment is a
-    # realistic developer leftover: the legacy scheme described in plain
-    # words. Finding it is what lets a student see that every input is public.
+    # The form shows the field names a student needs. The page loads a legacy
+    # helper script, a realistic leftover from a support console: reading the
+    # script a page loads is what shows a student every input is public.
     return _page("Use a reset code", (
         "<h1>Use a reset code</h1>"
         '<form method="post" action="/reset">'
@@ -138,10 +157,7 @@ def reset_form():
         '<input name="token" placeholder="reset code">'
         '<input name="new_password" type="password" placeholder="new password">'
         "<button>Reset password</button></form>"
-        "<!-- TODO(ops): retire the legacy reset codes once the new token service ships."
-        " Legacy code = first 6 hex chars of sha256(\"reset:\" + username + \":\" + minute),"
-        " where minute = unix time in seconds // 60."
-        " The current minute and the one either side are accepted. -->"
+        '<script src="/assets/reset-legacy.js"></script>'
     ))
 
 

@@ -39,9 +39,10 @@ on, and whether every one of those inputs is already public.
 > value yourself?
 
 > **Hint 2.** Look at every page in the reset flow the way you would look at a document you are
-> auditing: the forms, and the page source (`curl -s <url>`), where developers sometimes leave notes to
-> themselves. Once you know how the code is built, you can compute it yourself with `sha256sum` or a few
-> lines of Python (`python3 -c 'import hashlib; print(hashlib.sha256(b"text").hexdigest())'`).
+> auditing: the forms, the page source (`curl -s <url>`), and any file the page asks the browser to
+> load. Developers leave helpers behind. Once you know how the code is built, you can compute it with
+> `sha256sum` or a few lines of Python
+> (`python3 -c 'import hashlib; print(hashlib.sha256(b"text").hexdigest())'`).
 
 ## 3. Submit
 

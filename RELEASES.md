@@ -7,6 +7,29 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## CTF packs: every required fact discoverable, core-command cheat sheets (2026-10-14, `feat/ctf-discoverability`, PR #30)
+
+Rule: a student must be able to learn every path, field, header, port, identity and technique from the scan, the
+target's own pages and errors, the lab text, Lab Info or the cheat sheet; a hint may nudge but never be the only
+source. Targets: `weak-auth-portal` links a `/reset` form that loads a legacy helper script, `cert-trust-bypass`
+names the expected CN, `ssrf-fetcher` distinguishes refused loopback ports and its internal service has a landing
+page, `api-mass-assignment`/`api-bfla`/`policy-bypass` serve `GET /spec`, `policy-bypass`'s 400 names every required
+field. Labs: required facts moved out of hints in `ctf-access` 1-4, `ctf-server-trust` 2-4, `ctf-secrets-config` 1-3
+and `ctf-trust-chain` 2-3 (the `runner-escape` lab names the job token, the API base and log masking). Each CTF cheat
+sheet has three core-command slides; Lab Info gained `curl.md`. Flaws, flags and `solve.py` unchanged. Checked
+locally on live `--test 1 --fast` stacks; bot rounds were not confirmed for three of the packs.
+
+## `leaky-config` is discoverable with `ffuf` (2026-10-14, `feat/leaky-config-discovery`, PR #29)
+
+`/admin` and `/internal` were 404s, so `ffuf` found only `/status`. They are now 200 landing pages linking `logs` and
+`metrics`; lab 1 shows the `ffuf` and `curl -u` shapes. Live-checked locally: `ffuf -fc 404` finds `admin`,
+`internal`, `status`, then `logs` under `/admin/FUZZ`.
+
+## CTF debriefs and `ctf-defend` hint ladder (2026-10-13, `feat/ctf-debriefs`, PR #28)
+
+Every attack lab has a debrief (12 added; `tfstate-treasure` and `runner-escape` already had one). `ctf-defend` lab 1
+gains a two-step hint ladder and a debrief. `git-secrets` cites CWE-798 instead of an OWASP category. Lab content only.
+
 ## vault-fundamentals: late-joiner note instead of a lab-prep (2026-10-12, `docs/vault-lab12-standalone`)
 
 The audit flagged the pack for having no `lab-prep` like the other packs. Reading the labs showed it does not need one:
