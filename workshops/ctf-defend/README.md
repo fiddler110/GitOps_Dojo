@@ -11,22 +11,27 @@ instead of attack. See the plan's section 8 for how this session fits with CTF-1
 ./dojo ctf-defend              # then open http://localhost:8080
 ```
 
-## The target, this session
+## The targets, this session
 
-| Target | What it teaches |
-|---|---|
-| `customer-portal` (target 14) | A SQL injection in a customer-lookup endpoint, found by reading the app's own source, fixed with a parameterized query, shipped through a PR that a CI gate re-tests before letting it merge (A03; the capstone closes the second, un-gated injection point in the same file) |
+Three live targets per student at once (the "Defend lab redesign" in the plan), attacked in a per-student
+order on a stagger, so unfixed breaches pile up and the student has to triage.
 
-Unlike CTF-1 through CTF-4, there is no student-controlled attack ladder: `customer-portal` is always on,
-one copy per student, and each student gets their **own Forgejo repo** (not a shared seed) that drives a
-real redeploy on merge. Target source, the reference exploit/gate script and the SAST stage:
-`modules/ctf-range/targets/customer-portal/`.
+| Target | Severity (weight) | Signal in the SIEM | The flaw |
+|---|---|---|---|
+| `customer-portal` | high (3) | request log | SQL injection in the customer search |
+| `policy-bypass` | medium (2) | audit log | a policy that trusts a tag the requester wrote about themselves |
+| `leaky-config` | low (1) | file-access + auth log | an unauthenticated log read, then reuse of the credential it shows |
+
+Each student gets **three own Forgejo repos** (named for the target, app source only, no exploit script) that
+drive a redeploy of that slot on merge. The attacks are run by the platform's checker (`dojo-check` and the PR
+gate), whose scripts students cannot read. Target source: `modules/ctf-range/targets/<target>/`; the seeded
+copies live in `content/sample-repos/<target>/` (refresh them with `content/sync-sample-repos.sh`).
 
 ## Why this pack exists on top of `ctf-range` and `runner-pool`
 
 `ctf-range` supplies the target, the firewall and the per-student slot (`ctf-host`/`ctf-controller`);
 `runner-pool` supplies the Forgejo Actions runner the defend pipeline's PR gate and merge-redeploy jobs
-need (`.forgejo/workflows/defend-pr.yml`, `defend-main.yml` in `content/sample-repo/`). This is the only
+need (`.forgejo/workflows/defend-pr.yml`, `defend-main.yml` in `content/sample-repos/_common/`). This is the only
 CTF pack that lists `runner-pool` purely for its own students' pipelines, not for the range control plane
 (`ctf-trust-chain` also lists it, but for `runner-escape`'s target, not the student's own CI).
 
@@ -38,46 +43,37 @@ live by default -- see `compose/docker-compose.override.yml`'s header comment.
 ## What's here
 
 - [`workshop.env`](workshop.env): identity, `MODULES="ctf-range runner-pool"`, `FORGEJO_REPO=customer-portal`,
-  and `CTF_BUILD_TOKEN`/`CTF_CONTROL_TOKEN` derived from this install's `GATEWAY_TOKEN` (never a literal
+  `CTF_DEFEND_TARGETS` / `CTF_PORT_STRIDE` / `CTF_TARGET_STAGGER`, and `CTF_BUILD_TOKEN`/`CTF_CONTROL_TOKEN` derived from this install's `GATEWAY_TOKEN` (never a literal
   secret in the repo). No `CTF_ATTACK_TARGETS` -- this session doesn't use the student-controlled ladder.
 - [`content/slides/`](content/slides/): the hub, a briefing deck covering the incident framing and the
   clone/fix/PR/merge flow **without naming the bug**, the lab overview, and a cheat sheet of the session's
   own git/exploit-check commands (tool mechanics live in the module's **Lab Info** card instead).
-- [`content/lab/`](content/lab/lab1.md): one lab -- clone your own repo, find the SQL injection by using
-  the app and reading `app.py`, run the same exploit check the PR gate runs, fix it, PR it, merge it, watch
-  the redeploy. No hint ladder here (unlike CTF-1 through CTF-4): the "stuck" path is the exploit check and
-  the app's own source, not a spoiler file -- see `FACILITATOR.md`.
-- [`content/sample-repo/`](content/sample-repo/): `customer-portal`'s source -- the exact repo
-  `compose/terminal/start.d/90-ctf-defend.sh` provisions per student into Forgejo
-  (`<student>/customer-portal`), Actions secrets included.
+- [`content/lab/`](content/lab/lab1.md): one lab as incident triage -- briefing, the detect/triage/contain/fix/verify
+  loop, the toolset (`git`, editor, `python3`, `curl`, the SIEM, `dojo-check`), a nudge-only hint ladder per
+  target, and a per-target plus overall debrief. Every fact a student needs is discoverable without a hint.
+- [`content/sample-repos/`](content/sample-repos/): the three target repos' source and the shared workflows
+  (`_common/`), which `compose/terminal/start.d/90-ctf-defend.sh` provisions per student into Forgejo
+  (`<student>/<target>`), Actions secrets included. `content/sample-repo/` is the engine's master seed
+  (a copy of `customer-portal`).
 - [`compose/`](compose/): the per-student repo/secrets provisioning hook, the terminal link, and the
   overlay that adds the room-wide `attacker-bot` service (moved here from `modules/ctf-range` -- see its
   header comment).
-- [`achievements/`](achievements/): milestones on the student's own Forgejo PR lifecycle
-  (`m-opened`/`m-shipped`) and the SOC feed's own containment signal (`m-contained`), funny unlocks on the
-  swarm's recon/exploit/dump events, and a capstone (`achievements/capstone.json`) for closing the second,
-  un-gated injection point in `/login`.
+- [`achievements/`](achievements/): milestones on each target's PR lifecycle and the SOC feed's containment
+  signal, funny unlocks on the swarm's recon/exploit/dump events, and a capstone (`achievements/capstone.json`)
+  for closing the second, un-gated injection point in `customer-portal`'s `/login`.
 
-## Bonus second flaw (toggle)
+## Scoring
 
-`CTF_BONUS_FLAWS=on|off` in `workshop.env` (default **on**; override in `.env` or the shell, e.g.
-`CTF_BONUS_FLAWS=off ./dojo ctf-defend`). On, each defend target also carries a smaller flaw the bots never
-exploit and the PR gate never blocks on: today `customer-portal`'s customer passwords are stored as typed,
-`content/bonus/` is laid over the clean seed repo, the swarm's ordinary probes include data-at-rest paths,
-and a hidden-until-found "Second Look" challenge (`achievements/challenges/c1.json`, two hints and an
-answer) is worth one more scoring unit. Off, none of that exists: the repo is seeded clean, there is no
-bonus CI step and no bonus points, and no lab or slide mentions a bonus (they never do; the bonus lives in
-the repo overlay and the achievements challenge). Targets 8-11 are not part of this pack yet, so they have no
-bonus here.
-
-Scoring (`CTF_SCORE_FACTOR`, default 5 points per unit): green 2 units, yellow 1, red 0, plus 1 per bonus
-fixed once the main fix is on `main`: 10/5/0 and +5. Achievements items `d-patched`, `d-unbreached`, `c1`.
+`CTF_SCORE_FACTOR` (default 5 points per unit): per target green 2 units, yellow 1, red 0, times the target's
+weight (3 / 2 / 1). Time to contain and MTTP are displayed, not scored. The bonus second flaw (CTF-D17) and
+`CTF_BONUS_FLAWS` are gone.
 
 ## Facilitator view
 
 The `/admin` workspace's **SOC** tab is this session's equivalent of CTF-1 through CTF-4's Attack
 Range tab: it shows the room-wide swarm clock and is where the facilitator starts it. There is no
-start/stop/reset per student -- the target is always on.
+start/stop/reset per student -- the targets are always on. Per-student order and start offsets come from
+the controller's `GET /schedule`.
 
 ## Status
 

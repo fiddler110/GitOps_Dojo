@@ -1,0 +1,45 @@
+# Defend rebuild + redeploy. Merging to main builds this repo's image and replaces your running slot for
+# this target in place. The repo name is the target (customer-portal, policy-bypass, leaky-config).
+name: Defend - rebuild and redeploy
+on:
+  push:
+    branches: [main]
+
+env:
+  CTF_SLOT: ${{ github.repository_owner }}
+  CTF_TARGET: ${{ github.event.repository.name }}
+  CTF_REF: ${{ github.sha }}
+  CTF_BUILDER_URL: http://ctf-builder:9100/build
+  CTF_CONTROLLER_URL: http://ctf-controller:9000/redeploy
+  CTF_REGISTRY: ${{ vars.CTF_REGISTRY }}
+
+jobs:
+  rebuild-and-redeploy:
+    runs-on: host
+    steps:
+      - name: Build and push the patched image (ctf-builder)
+        run: |
+          set -eu
+          body=$(printf '{"user":"%s","target":"%s","ref":"%s"}' "$CTF_SLOT" "$CTF_TARGET" "$CTF_REF")
+          resp=$(curl -fsS -X POST "$CTF_BUILDER_URL" \
+            -H "Authorization: Bearer ${CTF_BUILD_TOKEN}" \
+            -H "Content-Type: application/json" -d "$body")
+          echo "ctf-builder: $resp"
+          tag=$(printf '%s' "$resp" | python3 -c 'import sys,json;print(json.load(sys.stdin)["tag"])')
+          echo "$tag" > .built-tag
+        env:
+          CTF_BUILD_TOKEN: ${{ secrets.CTF_BUILD_TOKEN }}
+
+      - name: Redeploy in place (ctf-controller)
+        # The image is the tag ctf-builder just returned (its only allowed tag for this user and target).
+        run: |
+          set -eu
+          tag=$(cat .built-tag)
+          echo "requesting redeploy of ${CTF_SLOT}/${CTF_TARGET} -> ${tag}"
+          body=$(printf '{"user":"%s","target":"%s","image":"%s"}' "$CTF_SLOT" "$CTF_TARGET" "$tag")
+          resp=$(curl -fsS -X POST "$CTF_CONTROLLER_URL" \
+            -H "Authorization: Bearer ${CTF_CONTROL_TOKEN}" \
+            -H "Content-Type: application/json" -d "$body")
+          echo "ctf-controller: $resp"
+        env:
+          CTF_CONTROL_TOKEN: ${{ secrets.CTF_CONTROL_TOKEN }}

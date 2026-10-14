@@ -32,11 +32,12 @@
       "id": "m-contained",
       "title": "Contained",
       "joke": "The next probe comes back with nothing. That's the whole job, done.",
-      "when": "soc: the bot's live re-probe against your slot comes back empty",
+      "when": "soc: the bot's live re-probe against your customer-portal slot comes back empty",
       "core": true,
       "match": {
         "source": "soc",
-        "event": "contained"
+        "event": "contained",
+        "challenge": "customer-portal"
       },
       "points": 10
     },
@@ -56,11 +57,13 @@
           },
           {
             "source": "soc",
-            "event": "contained"
+            "event": "contained",
+            "challenge": "customer-portal"
           },
           {
             "source": "soc",
-            "event": "exploit_attempt"
+            "event": "exploit_attempt",
+            "challenge": "customer-portal"
           }
         ]
       }
@@ -69,13 +72,193 @@
       "id": "d-unbreached",
       "title": "Never Breached",
       "joke": "The swarm tried the real payload and got nothing. It never landed once.",
-      "when": "soc: the swarm's real attempt against your slot failed, and no dump ever succeeded against it",
+      "when": "soc: the swarm's real attempt against your customer-portal slot failed, and no dump ever succeeded against it",
       "core": false,
       "match": {
         "source": "soc",
         "event": "exploit_attempt",
-        "requires_not": "f-wall"
+        "requires_not": "f-wall",
+        "challenge": "customer-portal"
       }
+    },
+    {
+      "id": "m-opened-pb",
+      "title": "Filed (policy-bypass)",
+      "joke": "One more pull request. The pile grows.",
+      "when": "forgejo: you opened a PR against your own policy-bypass repo",
+      "core": false,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "repo": "{user}/policy-bypass"
+      },
+      "points": 10
+    },
+    {
+      "id": "m-shipped-pb",
+      "title": "Shipped Gatekeeper",
+      "joke": "Merged to main, and the gate let it through clean.",
+      "when": "forgejo: your PR against your own policy-bypass repo was merged",
+      "core": true,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "{user}/policy-bypass"
+      },
+      "points": 10
+    },
+    {
+      "id": "m-contained-pb",
+      "title": "Contained (policy-bypass)",
+      "joke": "Closed the door the policy left open.",
+      "when": "soc: the bot's live re-probe against your policy-bypass slot comes back empty",
+      "core": true,
+      "match": {
+        "source": "soc",
+        "event": "contained",
+        "challenge": "policy-bypass"
+      },
+      "points": 10
+    },
+    {
+      "id": "d-patched-pb",
+      "title": "Patched (policy-bypass)",
+      "joke": "A unit on the board for this one too.",
+      "when": "your fix reached main (a merged PR on your policy-bypass repo), or the swarm's re-probe came back empty",
+      "core": false,
+      "match": {
+        "any": [
+          {
+            "source": "forgejo",
+            "event": "pull_request",
+            "action": "merged",
+            "repo": "{user}/policy-bypass"
+          },
+          {
+            "source": "soc",
+            "event": "contained",
+            "challenge": "policy-bypass"
+          },
+          {
+            "source": "soc",
+            "event": "exploit_attempt",
+            "challenge": "policy-bypass"
+          }
+        ]
+      }
+    },
+    {
+      "id": "d-unbreached-pb",
+      "title": "Never Breached (policy-bypass)",
+      "joke": "The swarm tried and got nothing, here at least.",
+      "when": "soc: the swarm's real attempt against your policy-bypass slot failed, and no dump ever succeeded against it",
+      "core": false,
+      "match": {
+        "source": "soc",
+        "event": "exploit_attempt",
+        "challenge": "policy-bypass",
+        "requires_not": "f-wall-pb"
+      }
+    },
+    {
+      "id": "m-opened-lc",
+      "title": "Filed (leaky-config)",
+      "joke": "One more pull request. The pile grows.",
+      "when": "forgejo: you opened a PR against your own leaky-config repo",
+      "core": false,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "opened",
+        "repo": "{user}/leaky-config"
+      },
+      "points": 10
+    },
+    {
+      "id": "m-shipped-lc",
+      "title": "Shipped Plugged",
+      "joke": "Merged to main, and the gate let it through clean.",
+      "when": "forgejo: your PR against your own leaky-config repo was merged",
+      "core": true,
+      "match": {
+        "source": "forgejo",
+        "event": "pull_request",
+        "action": "merged",
+        "repo": "{user}/leaky-config"
+      },
+      "points": 10
+    },
+    {
+      "id": "m-contained-lc",
+      "title": "Contained (leaky-config)",
+      "joke": "The log no longer tells strangers anything.",
+      "when": "soc: the bot's live re-probe against your leaky-config slot comes back empty",
+      "core": true,
+      "match": {
+        "source": "soc",
+        "event": "contained",
+        "challenge": "leaky-config"
+      },
+      "points": 10
+    },
+    {
+      "id": "d-patched-lc",
+      "title": "Patched (leaky-config)",
+      "joke": "A unit on the board for this one too.",
+      "when": "your fix reached main (a merged PR on your leaky-config repo), or the swarm's re-probe came back empty",
+      "core": false,
+      "match": {
+        "any": [
+          {
+            "source": "forgejo",
+            "event": "pull_request",
+            "action": "merged",
+            "repo": "{user}/leaky-config"
+          },
+          {
+            "source": "soc",
+            "event": "contained",
+            "challenge": "leaky-config"
+          },
+          {
+            "source": "soc",
+            "event": "exploit_attempt",
+            "challenge": "leaky-config"
+          }
+        ]
+      }
+    },
+    {
+      "id": "d-unbreached-lc",
+      "title": "Never Breached (leaky-config)",
+      "joke": "The swarm tried and got nothing, here at least.",
+      "when": "soc: the swarm's real attempt against your leaky-config slot failed, and no dump ever succeeded against it",
+      "core": false,
+      "match": {
+        "source": "soc",
+        "event": "exploit_attempt",
+        "challenge": "leaky-config",
+        "requires_not": "f-wall-lc"
+      }
+    },
+    {
+      "id": "m-all-contained",
+      "title": "Triage Complete",
+      "joke": "Three fires out. Time to write it up.",
+      "when": "all three targets contained",
+      "core": false,
+      "match": {
+        "source": "soc",
+        "event": "contained",
+        "requires": [
+          "m-contained",
+          "m-contained-pb",
+          "m-contained-lc"
+        ]
+      },
+      "points": 20
     }
   ]
 }

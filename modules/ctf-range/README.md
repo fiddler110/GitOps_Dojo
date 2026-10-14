@@ -404,3 +404,13 @@ clock, not independent per-persona timers).
   from outside `ctf_net`.
 - All lab data is synthetic and derived from the student's in-lab handle — no
   real PII, ever (CTF-P2b review rule).
+
+## Three-target defend mode (CTF-5, 2026-10-14 redesign)
+
+`ctf-defend` runs `customer-portal`, `policy-bypass` and `leaky-config` at once per student, from
+`CTF_DEFEND_TARGETS` (slot `ctf-<target>-<user>`, host port `CTF_HOST_PORT_BASE + target_index *
+CTF_PORT_STRIDE + user_index`). The controller serves the per-student attack order at `GET /schedule`, the
+checker (`ctf-checker`, `POST /check` and `/gate`) runs each target's `exploit/check.py` and returns a verdict
+(`exploitable`, `contained`, `broke-normal-use`, `unreachable`), and `dojo-check` in the terminal prints them. The
+pack's lab and Lab Info page (`lab-info/defend-loop.md`) teach the detect/triage/contain/fix/verify loop. See
+`workshops/ctf-defend/README.md`.

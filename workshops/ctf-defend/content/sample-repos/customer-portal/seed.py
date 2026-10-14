@@ -1,11 +1,13 @@
-"""Seed customer-portal's SQLite database.
+"""Seed customer-portal's plaintext SQLite database.
 
 Builds a small `customers` table of SYNTHETIC rows that reference this slot's
 student handle (CTF-D25, §8.12). One row is the "secret" service account whose
 password field holds the flag: a successful SQL-injection dump reveals it.
 
 Everything here is lab-local fake data derived from the in-lab handle — no real
-PII, ever.
+PII, ever. Plaintext at rest is deliberate scenario design so the dump is
+legible on screen (the graded flaw is the SQL injection; cleartext storage is a
+CTF-D17 bonus flaw).
 
 Idempotent: safe to run on every start. If the DB already holds customers it
 does nothing, so a student's running app keeps its data across restarts.
@@ -37,7 +39,7 @@ def _rows(student, flag):
             i,
             name,
             f"{user}.{student}@portal.lab",   # email tied to the handle
-            pw,                                # the customer's password
+            pw,                                # cleartext password (bonus flaw)
             f"{student}-{1000 + i}",           # account id tied to the handle
             tier,
         ))

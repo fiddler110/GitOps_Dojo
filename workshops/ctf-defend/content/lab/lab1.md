@@ -1,113 +1,178 @@
-# Lab 1: Defend customer-portal
+# Lab 1: Incident triage
 
-By the end of this lab you'll have found and fixed a live incident in your own
-running app, shipped the fix the normal way — branch, PR, review, merge — and
-watched the deploy happen because you merged, not because you asked anyone to.
+Three of your apps are live, and all three are going to be attacked, in an order that is different for each of
+you. This is not three exercises in a row. It is one incident with three things on fire, and the skill is
+working them in the right order with the evidence in front of you.
 
 ---
 
 ## 1. The briefing
 
-`customer-portal` is a small internal lookup tool: search customers by name,
-or log in as one. It's already running — your copy, on your own slot, nobody
-else's. InfoSec has opened an incident against it. The SIEM panel on
-your landing page shows what they're seeing in real time; the facilitator
-will start the clock when the room's ready.
+You own three small services. Each is already running on your own slot, nobody else's:
 
-Your job: find out what's wrong, fix the **source**, and ship it before it
-gets worse. Nobody is going to tell you where the bug is — that's the point
-of an incident, not a scavenger hunt. Work the way you would at a job: read
-the code, try the obvious things, check what the app actually returns.
+| App | What it is | Severity |
+|---|---|---|
+| `customer-portal` | support staff look up customers and log in as one | **high** |
+| `policy-bypass` | a cloud provisioning API with a policy that gates protected resource groups | **medium** |
+| `leaky-config` | an ops dashboard with a status page, admin pages and logs on disk | **low** |
+
+Each is attacked on its own timer, staggered, so a second and third problem arrive while you are still on the
+first. Severity is the impact if it is breached, and it sets how many points the target is worth. It is not how
+hard the fix is: every fix here is a small diff.
+
+The facilitator starts the clock. Until then, read.
 
 ---
 
-## 2. Clone your repo
+## 2. The loop
+
+Work every target through the same five steps. Say them out loud; the order is the point.
+
+1. **Detect.** Something is wrong. Find it in the evidence, not in the code.
+2. **Triage.** Which target, how bad, what is exposed? Decide what to do first when more than one is burning.
+3. **Contain.** Stop the bleeding, even if only for now. (Containment is optional here, and you may not need it.)
+4. **Fix.** The real fix, in source, through a branch and a pull request.
+5. **Verify.** Prove it, with the check and the SIEM. A fix you have not verified is a guess.
+
+Your toolset is deliberately small: `git`, an editor, `python3`, `curl`, the **SIEM** panel on your landing page,
+and **`dojo-check`**. There is no scanner and no internet, because real incidents rarely come with a perfect tool.
+
+---
+
+## 3. Your tools
+
+### The SIEM panel
+
+Each target emits a different kind of signal, because finding the signal is the defender's job. Expect a request
+log for one, an audit log for another, and file-access and login events for the third. Benign traffic is mixed
+in on purpose. A strong indicator is something specific, repeated, and different from the normal traffic around
+it; a count that is "a bit high" is not.
+
+### `dojo-check`
+
+```sh
+dojo-check                    # all three targets, one line each
+dojo-check policy-bypass      # just one
+```
+
+It asks the platform to run the attack against your **live** slot, and sends one legitimate request as well. A
+target is `contained` only when the attack is blocked **and** normal use still works. If you "fix" it by turning
+the app off, you will see `broke-normal-use`. It never shows you the payload or the data, so it tells you whether,
+not how. Do not expect it to find the bug for you.
+
+| Verdict | Meaning |
+|---|---|
+| `exploitable` | the attack still works |
+| `contained` | blocked, and normal use still works |
+| `broke-normal-use` | the attack is blocked but so is a legitimate request |
+| `unreachable` | the check could not reach your slot |
+
+---
+
+## 4. Clone, read, and open a note
 
 ```sh
 cd ~/lab
-git clone http://git-server:3000/$USER/customer-portal.git
-cd customer-portal
+for t in customer-portal policy-bypass leaky-config; do
+  git clone http://git-server:3000/$USER/$t.git
+done
 ```
 
-This is **your** copy of the app's source — not a shared seed, not read-only.
-Whatever you push to `main` is what's actually running on your target.
+Each repo's `README.md` says what the app is and what the platform provides around it. Read it before the code.
+A header or a service the platform provides is part of the contract you are fixing against.
 
 ---
 
-## 3. Poke at the running app
+## 5. Triage, then fix
 
-Your slot's address is on the landing page card. Try the search box, try
-logging in, try something it probably didn't expect. Read `app.py` once
-you've got a theory — it's the same source you just cloned.
+For each target, in the order your evidence tells you, not the order of this page:
 
 ```sh
-# the same check the PR gate will run on your fix
-python3 exploit/dump.py --url http://<your-slot-address>
+cd ~/lab/<target>
+git checkout -b fix-<target>
+# investigate, edit, then write the incident note
+git add -A
+git commit -m "Fix <target>"
+git push -u origin fix-<target>
 ```
 
-Exit `0` means it's still vulnerable; `1` means patched. Right now it should
-say `0`.
+Open a pull request in Forgejo. The gate has three parts:
 
-If you're stuck, work these in order. They point at where to look, not at the
-answer.
+- `INCIDENT.md` exists at the repo root with three headings, each with something under it:
+  `What was hit`, `How I know`, `Impact`. Write it from your triage, in your own words. The gate only checks it
+  is there; a reviewer will care that it is true.
+- The checker runs the attack against **your branch** and one normal request, and the PR can only merge when
+  the attack is blocked and normal use works.
+- Its note tells you what it saw, one sentence, never the payload.
 
-> **Hint 1.** Look at the SIEM panel's request log. Out of all the paths the
-> swarm touches, which one gets hit far more than the rest, and with what in
-> its query string?
-
-> **Hint 2.** Find the line in `app.py` that handles that path. Follow the
-> value the visitor sends from the request to wherever it's finally used. What
-> is it joined to, and by what means?
+Merge. The merge rebuilds the image and redeploys that slot in place, with nothing for you to ask anyone.
+Then **verify**: `dojo-check <target>` and the SIEM.
 
 ---
 
-## 4. Branch, fix, push, PR
+## 6. If you are stuck
 
-```sh
-git checkout -b fix-search
-# edit app.py
-git add app.py
-git commit -m "Fix the customer lookup"
-git push -u origin fix-search
-```
+These nudge. None of them is the only place a fact appears: the README, the app's own routes and the SIEM
+already show everything you need. Take them one at a time.
 
-Open a pull request in Forgejo. Watch the Actions tab: the PR gate scans your
-change and re-runs the same exploit check above against your branch. **It can
-only merge once that check comes back clean** — that's the real gate, not a
-suggestion.
+### customer-portal
+
+> **Hint 1.** In the request log, which path is hit far more than normal, and what is odd about the part after
+> the `?` on those requests?
+>
+> **Hint 2.** Find the code for that path. Follow what the visitor sent to where it is finally used. What is it
+> joined to, and by what means?
+
+### policy-bypass
+
+> **Hint 1.** In the audit log, look for a write that was allowed but should not have been, usually after one or
+> more refusals. Who was the caller, and what did the request claim about itself?
+>
+> **Hint 2.** `GET /api/policy` shows the rule. Where does the rule get the thing it is checking from, and who
+> controls that thing?
+
+### leaky-config
+
+> **Hint 1.** In the access log, an unauthenticated request got a `200` for something that looks like it
+> should be private. Then a login succeeded from a client you do not see anywhere else.
+>
+> **Hint 2.** Two things are wrong, one after the other. Ask where the credential came from, and what let a
+> stranger read it. Which of the two can your PR fix?
 
 ---
 
-## 5. Merge, and watch it deploy
+## 7. Debrief
 
-Merge the PR. `defend-main.yml` rebuilds the image and redeploys your slot in
-place — no extra step, no asking the facilitator. Re-run the exploit check
-against your (now redeployed) slot and confirm it exits `1`.
+Read the one for a target once it is `contained`.
 
-Check the SIEM panel again: your status should flip from under attack
-to contained.
+### customer-portal
 
----
+The query was built by pasting visitor input into the SQL text, so the database could not tell data from
+instruction. The fix is a parameterised query: the statement is fixed and the value travels separately. Note
+also what the dump held. A fixed query stops new dumps but not the damage already done, and plaintext passwords
+should not have been stored at all.
 
-## 6. Debrief
+### policy-bypass
 
-You can read this once your status is green or yellow.
+The rule trusted a tag the request carried about itself, so any caller could claim to be the security team. The
+fix is to decide on the **caller identity the platform sets**, `X-Caller-Role`, and never on the request body.
+That header is only as trustworthy as the proxy that sets it. If a caller can reach the app without going
+through the proxy, or the proxy can be told to pass the header through, the header means nothing. The app can
+only trust what it knows came from the gateway, so check the gateway token too and never read the role from
+anywhere else.
 
-The bug was a query built by pasting visitor input into the SQL text, so the
-database couldn't tell the data from the instruction. The fix is a
-parameterised query: the statement is fixed, the value travels separately. A
-gate that re-runs the real exploit is what proved your fix worked, not your
-reading of the diff.
+### leaky-config
 
-Three things worth taking away:
+Two failures chained. A log was readable by anyone, and it held a live credential in plain text. Closing the
+route stops the next reader; scrubbing the secret from logs stops it recurring; and the credential that was
+already exposed must be treated as burned and rotated, which is an operational step no PR can do alone.
 
-- **Status and time.** Compare your time to contain with the room's on the
-  SOC summary. The bug was equally easy to fix for everyone; what differed was
-  how quickly you read the log and got to the right line.
-- **The merge is the deploy.** Nothing was pushed to the server by hand. The
-  pipeline rebuilt the image from `main`, so the repo is the source of truth
-  for what's running. That is the GitOps point.
-- **Think about what the dump contained.** If the table held cleartext
-  passwords, a fixed query stops new dumps but not the damage already done.
-  What should be stored instead, and what would you have to do about the
-  accounts that were exposed?
+### Overall
+
+- **Order mattered.** You had three things at once. Compare your order with the room's on the SOC summary.
+  Severity, evidence and time to breach all point somewhere; a good triage names why.
+- **Evidence over intuition.** Each signal was different, and the strong indicator was specific and countable.
+- **A verified fix is a different thing from a fix you believe in.** `dojo-check` and the gate are the same
+  question the attacker asks.
+- **The merge is the deploy.** The repo is the source of truth for what runs, and the incident note is part of
+  the change.
