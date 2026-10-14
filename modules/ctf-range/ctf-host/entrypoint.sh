@@ -218,14 +218,14 @@ import_portal_deps_base
 # CTF_ATTACK_TARGETS (controller.py's AttackManager, CTF-D20) must name these
 # exact tags.
 import_attack_target() {
-  tag="$1" rootfs="$2" user="$3" expose="$4" env="$5"
+  tag="$1" rootfs="$2" user="$3" expose="$4" env="$5" ep="${6:-python3 /app/app.py}"
   # CTF-D26: a per-pack ctf-host image bakes in only its own session's
   # targets; skip any rootfs this particular image doesn't have, rather
   # than failing the whole start over a target this pack doesn't expose.
   [ -d "$rootfs" ] || return 0
   docker image inspect "$tag" >/dev/null 2>&1 && return 0
   tar -C "$rootfs" -c . | docker import \
-    --change 'ENTRYPOINT ["python3", "/app/app.py"]' \
+    --change "ENTRYPOINT $(printf '%s\n' "$ep" | awk '{printf "["; for(i=1;i<=NF;i++) printf "%s\"%s\"", (i>1?", ":""), $i; printf "]"}')" \
     --change "ENV $env" \
     --change "EXPOSE $expose" \
     --change "USER $user" \
@@ -261,7 +261,7 @@ import_attack_target ctf-git-secrets:base /opt/git-secrets-rootfs gitsecrets "50
 # policy-bypass (target 9, CTF-4) only ever bakes into the full-catalog
 # `ctf-host` stage today, same as leaky-config/git-secrets above.
 import_attack_target ctf-policy-bypass:base /opt/policy-bypass-rootfs policybypass "5000 2222" \
-  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
+  "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin" "/app/entrypoint.sh"
 # dns-resolver-cve (target 6, CTF-3 "Vulnerable and outdated components") only
 # ever bakes into the full-catalog `ctf-host` stage today, same as every CTF-3/
 # CTF-4 target above. The agent subprocess the Python app launches is the real
