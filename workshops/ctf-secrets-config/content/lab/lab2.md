@@ -63,6 +63,19 @@ read the token out of history.
 dojo-flag submit git-secrets '<flag>'
 ```
 
+## Debrief
+
+The secret was never in the current file, yet it was recoverable, because git is an append-only record:
+removing a line in a later commit adds a new commit and leaves the old diff untouched, in every clone
+and fork. The real-world fix is to treat the secret as burned the moment it was committed: revoke and
+rotate it first, then (optionally) rewrite history, and keep secrets out of repositories with
+environment injection, a vault, and a pre-commit or CI secret scanner. It has no clean home in the OWASP Top 10, but
+hardcoded and leaked credentials (CWE-798) are one of the most common routes to a real compromise. The
+`git-fundamentals` workshop teaches the history model that makes this possible.
+
+Reflect: if a teammate pushed a token yesterday and deleted it today, what is the first thing you
+would do, and in what order?
+
 ## Still stuck?
 
 Read [exploit-guide/git-secrets.md](exploit-guide/git-secrets.md) for the full walkthrough -- try the

@@ -58,6 +58,16 @@ A route can get the first answer right and never ask the second.
 dojo-flag submit api-bfla '<flag>'
 ```
 
+## Debrief
+
+Your token proved who you were, and the route stopped there. It never asked whether that identity was allowed to perform this administrative function. Authentication and authorization are separate questions, and function-level checks are easy to forget on routes that the interface simply never links to.
+
+The real fix is to enforce authorization on the server for every route, deny by default, and centralise role checks in middleware or a decorator so a new endpoint cannot ship without one. Hiding the route is not a control.
+
+OWASP Top 10 2021: A01 Broken Access Control. OWASP API Security Top 10 2023: API5 Broken Function Level Authorization.
+
+Reflect: could you list every route in your service and the role each one requires?
+
 ## Still stuck?
 
 Read [exploit-guide/api-bfla.md](exploit-guide/api-bfla.md) for the full walkthrough -- try the hints

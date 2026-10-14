@@ -66,6 +66,19 @@ The response to a correctly authorized `/admin` call is **flag 2**:
 dojo-flag submit dns-resolver-cve '<flag>'
 ```
 
+## Debrief
+
+The agent did nothing wrong in its own code. The flaw lived in the resolver library it was linked
+against: it handed out transaction IDs in a counting sequence, so one observed lookup revealed the next,
+and a forged answer could be accepted as genuine. This happens because old components keep working, so
+nobody revisits them. The real-world fix is to update the component past the vulnerable version (not
+merely pin it), randomise both transaction ID and source port, and prefer authenticated transport such
+as DNSSEC validation or TLS to the backend, so a spoofed address cannot collect a credential. This is
+OWASP Top 10 2021 **A06 Vulnerable and Outdated Components**, and `dns-as-code` covers the DNS side.
+
+Reflect: how would you find out which libraries your services are really linked against, and who
+would notice when one of them gets a CVE?
+
 ## Still stuck?
 
 Read [exploit-guide/dns-resolver-cve.md](exploit-guide/dns-resolver-cve.md) for the full walkthrough --

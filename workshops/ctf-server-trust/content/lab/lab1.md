@@ -53,6 +53,16 @@ Once `/escalate` accepts your token, the flag is in its response.
 dojo-flag submit ping-tool '<flag>'
 ```
 
+## Debrief
+
+The tool handed your text to a shell as part of a command line, so characters like the semicolon stopped being data and became syntax. Injection happens whenever untrusted input is concatenated into something an interpreter will parse. Notice the second step too: the app ran with enough rights to read a note it should never have exposed, so one flaw became a privilege escalation.
+
+The real fix is to not use a shell at all: pass the hostname as a single argument in an argument list, and validate it against a hostname pattern first. Run the service as a user with nothing worth reading.
+
+OWASP Top 10 2021: A03 Injection.
+
+Reflect: where else in a system you own does a string you did not write end up inside a command, a query or a template?
+
 ## Still stuck?
 
 Read [exploit-guide/ping-tool.md](exploit-guide/ping-tool.md) for the full walkthrough -- try the hints

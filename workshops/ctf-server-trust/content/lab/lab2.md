@@ -51,6 +51,16 @@ Once the preview feature fetches the internal admin endpoint for you, the flag i
 dojo-flag submit ssrf-fetcher '<flag>'
 ```
 
+## Debrief
+
+The preview feature fetched whatever address it was given, from inside the container, so "not published" turned out to mean only "not reachable from outside the host", not "not reachable by the app itself". Any server-side fetch of a user-supplied URL lets the user borrow the server's network position, including loopback services, internal admin panels and cloud metadata endpoints.
+
+The real fix is to allow-list schemes and destinations, resolve the host and reject private, loopback and link-local addresses (re-checking after redirects), and to put egress controls and authentication on internal services so that being on the box is not enough.
+
+OWASP Top 10 2021: A10 Server-Side Request Forgery.
+
+Reflect: which of your internal services trust a caller only because of where the request came from?
+
 ## Still stuck?
 
 Read [exploit-guide/ssrf-fetcher.md](exploit-guide/ssrf-fetcher.md) for the full walkthrough -- try the

@@ -47,6 +47,18 @@ privilege-escalation step this target's shape can't fully demonstrate -- is righ
 dojo-flag submit idor-pcap '<flag>'
 ```
 
+## Debrief
+
+The download endpoint served any ticket to anyone who asked, because it looked the object up by its number
+and never checked that the caller owned it. Sequential IDs made guessing trivial, but the real flaw is the
+missing authorization check, not the numbering. The fix is a server-side ownership check on every object
+access, deny by default; unguessable IDs are a useful extra, never a substitute. The cleartext credential
+then enabled reuse elsewhere. This is **OWASP A01:2021 Broken Access Control**, which on an API is
+**API1:2023 Broken Object Level Authorization**.
+
+Reflect: the capture held a plaintext password. Which two controls, one at the endpoint and one on the wire,
+would each have broken this chain?
+
 ## Still stuck?
 
 Read [exploit-guide/idor-pcap.md](exploit-guide/idor-pcap.md) for the full walkthrough -- try the hints

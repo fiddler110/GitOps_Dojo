@@ -48,6 +48,18 @@ Once the endpoint accepts your certificate, the flag is in the response body.
 dojo-flag submit cert-trust-bypass '<flag>'
 ```
 
+## Debrief
+
+The endpoint decided whether to trust a certificate by reading the name it claimed for itself. It never
+verified who issued the certificate or whether it had expired, so anyone could mint a certificate carrying
+the right label. A name is a claim; trust comes from a signature chain to an authority you chose. The fix is
+to validate the chain against a pinned CA, check validity dates and revocation, and ideally require mutual
+TLS at the connection layer rather than parsing certificates in application code. This is **OWASP
+A02:2021 Cryptographic Failures**.
+
+Reflect: what does your own infrastructure do when a certificate is self-signed or expired, and who decided
+which authorities are trusted?
+
 ## Still stuck?
 
 Read [exploit-guide/cert-trust-bypass.md](exploit-guide/cert-trust-bypass.md) for the full walkthrough --

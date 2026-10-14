@@ -47,6 +47,19 @@ A successful provision into the protected resource group returns the flag direct
 dojo-flag submit policy-bypass '<flag>'
 ```
 
+## Debrief
+
+Nothing was broken: the engine evaluated the rule perfectly. The rule itself trusted a value the
+requester writes, a tag on their own resource, as proof of authority. This happens when a policy passes
+its tests and compiles, which feels like correctness, but the tests only checked that the rule did what
+its author intended, not whether the intent was sound. The real-world fix is to base decisions on facts
+the requester cannot set: the caller's authenticated identity, role, or attributes the platform attaches.
+This is OWASP Top 10 2021 **A04 Insecure Design**, since no implementation bug exists. The
+`cloud-policy-as-code` workshop teaches writing and testing exactly this kind of rule.
+
+Reflect: for each condition in a policy you own, who controls the value being checked, and does your
+test suite ever try the request as an attacker would write it?
+
 ## Still stuck?
 
 Read [exploit-guide/policy-bypass.md](exploit-guide/policy-bypass.md) for the full walkthrough -- try the
