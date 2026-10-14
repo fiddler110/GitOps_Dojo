@@ -159,8 +159,10 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
    (section 13). The wall toggle and route (8.12) are built. The S17 scanners for targets 8-11 stay parked.
 4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
    themed page was only tested with the Flask client.
-5. **Bot rounds for the discoverability changes** were not confirmed for `ctf-server-trust`, `ctf-secrets-config`
-   and `ctf-trust-chain` (the surfaces were checked by hand). `ssrf-fetcher` previewing `127.0.0.1:5000` returns a 500
+5. **No demo-bot steps in the four attack packs.** `--test` bots run only the generic git workflow, so they never
+   solve an attack lab (2026-10-14: zero unlocks in `ctf-access` and `ctf-trust-chain`; `git-fundamentals` has a
+   `content/bots/steps.sh`, these packs do not). Discovery surfaces were checked by hand and by each target's
+   `exploit/solve.py` (`weak-auth-portal` still solves). `ssrf-fetcher` previewing `127.0.0.1:5000` returns a 500
    (not confirmed as new).
 
 **Facts to keep in mind** (found while building, not obvious from the design below):

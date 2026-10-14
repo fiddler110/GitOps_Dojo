@@ -120,7 +120,7 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 | 1 | Defend lab redesign (decided 2026-10-14, plan "Defend lab redesign"): three live targets per student attacked in a per-student order (six permutations, seeded, time-driven), different SIEM signal per target, low/medium/high severity, `INCIDENT.md` triage gate, at most 20 students. To decide: third target, severity mapping, stagger interval (pilot), the gate. Supersedes the bonus second flaw for targets 8-11 |
 | 2 | Class-sized run: capacity and isolation (40 for the attack packs, 20 for defend), the swarm with real dwell and ramp times, the Target Viewer card as a student |
 | 3 | End-of-session scoring summary (CTF-D19), plan open questions 1-3 |
-| 4 | Confirm the demo bots solve every lab after the discoverability changes (`ctf-server-trust`, `ctf-secrets-config`, `ctf-trust-chain` were only spot-checked); look at `ssrf-fetcher` fetching its own `127.0.0.1:5000` (500) |
+| 4 | The four attack packs have no demo-bot steps (`content/bots/steps.sh`), so `--test` bots run only the generic git workflow and never solve an attack lab (checked 2026-10-14: zero unlocks in `ctf-access` and `ctf-trust-chain`). Add steps per pack if a bot run should exercise the labs, as `git-fundamentals` does; look at `ssrf-fetcher` fetching its own `127.0.0.1:5000` (500) |
 | 5 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run

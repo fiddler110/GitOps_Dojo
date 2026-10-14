@@ -17,7 +17,8 @@ page, `api-mass-assignment`/`api-bfla`/`policy-bypass` serve `GET /spec`, `polic
 field. Labs: required facts moved out of hints in `ctf-access` 1-4, `ctf-server-trust` 2-4, `ctf-secrets-config` 1-3
 and `ctf-trust-chain` 2-3 (the `runner-escape` lab names the job token, the API base and log masking). Each CTF cheat
 sheet has three core-command slides; Lab Info gained `curl.md`. Flaws, flags and `solve.py` unchanged. Checked
-locally on live `--test 1 --fast` stacks; bot rounds were not confirmed for three of the packs.
+locally on live `--test 1 --fast` stacks and with each target's `solve.py`. The attack packs have no demo-bot
+steps, so their bots never solve a lab (not a regression).
 
 ## `leaky-config` is discoverable with `ffuf` (2026-10-14, `feat/leaky-config-discovery`, PR #29)
 
