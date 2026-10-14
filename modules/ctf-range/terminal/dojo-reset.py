@@ -29,8 +29,9 @@ def main(argv):
     req = urllib.request.Request(f"{ADDR}/reset", method="POST",
                                  data=json.dumps({"user": user, "target": argv[0]}).encode(),
                                  headers={"Content-Type": "application/json"})
+    print(f"dojo-reset: redeploying {argv[0]}; this takes a couple of minutes...", flush=True)
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             doc = json.load(resp)
     except urllib.error.HTTPError as exc:
         try:

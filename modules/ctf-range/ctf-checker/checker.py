@@ -38,7 +38,7 @@ import gitref
 MAX_BODY = 1024
 RATE_S = 3.0
 RESET_RATE_S = 15.0
-RESET_TIMEOUT = 90
+RESET_TIMEOUT = 240  # a redeploy measured ~130 s
 CHECK_TIMEOUT = 40
 CLONE_TIMEOUT = 60
 VERDICTS = ("exploitable", "contained", "broke-normal-use", "unreachable")
@@ -110,6 +110,10 @@ class RateLimiter:
                 return False
             self.last[key] = now
             return True
+
+    def touch(self, key):
+        with self.lock:
+            self.last[key] = self.clock()
 
 
 def validate_check(body, cfg):
@@ -363,8 +367,9 @@ def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
                 if target not in cfg.targets:
                     return self._json(400, {"error": "name a target: " + ", ".join(cfg.targets)})
                 if not reset_limiter.allow(user):
-                    return self._json(429, {"error": "slow down: one reset every few seconds"})
+                    return self._json(429, {"error": "slow down: a reset is running or just finished, wait a few seconds"})
                 ok, msg = reset(cfg, user, target)
+                reset_limiter.touch(user)  # the interval runs from the end, not the start
                 _audit(f"reset {user} {target}", "ok" if ok else msg)
                 return self._json(200 if ok else 409, {"ok": ok, "message": msg})
             if path == "/check":

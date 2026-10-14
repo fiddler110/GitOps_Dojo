@@ -6,6 +6,8 @@ One-page runbook for tuning the three-target defend lab before a class. Settings
 ## Set up
 
 - `./dojo ctf-defend` with real time (`CTF_TIME_SCALE=1`, dwell 480 s, stagger 0.5), no `--fast`.
+- The facilitator must press start (`POST /achievements-admin/api/soc/start`, or the SOC tab's start
+  control): the attacker-bot idles until then.
 - 2-3 people, each on a different attack order. Check with `GET /schedule` that they got different rows
   (set `CTF_SCHEDULE_SEED` to make the run repeatable).
 - Give them only the lab URL and the pack's README. No coaching during the run.
