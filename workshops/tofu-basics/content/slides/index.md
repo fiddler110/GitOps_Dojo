@@ -11,7 +11,7 @@ style: |
 <!-- _class: hub -->
 
 <span class="logo" style="display: inline-block; width: 50%; height: 150px; overflow: hidden;">
-<img src="GitOps_Dojo_Dark.png" alt="GitOps Dojo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50px;">
+<img src="assets/GitOps_Dojo_Dark.png" alt="GitOps Dojo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50px;">
 </span>
 
 # OpenTofu Basics

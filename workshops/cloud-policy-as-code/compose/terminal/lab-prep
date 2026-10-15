@@ -16,7 +16,7 @@
 #   8+    the stacked state committed and pushed to main: from Lab 8, CI plans main
 #         against the cloud
 set -euo pipefail
-USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
+. /usr/local/lib/dojo/lab-prep-lib.sh
 
 GIT_SERVER=http://git-server:3000
 API=$GIT_SERVER/api/v1
@@ -27,10 +27,6 @@ SOLUTIONS=${LAB_SOLUTIONS:-/opt/workshop-content/solutions}
 CHECK_CONTEXT="Policy check / check (pull_request)"
 LAST_LAB=12
 
-say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-done_() { printf '    already done: %s\n' "$*"; }
-run()  { printf '    $ %s\n' "$*"; "$@"; }
-die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<EOT
@@ -157,9 +153,7 @@ stack_solutions() {
 }
 
 # -----------------------------------------------------------------------------
-case "${1:-}" in -h|--help|"") usage; exit 0 ;; esac
-lab=$1
-[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+lab_arg "$@"
 
 if [ "$lab" -eq 0 ]; then
   need_fork

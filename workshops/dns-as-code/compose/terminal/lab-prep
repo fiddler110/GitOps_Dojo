@@ -15,7 +15,7 @@
 #   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
 #         classmate's (or Sensei's) approval, so lab-prep opens the pull request and stops.
 set -euo pipefail
-USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
+. /usr/local/lib/dojo/lab-prep-lib.sh
 
 GIT_SERVER=http://git-server:3000
 SHARED_REPO=dns-team/dns-as-code
@@ -23,11 +23,7 @@ ZONE_DIR=$HOME/lab/my-zone
 REPO_DIR=$HOME/lab/dns-as-code
 LAST_LAB=6
 
-say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-done_() { printf '    already done: %s\n' "$*"; }
-run()  { printf '    $ %s\n' "$*"; "$@"; }
-die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
-
+MIN_LAB=1
 usage() {
   cat <<EOF
 Usage: lab-prep <lab>       (1-$LAST_LAB)
@@ -108,11 +104,7 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-case "${1:-}" in
-  -h|--help|"") usage; exit 0 ;;
-esac
-lab=$1
-[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -ge 1 ] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+lab_arg "$@"
 
 if [ "$lab" -eq 1 ]; then
   echo "Lab 1 is the start: ~/lab/my-zone is already set up. Open lab1.md and go."
