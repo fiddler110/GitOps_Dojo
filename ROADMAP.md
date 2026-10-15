@@ -4,10 +4,9 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-09 (content-depth audit of all 5 CTF packs done -- two fixes shipped, content verified
-line-by-line against source; see RELEASES). Before that, same day: CTF plan and roadmap rows refreshed; CTF build
-log moved to RELEASES. Before that: 2026-10-07 (the ctf-range Target Viewer, themed attack boxes and the `ctf-access` pack merged to `main` in
-PR #17; the CTF series, the Zellij flavor and the earlier branch work all landed with it). ·
+Last updated: 2026-10-15 (PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
+done locally, 7 overflowing slides trimmed; stale branch notes removed). Before that: 2026-10-09 (content-depth audit
+of all 5 CTF packs) and 2026-10-07 (ctf-range Target Viewer and the `ctf-access` pack, PR #17). ·
 Working branch: `main`; cut a feature branch for each new batch of work.
 
 **Effort:** **S** one sitting (an hour or two) · **M** a day or so · **L** several days · **—** no work planned.
@@ -30,7 +29,7 @@ what is left (usually the live check).
 Decided at the 2026-10-01 review. Done since: committing the working tree (`4481225`), the home demo dry run,
 platform review tier 1 and the merge to `main` (PR #6), the Phase 9 live checks apart from the class-sized run
 (PR #7) (2026-10-02), Cloud-Policy-as-Code (RV35) with RV19, the Phase 10 sweep and the student reset build (PR #8)
-and the pack's pids cap (PR #9) (2026-10-03), then on `feat/zellij-terminal` (unpushed): the Zellij flavor, the CTF range scaffold/SAST/control plane, RV29/RV30/RV25/RV27 and the ctf-range digest pins (2026-10-04, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
+and the pack's pids cap (PR #9) (2026-10-03), then on `feat/zellij-terminal` (merged in PR #17): the Zellij flavor, the CTF range scaffold/SAST/control plane, RV29/RV30/RV25/RV27 and the ctf-range digest pins (2026-10-04, see RELEASES). The user's own browser checks ([Manual checks](#manual-checks))
 fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 | # | Work | Effort | Description |
@@ -41,11 +40,9 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 
 ## Up next
 
-Resume here (updated 2026-10-04). The vault reset fix merged to `main` in PR #12: `lab_11.sh` and `lab_12.sh` pass after
-a reset. Branch state 2026-10-07: `feat/zellij-terminal` merged to `main` in PR #17 (CTF range, the Zellij flavor, RV25/RV27/RV30,
-the ctf-range pins, the Target Viewer); the branch and the duplicate `feat/zellij-terminal-flavor` can be deleted
-(see [Housekeeping](#housekeeping)); the merged `origin/feat/rv22-allocator-split` and `origin/docs/roadmap-resume` can be
-deleted by hand.
+Resume here (updated 2026-10-15). The vault reset fix merged to `main` in PR #12: `lab_11.sh` and `lab_12.sh` pass after
+a reset, and passed again locally 2026-10-15 (reset twice). Branches are tidy: everything is merged to `main` (PRs #17,
+#33, #34); only the Dependabot Flask bump (PR #32) is open.
 The split smoke run is parked (see [Later](#later)); the full-stack smoke loop is paused. Next, one stack at a time
 (`podman ps` first):
 1. ~~**Vault capstone two-step**~~, ~~**cloud reset + capstone**~~, ~~**the Phase 10 leftovers**~~: all run 2026-10-04 on the
@@ -324,7 +321,6 @@ in [Manual checks](#manual-checks) above), **dojo-introduction** and **cloud-pol
 | Work | Effort | Description |
 |---|---|---|
 | Take-home handouts and PowerPoint decks | M | Parked: `handouts/` (lab handouts, starter repos, deck export script), the `.githooks` pre-commit and the CI `handouts` checks were all deleted because they had drifted from the labs. Recover from git history if wanted again |
-| Reconcile the two Zellij branches | S | The Zellij-flavor work is committed twice: `fb4d399` on `feat/zellij-terminal` and `cc189e3` on `feat/zellij-terminal-flavor`, identical patch-id on different bases. Pick the branch that goes forward, delete the other, and make sure whichever lands carries the RELEASES entry (already written) |
 
 ## Reference
 
