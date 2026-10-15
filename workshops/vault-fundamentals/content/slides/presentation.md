@@ -230,25 +230,23 @@ flowchart TB
   f["db.gpg: for you, A and B"] --> y["You: a copy"]
   f --> a["A: a copy"]
   f --> b["B: a copy"]
-  b -.->|"B leaves"| r["New db.gpg:<br/>for you and A"]
-  b -.-> o["B's old copy<br/>still opens"]
+  b -.->|"B leaves"| r["New db.gpg: you and A"]
+  b -.-> o["B's old copy still opens"]
 </div>
 
 </div>
 <div>
 
-To share, you **encrypt it again for each person**, and each of them keeps a copy.
+To share, **encrypt it again for each person**; each keeps a copy.
 
-- **Removing someone** takes nothing back: rotate everything they saw
-- **No record** of who read what, or when
-- **Nothing expires** by itself
-- An **app or a pipeline** would need a private key: one more secret to hide
+- **Removing someone** takes nothing back: rotate all they saw
+- **No record** of who read what, and **nothing expires** by itself
 
 </div>
 </div>
 
 <!--
-Lab 2 ends here too: take a teammate off and their old copy still opens. For
+Lab 2 ends here too: take a teammate off and their old copy still opens. An app or a pipeline would need a private key of its own: one more secret to hide. For
 your own secrets, pass is great. For a team, the copies are the problem, which
 is exactly what the next slide fixes.
 -->
@@ -301,11 +299,11 @@ flowchart LR
   r -.-> a[("Audit log")]
 </div>
 
-- **Token:** who is asking. **Path:** what they want, e.g. `secret/students/student07/db`. **Operation:** read, write, list, delete.
-- Allowed or denied, every request **and its answer** go to the audit log.
+- **Token:** who. **Path:** what. **Operation:** read, write, list, delete.
+- Allowed or denied, every request **and its answer** are logged.
 
 <!--
-This slide is the mental model for the whole day. Every "permission denied"
+This slide is the mental model for the whole day. A path looks like `secret/students/student07/db`. Every "permission denied"
 in the labs is one of these two diamonds saying no.
 -->
 
@@ -637,7 +635,7 @@ Each namespace has its **own** engines, policies, tokens and auth methods.
 - An admin of one namespace is **nobody** anywhere else
 - The platform team runs the root and hands out namespaces
 
-**At work:** one per team. **On Azure:** a Key Vault per team or environment. **Today:** you will be the admin of `students/<user>`.
+**At work:** one per team. **On Azure:** a Key Vault per team. **Today:** you admin `students/<user>`.
 
 </div>
 </div>
@@ -962,13 +960,13 @@ flowchart TB
 </div>
 <div>
 
-Every credential is protected by another one. **Something has to be first.** A ladder, best rung first:
+Every credential is guarded by another. **Something has to be first.** Best rung first:
 
 1. **Nothing handed over:** the platform vouches for the workload
 2. **A trusted deliverer** hands over a single-use, short-lived secret ID
 3. **Stored forever** in a CI setting or a file: the usual, and the weakest
 
-We climb it twice: for **CI jobs** (Part 5), then for **deployed apps** (Part 6).
+We climb it twice: **CI jobs** (Part 5), then **deployed apps** (Part 6).
 
 </div>
 </div>
@@ -1441,11 +1439,10 @@ sequenceDiagram
   A->>B: log in with the JWT
   Note over A,B: OpenBao checks the platform's signature, and that sub is this role's slot
   B-->>A: a token with the app's policy
-  A->>B: read team/app
-  A->>A: write app.env for the app
+  A->>B: read team/app, write app.env
 </div>
 
-Same idea as the CI job's identity in Part 5, for a running app: the top rung. **On Azure:** managed identity. **On Kubernetes:** a service account token.
+The top rung, as for CI in Part 5. **On Azure:** managed identity. **On Kubernetes:** a service account token.
 
 <!--
 Rung 1. Compare with the CI slide "The job's own identity": there Forgejo
