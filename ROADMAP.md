@@ -36,7 +36,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 | # | Work | Effort | Description |
 |---|---|---|---|
 | 1 | Student reset: live checks | S | All four hooks have now run live: DNS and cert 2026-10-03, cloud (with a non-empty pre-state) and vault's capstone 2026-10-04. Left: the vault reset once on the Ubuntu WSL/Docker host, and the purge-line finding in [Now](#now) |
-| 2 | Phase 10 leftovers | S | Done apart from the browser looks: `slide-overflow.sh` ran on dns-as-code and dojo-introduction `--test 5 --fast` re-ran with 0 skips (2026-10-04, [Now](#now)). Left: the two browser looks, and 7 overflowing slides to trim across the vault and dns decks |
+| 2 | Phase 10 leftovers | S | Done apart from the browser looks: `slide-overflow.sh` ran on dns-as-code and dojo-introduction `--test 5 --fast` re-ran with 0 skips (2026-10-04, [Now](#now)). Left: the two browser looks (the 7 overflowing slides were trimmed 2026-10-15, RELEASES) |
 | 3 | Platform review tiers 3-4 | L | RV35, RV22-RV25, RV27-RV31 done; left RV26, RV32-RV34, RV36-RV38 |
 
 ## Up next
@@ -52,7 +52,7 @@ The split smoke run is parked (see [Later](#later)); the full-stack smoke loop i
    Mac (see [Now](#now)). Nothing is left on a stack here. No stack is up: each run ended with `./dojo stop`.
 2. ~~**The two findings of 2026-10-04**~~: `no_push_since_step`'s sub-second hole, and the purge line that
    never named policy objects or tofu states. Both fixed 2026-10-05 (`418d5ad`), unit-tested, no stack needed.
-3. **One run on the Ubuntu WSL/Docker host** with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
+3. **One run on the Ubuntu WSL/Docker host** (a podman run here passed the bots without the opts, 2026-10-15; a reset twice plus lab 11/12 also passed here; only the Ubuntu/Docker host itself is open) with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
    (`no-new-privileges=true`, bare `no-new-privileges`) change nothing there. This and the browser looks are all
    that the Mac cannot do.
 
@@ -117,8 +117,8 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Defend lab redesign: built and live-verified once (RELEASES; as-built contract: plan 8.13; no `INCIDENT.md` gate, decided against 2026-10-15 and removed, RELEASES); open: student-side SOC feed check, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, real-time dwell (`CTF_TIME_SCALE=1`). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
-| 2 | Real-time dwell run (`CTF_TIME_SCALE=1`) and the Target Viewer card as a student (class-sized runs dropped from the CTF plan 2026-10-14) |
+| 1 | Defend lab redesign: built and live-verified (RELEASES; as-built contract: plan 8.13; no `INCIDENT.md` gate, decided against 2026-10-15 and removed); open: a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell. Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
+| 2 | Target Viewer card as a student, in a browser (the real-time dwell run and the student SOC feed passed 2026-10-15, RELEASES) |
 | 3 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run

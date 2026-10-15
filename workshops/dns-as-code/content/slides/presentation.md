@@ -197,10 +197,8 @@ D("dojo.test", REG,
 	DefaultTTL(300),
 
 	A("@", "203.0.113.10"),
-	A("www", "203.0.113.10"),
 	CNAME("app", "dojo.test."),
 	MX("@", 10, "mail.dojo.test."),
-	TXT("@", "v=spf1 -all"),
 );
 ```
 

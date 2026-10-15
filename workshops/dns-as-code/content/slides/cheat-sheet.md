@@ -90,6 +90,9 @@ dig @dns-server <name> TXT +short      # TXT record(s)
 | `setup` | One-time: hooks + `.env`. |
 | `preview` | Dry-run diff. |
 | `push` | Applies the diff. |
+
+| Command | Does |
+| --- | --- |
 | `record add <name>` | Wizard to add a record. |
 | `record edit <name>` | Change a record in place. |
 | `record remove <name>` | Remove a record. |
