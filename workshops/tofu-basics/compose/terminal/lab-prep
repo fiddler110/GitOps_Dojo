@@ -14,7 +14,7 @@
 #   6-10  hello deployed to Dojo Cloud (Lab 5). Labs 9 and 10 run fine without
 #         Lab 8's edits or Lab 9's extra site, so lab-prep doesn't make them.
 set -euo pipefail
-USER=${USER:-$(id -un)}   # unset under a bare `podman exec`
+. /usr/local/lib/dojo/lab-prep-lib.sh
 
 GIT_SERVER=http://git-server:3000
 API=$GIT_SERVER/api/v1
@@ -22,10 +22,6 @@ TEAM_REPO=iac-team/tofu-basics
 REPO_DIR=$HOME/lab/tofu-basics
 LAST_LAB=10
 
-say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-done_() { printf '    already done: %s\n' "$*"; }
-run()  { printf '    $ %s\n' "$*"; "$@"; }
-die()  { printf '\n\033[1;31mlab-prep: %s\033[0m\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<EOF
@@ -117,11 +113,7 @@ cloud_apply() {
 }
 
 # -----------------------------------------------------------------------------
-case "${1:-}" in
-  -h|--help|"") usage; exit 0 ;;
-esac
-lab=$1
-[[ "$lab" =~ ^[0-9]+$ ]] && [ "$lab" -le "$LAST_LAB" ] || { usage >&2; exit 2; }
+lab_arg "$@"
 
 if [ "$lab" -eq 0 ]; then
   echo "Lab 0 is the start: nothing to set up. Open lab0.md and go."
