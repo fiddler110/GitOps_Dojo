@@ -52,7 +52,7 @@ The split smoke run is parked (see [Later](#later)); the full-stack smoke loop i
    Mac (see [Now](#now)). Nothing is left on a stack here. No stack is up: each run ended with `./dojo stop`.
 2. ~~**The two findings of 2026-10-04**~~: `no_push_since_step`'s sub-second hole, and the purge line that
    never named policy objects or tofu states. Both fixed 2026-10-05 (`418d5ad`), unit-tested, no stack needed.
-3. **One run on the Ubuntu WSL/Docker host** (a podman run here passed the bots without the opts, 2026-10-15; the host itself and a reset are still open) with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
+3. **One run on the Ubuntu WSL/Docker host** (a podman run here passed the bots without the opts, 2026-10-15; a reset twice plus lab 11/12 also passed here; only the Ubuntu/Docker host itself is open) with `RUNNER_POOL_SECURITY_OPT_1/2` unset, to confirm the defaults
    (`no-new-privileges=true`, bare `no-new-privileges`) change nothing there. This and the browser looks are all
    that the Mac cannot do.
 

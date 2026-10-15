@@ -14,15 +14,22 @@ call and ran the real clock: green to yellow at about 7.5 min (dwell 8 min), red
 per target at 14:15:50 (`customer-portal`), 14:17:20 (`leaky-config`) and 14:20:20 (`policy-bypass`), in the staggered order.
 By 14:24 all 9 (3 students x 3 targets) had breached on the unfixed apps and the wall held 9 rows. Times are the
 watcher's 90 s polls. A student session (class login, then `/assign`) saw `/achievements/api/soc` with only its own rows
-and the room clock, not the room feed. Not covered: the Target Viewer card in a browser, the pilot with people, and a
-run where students fix and the wall ages off.
+and the room clock, not the room feed. Not covered: the Target Viewer card in a browser and the pilot with people.
+
+**ctf-defend fix-then-age-off (`--test 2 --fast`, scale 0.1, locally).** `student02` cloned its `customer-portal`, applied the
+parameterised-query fix, pushed a branch, opened a PR and merged with its own token: `dojo-check` went from "still exploitable"
+to "contained" about 2 min later, and the wall row went LIVE to DISCONNECTED about 3 min after the merge (90 s LIVE window).
+The `/achievements/api/wall` rows keep a DISCONNECTED row (still there 14 min on); the age-off is the wall page's own filter
+(`wall.js`: `now - last_seen > age_off`, config `age_off` 300), so a browser look is still the only proof it disappears.
+Test note: a PR opened and merged through the admin API makes the pipeline's actor `admin` and ctf-builder answers 403, so the
+fix has to be pushed and merged as the student; the `testuser*` bot accounts have no defend repos.
 
 **Slides.** The 7 overflowing slides (dns-as-code cheat sheet 6 and presentation 11; vault-fundamentals presentation 8, 10,
 21, 31, 49) were trimmed; `slide-overflow.sh` is clean on both decks (all pages).
 
 **Vault, defaults.** `vault-fundamentals --test 2 --fast` with `RUNNER_POOL_SECURITY_OPT_1/2` unset ran to both done
-markers on this WSL2 host (podman, not Docker), no skips. That is not the Ubuntu/Docker host the roadmap asked for, and
-the reset step was not run.
+markers on this WSL2 host (podman, not Docker), no skips. That is not the Ubuntu/Docker host the roadmap asked for. A reset
+of testuser1 on that stack ran twice (13 steps, all done each time) and `lab_11.sh` and `lab_12.sh` passed afterwards, locally.
 
 ## CTF wrapup: bots seeded like students, two real build/startup bugs fixed, `INCIDENT.md` gate dropped (2026-10-15, `feat/ctf-wrapup`)
 
