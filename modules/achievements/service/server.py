@@ -29,6 +29,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
   The student's terminal (`dojo-check`) calls the same routes directly with its own Forgejo
   token (Authorization: token ...), which Forgejo confirms, and the X-Dojo-Client hash.
 Facilitator (route /achievements-admin, facilitator gate, prefix kept):
+  GET  /achievements-admin/api/export?format=csv|json   per-student progress and achievements, as a download
   GET  /achievements-admin/, /api/state;  POST /api/award, /api/reset, /api/reload
   GET  /achievements-admin/soc, /api/soc   the room-wide SOC feed (map, region inset, alerts) (plan §8.2)
   GET  /achievements-admin/api/map   the same cyber map data, facilitator-side (+ student ids)
@@ -48,9 +49,11 @@ so a request without the token is anonymous: it may post a signed event (an adap
 checker), or poll /api/soc/control the same signed way, and nothing else. A forged event is
 charged only to an identified caller.
 """
+import csv
 import glob
 import hmac
 import http.server
+import io
 import json
 import mimetypes
 import os
@@ -175,6 +178,13 @@ def make_store():
     return store
 
 
+def _csv_cell(value):
+    """Student-chosen text must not run as a spreadsheet formula when the export is opened."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "achievements"
 
@@ -186,6 +196,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _json(self, code, doc):
         dojo_http.send_json(self, code, doc)
+
+    def _export(self, fmt):
+        rows = store.export_rows()
+        if fmt == "json":
+            return dojo_http.send_json(self, 200, {"students": rows}, {
+                "Content-Disposition": 'attachment; filename="dojo-progress.json"'})
+        if fmt != "csv":
+            raise Denied(400, "format must be csv or json")
+        cols = ["rank", "user", "name", "score", "done", "total", "percent", "complete",
+                "unlocks", "moments", "cheats"]
+        out = io.StringIO()
+        w = csv.writer(out, lineterminator="\r\n")
+        w.writerow(cols)
+        for r in rows:
+            w.writerow([_csv_cell(";".join(r[c]) if isinstance(r[c], list) else r[c]) for c in cols])
+        self._send_download(out.getvalue().encode(), "text/csv; charset=utf-8", "dojo-progress.csv")
+
+    def _send_download(self, body, ctype, filename):
+        dojo_http.send(self, 200, body, ctype, {"Content-Disposition": 'attachment; filename="%s"' % filename})
 
     def _static(self, name):
         try:
@@ -476,6 +505,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._static(path.lstrip("/"))
         if path == "/api/state":
             return self._json(200, store.admin_state())
+        if path == "/api/export":
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            return self._export((query.get("format") or ["csv"])[0])
         if path == "/api/soc":
             # Room-wide SOC feed (plan §8.2), the admin-tab counterpart of the student's own
             # /api/soc above.

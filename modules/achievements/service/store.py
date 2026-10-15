@@ -1192,6 +1192,25 @@ class Store:
         out["mttp"] = self.mttp_summary()
         return out
 
+    def export_rows(self):
+        """One row per student for the facilitator's progress export (CSV/JSON): rank, score,
+        completion, what they unlocked and any cheats. Student-controlled strings pass through
+        unchanged here; the CSV writer neutralises spreadsheet formulas."""
+        with self.lock:
+            L = self.ledger
+            rows = []
+            for row in L.leaderboard():
+                u = row["user"]
+                done, total, pct, complete = L.completion(u)
+                vis = L.visible_unlocked(u)
+                rows.append({"rank": row["rank"], "user": u, "name": self.names.name_for(u),
+                             "score": row["score"], "done": done, "total": total, "percent": pct,
+                             "complete": bool(complete),
+                             "unlocks": sorted(vis, key=lambda i: vis[i]["at"]),
+                             "moments": [m["title"] for m in L.moments(u)],
+                             "cheats": sorted(i for i, x in vis.items() if x["cheat"])})
+        return rows
+
     def admin_award(self, user, points, reason):
         with self.lock:
             if user not in self.ledger.users:

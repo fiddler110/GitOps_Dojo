@@ -369,6 +369,21 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.s.admin_state()["students"], [])
         self.assertEqual([e["action"] for e in self.s.admin_state()["log"]], ["award", "reset"])
 
+    def test_export_rows(self):
+        self.s.event(None, self.ev("a", "l1-clone"))
+        self.s.admin_award("a", 5, "helped out")
+        rows = self.s.export_rows()
+        self.assertEqual([r["user"] for r in rows], ["a"])
+        self.assertEqual(rows[0]["score"], 15)
+        self.assertEqual(rows[0]["unlocks"], ["l1-clone"])
+        self.assertEqual(rows[0]["cheats"], [])
+
+    def test_csv_cell_blocks_formulas(self):
+        self.assertEqual(server._csv_cell("=HYPERLINK(1)"), "'=HYPERLINK(1)")
+        self.assertEqual(server._csv_cell("@x"), "'@x")
+        self.assertEqual(server._csv_cell(-5), -5)
+        self.assertEqual(server._csv_cell("alice"), "alice")
+
     def test_reload_keeps_unlocks(self):
         self.s.event(None, self.ev("a", "l1-clone"))
         self.s.reload(load())
