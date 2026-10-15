@@ -7,6 +7,23 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Live checks: ctf-defend at real-time dwell, student SOC feed, slide overflow trims (2026-10-15, `chore/live-checks-slides`)
+
+**ctf-defend, `CTF_TIME_SCALE=1`, `--test 3 --fast`, locally.** The swarm started from the facilitator's Start Attack Swarm
+call and ran the real clock: green to yellow at about 7.5 min (dwell 8 min), red at about 18 min, and the first `dump_success`
+per target at 14:15:50 (`customer-portal`), 14:17:20 (`leaky-config`) and 14:20:20 (`policy-bypass`), in the staggered order.
+By 14:24 all 9 (3 students x 3 targets) had breached on the unfixed apps and the wall held 9 rows. Times are the
+watcher's 90 s polls. A student session (class login, then `/assign`) saw `/achievements/api/soc` with only its own rows
+and the room clock, not the room feed. Not covered: the Target Viewer card in a browser, the pilot with people, and a
+run where students fix and the wall ages off.
+
+**Slides.** The 7 overflowing slides (dns-as-code cheat sheet 6 and presentation 11; vault-fundamentals presentation 8, 10,
+21, 31, 49) were trimmed; `slide-overflow.sh` is clean on both decks (all pages).
+
+**Vault, defaults.** `vault-fundamentals --test 2 --fast` with `RUNNER_POOL_SECURITY_OPT_1/2` unset ran to both done
+markers on this WSL2 host (podman, not Docker), no skips. That is not the Ubuntu/Docker host the roadmap asked for, and
+the reset step was not run.
+
 ## CTF wrapup: bots seeded like students, two real build/startup bugs fixed, `INCIDENT.md` gate dropped (2026-10-15, `feat/ctf-wrapup`)
 
 **Demo bots now get everything a student gets.** The per-uid firewall hook, the `ctf-controller`/`ctf-checker`
