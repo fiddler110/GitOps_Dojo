@@ -35,11 +35,11 @@ services:
       # This builds on the OUTER host engine, which has real network but no
       # local copy of gitopsdojo/ctf-customer-portal-base:pinned (that tag
       # only ever exists inside ctf-host's INNER dockerd, imported offline at
-      # container start — see that Dockerfile's `deps` stage). Override BASE
-      # to the local `deps` stage so this dev-only service installs Flask
-      # itself instead.
-      args:
-        - BASE=deps
+      # container start). Dockerfile.dev installs Flask the normal way
+      # instead (CTF-D27: the real Dockerfile must never contain a stage
+      # that needs a network -- ctf-host's inner builder builds every stage
+      # in file order, not just the ones the final FROM resolves to).
+      dockerfile: Dockerfile.dev
     image: gitopsdojo/ctf-customer-portal:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_customer_portal
     environment:

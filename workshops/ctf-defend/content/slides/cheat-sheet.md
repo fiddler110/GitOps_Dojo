@@ -57,12 +57,10 @@ dojo-check leaky-config     # one
 
 ```sh
 git checkout -b fix-<target>
-# edit, and write INCIDENT.md
+# edit
 git add -A && git commit -m "Fix <target>"
 git push -u origin fix-<target>
 ```
-
-`INCIDENT.md`: *What was hit*, *How I know*, *Impact*.
 
 ---
 

@@ -117,11 +117,13 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Defend lab redesign: built and live-verified once (RELEASES; as-built contract: plan 8.13); open: student-side SOC feed check, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, real-time dwell (`CTF_TIME_SCALE=1`). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
+| 1 | Defend lab redesign: built and live-verified once (RELEASES; as-built contract: plan 8.13); open: student-side SOC feed check, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, real-time dwell (`CTF_TIME_SCALE=1`). No `INCIDENT.md` gate (decided against 2026-10-15). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
 | 2 | Real-time dwell run (`CTF_TIME_SCALE=1`) and the Target Viewer card as a student (class-sized runs dropped from the CTF plan 2026-10-14) |
-| 3 | End-of-session scoring summary: built, live-checked; open: the scorecard/leaderboard arithmetic-mismatch decision (weight the ledger awards or keep them different, see the plan's 2026-10-14/15 entries) and a human curling the student-side `/api/scorecard` route logged in as a real student |
+| 3 | ~~End-of-session scoring summary~~ — built, live-checked; the arithmetic-mismatch question is closed (not a bug: only `ctf-defend` has a weight concept at all, and its flat milestone ledger is deliberate, already documented in its own `ACHIEVEMENTS.md`) and the student-side `/api/scorecard` route is verified live as a real student, both 2026-10-15 (see plan) |
 | 4 | ~~Demo-bot steps for the four attack packs~~ — written, then blocked on a real bug: the per-uid firewall/roster/seeding hooks only knew `studentNN`, never bot accounts, so no bot could reach its own slot or repo (fixed 2026-10-15, module-only, see plan). All four packs now live-verified 4/4 (or 3/3 for `intermediate`, by design) per target; `ssrf-fetcher`'s self-preview 500 and two bot-script bugs (binary `grep`, a stray `\r`) were also found and fixed along the way |
-| 5 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
+| 5 | ~~`ctf-builder`'s offline rebuild always failed on `customer-portal`~~ (2026-10-15) — `ctf-host`'s inner dockerd builds every Dockerfile stage unconditionally (classic builder, no BuildKit pruning), so a `deps` stage meant only for a dev-path service ran `pip install` on every real rebuild and failed offline. Fixed by moving that stage into a new `Dockerfile.dev`; the in-lab Dockerfile is single-stage now. Live-verified: a real build+push through `ctf-builder` succeeded end to end |
+| 6 | ~~`ctf-secrets-config`'s `openbao-server` startup audit race~~ (2026-10-15) — fixed (wait for `sys/health` before the first authenticated call), but swaps it for a different, equally benign single-node-raft startup message (`cannot write to readonly storage` → `cannot find peer`), confirmed by A/B testing; not chased further (see plan) |
+| 7 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run
 

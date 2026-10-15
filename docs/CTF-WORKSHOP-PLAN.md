@@ -141,8 +141,9 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
 - **Scoring:** per-target time to contain, summed. The severity weight belongs to the target, and each target's clock
   starts at that target's own breach time, so the order a student happens to get does not change fairness.
   Suggested 3 / 2 / 1 for high / medium / low.
-- **Loop, enforced:** detect, triage, contain, fix, verify, stated in the Lab Info preamble. Proposed enforcement: the
-  PR gate requires an `INCIDENT.md` (what was hit, how you know, impact). Containment stays an optional separate step.
+- **Loop:** detect, triage, contain, fix, verify, stated in the Lab Info preamble. No `INCIDENT.md` gate (decided
+  against with the user, 2026-10-15: the PR gate is advisory and the presence-only check added nothing a reviewer
+  couldn't tell from the diff — built, then removed, see below). Containment stays an optional separate step.
 - **Toolset:** git, an editor, `python3`, `curl`, the exploit check and the SIEM panel; no scanners, no internet.
 - **Class size:** about 20 students for this lab (about 60 slots); more than that becomes two workshops.
 - **Decided 2026-10-14 (second pass):**
@@ -158,8 +159,7 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
     uses the same checks. Light rate limit only.
   - **Signals must be strong indicators:** each target emits a signal that is specific, countable and separable from
     the benign noise (see the per-target signal table once written). Still to define per target.
-  - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time) and the `INCIDENT.md`
-    gate (per PR recommended).
+  - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time).
 - **Build map:** superseded by the as-built contract in 8.13 (controller, builder, checker, bot, SIEM and pack all
   under `workshops/` or `modules/`, no `engine/` edit).
 
@@ -177,11 +177,17 @@ Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`,
   bots there only run the generic git workflow, which is expected. The student-side route was **not** curled live —
   reading the student password out of `.env` to log in as one is credential handling, out of bounds for an
   agent/session to do itself; a human needs to do that check.
-  - **Known arithmetic mismatch, unresolved:** the scorecard totals units × target weight (3/2/1) × `CTF_SCORE_FACTOR`,
-    matching this plan's own 8.10/8.13. The actual ledger awards (`d-patched`/`d-unbreached`) pay a flat
-    `ACHIEVEMENTS_MILESTONE_POINTS` per milestone with no weighting applied anywhere. So the scorecard total and the
-    leaderboard total disagree for any target other than weight 1. Needs a decision: weight the awards to match, or
-    keep them deliberately different and say why.
+  - **"Arithmetic mismatch" closed 2026-10-15 -- not a bug, already the design.** The scorecard
+    (`_card()`/`scorecard()`) totals units × target weight (3/2/1) × `CTF_SCORE_FACTOR`, but that weight only ever
+    exists for `ctf-defend`'s three targets: `target_meta`'s `weight` is set only by `adapter()` from a `ctf`/`soc`
+    event carrying `target_severity`/`weight` (the defend swarm/checker), and no other pack's achievements catalog
+    has a `weight` field at all (checked: `rg -l weight workshops/*/achievements/catalog.json` returns only
+    `ctf-defend`'s). The milestone ledger (`d-patched`/`d-unbreached`) pays a flat `ACHIEVEMENTS_MILESTONE_POINTS`
+    per milestone deliberately, already documented in `ctf-defend`'s own `ACHIEVEMENTS.md`/`catalog.json` intro:
+    "milestones use the house default, kept small on purpose, since CTF-5 is a cooperative incident, not a
+    leaderboard race... Scoring weights (3/2/1) are applied by the SOC scoring, not here." The scorecard is the
+    severity-weighted track; the leaderboard is the flat participation track; they were always meant to disagree.
+    No code change made.
 - **`customer-portal` catalog/page check (closes item 4 below):** confirmed via `rg` it is in no attack pack's
   `CTF_ATTACK_TARGETS`/manifest/lab content. Landing-page template has no request-data interpolation (no XSS); no
   other issues found.
@@ -262,26 +268,80 @@ Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`,
     -testuser{1,2}`) with matching per-uid `CTF_ISOLATION` rules (uid 1004/1005) -- the roster/firewall
     change doesn't break the always-on shape. Unit tests pass throughout: 122 engine, 77 ctf-controller,
     13 ctf-checker, 91 attacker-bot.
-  - **One unrelated error observed, not fixed, not caused by this change:** `ctf-defend`'s
-    `ctf-builder` logged one failed `student01` rebuild (`pip install ... No matching distribution
-    found for Flask==3.0.3`) during this session's generic git-workflow bot run -- a `customer-portal`
-    image build issue, nothing to do with the bot roster or firewall.
+  - **`ctf-builder`'s pip install failure, root-caused and FIXED (2026-10-15, later in the same session):** not a
+  provisioning timing issue -- `ctf-host`'s inner dockerd uses the classic (non-BuildKit) Engine API builder, which
+  builds every `FROM` stage physically present in a Dockerfile, in file order, regardless of whether the final
+  stage's `FROM ${BASE}` ever resolves to it (it does not prune dependency-unreachable stages the way buildah/
+  BuildKit do). `targets/customer-portal/Dockerfile` kept a `deps` stage (`FROM python:3.12-slim` + `pip install`)
+  for the dev-only standalone compose service's benefit, reasoning (CTF-D16/S6, now known wrong) that the offline
+  path would never build it since the default `FROM` never points at it -- that stage built, and failed, on every
+  single rebuild, student and bot alike. Confirmed directly: replayed `ctf-builder`'s own clone-tar-build sequence
+  by hand against `ctf-host`'s real socket and read the full (untruncated) build stream -- Step 2 is
+  unconditionally `FROM python:3.12-slim AS deps`, Step 4 is `pip install`, both run before the final stage is ever
+  reached. Fixed by moving `deps` out of the Dockerfile entirely into a new `Dockerfile.dev` (used only by
+  `modules/ctf-range/compose.yml`'s dev-path service, `dockerfile: Dockerfile.dev`, no more `--build-arg`); the
+  in-lab Dockerfile now has exactly one stage and cannot contain a network-reaching step again, regardless of
+  which builder runs it. `sync-sample-repos.sh` re-run so the seeded student repos pick it up. Live-verified on a
+  clean cold start: replayed the real clone-tar-build-push sequence by hand against `student01/customer-portal`'s
+  freshly-seeded (fixed) repo -- 10 steps, no network call, `Successfully built`/`Successfully tagged`, then the
+  same build+push through `ctf-builder`'s own HTTP listener succeeded end to end
+  (`registry:5000/ctf-customer-portal:student01-customer-portal`), zero errors logged. `ctf-builder`'s 30 unit
+  tests still pass. `docs/CTF-SPIKES.md` has a correction note under the original (now-wrong) Run D entry.
+- **`ctf-secrets-config`'s `openbao-server` audit race, closed, with an honest caveat (2026-10-15):** root cause
+  confirmed: `config.hcl` declares the file audit device statically, so OpenBao enables it at boot, before this
+  single-node raft cluster finishes electing itself leader (storage is read-only until then); any request landing
+  in that window -- including `setup.sh`'s own first `bao token lookup` -- can't persist the audit device's HMAC
+  salt and logs a harmless "failed to audit response... cannot write to readonly storage", 5 lines, every cold
+  start. Fixed with a `wait_writable()` poll of `sys/health` (unauthenticated, exempt from the audit device, so
+  polling it costs nothing and never itself lands in the window) right after unseal, before the first authenticated
+  call. Live-verified, twice: the 5-line audit error is gone on both reruns of `ctf-secrets-config --test 1 --fast`.
+  **Caveat, found by A/B testing with and without the fix:** removing those 5 lines reliably surfaces a different,
+  single, also-benign OpenBao startup message instead -- `failed to unlock initialization lock: error="cannot find
+  peer"` -- which a pre-fix rerun never showed at all. Reproduces with either a poll-based or a plain fixed-sleep
+  wait, so it isn't caused by the specific polling mechanism, just by *delaying* the first external request at all;
+  the most likely explanation is that OpenBao's own internal init-lock-release goroutine and the raft peer-set
+  population are both timing-sensitive to the same leader-election window from a different angle, and the two
+  external-facing symptoms (audit-write failures vs. this) trade off against each other depending on exactly when
+  the first outside request arrives. Not chased further: both are cosmetic single-node-raft bootstrap noise from
+  the same underlying category (confirmed by `./dojo logs --errors` reporting the pack clean of real
+  Traceback/panic/Exception either way, and `openbao-setup` still reaching "healthy" every time) -- this trades one
+  harmless startup line for a different, still-harmless one, not a net-zero win. Said plainly so it isn't mistaken
+  for a clean fix.
+- **Student-side scorecard route, verified live (2026-10-15, closes item 5 below):** with the user's go-ahead to
+  handle test credentials directly, logged in through the real class login (`student`/`student`, this machine's
+  dev default) on a running `ctf-secrets-config` stack, claimed a real slot via `POST /assign`, and called
+  `GET /achievements/api/scorecard` with the resulting session cookie -- 200, correct shape
+  (`{"user": "<anonymized name>", "targets": [], "total": 0, "max": 0, "retries": 0, "mttp": null}`; empty/zero is
+  expected here since this pack has no severity-weighted targets, unlike `ctf-defend`). The route, auth flow and
+  per-student identity all work for a real student account, not just the facilitator's admin view.
+- **Scorecard/leaderboard "arithmetic mismatch" (item 4 below): closed, not a bug.** See the entry above dated
+  2026-10-15 under the defend-redesign "Decided 2026-10-14 (second pass)" section: the weight only ever exists for
+  `ctf-defend`'s three targets, and the flat milestone ledger there is deliberate, already documented in that
+  pack's own `ACHIEVEMENTS.md`/`catalog.json`. No other pack has a `weight` concept at all. No code change.
+- **`INCIDENT.md` gate enforcement: removed, decided against with the user (2026-10-15).** Dropped the "Incident
+  note" CI step from both `defend-pr.yml` copies (it hard-failed a job the rest of the gate treats as advisory) and
+  every mention of it as a gate requirement across the lab, cheat sheet, slides, facilitator doc, the three
+  `_fallback` READMEs and both `lab-info/defend-loop.md` copies. The loop (detect, triage, contain, fix, verify)
+  and the gate's two remaining checks (attack blocked, normal use still works) are unchanged.
 - ~~**Pick up here tomorrow**~~ — items 1-3 (re-run all four attack packs with the firewall/roster fix) done
-  2026-10-15 above, all 4/4 targets correct in every pack. Still open: item 4 (scorecard arithmetic-mismatch
-  decision) and item 5 (a human curling the student-side scorecard route). Item 6 (commit, update `RELEASES.md`) is
-  next once those two are settled.
+  2026-10-15 above, all 4/4 targets correct in every pack. Items 4 and 5 closed above too. Next: commit, update
+  `RELEASES.md`.
 
 **Open, in order:**
 
 1. **Real-time dwell and the Target Viewer card.** The swarm has only run at `CTF_TIME_SCALE=0.1`; watch one run at
    scale 1 and open the Target Viewer card as a student. (Class-sized runs are dropped from the plan, 2026-10-14.)
-2. **The defend redesign above:** decisions, then spec into section 8, then build.
-3. ~~End-of-session scoring summary~~ — built 2026-10-14 evening (above); the arithmetic-mismatch decision is still
-   open (needs a human curling the student-side route too, per 2026-10-15 above).
+2. **The defend redesign above:** decisions, then spec into section 8, then build. `INCIDENT.md` gate enforcement
+   decided against 2026-10-15 (above); the stagger interval still needs a pilot.
+3. ~~End-of-session scoring summary~~ — built 2026-10-14 evening; arithmetic-mismatch decision closed and
+   student-side route verified live, both 2026-10-15 (above).
 4. ~~Check that `customer-portal` is in no attack catalog~~ — confirmed 2026-10-14 evening (above).
 5. ~~Demo-bot steps in the four attack packs~~ — written 2026-10-14 evening, blocked on a real firewall/roster bug
    found and fixed 2026-10-15 (above); all four packs now live-verified 4/4 (or 3/3 for the `intermediate` persona,
    by design) per target.
+6. ~~`ctf-builder`'s pip install failure~~ — root-caused and fixed 2026-10-15 (above).
+7. ~~`ctf-secrets-config`'s `openbao-server` audit race~~ — fixed 2026-10-15, with a caveat worth reading (above):
+   a different, equally benign single-node-raft startup message surfaced in its place.
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 
@@ -1017,8 +1077,8 @@ and security-team key are `<target>-proxy` / `<target>-secteam` rendered from `S
   `status=200`, then `auth=basic-ok` for `ops-admin` from a `ua` absent from benign traffic.
 
 **Scoring and gate.** Green 10 / yellow 5 / red 0 per target times weight; time to contain and MTTP are display only.
-`INCIDENT.md` per PR, presence and non-empty headings only ("What was hit", "How I know", "Impact"). Stagger default
-0.5 x dwell, to be tuned in a pilot with 2-3 people.
+No `INCIDENT.md` gate (decided against 2026-10-15, below). Stagger default 0.5 x dwell, to be tuned in a pilot
+with 2-3 people.
 
 **Not yet verified:** a full live loop, real-time dwell, stagger tuning (see ROADMAP).
 

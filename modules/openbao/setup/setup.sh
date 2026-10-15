@@ -118,6 +118,29 @@ unseal_if_sealed() {
   fi
 }
 
+# wait_writable: right after init/unseal, raft briefly answers reads but
+# refuses writes while this single node elects itself leader (config.hcl's
+# own comment: ~8s on a first start). Any request that reaches the audit
+# device in that window -- including this script's own first token lookup
+# below -- fails to persist the device's HMAC salt and logs a harmless but
+# noisy "failed to audit response ... cannot write to readonly storage" on
+# openbao-server (found live 2026-10-15, reproduced identically on a rerun).
+# sys/health is exempt from auditing (an unauthenticated system-status
+# endpoint, same category as the "waiting for $BAO_ADDR" probe above), so
+# polling it costs nothing and tells us precisely when the node becomes the
+# active (writable) leader -- 200 -- without ever landing in the window
+# itself. Bounded, non-fatal: if it never turns writable, carry on as before
+# (the existing `retry` calls below still cover a slower election).
+wait_writable() {
+  _ww_i=0
+  while [ "$_ww_i" -lt 30 ]; do
+    _ww_code="$(wget -S -q -O /dev/null "$BAO_ADDR/v1/sys/health" 2>&1 | awk '/^ *HTTP\// {print $2; exit}')"
+    [ "$_ww_code" = "200" ] && return 0
+    _ww_i=$((_ww_i + 1)); sleep 1
+  done
+  return 1
+}
+
 # json_string NAME: a string field from `bao ... -format=json` on stdin.
 json_string() {
   sed -n "s/^ *\"$1\": *\"\([^\"]*\)\",*$/\1/p" | head -1
@@ -195,6 +218,7 @@ if [ "$(status_field initialized)" = "false" ]; then
 fi
 
 unseal_if_sealed
+wait_writable || log "sys/health never reported writable; continuing anyway"
 
 # 1. The temporary root: the init root token if this is (or finishes) the
 # first start, else a new one from the unseal key.

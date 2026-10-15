@@ -1,6 +1,6 @@
 # Defend PR gate. The platform's checker runs the attack against your branch for you: the check
 # scripts are not in this repo, and neither is the identity proxy a target may sit behind. Pass means
-# (1) the attack is blocked, (2) one legitimate request still works, and (3) INCIDENT.md is filled in.
+# (1) the attack is blocked and (2) one legitimate request still works. Advisory: you can still merge on a fail.
 name: Defend - PR gate
 on:
   pull_request:
@@ -21,17 +21,6 @@ jobs:
           git clone --quiet "http://git-server:3000/${GITHUB_REPOSITORY}.git" repo
           cd repo
           git checkout --quiet "$CTF_REF"
-
-      - name: Incident note (INCIDENT.md)
-        # Presence check only: the file is non-empty and has the three headings. What you write is yours to get right.
-        run: |
-          set -eu
-          cd repo
-          [ -s INCIDENT.md ] || { echo "GATE FAIL - INCIDENT.md is missing or empty."; exit 1; }
-          for h in "What was hit" "How I know" "Impact"; do
-            grep -qi "^#\+ *$h" INCIDENT.md || { echo "GATE FAIL - INCIDENT.md has no '$h' heading."; exit 1; }
-          done
-          echo "INCIDENT.md present"
 
       - name: Attack check (ctf-checker)
         run: |

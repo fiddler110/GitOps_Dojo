@@ -14,7 +14,7 @@ a class.
 
 | Block | Minutes | What |
 | ----- | ------- | ---- |
-| Talk | ~15 | Three apps on fire, the loop, `dojo-check`, the PR gate and `INCIDENT.md` |
+| Talk | ~15 | Three apps on fire, the loop, `dojo-check`, the PR gate |
 | Lab 1 | ~90 | Incident triage: detect, triage, contain, fix, verify, on all three targets |
 | Recap | ~15 | Order of work vs the room's; the per-target debriefs; the capstone for early finishers |
 
@@ -27,8 +27,9 @@ target starts on a stagger (`CTF_TARGET_STAGGER`), so breaches pile up. Class si
 
 **The loop is the lesson**: detect, triage, contain, fix, verify. `dojo-check` runs the attack against a live slot
 and one legitimate request, so a student sees `exploitable`, `contained`, `broke-normal-use` or `unreachable`
-per target. The PR gate runs the same checks and also needs an `INCIDENT.md` with `What was hit`, `How I
-know` and `Impact` (presence only; read a few in the recap, the content is the triage).
+per target. The PR gate runs the same checks; it's advisory, so a failing check doesn't block the merge
+(decided 2026-10-15: no `INCIDENT.md` requirement — the presence-only check added nothing a reviewer couldn't
+tell from the diff, and it hard-failed a job meant to be advisory).
 
 **The clock is a facilitator action, not automatic.** The attacker-bot swarm (SOC' green → yellow
 → red countdown) sits idle until you press **Start Attack Swarm** on the SOC `/admin` tab. Nothing
@@ -63,8 +64,8 @@ target, in order; never at a line number.
 4. **Size the machine:** `./dojo capacity ctf-defend --students 30` if you expect a full room — the
    range's `ctf-host`/`ctf-controller` plus the `attacker-bot` swarm sit alongside the terminals.
 5. **Rehearse as a student** in a private window: clone all three repos, run `dojo-check` (all
-   `exploitable`), fix each, PR it with and without `INCIDENT.md`, watch the gate block a bad fix and pass a
-   good one, merge, confirm `dojo-check` says `contained`, and check the per-target milestones land. Then try
+   `exploitable`), fix each, PR it, watch the gate fail against a bad fix and pass a good one, merge, confirm
+   `dojo-check` says `contained`, and check the per-target milestones land. Then try
    the capstone (`customer-portal`'s `/login` has the same bug). `./dojo stop` and start clean afterward.
    Run `content/sync-sample-repos.sh` first if a target's source changed.
 6. Skim the deck with speaker notes on.

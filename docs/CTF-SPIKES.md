@@ -297,6 +297,16 @@ access to the tag that only ever exists inside `ctf-host`'s *inner*, offline doc
 real local tag via `ARG BASE`, with the dev-path compose service overriding `args: [BASE=deps]` — the default
 (offline, in-lab) path never builds that stage, so it costs nothing there.
 
+**Correction (CTF-D27, 2026-10-15, live):** that last sentence was wrong. `ctf-host`'s inner dockerd uses the
+classic (non-BuildKit) Engine API builder, which builds every `FROM` stage physically present in a Dockerfile, in
+file order, whether or not the final stage's `FROM ${BASE}` ever resolves to it — it does not prune
+dependency-unreachable stages the way buildah/BuildKit do. The `deps` stage's `pip install` ran on every offline
+rebuild and failed (`No matching distribution found for Flask==3.0.3`, confirmed by reproducing the build directly
+against `ctf-host`'s socket and reading the full stream, not just the truncated error `ctf-builder` logs). Fixed by
+moving `deps` out of `targets/customer-portal/Dockerfile` entirely into a new `Dockerfile.dev`, used only by the
+dev-path compose service (`dockerfile: Dockerfile.dev`, no more `args:`); the in-lab Dockerfile now has exactly one
+stage and can never contain a network-reaching step again, regardless of which builder runs it.
+
 Verified live, not just reasoned about: `check-pins.sh` passes; the full `workshops/ctf-defend-test/` stack started
 clean; `docker image ls` inside `ctf-host`'s inner dockerd showed the new tag with Flask 3.0.3 actually importable
 inside it; a real student (`student01`, real Forgejo account, real git push) patched the SQLi, and Forgejo Actions'
