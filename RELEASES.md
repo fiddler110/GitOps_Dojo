@@ -7,6 +7,20 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Platform review: RV26, RV32, RV33 (2026-10-15, `feat/platform-review-tier3-4`)
+
+- **RV26**: a `lab-prep` module installs `/usr/local/lib/dojo/lab-prep-lib.sh`; the five workshop `lab-prep` scripts source it
+  (helpers and the lab-number check) and keep only their own steps. Seven packs dropped their 873 KB logo copy for
+  `assets/GitOps_Dojo_Dark.png`. Tested locally on git-fundamentals: `lab-prep 1/2/9` as a student account.
+- **RV32**: `GET /achievements-admin/api/export?format=csv|json` plus links on the Achievements admin tab (rank, score, completion,
+  unlocks, moments, cheats; CSV cells starting `= + - @` are quoted). Unit-tested; fetched locally with `--test 2 --fast` bots.
+  Not covered: clicking the links in a browser.
+- **RV33**: new `feedback` module: a Feedback card (four 1-5 ratings and a comment, resubmit replaces), a facilitator tab with means,
+  counts, comments and a CSV/JSON export without usernames. Opt-in: list `feedback` in `MODULES=`. Tested locally on
+  git-fundamentals through the service (student submit, facilitator-only summary and export). Not covered: the card and tab in a browser.
+- Dropped by decision 2026-10-15: RV34 terminal recording, RV37 several classes at once; RV36 and RV38 held (a full reset
+  means taking the workshop down and rebuilding).
+
 ## Live checks: ctf-defend at real-time dwell, student SOC feed, slide overflow trims (2026-10-15, `chore/live-checks-slides`)
 
 **ctf-defend, `CTF_TIME_SCALE=1`, `--test 3 --fast`, locally.** The swarm started from the facilitator's Start Attack Swarm

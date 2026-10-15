@@ -6,7 +6,7 @@ ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
 COPY lab-prep-lib.sh /usr/local/lib/dojo/lab-prep-lib.sh
-RUN chmod 0644 /usr/local/lib/dojo/lab-prep-lib.sh
+RUN chmod 0755 /usr/local/lib/dojo && chmod 0644 /usr/local/lib/dojo/lab-prep-lib.sh
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
     CMD web-terminal-healthcheck

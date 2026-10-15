@@ -18,7 +18,7 @@ what is left (usually the live check).
 | [Priorities](#priorities) | The order of work, decided at the 2026-10-01 review |
 | [Up next](#up-next) | Where to resume; decisions of 2026-10-02 and 2026-10-03 |
 | [Now](#now) | Student reset and Phase 10 live checks (the split smoke run is parked in [Later](#later)) |
-| [Next](#next) | CTF workshop series; N3 9.4 class-sized run; platform review (RV26-RV38); student reset; achievements leftovers; `dojo` CLI; remediation leftovers |
+| [Next](#next) | CTF workshop series; N3 9.4 class-sized run; platform review (RV36, RV38 on hold); student reset; achievements leftovers; `dojo` CLI; remediation leftovers |
 | [Manual checks](#manual-checks) | Browser passes only the user can do |
 | [Later](#later) | Follow-ups and known limits |
 | [Housekeeping](#housekeeping) | Repo hygiene |
@@ -36,7 +36,7 @@ fit in around these; tofu-basics T9.4/T9.9 are the oldest.
 |---|---|---|---|
 | 1 | Student reset: live checks | S | All four hooks have now run live: DNS and cert 2026-10-03, cloud (with a non-empty pre-state) and vault's capstone 2026-10-04. Left: the vault reset once on the Ubuntu WSL/Docker host, and the purge-line finding in [Now](#now) |
 | 2 | Phase 10 leftovers | S | Done apart from the browser looks: `slide-overflow.sh` ran on dns-as-code and dojo-introduction `--test 5 --fast` re-ran with 0 skips (2026-10-04, [Now](#now)). Left: the two browser looks (the 7 overflowing slides were trimmed 2026-10-15, RELEASES) |
-| 3 | Platform review tiers 3-4 | L | RV35, RV22-RV25, RV27-RV31 done; left RV26, RV32-RV34, RV36-RV38 |
+| 3 | Platform review tiers 3-4 | L | RV22-RV33, RV35 done; RV34 and RV37 dropped (2026-10-15); RV36 (more workshops) and RV38 (reset button) on hold |
 
 ## Up next
 
@@ -145,22 +145,17 @@ the suggested order. Line numbers are as of `7bc4ce9`.
 **Tier 2: CI and tests.** RV13-RV19 shipped 2026-10-02 (see RELEASES).
 
 **Tier 3: refactors and hygiene.** RV20 (`dojo_http.py`) and RV21 (`adapter_client.py`) shipped 2026-10-02; RV25
-(tool-pin drift check) and RV27 (`forgejo-runner` deleted) 2026-10-04 (see RELEASES). RV26 is all that is left.
+(tool-pin drift check) and RV27 (`forgejo-runner` deleted) 2026-10-04 (see RELEASES). Tier 3 is done (RV26 shipped 2026-10-15).
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV26 | Shared lab-prep and slide assets | M | One `lab-prep` skeleton for the four copies; slide logo and shared slide assets from `workshops/assets/themes` (the 873 KB PNG is in all 6 packs; one shared copy is now at `workshops/assets/GitOps_Dojo_Dark.png`, which the scaffold template uses, so the packs can switch to `assets/GitOps_Dojo_Dark.png`) |
 
 **Tier 4: new features and workshops.**
 
 | ID | Work | Effort | Description |
 |---|---|---|---|
-| RV32 | Progress export | S | Facilitator export of progress and achievements (CSV/JSON) |
-| RV33 | Feedback survey card | M | End-of-class feedback survey card |
-| RV34 | Terminal recording | M | Terminal session recording or replay |
-| RV36 | More workshops | L each | GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation |
-| RV37 | Several classes at once | L | One workshop per machine today |
-| RV38 | Reset environment button | M | Asked for 2026-10-02: a button on `/admin` that releases every slot and puts every student back to a fresh start without restarting the stack (between two sessions of a class). Build it on the student reset's per-student hook contract (`STUDENT-RESET-PLAN.md` §4.4): run the reset for every student, then module hooks clear their own state (achievements, sensei, dojo-cloud). Facilitator gate, a typed confirmation, audit line. A smaller first step, **Release all**, only clears the slot table. Rule: **nothing survives `./dojo stop`**; every state file stays in a named volume (`allocator_state` is, verified 2026-10-01), and RV13's CI should fail any compose fragment that writes state outside one. Engine change, approved |
+| RV36 | More workshops (on hold 2026-10-15) | L each | GitOps with a reconciler (Argo CD or Flux on k3s), needs a capacity check; then supply chain (cosign, SBOM), observability as code, secrets rotation |
+| RV38 | Reset environment button (on hold 2026-10-15: a full reset is `./dojo stop` and a rebuild; Release all and the per-student reset exist) | M | Asked for 2026-10-02: a button on `/admin` that releases every slot and puts every student back to a fresh start without restarting the stack (between two sessions of a class). Build it on the student reset's per-student hook contract (`STUDENT-RESET-PLAN.md` §4.4): run the reset for every student, then module hooks clear their own state (achievements, sensei, dojo-cloud). Facilitator gate, a typed confirmation, audit line. A smaller first step, **Release all**, only clears the slot table. Rule: **nothing survives `./dojo stop`**; every state file stays in a named volume (`allocator_state` is, verified 2026-10-01), and RV13's CI should fail any compose fragment that writes state outside one. Engine change, approved |
 
 ### Student reset
 
