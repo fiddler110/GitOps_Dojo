@@ -1,0 +1,29 @@
+# feedback module: the end-of-class survey (server.py). Relative paths resolve against engine/,
+# not this folder. Answers live in the named volume feedback_data, so `./dojo stop` removes them.
+services:
+  feedback:
+    image: gitopsdojo/allocator:local
+    container_name: workshop_feedback
+    entrypoint: ["python3", "-B", "/opt/feedback/server.py"]
+    environment:
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_FEEDBACK:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-root}
+      - DATA_DIR=/data
+    volumes:
+      - ../modules/feedback:/opt/feedback:ro
+      - feedback_data:/data
+    user: "0:0"
+    cap_drop:
+      - ALL
+    networks:
+      - workshop_lab
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    mem_limit: ${FEEDBACK_MEM_LIMIT:-64m}
+    restart: unless-stopped
+
+volumes:
+  feedback_data:

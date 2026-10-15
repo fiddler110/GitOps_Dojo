@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feedback admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Class feedback</h1>
+<p><span id="n" class="dim"></span> Export: <a href="api/export?format=csv">CSV</a> <a href="api/export?format=json">JSON</a></p>
+<div class="card"><table><thead><tr><th>Question</th><th>Mean</th><th>Answers</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+<tbody id="rows"></tbody></table></div>
+<div class="card"><h2>Comments</h2><div id="comments"></div></div>
+<script src="admin.js"></script>
+</body>
+</html>
