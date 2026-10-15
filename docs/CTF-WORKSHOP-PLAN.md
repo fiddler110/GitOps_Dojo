@@ -1,10 +1,12 @@
 # CTF workshop series: plan
 
-Status: **draft 4, 2026-10-12.** The range, all 14 attack-ladder targets, all five session packs and the CTF-5 defend
-tooling are built; the wall of shame, bonus flaw, scoring, one-page SOC and student SIEM view are on `main`. What is
+Status: **draft 5, 2026-10-15.** The range, all 14 attack-ladder targets, all five session packs and the CTF-5
+defend tooling are built; the wall of shame, bonus flaw, scoring, one-page SOC, student SIEM view, the defend
+redesign and all four attack packs' demo bots are on `feat/ctf-wrapup`, ready for PR. What is
 left is listed under "Where it stands" below. What was
-built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log"). The spike answers and the
-decisions log (CTF-S1..S17, CTF-D1..D26) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion file to this one.
+built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log", "CTF wrapup"). The
+spike answers and the decisions log (CTF-S1..S17, CTF-D1..D27) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion
+file to this one.
 Sections 1-13 below are the design; where the build deviated from them, the section carries a note.
 
 ---
