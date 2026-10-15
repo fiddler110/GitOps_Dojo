@@ -7,14 +7,61 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## CTF wrapup: bots seeded like students, two real build/startup bugs fixed, `INCIDENT.md` gate dropped (2026-10-15, `feat/ctf-wrapup`)
+
+**Demo bots now get everything a student gets.** The per-uid firewall hook, the `ctf-controller`/`ctf-checker`
+roster, `ctf-host`'s IP aliases, the attacker-bot's own roster and the three Forgejo-seeding hooks
+(`git-secrets`, `tfstate-treasure`, `runner-escape`) all used to key off `studentNN` only, so a demo bot
+(`testuserN`) had no firewall rule to its own slot and no seeded repo to read -- every attack pack's `--test` bots
+could start a target but almost never solve it. Fixed everywhere, module-only, no `engine/` edit: bots are now
+appended to each roster after the students. New demo-bot steps for the three labs this unblocks mirror each
+target's own `exploit/solve.py`. Two more pre-existing bot-script bugs found along the way: `ctf-access`'s
+`idor-pcap` step piped a binary pcap body through `grep -o` with no `-a`, and separately left a literal trailing
+`\r` in the extracted password. All four attack packs live-verified 4/4 targets correct (3/3 for the
+`intermediate` persona, by design); `ctf-defend` confirmed to give bots real always-on slots too.
+
+**`ctf-builder`'s offline rebuild always failed.** `ctf-host`'s inner dockerd uses the classic (non-BuildKit)
+Engine API builder, which builds every `FROM` stage physically present in a Dockerfile, in file order, regardless
+of which one the final stage resolves to -- `targets/customer-portal/Dockerfile` kept a `deps` stage
+(`pip install`) for a dev-only compose service's benefit, on the wrong assumption that an offline rebuild would
+never touch it. It ran, and failed (no PyPI route), on every real student/bot rebuild. Moved that stage into a new
+`Dockerfile.dev`, used only by the dev-path service; the in-lab Dockerfile is single-stage now. Live-verified: a
+real build+push through `ctf-builder`'s own listener succeeded end to end.
+
+**`ctf-secrets-config`'s `openbao-server` startup audit race, fixed, with a caveat.** The file audit device is
+declared statically and comes up before this single-node raft cluster finishes electing itself leader, so the
+first authenticated request (every cold start) logged 5 "failed to audit response... cannot write to readonly
+storage" lines. Fixed with a `sys/health` poll (exempt from the audit device) before the first authenticated
+call -- confirmed gone on two reruns. A/B testing found this reliably trades it for a different, single, equally
+benign OpenBao startup message (`failed to unlock initialization lock: error="cannot find peer"`), present with
+either a poll-based or a plain fixed-sleep wait, so it's triggered by delaying the first request at all, not by
+this fix's mechanism. Not chased further -- both are cosmetic single-node-raft bootstrap noise, and setup still
+reaches healthy either way.
+
+**`INCIDENT.md` gate dropped**, decided against with the user: the presence-only check hard-failed a CI job the
+rest of the gate treats as advisory, and added nothing a reviewer couldn't already tell from the diff. Removed
+from both `defend-pr.yml` copies and every mention across the lab, cheat sheet, slides, `FACILITATOR.md`, the
+`_fallback` READMEs and both `lab-info/defend-loop.md` copies.
+
+**Scorecard/leaderboard "arithmetic mismatch" (previous session's open item): closed, not a bug.** The 3/2/1
+weight only ever exists for `ctf-defend`'s three targets; no other pack's achievements catalog has a `weight`
+field. The flat milestone ledger is deliberate, already documented in `ctf-defend`'s own `ACHIEVEMENTS.md`. No code
+change. The student-side `GET /achievements/api/scorecard` route is separately verified live (real class login,
+real `/assign` claim, correct shape for a real per-student identity).
+
+Tested locally: unit suites throughout (122 engine, 77 `ctf-controller`, 13 `ctf-checker`, 91 `attacker-bot`, 30
+`ctf-builder`); `--test N --fast` live runs of all five CTF packs, one at a time, `./dojo stop` between each.
+
 ## `ctf-defend`: three simultaneous targets, seeded attack order, incident-triage gate (2026-10-14, `feat/ctf-defend-three-targets`)
 
 Each student gets `customer-portal` (high), `policy-bypass` (medium) and `leaky-config` (low) live at once. The
 controller deals one of six attack orders per student from a seed and the bot attacks each target on a staggered
 timer, each with a different SIEM signal. Students fix in three repos; `dojo-check` shows
 exploitable/contained/broke-normal-use/unreachable per target through a server-side checker, and the PR gate uses the
-same checks and requires an `INCIDENT.md` (advisory: it does not block a merge). `dojo-reset <target>` puts a broken
-box back to the starting app. Scoring is green/yellow/red x weight per target. Bonus second flaw dropped.
+same checks (advisory: it never blocks a merge). `dojo-reset <target>` puts a broken box back to the starting app.
+Scoring is green/yellow/red x weight per target. Bonus second flaw dropped. *Amended 2026-10-15: the `INCIDENT.md`
+gate mentioned here was removed (see below) -- the presence-only check added nothing a reviewer couldn't tell from
+the diff, and it hard-failed a job meant to be advisory.*
 Tested locally: unit suites; `./dojo ctf-defend --dry-run`; live `--test` runs with fast bots covering slots and
 schedule, the defend loop (fix, gate, merge, build, redeploy, contained), SIEM rows and breaches on all three targets,
 `dojo-check`, and `dojo-reset` (success, bad target, overlap refusal). Not tested: student-side SOC feed in a browser,

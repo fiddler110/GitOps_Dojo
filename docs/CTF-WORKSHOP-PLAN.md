@@ -1,10 +1,12 @@
 # CTF workshop series: plan
 
-Status: **draft 4, 2026-10-12.** The range, all 14 attack-ladder targets, all five session packs and the CTF-5 defend
-tooling are built; the wall of shame, bonus flaw, scoring, one-page SOC and student SIEM view are on `main`. What is
+Status: **draft 5, 2026-10-15.** The range, all 14 attack-ladder targets, all five session packs and the CTF-5
+defend tooling are built; the wall of shame, bonus flaw, scoring, one-page SOC, student SIEM view, the defend
+redesign and all four attack packs' demo bots are on `feat/ctf-wrapup`, ready for PR. What is
 left is listed under "Where it stands" below. What was
-built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log"). The spike answers and the
-decisions log (CTF-S1..S17, CTF-D1..D26) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion file to this one.
+built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log", "CTF wrapup"). The
+spike answers and the decisions log (CTF-S1..S17, CTF-D1..D27) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion
+file to this one.
 Sections 1-13 below are the design; where the build deviated from them, the section carries a note.
 
 ---
@@ -87,7 +89,7 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    still true.
 3. **Never live-tested:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy, WSL
    always shows private so it falls back), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
-   `status --watch`, `CTF_TIME_SCALE=1` full-length run, 40-student class run, (the other four CTF packs were started under
+   `status --watch`, `CTF_TIME_SCALE=1` full-length run, (the other four CTF packs were started under
    the new tag scheme on 2026-10-12, see item 7).
 4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
    repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
@@ -141,10 +143,11 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
 - **Scoring:** per-target time to contain, summed. The severity weight belongs to the target, and each target's clock
   starts at that target's own breach time, so the order a student happens to get does not change fairness.
   Suggested 3 / 2 / 1 for high / medium / low.
-- **Loop, enforced:** detect, triage, contain, fix, verify, stated in the Lab Info preamble. Proposed enforcement: the
-  PR gate requires an `INCIDENT.md` (what was hit, how you know, impact). Containment stays an optional separate step.
+- **Loop:** detect, triage, contain, fix, verify, stated in the Lab Info preamble. No `INCIDENT.md` gate (decided
+  against with the user, 2026-10-15: the PR gate is advisory and the presence-only check added nothing a reviewer
+  couldn't tell from the diff — built, then removed, see below). Containment stays an optional separate step.
 - **Toolset:** git, an editor, `python3`, `curl`, the exploit check and the SIEM panel; no scanners, no internet.
-- **Class size:** at most 20 students for this lab (about 60 slots); more than that becomes two workshops.
+- **Class size:** about 20 students for this lab (about 60 slots); more than that becomes two workshops.
 - **Decided 2026-10-14 (second pass):**
   - **Targets and severity:** `customer-portal` high, `policy-bypass` medium, `leaky-config` low. `git-secrets` is a
     stretch target only if a rotation mechanism proves out (its fix is operational, not a code diff).
@@ -158,26 +161,189 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
     uses the same checks. Light rate limit only.
   - **Signals must be strong indicators:** each target emits a signal that is specific, countable and separable from
     the benign noise (see the per-target signal table once written). Still to define per target.
-  - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time) and the `INCIDENT.md`
-    gate (per PR recommended).
+  - **Still to decide:** the stagger interval (from a pilot; start near half the median fix time).
 - **Build map:** superseded by the as-built contract in 8.13 (controller, builder, checker, bot, SIEM and pack all
   under `workshops/` or `modules/`, no `engine/` edit).
 
+**Session 2026-10-14 evening — scorecard, demo bots, one engine fix (uncommitted, branch `feat/ctf-wrapup`, pick up here):**
+
+Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`, this file, `engine/docker-compose.yml`,
+`modules/achievements/{README.md,service/server.py,service/store.py,service/static/soc*.{html,js}}` (scorecard),
+`modules/achievements/service/test_scorecard.py` (new), `modules/ctf-range/targets/ssrf-fetcher/app.py`, and new
+`workshops/{ctf-access,ctf-server-trust,ctf-secrets-config,ctf-trust-chain}/content/bots/` directories.
+
+- **End-of-session scorecard, built (closes "Open" item 3 below, 8.10/CTF-D19):** `store.py`'s `scorecard(user)` /
+  `admin_scorecard()`, routes `GET /api/scorecard` and `GET /achievements-admin/api/scorecard`, a "Scorecard" section
+  on `soc.html`/`soc-admin.html` (`textContent` only). Unit-tested (227 tests pass). Live-checked: the admin route
+  returns 200 with correct `factor: 5` on a real `ctf-defend --test` stack; lights were all zero because the demo
+  bots there only run the generic git workflow, which is expected. The student-side route was **not** curled live —
+  reading the student password out of `.env` to log in as one is credential handling, out of bounds for an
+  agent/session to do itself; a human needs to do that check.
+  - **"Arithmetic mismatch" closed 2026-10-15 -- not a bug, already the design.** The scorecard
+    (`_card()`/`scorecard()`) totals units × target weight (3/2/1) × `CTF_SCORE_FACTOR`, but that weight only ever
+    exists for `ctf-defend`'s three targets: `target_meta`'s `weight` is set only by `adapter()` from a `ctf`/`soc`
+    event carrying `target_severity`/`weight` (the defend swarm/checker), and no other pack's achievements catalog
+    has a `weight` field at all (checked: `rg -l weight workshops/*/achievements/catalog.json` returns only
+    `ctf-defend`'s). The milestone ledger (`d-patched`/`d-unbreached`) pays a flat `ACHIEVEMENTS_MILESTONE_POINTS`
+    per milestone deliberately, already documented in `ctf-defend`'s own `ACHIEVEMENTS.md`/`catalog.json` intro:
+    "milestones use the house default, kept small on purpose, since CTF-5 is a cooperative incident, not a
+    leaderboard race... Scoring weights (3/2/1) are applied by the SOC scoring, not here." The scorecard is the
+    severity-weighted track; the leaderboard is the flat participation track; they were always meant to disagree.
+    No code change made.
+- **`customer-portal` catalog/page check (closes item 4 below):** confirmed via `rg` it is in no attack pack's
+  `CTF_ATTACK_TARGETS`/manifest/lab content. Landing-page template has no request-data interpolation (no XSS); no
+  other issues found.
+- **`ssrf-fetcher` 500 fixed:** previewing its own port (`127.0.0.1:5000`, which the lab's own hint points a student
+  toward) made the single-threaded Flask dev server fetch itself while already busy handling that very request, so
+  the fetch always timed out and the uncaught `socket.timeout`/`OSError` 500'd. Added `OSError` to the caught
+  exceptions; verified offline with Flask's test client (self-preview no longer 500s, the real exploit still returns
+  the flag).
+- **Demo bots for the four attack packs, written** (`content/bots/steps.sh`, closes most of item 5 below): each bot
+  drives `/ctf-attack/attack/{start,status,stop}` via `bot-runner.sh`'s `portal_login`/`portal_curl`, runs the lab's
+  own taught technique with curl/python3/jq, and calls `dojo-flag submit`. `ctf-secrets-config`'s and
+  `ctf-trust-chain`'s bots correctly skip `git-secrets`/`tfstate-treasure`/`runner-escape` with a clear message — those
+  targets' seed repos are provisioned only for `studentNN` accounts, never bot (`testuserN`) accounts; that
+  provisioning gap is still open, not fixed.
+  - **Found and fixed, a real pre-existing engine bug, not a scripting mistake:** every pack's bots failed 100% —
+    every target reported "never went live" — because `portal_login()`'s first attempt (`http://gateway:8080/login`)
+    never reaches the allocator (200, empty body, no cookie: something answers before routing gets there), and its
+    documented fallback (retry via `$PUBLIC_BASE_URL` with `curl --connect-to`) could never engage because
+    **`web-terminal`'s compose environment never received `PUBLIC_BASE_URL`** — gateway and allocator both get it,
+    `web-terminal` didn't. One line added to `engine/docker-compose.yml`'s `web-terminal` env block. Confirmed by
+    replaying the login with the right Host header by hand (reaches the real allocator) before making the change, and
+    by a clean re-run after.
+  - **Found and fixed, a scripting bug, same copy-pasted bug in all four files:** `attack_start_and_wait`'s inner poll
+    loop declared `local doc state slot_target addr` — that `addr` shadows the name the function is supposed to hand
+    back to its caller via `eval "$out_var=..."`, so the caller's own `addr` stayed unset and crashed under `set -u`.
+    Dropped `addr` from that inner `local` line in all four `steps.sh` so the value falls through to the caller as
+    the function's `eval` mechanism intends. `bash -n` clean on all four.
+  - **Re-verified live after both fixes, `ctf-access` only, mixed result:** targets now genuinely go live with real
+    addresses. Independently replayed `sqli-login`'s exploit by hand against a live slot — it returns a correct flag,
+    matching the bot's own extraction. The bot run itself still showed one-off "never went live"/"no flag" per
+    target, which looks like a startup-timing race (the controller may report `state: live` a moment before the
+    app inside the container is actually serving), not a scripting defect — confirmed correct logic, not confirmed
+    reliable timing.
+  - **Re-verified live, `ctf-server-trust`, more concerning:** both bots finished round 1 with **zero** flags across
+    all 4 targets. Spot-checked by hand, bypassing the bot's timing entirely: `ssrf-fetcher`'s exploit and flag
+    extraction both work correctly (flag appears HTML-escaped in the response but `grep -o 'flag{[^}]*}'` still
+    matches it fine); `api-mass-assignment`'s full chain (login → PATCH `role=admin` → `/admin/report`) also works
+    correctly end to end, including the credential (`CTF_STUDENT` does equal the bot's own username, as the script
+    assumes). So the exploit logic for at least 2 of 4 targets is confirmed sound; the bot's zero-flags result is
+    provisionally attributed to the same timing-race class as `ctf-access`, but this pack hit it on **every** target
+    in one run, which is worse odds than `ctf-access` and worth one more real pass before trusting that explanation.
+    `ping-tool` and `api-bfla` were not independently spot-checked.
+  - **Not yet re-verified at all with both fixes in place:** `ctf-secrets-config`, `ctf-trust-chain` (both confirmed
+    the *old*, pre-fix "never went live on everything" failure earlier this session, but neither has been re-run
+    since the two fixes landed).
+- **2026-10-15, bots could not reach their slots, FIXED, then extended to every seeding hook, per the
+  user's direction ("treat bots like students across the board"):** not timing. The firewall hook,
+  the controller roster and ctf-host's IP aliases knew only `studentNN`, so `testuserN` had no ACCEPT
+  rule and the controller's `index.get(user, 0)` put every bot on slot 0. Bots are now appended to the
+  roster after the students (`BOT_COUNT`/`BOT_PREFIX`, unpadded `testuser1..`) everywhere a hook or
+  service builds one: `ctf-controller`, `ctf-checker`, `ctf-host/entrypoint.sh`, `50-ctf-range.sh`,
+  `attacker-bot/bot.py`'s own `roster()`, `ctf-view`'s and the defend swarm's compose env, and the
+  three Forgejo-seeding hooks that used to skip bots outright -- `55-git-secrets.sh`,
+  `95-tfstate-treasure.sh`, `96-runner-escape.sh` -- which now loop `student_count + bot_count` the
+  same way `50-ctf-range.sh` does. `openbao/setup/setup.sh`'s `par_each` already walked `BOT_COUNT`,
+  unchanged. All through `modules/`/`workshops/`, no `engine/` edit.
+  - **Demo bot steps written for all three previously-skipped labs** (`git-secrets`, `tfstate-treasure`
+    in `ctf-secrets-config`; `runner-escape` in `ctf-trust-chain`), each mirroring that target's own
+    `exploit/solve.py`: read the bot's own Forgejo repo (commit history, a committed tfstate, a PR-
+    branch workflow edit) using the `$NETRC`/`$GIT_SERVER` bot-runner.sh already provides, no new
+    plumbing needed.
+  - **Two more pre-existing bot bugs found and fixed along the way (not the seeding gap, found while
+    re-verifying all four packs with it closed):** `ctf-access`'s `idor-pcap` step piped a binary pcap
+    body through `grep -o` with no `-a`, and separately its `[^\r\n]*` character class excludes the
+    literal letters r/n, not an actual CR byte, so a raw trailing `\r` survived into the extracted
+    password and 401'd at `/admin`. Fixed both (`-a`, `tr -d '\r'` after extraction); confirmed by hand
+    first (curl the same chain manually, reproduce the 401, strip the `\r`, get a 200) before touching
+    the script.
+  - **All four attack packs live-verified end to end, locally, `--test 2 --fast`, one at a time,
+    `./dojo stop` between each:** `ctf-secrets-config` -- leaky-config, git-secrets and
+    tfstate-treasure all "Correct!" for the expert bot. `ctf-trust-chain` -- dns-resolver-cve (both
+    flags), policy-bypass and runner-escape (full PR-injection round-trip) all "Correct!"; zero logged
+    errors across 20 services. `ctf-access` -- all 4/4 "Correct!" after the pcap fix; zero errors.
+    `ctf-server-trust` -- all 4/4 "Correct!" (this pack's prior zero-flags result was the same firewall
+    gap, not something target-specific, now resolved). `ctf-defend` -- no custom bot steps exist there
+    (generic git workflow only, unchanged), but confirmed bots now hold real always-on defend slots
+    (`DOCKER_HOST ... docker ps` on `ctf-host` shows `ctf-{customer-portal,policy-bypass,leaky-config}
+    -testuser{1,2}`) with matching per-uid `CTF_ISOLATION` rules (uid 1004/1005) -- the roster/firewall
+    change doesn't break the always-on shape. Unit tests pass throughout: 122 engine, 77 ctf-controller,
+    13 ctf-checker, 91 attacker-bot.
+  - **`ctf-builder`'s pip install failure, root-caused and FIXED (2026-10-15, later in the same session):** not a
+  provisioning timing issue -- `ctf-host`'s inner dockerd uses the classic (non-BuildKit) Engine API builder, which
+  builds every `FROM` stage physically present in a Dockerfile, in file order, regardless of whether the final
+  stage's `FROM ${BASE}` ever resolves to it (it does not prune dependency-unreachable stages the way buildah/
+  BuildKit do). `targets/customer-portal/Dockerfile` kept a `deps` stage (`FROM python:3.12-slim` + `pip install`)
+  for the dev-only standalone compose service's benefit, reasoning (CTF-D16/S6, now known wrong) that the offline
+  path would never build it since the default `FROM` never points at it -- that stage built, and failed, on every
+  single rebuild, student and bot alike. Confirmed directly: replayed `ctf-builder`'s own clone-tar-build sequence
+  by hand against `ctf-host`'s real socket and read the full (untruncated) build stream -- Step 2 is
+  unconditionally `FROM python:3.12-slim AS deps`, Step 4 is `pip install`, both run before the final stage is ever
+  reached. Fixed by moving `deps` out of the Dockerfile entirely into a new `Dockerfile.dev` (used only by
+  `modules/ctf-range/compose.yml`'s dev-path service, `dockerfile: Dockerfile.dev`, no more `--build-arg`); the
+  in-lab Dockerfile now has exactly one stage and cannot contain a network-reaching step again, regardless of
+  which builder runs it. `sync-sample-repos.sh` re-run so the seeded student repos pick it up. Live-verified on a
+  clean cold start: replayed the real clone-tar-build-push sequence by hand against `student01/customer-portal`'s
+  freshly-seeded (fixed) repo -- 10 steps, no network call, `Successfully built`/`Successfully tagged`, then the
+  same build+push through `ctf-builder`'s own HTTP listener succeeded end to end
+  (`registry:5000/ctf-customer-portal:student01-customer-portal`), zero errors logged. `ctf-builder`'s 30 unit
+  tests still pass. `docs/CTF-SPIKES.md` has a correction note under the original (now-wrong) Run D entry.
+- **`ctf-secrets-config`'s `openbao-server` audit race, closed, with an honest caveat (2026-10-15):** root cause
+  confirmed: `config.hcl` declares the file audit device statically, so OpenBao enables it at boot, before this
+  single-node raft cluster finishes electing itself leader (storage is read-only until then); any request landing
+  in that window -- including `setup.sh`'s own first `bao token lookup` -- can't persist the audit device's HMAC
+  salt and logs a harmless "failed to audit response... cannot write to readonly storage", 5 lines, every cold
+  start. Fixed with a `wait_writable()` poll of `sys/health` (unauthenticated, exempt from the audit device, so
+  polling it costs nothing and never itself lands in the window) right after unseal, before the first authenticated
+  call. Live-verified, twice: the 5-line audit error is gone on both reruns of `ctf-secrets-config --test 1 --fast`.
+  **Caveat, found by A/B testing with and without the fix:** removing those 5 lines reliably surfaces a different,
+  single, also-benign OpenBao startup message instead -- `failed to unlock initialization lock: error="cannot find
+  peer"` -- which a pre-fix rerun never showed at all. Reproduces with either a poll-based or a plain fixed-sleep
+  wait, so it isn't caused by the specific polling mechanism, just by *delaying* the first external request at all;
+  the most likely explanation is that OpenBao's own internal init-lock-release goroutine and the raft peer-set
+  population are both timing-sensitive to the same leader-election window from a different angle, and the two
+  external-facing symptoms (audit-write failures vs. this) trade off against each other depending on exactly when
+  the first outside request arrives. Not chased further: both are cosmetic single-node-raft bootstrap noise from
+  the same underlying category (confirmed by `./dojo logs --errors` reporting the pack clean of real
+  Traceback/panic/Exception either way, and `openbao-setup` still reaching "healthy" every time) -- this trades one
+  harmless startup line for a different, still-harmless one, not a net-zero win. Said plainly so it isn't mistaken
+  for a clean fix.
+- **Student-side scorecard route, verified live (2026-10-15, closes item 5 below):** with the user's go-ahead to
+  handle test credentials directly, logged in through the real class login (`student`/`student`, this machine's
+  dev default) on a running `ctf-secrets-config` stack, claimed a real slot via `POST /assign`, and called
+  `GET /achievements/api/scorecard` with the resulting session cookie -- 200, correct shape
+  (`{"user": "<anonymized name>", "targets": [], "total": 0, "max": 0, "retries": 0, "mttp": null}`; empty/zero is
+  expected here since this pack has no severity-weighted targets, unlike `ctf-defend`). The route, auth flow and
+  per-student identity all work for a real student account, not just the facilitator's admin view.
+- **Scorecard/leaderboard "arithmetic mismatch" (item 4 below): closed, not a bug.** See the entry above dated
+  2026-10-15 under the defend-redesign "Decided 2026-10-14 (second pass)" section: the weight only ever exists for
+  `ctf-defend`'s three targets, and the flat milestone ledger there is deliberate, already documented in that
+  pack's own `ACHIEVEMENTS.md`/`catalog.json`. No other pack has a `weight` concept at all. No code change.
+- **`INCIDENT.md` gate enforcement: removed, decided against with the user (2026-10-15).** Dropped the "Incident
+  note" CI step from both `defend-pr.yml` copies (it hard-failed a job the rest of the gate treats as advisory) and
+  every mention of it as a gate requirement across the lab, cheat sheet, slides, facilitator doc, the three
+  `_fallback` READMEs and both `lab-info/defend-loop.md` copies. The loop (detect, triage, contain, fix, verify)
+  and the gate's two remaining checks (attack blocked, normal use still works) are unchanged.
+- ~~**Pick up here tomorrow**~~ — items 1-3 (re-run all four attack packs with the firewall/roster fix) done
+  2026-10-15 above, all 4/4 targets correct in every pack. Items 4 and 5 closed above too. Next: commit, update
+  `RELEASES.md`.
+
 **Open, in order:**
 
-1. **Class-sized runs (CTF-P4/P7).** Every live check so far was one or two seats. Still unwatched: 40-student
-   capacity and isolation, the swarm with real dwell and ramp durations, the Target Viewer card as a student. The
-   defend lab is now sized for 20.
-2. **The defend redesign above:** decisions, then spec into section 8, then build.
-3. **End-of-session scoring summary** (8.10, CTF-D19; the per-target arithmetic is built) and open questions 1-3
-   (section 13). The wall toggle and route (8.12) are built. The S17 scanners for targets 8-11 stay parked.
-4. **Check that `customer-portal` is in no attack catalog.** It is defend-only by design, so this is expected, but its
-   themed page was only tested with the Flask client.
-5. **No demo-bot steps in the four attack packs.** `--test` bots run only the generic git workflow, so they never
-   solve an attack lab (2026-10-14: zero unlocks in `ctf-access` and `ctf-trust-chain`; `git-fundamentals` has a
-   `content/bots/steps.sh`, these packs do not). Discovery surfaces were checked by hand and by each target's
-   `exploit/solve.py` (`weak-auth-portal` still solves). `ssrf-fetcher` previewing `127.0.0.1:5000` returns a 500
-   (not confirmed as new).
+1. **Real-time dwell and the Target Viewer card.** The swarm has only run at `CTF_TIME_SCALE=0.1`; watch one run at
+   scale 1 and open the Target Viewer card as a student. (Class-sized runs are dropped from the plan, 2026-10-14.)
+2. **The defend redesign above:** decisions, then spec into section 8, then build. `INCIDENT.md` gate enforcement
+   decided against 2026-10-15 (above); the stagger interval still needs a pilot.
+3. ~~End-of-session scoring summary~~ — built 2026-10-14 evening; arithmetic-mismatch decision closed and
+   student-side route verified live, both 2026-10-15 (above).
+4. ~~Check that `customer-portal` is in no attack catalog~~ — confirmed 2026-10-14 evening (above).
+5. ~~Demo-bot steps in the four attack packs~~ — written 2026-10-14 evening, blocked on a real firewall/roster bug
+   found and fixed 2026-10-15 (above); all four packs now live-verified 4/4 (or 3/3 for the `intermediate` persona,
+   by design) per target.
+6. ~~`ctf-builder`'s pip install failure~~ — root-caused and fixed 2026-10-15 (above).
+7. ~~`ctf-secrets-config`'s `openbao-server` audit race~~ — fixed 2026-10-15, with a caveat worth reading (above):
+   a different, equally benign single-node-raft startup message surfaced in its place.
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 
@@ -913,10 +1079,10 @@ and security-team key are `<target>-proxy` / `<target>-secteam` rendered from `S
   `status=200`, then `auth=basic-ok` for `ops-admin` from a `ua` absent from benign traffic.
 
 **Scoring and gate.** Green 10 / yellow 5 / red 0 per target times weight; time to contain and MTTP are display only.
-`INCIDENT.md` per PR, presence and non-empty headings only ("What was hit", "How I know", "Impact"). Stagger default
-0.5 x dwell, to be tuned in a pilot with 2-3 people.
+No `INCIDENT.md` gate (decided against 2026-10-15, below). Stagger default 0.5 x dwell, to be tuned in a pilot
+with 2-3 people.
 
-**Not yet verified:** a full live loop, a 20-student run, real-time dwell, stagger tuning (see ROADMAP).
+**Not yet verified:** a full live loop, real-time dwell, stagger tuning (see ROADMAP).
 
 ---
 
@@ -968,7 +1134,6 @@ Per session pack, from `./dojo new-workshop`:
 | CTF-P2 | Flag service, `dojo-flag`, achievements event, `/admin` tab | A solve script's flag verifies; a copied flag does not |
 | CTF-P2b | Lab Info library (Linux primer plus every tool primer), card and admin tab | Every installed tool has a primer; a reviewer finds no lab-specific payloads |
 | CTF-P3 | Targets 0-4, 7, 12 and 13 and the CTF-1/CTF-2 packs | Every target solved by its script under `--test`; labs walked by hand; target 13's solve script never actually fires its destructive route against the live range |
-| CTF-P4 | Class-size checks | `--test N` at 40 students (CTF-5 means 160 targets); target-to-target and listener isolation tests pass; memory sized |
 | CTF-P5 | Targets 5, 6, 8-11 and the CTF-3/CTF-4 packs | Solved by script; rung 10's failure case documented |
 | CTF-P6 | CTF-5 defend: build target 14 `customer-portal` and the CI gate (scan + exploit re-run) and merge→rebuild→redeploy loop first, then the live bot, SOC feed and wall of shame | A fixed PR passes the pipeline and the unfixed one fails; a merge to main rebuilds and redeploys the student's app in place so the live bot's next dump returns no data; a successful dump posts to the wall of shame and a contained one ages off |
 | CTF-P7 | Live checks | One real class on the Azure path; results in `RELEASES.md` |
@@ -1069,8 +1234,8 @@ Questions 1-13 of draft 1 are resolved in [`CTF-SPIKES.md`](CTF-SPIKES.md) (CTF-
 
 1. **Multiplier.** Decided 2026-10-14: x5 (10/5/0, bonus +5).
 2. **Ramp floor.** Decided 2026-10-14: 5 s (`personas.RAMP_FLOOR`), scaled by `CTF_TIME_SCALE`.
-3. **Lab Info ownership.** Who reviews the primers for leaked payloads? Proposed: a checklist in CTF-P2b, checked
-   against every solve script.
+3. **Lab Info ownership.** Decided 2026-10-14: the user reviews the primers for leaked payloads, by hand, against
+   every `solve.py` (CTF-P2b).
 
 ## Appendix: the HTB reference list, corrected
 

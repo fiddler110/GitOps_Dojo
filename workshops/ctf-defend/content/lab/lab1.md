@@ -106,14 +106,13 @@ git commit -m "Fix <target>"
 git push -u origin fix-<target>
 ```
 
-Open a pull request in Forgejo. The gate has three parts:
+Open a pull request in Forgejo. The gate has two parts:
 
-- `INCIDENT.md` exists at the repo root with three headings, each with something under it:
-  `What was hit`, `How I know`, `Impact`. Write it from your triage, in your own words. The gate only checks it
-  is there; a reviewer will care that it is true.
-- The checker runs the attack against **your branch** and one normal request, and the PR can only merge when
-  the attack is blocked and normal use works.
+- The checker runs the attack against **your branch** and one normal request.
 - Its note tells you what it saw, one sentence, never the payload.
+
+The gate is advisory: a failing check doesn't block the merge, so you can still ship and `dojo-reset <target>`
+undoes a box you broke.
 
 Merge. The merge rebuilds the image and redeploys that slot in place, with nothing for you to ask anyone.
 Then **verify**: `dojo-check <target>` and the SIEM.

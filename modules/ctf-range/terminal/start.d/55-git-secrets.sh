@@ -75,9 +75,18 @@ until [ "$(http_status "$api/user")" = "200" ]; do
   sleep 5
 done
 
+# Demo bots (--test N) are seeded exactly like students: they walk the same labs
+# to prove them. Engine names: studentNN (padded), testuserN (unpadded).
+bot_count="${BOT_COUNT:-0}"
+bot_prefix="${BOT_PREFIX:-testuser}"
+
 counter=1
-while [ "$counter" -le "$student_count" ]; do
-  username="$(printf '%s%02d' "$student_prefix" "$counter")"
+while [ "$counter" -le $((student_count + bot_count)) ]; do
+  if [ "$counter" -le "$student_count" ]; then
+    username="$(printf '%s%02d' "$student_prefix" "$counter")"
+  else
+    username="${bot_prefix}$((counter - student_count))"
+  fi
   counter=$((counter + 1))
 
   j=0

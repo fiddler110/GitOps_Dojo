@@ -127,7 +127,14 @@ def preview():
     try:
         with urllib.request.urlopen(url, timeout=5) as resp:
             body = resp.read(2000).decode("utf-8", "replace")
-    except (urllib.error.URLError, ValueError) as exc:
+    except (urllib.error.URLError, ValueError, OSError) as exc:
+        # OSError also catches socket.timeout/TimeoutError: previewing this
+        # app's own public port (127.0.0.1:$PORT) makes the single-threaded
+        # dev server (threaded=False) fetch itself while already busy
+        # handling this very request, so the fetch always times out rather
+        # than connecting or refusing. Without OSError here that timeout
+        # propagated unhandled and Flask answered 500 instead of a normal
+        # "fetch failed" preview body.
         body = f"(fetch failed: {exc})"
         if "refused" in str(exc):
             body += "\n(nothing is listening on that host and port)"

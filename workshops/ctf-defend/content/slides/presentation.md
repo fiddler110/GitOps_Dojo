@@ -96,8 +96,8 @@ git checkout -b fix-<target>
 git push -u origin fix-<target>
 ```
 
-The PR gate wants an `INCIDENT.md` (what was hit, how you know, impact),
-and runs the attack against your branch. Merge, and your slot redeploys.
+The PR gate runs the attack against your branch and one normal request (advisory: it never blocks the merge).
+Merge, and your slot redeploys.
 
 ---
 

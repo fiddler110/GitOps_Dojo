@@ -46,6 +46,8 @@ services:
       - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       # No CTF_CHALLENGE: the bot reads its per-student schedule (target order + start offsets) from
       # ctf-controller's GET /schedule and attacks every target in CTF_DEFEND_TARGETS.
       - CTF_DEFEND_TARGETS=${CTF_DEFEND_TARGETS:-customer-portal policy-bypass leaky-config}

@@ -50,8 +50,3 @@ verdict only, never a payload or data, so it tells you whether, not how.
 It checks the **running** app, so merge first (the merge redeploys). The pull-request gate runs the same checks
 against your branch before it lets you merge.
 
-## The incident note
-
-The PR gate wants an `INCIDENT.md` at the repo root with three headings, each with something under it:
-`What was hit`, `How I know`, `Impact`. Write what you saw, which log line told you, and what an attacker
-could have done. It is a note a teammate could act on, not a ritual.

@@ -9,6 +9,7 @@ Student routes (gateway identity gate, mounted at /achievements, prefix stripped
                           as the attacker swarm sees it
   GET  /map, /api/map     the cyber map widget (plan §8.3): room-wide recent traffic arcs plus
                           the "Top 10 under siege" list - any signed-in caller, same tier as /wall
+  GET  /api/scorecard            the caller's own end-of-session scorecard (plan 8.10; shown on /soc)
   GET  /incident, /api/incident   the caller's own incident summary for the debrief (plan §8.9)
   GET  /api/me            the caller's score, rank, completion, recent unlocks, Moments
   GET  /api/board         the whole class (anonymous names when ACHIEVEMENTS_ANONYMOUS=1)
@@ -33,6 +34,7 @@ Facilitator (route /achievements-admin, facilitator gate, prefix kept):
   GET  /achievements-admin/api/map   the same cyber map data, facilitator-side (+ student ids)
   POST /achievements-admin/api/region   {user, region}: override one student's map point
   (/soc is one page: alerts + map + incident; /map and /incident redirect to it)
+  GET  /achievements-admin/api/scorecard   the room scorecard: all totals, light counts, mean time, export rows
   GET  /achievements-admin/api/incident?user=NAME   any student's incident summary
   POST /api/soc/start, /api/soc/reset   start (or re-arm) the SOC countdown/attack swarm -
                           nothing runs until this is clicked (plan §8.2, revised 2026-10-05)
@@ -364,6 +366,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/incident":
             # The caller's own incident summary for the debrief (plan §8.9).
             return self._json(200, store.incident(self._need(caller)))
+        if path == "/api/scorecard":
+            # The caller's own end-of-session scorecard (plan 8.10).
+            return self._json(200, store.scorecard(self._need(caller)))
         if path == "/api/toasts":
             surface = (query.get("surface") or ["page"])[0][:20]
             try:
@@ -484,6 +489,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not user:
                 raise Denied(400, "user is required")
             return self._json(200, store.admin_incident(user))
+        if path == "/api/scorecard":
+            return self._json(200, store.admin_scorecard())
         self._json(404, {"error": "not found"})
 
     def _admin_post(self, path):
