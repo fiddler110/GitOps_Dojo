@@ -66,10 +66,12 @@ for _candidate in (os.path.join(HERE, "exploit"),
 CTF_EVENTS = {"dump_success"}   # everything else is a `soc` alert (see store.py's SOC_SEVERITY)
 
 
-def roster(prefix, count):
-    """Student handles in the same order/padding as controller.py's roster() - the roster
-    index is also the published-port offset, so this MUST match exactly."""
-    return [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+def roster(prefix, count, bot_prefix="testuser", bot_count=0):
+    """Student handles, then demo bots (`--test N`, unpadded), in the same order/padding as
+    controller.py's roster() - the roster index is also the published-port offset, so this
+    MUST match exactly."""
+    return ([f"{prefix}{n:02d}" for n in range(1, count + 1)]
+            + [f"{bot_prefix}{n}" for n in range(1, bot_count + 1)])
 
 
 def target_url(host, port_base, index):
@@ -346,7 +348,8 @@ def main():
     if scale != 1.0:
         print(f"[attacker-bot] CTF_TIME_SCALE={scale}: dwell {dwell_seconds}s, ramp {ramp_seconds}s", flush=True)
 
-    users = roster(prefix, count)
+    users = roster(prefix, count, os.environ.get("BOT_PREFIX", "testuser") or "testuser",
+                   int(os.environ.get("BOT_COUNT", "0") or 0))
     clients = {"ctf": AdapterClient(adapter_url, adapter_secret, source="ctf"),
               "soc": AdapterClient(adapter_url, adapter_secret, source="soc")}
     print(f"[attacker-bot] {len(users)} students ready, targeting {host}:{port_base}+ - "

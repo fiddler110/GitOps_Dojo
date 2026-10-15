@@ -150,6 +150,7 @@ services:
       # 4 per student fits 30 students in a /24. Must match the controller's
       # ATTACK_IP_BASE_OCTET / ATTACK_IPS_PER_STUDENT (controller.py).
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
+      - BOT_COUNT=${BOT_COUNT:-0}
       - CTF_ATTACK_IP_BASE_OCTET=${CTF_ATTACK_IP_BASE_OCTET:-100}
       - CTF_ATTACK_IPS_PER_STUDENT=${CTF_ATTACK_IPS_PER_STUDENT:-4}
     volumes:
@@ -222,6 +223,8 @@ services:
       - CTF_SOCKET=/run/ctf/docker.sock
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       # The range-wide flag seed (§5). Lives ONLY here; the rendered per-slot
       # value is injected into each target, the seed never is. Dev fallback if
       # unset (no `:?`, so the stack still comes up — see CLAUDE.md).
@@ -310,6 +313,8 @@ services:
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_VIEW:-}
       - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
       - CTF_TARGET_PORT=5000
@@ -448,6 +453,8 @@ services:
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
       - STUDENT_PREFIX=${STUDENT_PREFIX:-student}
+      - BOT_COUNT=${BOT_COUNT:-0}
+      - BOT_PREFIX=${BOT_PREFIX:-testuser}
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
       - CTF_HOST=ctf-host
       - CTF_HOST_PORT_BASE=${CTF_HOST_PORT_BASE:-15000}

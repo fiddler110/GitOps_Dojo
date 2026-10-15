@@ -188,6 +188,13 @@ services:
       # (break, end of class) without touching anyone still connected.
       - CODE_SERVER_RECONNECTION_GRACE_SECONDS=${CODE_SERVER_RECONNECTION_GRACE_SECONDS:-300}
       - CODE_SERVER_IDLE_TIMEOUT_SECONDS=${CODE_SERVER_IDLE_TIMEOUT_SECONDS:-900}
+      # bot-runner.sh's portal_login(): the gateway's site is keyed to
+      # PUBLIC_BASE_URL's host, so a bot's first login attempt (plain
+      # "http://gateway:8080/login") never reaches the allocator -- it needs
+      # this to retry via --connect-to at the real host. Without it every
+      # class-login-gated portal call a bot makes (CTF attack-range starts,
+      # policy-bypass's drift check, ...) silently fails.
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       # Shared secret workspace-control.py checks on every request -- proves
       # a start/stop/status call actually came from the allocator, not some
       # other container on this internal network. Must match allocator's

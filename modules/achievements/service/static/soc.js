@@ -275,7 +275,49 @@
       .catch(function () {});
   }
 
-  function refresh() { return Promise.all([loadFeed(), loadMap(), loadIncident()]); }
+  function loadScore() {
+    var tb = $('score-rows');
+    if (!tb) { return Promise.resolve(); }
+    if (admin) {
+      return fetch('api/scorecard', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) { return; }
+          $('score-total').textContent = 'room: ' + d.lights.green + ' green / ' + d.lights.yellow + ' yellow / ' +
+            d.lights.red + ' red, mean time to contain ' + duration(d.mttp_mean);
+          clear(tb);
+          d.students.forEach(function (c) {
+            var tr = document.createElement('tr');
+            tr.appendChild(cell(c.user));
+            tr.appendChild(cell(c.targets.map(function (t) { return t.light; }).join(' / ')));
+            tr.appendChild(cell(c.total + ' / ' + c.max));
+            tr.appendChild(cell(duration(c.mttp)));
+            tr.appendChild(cell(c.retries));
+            tb.appendChild(tr);
+          });
+        }).catch(function () {});
+    }
+    return fetch('api/scorecard', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) { return; }
+        $('score-total').textContent = d.total + ' / ' + d.max + ' points';
+        clear(tb);
+        d.targets.forEach(function (t) {
+          var tr = document.createElement('tr');
+          tr.appendChild(cell(t.target));
+          tr.appendChild(cell(t.weight));
+          tr.appendChild(cell(t.light, t.light === 'red' ? 'neg' : t.light === 'yellow' ? 'warn' : ''));
+          tr.appendChild(cell(t.units));
+          tr.appendChild(cell(t.points + ' / ' + t.max));
+          tr.appendChild(cell(duration(t.mttp)));
+          tr.appendChild(cell(t.retries));
+          tb.appendChild(tr);
+        });
+      }).catch(function () {});
+  }
+
+  function refresh() { return Promise.all([loadFeed(), loadMap(), loadIncident(), loadScore()]); }
   var api = {
     onTimer: null,
     refresh: refresh,

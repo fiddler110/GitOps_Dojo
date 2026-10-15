@@ -101,9 +101,18 @@ port_stride="${CTF_PORT_STRIDE:-100}"
 defend_target_count=0
 for _t in ${CTF_DEFEND_TARGETS:-}; do defend_target_count=$((defend_target_count + 1)); done
 
+# Demo bots (--test N) sit after the students in the controller's roster, so
+# their slot index continues from student_count. They are unpadded accounts.
+bot_count="${BOT_COUNT:-0}"
+bot_prefix="${BOT_PREFIX:-testuser}"
+
 counter=1
-while [ "$counter" -le "$student_count" ]; do
-  username="$(printf '%s%02d' "$student_prefix" "$counter")"
+while [ "$counter" -le $((student_count + bot_count)) ]; do
+  if [ "$counter" -le "$student_count" ]; then
+    username="$(printf '%s%02d' "$student_prefix" "$counter")"
+  else
+    username="${bot_prefix}$((counter - student_count))"
+  fi
   port=$((host_port_base + counter - 1))         # 0-based index, same as controller.py's Config.index
   uid="$(id -u "$username" 2>/dev/null || true)"
   if [ -n "$uid" ]; then

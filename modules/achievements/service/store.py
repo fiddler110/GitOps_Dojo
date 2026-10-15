@@ -592,6 +592,65 @@ class Store:
                 by_user.setdefault(r["user"], []).append(r["mttp"])
         return [{"user": u, "mttp": sum(v) / len(v)} for u, v in sorted(by_user.items())]
 
+    # -- end-of-session scorecard (plan 8.10 / 8.13, CTF-D19) -----------------------------
+    UNITS = {"green": 2, "yellow": 1, "red": 0}
+
+    def _card(self, label, rows, targets, factor):
+        """One student's card from their status rows. points = units x weight x factor."""
+        by = {r["challenge"]: r for r in rows}
+        out, total, best, times, retries = [], 0, 0, [], 0
+        for t in targets:
+            r = by.get(t)
+            light = r["status"] if r else "green"
+            w = (self.target_meta.get(t, {}).get("weight")) or 1
+            units = self.UNITS.get(light, 0)
+            pts = units * w * factor
+            total += pts
+            best += 2 * w * factor
+            if r and r["mttp"] is not None:
+                times.append(r["mttp"])
+            retries += r["retries"] if r else 0
+            out.append({"target": t, "weight": w, "light": light, "units": units, "points": pts,
+                        "max": 2 * w * factor, "mttp": r["mttp"] if r else None,
+                        "retries": r["retries"] if r else 0})
+        return {"user": label, "targets": out, "total": total, "max": best, "retries": retries,
+                "mttp": (sum(times) / len(times)) if times else None}
+
+    def _scorecard_setup(self):
+        rows = self.target_statuses()
+        targets = sorted(set(self.target_meta) | {r["challenge"] for r in rows},
+                         key=lambda t: (-(self.target_meta.get(t, {}).get("weight") or 0), t))
+        return rows, targets, self.config.points.get("milestone", 10)
+
+    def scorecard(self, user):
+        """The caller's own card. The facilitator's own view is the admin page: quietly empty."""
+        if user == self.facilitator:
+            return {"user": "", "targets": [], "total": 0, "max": 0, "retries": 0, "mttp": None}
+        with self.lock:
+            self._student(user)
+            label = self._label(user)
+        rows, targets, factor = self._scorecard_setup()
+        return self._card(label, [r for r in rows if r["user"] == label], targets, factor)
+
+    def admin_scorecard(self):
+        """Room view: every student's card, best first, plus light counts and mean time to contain."""
+        with self.lock:
+            labels = [self._label(u) for u in self.ledger.users]
+        rows, targets, factor = self._scorecard_setup()
+        cards = [self._card(l, [r for r in rows if r["user"] == l], targets, factor) for l in labels]
+        cards.sort(key=lambda c: (-c["total"], c["user"]))
+        lights = {"green": 0, "yellow": 0, "red": 0}
+        for c in cards:
+            for t in c["targets"]:
+                lights[t["light"]] = lights.get(t["light"], 0) + 1
+        ts = [r["mttp"] for r in rows if r["mttp"] is not None]
+        export = [{"student": c["user"], "total": c["total"], "max": c["max"], "mttp": c["mttp"],
+                   "retries": c["retries"],
+                   **{t["target"] + "_light": t["light"] for t in c["targets"]},
+                   **{t["target"] + "_points": t["points"] for t in c["targets"]}} for c in cards]
+        return {"students": cards, "lights": lights, "factor": factor,
+                "mttp_mean": (sum(ts) / len(ts)) if ts else None, "export": export}
+
     # -- student regions (geo.py): where each student's point sits on the cyber map ------------
     REGION_RECHECK = 600     # seconds between lookups for one student (a laptop changes network)
 

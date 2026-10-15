@@ -54,7 +54,16 @@ def roster(env):
         count = int(env.get("STUDENT_COUNT", "0") or 0)
     except ValueError:
         count = 0
-    return [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+    users = [f"{prefix}{n:02d}" for n in range(1, count + 1)]
+    # Demo bots (`--test N`) are accounts like any other, so they get slots too,
+    # after the students so a student's index never moves. The engine names
+    # them unpadded: testuser1, testuser2, ...
+    bot_prefix = env.get("BOT_PREFIX", "testuser") or "testuser"
+    try:
+        bots = int(env.get("BOT_COUNT", "0") or 0)
+    except ValueError:
+        bots = 0
+    return users + [f"{bot_prefix}{n}" for n in range(1, bots + 1)]
 
 
 class Config:

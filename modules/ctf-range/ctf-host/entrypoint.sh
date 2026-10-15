@@ -53,13 +53,15 @@ if [ -n "$ctf_net_if" ] && [ -n "${STUDENT_COUNT:-}" ]; then
   per="${CTF_ATTACK_IPS_PER_STUDENT:-4}"
   i=0
   added=0
-  while [ "$i" -lt "$STUDENT_COUNT" ]; do
+  # Demo bots hold slots after the students (controller.py roster()).
+  total=$((STUDENT_COUNT + ${BOT_COUNT:-0}))
+  while [ "$i" -lt "$total" ]; do
     j=0
     while [ "$j" -lt "$per" ]; do
       octet=$((base + i * per + j))
       if [ "$octet" -gt 254 ]; then
         echo "ctf-host: attack IP octet $octet exceeds /24 range; stopping" >&2
-        i="$STUDENT_COUNT"; j="$per"
+        i="$total"; j="$per"
         continue
       fi
       ip addr add "$prefix$octet/24" dev "$ctf_net_if" 2>/dev/null && added=$((added + 1)) || true

@@ -117,10 +117,10 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Defend lab redesign: built and live-verified once (RELEASES; as-built contract: plan 8.13); open: student-side SOC feed check, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, a 20-student run, real-time dwell (`CTF_TIME_SCALE=1`). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
-| 2 | Class-sized run: capacity and isolation (40 for the attack packs, 20 for defend), the swarm with real dwell and ramp times, the Target Viewer card as a student |
-| 3 | End-of-session scoring summary (CTF-D19), plan open questions 1-3 |
-| 4 | The four attack packs have no demo-bot steps (`content/bots/steps.sh`), so `--test` bots run only the generic git workflow and never solve an attack lab (checked 2026-10-14: zero unlocks in `ctf-access` and `ctf-trust-chain`). Add steps per pack if a bot run should exercise the labs, as `git-fundamentals` does; look at `ssrf-fetcher` fetching its own `127.0.0.1:5000` (500) |
+| 1 | Defend lab redesign: built and live-verified once (RELEASES; as-built contract: plan 8.13); open: student-side SOC feed check, a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell, real-time dwell (`CTF_TIME_SCALE=1`). Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
+| 2 | Real-time dwell run (`CTF_TIME_SCALE=1`) and the Target Viewer card as a student (class-sized runs dropped from the CTF plan 2026-10-14) |
+| 3 | End-of-session scoring summary: built, live-checked; open: the scorecard/leaderboard arithmetic-mismatch decision (weight the ledger awards or keep them different, see the plan's 2026-10-14/15 entries) and a human curling the student-side `/api/scorecard` route logged in as a real student |
+| 4 | ~~Demo-bot steps for the four attack packs~~ — written, then blocked on a real bug: the per-uid firewall/roster/seeding hooks only knew `studentNN`, never bot accounts, so no bot could reach its own slot or repo (fixed 2026-10-15, module-only, see plan). All four packs now live-verified 4/4 (or 3/3 for `intermediate`, by design) per target; `ssrf-fetcher`'s self-preview 500 and two bot-script bugs (binary `grep`, a stray `\r`) were also found and fixed along the way |
 | 5 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run
