@@ -18,6 +18,7 @@ WSL2 desktop stack at `http://localhost:8080`.
 - **RV33**: new `feedback` module: a Feedback card (four 1-5 ratings and a comment, resubmit replaces), a facilitator tab with means,
   counts, comments and a CSV/JSON export without usernames. Opt-in: list `feedback` in `MODULES=`. Tested locally on
   git-fundamentals through the service (student submit, facilitator-only summary and export). Not covered: the card and tab in a browser.
+- `feedback` is listed in the seven teaching packs (not the CTF series); `--dry-run` passes for each.
 - Dropped by decision 2026-10-15: RV34 terminal recording, RV37 several classes at once; RV36 and RV38 held (a full reset
   means taking the workshop down and rebuilding).
 
