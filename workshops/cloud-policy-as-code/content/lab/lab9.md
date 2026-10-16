@@ -2,9 +2,9 @@
 
 **Time:** about 25 minutes. **Goal:** turn a policy into code that checks an OpenTofu *plan*, run it with `conftest`, and compare what it says with what the cloud says.
 
-> **Starting here?** This lab needs your clone, the app applied, and the policy from Labs 3-8. Run `lab-prep 9` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone, the app applied, and the policy from Labs 3-8. Run `dojo prep 9` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 ```
 
@@ -20,14 +20,12 @@ The tool is **Open Policy Agent** (OPA), and its language is **Rego**. `conftest
 
 ## 1. Look at what a plan really contains
 
-```bash
-cd infra
-tofu plan -out=plan.out
-tofu show -json plan.out > plan.json
-python3 -m json.tool plan.json | head -50
-```
+`tofu plan -out=plan.out` saves a plan to a file, and `tofu show -json` turns it into JSON that other tools can read. (`plan.out` and `plan.json` are in `.gitignore`: a plan can contain secrets, so never commit one.)
 
-(`plan.out` and `plan.json` are in `.gitignore`: a plan can contain secrets, so never commit one.)
+```text
+tofu plan -out=<file>
+tofu show -json <file> > <json file>
+```
 
 The plan is a JSON document. The part the policy cares about is `resource_changes`, a list with one entry per resource:
 
@@ -52,12 +50,24 @@ The plan is a JSON document. The part the policy cares about is `resource_change
 
 Three things to remember: `address` names the resource, `change.actions` says what will happen (`create`, `update`, `delete`, `no-op`), and `change.after` is the resource *as it will be* once applied. Rego will walk this structure.
 
+**Your turn:** predict: which `actions` will the app's existing resources show, since nothing has changed?
+
+```sh
+cd infra
+tofu plan -out=plan.out
+tofu show -json plan.out > plan.json
+python3 -m json.tool plan.json | head -50
+```
+
+<!-- dojo-reveal: What the plan JSON shows -->
+
+- `resource_changes` has an entry per resource, and unchanged ones show `"actions": ["no-op"]`.
+
+<!-- /dojo-reveal -->
+
 ## 2. Read your first Rego rule
 
-```bash
-cd ..
-cat policy/rego/costcenter.rego
-```
+The rule lives in `policy/rego/costcenter.rego`. Open it in your editor, or print it, after reading it here:
 
 ```rego
 package main
@@ -92,9 +102,22 @@ Rego is not like the languages you know. It is a **query language**: a rule is a
 
 Two properties are worth saying out loud. A line that is **undefined** (a missing field) makes the whole body fail quietly rather than raise an error, which is why `not` is how you test for absence. And rules are **declarative**: you describe a violation, you do not write a loop. `some rc in ...` is the loop, and Rego runs the body for every one.
 
+**Your turn:** print the file and match each line to the table.
+
+```sh
+cd ..
+cat policy/rego/costcenter.rego
+```
+
 ## 3. Give it something to refuse
 
-Add a resource group with no `costCenter` tag. Open `infra/main.tf` and append:
+`conftest test` runs the Rego rules against the plan JSON. The plan itself will succeed, because OpenTofu does not know your policy; `conftest` does.
+
+```text
+conftest test --policy <dir> --namespace main <plan.json>
+```
+
+Add a resource group with no `costCenter` tag. Open `infra/main.tf` in your editor and append:
 
 ```hcl
 resource "azurerm_resource_group" "scratch" {
@@ -107,15 +130,33 @@ resource "azurerm_resource_group" "scratch" {
 }
 ```
 
-Plan it, turn it into JSON, and check it:
+**Prefer the terminal?**
 
-```bash
+```sh
+cat >> infra/main.tf <<'EOT'
+
+resource "azurerm_resource_group" "scratch" {
+  name     = "rg-${var.owner}-scratch"
+  location = var.location
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+EOT
+```
+
+**Your turn:** plan it, turn it into JSON, and check it. Before you run it, predict: how many tests will fail, and which resource will be named? Will `azurerm_resource_group.app` appear?
+
+```sh
 cd infra
 tofu plan -out=plan.out
 tofu show -json plan.out > plan.json
 cd ..
 conftest test --policy policy/rego --namespace main infra/plan.json
 ```
+
+<!-- dojo-reveal: Results of conftest -->
 
 ```text
 FAIL - infra/plan.json - main - azurerm_resource_group.scratch is missing the costCenter tag
@@ -127,12 +168,20 @@ The plan itself succeeded: OpenTofu does not know your policy. `conftest` did, a
 
 Note what did not fail: `azurerm_resource_group.app` is `no-op`, so the `create`/`update` filter skipped it. The check looks at **what is about to change**, not at everything.
 
+<!-- /dojo-reveal -->
+
 ## 4. Now ask the cloud
 
-```bash
+The cloud rule is the backstop. Apply the same plan and see what the platform says. (Answer `yes` when asked; it fails.)
+
+**Your turn:** predict: will the cloud agree with `conftest`? What will its message name?
+
+```sh
 cd infra
 tofu apply
 ```
+
+<!-- dojo-reveal: Results of tofu apply -->
 
 ```text
 Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-sam-scratch\")": unexpected status 403 (403 Forbidden) with error:
@@ -141,7 +190,7 @@ Policy: 'Require a costCenter tag'. Assignment 'team-baseline', definition 'Requ
 tag 'costCenter' does not exist.
 ```
 
-(Answer `yes` when asked; it fails.) Compare the two refusals:
+Compare the two refusals:
 
 | | `conftest` on the plan | the cloud |
 |---|---|---|
@@ -152,9 +201,11 @@ tag 'costCenter' does not exist.
 
 They are two copies of **the same rule**, written in two languages, which is the cost of shifting left: you now have two things to keep in step. Lab 10 is about how to be sure they stay right.
 
+<!-- /dojo-reveal -->
+
 ## 5. Fix it and clean up
 
-Add the missing tag to the scratch group and run the check again:
+In your editor, add the missing tag to the scratch group in `infra/main.tf`:
 
 ```hcl
   tags = {
@@ -164,7 +215,9 @@ Add the missing tag to the scratch group and run the check again:
   }
 ```
 
-```bash
+**Your turn:** run the check again. Predict the summary line.
+
+```sh
 cd infra
 tofu plan -out=plan.out
 tofu show -json plan.out > plan.json
@@ -172,20 +225,29 @@ cd ..
 conftest test --policy policy/rego --namespace main infra/plan.json
 ```
 
+<!-- dojo-reveal: Results of conftest -->
+
 ```text
 2 tests, 2 passed, 0 warnings, 0 failures
 ```
 
-You do not need the scratch group. Delete the whole `azurerm_resource_group.scratch` block from `infra/main.tf`, and check `git status`: only the files you meant to change should show (and none should be `plan.out` or `plan.json`).
+<!-- /dojo-reveal -->
 
-```bash
+You do not need the scratch group. Delete the whole `azurerm_resource_group.scratch` block from `infra/main.tf`, then check `git status`: only the files you meant to change should show (and none should be `plan.out` or `plan.json`), and the plan should be clean.
+
+```sh
+git status --short
 cd infra
 tofu plan
 ```
 
+<!-- dojo-reveal: Results of tofu plan -->
+
 ```text
 No changes. Your infrastructure matches the configuration.
 ```
+
+<!-- /dojo-reveal -->
 
 ## What just happened
 
@@ -195,9 +257,17 @@ No changes. Your infrastructure matches the configuration.
 
 ## Check yourself
 
-1. Why does a missing field not crash a Rego rule? *(an undefined expression makes the body fail quietly; so `not` is the way to test absence)*
-2. Why did `azurerm_resource_group.app` not appear in the failure, even though the rule covers resource groups? *(its action was `no-op`; the rule only looks at create and update)*
-3. What is the advantage of `conftest` over waiting for the cloud's 403? *(earlier feedback, no apply needed, and it can run on every pull request)*
+1. Why does a missing field not crash a Rego rule?
+2. Why did `azurerm_resource_group.app` not appear in the failure, even though the rule covers resource groups?
+3. What is the advantage of `conftest` over waiting for the cloud's 403?
+
+<!-- dojo-reveal: Show the answers -->
+
+1. An undefined expression makes the body fail quietly; so `not` is the way to test absence.
+2. Its action was `no-op`; the rule only looks at create and update.
+3. Earlier feedback, no apply needed, and it can run on every pull request.
+
+<!-- /dojo-reveal -->
 
 **Check box.** You are done when all of these hold:
 

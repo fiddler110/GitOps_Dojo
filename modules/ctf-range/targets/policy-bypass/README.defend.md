@@ -18,5 +18,5 @@ What the platform provides:
   A role header is only genuine when `X-Gateway-Token` equals `CTF_PROXY_TOKEN`.
 - `app.py` already has a helper, `_caller_role()`, which returns the proxy's role or `unknown`.
 - Your pull request is built and tested before it can be merged; merging to `main` redeploys your slot.
-- `dojo-check policy-bypass` in your terminal reports whether the live app is still exploitable.
+- `dojo check policy-bypass` in your terminal reports whether the live app is still exploitable.
 - Audit lines for each provision request appear in the security dashboard.

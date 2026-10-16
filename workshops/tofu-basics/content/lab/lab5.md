@@ -2,7 +2,7 @@
 
 **Goal:** create a resource group and a running container with `apply`, open the site it serves, and watch it appear in the portal.
 
-> **Starting here?** This lab needs your clone, with `terraform init` done for Dojo Cloud (Lab 4). Run `lab-prep 5` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone, with `terraform init` done for Dojo Cloud (Lab 4). Run `dojo prep 5` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -14,12 +14,7 @@ Keep the portal open in another tab (Home or **Resource groups**). You'll watch 
 
 ## 1. Read what you're about to build
 
-```sh
-cat locals.tf
-cat terraform.tfvars
-```
-
-`terraform.tfvars` holds the values (`location = "canadacentral"`, `environment = "dev"`, ...). `locals.tf` turns them into names and tags:
+Two files decide what gets built. `terraform.tfvars` holds the values (`location = "canadacentral"`, `environment = "dev"`, ...). `locals.tf` turns them into names and tags:
 
 | Local | Value for you | Rule |
 | ----- | ------------- | ---- |
@@ -28,19 +23,33 @@ cat terraform.tfvars
 | `dns_label` | `hello-dev-<your username>` | your site's name, unique across the class |
 | `tags` | `owner`, `env`, `managed_by` | `owner` and `env` are **required** |
 
-Now `main.tf`:
+`main.tf` has two resources. The important line is in the second one: `resource_group_name = azurerm_resource_group.main.name`. That reference tells OpenTofu the container group **depends on** the resource group, so the group is created first. The container itself runs the approved `dojo/hello:1.0` image and gets your message as the environment variable `MESSAGE`.
+
+**Your turn:** read the three files. Before you open `main.tf`, predict which of the two resources is created first, and which line tells OpenTofu so.
 
 ```sh
+cat locals.tf
+cat terraform.tfvars
 cat main.tf
 ```
 
-Two resources. The important line is in the second one: `resource_group_name = azurerm_resource_group.main.name`. That reference tells OpenTofu the container group **depends on** the resource group, so the group is created first. The container itself runs the approved `dojo/hello:1.0` image and gets your message as the environment variable `MESSAGE`.
+<!-- dojo-reveal: Results of reading the files -->
+
+The container group's `resource_group_name = azurerm_resource_group.main.name` is the line that makes the resource group come first.
+
+<!-- /dojo-reveal -->
 
 ## 2. `plan`
+
+`plan` is the rehearsal: nothing is sent to the cloud, but you see every attribute the cloud would receive.
+
+**Your turn:** before you run it, predict how many resources will be added, and which attributes will say `(known after apply)`.
 
 ```sh
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 Expected (abridged: the header text and a few lines are trimmed):
 
@@ -110,15 +119,21 @@ Changes to Outputs:
   + url         = "https://<class-address>/cloud/site/hello-dev-studentXX/"
 ```
 
-`studentXX` is your username, and `<class-address>` is whatever address your facilitator's server has. Nothing has been sent to the cloud: `plan` is a rehearsal.
+`studentXX` is your username, and `<class-address>` is whatever address your facilitator's server has. Nothing has been sent to the cloud.
+
+<!-- /dojo-reveal -->
 
 ## 3. `apply`
+
+`apply` sends the requests for real. The cloud accepts a request quickly, then OpenTofu politely keeps checking until the resource reports it is ready, so the portal shows things appearing before OpenTofu says "Creation complete".
+
+**Your turn:** run it, read the plan again, then type `yes`. **Now switch to the portal** and click **Refresh now** (or just wait: it refreshes by itself every ~3 seconds). Before you do, predict: which appears first in the terminal, and roughly how long will it take?
 
 ```sh
 terraform apply
 ```
 
-Read the plan again, then type `yes`. **Now switch to the portal** and click **Refresh now** (or just wait: it refreshes by itself every ~3 seconds).
+<!-- dojo-reveal: Results of apply -->
 
 Expected, in the terminal:
 
@@ -146,21 +161,21 @@ In the portal you should see the **resource group appear within a couple of seco
 
 Order matters: the resource group was created **first**, then the container group. You never wrote that order down; OpenTofu worked it out from the reference in `main.tf`, the same **dependency graph** idea as `random_pet` and `local_file` in Lab 1.
 
-**Optional: see the graph.** `terraform graph` prints the graph as text in DOT, the language of the Graphviz drawing tool. Save it to a file:
+<!-- /dojo-reveal -->
 
-```sh
-terraform graph > graph.dot
-```
-
-Open `graph.dot` in the VS Code editor (Explorer, left), press **Ctrl+A** then **Ctrl+C**, and paste it into <https://www.devtoolsdaily.com/graphviz/> in your own browser to draw it.
-
-How to read the picture:
+**Optional: see the graph.** `terraform graph` prints the graph as text in DOT, the language of the Graphviz drawing tool. Once you have drawn it, here is how to read the picture:
 
 - **An arrow means "waits for".** `azurerm_container_group.hello → azurerm_resource_group.main`: the container group can't start until the resource group exists.
 - **Work starts at the bottom and moves up.** The things nothing depends on sit at the top. The bottom holds what's needed first: your **variables** (folded-page shapes) and the **provider** (diamond). The two **resources** (boxes) sit in between, with `local.*` and `output.*` (ovals) around them.
 - **Ignore the plumbing.** `(expand)` is where OpenTofu works out how many copies of a resource there are (`count`, `for_each`). `provider[...] (close)` shuts the provider down once its last resource is done. `[root] root` is the finish line at the top.
 - **Find `output.url`.** Its arrows go only to `local.dns_label` and `var.portal_base_url`, never to a resource. That's why the plan above already showed the full `url`, while `fqdn` and `resource_id` said `(known after apply)`: those two wait for the container group, and a value that comes from a resource can't be known until the resource exists.
 - **It's not a numbered list.** Anything whose arrows all point at finished work starts straight away, in parallel with anything else that's ready. `destroy` follows the arrows in reverse. You'll see both in Lab 10.
+
+**Your turn:** save the graph to a file. Open `graph.dot` in the VS Code editor (Explorer, left), press **Ctrl+A** then **Ctrl+C**, and paste it into <https://www.devtoolsdaily.com/graphviz/> in your own browser to draw it.
+
+```sh
+terraform graph > graph.dot
+```
 
 Then delete the file, so it doesn't show up in `git status` later in this lab:
 
@@ -170,14 +185,17 @@ rm graph.dot
 
 ## 4. Open your site
 
+The `url` output is the link to your site. There are two ways to open it: the link itself, or **Browse** on the container's page in the portal, which always points at the right place.
+
+**Your turn:** print the link and open it. Before you do, predict what the page will say.
+
 ```sh
 terraform output url
 ```
 
-Two ways to open it:
+Open the link the `url` output shows, **or** in the portal go to **Container instances**, find `ci-hello-dev` and click **Browse**.
 
-- Open the link the `url` output shows, **or**
-- in the portal, go to **Container instances**, find `ci-hello-dev` and click **Browse**.
+<!-- dojo-reveal: What the site shows -->
 
 You should see a dark blue page saying **Hello from Dojo Cloud!**, with pills `owner: studentXX` and `image: dojo/hello:1.0`. That is a real container, started by your `apply`.
 
@@ -185,9 +203,15 @@ If the link from the terminal doesn't open on your setup, use **Browse** in the 
 
 The `fqdn` output (`hello-dev-studentXX.canadacentral.dojo-cloud.test`) is the address a real cloud would give the container. It isn't a real internet name in this lab, so you can't type it in a browser; the portal's **Browse** is the clickable route.
 
+<!-- /dojo-reveal -->
+
 ## 5. Explore in the portal
 
-Click `ci-hello-dev` in **Container instances**:
+The portal shows each resource from several angles: the summary, the tags, the raw API JSON, the container's logs, and the Activity log of every change. Every change to your subscription lands in the Activity log, whether OpenTofu or a person made it.
+
+**Your turn:** click `ci-hello-dev` in **Container instances** and look at each tab. Predict what the Activity log will say before you open it.
+
+<!-- dojo-reveal: What each tab shows -->
 
 - **Overview** shows resource group, location, FQDN, IP, size (0.25 vCPU / 0.125 GB), image, DNS label and the full **Resource ID**. It's the same ID printed in your terminal.
 - **Tags** shows `owner`, `env` and `managed_by` from `locals.tf`.
@@ -201,17 +225,26 @@ Create/Update resource group        Succeeded   rg-hello-dev-cac
 Create/Update container group       Succeeded   rg-hello-dev-cac / ci-hello-dev
 ```
 
-Every change to your subscription lands here, whether OpenTofu or a person made it. Remember that for Lab 7.
+Remember the Activity log for Lab 7.
+
+<!-- /dojo-reveal -->
 
 ## 6. Outputs, state, and "nothing to do"
+
+`terraform output` reprints the outputs, so you never need to scroll back for them. `terraform state list` shows what OpenTofu tracks. Now that state exists, `plan` **does** ask the cloud ("refreshing"): it compares your config, your state, and what is really there.
+
+**Your turn:** before you run these, predict what the plan will say, and what `git status --short` will print.
 
 ```sh
 terraform output
 terraform state list
 terraform plan
+git status --short
 ```
 
-`terraform output` prints the same three outputs as at the end of `apply`, so you never need to scroll back for them. `terraform state list` prints:
+<!-- dojo-reveal: Results of output, state list, plan and git status -->
+
+`terraform output` prints the same three outputs as at the end of `apply`. `terraform state list` prints:
 
 ```text
 azurerm_container_group.hello
@@ -227,13 +260,9 @@ azurerm_container_group.hello: Refreshing state... [id=/subscriptions/260eb175-.
 No changes. Your infrastructure matches the configuration.
 ```
 
-Now that state exists, `plan` **does** ask the cloud ("refreshing"): it compares your config, your state, and what is really there. All three agree.
+All three (config, state, cloud) agree. `git status --short` prints nothing: `terraform.tfstate` and `.terraform/` are in `.gitignore`, and you haven't edited any tracked file.
 
-```sh
-git status --short
-```
-
-This prints nothing: `terraform.tfstate` and `.terraform/` are in `.gitignore`, and you haven't edited any tracked file.
+<!-- /dojo-reveal -->
 
 **Leave everything running.** Labs 6 to 9 build on it.
 
@@ -243,9 +272,17 @@ This prints nothing: `terraform.tfstate` and `.terraform/` are in `.gitignore`, 
 
 ## Check yourself
 
-1. Why was the resource group created before the container group? *(the container group refers to the resource group's name, so it depends on it)*
-2. Why does the second `plan` say "Refreshing state" but the first one didn't? *(there was no state to refresh the first time)*
-3. Where would you look to see who created a resource and when? *(the portal's Activity log)*
+1. Why was the resource group created before the container group?
+2. Why does the second `plan` say "Refreshing state" but the first one didn't?
+3. Where would you look to see who created a resource and when?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. The container group refers to the resource group's name, so it depends on it.
+2. There was no state to refresh the first time.
+3. The portal's Activity log.
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 
@@ -261,25 +298,35 @@ This prints nothing: `terraform.tfstate` and `.terraform/` are in `.gitignore`, 
 
 ---
 
-## Challenge c1: Tag Team (bonus)
+## Challenge c1 (bonus)
 
-Deploy a second site, `$USER-second`, from a starter that policy rejects four ways, with an output that prints its
-URL. It needs one free container group (your subscription holds two).
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
-dojo-challenge start c1
+dojo challenge start c1
 cd ~/lab/challenge-c1
 ```
 
-That makes your own repo `$USER/challenge-c1` and clones it to `~/lab/challenge-c1`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-c1`, clones it to `~/lab/challenge-c1` and shows your brief. The brief is
+saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. When you think
+it's done:
 
 ```sh
-dojo-check c1
+dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo-check hint c1` gives a hint for part of the points, and
-`dojo-challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
 
-<!-- dojo-challenge: c1 -->
+**Start over.** `dojo challenge reset c1` deletes `~/lab/challenge-c1` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Tag Team
+
+Your first site is up, and now a second one is needed: `$USER-second`. The starter in your repo is a site that the Dojo Cloud policy rejects four ways. It needs one free container group (your subscription holds two), and it should print its URL as an output.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c1` and your own Dojo Cloud subscription.
+- Exactly one `challenge=c1` container is running, named `<you>-second`, in an allowed region, with the `owner` and `env` tags.
+- `main.tf` on `main` (pushed) declares an `output "url"` whose value is a URL (with `http://`, `https://` or the portal's `/site/` path, not a bare host name).

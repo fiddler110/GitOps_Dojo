@@ -107,7 +107,7 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://achievements:8080/api/forgej
 WEBHOOK_SECRET = webhook.secret_from(GATEWAY_TOKEN)
 # Modules' adapters (dns-gate, cloud-api, openbao-audit; adapter_client.py) post signed events with this; unset means /api/adapter is off.
 ADAPTER_SECRET = os.environ.get("ACHIEVEMENTS_ADAPTER_SECRET") or None
-# Sensei's stuck radar and `sensei check` read activity and progress with this key (Sensei's own gateway token,
+# Sensei's stuck radar and `dojo sensei check` read activity and progress with this key (Sensei's own gateway token,
 # which the compose file passes to both); unset means those two reads are off.
 SENSEI_KEY = os.environ.get("SENSEI_KEY") or None
 

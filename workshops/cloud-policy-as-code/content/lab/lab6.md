@@ -2,7 +2,7 @@
 
 **Time:** about 15 minutes, of which about 3.5 are waiting. **Goal:** bundle several rules into one **policy set** (also called an initiative), assign the whole bundle once, pass parameters down to its members, and read compliance per member.
 
-> **Starting here?** This lab starts from the end of Lab 5 (two assignments of the images rule, app on 2.0). Run `lab-prep 6` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
+> **Starting here?** This lab starts from the end of Lab 5 (two assignments of the images rule, app on 2.0). Run `dojo prep 6` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
 
 ## Read this first: this apply is slow too
 
@@ -24,38 +24,15 @@ flowchart TD
 
 The set has its own **parameters**; the assignment supplies values for those; the set then passes each value down to the member that needs it, written as `[parameters('name')]`. Members keep their own definitions, so the same "allowed images" definition can sit in a set *and* have its own assignment, as it does in this lab.
 
-## 1. Enable the Lab 6 block
+## 1. What the Lab 6 block contains
 
-In `policy/cloud/main.tf`, the section from `# Lab 6:` to `# Lab 7:` is commented out. Uncomment it:
-
-```bash
-cd ~/lab/cloud-policy-as-code/policy/cloud
-sed -i '/^# Lab 6:/,/^# Lab 7:/{/^# Lab [67]:/!s/^# \{0,1\}//}' main.tf
-```
+You will enable three new resources: a locations definition, the set, and the set assignment. They are read in step 2 below, after the removal of the two assignments the set replaces. The enabling itself is the hands-on part at the end of step 2.
 
 ## 2. Remove the two assignments the set replaces
 
 The set will apply the costCenter rule and the images rule at subscription scope, so the two separate subscription assignments (`require_costcenter` and `images_subscription`) must go, otherwise each rule would be evaluated twice. **Keep** both definitions: the set refers to them. **Keep** `images_strict`: it is on the resource group with a different list, and the set cannot express that.
 
-Delete the two resource blocks in VS Code, or let a short script do it:
-
-```bash
-python3 - <<'EOT'
-import re
-s = open("main.tf").read()
-for name in ("require_costcenter", "images_subscription"):
-    s = re.sub(r'(?:#[^\n]*\n)*resource "azurerm_subscription_policy_assignment" "%s" \{\n.*?\n\}\n\n?' % name, "", s, flags=re.S)
-open("main.tf", "w").write(s)
-EOT
-tofu fmt
-tofu validate
-```
-
-```text
-Success! The configuration is valid.
-```
-
-(`tofu validate` needs `tofu init` to have been run in this folder, which `lab-prep` or an earlier lab did.) Now read the three new resources.
+Now read the three new resources before you change anything.
 
 The **new definition**, which follows the pattern you know. Look at its rule, `rules/allowed-locations.json`:
 
@@ -134,11 +111,51 @@ resource "azurerm_subscription_policy_assignment" "team_baseline" {
 
 It is the same resource type as before, now pointing at a set, with one value for each of the set's parameters. Note `effect = deny`: you looked at the audit report in Lab 4, so the baseline now enforces.
 
+**Your turn:** make the edits in `policy/cloud/main.tf` using VS Code.
+
+1. The section from `# Lab 6:` to `# Lab 7:` is commented out. Uncomment it (select the lines and press `Ctrl+/`).
+2. Delete the two resource blocks `require_costcenter` and `images_subscription` (the `azurerm_subscription_policy_assignment` ones). Keep both definitions and keep `images_strict`.
+
+**Prefer the terminal?**
+
+```sh
+cd ~/lab/cloud-policy-as-code/policy/cloud
+sed -i '/^# Lab 6:/,/^# Lab 7:/{/^# Lab [67]:/!s/^# \{0,1\}//}' main.tf
+python3 - <<'EOT'
+import re
+s = open("main.tf").read()
+for name in ("require_costcenter", "images_subscription"):
+    s = re.sub(r'(?:#[^\n]*\n)*resource "azurerm_subscription_policy_assignment" "%s" \{\n.*?\n\}\n\n?' % name, "", s, flags=re.S)
+open("main.tf", "w").write(s)
+EOT
+```
+
+Then check it. `tofu validate` needs `tofu init` to have been run in this folder, which `dojo prep` or an earlier lab did. Predict what it will print.
+
+```sh
+tofu fmt
+tofu validate
+```
+
+<!-- dojo-reveal: Results of tofu validate -->
+
+```text
+Success! The configuration is valid.
+```
+
+<!-- /dojo-reveal -->
+
 ## 3. Plan and apply
 
-```bash
+The plan will show the new resources being created and the old assignments removed. Read the "while it runs" section while the apply works.
+
+**Your turn:** before you plan, predict how many resources are added and how many destroyed.
+
+```sh
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
 Plan: 3 to add, 0 to change, 2 to destroy.
@@ -146,11 +163,13 @@ Plan: 3 to add, 0 to change, 2 to destroy.
 
 The three additions are the locations definition, the set and the set assignment. The two destroys are the old assignments.
 
-```bash
+<!-- /dojo-reveal -->
+
+Apply it, type `yes`, and read while it runs.
+
+```sh
 tofu apply
 ```
-
-Type `yes`, and read while it runs.
 
 ## While it runs: reading
 
@@ -162,11 +181,19 @@ Type `yes`, and read while it runs.
 
 **Where do sets pay off?** (1) Naming a standard once ("the team baseline") and assigning it to many subscriptions. (2) Compliance for the whole standard in one view, with each member's result visible. (3) Adding a rule to the standard without touching any assignment: you will do that at the end of this lab.
 
-**Think ahead.** Your costCenter definition is mode `All`; the images and locations definitions are `Indexed`. A set can mix modes, because the mode belongs to each member's definition, not to the set. So a resource group is checked by the costCenter member and skipped by the other two. (The platform's own built-in location rule, which is mode `All`, still covers resource groups.)
+**Check yourself:** Your costCenter definition is mode `All`; the images and locations definitions are `Indexed`. Can a set mix modes, and what does that mean for a resource group?
+
+<!-- dojo-reveal: Show the answer -->
+
+A set can mix modes, because the mode belongs to each member's definition, not to the set. So a resource group is checked by the costCenter member and skipped by the other two. (The platform's own built-in location rule, which is mode `All`, still covers resource groups.)
+
+<!-- /dojo-reveal -->
 
 ## 4. Read compliance per member
 
-When the apply finishes:
+**Your turn:** when the apply finishes, open the portal's **Policy** blade. Predict: what will Assignments list, and how will Compliance be organised?
+
+<!-- dojo-reveal: Results of the apply and the Policy blade -->
 
 ```text
 azurerm_policy_definition.allowed_locations: Creation complete after 1m40s
@@ -193,13 +220,33 @@ Apply complete! Resources: 3 added, 0 changed, 2 destroyed.
 
 The legacy group is still there, as it was in Lab 4, and still flagged. The difference is the effect: the baseline is `deny`, so nobody can create *another* resource without a costCenter, and the legacy group is the only exception to explain. Lab 8 does that properly.
 
+<!-- /dojo-reveal -->
+
 Prove the set denies. The platform's built-ins already stop a bad region, so test the **costCenter** member: in the scratch folder, try a resource group with no `costCenter` tag.
 
-```bash
+```sh
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
 sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
+```
+
+Create `main.tf` there in your editor:
+
+```hcl
+resource "azurerm_resource_group" "scratch" {
+  name     = "rg-${var.owner}-scratch"
+  location = "canadacentral"
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+```
+
+**Prefer the terminal?**
+
+```sh
 cat > main.tf <<'EOT'
 resource "azurerm_resource_group" "scratch" {
   name     = "rg-${var.owner}-scratch"
@@ -210,8 +257,15 @@ resource "azurerm_resource_group" "scratch" {
   }
 }
 EOT
+```
+
+**Your turn:** predict: refused or allowed, and what will the refusal name this time (hint: a set has two levels)?
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of the scratch apply -->
 
 ```text
 Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
@@ -222,17 +276,21 @@ tag 'costCenter' does not exist.
 
 (abridged.) The refusal names the **set assignment** and the **member's definition** that fired, which is how you find the right rule inside a bundle. Nothing was created, so there is nothing to clean up.
 
+<!-- /dojo-reveal -->
+
 ## 5. Add a member without a new assignment
+
+A set is only a delivery mechanism, so extending it should not need any new assignment. You will prove that with a plan, and then throw the experiment away.
 
 Commit what you have first, so you can undo the experiment:
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git add infra policy
 git commit -m "Team baseline policy set replaces the separate subscription assignments"
 ```
 
-Now extend the set. In `policy/cloud/main.tf`, add a fourth `policy_definition_reference` inside the set, next to the others. It reuses the costCenter definition under a new reference id, with the effect fixed to `audit`:
+Now extend the set. In `policy/cloud/main.tf`, in your editor, add a fourth `policy_definition_reference` inside the set, next to the others. It reuses the costCenter definition under a new reference id, with the effect fixed to `audit`:
 
 ```hcl
   policy_definition_reference {
@@ -242,10 +300,14 @@ Now extend the set. In `policy/cloud/main.tf`, add a fourth `policy_definition_r
   }
 ```
 
-```bash
+**Your turn:** predict: which resources will the plan show changing, the set, the assignment, or both?
+
+```sh
 cd policy/cloud
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
   # azurerm_policy_set_definition.team_baseline will be updated in-place
@@ -264,9 +326,11 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 
 (A real new rule also needs its own definition, which has the 100-second wait; the set change itself is instant.)
 
+<!-- /dojo-reveal -->
+
 Do not apply this. Throw the experiment away:
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git checkout -- policy/cloud/main.tf
 git status --short
@@ -279,9 +343,11 @@ git status --short
 - [ ] The scratch resource group was refused by `team-baseline` / `Require a costCenter tag`.
 - [ ] You can explain why adding a member needed no new assignment.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud && tofu state list
 ```
+
+<!-- dojo-reveal: Results of tofu state list -->
 
 ```text
 data.azurerm_resource_group.infra
@@ -293,6 +359,8 @@ azurerm_policy_set_definition.team_baseline
 azurerm_resource_group_policy_assignment.images_strict
 azurerm_subscription_policy_assignment.team_baseline
 ```
+
+<!-- /dojo-reveal -->
 
 ## Recap
 

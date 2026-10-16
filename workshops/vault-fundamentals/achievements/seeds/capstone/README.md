@@ -23,4 +23,4 @@ This repo starts with only `capstone/agent.hcl`: the app and its pipeline are yo
 - A new KV mount refuses writes for a few seconds while it upgrades ("Upgrading from non-versioned to versioned
   data"): wait and write again, as in Lab 9.
 
-Work in your own namespace: `export BAO_NAMESPACE=students/$USER`. Then run `dojo-check capstone`.
+Work in your own namespace: `export BAO_NAMESPACE=students/$USER`. Then run `dojo check capstone`.

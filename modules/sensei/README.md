@@ -23,7 +23,7 @@ the Lab 1 roster PR) and merges the good ones. Listed in a workshop's `MODULES=`
   `dnsrules.py` approves a change made only of record lines (`A(...)`, `CNAME(...)`...) named `<author>-...`, at
   most four lines, in `SENSEI_FILE` alone: one new record, or the Lab 5 rollback that removes it. Anything else is
   flagged for the facilitator. People merge their own PRs.
-- **The `sensei` command** (`terminal/`, in every terminal of a workshop that lists the module): `sensei help|status|review|approve [--force]`,
+- **The `sensei` command** (`terminal/`, in every terminal of a workshop that lists the module): `dojo sensei help|status|review|approve [--force]`,
   talking to `/api/student/*` on the service with the student's own Forgejo token (confirmed with Forgejo; the port
   is only reachable from the lab network). `review` picks a PR for them to review (not theirs, not a bot's, one they
   haven't reviewed, fewest reviews first, Sensei's practice PR last). `approve` approves their own open PR once they
@@ -31,24 +31,24 @@ the Lab 1 roster PR) and merges the good ones. Listed in a workshop's `MODULES=`
   background pass also applies by itself. `approve --force` skips that wait at once but never the `dnsrules.py`
   rules. Sensei never merges for students.
 - **Support desk** (every workshop lists the module, so the `sensei` command is always there; offline, no model):
-  - `sensei ask "..."` first tries hand-written answers (`support.Answers`: `modules/sensei/answers/shared.json` for git,
+  - `dojo sensei ask "..."` first tries hand-written answers (`support.Answers`: `modules/sensei/answers/shared.json` for git,
     plus an optional `workshops/<name>/sensei/answers.json`, which replaces a shared entry with the same `id`). An entry is
     `{"id", "title", "match": [regex, ...], "markdown", "where", "section"}`; the answer is rendered with glow and the
     matching lab sections follow as pointers. No ready answer: it searches
      the workshop's own `content/lab/*.md` section by section (`support.LabIndex`; headings
     naming a challenge or capstone are skipped, so it can't leak a hint). Nothing matching says so instead of guessing.
-  - `sensei why`: reads the last 60 lines of the student's tmux pane and explains the known error nearest the bottom
+  - `dojo sensei why`: reads the last 60 lines of the student's tmux pane and explains the known error nearest the bottom
     (`support.Patterns`). The table is derived from the labs' own "You see | Cause / fix" tables, plus
     `modules/sensei/patterns/shared.json` (git and shell) and an optional `workshops/<name>/sensei/patterns.json`
     (`{"patterns": [{"id", "regex", "title", "explain", "fix", "where", "section"}]}`).
-  - `sensei hand "..."` / `sensei inbox`: raise a hand with the message and the last screen of output; the facilitator
-    replies in the Sensei tab (Raised hands) and it shows under `sensei inbox`. Three open at most, one per 20 s per
+  - `dojo sensei hand "..."` / `dojo sensei inbox`: raise a hand with the message and the last screen of output; the facilitator
+    replies in the Sensei tab (Raised hands) and it shows under `dojo sensei inbox`. Three open at most, one per 20 s per
     student; a request also carries Sensei's own guess (the error it recognised, the lab section that covers it).
   - Replies are pushed, not just filed. `POST /api/student/notify {surface, wait}` long-polls (up to 25 s) and reports
     each facilitator reply once per surface: the prompt banner (`dojo-sensei.zsh`, a `TMOUT`/`TRAPALRM` timer, any
     flavor), a VS Code message with a Reply button (`terminal/vscode/`, code-server flavor) and a Zellij floating
     pane (`sensei watch`, started once per student by the shell hook, Zellij flavor).
-  - `sensei check`: the student's core milestones for the current lab (first with one still undone), done or still to
+  - `dojo sensei check`: the student's core milestones for the current lab (first with one still undone), done or still to
     do, with the lab step each needs. Reads the achievements service (`GET /api/sensei/progress`), so it needs a
     workshop with a scoreboard; without one it says so. Challenges, funny unlocks and cheats are never listed.
   - Mounts the workshop folder read-only at `/opt/workshop` (`WORKSHOP_DIR`); help requests live in `/data/help.json`.

@@ -144,17 +144,21 @@ To bail out entirely: `git merge --abort`
 <div class="two-column small">
 
 ```sh
-git log
-git log --oneline
+git log --oneline --graph --all
+git log --author=<name> --since=<date>
 git show <commit-hash>
 git blame <filename>
 git log -p <filename>
+git log -S"<text>"
+gitleaks git -v .
 git diff <branch-1>..<branch-2>
 ```
 
-- `log` — full detail: author, date, message
+- `--author`/`--since` — filter by who and when
 - `show` — exactly what one commit changed
 - `blame` — who last touched each line
+- `-S` — commits that added or removed text
+- `gitleaks` — scan all commits for secrets
 - `diff a..b` — everything that differs
 
 </div>

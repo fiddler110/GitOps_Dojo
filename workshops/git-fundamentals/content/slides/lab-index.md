@@ -26,7 +26,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every lab works in the sample repo. Clone it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
+<p class="setup-label">Every lab works in the sample repo. Clone it once, or run <code>dojo prep N</code> to catch up to lab N:</p>
 
 ```sh
 cd ~/lab
@@ -38,7 +38,7 @@ cd sample-training-repo
 <li><a href="assets/lab-reader.html?file=lab1.md.txt">Lab 1</a><span class="topic">Core workflow: clone → branch → edit → commit → push → PR, and the wrong-branch rescue</span></li>
 <li><a href="assets/lab-reader.html?file=lab2.md.txt">Lab 2</a><span class="topic">Reviewing changes and undoing mistakes</span></li>
 <li><a href="assets/lab-reader.html?file=lab3.md.txt">Lab 3</a><span class="topic">Stashing — switching gears without committing</span></li>
-<li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Investigating history: log, blame, show</span></li>
+<li><a href="assets/lab-reader.html?file=lab4.md.txt">Lab 4</a><span class="topic">Investigating history: log, blame, show, find a leaked secret</span></li>
 <li><a href="assets/lab-reader.html?file=lab5.md.txt">Lab 5</a><span class="topic">Merge conflicts and safely undoing a shared change</span></li>
 <li><a href="assets/lab-reader.html?file=cheat-sheet.md.txt">Cheat sheet</a><span class="topic">Every command, plain text</span></li>
 <li><a href="assets/lab-reader.html?file=tmux-guide.md.txt">tmux guide</a><span class="topic">Splitting panes, switching focus (VS Code setup)</span></li>

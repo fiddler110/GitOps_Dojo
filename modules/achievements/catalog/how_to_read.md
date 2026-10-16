@@ -5,7 +5,7 @@ column) name where the event comes from:
 - `shell:` the student ran this command and it exited as stated (shell hook; the command and the branch are logged)
 - `forgejo:` a Forgejo webhook event for that student
 - `dns:`, `ca:`, `cloud:`, `bao:` an audit or activity line from that service, read by the module that owns it
-- `verify:` the achievements service checks the end state (verifiers, run by `dojo-check` or after an event)
+- `verify:` the achievements service checks the end state (verifiers, run by `dojo check` or after an event)
 
 `{user}` is the student's login (`student07`). Jokes are the toast text.
 

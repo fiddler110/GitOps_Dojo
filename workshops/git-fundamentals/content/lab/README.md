@@ -13,10 +13,10 @@ The session slides cover the *why*. This lab is the *how* — five short, self-c
 | [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request, and rescuing commits made on the wrong branch | ~20 min |
 | [lab2.md](lab2.md) | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | [lab3.md](lab3.md) | Stashing — switching gears without committing | ~8 min |
-| [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min |
+| [lab4.md](lab4.md) | Investigating history: log, show, blame, finding a leaked secret (practice repo from `lab-history`) | ~15 min |
 | [lab5.md](lab5.md) | Merge conflicts and safely undoing a shared change | ~12 min |
 
-**Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
+**Starting partway through?** Run `dojo prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `dojo prep 4`). It's safe to run more than once and never undoes your own work.
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab while you work — it's a condensed reference to every command used across all five labs, with a short explanation of how each one works.
 
@@ -41,8 +41,10 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `c2` | The Detective | end of [Lab 4](lab4.md) |
 | `capstone` | The Great Merge | end of [Lab 5](lab5.md) |
 
-Start one in the terminal with `dojo-challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo-check <id>`. A wrong
-answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
+answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. Stuck in a mess? `dojo challenge reset <id>`
+throws your repo away and starts you over from a fresh copy. Your brief is saved in `~` (`capstone.md`, `challenge-c1.md`);
+read it with `glow ~/capstone.md`. `dojo check` on its own lists them
 with what each is worth.
 
 ## 1. Check your shell

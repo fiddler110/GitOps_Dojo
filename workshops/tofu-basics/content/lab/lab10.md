@@ -2,7 +2,7 @@
 
 **Goal:** destroy everything you built, prove the cloud is empty, understand what OpenTofu leaves behind, and commit your work.
 
-> **Starting here?** This lab needs something deployed to clean up: hello (Lab 5). Run `lab-prep 10` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs something deployed to clean up: hello (Lab 5). Run `dojo prep 10` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -14,11 +14,17 @@ Cloud resources cost money and, here, count against your quota. Real teams destr
 
 ## 1. Preview the destroy
 
+`destroy` removes what OpenTofu created and tracks; it can't remove things it doesn't know about. `plan -destroy` previews exactly that.
+
+**Your turn:** before you run it, predict how many resources are listed. (`-no-color` keeps OpenTofu from wrapping the lines in colour codes, which would hide them from `grep`.)
+
 ```sh
 terraform plan -destroy -no-color | grep -E '^  # |^Plan:'
 ```
 
-(`-no-color` keeps OpenTofu from wrapping the lines in colour codes, which would hide them from `grep`.) Expected (yours may show `["green"]`, and will show one fewer or more line if you changed the number of extras):
+<!-- dojo-reveal: Results of plan -destroy -->
+
+Expected (yours may show `["green"]`, and will show one fewer or more line if you changed the number of extras):
 
 ```text
   # azurerm_container_group.extra["blue"] will be destroyed
@@ -27,15 +33,23 @@ terraform plan -destroy -no-color | grep -E '^  # |^Plan:'
 Plan: 0 to add, 0 to change, 3 to destroy.
 ```
 
-Everything in state, and nothing else. `destroy` removes what OpenTofu created and tracks; it can't remove things it doesn't know about.
+Everything in state, and nothing else.
+
+<!-- /dojo-reveal -->
 
 ## 2. Destroy
+
+Destroy runs the dependency graph in reverse: things that depend on others go first, and independent things go in parallel.
+
+**Your turn:** before you run it, predict the order: which goes last?
 
 ```sh
 terraform destroy
 ```
 
-Review the plan, type `yes`:
+Review the plan, type `yes`.
+
+<!-- dojo-reveal: Results of destroy -->
 
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-...]
@@ -54,16 +68,13 @@ Destroy complete! Resources: 3 destroyed.
 
 About 35 seconds. Notice the **order**: the two containers (which don't depend on each other) go **in parallel**, and the resource group goes **last**, because the containers depend on it. Destroy runs the dependency graph in reverse.
 
+<!-- /dojo-reveal -->
+
 ## 3. Verify: is it really gone?
 
-Don't trust the terminal alone. Check the cloud itself. In the portal:
+Don't trust the terminal alone: check the cloud itself, then look at what OpenTofu remembers. Same idea as Lab 3, different provider: the state file stays behind, as do `.terraform/` and `.terraform.lock.hcl` (`destroy` doesn't uninstall plugins).
 
-- **Home**: `0 resource groups`, `0 container instances`, **Quota: 0 / 2**, and the "Nothing here yet" message.
-- **Resource groups** and **Container instances**: empty.
-- **Activity log**: the newest rows are the deletions, `Delete container group` and `Delete resource group`, by you.
-- Your site's link now shows "No site is deployed under that name (yet)."
-
-Then look at what OpenTofu remembers:
+**Your turn:** in the portal, look at Home, Resource groups, Container instances and the Activity log, and open your site's link. Then run the commands below. Predict what each will show.
 
 ```sh
 terraform state list
@@ -71,7 +82,16 @@ ls -la terraform.tfstate*
 cat terraform.tfstate
 ```
 
-`terraform state list` prints nothing. Then:
+<!-- dojo-reveal: Results of the portal and state checks -->
+
+In the portal:
+
+- **Home**: `0 resource groups`, `0 container instances`, **Quota: 0 / 2**, and the "Nothing here yet" message.
+- **Resource groups** and **Container instances**: empty.
+- **Activity log**: the newest rows are the deletions, `Delete container group` and `Delete resource group`, by you.
+- Your site's link now shows "No site is deployed under that name (yet)."
+
+In the terminal, `terraform state list` prints nothing. Then:
 
 ```text
 -rw-r--r-- 1 studentXX studentXX  821 Sep 19 14:32 terraform.tfstate
@@ -94,13 +114,15 @@ cat terraform.tfstate
 
 (Sizes, dates, `serial` and `lineage` will differ; the `check_results` part is trimmed.) The state file still exists, but `"resources": []` and `"outputs": {}`: it remembers that it manages **nothing**. `terraform.tfstate.backup` is the previous state, the last time it held your resources.
 
-Compare with Lab 3: same idea, different provider. `.terraform/` and `.terraform.lock.hcl` are also still there; `destroy` doesn't uninstall plugins.
+<!-- /dojo-reveal -->
 
-Now ask what a plan would do:
+Now ask what a plan would do. Predict first: the cloud is empty, but your code is still there.
 
 ```sh
 terraform plan -no-color | grep '^Plan:'
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 ```text
 Plan: 3 to add, 0 to change, 0 to destroy.
@@ -108,15 +130,25 @@ Plan: 3 to add, 0 to change, 0 to destroy.
 
 Your **code** still describes those three resources, so `apply` would build it all again. Destroying is just another state your config can be reconciled to; your `.tf` files are the source of truth, not the cloud.
 
+<!-- /dojo-reveal -->
+
 ## 4. Commit your work
 
-The cloud is empty, but your code isn't lost: it's in the repo. See what changed:
+The cloud is empty, but your code isn't lost: it's in the repo. `.gitignore` keeps `terraform.tfstate` and `.terraform/` out, exactly as in Lab 3, so only the tracked files you edited show up. Committing on a branch and pushing it works as in the earlier labs; the push goes to your fork.
+
+**Your turn:** see what changed. Predict which files git lists.
 
 ```sh
 git status --short
 ```
 
-You'll see only the tracked files you edited (for example `locals.tf`, `main.tf`, `terraform.tfvars`), **not** `terraform.tfstate` or `.terraform/`: `.gitignore` keeps them out, exactly as in Lab 3. Commit on a branch and push it, as in the earlier labs:
+<!-- dojo-reveal: Results of git status -->
+
+You'll see only the tracked files you edited (for example `locals.tf`, `main.tf`, `terraform.tfvars`), **not** `terraform.tfstate` or `.terraform/`.
+
+<!-- /dojo-reveal -->
+
+Now commit on a branch and push it:
 
 ```sh
 git checkout -b my-dojo-cloud-change
@@ -143,9 +175,17 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 
 ## Check yourself
 
-1. How can you prove the cloud is empty, without trusting OpenTofu? *(look at the portal: Resource groups, Container instances, Quota 0 / 2, or the Activity log)*
-2. After `destroy`, why does `plan` still say `3 to add`? *(your code still describes them; state is empty, so everything is "new")*
-3. What must never be committed from this repo? *(`terraform.tfstate*` and `.terraform/`, both listed in `.gitignore`)*
+1. How can you prove the cloud is empty, without trusting OpenTofu?
+2. After `destroy`, why does `plan` still say `3 to add`?
+3. What must never be committed from this repo?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. Look at the portal: Resource groups, Container instances, Quota 0 / 2, or the Activity log.
+2. Your code still describes them; state is empty, so everything is "new".
+3. `terraform.tfstate*` and `.terraform/`, both listed in `.gitignore`.
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 
@@ -159,50 +199,72 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 
 ---
 
-## Challenge c2: Quota Whisperer (bonus)
+## Challenge c2 (bonus)
 
-The code declares five sites; your subscription holds two container groups. Make the apply succeed without asking
-for more quota. Start it now that this lab has freed your quota.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
-dojo-challenge start c2
+dojo challenge start c2
 cd ~/lab/challenge-c2
 ```
 
-That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-c2`, clones it to `~/lab/challenge-c2` and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think
+it's done:
 
 ```sh
-dojo-check c2
+dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
 
-<!-- dojo-challenge: c2 -->
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-c2` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Quota Whisperer
+
+The code in your repo declares five sites, but your subscription holds only two container groups in total. The apply fails on quota. Make it succeed without asking for more quota. Start it now that this lab has freed your quota.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c2` and your own Dojo Cloud subscription.
+- One or two `challenge=c2` containers are running (any count from 1 to 2 passes), each named `<you>-c2-...` with the `owner` and `env` tags.
+- `main.tf` on `main` (pushed) no longer declares the original list of five sites.
 
 ---
 
-## Capstone: Site Factory (bonus)
+## Capstone (bonus)
 
-From a near-empty repo: two differently named sites from one `for_each`, each with the required tags, an output map
-of names to URLs, then a clean destroy that leaves nothing running.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
-dojo-challenge start capstone
+dojo challenge start capstone
 cd ~/lab/site-factory
 ```
 
-That makes your own repo `$USER/site-factory` and clones it to `~/lab/site-factory`, and prints the goal, with your own names in it. When you think it's done, run it twice: while both sites run, then again after `tofu destroy` (the first check says what's next):
+That makes your own repo `$USER/site-factory`, clones it to `~/lab/site-factory` and shows your brief. The brief is
+saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think
+it's done:
 
 ```sh
-dojo-check capstone
+dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points, and
-`dojo-challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+Run it twice: once while both sites run, then again after `tofu destroy` (the first check says what's next).
 
-<!-- dojo-challenge: capstone -->
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/site-factory` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Site Factory
+
+Starting from a near-empty repo, build the code for two differently named sites from one `for_each`, each with the required tags, and an output map of names to URLs. When both are running, check; then tear everything down cleanly and check again.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/site-factory` and your own Dojo Cloud subscription. Needs both of your container groups, so destroy old lab sites first.
+- **Step 1, while the sites run:** exactly two `challenge=capstone` containers, named `<you>-...`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` uses `for_each`.
+- **Step 2, after `tofu destroy`:** no `challenge=capstone` container group is left.

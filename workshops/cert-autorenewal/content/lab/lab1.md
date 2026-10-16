@@ -12,12 +12,7 @@ lab you'll have fetched and verified `step-ca`'s root certificate, told the
 
 `step-ca`'s public root certificate (never its private key — that never
 leaves the CA container) is mounted read-only in your terminal at
-`/opt/step-ca-root/root_ca.crt`:
-
-```sh
-ls -l /opt/step-ca-root/root_ca.crt
-step certificate inspect /opt/step-ca-root/root_ca.crt --short
-```
+`/opt/step-ca-root/root_ca.crt`.
 
 This is exactly the out-of-band distribution step a real org has to solve
 too — a client needs the root cert (or at least its fingerprint) from
@@ -25,42 +20,87 @@ too — a client needs the root cert (or at least its fingerprint) from
 everything else. Here, that's a read-only file; at work, it might be a
 wiki page, an MDM push, or a Venafi-managed trust bundle.
 
+`step certificate inspect` decodes a certificate and prints its contents;
+`--short` trims the output to the essentials:
+
+```text
+step certificate inspect <cert-file> --short
+```
+
+**Your turn:** before you run it, predict: whose name will appear as both
+the subject and the issuer of a root certificate?
+
+```sh
+ls -l /opt/step-ca-root/root_ca.crt
+step certificate inspect /opt/step-ca-root/root_ca.crt --short
+```
+
+<!-- dojo-reveal: Results of the inspect -->
+
+- The file exists and is read-only to you.
+- Subject and issuer match: a root certificate signs itself.
+
+<!-- /dojo-reveal -->
+
 ---
 
 ## 2. Compute its fingerprint
+
+A fingerprint is a SHA-256 hash of the certificate. It is what
+`step ca bootstrap` uses to verify it's actually talking to the right CA
+before trusting anything it says — without it, a client bootstrapping
+against `https://step-ca:9443` would have no way to know it isn't being
+handed a different root by something in the middle.
+
+```text
+step certificate fingerprint <cert-file>
+```
+
+**Your turn:** before you run it, predict: how long is the output, and
+would a different certificate give the same value?
 
 ```sh
 step certificate fingerprint /opt/step-ca-root/root_ca.crt
 ```
 
-This SHA-256 fingerprint is what `step ca bootstrap` uses to verify it's
-actually talking to the right CA before trusting anything it says —
-without it, a client bootstrapping against `https://step-ca:9443` would
-have no way to know it isn't being handed a different root by something
-in the middle.
+<!-- dojo-reveal: Result of the fingerprint -->
+
+- One 64-character hex string (SHA-256).
+- Any other certificate would give a different value, which is what makes it useful for pinning trust.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 3. Bootstrap trust
 
+`step ca bootstrap` writes the CA's config and root cert into your own
+`step` config directory (`~/.step` by default — check with `step path`).
+From here on, `step` commands against this CA work without re-specifying
+the URL or fingerprint every time. `step ca health` then asks the CA
+whether it is up.
+
+```text
+step ca bootstrap --ca-url <url> --fingerprint <sha256>
+step ca health --ca-url <url>
+```
+
+**Your turn:** before you run it, predict: what will `step ca health`
+print once bootstrap has succeeded?
+
 ```sh
 step ca bootstrap \
   --ca-url https://step-ca:9443 \
   --fingerprint "$(step certificate fingerprint /opt/step-ca-root/root_ca.crt)"
-```
-
-This writes the CA's config and root cert into your own `step` config
-directory (`~/.step` by default — check with `step path`). From here on,
-`step` commands against this CA work without re-specifying the URL or
-fingerprint every time.
-
-Confirm it worked:
-
-```sh
 step ca health --ca-url https://step-ca:9443
 ```
 
-Should print `ok`.
+<!-- dojo-reveal: Results of bootstrap and health -->
+
+- Bootstrap reports that the root was written under your `~/.step`.
+- The health check prints `ok`.
+
+<!-- /dojo-reveal -->
 
 ---
 

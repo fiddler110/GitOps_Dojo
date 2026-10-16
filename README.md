@@ -176,7 +176,7 @@ Rather than repeat it here, the two files that track it are kept current:
 │   ├── dojo-cloud/           # Dojo Cloud: cloud-api, cloud-host, /cloud route, terminal broker
 │   ├── openbao/              # OpenBao server, setup, SSO through Forgejo, terminal identity broker
 │   ├── runner-pool/          # Single-use Actions runners, autoscaled, Runners panel in /admin
-│   └── sensei/               # Reviews and merges the roster pull request; `sensei ask|why` in the terminal
+│   └── sensei/               # Reviews and merges the roster pull request; `dojo sensei ask|why` in the terminal
 ├── workshops/
 │   ├── README.md             # How workshops are selected and how to add one
 │   ├── assets/               # Shared slide theme and the in-browser lab reader

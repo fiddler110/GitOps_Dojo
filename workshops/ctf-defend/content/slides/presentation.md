@@ -65,11 +65,11 @@ Unfixed breaches pile up. You choose what to work on first.
 
 - `git`, an editor, `python3`, `curl`
 - the **SIEM** panel: a different signal per target, with noise
-- `dojo-check`: runs the attack against your live slot
+- `dojo check`: runs the attack against your live slot
 
 ```sh
-dojo-check                  # all three
-dojo-check policy-bypass    # one
+dojo check                  # all three
+dojo check policy-bypass    # one
 ```
 
 `contained` means blocked **and** still usable.
@@ -105,7 +105,7 @@ Merge, and your slot redeploys.
 
 1. Re-read the briefing and each README.
 2. Use the app, then read the source.
-3. Run `dojo-check` often.
+3. Run `dojo check` often.
 4. Ask. Hints are in the lab, in order.
 
 ---

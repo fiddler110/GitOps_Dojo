@@ -1,23 +1,23 @@
 # Lab 2 — Reviewing & Undoing Before You Commit
 
-Not everything you type is meant to be kept. This lab is about catching mistakes before they become part of your history: discarding an edit, unstaging a file, and keeping local-only files out of git entirely. Along the way you'll see *why* each undo command works, which is what lets you pick the right one under pressure.
+Not everything you type is meant to be kept. This lab is about catching mistakes before they become part of your history: discarding an edit, unstaging a file, and keeping local-only files out of git entirely. Along the way you'll see _why_ each undo command works, which is what lets you pick the right one under pressure.
 
-Do this from your `sample-training-repo` clone, on your `add-yourname` branch from Lab 1 (or any branch — nothing here needs to be pushed).
+Do this from your `sample-training-repo` clone, on `main` (where Lab 1 left you) or any other branch. Nothing here needs to be pushed, and you'll undo every edit before the end.
 
-> **Starting here?** This lab needs the sample repo cloned. Run `lab-prep 2` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs the sample repo cloned. Run `dojo prep 2` to set that up; it's safe to run even if you did the earlier labs.
 
 ---
 
 ## In this lab
 
-| Command | What it does |
-|---|---|
-| `git diff` | Show unstaged changes: working tree compared with the index |
-| `git restore <file>` | Discard uncommitted edits: copy index to working tree |
-| `git diff --staged` | Show staged changes: index compared with HEAD |
-| `git restore --staged <file>` | Unstage a file but keep the edit: copy HEAD to index |
-| `.gitignore` | A file of patterns that tells git to ignore untracked files |
-| `git check-ignore -v <file>` | Show which rule is ignoring a file |
+| Command                       | What it does                                                |
+| ----------------------------- | ----------------------------------------------------------- |
+| `git diff`                    | Show unstaged changes: working tree compared with the index |
+| `git restore <file>`          | Discard uncommitted edits: copy index to working tree       |
+| `git diff --staged`           | Show staged changes: index compared with HEAD               |
+| `git restore --staged <file>` | Unstage a file but keep the edit: copy HEAD to index        |
+| `.gitignore`                  | A file of patterns that tells git to ignore untracked files |
+| `git check-ignore -v <file>`  | Show which rule is ignoring a file                          |
 
 You'll meet each one when you need it, and the "Your turn" steps expect you to pick the right one from here.
 
@@ -50,82 +50,125 @@ Keep that picture in mind. Each command below moves a file one step along the ar
 
 ## 1. Make an edit you don't want
 
-```sh
-echo "- name: Test Entry" >> roster/team.yaml
-git status
-git diff
-```
+When you edit a file, the change lands in one place only: the **working tree**. The index and HEAD still hold the version you last committed, and git hasn't been told anything yet. Two commands let you look at that state:
 
-`git status` lists `roster/team.yaml` as modified, and `git diff` shows exactly what changed: the working tree compared with the index. Right now the index and HEAD are identical, so this edit exists in **one place only**: the working tree.
+- `git status` lists which files differ from what git has.
+- `git diff` shows exactly what changed: the working tree compared with the index.
 
-Suppose you decide this edit was a mistake and you want the file back exactly as it was.
-
-Git's tool for this is **`git restore`**. It copies a file from one place into another, overwriting what was there. With no options it copies **from the index into the working tree**, which means "put this file back the way git has it".
+Suppose you then decide the edit was a mistake and you want the file back exactly as it was. Git's tool for this is **`git restore`**. It copies a file from one place into another, overwriting what was there. With no options it copies **from the index into the working tree**, which means "put this file back the way git has it".
 
 ```text
 git restore <file>
 ```
 
-**Your turn:** use `git restore` on `roster/team.yaml`, then run `git status` to confirm. Before you run it, predict: which of the three places gets overwritten, and what happens to your `Test Entry` line?
+**This is destructive.** An edit that was only ever in the working tree was never a commit or a staged blob, so there is nothing to recover it from. _Use it only when you're sure._
 
-<!-- dojo-reveal: Show the command and why it works -->
+Now try it. Open `roster/team.yaml` in your editor and add a line you'd regret: a throwaway entry at the bottom, such as `- name: Test Entry`. Save the file, but don't stage or commit it. This is the same kind of edit you made in Lab 1, only this time you're going to throw it away.
+
+**Prefer the terminal?**
+
+```sh
+# Appends the same line. The edit is what matters, not how you made it.
+echo "- name: Test Entry" >> roster/team.yaml
+```
+
+**Your turn:**
+
+You've changed a file but told git nothing. Before you run anything, predict what `git status` and `git diff` will say about it. Then run both and see whether you were right.
+
+```sh
+git status
+git diff
+```
+
+<!-- dojo-reveal: Results of git status and git diff -->
+
+- `git status` lists `roster/team.yaml` as modified.
+- `git diff` shows the `Test Entry` line as added.
+
+<!-- /dojo-reveal -->
+
+Right now the index and HEAD are identical, so this edit exists in **one place only**: the working tree.
+
+**Your turn:** use `git restore` on `roster/team.yaml`, then confirm. Before you run it, predict:
+
+- which of the three places gets overwritten?
+- what happens to your `Test Entry` line?
+
 ```sh
 git restore roster/team.yaml
 git status
+bat roster/team.yaml
 ```
 
 The working tree is the place that gets overwritten. Because nothing was staged, the index still held the committed version, so your file snaps back, the `Test Entry` line is gone, and `git status` is clean.
-
-**This is destructive.** The discarded edit was only ever in the working tree, and git never saw it as a commit or a staged blob, so there is nothing to recover it from. Use it only when you're sure.
-<!-- /dojo-reveal -->
-
 
 ---
 
 ## 2. Stage something, then change your mind
 
-```sh
-echo "- name: Another Test" >> roster/team.yaml
-git add roster/team.yaml
-git status
-git diff
-git diff --staged
-```
+`git add` copies a file from the working tree into the index, the draft of your next commit. After that the edit lives in **two places**, and the two diffs split the work between them:
 
-`git status` now shows the file under "Changes to be committed". Notice the two diffs:
+- `git diff` compares the working tree to the index. Once you stage a change, the two match and it shows **nothing**.
+- `git diff --staged` compares the index to HEAD, so it now shows the change.
 
-- `git diff` is **empty**: the working tree and the index match.
-- `git diff --staged` shows the change: the index differs from HEAD.
-
-So the edit now lives in two places (working tree and index). Staging and committing are two separate decisions, and you've made only the first.
-
-Now you want the file **out of the next commit**, but you want to keep your edit on disk. `git restore` can do this too, with a flag that changes its destination:
+Staging and committing are separate decisions, and staging is only the first. If you change your mind, you want the file **out of the next commit** but your edit kept on disk. `git restore` can do that too, with a flag that changes its destination:
 
 ```text
 git restore --staged <file>
 ```
 
-`--staged` makes it write into the **index** instead of the working tree, copying from **HEAD**. So it resets the draft of your next commit for that file and never touches the file on disk.
+`--staged` makes it write into the **index** instead of the working tree, copying from **HEAD**. It resets the draft of your next commit for that file and never touches the file on disk.
 
-**Your turn:** unstage `roster/team.yaml`. Before you run it, predict what `git diff` and `git diff --staged` will show afterwards, and whether the `Another Test` line is still in the file.
+The two forms are easy to mix up:
 
-<!-- dojo-reveal: Show the command and what you should see -->
+| Command                       | Copies from | Copies to    | Your edit |
+| ----------------------------- | ----------- | ------------ | --------- |
+| `git restore <file>`          | index       | working tree | **lost**  |
+| `git restore --staged <file>` | HEAD        | index        | kept      |
+
+Now try it. Open `roster/team.yaml` in your editor again, add another throwaway line such as `- name: Another Test`, and save.
+
+**Prefer the terminal?**
+
 ```sh
-git restore --staged roster/team.yaml
+echo "- name: Another Test" >> roster/team.yaml
+```
+
+Stage the change:
+
+```sh
+git add roster/team.yaml
+```
+
+**Your turn:**
+
+Before you run anything, predict which of `git diff` and `git diff --staged` will show your new line and which will be empty. Then check:
+
+```sh
 git status
 git diff
 git diff --staged
 ```
 
-`git status` lists the file as "not staged for commit" again. `git diff` shows the `Another Test` line (the edit is still in your working tree), and `git diff --staged` is now empty (the index matches HEAD again).
+`git status` shows the file under "Changes to be committed", `git diff` is empty and `git diff --staged` shows the change.
 
-Compare the two forms, because they are easy to mix up:
+**Your turn:** now unstage `roster/team.yaml`. Before you run it, predict:
 
-| Command | Copies from | Copies to | Your edit |
-|---|---|---|---|
-| `git restore <file>` | index | working tree | **lost** |
-| `git restore --staged <file>` | HEAD | index | kept |
-<!-- /dojo-reveal -->
+- what will `git diff` and `git diff --staged` show afterwards?
+- is the `Another Test` line still in the file?
+
+```sh
+git restore --staged roster/team.yaml
+git status
+git diff
+git diff --staged
+bat roster/team.yaml
+```
+
+- `git status` lists the file as "not staged for commit" again.
+- `git diff` shows the `Another Test` line: the edit is still in your working tree.
+- `git diff --staged` is now empty: the index matches HEAD again.
 
 Clean up before moving on:
 
@@ -136,6 +179,7 @@ git restore roster/team.yaml
 **Check yourself:** if you stage an edit with `git add`, then edit the same file again, which of the three places hold which version? What would `git restore <file>` throw away now?
 
 <!-- dojo-reveal: Show the answer -->
+
 All three differ: HEAD has the committed version, the index has the first edit, and the working tree has the first edit plus the second. `git restore <file>` copies from the index, so it discards only the **second** edit and leaves the staged first one in place. `git status` will list the file twice, once staged and once not staged, which is how you can tell.
 <!-- /dojo-reveal -->
 
@@ -172,16 +216,22 @@ git status
 
 `scratch.log` shows up as untracked.
 
-**Your turn:** make git ignore every `.log` file, then confirm with `git status` that `scratch.log` has gone. What do you expect `git status` to list instead?
+**Your turn:** make git ignore every `.log` file. Create a `.gitignore` file in the repo root with the line `*.log` in your editor, then run `git status`. Before you do, predict what `git status` will list instead of `scratch.log`.
 
-<!-- dojo-reveal: Show the command and what you should see -->
+**Prefer the terminal?**
+
 ```sh
 echo "*.log" >> .gitignore
-git status
 ```
 
-`scratch.log` disappears, but `.gitignore` itself appears as a new untracked file. That's correct: the rule is a file in the repo, and you'd commit it so that everyone who clones gets the same rule. To see *why* a file is ignored, ask git: `git check-ignore -v scratch.log` prints the file and line of the matching rule.
-<!-- /dojo-reveal -->
+```sh
+git status
+git check-ignore -v scratch.log
+```
+
+- `scratch.log` has disappeared from the untracked list.
+- `.gitignore` itself now appears as a new untracked file. That's correct: the rule is a file in the repo, and you'd commit it so that everyone who clones gets the same rule.
+- `git check-ignore -v scratch.log` prints the file and line of the rule that matched, which is how you see _why_ a file is ignored.
 
 Clean up (this is a throwaway exercise, not something to commit):
 
@@ -193,6 +243,7 @@ git status
 **Check yourself:** a teammate committed `config.env` last week, then added `config.env` to `.gitignore`. It's still showing as modified when they edit it. Why, and does the `.gitignore` entry protect the secret inside?
 
 <!-- dojo-reveal: Show the answer -->
+
 `.gitignore` only affects **untracked** files. Once a file has been committed, git tracks it and keeps reporting changes regardless of the ignore rule. To stop tracking it you'd run `git rm --cached config.env` and commit that, and the file stays on disk.
 
 That still doesn't protect the secret: it remains in every earlier commit, which anyone who cloned the repo already has. If a secret was ever committed, treat it as exposed and rotate it. Adding it to `.gitignore` afterwards is not a fix.

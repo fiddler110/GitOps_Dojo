@@ -7,5 +7,5 @@ This repo holds your own zone, `{user}.dojo.test` (the same zone `~/lab/my-zone`
 wins, so finish Labs 1-2 first). Work here with `dnscontrol preview` and `dnscontrol push`; `creds.json` uses your own
 key (`$DNS_API_KEY`), which only changes your own zone. Check the live result with `dig @dns-server <name>.{user}.dojo.test`.
 
-When you think it's done: `dojo-check c2`. A wrong answer costs nothing; `dojo-check hint c2` gives a hint for
-part of the points, and `dojo-challenge reset c2` rebuilds this repo from scratch.
+When you think it's done: `dojo check c2`. A wrong answer costs nothing; `dojo check hint c2` gives a hint for
+part of the points, and `dojo challenge reset c2` rebuilds this repo from scratch.

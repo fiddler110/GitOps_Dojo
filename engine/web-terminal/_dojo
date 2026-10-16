@@ -1,0 +1,11 @@
+#compdef dojo
+# Completes `dojo <command>` from the installed commands (`dojo --complete` prints name:description).
+if (( CURRENT == 2 )); then
+  local -a cmds
+  cmds=("${(@f)$(dojo --complete 2>/dev/null)}")
+  _describe -t commands 'dojo command' cmds
+elif [[ $words[2] == help && CURRENT == 3 ]]; then
+  local -a cmds
+  cmds=("${(@f)$(dojo --complete 2>/dev/null)}")
+  _describe -t commands 'dojo command' cmds
+fi

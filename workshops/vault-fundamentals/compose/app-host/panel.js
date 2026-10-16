@@ -33,7 +33,7 @@ function render(doc) {
     q(".light").className = "light " + (LIGHTS[s.state] || "");
     q(".name").textContent = s.name;
     q(".state").textContent = s.state === "locked"
-      ? "locked · opens when you run dojo-challenge start capstone"
+      ? "locked · opens when you run dojo challenge start capstone"
       : s.state + " · " + ago(s.since, doc.now);
     q(".open").href = s.name + "/";
     q(".open").hidden = s.state !== "running";

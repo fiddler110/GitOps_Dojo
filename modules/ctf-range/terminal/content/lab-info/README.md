@@ -41,7 +41,7 @@ authorized pentests, your own homelab); the authorization does not.
 
 - [`ncat.md`](ncat.md) — raw TCP/UDP: probing ports, catching a listener, reading banners
 - [`curl.md`](curl.md) — HTTP requests by hand: methods, JSON bodies, headers, credentials, reading status codes
-- [`defend-loop.md`](defend-loop.md) — the defender's loop for the defend lab: detect, triage, contain, fix, verify, and `dojo-check`
+- [`defend-loop.md`](defend-loop.md) — the defender's loop for the defend lab: detect, triage, contain, fix, verify, and `dojo check`
 - [`httpie.md`](httpie.md) — a readable, JSON-first HTTP client
 - [`jq.md`](jq.md) — slicing and filtering JSON on the command line
 

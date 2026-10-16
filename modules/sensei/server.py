@@ -58,20 +58,20 @@ def log(msg):
 
 
 def ask(q):
-    """`sensei ask`: the lab sections that best answer q. Nothing found is an honest "no", not a guess."""
+    """`dojo sensei ask`: the lab sections that best answer q. Nothing found is an honest "no", not a guess."""
     ready = answers.find(q) if answers else None
     found = index.search(q) if index else []
     if ready:  # a ready-made answer leads; the labs follow as pointers
         return {"answer": ready, "found": found, "message": ""}
     return {"found": found, "message": "" if found else
-            "I couldn't find that in this workshop's labs. Try other words, or `sensei hand \"...\"` to ask the facilitator."}
+            "I couldn't find that in this workshop's labs. Try other words, or `dojo sensei hand \"...\"` to ask the facilitator."}
 
 
 def why(text):
-    """`sensei why`: the known error nearest the bottom of the terminal output, if any."""
+    """`dojo sensei why`: the known error nearest the bottom of the terminal output, if any."""
     m = patterns.match(text) if (patterns and text.strip()) else None
     return {"match": m, "message": "" if m else
-            "I don't recognise an error in that output. `sensei ask \"...\"` searches the labs, and `sensei hand \"...\"` asks the facilitator."}
+            "I don't recognise an error in that output. `dojo sensei ask \"...\"` searches the labs, and `dojo sensei hand \"...\"` asks the facilitator."}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -110,7 +110,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if action == "reply":
             rid = body.get("id")
             ok = isinstance(rid, int) and desk.reply(rid, str(body.get("text", "")), who=user)
-            return self._json(200, {"ok": ok, "message": "" if ok else "I couldn't find an open request of yours with that number (`sensei inbox`)."})
+            return self._json(200, {"ok": ok, "message": "" if ok else "I couldn't find an open request of yours with that number (`dojo sensei inbox`)."})
         if action == "inbox":
             return self._json(200, {"requests": desk.inbox(user)})
         if action == "notify":

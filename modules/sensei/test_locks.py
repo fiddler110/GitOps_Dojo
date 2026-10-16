@@ -90,7 +90,7 @@ class ServerLockTests(unittest.TestCase):
             return json.loads(r.read())
 
     def test_one_slow_student_blocks_nobody_else(self):
-        # student01's `sensei status` is stuck in Forgejo (the reviewers lookup); hold it there.
+        # student01's `dojo sensei status` is stuck in Forgejo (the reviewers lookup); hold it there.
         self.api.block = f"/repos/{REPO}/pulls"
         out = {}
         t = threading.Thread(target=lambda: out.update(self.get("/api/student/status", {"Authorization": "token student01"}, 10)))

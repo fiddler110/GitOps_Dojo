@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# dojo-summary: catch your workspace up to where a lab starts: dojo prep N (safe to repeat)
+# dojo prep <lab>: bring this student's workspace to the state lab <lab> starts
 # from, so someone joining late (or coming back another day) can resume there
 # instead of redoing every earlier lab. Each step checks before it acts, so
 # running it twice is safe. It only moves forward: it never runs destroy.
 #
 # What each lab needs (keep in step with content/lab/*.md when a lab changes):
 #   0     your fork of platform-team/cloud-policy-as-code (you make it in the
-#         UI), then `lab-prep 0` saves your Dojo Cloud login as CI secrets on the
+#         UI), then `dojo prep 0` saves your Dojo Cloud login as CI secrets on the
 #         fork and protects main (the pr.yml check is required to merge)
 #   1-3   the fork cloned to ~/lab/cloud-policy-as-code, infra/ applied (Lab 0)
 #   4+    the end state of each earlier lab, from /opt/workshop-content/solutions
@@ -30,12 +31,12 @@ LAST_LAB=12
 
 usage() {
   cat <<EOT
-Usage: lab-prep <lab>       (0-$LAST_LAB)
+Usage: dojo prep <lab>       (0-$LAST_LAB)
 
-lab-prep 0    after you fork the repo in the UI: save your Dojo Cloud login as
+dojo prep 0    after you fork the repo in the UI: save your Dojo Cloud login as
               CI secrets on your fork, and protect main
-lab-prep 4    clone the fork, apply the app, and bring policy to where lab 4 starts
-lab-prep 9    ...everything up to the end of lab 8 (the applies are slow)
+dojo prep 4    clone the fork, apply the app, and bring policy to where lab 4 starts
+dojo prep 9    ...everything up to the end of lab 8 (the applies are slow)
 
 Safe to run more than once. It never runs destroy.
 EOT
@@ -56,7 +57,7 @@ fork_exists() { [ "$(curl -s -o /dev/null -w '%{http_code}' --netrc "$API/repos/
 # -- Lab 0: the fork, its CI secrets, branch protection -------------------------
 need_fork() {
   say "Lab 0: your fork $FORK"
-  fork_exists || die "no fork yet. In Forgejo, open $TEAM_REPO and press Fork (Lab 0 step 1), then run lab-prep 0 again."
+  fork_exists || die "no fork yet. In Forgejo, open $TEAM_REPO and press Fork (Lab 0 step 1), then run dojo prep 0 again."
   done_ "fork exists"
 }
 
@@ -135,7 +136,7 @@ tofu_apply() {   # dir [try: return 1 instead of stopping]
     die "tofu apply failed in $1. If it was interrupted:
   stale lock:              cd $REPO_DIR/$1 && tofu force-unlock -force <ID from the error above>
   'already exists' error:  cd $REPO_DIR/$1 && tofu import <resource address> <id from the error above>
-then run lab-prep again." )
+then run dojo prep again." )
 }
 
 # Stack the end state of labs 3..$1 (highest lab last, so later files win).

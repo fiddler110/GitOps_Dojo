@@ -2,7 +2,7 @@
 
 Welcome. This is your personal workspace for the **Cloud-Policy-as-Code** session. You will write the rules that keep a cloud safe, as code: definitions, assignments, parameters and sets, then modify rules, exemptions, Rego checks, tests, a pipeline and drift detection, all against **Dojo Cloud Policy**, the practice cloud's policy service (the same model as the big clouds' policy services).
 
-You are working in your own student account. Keep all lab work under this `~/lab` folder. Every lab works in your own fork of the team repo, made in Lab 0. If you fall behind or join late, run `lab-prep N` to bring your workspace to the start of lab N.
+You are working in your own student account. Keep all lab work under this `~/lab` folder. Every lab works in your own fork of the team repo, made in Lab 0. If you fall behind or join late, run `dojo prep N` to bring your workspace to the start of lab N.
 
 ## The labs
 
@@ -34,9 +34,9 @@ Only when your class has achievements on. They are bonus points and never count 
 | `c2` | Waiver With a Deadline | end of [Lab 8](lab8.md) |
 | `capstone` | A New Rule, Start to Finish | end of the [capstone](capstone.md) |
 
-Start one in the terminal with `dojo-challenge start <id>` (c1 and c2 build your repo and clone it into `~/lab`; the
-capstone works in your fork), and check it with `dojo-check <id>`. A wrong answer costs nothing; `dojo-check hint <id>`
-gives a hint for part of the points.
+Start one in the terminal with `dojo challenge start <id>` (c1 and c2 build your repo and clone it into `~/lab`; the
+capstone works in your fork), and check it with `dojo check <id>`. A wrong answer costs nothing; `dojo check hint <id>`
+gives a hint for part of the points. Stuck in a mess? `dojo challenge reset <id>` throws the repo away for a fresh copy. Your brief is saved in `~` (`capstone.md`, `challenge-c1.md`, `challenge-c2.md`); read it with `glow ~/capstone.md`.
 
 **The timings are estimates.** Labs that apply policy (3, 4, 5, 6, 7, 8) include waits of 2 to 3.5 minutes. Creating or destroying a policy definition or assignment takes about 100 seconds, because the provider waits until the cloud's policy service has replicated the change everywhere (eventual consistency). Each of those labs says so up front and gives you something to read while it runs. The waits are part of the lesson, not a fault.
 

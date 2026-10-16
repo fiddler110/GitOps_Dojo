@@ -49,6 +49,24 @@ multiplexers are in your `~/lab`: `tmux-guide.md` (Ctrl+b then %, ", arrow keys)
 Your terminal has **no internet** and no Docker. Every tool a lab needs is already installed. Inside the terminal,
 the git server is `git-server:3000`, **not** `localhost`.
 
+## The `dojo` command
+
+One command runs everything the lab gives you, the same in every workshop: learn it once and it works in the next.
+Type `dojo help` for the list in the workshop you're in (a workshop only shows what it has), and `dojo help NAME`
+for one command's options. Tab completes the names.
+
+| Command | What it does |
+|---|---|
+| `dojo help` | what this terminal can do |
+| `dojo prep N` | catch your workspace up to where lab N starts |
+| `dojo challenge start ID` / `reset ID` | build your own challenge repo and clone it into `~/lab` (or start over) |
+| `dojo check [ID]` | your score, or check a challenge (`dojo check hint ID` for a hint) |
+| `dojo sensei ...` | ask the labs a question, explain an error, raise your hand |
+| `dojo fix-terminal` | put the terminal workspace back to normal after a pane was closed |
+
+Not every workshop has every row; CTF workshops add `dojo flag` and `dojo reset TARGET`. The older names
+(`dojo-check`, `dojo-challenge`, `lab-prep`, `sensei`, `dojo-fix-terminal`) still work.
+
 ## 3. The lab loop
 
 Your lab guides are in `~/lab` in the terminal and also readable in the browser (Slides → Labs). Open one with:
@@ -85,7 +103,7 @@ asks for a password. If a push does ask for one, tell your facilitator.
 
 ### Joining late or coming back
 
-Run `lab-prep N` in the terminal to set up whatever lab N needs from the earlier ones (git-fundamentals,
+Run `dojo prep N` in the terminal to set up whatever lab N needs from the earlier ones (git-fundamentals,
 dns-as-code, cert-autorenewal, tofu-basics and cloud-policy-as-code have it; it is safe to run twice and never
 undoes your work).
 
@@ -93,10 +111,10 @@ undoes your work).
 
 | Need | Do |
 |---|---|
-| Understand an error you just saw | `sensei why` reads the last screen and explains the nearest known error |
-| Find the answer in the lab text | `sensei ask "how do I undo a commit"` searches the lab guides (offline, never reveals challenge answers) |
-| A human | `sensei hand "I am stuck on step 4"` raises your hand with your last screen attached; check replies with `sensei inbox` |
-| Where am I? | `sensei check` lists your milestones for the current lab (workshops with a scoreboard) |
+| Understand an error you just saw | `dojo sensei why` reads the last screen and explains the nearest known error |
+| Find the answer in the lab text | `dojo sensei ask "how do I undo a commit"` searches the lab guides (offline, never reveals challenge answers) |
+| A human | `dojo sensei hand "I am stuck on step 4"` raises your hand with your last screen attached; check replies with `dojo sensei inbox` |
+| Where am I? | `dojo sensei check` lists your milestones for the current lab (workshops with a scoreboard) |
 | A wedged terminal | Tell the facilitator; **Release** gives you a fresh process, **Reset** returns your account to the start |
 
 Sensei is an offline helper, not an AI model. It will not hand you challenge solutions.
@@ -108,14 +126,14 @@ In some workshops Sensei acts as a friendly reviewer:
 - **git-fundamentals**: you add yourself to `roster/team.yaml` and open a PR. Sensei checks it, merges a good one with
   a comment, and tells you what is wrong with a bad one.
 - **dns-as-code**: Sensei approves a clean one-record change (peer review is still practised: review a classmate's
-  PR with `sensei review`, then `sensei approve`). **You merge your own PR.**
+  PR with `dojo sensei review`, then `dojo sensei approve`). **You merge your own PR.**
 
 ## 6. Achievements and challenges (when switched on)
 
 - Points for milestones, a leaderboard on the landing page, and "achievement unlocked" toasts in the browser and
   terminal. Some are jokes. Nothing you type is stored; only whether a milestone was reached.
 - End-of-lab **challenges** give a goal and no steps, in a space of your own. Start one in the terminal with
-  `dojo-challenge start c1` (it builds your repo and clones it into `~/lab`), check it with `dojo-check c1`, and use `dojo-check hint c1` if you need a
+  `dojo challenge start c1` (it builds your repo and clones it into `~/lab`), check it with `dojo check c1`, and use `dojo check hint c1` if you need a
   hint (hints cost points). Challenges are bonus points; they never count against finishing the workshop.
 - Do not try to tamper with the scoring client or forge events. It costs points and is part of the joke.
 
@@ -137,5 +155,5 @@ In some workshops Sensei acts as a friendly reviewer:
 | "Reload window" after being away | Normal after a few minutes idle; reload |
 | Sent back to the start screen | Your seat was released; open the address again |
 | `git push` rejected | Check you cloned the repo the lab names, and `git remote -v` |
-| Command not found | Tools are pre-installed; check the lab spelling, or run `sensei why` |
+| Command not found | Tools are pre-installed; check the lab spelling, or run `dojo sensei why` |
 | Nothing responds | Ask the facilitator; they can see service health |

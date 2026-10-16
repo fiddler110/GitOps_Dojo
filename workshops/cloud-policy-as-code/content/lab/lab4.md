@@ -2,7 +2,7 @@
 
 **Time:** about 12 minutes, of which 2 to 3.5 are waiting. **Goal:** meet a resource the new rule would refuse but that you cannot fix today, switch the rule from `deny` to `audit` with a one-line change, and read the result in the compliance report. You will learn why every rule should start life in audit.
 
-> **Starting here?** This lab starts from the end of Lab 3 (the `require-costcenter` policy applied, the app tagged). Run `lab-prep 4` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
+> **Starting here?** This lab starts from the end of Lab 3 (the `require-costcenter` policy applied, the app tagged). Run `dojo prep 4` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
 
 ## Read this first: this apply is slow too
 
@@ -14,7 +14,9 @@ Another team owns an older resource group, `rg-<you>-legacy`, that also has to l
 
 ## 1. Add the legacy group and watch it fail
 
-At the end of `infra/main.tf`, add:
+A rule that is correct can still block a legitimate resource that cannot comply *yet*. You will see that first-hand: add the legacy group to the app's OpenTofu and apply it while the rule is on `deny`.
+
+At the end of `infra/main.tf`, in your editor, add:
 
 ```hcl
 # Lab 4: an older resource group with no costCenter tag.
@@ -28,13 +30,32 @@ resource "azurerm_resource_group" "legacy" {
 }
 ```
 
-Apply the infra:
+**Prefer the terminal?**
 
-```bash
+```sh
+cat >> ~/lab/cloud-policy-as-code/infra/main.tf <<'EOT'
+
+# Lab 4: an older resource group with no costCenter tag.
+resource "azurerm_resource_group" "legacy" {
+  name     = "rg-${var.owner}-legacy"
+  location = var.location
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+EOT
+```
+
+**Your turn:** apply the infra. Before you run it, predict: allowed or refused, and by which policy?
+
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 tofu fmt
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of the legacy apply -->
 
 ```text
 Plan: 1 to add, 0 to change, 0 to destroy.
@@ -46,6 +67,8 @@ tag 'costCenter' does not exist.
 ```
 
 (abridged.) This is exactly the Lab 3 refusal. And here it is a problem: the rule is correct, but it blocks a legitimate resource that cannot comply *yet*. In a real company, the person who wrote the rule would now be phoning the owner of the legacy group, or worse, the rule would be quietly switched off for everybody.
+
+<!-- /dojo-reveal -->
 
 ## 2. Why audit first
 
@@ -65,7 +88,13 @@ You roll out any new guardrail in that order: audit, look, fix, then deny. A den
 
 ## 3. Switch the assignment to audit
 
-In `policy/cloud/main.tf`, give the assignment a `parameters` argument:
+The change is one argument on the assignment. The shape is `jsonencode` of a map from the **parameter name** to `{ value = ... }`. The names must match the definition's `parameters` block, and the cloud rejects an unknown name or a value outside `allowedValues`.
+
+```text
+tofu plan, then tofu apply
+```
+
+Open `policy/cloud/main.tf` in your editor and give the assignment a `parameters` argument:
 
 ```hcl
 resource "azurerm_subscription_policy_assignment" "require_costcenter" {
@@ -78,13 +107,15 @@ resource "azurerm_subscription_policy_assignment" "require_costcenter" {
 }
 ```
 
-Note the shape: `jsonencode` of a map from the **parameter name** to `{ value = ... }`. The names must match the definition's `parameters` block, and the cloud rejects an unknown name or a value outside `allowedValues`.
+**Your turn:** before you plan, predict: how many resources will change, and will the definition be touched?
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud
 tofu fmt
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
   # azurerm_subscription_policy_assignment.require_costcenter will be updated in-place
@@ -101,13 +132,15 @@ tofu plan
 Plan: 0 to add, 1 to change, 0 to destroy.
 ```
 
-One in-place change. The definition is untouched. Apply it:
+One in-place change. The definition is untouched.
 
-```bash
+<!-- /dojo-reveal -->
+
+Apply it, type `yes`, then read while it runs.
+
+```sh
 tofu apply
 ```
-
-Type `yes`, then read while it runs.
 
 ## While it runs: reading
 
@@ -124,11 +157,28 @@ Type `yes`, then read while it runs.
 
 **What is actually in the plan?** The only difference is the assignment's `parameters`. The cloud applies the new value as soon as the update has replicated. This is also why each lab is "one policy apply": policy is designed so that a small edit is a small change.
 
-**Think ahead.** The assignment for a team baseline in Lab 6 will pass one `effect` to *several* rules. What would audit-first mean there? (You would assign the whole baseline in audit, review all the findings together, then flip one line.)
+**Check yourself:** The assignment for a team baseline in Lab 6 will pass one `effect` to *several* rules. What would audit-first mean there?
+
+<!-- dojo-reveal: Show the answer -->
+
+You would assign the whole baseline in audit, review all the findings together, then flip one line.
+
+<!-- /dojo-reveal -->
 
 ## 4. Create the legacy group
 
-When the apply finishes:
+When the policy apply finishes, run the infra apply from step 1 again.
+
+**Your turn:** predict: will the write that was refused now succeed?
+
+```sh
+cd ~/lab/cloud-policy-as-code/infra
+tofu apply -auto-approve
+```
+
+<!-- dojo-reveal: Results of both applies -->
+
+The policy apply ended with:
 
 ```text
 azurerm_subscription_policy_assignment.require_costcenter: Modifying...
@@ -138,12 +188,7 @@ azurerm_subscription_policy_assignment.require_costcenter: Modifications complet
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 ```
 
-Run the infra apply from step 1 again:
-
-```bash
-cd ~/lab/cloud-policy-as-code/infra
-tofu apply -auto-approve
-```
+and the infra apply:
 
 ```text
 azurerm_resource_group.legacy: Creation complete after 2s
@@ -153,12 +198,18 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 
 The write that was refused is now allowed.
 
+<!-- /dojo-reveal -->
+
 ## 5. Read the compliance report
 
-Open the portal's **Policy** blade and its **Compliance** view:
+**Your turn:** open the portal's **Policy** blade and its **Compliance** view. Predict which resources are Compliant and which are not.
+
+<!-- dojo-reveal: What Compliance shows -->
 
 - `rg-<you>-app` and `ci-<you>-app` are **Compliant** with `require-costcenter`.
 - `rg-<you>-legacy` is **NonCompliant**, and the reason reads `tag 'costCenter' does not exist`.
+
+<!-- /dojo-reveal -->
 
 This list is your to-do list. Hand it to the owner of the legacy group. When there is nothing in it, or every remaining item has an agreed exception (Lab 8), the rule is safe to enforce.
 
@@ -176,7 +227,7 @@ That is a one-line pull request, easy to review and easy to revert. Compare it w
 
 ## 7. Commit it
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git add infra policy
 git commit -m "Audit the costCenter rule; add the legacy resource group"

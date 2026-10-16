@@ -16,22 +16,26 @@ Everything here stays in a folder on your own terminal; nothing is pushed. The t
 
 ## 1. A small app with a secret in it
 
-Git signs every commit with a name and an email. If it doesn't know yours yet, tell it once (`--global` means "for every repo of mine"):
+Git signs every commit with a name and an email, so it needs to know yours once (`--global` means "for every repo of mine"). `git init` turns a folder into a repo (`-b main` names the first branch `main`), and `git add` then `git commit` pick a file and record it for good:
 
-```bash
-git config --global user.name "$USER"
-git config --global user.email "$USER@dojo.test"
+```text
+git config --global user.name "<name>"
+git init -b main
+git add <file>
+git commit -m "<message>"
 ```
 
-Make a folder for the app, go into it, and turn it into a git repo (`-b main` names the first branch `main`):
+Start by creating the app. Make the folder first:
 
-```bash
+```sh
+git config --global user.name "$USER"
+git config --global user.email "$USER@dojo.test"
 mkdir -p ~/lab/leaky-app
 cd ~/lab/leaky-app
 git init -b main
 ```
 
-`leaky-app` now shows in the VS Code Explorer (click the refresh arrow if it doesn't). Create the app: right-click **leaky-app** → **New File...**, name it `app.py`, and paste this in:
+`leaky-app` now shows in the VS Code Explorer (click the refresh arrow if it doesn't). Right-click **leaky-app** → **New File...**, name it `app.py`, and paste this in:
 
 ```python
 API_URL = "https://api.example.test"
@@ -42,16 +46,31 @@ print(f"calling {API_URL}")
 
 Save it (**Ctrl+S**). This is the mistake: `API_TOKEN` is a credential, written straight into the code. It's how a secret usually gets into git: someone tests with a real token and forgets it's there.
 
-Back in the terminal, commit it. `git add` picks the file for the next commit, and `git commit` records it for good:
+**Your turn:** commit it. Before you run it, predict: will git stop you, or warn you about the token?
 
-```bash
+```sh
 git add app.py
 git commit -m "Add the app"
 ```
 
+<!-- dojo-reveal: Result of the first commit -->
+
+Git accepts it without a word: git has no idea what a secret looks like. One commit now holds the token.
+
+<!-- /dojo-reveal -->
+
 ## 2. "Delete" it
 
-A reviewer spots the token. You fix it the obvious way: the code reads the token from an **environment variable** (a value the program is given when it starts), so the file no longer holds it.
+A reviewer spots the token. The obvious fix is to make the code read the token from an **environment variable** (a value the program is given when it starts), so the file no longer holds it. The history commands you need:
+
+- `git commit -am` includes every file git already tracks, so you don't need `git add` again.
+- `git log -p` shows every commit, newest first, with the lines each one changed (`-` removed, `+` added). Press **Space** to page down and **q** to quit.
+- `git log -S "text"` lists the commits that added or removed a string.
+
+```text
+git log -p
+git log -S "<string>" --oneline
+```
 
 In VS Code, replace the whole of `app.py` with this (**Ctrl+A**, then paste) and save:
 
@@ -64,26 +83,20 @@ API_TOKEN = os.environ["API_TOKEN"]
 print(f"calling {API_URL}")
 ```
 
-Commit the fix (`-a` includes every file git already tracks, so you don't need `git add` again):
+**Your turn:** commit the fix and look at the file. Then, before you run the log commands, predict: is the token gone from the repo? (`ghp_` is how GitHub tokens start, which is why scanners look for it.)
 
-```bash
+```sh
 git commit -am "Read the API token from the environment"
 cat app.py
-```
-
-The file is clean now. Is the token gone? `git log -p` shows every commit, newest first, with the lines each one changed (`-` removed, `+` added):
-
-```bash
 git log -p
-```
-
-Press **Space** to page down and **q** to quit. The second commit shows the token on a `-` line, and the first shows it being added: it's still there, in full. Anyone who clones this repo gets every commit, so they get the token too. You can also ask git which commits added or removed a string:
-
-```bash
 git log -S "ghp_" --oneline
 ```
 
-(`ghp_` is how GitHub tokens start, which is why scanners look for it.)
+<!-- dojo-reveal: Results of the fix and the history -->
+
+The file is clean, but the second commit shows the token on a `-` line and the first shows it being added: it's still there, in full. Anyone who clones this repo gets every commit, so they get the token too. `git log -S` lists both commits.
+
+<!-- /dojo-reveal -->
 
 ## 3. Once it's pushed, it's leaked
 
@@ -91,19 +104,31 @@ If you had pushed that first commit, you could rewrite history (`git filter-repo
 
 ## 4. Scan for secrets
 
-`gitleaks` knows what hundreds of kinds of secret look like. `gitleaks git` scans every commit in the repo, and `-v` (verbose) shows each finding:
+`gitleaks` knows what hundreds of kinds of secret look like. `gitleaks git` scans every commit in the repo, and `-v` (verbose) shows each finding. At work you'd run the same scan in CI on every push, and over the whole history of an old repo when you take it over.
 
-```bash
+```text
 gitleaks git -v
 ```
 
-It finds the token in the first commit, with the file, line, commit and author that added it, and ends with `leaks found: 1`. At work you'd run the same scan in CI on every push, and over the whole history of an old repo when you take it over.
+**Your turn:** before you run it, predict: will it flag the current `app.py`, the history, or both?
+
+```sh
+gitleaks git -v
+```
+
+<!-- dojo-reveal: Result of the scan -->
+
+It finds the token in the first commit, with the file, line, commit and author that added it, and ends with `leaks found: 1`. The current file is clean; the history is not.
+
+<!-- /dojo-reveal -->
 
 ## 5. Stop the next one before it's committed
 
-Finding a leak after it's committed is too late. A **pre-commit hook** is a script git runs just before every commit: if the script fails, there is no commit.
+Finding a leak after it's committed is too late. A **pre-commit hook** is a script git runs just before every commit: if the script fails, there is no commit. Git looks for hooks in the repo's `.git/hooks/` folder, and skips one it can't run, so the file must be executable.
 
-Git looks for hooks in the repo's `.git/hooks/` folder. Open **leaky-app → `.git` → `hooks`** in VS Code: git put some `*.sample` scripts there when you ran `git init`. Create a new file in that folder named `pre-commit` (no extension), with this in it:
+A hook has limits. `git commit --no-verify` skips it. And nothing in `.git/` is ever committed, so your hook stays on your machine: everyone who clones the repo has to install it for themselves. A hook is a seatbelt for you, not a guarantee for the team. Teams add the same scan in CI and on the git server (push protection), and install hooks for everyone with a tool like `pre-commit`.
+
+Open **leaky-app → `.git` → `hooks`** in VS Code: git put some `*.sample` scripts there when you ran `git init`. Create a new file in that folder named `pre-commit` (no extension), with this in it:
 
 ```sh
 #!/bin/sh
@@ -112,9 +137,9 @@ Git looks for hooks in the repo's `.git/hooks/` folder. Open **leaky-app → `.g
 exec gitleaks git --pre-commit --staged --redact -v
 ```
 
-Save it. Then make it executable (git skips a hook it can't run):
+Save it, then make it executable:
 
-```bash
+```sh
 chmod +x .git/hooks/pre-commit
 ```
 
@@ -124,30 +149,37 @@ Now make the same mistake again. Add this line to the end of `app.py` in VS Code
 BACKUP_TOKEN = "ghp_Z3xQ9wLk2VbN7cRt5YmH8sJd4FgP1aKe6UoW"
 ```
 
-Try to commit it:
+**Your turn:** try to commit it. Before you run it, predict: will the commit happen? What will the log show? `git checkout app.py` then throws away your change to the file and brings back the committed version.
 
-```bash
+```sh
 git commit -am "Add the backup token"
-```
-
-gitleaks prints a finding (the value shows as `REDACTED`) and **the commit doesn't happen**. Check:
-
-```bash
 git log --oneline   # still two commits
-```
-
-Put it right. `git checkout app.py` throws away your change to the file and brings back the committed version; VS Code shows the line disappear:
-
-```bash
 git checkout app.py
 ```
 
-A hook has limits. `git commit --no-verify` skips it. And nothing in `.git/` is ever committed, so your hook stays on your machine: everyone who clones the repo has to install it for themselves. A hook is a seatbelt for you, not a guarantee for the team. Teams add the same scan in CI and on the git server (push protection), and install hooks for everyone with a tool like `pre-commit`.
+<!-- dojo-reveal: Results of the blocked commit -->
+
+gitleaks prints a finding (the value shows as `REDACTED`) and **the commit doesn't happen**: the log still shows two commits. After the checkout, VS Code shows the line disappear.
+
+<!-- /dojo-reveal -->
 
 ## Check yourself
 
-1. You find a password in a commit from last year. You delete the line and push. Are you done? *(No. It's still in history and in every clone. Rotate it.)*
-2. Why run gitleaks in CI as well as in a hook? *(A hook works only in clones that switched it on, and can be skipped. CI sees every push.)*
+1. You find a password in a commit from last year. You delete the line and push. Are you done?
+
+<!-- dojo-reveal: Show the answer -->
+
+No. It's still in history and in every clone. Rotate it.
+
+<!-- /dojo-reveal -->
+
+2. Why run gitleaks in CI as well as in a hook?
+
+<!-- dojo-reveal: Show the answer -->
+
+A hook works only in clones that switched it on, and can be skipped. CI sees every push.
+
+<!-- /dojo-reveal -->
 
 **Rules used:** 8 (never in git, including history), 7 (plan for leaks: rotation is the fix).
 

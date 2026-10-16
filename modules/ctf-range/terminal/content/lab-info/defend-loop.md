@@ -1,4 +1,4 @@
-# The defend loop and `dojo-check`
+# The defend loop and `dojo check`
 
 For the defend session (CTF-5). This is a method and a tool reference, not a walkthrough of any target.
 
@@ -12,7 +12,7 @@ Every incident, every target, the same five steps, in this order:
    severity and evidence decide the order.
 3. **Contain.** Stop further damage, even temporarily. Optional here, but it is a real step in a real incident.
 4. **Fix.** The real fix, in source, on a branch, through a pull request.
-5. **Verify.** Prove it with `dojo-check` and the SIEM. A fix you have not verified is a guess.
+5. **Verify.** Prove it with `dojo check` and the SIEM. A fix you have not verified is a guess.
 
 ## Reading a signal
 
@@ -20,18 +20,18 @@ Each target shows a different kind of signal. Benign traffic is mixed in on purp
 specific (it names one path, caller or account), countable (it repeats) and different from the normal traffic
 around it. Look for what does not belong, then ask what it tried to do and whether it worked.
 
-## `dojo-check`
+## `dojo check`
 
 ```text
-$ dojo-check
+$ dojo check
 customer-portal  HIGH    still exploitable
 policy-bypass    MEDIUM  contained
 leaky-config     LOW     unreachable
 ```
 
 ```sh
-dojo-check                  # every target on your slot
-dojo-check leaky-config     # one target
+dojo check                  # every target on your slot
+dojo check leaky-config     # one target
 ```
 
 Broke a box? `dojo-reset <target>` puts that one running target back to the starting app. Your repo is

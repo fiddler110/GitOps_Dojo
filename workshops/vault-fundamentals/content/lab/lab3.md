@@ -19,77 +19,100 @@ All the commands are `bao kv ...`: `kv` is the part of `bao` that talks to key-v
 
 ## 1. Put and get
 
-A secret is a small set of key-value pairs at a path. `put` writes one (here two keys, `username` and `password`), `get` reads it back, and `-field` picks one value:
+A secret is a small set of key-value pairs at a path. `put` writes one (here two keys, `username` and `password`), `get` reads it back, and `-field` picks one value. `-field` prints just the value, which is what a script wants. `-format=json` gives everything, for tools like `jq`.
 
-```bash
+```text
+bao kv put <path> key=value [key=value ...]
+bao kv get [-field=<key>] <path>
+```
+
+**Your turn:** before you run these, predict what each `get` prints.
+
+```sh
 bao kv put secret/students/$USER/db username=app password=first-password
 bao kv get secret/students/$USER/db
 bao kv get -field=password secret/students/$USER/db
 ```
 
-`-field` prints just the value, which is what a script wants. `-format=json` gives everything, for tools like `jq`.
+<!-- dojo-reveal: Results of put and get -->
+
+The first `get` shows both keys plus the secret's metadata (version 1). The second prints only `first-password`.
+
+<!-- /dojo-reveal -->
 
 ### Keep the value off the command line
 
-That `put` line has a problem. While a program runs, its whole command line is visible to every account on a shared machine: build servers, jump hosts, CI runners. Try it with a stand-in for a slow command:
+That `put` line has a problem. While a program runs, its whole command line is visible to every account on a shared machine: build servers, jump hosts, CI runners. `ps` lists processes with their arguments, so yours would show up; on an ordinary shared machine, so would a neighbour's `bao kv put ... password=...` while it runs. (Not here: this platform runs each of you in a process namespace of your own, so your `ps` shows only your processes. Most machines don't, so don't count on it.)
 
-```bash
+The fix is to hand the value to `bao` on its **standard input**. `password=-` means "read this value from stdin", and `printf` is part of the shell, not a separate program, so the value never shows in `ps`. Several keys at once go in as JSON, with a lone `-` for all of them: `echo '{"a": "1", "b": "2"}' | bao kv put <path> -`. (A value you type still lands in your shell history. For a real password, `read -rs PW` asks for it without showing it, then `printf '%s' "$PW" | ...`.) From here on the labs write secrets this way.
+
+**Your turn:** try it with a stand-in for a slow command. Predict: will `ps` show the password?
+
+```sh
 python3 -c 'import time; time.sleep(30)' password=first-password &
 ps -eo user,args | grep '[p]assword='
 kill %1
 ```
 
-`ps` lists processes with their arguments. Yours shows up; on an ordinary shared machine, so would a neighbour's `bao kv put ... password=...` while it runs. (Not here: this platform runs each of you in a process namespace of your own, so your `ps` shows only your processes. Most machines don't, so don't count on it.)
+<!-- dojo-reveal: Result of the ps demo -->
 
-Hand the value to `bao` on its **standard input** instead. `password=-` means "read this value from stdin", and `printf` is part of the shell, not a separate program, so the value never shows in `ps`:
+Yes: the argument `password=first-password` is plainly in the process list.
 
-```bash
+<!-- /dojo-reveal -->
+
+Now write the secret the safe way:
+
+```sh
 printf '%s' 'first-password' | bao kv put secret/students/$USER/db username=app password=-
 ```
-
-From here on the labs write secrets this way. Several keys at once go in as JSON, with a lone `-` for all of them: `echo '{"a": "1", "b": "2"}' | bao kv put <path> -`. (A value you type still lands in your shell history. For a real password, `read -rs PW` asks for it without showing it, then `printf '%s' "$PW" | ...`.)
 
 Open the same secret in the UI (**secret → students → your name → db**) and leave the tab open.
 
 ## 2. Versions
 
-Change the password twice, once with each way of writing:
+KV v2 keeps every version of a secret. `put` replaces the whole secret, so you give every key again; `patch` changes only the keys you give. `-version=N` reads an old one, and the **metadata** is the list of versions, with when each was made. `rollback` writes an old version's data as a new version, so nothing is lost.
 
-```bash
+```text
+bao kv patch <path> key=value
+bao kv get -version=<n> <path>
+bao kv metadata get <path>
+bao kv rollback -version=<n> <path>
+```
+
+**Your turn:** change the password twice, once with each way of writing. Predict what `version` will say at the end.
+
+```sh
 printf '%s' 'second-password' | bao kv put secret/students/$USER/db username=app password=-
 printf '%s' 'third-password' | bao kv patch secret/students/$USER/db password=-
 bao kv get secret/students/$USER/db
 ```
 
-`put` replaces the whole secret, so you give every key again; `patch` changes only the keys you give. The `version` in the output went up each time, and the old ones are still there. Read version 1, then the secret's **metadata**: the list of versions, with when each was made:
+<!-- dojo-reveal: Result of the two changes -->
 
-```bash
+`version` went up each time, to 3, and the old ones are still there.
+
+<!-- /dojo-reveal -->
+
+**Your turn:** read version 1 and the metadata. Then somebody set a bad password: roll back to version 2 (this writes version 2's data as a new version 4). Predict which password you get back.
+
+```sh
 bao kv get -version=1 secret/students/$USER/db
 bao kv metadata get secret/students/$USER/db
-```
-
-Somebody set a bad password. Roll back to version 2 (this writes version 2's data as a new version 4, so nothing is lost):
-
-```bash
 bao kv rollback -version=2 secret/students/$USER/db
 bao kv get -field=password secret/students/$USER/db
 ```
+
+<!-- dojo-reveal: Results of the rollback -->
+
+Version 1 still shows `first-password`. After the rollback the password is `second-password`, as version 4.
+
+<!-- /dojo-reveal -->
 
 In the UI, refresh and open **Version history**. You can see the old versions still there, even after rolling back to version 2, and see how each is an update so we are now on version 4 with version 2's value. One thing in version history is that you don't see actual values; only the keys and their metadata.
 
 ## 3. Delete, undelete, destroy
 
-These three are different, and the difference matters when something leaks. Run the first four lines, then the last two, reading the output after each:
-
-```bash
-bao kv delete secret/students/$USER/db          # the newest version: hidden, recoverable
-bao kv get secret/students/$USER/db             # "deleted"
-bao kv undelete -versions=4 secret/students/$USER/db
-bao kv get -field=password secret/students/$USER/db   # back
-
-bao kv destroy -versions=1 secret/students/$USER/db   # version 1: gone for good
-bao kv get -version=1 secret/students/$USER/db        # "destroyed"
-```
+These three are different, and the difference matters when something leaks.
 
 | Command           | What happens                        | Azure Key Vault calls it |
 | ----------------- | ----------------------------------- | ------------------------ |
@@ -99,19 +122,51 @@ bao kv get -version=1 secret/students/$USER/db        # "destroyed"
 
 If a secret leaked, destroying old copies doesn't un-leak it. **Rotate first** (a new password where it's used), then destroy.
 
+```text
+bao kv delete <path>
+bao kv undelete -versions=<n> <path>
+bao kv destroy -versions=<n> <path>
+```
+
+**Your turn:** run the first four lines, then the last two, reading the output after each. Before each `get`, predict what it will say.
+
+```sh
+bao kv delete secret/students/$USER/db          # the newest version: hidden, recoverable
+bao kv get secret/students/$USER/db             # "deleted"
+bao kv undelete -versions=4 secret/students/$USER/db
+bao kv get -field=password secret/students/$USER/db   # back
+
+bao kv destroy -versions=1 secret/students/$USER/db   # version 1: gone for good
+bao kv get -version=1 secret/students/$USER/db        # "destroyed"
+```
+
+<!-- dojo-reveal: Results of delete, undelete, destroy -->
+
+After `delete`, the `get` reports the version as deleted. After `undelete`, the password is back. After `destroy`, version 1 reads as destroyed, with no data, and nothing brings it back.
+
+<!-- /dojo-reveal -->
+
 ## 4. Knock on a neighbour's door
 
-Try the folders around yours. `list` shows what's in a folder; then read and write a neighbour's secret:
+`list` shows what's in a folder. Nobody made a rule for you personally: there is **one** policy for the whole class. A **policy** is a list of paths, each with what may be done there (`read`, `create`, `delete`...). Anything a policy doesn't allow is denied.
 
-```bash
+**Your turn:** list the folders, then read and write a neighbour's secret. Predict which of the three succeed.
+
+```sh
 bao kv list secret/students/
 bao kv get secret/students/student02/db
 printf '%s' 'mine-now' | bao kv put secret/students/student02/db password=-
 ```
 
-You can list the folders, but reading or writing anyone else's gives `permission denied`. Nobody made a rule for you personally. There is **one** policy for the whole class. A **policy** is a list of paths, each with what may be done there (`read`, `create`, `delete`...). Read it:
+<!-- dojo-reveal: Results of the neighbour's folder -->
 
-```bash
+You can list the folders, but reading or writing anyone else's gives `permission denied`.
+
+<!-- /dojo-reveal -->
+
+Now read the policy that refused you:
+
+```sh
 bao policy read student
 
 # Or with pretty colours
@@ -126,15 +181,35 @@ path "secret/data/students/{{identity.entity.name}}/*" {
 }
 ```
 
-`{{identity.entity.name}}` is filled in on every request with the name of the entity asking, which is you. That one **templated policy** covers 30 students, or 3,000, with no per-person rule to keep up to date. Anything a policy doesn't allow is denied.
+`{{identity.entity.name}}` is filled in on every request with the name of the entity asking, which is you. That one **templated policy** covers 30 students, or 3,000, with no per-person rule to keep up to date.
 
 Notice that the path says `secret/data/...`, not `secret/...`. KV v2 keeps the value under `data/`, and the history under `metadata/`, `delete/`, `undelete/` and `destroy/`, so a policy can allow reading a secret without allowing its history to be wiped.
 
 ## Check yourself
 
-1. Someone can `list` a folder but not `read` in it. What can they learn? _(The names of the secrets, not the values. Names can still leak something, so keep them boring.)_
-2. You deleted the newest version by mistake. Which command undoes it? _(`bao kv undelete -versions=<n>`. After `destroy`, nothing does.)_
-3. Why `printf ... | bao kv put ... password=-` and not `password=...`? _(On a shared machine, a command line is visible to every account in `ps` while the command runs. Standard input isn't.)_
+1. Someone can `list` a folder but not `read` in it. What can they learn?
+
+<!-- dojo-reveal: Show the answer -->
+
+The names of the secrets, not the values. Names can still leak something, so keep them boring.
+
+<!-- /dojo-reveal -->
+
+2. You deleted the newest version by mistake. Which command undoes it?
+
+<!-- dojo-reveal: Show the answer -->
+
+`bao kv undelete -versions=<n>`. After `destroy`, nothing does.
+
+<!-- /dojo-reveal -->
+
+3. Why `printf ... | bao kv put ... password=-` and not `password=...`?
+
+<!-- dojo-reveal: Show the answer -->
+
+On a shared machine, a command line is visible to every account in `ps` while the command runs. Standard input isn't.
+
+<!-- /dojo-reveal -->
 
 **Rules used:** 1 (least privilege: deny by default, one folder each), 7 (plan for leaks: versions, rotate, then destroy), 8 (never in logs: nor on a command line).
 

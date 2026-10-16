@@ -2,9 +2,9 @@
 
 **Time:** about 25 minutes. **Goal:** cause drift on purpose, have a pipeline detect it, and put things right so that git wins again. Then think about why this matters more for policy than for almost anything else.
 
-> **Starting here?** This lab needs your clone, the app applied, the policy from Labs 3-8 applied, and the Lab 10 and Lab 11 work merged into your fork's `main`. Run `lab-prep 12` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone, the app applied, the policy from Labs 3-8 applied, and the Lab 10 and Lab 11 work merged into your fork's `main`. Run `dojo prep 12` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git checkout main
 git pull
@@ -37,11 +37,7 @@ Notice the question in the middle. Drift is not always an error; sometimes the e
 
 ## 1. Look at the detector
 
-```bash
-cat .forgejo/workflows/drift.yml
-```
-
-The part that matters:
+The detector is `.forgejo/workflows/drift.yml`. The part that matters:
 
 ```yaml
 on:
@@ -65,21 +61,39 @@ on:
 
 `tofu plan -detailed-exitcode` has three outcomes: **0** nothing to do, **1** an error, **2** there are changes to make. A plan on `main` that wants to change something, with nobody having touched the code, means the cloud has moved. The script turns exit code 2 into a clear message and a failed run. In a real organisation the schedule would be `cron` (hourly or nightly); here it runs when you start it by hand and after every push to `main`, so you can watch it.
 
+**Your turn:** open the file in your editor, or print it. Predict: what exit code means "drift"?
+
+```sh
+cat .forgejo/workflows/drift.yml
+```
+
+<!-- dojo-reveal: What the file shows -->
+
+- Exit code 2 from `tofu plan -detailed-exitcode`.
+
+<!-- /dojo-reveal -->
+
 ## 2. Establish a clean baseline
 
-Run it once with nothing changed. In your fork open **Actions**, pick the **Drift** workflow in the left list, press **Run workflow**, choose `main`, and run it. Wait for it to finish.
+A green run is the baseline: git and the cloud agree. (If it is red, an earlier lab left something different; run `cd policy/cloud && tofu apply` and try again.)
+
+**Your turn:** run it once with nothing changed. In your fork open **Actions**, pick the **Drift** workflow in the left list, press **Run workflow**, choose `main`, and run it. Predict the result, and wait for it to finish.
+
+<!-- dojo-reveal: Results of the Drift run -->
 
 ```text
 No changes. Your infrastructure matches the configuration.
 ```
 
-A green run is the baseline: git and the cloud agree. (If it is red, an earlier lab left something different; run `cd policy/cloud && tofu apply` and try again.)
+<!-- /dojo-reveal -->
 
 ## 3. Cause the drift
 
-Pretend you are the engineer at 2 a.m. Open the portal's **Policy** blade, find the `team-baseline` assignment and press **Disable enforcement**, then confirm. Its **Enforcement mode** turns to `DoNotEnforce`.
+`DoNotEnforce` is the setting you met in Lab 5: the rules still *evaluate* and report compliance, but they no longer *deny*. You will switch it on in the portal, then see what it lets through.
 
-`DoNotEnforce` is the setting you met in Lab 5: the rules still *evaluate* and report compliance, but they no longer *deny*. See what it does to you. Add a file `infra/drift-demo.tf` with a resource group that breaks the costCenter rule:
+**Your turn:** pretend you are the engineer at 2 a.m. Open the portal's **Policy** blade, find the `team-baseline` assignment and press **Disable enforcement**, then confirm. Its **Enforcement mode** turns to `DoNotEnforce`.
+
+Then, in your editor, add a file `infra/drift-demo.tf` with a resource group that breaks the costCenter rule:
 
 ```hcl
 resource "azurerm_resource_group" "drift_demo" {
@@ -92,21 +106,46 @@ resource "azurerm_resource_group" "drift_demo" {
 }
 ```
 
-```bash
+**Prefer the terminal?**
+
+```sh
+cat > infra/drift-demo.tf <<'EOT'
+resource "azurerm_resource_group" "drift_demo" {
+  name     = "rg-${var.owner}-drift"
+  location = var.location
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+EOT
+```
+
+**Your turn:** in Lab 9 the same group was refused. Predict: what happens now?
+
+```sh
 cd infra
 tofu apply
 ```
+
+<!-- dojo-reveal: Results of tofu apply -->
 
 ```text
 azurerm_resource_group.drift_demo: Creation complete after 1s
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-In Lab 9 the same group was refused. Now it is in the cloud, and nobody was told. Back in the portal's **Policy** blade press **Evaluate now**: `team-baseline` lists the group as **non-compliant**, so the information is there, but only for someone who goes looking.
+Now it is in the cloud, and nobody was told. Back in the portal's **Policy** blade press **Evaluate now**: `team-baseline` lists the group as **non-compliant**, so the information is there, but only for someone who goes looking.
+
+<!-- /dojo-reveal -->
 
 ## 4. Let the detector find it
 
-In Forgejo: **Actions**, **Drift**, **Run workflow** on `main`. Open the run when it appears:
+The detector never needs to know what the portal did. It only compares git with the cloud.
+
+**Your turn:** in Forgejo: **Actions**, **Drift**, **Run workflow** on `main`. Predict what the plan will say.
+
+<!-- dojo-reveal: Results of the Drift run -->
 
 ```text
   # azurerm_subscription_policy_assignment.team_baseline will be updated in-place
@@ -120,7 +159,9 @@ DRIFT: someone changed policy outside git
 Error: Process completed with exit code 1.
 ```
 
-Read the plan as a diff between *what the cloud has* (`enforce = false`) and *what git says* (`true`). Notice that the detector never needed to know what the portal did. It only compares. That is why this works for any out-of-band change: a deleted assignment would show as `1 to add`, a changed parameter as `~`. The run is red; someone has to look.
+Read the plan as a diff between *what the cloud has* (`enforce = false`) and *what git says* (`true`). That is why this works for any out-of-band change: a deleted assignment would show as `1 to add`, a changed parameter as `~`. The run is red; someone has to look.
+
+<!-- /dojo-reveal -->
 
 ## 5. Make git win
 
@@ -130,10 +171,12 @@ Here the portal change was a mistake, so the corrective action is to apply what 
 
 **From your terminal.**
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud
 tofu apply
 ```
+
+<!-- dojo-reveal: Results of tofu apply -->
 
 ```text
   ~ enforce = false -> true
@@ -142,13 +185,17 @@ Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 
 Either way, the assignment is back in `Default` enforcement mode, because the code said so. Confirm in the portal (**Policy**, Enforcement mode `Default`), then run **Drift** again from **Actions**: green.
 
-Now clean up the group that slipped through. Delete the file and apply, so git and the cloud agree again:
+<!-- /dojo-reveal -->
 
-```bash
+Now clean up the group that slipped through. Delete `infra/drift-demo.tf` (in your editor, or `rm`) and apply, so git and the cloud agree again. Predict first: how many resources will be destroyed?
+
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 rm drift-demo.tf
 tofu apply
 ```
+
+<!-- dojo-reveal: Results of tofu apply -->
 
 ```text
 azurerm_resource_group.drift_demo: Destruction complete after 1s
@@ -156,6 +203,8 @@ Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
 ```
 
 (A delete is not subject to the costCenter rule, and enforcement is back on, so you can see the policy is working again: add `drift-demo.tf` back and the apply is refused. Delete it once more.)
+
+<!-- /dojo-reveal -->
 
 ## 6. Why this matters
 
@@ -175,9 +224,17 @@ Spend a few minutes with these questions; they are the point of the lab.
 
 ## Check yourself
 
-1. What does exit code 2 from `tofu plan -detailed-exitcode` mean? *(there are changes to make; here, the cloud has moved away from git)*
-2. Why is a switched-off policy a worse kind of drift than a changed resource? *(nothing breaks, so nothing tells you; the guardrail just stops guarding)*
-3. When a drift run fails, what are the two right responses? *(re-apply git if the portal change was wrong; change git in a pull request if it was needed)*
+1. What does exit code 2 from `tofu plan -detailed-exitcode` mean?
+2. Why is a switched-off policy a worse kind of drift than a changed resource?
+3. When a drift run fails, what are the two right responses?
+
+<!-- dojo-reveal: Show the answers -->
+
+1. There are changes to make; here, the cloud has moved away from git.
+2. Nothing breaks, so nothing tells you; the guardrail just stops guarding.
+3. Re-apply git if the portal change was wrong; change git in a pull request if it was needed.
+
+<!-- /dojo-reveal -->
 
 **Check box.** You are done when all of these hold:
 

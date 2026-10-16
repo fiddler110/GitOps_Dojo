@@ -110,7 +110,7 @@ optional ones, each with TODOs.
 | `MODULES=` (in `workshop.env`)                                    | Optional     | Opt into reusable services/tools from `modules/` (`./dojo modules`)                                                                                                                                                                  |
 | `compose/docker-compose.override.yml`                             | Optional     | Extra services, pointed at by `COMPOSE_OVERLAY` — only when no module provides them                                                                                                                                                  |
 | `compose/terminal/Dockerfile`                                     | Optional     | Extra terminal tools, found by convention; stacks on the base/module image                                                                                                                                                           |
-| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional     | Start-up hooks, per-account setup, student-reset hooks, and the `lab-prep N` helper                                                                                                                                                  |
+| `compose/terminal/start.d/`, `account.d/`, `reset.d/`, `lab-prep` | Optional     | Start-up hooks, per-account setup, student-reset hooks, and the `dojo prep N` helper                                                                                                                                                  |
 | `extensions.json`                                                 | Optional     | A front door: landing cards, `/admin` tabs, routes and status checks (see [Front door](#front-door-extensionsjson))                                                                                                                  |
 | `content/bots/steps.sh`                                           | Optional     | Demo-bot steps so `--test` walks *this* workshop's labs, not the default git ones                                                                                                                                                    |
 | `achievements/` + `ACHIEVEMENTS.md`                               | Optional     | The achievements catalog (labs, challenges, capstone, funny unlocks, seeds), loaded when `ACHIEVEMENTS_ENABLED`                                                                                                                      |
@@ -128,10 +128,8 @@ optional ones, each with TODOs.
    (seeded into every student's `~/lab`), and `content/sample-repo/`
    (seeded into Forgejo by the `bootstrap` service — same mechanism for
    every workshop, nothing to configure). A lab with an achievements
-   challenge can end that section with `<!-- dojo-challenge: c1 -->` (or
-   `capstone`): the lab reader turns it into Start/Reset buttons when the
-   `achievements` module is on, and shows nothing otherwise (see
-   `modules/achievements/README.md`).
+   challenge ends that section with `dojo challenge start c1` and `dojo check c1`
+   in text (see `modules/achievements/README.md`).
 3. Check `workshop.env` (the scaffold fills it in):
    ```sh
    WORKSHOP_NAME=<display name>
@@ -219,7 +217,7 @@ or the gateway.
 
 ## Sensei help in your workshop
 
-List the `sensei` module in `MODULES=` (the shipped workshops all do) and students get `sensei ask|why|hand|inbox`.
+List the `sensei` module in `MODULES=` (the shipped workshops all do) and students get `dojo sensei ask|why|hand|inbox`.
 `ask` searches your `content/lab/*.md`; `why` explains the last error on screen, with a table it derives from any
 "You see | Cause / fix" table in your labs (the first cell is the backticked message). Add
 `workshops/<name>/sensei/patterns.json` for errors the labs don't tabulate (format in `modules/sensei/README.md`).

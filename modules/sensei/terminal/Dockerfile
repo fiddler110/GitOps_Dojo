@@ -4,7 +4,7 @@ ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
 
 COPY sensei.py /usr/local/bin/sensei
-RUN chmod 0755 /usr/local/bin/sensei
+RUN chmod 0755 /usr/local/bin/sensei && mkdir -p /usr/local/share/dojo/cmd.d && ln -sf /usr/local/bin/sensei /usr/local/share/dojo/cmd.d/sensei
 # Facilitator replies appear under the student's prompt (at most every 3 s; never blocks it).
 COPY dojo-sensei.zsh /etc/zsh/dojo-sensei.zsh
 RUN set -eux; \

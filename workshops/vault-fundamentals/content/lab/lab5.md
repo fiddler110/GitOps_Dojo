@@ -18,9 +18,22 @@ You did this in Lab 1: the token was written into `app.py`, git kept it forever,
 
 ## 2. In a git-ignored `.env` file
 
-The usual next step: keep the values in a `.env` file that git ignores, and have the code read them from the **environment**. Make a folder and a repo for the app:
+The usual next step: keep the values in a `.env` file that git ignores, and have the code read them from the **environment**. Three files make it work:
 
-```bash
+- **`.env`** holds the secrets, one `NAME=value` per line.
+- **`.gitignore`** lists the files git must never add.
+- **`app_env.py`** is the app. `os.environ["NAME"]` reads an environment variable, and fails if it isn't set.
+
+To use the file, `. ./.env` runs its lines in your shell, and `set -a` ... `set +a` around it **exports** each variable, so the programs you start can see them. `git status --short` lists what git would add.
+
+```text
+set -a; . ./.env; set +a
+git status --short
+```
+
+Make a folder and a repo for the app:
+
+```sh
 mkdir -p ~/lab/app && cd ~/lab/app
 git init -b main
 ```
@@ -32,20 +45,20 @@ In your terminal or VS Code, create three files in **app**: `.env`, `.gitignore`
 touch .env .gitignore app_env.py
 ```
 
-First **`.env`**, the secrets, one `NAME=value` per line:
+First open **`.env`** in your editor, the secrets, one `NAME=value` per line:
 
 ```sh
 DB_PASSWORD=dev-db-pass-123
 API_KEY=dev-api-key-456
 ```
 
-**`.gitignore`** contains the list of files git must never add. So add the following and save it:
+Then open **`.gitignore`** and add the following, and save it:
 
 ```gitignore
 .env
 ```
 
-Then **`app_env.py`**, the app. `os.environ["NAME"]` reads an environment variable, and fails if it isn't set:
+Then open **`app_env.py`** and add the app:
 
 ```python
 import os
@@ -55,46 +68,53 @@ api_key = os.environ["API_KEY"]
 print(f"connecting to the database with a {len(db_password)}-character password")
 ```
 
-Save all three. Now load `.env` into your shell and run the app. `. ./.env` runs the file's lines in this shell, and `set -a` ... `set +a` around it **exports** each variable, so the programs you start can see them:
+Save all three.
 
-```bash
+**Your turn:** load `.env` into your shell, run the app, then commit. Before you run it, predict: which files will `git status --short` list?
+
+```sh
 set -a; . ./.env; set +a
 python3 app_env.py
-```
-
-Commit, and check that `.env` stays out. `git status --short` lists what git would add:
-
-```bash
 git add .
 git status --short         # .gitignore and app_env.py, no .env
 git commit -m "Read the secrets from the environment"
 ```
 
+<!-- dojo-reveal: Results of running and committing -->
+
+The app prints the password length. `git status --short` lists `.gitignore` and `app_env.py`, but no `.env`.
+
+<!-- /dojo-reveal -->
+
 Better than Lab 1: the secret isn't in git. But look at what's still true:
 
 - `.env` is a plaintext file on every developer's laptop, and it gets passed around in chat when someone new joins.
 - Nobody knows who has a copy, it never expires, and changing it means telling everyone.
-- Every program you start from this shell can read it. Start another one and see:
+- Every program you start from this shell can read it. Environment variables are inherited by every **child process** (a program started from this one), printed by debug pages and crash reports, and dumped by `env` in a CI log.
 
-```bash
+**Your turn:** predict what a child shell can see, then check. Then clear the variables from your shell before moving on.
+
+```sh
 bash -c 'echo "any child process sees: $API_KEY"'
-```
-
-Environment variables are inherited by every **child process** (a program started from this one), printed by debug pages and crash reports, and dumped by `env` in a CI log. Clear them from your shell before moving on:
-
-```bash
 unset DB_PASSWORD API_KEY
 ```
 
+<!-- dojo-reveal: Result of the child process -->
+
+The child prints `dev-api-key-456`: it inherited the variable.
+
+<!-- /dojo-reveal -->
+
+
 ## 3. In the vault
 
-Put the app's secrets in your folder of the shared vault (Lab 3):
+The vault version of the app has two parts. First, put the app's secrets in your folder of the shared vault (Lab 3):
 
-```bash
+```sh
 echo '{"db_password": "vault-db-pass-789", "api_key": "vault-api-key-012"}' | bao kv put secret/students/$USER/app -
 ```
 
-Now the app asks the vault for them itself. `hvac` is Python's Vault client, and it works with OpenBao unchanged. In VS Code, create **app → `app_vault.py`**:
+Then the app asks the vault for them itself. `hvac` is Python's Vault client, and it works with OpenBao unchanged. In VS Code, create **app → `app_vault.py`** and add:
 
 ```python
 import logging
@@ -139,24 +159,22 @@ Read it before you run it:
 - `resp["data"]["data"]` is the key-value pairs; `resp["data"]["metadata"]` has the version.
 - The `log` lines write messages at two levels: `info` always shows, `debug` only when `LOG_LEVEL=DEBUG`. Keep an eye on the `debug` line; step 4 comes back to it.
 
-Save it and run it:
+Save it.
 
-```bash
+**Your turn:** run it, delete the `.env` file (the app doesn't need it), then rotate the password in one place and run the app again. Predict what the second run reports.
+
+```sh
 python3 app_vault.py
-```
-
-No `.env` file, no values in the environment, nothing to commit. Delete the file; the app doesn't need it (VS Code shows it gone):
-
-```bash
 rm .env
-```
-
-Now rotate the password in one place, and run the app again:
-
-```bash
 printf '%s' 'rotated-db-pass-000' | bao kv patch secret/students/$USER/app db_password=-
 python3 app_vault.py       # version 2, a new length, no commit, nobody told
 ```
+
+<!-- dojo-reveal: Results of the vault app -->
+
+The first run reads version 1 and a 16-character password. No `.env` file, no values in the environment, nothing to commit. The second reads version 2 with a new length.
+
+<!-- /dojo-reveal -->
 
 Every read also went into the vault's audit log, with who read what and when. A `.env` file can't tell you that.
 
@@ -164,15 +182,21 @@ Every read also went into the vault's audit log, with who read what and when. A 
 
 ## 4. Don't log secrets
 
-Someone is chasing a bug in production and turns on debug logging. Putting `LOG_LEVEL=DEBUG` in front of a command sets it for that one run:
+Someone is chasing a bug in production and turns on debug logging. Putting `LOG_LEVEL=DEBUG` in front of a command sets it for that one run. The rule: log _that_ you loaded the config, never _what_ it holds. Logs are read by many more people than can read the vault, and kept for months. The same goes for exception reports, `print` while debugging, and a CI step that runs `env`.
 
-```bash
+**Your turn:** run the app with debug logging. Before you do, predict what the `loaded config` line will contain.
+
+```sh
 LOG_LEVEL=DEBUG python3 app_vault.py
 ```
 
-`loaded config: {'api_key': ..., 'db_password': ...}`: both secrets, in plain text, now on their way to the log system, where many more people can read them than can read the vault, and where they're kept for months. The line looked harmless when it was written.
+<!-- dojo-reveal: Result of the debug run -->
 
-Log _that_ you loaded the config, never _what_ it holds. In VS Code, change the `log.debug` line in `app_vault.py` to log only the key names, and save:
+`loaded config: {'api_key': ..., 'db_password': ...}`: both secrets, in plain text, now on their way to the log system. The line looked harmless when it was written.
+
+<!-- /dojo-reveal -->
+
+Now fix it. Open `app_vault.py` in your editor, change the `log.debug` line to log only the key names, and save:
 
 ```python
 log.debug("loaded config keys: %s", sorted(secret.keys()))
@@ -180,17 +204,22 @@ log.debug("loaded config keys: %s", sorted(secret.keys()))
 
 `secret.keys()` asks for the key names only, and says so. It also fails safe: if `secret` were ever a plain string instead of a dictionary, `.keys()` raises an error, whereas `sorted(secret)` would log the string one character at a time, which is the secret itself.
 
-Run it with debug logging again:
+**Your turn:** run it with debug logging again.
 
-```bash
+```sh
 LOG_LEVEL=DEBUG python3 app_vault.py
 ```
 
-`loaded config keys: ['api_key', 'db_password']`: enough to debug with, nothing to leak. The same goes for exception reports, `print` while debugging, and a CI step that runs `env`.
+<!-- dojo-reveal: Result of the fixed run -->
+
+`loaded config keys: ['api_key', 'db_password']`: enough to debug with, nothing to leak.
+
+<!-- /dojo-reveal -->
+
 
 ## 5. Tokens run out
 
-Your token has a **TTL** (time to live). A program that runs for days has to **renew** its token before the TTL runs out, and log in again when it reaches its maximum. See it happen. In VS Code, create **app → `token_ttl.py`**:
+Your token has a **TTL** (time to live). A program that runs for days has to **renew** its token before the TTL runs out, and log in again when it reaches its maximum. `lookup_self` is `bao token lookup` (Lab 0); `renew_self` asks the vault for more time. See it happen. In VS Code, create **app → `token_ttl.py`** and add:
 
 ```python
 import hvac
@@ -201,19 +230,46 @@ client.auth.token.renew_self()
 print("ttl after renewing: ", client.auth.token.lookup_self()["data"]["ttl"], "seconds")
 ```
 
-`lookup_self` is `bao token lookup` (Lab 0); `renew_self` asks the vault for more time. Save it and run it:
+**Your turn:** save it and run it. Predict: will the second number be bigger or smaller?
 
-```bash
+```sh
 python3 token_ttl.py
 ```
 
-The TTL went back up. Renewing resets the clock, but only up to the token's maximum TTL; after that it has to log in again. `hvac` won't do any of this for you. Every app would need the same renew-and-log-in loop, which is why Lab 6 hands the job to **OpenBao Agent**.
+<!-- dojo-reveal: Result of the renewal -->
+
+The TTL went back up.
+
+<!-- /dojo-reveal -->
+
+Renewing resets the clock, but only up to the token's maximum TTL; after that it has to log in again. `hvac` won't do any of this for you. Every app would need the same renew-and-log-in loop, which is why Lab 6 hands the job to **OpenBao Agent**.
 
 ## Check yourself
 
-1. `.env` is in `.gitignore`. What can still go wrong? _(It's plaintext on every laptop, shared by hand, never expires, and leaks through the environment to every child process and crash report.)_
-2. You rotate the password in the vault. Which apps need a commit or a new build? _(None. They read the new version on their next read.)_
-3. Where else, apart from logs, do secrets escape a running app? _(Exception reports, debug pages, `env` in CI output, core dumps.)_
+1. `.env` is in `.gitignore`. What can still go wrong?
+
+<!-- dojo-reveal: Show the answer -->
+
+It's plaintext on every laptop, shared by hand, never expires, and leaks through the environment to every child process and crash report.
+
+<!-- /dojo-reveal -->
+
+2. You rotate the password in the vault. Which apps need a commit or a new build?
+
+<!-- dojo-reveal: Show the answer -->
+
+None. They read the new version on their next read.
+
+<!-- /dojo-reveal -->
+
+3. Where else, apart from logs, do secrets escape a running app?
+
+<!-- dojo-reveal: Show the answer -->
+
+Exception reports, debug pages, `env` in CI output, core dumps.
+
+<!-- /dojo-reveal -->
+
 
 **Rules used:** 8 (never in git or logs), 6 (audit everything: every vault read is logged), 3 (short-lived: tokens expire and must be renewed).
 

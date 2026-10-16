@@ -5,18 +5,18 @@
 #     the only step that earns `l1-rescue`, so without it a --test run leaves every bot one core
 #     milestone short and `l1-rescue` never gets a class-clear bonus.
 #   * the three challenges (c1 The Hotfix, c2 The Detective, capstone The Great Merge) right before
-#     step_wrap_round, each one the way the lab page says to do it: `dojo-challenge start`, work in
-#     ~/lab/challenge-repo, `dojo-check`.
-# Each challenge step ends with `dojo-check ID`, so the result is in the bot's log (~/.dojo-bot.log)
-# and in `dojo-check status` for that account.
+#     step_wrap_round, each one the way the lab page says to do it: `dojo challenge start`, work in
+#     ~/lab/challenge-repo, `dojo check`.
+# Each challenge step ends with `dojo check ID`, so the result is in the bot's log (~/.dojo-bot.log)
+# and in `dojo check status` for that account.
 
 GF_REPO="$BOT_USER/challenge-repo"
 GF_DIR="$HOME/lab/challenge-repo"
 
 gf_start() { # start challenge $1 from a clean copy and cd into it
   cd "$HOME/lab" && rm -rf "$GF_DIR"
-  printf '%s@dojo:~$ dojo-challenge reset %s\n' "$BOT_USER" "$1"
-  GF_OUT="$(dojo-challenge reset "$1" 2>&1)"; local rc=$?
+  printf '%s@dojo:~$ dojo challenge reset %s\n' "$BOT_USER" "$1"
+  GF_OUT="$(dojo challenge reset "$1" 2>&1)"; local rc=$?
   printf '%s\n' "$GF_OUT"
   [ "$rc" = 0 ] || return 1
   cd "$GF_DIR" || return 1
@@ -71,7 +71,7 @@ step_gf_c1() {
   local n; n="$(gf_open_pr "hotfix-$BOT_USER" "hotfix: fix my role")"
   narrate "opened PR #${n:-?} in $GF_REPO"
   [ -n "$n" ] || return 1
-  run_cmd "dojo-check c1"
+  run_cmd "dojo check c1"
 }
 
 step_gf_c2() {
@@ -88,13 +88,13 @@ step_gf_c2() {
   run_cmd "git add answer.txt"
   run_cmd "git commit -m 'Case closed'"
   run_cmd "git push -u origin case-$BOT_USER"
-  run_cmd "dojo-check c2"
+  run_cmd "dojo check c2"
 }
 
 step_gf_capstone() {
   narrate "Capstone -- The Great Merge"
   gf_start capstone || return 1
-  run_cmd "git switch -c merge-$BOT_USER"
+  run_cmd "git switch -c release-$BOT_USER"
   run_cmd "git merge origin/feature-a"
   run_cmd "git merge origin/feature-b"   # conflicts in CHANGELOG.md: expected
   run_cmd "sed -i '/^<<<<<<< /d;/^=======\$/d;/^>>>>>>> /d' CHANGELOG.md"
@@ -102,19 +102,60 @@ step_gf_capstone() {
   run_cmd "git commit --no-edit"
   run_cmd "git log --oneline"
   run_cmd "git revert --no-edit \$(git log --format=%h --grep='Make deploys faster' -1)"
-  run_cmd "git push -u origin merge-$BOT_USER"
-  local n; n="$(gf_open_pr "merge-$BOT_USER" "Merge both features")"
+  run_cmd "git rm -q debug.log"
+  run_cmd "echo '*.log' >> .gitignore"
+  run_cmd "git add .gitignore"
+  run_cmd "git commit -m 'Stop tracking logs'"
+  run_cmd "git push -u origin release-$BOT_USER"
+  local n; n="$(gf_open_pr "release-$BOT_USER" "Release both features")"
   narrate "opened PR #${n:-?} in $GF_REPO"
   [ -n "$n" ] || return 1
   api_curl -X POST "$API/repos/$GF_REPO/pulls/$n/merge" -H 'Content-Type: application/json' -d '{"Do":"merge"}'
-  run_cmd "dojo-check capstone"
+  run_cmd "dojo check capstone"
+}
+
+# Lab 4 runs in the practice repo `lab-history` builds (~/lab/history-repo), not the sample repo, so
+# this replaces the engine's step_lab4_history (it is sourced before this file, so the redefinition wins).
+# It follows lab4.md: browse, filter, show, blame/log -p, the pickaxe hunt for the leaked key, then the
+# throwaway-branch diff. Without `lab-history` (an image built before it existed) it falls back to the
+# engine's sample-repo walk.
+eval "$(declare -f step_lab4_history | sed '1s/step_lab4_history/gf_engine_lab4_history/')"
+step_lab4_history() {
+  if ! command -v lab-history >/dev/null 2>&1; then gf_engine_lab4_history; return; fi
+  narrate "Lab 4 -- investigating a longer history (lab-history practice repo)"
+  run_cmd "lab-history"
+  cd "$HOME/lab/history-repo" || return 1
+  git config user.name "$BOT_USER"; git config user.email "$BOT_USER@example.com"
+  run_cmd "git log --oneline --graph --all"
+  run_cmd "git log --oneline --author=Bob"
+  run_cmd "git log --oneline --since=2026-08-07"
+  run_cmd "git log --stat --oneline -4"
+  local db; db="$(git log --format=%h --grep='Add database settings' -1)"
+  run_cmd "git show $db"
+  run_cmd "git blame config/app.yaml"
+  run_cmd "git log -p config/app.yaml | head -60"
+  narrate "hunting for the leaked key"
+  run_cmd "git log -S'Dkx8Q~' --oneline"
+  local added; added="$(git log -S'Dkx8Q~' --format=%h | tail -1)"
+  run_cmd "git show $added"
+  command -v gitleaks >/dev/null 2>&1 && run_cmd "gitleaks git -v --no-banner ."
+
+  local branch; branch="$(branch_name "lab4-explore")"
+  run_cmd "git checkout -b '$branch'"
+  run_cmd "sed -i 's/port: 8080/port: 9090/' config/app.yaml"
+  run_cmd "git add config/app.yaml"
+  run_cmd "git commit -m 'Lab 4: branch comparison example'"
+  run_cmd "git diff main..$branch"
+  run_cmd "git checkout main"
+  run_cmd "git branch -D '$branch'"
+  cd "$REPO_DIR" || return 1
 }
 
 # The wrong-branch drill follows the Lab 1 PR step (every persona reaches Lab 1, so every bot runs
-# it); the challenges go after the labs, just before the round ends, and only where dojo-challenge
+# it); the challenges go after the labs, just before the round ends, and only where dojo challenge
 # exists (achievements off = no challenges).
 gf_challenges=0
-command -v dojo-challenge >/dev/null 2>&1 && gf_challenges=1
+command -v dojo challenge >/dev/null 2>&1 && gf_challenges=1
 gf_steps=()
 for s in "${STEPS[@]}"; do
   [ "$s" = step_wrap_round ] && [ "$gf_challenges" = 1 ] && gf_steps+=(step_gf_c1 step_gf_c2 step_gf_capstone)

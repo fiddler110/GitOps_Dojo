@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# dojo-summary: catch your workspace up to where a lab starts: dojo prep N (safe to repeat)
+# dojo prep <lab>: bring this student's workspace to the state lab <lab> starts
 # from, so someone joining late (or coming back another day) can resume there
 # instead of redoing every earlier lab. Each step checks before it acts, so
 # running it twice, or after doing some labs by hand, is safe. It never
@@ -7,27 +8,28 @@
 #
 # What each lab needs (keep in step with content/lab/*.md when a lab changes):
 #   2-5   training/sample-training-repo cloned to ~/lab (Lab 1 step 1)
-#   3     a branch of your own to switch away from and back to (Lab 1 step
-#         2). No later lab needs Lab 1's commit, push or pull request.
+#         Nothing else carries over: Lab 1 ends on main with its branch deleted,
+#         and labs 3-5 each make (and delete) their own throwaway branches.
+#         No later lab needs Lab 1's commit, push or pull request.
+#   4     ~/lab/history-repo, built by `lab-history` (Lab 4 "Set up your practice history"; the whole lab runs there)
 set -euo pipefail
 . /usr/local/lib/dojo/lab-prep-lib.sh
 
 GIT_SERVER=http://git-server:3000
 SHARED_REPO=training/sample-training-repo
 REPO_DIR=$HOME/lab/sample-training-repo
-BRANCH=add-$USER
 LAST_LAB=5
 
 MIN_LAB=1
 usage() {
   cat <<EOF2
-Usage: lab-prep <lab>       (1-$LAST_LAB)
+Usage: dojo prep <lab>       (1-$LAST_LAB)
 
 Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once.
 
-  lab-prep 2    clone the repo
-  lab-prep 3    ...and create your $BRANCH branch
+  dojo prep 2    clone the repo (labs 2-5 all start from a clone on main)
+  dojo prep 4    ...and build ~/lab/history-repo, Lab 4's practice history
 EOF2
 }
 
@@ -41,15 +43,9 @@ clone() {
   fi
 }
 
-own_branch() {
-  say "Lab 1 step 2: your own branch, $BRANCH"
-  cd "$REPO_DIR"
-  if git rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then
-    done_ "branch $BRANCH exists"
-    [ "$(git branch --show-current)" = "$BRANCH" ] || run git checkout -q "$BRANCH"
-  else
-    run git checkout -q -b "$BRANCH"
-  fi
+history_repo() {
+  say "Lab 4 setup: build the practice history in ~/lab/history-repo"
+  lab-history
 }
 
 lab_arg "$@"
@@ -60,7 +56,12 @@ if [ "$lab" -eq 1 ]; then
 fi
 
 clone
-[ "$lab" -eq 3 ] && own_branch
+
+[ "$lab" -ne 4 ] || history_repo
 
 say "Ready for Lab $lab"
-echo "    cd ~/lab/sample-training-repo    then open lab$lab.md"
+if [ "$lab" -eq 4 ]; then
+  echo "    cd ~/lab/history-repo            then open lab4.md"
+else
+  echo "    cd ~/lab/sample-training-repo    then open lab$lab.md"
+fi

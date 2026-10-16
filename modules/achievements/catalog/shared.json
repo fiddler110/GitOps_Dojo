@@ -35,7 +35,7 @@
       "title": "Button Masher",
       "joke": "The check button is not a slot machine.",
       "points": 0,
-      "when": "the rate limit on `dojo-check` is hit",
+      "when": "the rate limit on `dojo check` is hit",
       "match": {
         "source": "service"
       }

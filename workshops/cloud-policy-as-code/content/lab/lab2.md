@@ -2,7 +2,7 @@
 
 **Time:** about 12 minutes. **Goal:** read a policy definition line by line, explain how a **definition**, an **assignment** and a **scope** relate, and predict three outcomes on paper before checking them against the cloud.
 
-> **Starting here?** This lab needs your clone with the app applied (Lab 0). Run `lab-prep 2` to set that up; it is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone with the app applied (Lab 0). Run `dojo prep 2` to set that up; it is safe to run even if you did the earlier labs.
 
 ## The model in one picture
 
@@ -92,18 +92,31 @@ Here are three writes, to be attempted in a scratch folder. **Before you run any
 
 Hint: look at the rule of "Require tag 'env'" in the Definitions list. Does an empty tag count as present?
 
-Set up the scratch folder (the same one as Lab 1; the commands are safe to repeat):
+Set up the scratch folder (the same one as Lab 1; the commands are safe to repeat). Then run each case in turn: put the resource in `main.tf` using your editor, and apply. The heredocs under "Prefer the terminal?" do the same edit.
 
-```bash
+```sh
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
 sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
 ```
 
-**Case 1:**
+**Case 1:** open `main.tf` in your editor and write:
 
-```bash
+```hcl
+resource "azurerm_resource_group" "scratch" {
+  name     = "rg-${var.owner}-scratch"
+  location = "canadaeast"
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+```
+
+**Prefer the terminal?**
+
+```sh
 cat > main.tf <<'EOT'
 resource "azurerm_resource_group" "scratch" {
   name     = "rg-${var.owner}-scratch"
@@ -114,17 +127,41 @@ resource "azurerm_resource_group" "scratch" {
   }
 }
 EOT
+```
+
+**Your turn:** check your prediction for case 1.
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of case 1 -->
 
 ```text
 azurerm_resource_group.scratch: Creation complete after 2s
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-**Case 2.** The empty-string tag goes on a *second* group, so case 1's group stays put:
+It is allowed: `canadaeast` is on the allowed list.
 
-```bash
+<!-- /dojo-reveal -->
+
+**Case 2.** The empty-string tag goes on a *second* group, so case 1's group stays put. Append this to `main.tf` in your editor:
+
+```hcl
+resource "azurerm_resource_group" "blank" {
+  name     = "rg-${var.owner}-blank"
+  location = "canadacentral"
+  tags = {
+    owner = var.owner
+    env   = ""
+  }
+}
+```
+
+**Prefer the terminal?**
+
+```sh
 cat >> main.tf <<'EOT'
 
 resource "azurerm_resource_group" "blank" {
@@ -136,8 +173,15 @@ resource "azurerm_resource_group" "blank" {
   }
 }
 EOT
+```
+
+**Your turn:** check your prediction for case 2.
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of case 2 -->
 
 ```text
 Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-blank\")": unexpected status 403 (403 Forbidden) with error:
@@ -147,9 +191,46 @@ Policy: 'Require tag 'env''. The resource is missing the required tag 'env'.
 
 (abridged.) The built-in rule is `anyOf [tag does not exist, tag isBlank]`, so an empty value fails just like a missing one. The error text says "missing" for both.
 
-**Case 3.** Remove the failing `blank` group (delete the last resource block from `main.tf`), then add a container group with an unapproved image:
+<!-- /dojo-reveal -->
 
-```bash
+**Case 3.** In your editor, delete the failing `blank` resource block from `main.tf`, then append a container group with an unapproved image:
+
+```hcl
+resource "azurerm_container_group" "scratch" {
+  name                = "ci-${var.owner}-scratch"
+  location            = azurerm_resource_group.scratch.location
+  resource_group_name = azurerm_resource_group.scratch.name
+  os_type             = "Linux"
+  ip_address_type     = "Public"
+  dns_name_label      = "${var.owner}-scratch"
+
+  exposed_port {
+    port     = 80
+    protocol = "TCP"
+  }
+
+  container {
+    name   = "hello"
+    image  = "dojo/hello:3.0"
+    cpu    = 0.25
+    memory = 0.125
+
+    ports {
+      port     = 80
+      protocol = "TCP"
+    }
+  }
+
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+```
+
+**Prefer the terminal?** Do both edits with:
+
+```sh
 python3 - <<'EOT'
 s = open("main.tf").read()
 open("main.tf", "w").write(s.split('\nresource "azurerm_resource_group" "blank"')[0])
@@ -187,8 +268,15 @@ resource "azurerm_container_group" "scratch" {
   }
 }
 EOT
+```
+
+**Your turn:** check your prediction for case 3.
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of case 3 -->
 
 ```text
 Error: creating Container Group (Subscription: "<your subscription id>"
@@ -201,9 +289,11 @@ InvalidImage: Image 'dojo/hello:3.0' is not in the approved image list: dojo/hel
 
 How did you do? The usual slips: expecting case 1 to fail because `canadaeast` "feels" unusual (it is on the allowed list), and expecting case 2 to pass because the tag *exists*.
 
+<!-- /dojo-reveal -->
+
 Clean up:
 
-```bash
+```sh
 tofu destroy -auto-approve
 ```
 

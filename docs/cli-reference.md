@@ -14,7 +14,8 @@ that forwards to `./dojo`. Run from the repo root or from `engine/` (same result
 |---|---|
 | `./dojo <workshop> [flags]` | Build and start a workshop (same as `start`) |
 | `./dojo start <workshop>` | Explicit form of the above |
-| `./dojo stop [--dry-run]` | Tear down the stack and **delete every volume** |
+| `./dojo stop [--dry-run] [--no-archive]` | First save feedback, scores and the roster to `results/<date>_<time>_<workshop>/` (skipped when nobody used the stack), then tear down the stack and **delete every volume** |
+| `./dojo export-feedback [--format csv\|json] [--out FILE]` | The feedback module's answers (no usernames); fails if it isn't running |
 | `./dojo restart [SERVICE...] [--clean]` | Recreate the last start's containers, same flags |
 | `./dojo status [--json]` / `ps` | What is running, health, students signed in |
 | `./dojo list` | Workshops in learning-path order, with durations |

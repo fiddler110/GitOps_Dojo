@@ -57,7 +57,7 @@ services:
       - ACHIEVEMENTS_CHEAT_PENALTY=${ACHIEVEMENTS_CHEAT_PENALTY:-1}
       - ACHIEVEMENTS_STATE_SECONDS=${ACHIEVEMENTS_STATE_SECONDS:-20}
       - ACHIEVEMENTS_ADAPTER_SECRET=${ACHIEVEMENTS_ADAPTER_SECRET:-}
-      # Sensei (stuck radar, `sensei check`) reads activity and progress with its own gateway token as the key.
+      # Sensei (stuck radar, `dojo sensei check`) reads activity and progress with its own gateway token as the key.
       - SENSEI_KEY=${GATEWAY_TOKEN_SENSEI:-}
       - ACHIEVEMENTS_SIGNATURE=${ACHIEVEMENTS_SIGNATURE:-}
       - ACHIEVEMENTS_CLASS_DATE=${ACHIEVEMENTS_CLASS_DATE:-}

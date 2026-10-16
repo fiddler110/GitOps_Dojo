@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# dojo-summary: catch your workspace up to where a lab starts: dojo prep N (safe to repeat)
+# dojo prep <lab>: bring this student's workspace to the state lab <lab> starts
 # from, so someone joining late (or coming back another day) can resume there
 # instead of redoing every earlier lab. Each step checks before it acts, so
 # running it twice, or after doing some labs by hand, is safe. It only moves
@@ -12,7 +13,7 @@
 #   4     the clone only: Track B doesn't use the sandbox
 #   5     `terraform init` in the repo root (Lab 4)
 #   6-10  hello deployed to Dojo Cloud (Lab 5). Labs 9 and 10 run fine without
-#         Lab 8's edits or Lab 9's extra site, so lab-prep doesn't make them.
+#         Lab 8's edits or Lab 9's extra site, so dojo prep doesn't make them.
 set -euo pipefail
 . /usr/local/lib/dojo/lab-prep-lib.sh
 
@@ -25,14 +26,14 @@ LAST_LAB=10
 
 usage() {
   cat <<EOF
-Usage: lab-prep <lab>       (0-$LAST_LAB)
+Usage: dojo prep <lab>       (0-$LAST_LAB)
 
 Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once. It never runs destroy
 or undoes an edit you made.
 
-  lab-prep 5    fork + clone the repo, and terraform init for Dojo Cloud
-  lab-prep 9    ...and deploy hello
+  dojo prep 5    fork + clone the repo, and terraform init for Dojo Cloud
+  dojo prep 9    ...and deploy hello
 EOF
 }
 

@@ -42,6 +42,8 @@
     {"branch": "feature-a", "from": "main", "author": "Alice Engineer", "days_ago": 1,
      "message": "Changelog: {feature_a}",
      "files": [{"path": "CHANGELOG.md", "append": "- {feature_a}"}]},
+    {"branch": "feature-a", "author": "Alice Engineer", "days_ago": 1, "message": "Keep my test output for later",
+     "files": [{"path": "debug.log", "append": "DEBUG roster loader: 214 rows read in 3.8s\nDEBUG settings: timeout_seconds=30\nWARN  slow query on roster/team.yaml"}]},
     {"branch": "feature-b", "from": "main", "author": "Bob Operator", "days_ago": 1,
      "message": "Changelog: {feature_b}",
      "files": [{"path": "CHANGELOG.md", "append": "- {feature_b}"}]},

@@ -14,9 +14,11 @@
 
 ## 1. The secret the pipeline needs
 
-This lab works in your namespace and your fork from Labs 4 and 8. If you skipped them, this catch-up block makes what's missing (it's safe to run anyway). The part in `[ ... ] || { ... }` forks and clones the repo only if `~/lab/vault-fundamentals` isn't there yet:
+This lab works in your namespace and your fork from Labs 4 and 8. If you skipped them, this catch-up block makes what's missing (it's safe to run anyway). The part in `[ ... ] || { ... }` forks and clones the repo only if `~/lab/vault-fundamentals` isn't there yet.
 
-```bash
+**Your turn:** run it. It should finish without an error.
+
+```sh
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 bao auth list | grep -q '^approle/' || bao auth enable approle
@@ -28,35 +30,35 @@ bao auth list | grep -q '^approle/' || bao auth enable approle
 cd ~/lab/vault-fundamentals
 ```
 
-The pipeline's job is to read a **deploy token**, the kind of secret a pipeline uses to push a release somewhere. Store one at `team/ci` (`$RANDOM` makes it different for each of you), and a policy, `ci-read`, that can read it and nothing else (the same one-line form as Lab 6's catch-up):
+The pipeline's job is to read a **deploy token**, the kind of secret a pipeline uses to push a release somewhere. You store one at `team/ci` (`$RANDOM` makes it different for each of you), with a policy, `ci-read`, that can read it and nothing else (the same one-line form as Lab 6's catch-up). The job will print a **fingerprint** of what it read (the start of its SHA-256 hash, as in Lab 6), never the value, so you work out the one to expect, to compare.
 
-```bash
+**Your turn:** run these. Predict what the last line prints.
+
+```sh
 # a new KV mount refuses writes for a moment while it upgrades: retry
 until printf '%s' "deploy-$USER-$RANDOM$RANDOM" | bao kv put team/ci deploy_token=-; do sleep 2; done
 printf 'path "team/data/ci" {\n  capabilities = ["read"]\n}\n' | bao policy write ci-read -
-```
-
-The job will print a **fingerprint** of what it read (the start of its SHA-256 hash, as in Lab 6), never the value. Work out the one to expect, so you can compare:
-
-```bash
 printf %s "$(bao kv get -field=deploy_token team/ci)" | sha256sum | cut -c1-12
 ```
 
+<!-- dojo-reveal: Result of the fingerprint -->
+
+A 12-character hex fingerprint. Note it: the CI job should print the same one.
+
+<!-- /dojo-reveal -->
+
 ## 2. The usual way: AppRole, login secret in Forgejo
 
-An AppRole for CI (as in Lab 6), whose tokens can read `team/ci` for 5 minutes, and whose secret ID lives a day:
-
-```bash
-bao write auth/approle/role/ci token_policies=ci-read token_ttl=5m secret_id_ttl=24h
-```
-
-Now store its two IDs as **repository secrets** in your fork, as you did by hand in Lab 8, but with Forgejo's API. The block first defines a small shell **function**, `put_secret NAME VALUE`, then calls it twice:
+You make an AppRole for CI (as in Lab 6), whose tokens can read `team/ci` for 5 minutes, and whose secret ID lives a day. Then you store its two IDs as **repository secrets** in your fork, as you did by hand in Lab 8, but with Forgejo's API. The block first defines a small shell **function**, `put_secret NAME VALUE`, then calls it twice:
 
 - It writes the value into a request body file that only you can read (`umask 077`), because a value on a command line can be seen by other users on this machine.
 - `curl ... -X PUT` sends that file to your fork's `actions/secrets/NAME`, and prints the HTTP status.
 - It deletes the file again.
 
-```bash
+**Your turn:** run these. Predict the HTTP status for each secret.
+
+```sh
+bao write auth/approle/role/ci token_policies=ci-read token_ttl=5m secret_id_ttl=24h
 put_secret() {  # put_secret NAME VALUE: a repository secret in your fork
   (umask 077; printf '{"data":"%s"}' "$2" > ~/.secret-body.json)
   curl -s -o /dev/null -w "$1: HTTP %{http_code}\n" --netrc -X PUT \
@@ -68,11 +70,23 @@ put_secret BAO_ROLE_ID "$(bao read -field=role_id auth/approle/role/ci/role-id)"
 put_secret BAO_SECRET_ID "$(bao write -f -field=secret_id auth/approle/role/ci/secret-id)"
 ```
 
+
+<!-- dojo-reveal: Result of storing the secrets -->
+
 `HTTP 201` (or `204`) for each means stored. Check Forgejo → your fork → **Settings** → **Actions** → **Secrets**: both names are there.
+
+<!-- /dojo-reveal -->
+
+Now the workflow. Here is what it does:
+
+- The job-level `env:` points `bao` at the vault and at your namespace (`github.repository_owner` is you, the fork's owner).
+- The step gets the two repository secrets as `ROLE_ID` and `SECRET_ID`.
+- `auth/approle/login` trades them for a vault token, which goes into `BAO_TOKEN` for the next commands.
+- It reads `team/ci` with that token and prints the fingerprint.
 
 Make the workflows folder (Lab 8's clean-up removed it with its last file):
 
-```bash
+```sh
 mkdir -p .forgejo/workflows
 ```
 
@@ -98,20 +112,23 @@ jobs:
           echo "deploy token fingerprint: $(printf %s "$token" | sha256sum | cut -c1-12)"
 ```
 
-- The job-level `env:` points `bao` at the vault and at your namespace (`github.repository_owner` is you, the fork's owner).
-- The step gets the two repository secrets as `ROLE_ID` and `SECRET_ID`.
-- `auth/approle/login` trades them for a vault token, which goes into `BAO_TOKEN` for the next commands.
-- It reads `team/ci` with that token and prints the fingerprint.
+Save it.
 
-Save it, then commit and push:
+**Your turn:** commit and push, then look at the run in Forgejo → **Actions**. Predict: will the fingerprint match your terminal's?
 
-```bash
+```sh
 git add .forgejo/workflows/vault-approle.yml
 git commit -m "CI reads the deploy token with AppRole"
 git push
 ```
 
-In Forgejo → **Actions**, the run's log shows the same fingerprint as your terminal. It works. But look at what it took:
+<!-- dojo-reveal: Result of the AppRole run -->
+
+The run's log shows the same fingerprint as your terminal. It works.
+
+<!-- /dojo-reveal -->
+
+But look at what it took:
 
 - A **secret ID valid for a day** now sits in Forgejo. From Lab 8: anyone who can push a workflow to this repo can print it, and use it from anywhere until it expires.
 - Something had to put it there, and rotate it. That's **secret zero** again: the pipeline's first credential came from a person, and it's long-lived.
@@ -120,17 +137,19 @@ In Forgejo → **Actions**, the run's log shows the same fingerprint as your ter
 
 Forgejo can give each job a signed **OIDC token** (a JWT) that says which repo, branch, workflow and person started it. It's valid for minutes, made for this one run, and never stored anywhere.
 
-Your namespace already trusts Forgejo's signing keys (your facilitator set that up). Look at that trust:
+Your namespace already trusts Forgejo's signing keys (your facilitator set that up). `bound_issuer` is Forgejo's Actions issuer, and `jwks_url` is where the vault fetches the public keys to check signatures. What's missing is the **role**: who may log in, and what they get. Only jobs from **your fork**, on **`main`**, with the audience `openbao`.
 
-```bash
+- `bound_audiences`: the job's token must be made *for* the vault (`aud: openbao`), not for some other service.
+- `bound_claims`: its `repository` must be your fork, and its `ref` must be `main`. Anything else is refused.
+- `user_claim: sub`: which claim names the caller in the vault's logs.
+- `token_policies`, `token_ttl`: a login gets `ci-read` for 5 minutes.
+
+The command sends the role as JSON. `-` tells `bao write` to read it from the lines that follow, up to `EOF`; the shell fills in `$USER` first.
+
+**Your turn:** look at the trust, then create the role. Predict what `bound_issuer` is.
+
+```sh
 bao read auth/jwt-ci/config
-```
-
-`bound_issuer` is Forgejo's Actions issuer, and `jwks_url` is where the vault fetches the public keys to check signatures. What's missing is the **role**: who may log in, and what they get. Only jobs from **your fork**, on **`main`**, with the audience `openbao`.
-
-This command sends the role as JSON. `-` tells `bao write` to read it from the lines that follow, up to `EOF`; the shell fills in `$USER` first:
-
-```bash
 bao write auth/jwt-ci/role/ci-main - <<EOF
 {
   "role_type": "jwt",
@@ -146,12 +165,21 @@ bao write auth/jwt-ci/role/ci-main - <<EOF
 EOF
 ```
 
-- `bound_audiences`: the job's token must be made *for* the vault (`aud: openbao`), not for some other service.
-- `bound_claims`: its `repository` must be your fork, and its `ref` must be `main`. Anything else is refused.
-- `user_claim: sub`: which claim names the caller in the vault's logs.
-- `token_policies`, `token_ttl`: a login gets `ci-read` for 5 minutes.
+<!-- dojo-reveal: Result of the config read and role -->
 
-Now the workflow. In VS Code, create **workflows → `vault-oidc.yml`**:
+`bound_issuer` is Forgejo's Actions issuer, and the role write succeeds.
+
+<!-- /dojo-reveal -->
+
+Now the workflow. What it does, in order:
+
+- `enable-openid-connect: true` makes Forgejo offer this job an ID token. There are no `secrets.` lines at all.
+- `curl` asks Forgejo for the token, with the audience `openbao`, and saves it in a temporary file (`mktemp`), never on screen: it's a credential for as long as it's valid.
+- The `jq` lines decode the token's middle part and show its **claims** (what it says about the job), which are safe to print.
+- `auth/jwt-ci/login role=ci-main` trades the token for a vault token; the vault checks it against the role first. Then the file is deleted.
+- It shows the vault token's policies and TTL, reads `team/ci` and prints the fingerprint.
+
+In VS Code, create **workflows → `vault-oidc.yml`**:
 
 ```yaml
 name: vault-oidc
@@ -180,43 +208,48 @@ jobs:
           echo "deploy token fingerprint: $(printf %s "$token" | sha256sum | cut -c1-12)"
 ```
 
-What it does, in order:
+Save it.
 
-- `enable-openid-connect: true` makes Forgejo offer this job an ID token. There are no `secrets.` lines at all.
-- `curl` asks Forgejo for the token, with the audience `openbao`, and saves it in a temporary file (`mktemp`), never on screen: it's a credential for as long as it's valid.
-- The `jq` lines decode the token's middle part and show its **claims** (what it says about the job), which are safe to print.
-- `auth/jwt-ci/login role=ci-main` trades the token for a vault token; the vault checks it against the role first. Then the file is deleted.
-- It shows the vault token's policies and TTL, reads `team/ci` and prints the fingerprint.
+**Your turn:** commit and push. This push starts both workflows. Open the **vault-oidc** run. Before you do, predict what the claims will say.
 
-Save it, then commit and push:
-
-```bash
+```sh
 git add .forgejo/workflows/vault-oidc.yml
 git commit -m "CI reads the deploy token with its own identity"
 git push
 ```
 
-This push starts both workflows. Open the **vault-oidc** run. The claims show your repo, `refs/heads/main` and your name as `actor`; the vault token has `ci-read` and a TTL of about 5 minutes; the fingerprint matches. **No secret was stored in Forgejo for this.**
+<!-- dojo-reveal: Result of the OIDC run -->
+
+The claims show your repo, `refs/heads/main` and your name as `actor`; the vault token has `ci-read` and a TTL of about 5 minutes; the fingerprint matches. **No secret was stored in Forgejo for this.**
+
+<!-- /dojo-reveal -->
+
 
 ## 4. Another branch is refused
 
-The role trusts `main` only. Make a branch, add an empty commit to it (no file changes are needed to start a run), and push it:
+The role trusts `main` only. You'll make a branch, add an empty commit to it (no file changes are needed to start a run), and push it.
 
-```bash
+**Your turn:** before you push, predict which of the two workflows will fail on the branch.
+
+```sh
 git switch -c try-a-branch
 git commit --allow-empty -m "Try the vault login from a branch"
 git push -u origin try-a-branch
 ```
+
+<!-- dojo-reveal: Results of the branch push -->
 
 In **Actions**, the two new runs differ:
 
 - **vault-oidc fails**: `error validating claims: claim "ref" does not match any associated bound claim values`. A branch, which anyone with write access can push without review, can't read what `main` reads.
 - **vault-approle succeeds**: the AppRole login can't tell a branch from `main`. Whoever holds the secret ID gets in.
 
+<!-- /dojo-reveal -->
+
 Go back to `main`, and delete the branch here and on the server (`-D`: git doesn't delete a branch whose commits
 aren't on `main` without it):
 
-```bash
+```sh
 git switch main
 git branch -D try-a-branch
 git push origin --delete try-a-branch
@@ -224,9 +257,11 @@ git push origin --delete try-a-branch
 
 ## 5. Retire the stored secret
 
-The OIDC login does the job, so the AppRole path goes: first its role in the vault, then its two secrets in Forgejo (the same API as `put_secret`, with `DELETE`), then its workflow in the repo:
+The OIDC login does the job, so the AppRole path goes: first its role in the vault, then its two secrets in Forgejo (the same API as `put_secret`, with `DELETE`), then its workflow in the repo. Deleting the role first matters: it makes every secret ID issued for it useless at once, including any copy someone printed.
 
-```bash
+**Your turn:** run these. Predict the HTTP status for each delete.
+
+```sh
 bao delete auth/approle/role/ci
 for s in BAO_ROLE_ID BAO_SECRET_ID; do
   curl -s -o /dev/null -w "$s: HTTP %{http_code}\n" --netrc -X DELETE \
@@ -237,9 +272,15 @@ git commit -m "Drop the AppRole login: CI uses its own identity"
 git push
 ```
 
-Deleting the role first matters: it makes every secret ID issued for it useless at once, including any copy someone printed.
+<!-- dojo-reveal: Result of retiring the AppRole -->
 
-```bash
+Each delete prints `HTTP 204`; the role and workflow are gone.
+
+<!-- /dojo-reveal -->
+
+Clean up:
+
+```sh
 unset BAO_NAMESPACE
 ```
 
@@ -255,9 +296,30 @@ In each, the vault (or the cloud) trusts the CI system's issuer, and a role bind
 
 ## Check yourself
 
-1. What does the vault check before it accepts the job's token? *(The signature against Forgejo's keys, the issuer, the audience `openbao`, expiry, and the bound claims: this repo, on `main`.)*
-2. Why is a pushed branch refused but `main` allowed? *(Changes reach `main` through review; a branch can be pushed by anyone with write access. Binding `ref` keeps unreviewed code away from the secret.)*
-3. What can someone do with a job's log from the OIDC run? *(Nothing: it holds claims and a fingerprint, no credential. The ID token was never printed and expires in minutes.)*
+1. What does the vault check before it accepts the job's token?
+
+<!-- dojo-reveal: Show the answer -->
+
+The signature against Forgejo's keys, the issuer, the audience `openbao`, expiry, and the bound claims: this repo, on `main`.
+
+<!-- /dojo-reveal -->
+
+2. Why is a pushed branch refused but `main` allowed?
+
+<!-- dojo-reveal: Show the answer -->
+
+Changes reach `main` through review; a branch can be pushed by anyone with write access. Binding `ref` keeps unreviewed code away from the secret.
+
+<!-- /dojo-reveal -->
+
+3. What can someone do with a job's log from the OIDC run?
+
+<!-- dojo-reveal: Show the answer -->
+
+Nothing: it holds claims and a fingerprint, no credential. The ID token was never printed and expires in minutes.
+
+<!-- /dojo-reveal -->
+
 
 **Rules used:** 2 (identity over secrets), 4 (no secret zero left in the pipeline), 3 (a 5-minute token), 1 (one repo, one branch, one path), 7 (retiring the old credential).
 

@@ -2,7 +2,7 @@
 
 **Goal:** change your deployment by clicking in the portal, then see how OpenTofu notices (`plan`) and puts things right (`apply`).
 
-> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 7` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `dojo prep 7` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -16,15 +16,22 @@ You need your Lab 5 deployment running (`terraform plan` says `No changes.`). Ha
 
 ## 1. A small drift: someone edits a tag
 
-In the portal go to **Container instances**, click `ci-hello-dev`, and scroll to **Tags**. Click **Add tag**, use the key `edited_by` and the value `portal`, then **Save tags**.
+`plan` doesn't only read your files. It first **refreshes**: it asks the cloud what is really there and compares that with your code and state. So a change made behind your back shows up as a plan, even though you edited nothing.
 
-(Saving replaces the whole tag set, so leave the existing `owner`, `env` and `managed_by` rows as they are.)
+```text
+terraform plan      # refresh, compare, propose the fix
+terraform apply     # make reality match the code again
+```
 
-Now, in the terminal, **change nothing** and ask OpenTofu what it sees:
+**Your turn:** in the portal go to **Container instances**, click `ci-hello-dev`, and scroll to **Tags**. Click **Add tag**, use the key `edited_by` and the value `portal`, then **Save tags**. (Saving replaces the whole tag set, so leave the existing `owner`, `env` and `managed_by` rows as they are.)
+
+Now, in the terminal, **change nothing** and ask OpenTofu what it sees. Before you run it, predict: will there be a plan, and what will it want to do with the new tag?
 
 ```sh
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 Expected:
 
@@ -58,11 +65,17 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 
 You changed no `.tf` file, yet there is a plan. That is the "Refreshing state" step from Lab 5 at work: OpenTofu re-read the real resource, found the extra tag, and computed what it would take to make reality match **your code** again: remove it (`- "edited_by" = "portal" -> null`).
 
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Predict whether the tag stays or goes.
+
 ```sh
 terraform apply
 ```
 
-Type `yes`. In-place edits are quick:
+<!-- dojo-reveal: Results of apply -->
+
+In-place edits are quick:
 
 ```text
 azurerm_container_group.hello: Modifying... [id=/subscriptions/260eb175-...]
@@ -73,15 +86,21 @@ Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 
 Reload the container's page in the portal: the `edited_by` tag is gone. **Your code won.**
 
+<!-- /dojo-reveal -->
+
 ## 2. A big drift: someone deletes the container
 
-In the portal, open `ci-hello-dev` again and click **Delete**. A dialog warns you that this creates drift. Confirm with **Delete container instance**. You go back to the (now empty) list of container instances, and **Quota** drops to `0 / 2`. Your site is gone (reload it: 404).
+A tag is a small change. What if the whole resource disappears? Your code still says it should exist, so OpenTofu's plan will be to create it again. The plan output has two halves: a drift report ("Objects have changed outside of OpenTofu") and then the plan to fix it.
 
-Back in the terminal:
+**Your turn:** in the portal, open `ci-hello-dev` again and click **Delete**. A dialog warns you that this creates drift. Confirm with **Delete container instance**. You go back to the (now empty) list of container instances, and **Quota** drops to `0 / 2`. Your site is gone (reload it: 404).
+
+Back in the terminal, predict what the plan will want to do (`+`, `~` or `-`), then run it:
 
 ```sh
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 Expected (abridged):
 
@@ -136,11 +155,15 @@ Changes to Outputs:
 
 Read it in two halves. The first says **"Objects have changed outside of OpenTofu"**: the container group `has been deleted`. That is the drift report. The second is the plan to fix it: `+ create` (1 to add), because your code still says the container should exist.
 
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it, type `yes`, and watch the portal.
+
 ```sh
 terraform apply
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -->
 
 ```text
 azurerm_container_group.hello: Creating...
@@ -150,17 +173,31 @@ azurerm_container_group.hello: Creation complete after 12s [id=...]
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-About 12-15 seconds later the container is back in the portal, **Running**, and your site is up again. Check:
+About 12-15 seconds later the container is back in the portal, **Running**, and your site is up again.
+
+<!-- /dojo-reveal -->
+
+Check that everything agrees again:
 
 ```sh
 terraform plan
 ```
 
+<!-- dojo-reveal: Results of plan -->
+
 `No changes. Your infrastructure matches the configuration.` (You'll see the usual two "Refreshing state" lines above it.)
+
+<!-- /dojo-reveal -->
 
 ## 3. Read the story in the Activity log
 
-Open the portal's **Activity log**. Your recent rows (newest first) tell exactly what happened, and **who did it**:
+The Activity log records every change, and **who did it**. Changes made by OpenTofu have plain names; changes made by hand in this portal are labelled **(portal)**. In a real cloud the activity log is how you find out who touched what, and it is why "clicking in the console" is discouraged for anything that IaC owns.
+
+**Your turn:** open the portal's **Activity log**. Before you scroll, predict which rows are labelled **(portal)**.
+
+<!-- dojo-reveal: What the Activity log shows -->
+
+Your recent rows (newest first) tell exactly what happened:
 
 ```text
 Create/Update container group           Succeeded     <- your apply, bringing the container back
@@ -170,7 +207,7 @@ Update container group tags (portal)    Succeeded     <- you, adding edited_by
 ...                                                   <- older rows follow (Lab 5, and Lab 6's failed attempts)
 ```
 
-Changes made by OpenTofu have plain names; changes made by hand in this portal are labelled **(portal)**. In a real cloud the activity log is how you find out who touched what, and it is why "clicking in the console" is discouraged for anything that IaC owns.
+<!-- /dojo-reveal -->
 
 ## What just happened
 
@@ -187,9 +224,17 @@ Neither `apply` above was a surprise: `plan` told you first. Drift you can *see*
 
 ## Check yourself
 
-1. What did `terraform plan` compare to notice the missing container? *(the real cloud, via a refresh, against state and config)*
-2. Why did the deleted container come back with `+ create` rather than an error? *(your code still describes it; `apply` makes reality match the code)*
-3. If the portal change had been correct, what should you have done instead of `apply`? *(edit the `.tf` files to include it, then plan until "No changes")*
+1. What did `terraform plan` compare to notice the missing container?
+2. Why did the deleted container come back with `+ create` rather than an error?
+3. If the portal change had been correct, what should you have done instead of `apply`?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. The real cloud, via a refresh, against state and config.
+2. Your code still describes it; `apply` makes reality match the code.
+3. Edit the `.tf` files to include it, then plan until "No changes".
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 

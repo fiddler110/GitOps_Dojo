@@ -9,7 +9,7 @@ column) name where the event comes from:
 - `shell:` the student ran this command and it exited as stated (shell hook; the command and the branch are logged)
 - `forgejo:` a Forgejo webhook event for that student
 - `dns:`, `ca:`, `cloud:`, `bao:` an audit or activity line from that service, read by the module that owns it
-- `verify:` the achievements service checks the end state (verifiers, run by `dojo-check` or after an event)
+- `verify:` the achievements service checks the end state (verifiers, run by `dojo check` or after an event)
 
 `{user}` is the student's login (`student07`). Jokes are the toast text.
 
@@ -110,6 +110,7 @@ structured `verify` assertion mentions `{user}`.
 | f-amend | Amend and Pretend | "Rewrote your last commit like it never happened." | 0 | shell: `git commit --amend` (exit 0) |
 | f-force | With Great Power | "You tried `--force`. Growth opportunity." | 0 | shell: `git push --force` (or `-f`), any exit |
 | f-rejected | Rejected! | "The server said no. It's not personal." | 0 | shell: `git push` exits non-zero, "rejected" |
+| f-leak | Metal Detector | "You swept every commit and found buried treasure. Sadly, it was a credential." | 0 | shell: `gitleaks git` (or `detect`) exits 1, meaning it found a leak |
 
 (The cheating and "bumped into your neighbour" unlocks are shared across every workshop, so they live with the module, not here.)
 
@@ -126,21 +127,22 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 - **Points:** 100
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
-- **Goal shown to the student:** Production has a typo in `roster/team.yaml`: your own role, on the `name: {user}` entry, is misspelled. Ship a fix without touching `main` directly. Prove it with a pull request.
-- **Constraints:** in `{user}/challenge-repo`; a pull request into `main` from a branch of your choice (`hotfix-{user}` is the suggested name, and any branch other than `main` passes); the PR changes only `roster/team.yaml`; the PR title contains the word `hotfix`. Only the process is checked, not the text of your fix.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); its roster lists the student as `name: {user}` with a per-student role spelled wrong (`role`/`role_typo`, a linked pair).
+- **Goal shown to the student:** Production has a typo: your own role, on the `name: {user}` entry of `roster/team.yaml`, is misspelled. Ship a fix without touching `main` directly, and prove it with a pull request.
+- **Constraints:** in `{user}/challenge-repo`; a pull request into `main` from a branch of your choice (`hotfix-{user}` is the suggested name, and any branch other than `main` passes); the PR changes only `roster/team.yaml`; the PR title contains the word `hotfix`; only the process is checked, not the text of your fix
+- **Seed:** `dojo challenge start c1` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (owned by the student, cloned into `~/lab`); its roster lists the student as `name: {user}` with a per-student role spelled wrong (`role`/`role_typo`, a linked pair).
 - **Verify:** forgejo `pr_exists` (from any branch but `main` into `main`, open or merged, title contains `hotfix`), `pr_files == [roster/team.yaml]`, and `no_direct_push` on `main` (every commit on it came from the seed or a merged PR).
 - **Hint 1:** Everything you need is in Lab 1. What do you do before you edit anything?
 - **Hint 2:** Find your own name in `roster/team.yaml`. Branch, fix that one line, commit, push, open the PR from Forgejo.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` change your role (under `name: {user}`) from `{role_typo}` to `{role}`; `git commit -am "hotfix: fix my role"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title containing the word `hotfix`; then `dojo-check c1`.
+- **Answer:** `dojo challenge start c1`, `cd ~/lab/challenge-repo`, `git switch -c hotfix-{user}`; in `roster/team.yaml` change your role (under `name: {user}`) from `{role_typo}` to `{role}`; `git commit -am "hotfix: fix my role"`, `git push -u origin hotfix-{user}`; in Forgejo open a pull request from `hotfix-{user}` into `main` with a title containing the word `hotfix`; then `dojo check c1`.
 - **Collision check:** own repo, own branch, no merge into a shared `main`. Nothing needs a facilitator.
 
 ### C2: The Detective (after Lab 3 or 4)
 
 - **Points:** 100
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
-- **Goal shown to the student:** Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it.
-- **Seed:** planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo-challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.
+- **Goal shown to the student:** Someone changed a line they shouldn't have, and nobody owns up to it. Find the commit that introduced `{target_line}` in `config/settings.yaml`. Put its short hash and its author in `answer.txt` on a branch called `case-{user}` and push it.
+- **Constraints:** in `{user}/challenge-repo`; a file called `answer.txt` on a branch called `case-{user}`, pushed to Forgejo; it names the commit's short hash (7 or more characters) and the author's name; the file can be as short as `abc1234 Jane Doe`
+- **Seed:** planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.
 - **Verify:** forgejo `branch_exists` `case-{user}`, then `answer_names_commit`: the service finds the oldest commit on `main` whose diff adds `{target_line}` to `config/settings.yaml` and checks that `answer.txt` on `case-{user}` holds its short hash (7+ characters) and its author.
 - **Hint 1:** Which command answers 'who changed this line?'
 - **Hint 2:** `git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared.
@@ -151,16 +153,22 @@ seeded fork owned by that student, with the challenge's planted branches and com
 
 - **Points:** 300
 - **Where it runs:** the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone
-- **Goal shown to the student:** Two feature branches, `feature-a` and `feature-b`, both add their line to the same spot in `CHANGELOG.md`. A later commit on `feature-b`, "Make deploys faster", broke something. Bring both changes into `main` through a pull request with **both** changelog lines kept, no conflict markers left behind, and the broken commit undone the safe way.
-- **Constraints:** in `{user}/challenge-repo`; `main` changes only through a merged pull request (from any branch you like); `CHANGELOG.md` on `main` keeps `- {feature_a}` and `- {feature_b}`; "Make deploys faster" stays in the history and a later commit reverts it, so `config/settings.yaml` is back to `timeout_seconds: 30`.
-- **Seed:** `dojo-challenge start capstone` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (the same repo as c1 and c2; reset re-creates it): `main` has `CHANGELOG.md`, `feature-a` and `feature-b` each add a per-student line (`{feature_a}`, `{feature_b}`) to its end, and `feature-b` then sets `timeout_seconds: 0` in a commit called "Make deploys faster" (Forgejo user repos, so no branch names need a `{user}` suffix).
-- **Verify:** forgejo `pr_exists` (any branch into `main`, merged); `file_contains` both changelog lines on `main` and no conflict marker line (`<<<<<<<`, `=======`, `>>>>>>>`); `commit_reverted`: "Make deploys faster" is in `main`'s history and a later commit reverts it; `file_contains` `timeout_seconds: 30` on `main`; `no_direct_push` on `main`.
-- **Hint 1:** Work on a new branch off `main`, merge `origin/feature-a`, then `origin/feature-b`; expect a conflict in `CHANGELOG.md` and keep both lines (Lab 5, Part A).
-- **Hint 2:** `git revert` undoes a commit without rewriting history: find "Make deploys faster" with `git log --oneline`.
-- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/challenge-repo`, `git switch -c merge-{user}`, `git merge origin/feature-a`, `git merge origin/feature-b`: in `CHANGELOG.md` keep both `- {feature_a}` and `- {feature_b}`, delete the `<<<<<<<`, `=======` and `>>>>>>>` lines, `git add CHANGELOG.md`, `git commit --no-edit`; then `git revert --no-edit <hash of "Make deploys faster">` (from `git log --oneline`), `git push -u origin merge-{user}`; in Forgejo open a pull request from `merge-{user}` into `main` and merge it; then `dojo-check capstone`.
+- **Goal shown to the student:** It's release day. Alice's `feature-a` and Bob's `feature-b` are both finished and have to ship together on `main`, but the release has three problems hiding in it:
+
+1. Both features added their line to the end of `CHANGELOG.md`, so git can't combine them on its own.
+2. A commit on `feature-b`, "Make deploys faster", set `timeout_seconds` to 0 and breaks every deploy.
+3. Alice committed her `debug.log` test output on `feature-a`, and nothing stops it happening again.
+
+Get a clean release onto `main`. How you do it is up to you, as long as the end result below is true.
+- **Constraints:** in `{user}/challenge-repo`; `main` changes only through a merged pull request (from any branch, built any way you like); `CHANGELOG.md` on `main` has both lines, `- {feature_a}` and `- {feature_b}`, and no conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`); `config/settings.yaml` on `main` has `timeout_seconds: 30`; `debug.log` is not on `main`, and `.gitignore` on `main` ignores it (a rule like `*.log`); the history is intact, so every commit `main` started with is still there (no force-push, no rebasing or squashing `main`)
+- **Seed:** `dojo challenge start capstone` creates `{user}/challenge-repo` from `seeds/challenge-repo.json` (the same repo as c1 and c2; reset re-creates it): `main` has `CHANGELOG.md`, `feature-a` and `feature-b` each add a per-student line (`{feature_a}`, `{feature_b}`) to its end, and `feature-b` then sets `timeout_seconds: 0` in a commit called "Make deploys faster" (Forgejo user repos, so no branch names need a `{user}` suffix).
+- **Verify:** forgejo `pr_exists` (any branch into `main`, merged); `file_contains` both changelog lines on `main` and no conflict marker line (`<<<<<<<`, `=======`, `>>>>>>>`); `file_contains` `timeout_seconds: 30` on `main`; `file_absent` `debug.log` on `main`; `file_contains` a `.gitignore` rule for `debug.log` on `main`; `history_preserved`: every seed commit on `main` is still in its history; `no_direct_push` on `main`. The way the bad commit is undone (revert, fix forward, left out of the merge) is not checked.
+- **Hint 1:** The clone already has both branches as `origin/feature-a` and `origin/feature-b` (`git branch -a`). Work on a new branch off `main` and open a pull request from it; Lab 5 covers the conflict, Lab 2 covers `.gitignore` and untracking a file.
+- **Hint 2:** Any method works if you never rewrite `main`'s history: `git revert` the bad commit, fix the value forward, or leave that commit out of your merge. `git log --oneline origin/feature-a` shows what else Alice committed.
+- **Answer:** `dojo challenge start capstone`, `cd ~/lab/challenge-repo`, `git switch -c release-{user}`, `git merge origin/feature-a` (it brings in `debug.log`), `git merge origin/feature-b`: in `CHANGELOG.md` keep both `- {feature_a}` and `- {feature_b}`, delete the `<<<<<<<`, `=======` and `>>>>>>>` lines, `git add CHANGELOG.md`, `git commit --no-edit`; then `git revert --no-edit <hash of "Make deploys faster">`, `git rm debug.log`, `echo '*.log' >> .gitignore`, `git add .gitignore`, `git commit -m "Stop tracking logs"`, `git push -u origin release-{user}`; in Forgejo open a pull request from `release-{user}` into `main` and merge it; then `dojo check capstone`.
 - **Collision check:** the merge lands in the student's own repo, so it can't conflict with anyone. Fully solo; no facilitator.
 - **Badge tier:** capstone (stars)
 
 ## Totals (computed)
 
-23 core milestones (230 points) of 23 milestones (230) · 7 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 730 points.
+23 core milestones (230 points) of 23 milestones (230) · 8 funny unlocks (0 points each) · 2 challenges (200) · capstone 300 · plus first blood and class-clear bonuses. Everything: 730 points.

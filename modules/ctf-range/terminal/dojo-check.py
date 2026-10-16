@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""dojo-check: ask the platform whether your targets are still exploitable.
+# dojo-summary: ask the platform whether your targets are still exploitable
+"""dojo check: ask the platform whether your targets are still exploitable.
 
-    dojo-check              all three targets
-    dojo-check <target>     one target
+    dojo check              all three targets
+    dojo check <target>     one target
 
 Talks to ctf-checker on workshop_lab as the account's own $USER (same
-identity model as dojo-flag). Always exits 0 unless it could not ask.
+identity model as dojo flag). Always exits 0 unless it could not ask.
 """
 import json
 import os
@@ -25,7 +26,7 @@ def main(argv):
         return 0
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
     if not user:
-        print("dojo-check: could not tell who you are ($USER is unset)", file=sys.stderr)
+        print("dojo check: could not tell who you are ($USER is unset)", file=sys.stderr)
         return 1
     body = {"user": user}
     if argv:
@@ -40,10 +41,10 @@ def main(argv):
             msg = json.load(exc).get("error", exc.reason)
         except Exception:
             msg = exc.reason
-        print(f"dojo-check: {msg}", file=sys.stderr)
+        print(f"dojo check: {msg}", file=sys.stderr)
         return 1
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        print(f"dojo-check: could not reach the checker ({exc})", file=sys.stderr)
+        print(f"dojo check: could not reach the checker ({exc})", file=sys.stderr)
         return 1
     for r in doc.get("results", []):
         t = r.get("target", "?")

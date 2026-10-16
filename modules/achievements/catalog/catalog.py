@@ -419,7 +419,7 @@ def _check_challenge(ch, kind, where, ids, problems, warnings, seeds_dir=None):
         warnings.append(f"{where}: no 'isolation' note (how it avoids other students)")
     if "facilitator" in ch and not isinstance(ch["facilitator"], bool):
         problems.append(f"{where}: 'facilitator' must be true or false")
-    # watch: the first `dojo-check` starts it and the service's state sweep keeps checking until it passes
+    # watch: the first `dojo check` starts it and the service's state sweep keeps checking until it passes
     if "watch" in ch and (not isinstance(ch["watch"], bool) or (ch["watch"] and not ch.get("verify"))):
         problems.append(f"{where}: 'watch' must be true or false, and true needs a 'verify'")
     verify = ch.get("verify")

@@ -486,7 +486,7 @@ class RealCatalogs(unittest.TestCase):
         self.assertEqual(warnings, [])
         for ch in c["challenges"] + [c["capstone"]]:
             self.assertTrue(ch.get("verify") and ch.get("seed_plan"), ch["id"])
-        self.assertIn("commit_reverted", {a["verb"] for a in c["capstone"]["verify"]})
+        self.assertIn("history_preserved", {a["verb"] for a in c["capstone"]["verify"]})
 
 
 if __name__ == "__main__":

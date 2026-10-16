@@ -21,7 +21,7 @@ services:
       - SENSEI_MODE=${SENSEI_MODE:-merge}
       - SENSEI_APPROVE_PREFIX=${SENSEI_APPROVE_PREFIX:-}
       - SENSEI_SEED=${SENSEI_SEED:-}
-      # The stuck radar and `sensei check` read the achievements service when the workshop runs it.
+      # The stuck radar and `dojo sensei check` read the achievements service when the workshop runs it.
       - ACHIEVEMENTS_URL=http://achievements:8080
       - ACHIEVEMENTS_KEY=${GATEWAY_TOKEN_SENSEI:-}
       - SENSEI_STUCK_MINUTES=${SENSEI_STUCK_MINUTES:-10}

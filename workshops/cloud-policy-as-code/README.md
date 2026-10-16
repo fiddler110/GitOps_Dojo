@@ -27,7 +27,7 @@ before restarting after an image change. Only amd64 has been built.
 
 | Lab | Topic | Minutes (estimate) |
 | --- | ----- | ------------------ |
-| 0 | Setup: fork, clone, `lab-prep 0` (CI secrets, branch protection), apply the app | 10 |
+| 0 | Setup: fork, clone, `dojo prep 0` (CI secrets, branch protection), apply the app | 10 |
 | 1 | Why guardrails: the 403 and the Policy blade | 8 |
 | 2 | Anatomy of a definition; predict three cases | 12 |
 | 3 | First policy as code: `require-costcenter-tag` (slow apply) | 15 |
@@ -62,7 +62,7 @@ assignments with `depends_on`: that serialises the waits.
 
 ## How CI works here
 
-`lab-prep 0` saves the student's `ARM_*` login as Actions secrets on their fork and protects `main` (merging
+`dojo prep 0` saves the student's `ARM_*` login as Actions secrets on their fork and protects `main` (merging
 needs the `Policy check / check (pull_request)` status). Jobs run in runner-pool (`runs-on: host`) with
 `SSL_CERT_FILE=/run/cloud-pki/dojo-cloud-ca.pem`, `TF_CLI_CONFIG_FILE=/providers/tofurc`, `TF_VAR_owner` from the
 fork's owner and `ARM_METADATA_HOSTNAME=management.dojo.cloud`.

@@ -23,7 +23,7 @@ order on a stagger, so unfixed breaches pile up and the student has to triage.
 | `leaky-config` | low (1) | file-access + auth log | an unauthenticated log read, then reuse of the credential it shows |
 
 Each student gets **three own Forgejo repos** (named for the target, app source only, no exploit script) that
-drive a redeploy of that slot on merge. The attacks are run by the platform's checker (`dojo-check` and the PR
+drive a redeploy of that slot on merge. The attacks are run by the platform's checker (`dojo check` and the PR
 gate), whose scripts students cannot read. Target source: `modules/ctf-range/targets/<target>/`; the seeded
 copies live in `content/sample-repos/<target>/` (refresh them with `content/sync-sample-repos.sh`).
 
@@ -49,7 +49,7 @@ live by default -- see `compose/docker-compose.override.yml`'s header comment.
   clone/fix/PR/merge flow **without naming the bug**, the lab overview, and a cheat sheet of the session's
   own git/exploit-check commands (tool mechanics live in the module's **Lab Info** card instead).
 - [`content/lab/`](content/lab/lab1.md): one lab as incident triage -- briefing, the detect/triage/contain/fix/verify
-  loop, the toolset (`git`, editor, `python3`, `curl`, the SIEM, `dojo-check`), a nudge-only hint ladder per
+  loop, the toolset (`git`, editor, `python3`, `curl`, the SIEM, `dojo check`), a nudge-only hint ladder per
   target, and a per-target plus overall debrief. Every fact a student needs is discoverable without a hint.
 - [`content/sample-repos/`](content/sample-repos/): the three target repos' source and the shared workflows
   (`_common/`), which `compose/terminal/start.d/90-ctf-defend.sh` provisions per student into Forgejo

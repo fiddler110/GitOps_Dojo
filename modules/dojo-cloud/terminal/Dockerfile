@@ -14,6 +14,7 @@ COPY dojo-env /usr/local/bin/dojo-env
 COPY start.d/50-dojo-cloud.sh /etc/dojo/start.d/50-dojo-cloud.sh
 RUN set -eux; \
     chmod 0755 /usr/local/bin/dojo-broker /usr/local/bin/dojo-env; \
+    mkdir -p /usr/local/share/dojo/cmd.d; ln -sf /usr/local/bin/dojo-env /usr/local/share/dojo/cmd.d/env; \
     printf '\n# dojo-cloud: Dojo Cloud credentials for this user (from the broker)\nif [ -z "${ARM_CLIENT_ID:-}" ] && [ -x /usr/local/bin/dojo-env ]; then eval "$(/usr/local/bin/dojo-env 2>/dev/null)"; fi\n' >> /etc/zsh/zshenv
 
 # ENTRYPOINT and HEALTHCHECK are inherited from the base image; the

@@ -3,14 +3,15 @@
   "title": "Tag Team",
   "after": "after Lab 5 or 6; needs 1 free container group",
   "space": "the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c1` (cloned to `~/lab/challenge-c1`, own state); resources tagged `challenge=c1`",
-  "goal": "Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL.",
+  "goal": "Your first site is up and you need a second, `{user}-second`. The starter in your repo is a site that the policy rejects. Get a compliant second site running, with an output that prints its URL.",
+  "constraints": "in `{user}/challenge-c1`; exactly one `challenge=c1` container is running, named `{user}-second`, in an allowed region, with the `owner` and `env` tags; `main.tf` on `main` declares `output \"url\"` whose value is a URL (`http://`, `https://` or the portal's `/site/` path, not a bare host name)",
   "verify_text": "Dojo Cloud (the student's own subscription, read-only): exactly one `challenge=c1` container running, site name `{user}-second`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` of `{user}/challenge-c1` declares `output \"url\"` whose value is a URL (a string with `http://`, `https://` or the portal's `/site/` path, not a bare host name; push it). Not checked: that the URL points at this site, and that the code is the only source of the site (the state is not read).",
   "isolation": "the site name has `{user}`, so the class-wide unique DNS label can't clash; the cloud check reads only the checking student's own subscription (the verb takes no account argument), and the repo is their own.",
   "hints": [
     "Copy your first site, and remember what the policy asked for.",
     "Tags, region, size, and a new name."
   ],
-  "seed": "`dojo-challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.",
+  "seed": "`dojo challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.",
   "seed_plan": "site-c1.json",
   "verify": [
     {
@@ -41,5 +42,5 @@
       "regex": "^\\s*output\\s+\"url\"\\s*\\{[^}]*?value\\s*=\\s*\"[^\"]*(https?://|/site/)"
     }
   ],
-  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-c1`, then in `main.tf`: location `canadacentral`, `cpu = 0.25`, tags `{ owner = var.owner, env = \"dev\", challenge = \"c1\" }` on the group (and the resource group), `dns_name_label = \"{user}-second\"`, and add `output \"url\" { value = \"${var.portal_base_url}/site/{user}-second/\" }` (with a `portal_base_url` variable, as in Lab 5). `tofu init && tofu apply`, `git add . && git commit && git push origin main`, `dojo-check c1`."
+  "answer": "`dojo challenge start c1`, `cd ~/lab/challenge-c1`, then in `main.tf`: location `canadacentral`, `cpu = 0.25`, tags `{ owner = var.owner, env = \"dev\", challenge = \"c1\" }` on the group (and the resource group), `dns_name_label = \"{user}-second\"`, and add `output \"url\" { value = \"${var.portal_base_url}/site/{user}-second/\" }` (with a `portal_base_url` variable, as in Lab 5). `tofu init && tofu apply`, `git add . && git commit && git push origin main`, `dojo check c1`."
 }

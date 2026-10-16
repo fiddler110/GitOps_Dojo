@@ -56,7 +56,7 @@ class Sensei:
         self.enabled = True
         self.prs = {}
         # `_state` guards self.prs and its file (memory only, never held across a Forgejo call); each PR has its
-        # own lock so the loop, a student's `sensei approve` and the facilitator never judge one PR at once.
+        # own lock so the loop, a student's `dojo sensei approve` and the facilitator never judge one PR at once.
         self._state = threading.RLock()
         self._pr_locks, self._pr_locks_guard = {}, threading.Lock()
         if state_path and os.path.exists(state_path):
@@ -154,7 +154,7 @@ class Sensei:
             if self.mode == "approve" and not self._approvable(pr):
                 continue
             if row and row["sha"] == pr["head"]["sha"] and row["status"] in ("needs-review", "merged", "approved"):
-                # An approved PR is judged again once `main` moves under it and it conflicts, so `sensei status`
+                # An approved PR is judged again once `main` moves under it and it conflicts, so `dojo sensei status`
                 # stops saying "merge it" while Forgejo refuses the merge.
                 if not (row["status"] == "approved" and pr.get("mergeable") is False):
                     continue
@@ -173,7 +173,7 @@ class Sensei:
 
     def handle(self, number, force=False, bypass=False, wait=True):
         """Review and merge one PR. `force` (the facilitator's "merge anyway") skips the review; `bypass`
-        (approve mode, `sensei approve --force`) skips only the wait for peer review, not the DNS rules.
+        (approve mode, `dojo sensei approve --force`) skips only the wait for peer review, not the DNS rules.
         With `wait` False, a PR someone else is already handling is left alone ("busy")."""
         lock = self._pr_lock(number)
         if not lock.acquire(blocking=wait):
@@ -282,7 +282,7 @@ class Sensei:
             # done their half (Lab 3 step 6), or has waited long enough, and checks again every pass.
             self._set(pr, "waiting", "review someone else's pull request first")
             self._say_once(pr, "I'll approve this one as soon as you have reviewed someone else's pull request "
-                           "(Lab 3, step 6: run `sensei review` in your terminal and I'll pick one for you). "
+                           "(Lab 3, step 6: run `dojo sensei review` in your terminal and I'll pick one for you). "
                            "I check every few seconds.")
             return "waiting"
         base_text = self._raw(self.repo, pr.get("merge_base") or self.base, self.file)
@@ -322,7 +322,7 @@ class Sensei:
         """Pick a pull request for `login` to review: not theirs, not a bot's, not one they already reviewed;
         the one with the fewest reviews first, then the longest waiting, Sensei's practice PR last."""
         if self.mode != "approve":
-            return {"ok": False, "message": "Peer review isn't part of this workshop: Sensei checks and merges your pull request for you. See where it stands with `sensei status`."}
+            return {"ok": False, "message": "Peer review isn't part of this workshop: Sensei checks and merges your pull request for you. See where it stands with `dojo sensei status`."}
         choices = []
         for pr in self._open_prs():
             author = (pr.get("user") or {}).get("login", "")
@@ -340,10 +340,10 @@ class Sensei:
                                    "practice": practice}}
 
     def student_approve(self, login, force=False):
-        """`sensei approve [--force]`: approve the student's own open PR if it follows the rules and they have
+        """`dojo sensei approve [--force]`: approve the student's own open PR if it follows the rules and they have
         reviewed someone else's (or have waited long enough); `--force` skips that wait, never the rules."""
         if self.mode != "approve":
-            return {"ok": False, "message": "There is nothing for you to approve here: Sensei merges your pull request itself once it passes. See where it stands with `sensei status`."}
+            return {"ok": False, "message": "There is nothing for you to approve here: Sensei merges your pull request itself once it passes. See where it stands with `dojo sensei status`."}
         mine = self._my_open(login)
         if not mine:
             return {"ok": False, "message": "You have no open pull request into %s." % self.base}

@@ -20,4 +20,4 @@ python3 app.py      # listens on :5000 (PORT to change it)
 
 - The **PR gate** starts your branch, tries a protected write as an ordinary developer, and sends one legitimate
   security-team request. Pass means the first is refused and the second still works (advisory: it never blocks the merge).
-- Merging to `main` rebuilds and redeploys your slot. `dojo-check policy-bypass` checks your live slot.
+- Merging to `main` rebuilds and redeploys your slot. `dojo check policy-bypass` checks your live slot.

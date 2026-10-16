@@ -35,7 +35,7 @@ Work every target through the same five steps. Say them out loud; the order is t
 5. **Verify.** Prove it, with the check and the SIEM. A fix you have not verified is a guess.
 
 Your toolset is deliberately small: `git`, an editor, `python3`, `curl`, the **SIEM** panel on your landing page,
-and **`dojo-check`**. There is no scanner and no internet, because real incidents rarely come with a perfect tool.
+and **`dojo check`**. There is no scanner and no internet, because real incidents rarely come with a perfect tool.
 
 ---
 
@@ -48,11 +48,11 @@ log for one, an audit log for another, and file-access and login events for the 
 in on purpose. A strong indicator is something specific, repeated, and different from the normal traffic around
 it; a count that is "a bit high" is not.
 
-### `dojo-check`
+### `dojo check`
 
 ```sh
-dojo-check                    # all three targets, one line each
-dojo-check policy-bypass      # just one
+dojo check                    # all three targets, one line each
+dojo check policy-bypass      # just one
 ```
 
 It asks the platform to run the attack against your **live** slot, and sends one legitimate request as well. A
@@ -115,7 +115,7 @@ The gate is advisory: a failing check doesn't block the merge, so you can still 
 undoes a box you broke.
 
 Merge. The merge rebuilds the image and redeploys that slot in place, with nothing for you to ask anyone.
-Then **verify**: `dojo-check <target>` and the SIEM.
+Then **verify**: `dojo check <target>` and the SIEM.
 
 ---
 
@@ -181,7 +181,7 @@ already exposed must be treated as burned and rotated, which is an operational s
 - **Order mattered.** You had three things at once. Compare your order with the room's on the SOC summary.
   Severity, evidence and time to breach all point somewhere; a good triage names why.
 - **Evidence over intuition.** Each signal was different, and the strong indicator was specific and countable.
-- **A verified fix is a different thing from a fix you believe in.** `dojo-check` and the gate are the same
+- **A verified fix is a different thing from a fix you believe in.** `dojo check` and the gate are the same
   question the attacker asks.
 - **The merge is the deploy.** The repo is the source of truth for what runs, and the incident note is part of
   the change.

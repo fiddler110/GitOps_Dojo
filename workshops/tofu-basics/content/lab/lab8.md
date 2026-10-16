@@ -2,7 +2,7 @@
 
 **Goal:** make three small edits and predict, before you run `plan`, whether each one is a quiet update (`~`) or a rebuild (`-/+`). Then try forcing a rebuild and meet `create_before_destroy`.
 
-> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 8` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `dojo prep 8` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -25,15 +25,31 @@ Make your prediction for each edit below, then check.
 
 ## 1. A tag: in place
 
-Add a tag in `locals.tf`. Put a new line under `managed_by` in the `tags` block:
+Tags are a map of labels on a resource, and the cloud can change them on a running thing without touching it. `terraform fmt` tidies formatting and prints the names of files it changed; it re-aligns the `=` signs.
+
+```text
+terraform fmt     # tidy the files, print what it changed
+```
+
+Open `locals.tf` in your editor and put a new line under `managed_by` in the `tags` block: `cost_center = "training"`. Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i '/managed_by = "opentofu"/a\    cost_center = "training"' locals.tf
-terraform fmt
-git diff
 ```
 
-`terraform fmt` tidies formatting and prints the names of files it changed (`locals.tf`). It re-aligns the `=` signs. The diff (header trimmed):
+**Your turn:** before you plan, predict: `~` or `-/+`, and for how many resources?
+
+```sh
+terraform fmt
+git diff
+terraform plan
+```
+
+<!-- dojo-reveal: Results of fmt, git diff and plan -->
+
+`terraform fmt` printed `locals.tf`. The diff (header trimmed):
 
 ```diff
    tags = {
@@ -47,11 +63,7 @@ git diff
    }
 ```
 
-```sh
-terraform plan
-```
-
-Expected (abridged):
+The plan, expected (abridged):
 
 ```terraform
   # azurerm_container_group.hello will be updated in-place
@@ -87,11 +99,15 @@ Plan: 0 to add, 2 to change, 0 to destroy.
 
 `~` twice: the tags are on both resources, and both can change in place.
 
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Predict whether the site goes down.
+
 ```sh
 terraform apply
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -->
 
 ```text
 azurerm_resource_group.main: Modifying... [id=/subscriptions/260eb175-...]
@@ -104,15 +120,28 @@ Apply complete! Resources: 0 added, 2 changed, 0 destroyed.
 
 A second or two, and **no downtime**: your site kept running. Check the tag in the portal.
 
+<!-- /dojo-reveal -->
+
 ## 2. The message: replace
 
-The site's text is passed to the container as an **environment variable** (`MESSAGE`). Change it in `terraform.tfvars`:
+The site's text is passed to the container as an **environment variable** (`MESSAGE`). A running container's environment can't be changed from outside, so the cloud has to start a new one.
+
+Open `terraform.tfvars` in your editor and change `message` to `"Hello, Canada!"`. Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i 's/^message .*/message     = "Hello, Canada!"/' terraform.tfvars
+```
+
+**Your turn:** before you plan, predict: `~` or `-/+`? Which resources are affected?
+
+```sh
 git diff terraform.tfvars
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 Expected (abridged):
 
@@ -155,11 +184,15 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 
 `# forces replacement` is printed right next to the attribute responsible. Only the container group is replaced; the resource group (which never changed) is left alone. (Your IP will differ.)
 
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Predict how long the site is down.
+
 ```sh
 terraform apply
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -->
 
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-...]
@@ -174,14 +207,27 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
 About 26 seconds: 12 to destroy, then 13 to create. The site was **down the whole time**. Reload it (portal **Browse**): **Hello, Canada!** Compare with step 1: a tag edit was a second, a message edit was half a minute of downtime.
 
+<!-- /dojo-reveal -->
+
 ## 3. The image: replace
 
-Now switch to the newer image. The starter's `validation` only allows `1.0` and `2.0`, the two versions policy approves.
+Now switch to the newer image. The starter's `validation` only allows `1.0` and `2.0`, the two versions policy approves. A container's image is fixed when it starts, so expect the same answer as for the message.
+
+Open `terraform.tfvars` in your editor and change `image_tag` to `"2.0"`. Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i 's/^image_tag .*/image_tag   = "2.0"/' terraform.tfvars
+```
+
+**Your turn:** predict the symbol, then plan.
+
+```sh
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 The interesting part of the plan:
 
@@ -202,19 +248,35 @@ The interesting part of the plan:
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Then browse to the site and predict what changed.
+
 ```sh
 terraform apply
 ```
 
-Type `yes` (about 27 seconds again; the end of the output is `Apply complete! Resources: 1 added, 0 changed, 1 destroyed.`). Browse to the site: the page is now **green** and the pills say `image: dojo/hello:2.0`. Same message, new image. **Pinning image versions in code** is what makes an upgrade a reviewable one-line change, and rolling back the same.
+<!-- dojo-reveal: Results of apply -->
+
+About 27 seconds again; the end of the output is `Apply complete! Resources: 1 added, 0 changed, 1 destroyed.` Browse to the site: the page is now **green** and the pills say `image: dojo/hello:2.0`. Same message, new image. **Pinning image versions in code** is what makes an upgrade a reviewable one-line change, and rolling back the same.
+
+<!-- /dojo-reveal -->
 
 ## 4. Force a replacement: `-replace`
 
-Sometimes a resource must be rebuilt even though nothing in the config changed (it is stuck, or you want a fresh start). Don't edit anything, just ask:
+Sometimes a resource must be rebuilt even though nothing in the config changed (it is stuck, or you want a fresh start). `-replace=<address>` asks for exactly that; the address is what you see in `terraform state list`.
+
+```text
+terraform plan -replace=<address>
+```
+
+**Your turn:** don't edit anything, just ask. Predict the symbol.
 
 ```sh
 terraform plan -replace=azurerm_container_group.hello
 ```
+
+<!-- dojo-reveal: Results of plan -replace -->
 
 Expected (abridged):
 
@@ -228,11 +290,15 @@ Expected (abridged):
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-`will be replaced, as requested`. `azurerm_container_group.hello` is the address you see in `terraform state list`. You don't have to apply it.
+`will be replaced, as requested`. You don't have to apply it.
+
+<!-- /dojo-reveal -->
 
 ## 5. Optional: `create_before_destroy`
 
-Replacement means **destroy, then create**, hence the downtime. OpenTofu can reverse the order for a resource with a `lifecycle` block, so the new one exists before the old one is removed. Try it. Add this at the end of the `azurerm_container_group` "hello" resource in `main.tf` (just above its closing `}`):
+Replacement means **destroy, then create**, hence the downtime. OpenTofu can reverse the order for a resource with a `lifecycle` block, so the new one exists before the old one is removed.
+
+Try it. Open `main.tf` in your editor and add this at the end of the `azurerm_container_group` "hello" resource (just above its closing `}`):
 
 ```terraform
   lifecycle {
@@ -240,17 +306,19 @@ Replacement means **destroy, then create**, hence the downtime. OpenTofu can rev
   }
 ```
 
-(Or from the terminal, which inserts it before the last line of the file:)
+**Prefer the terminal?** This inserts it before the last line of the file:
 
 ```sh
 sed -i '$i\\n  lifecycle {\n    create_before_destroy = true\n  }' main.tf
 ```
 
-Now force a replacement:
+**Your turn:** force a replacement. Before you run it, predict how the plan symbol changes.
 
 ```sh
 terraform plan -replace=azurerm_container_group.hello | grep -E 'Plan:|replace'
 ```
+
+<!-- dojo-reveal: Results of plan -replace with create_before_destroy -->
 
 ```text
 +/- create replacement and then destroy
@@ -258,13 +326,17 @@ terraform plan -replace=azurerm_container_group.hello | grep -E 'Plan:|replace'
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-The symbol flips to `+/-`: *create* first, *then* destroy. Apply it:
+The symbol flips to `+/-`: *create* first, *then* destroy.
+
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Predict: will the new container be created alongside the old one?
 
 ```sh
 terraform apply -replace=azurerm_container_group.hello
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -replace -->
 
 ```text
 azurerm_container_group.hello: Creating...
@@ -278,7 +350,9 @@ Error: a resource with the ID "/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938
 
 It **fails, harmlessly** (the old container is still running; check `terraform state list` and the portal). The replacement has exactly the same name and Resource ID as the original, and two things can't have the same ID at the same time. `create_before_destroy` only works when old and new can **coexist**, meaning their names, DNS labels and so on differ (for example a random suffix in the name). It is a tool for zero-downtime upgrades of things behind a load balancer, not a switch to flip on everything.
 
-Remove the block again:
+<!-- /dojo-reveal -->
+
+Clean up: remove the block again.
 
 ```sh
 git checkout main.tf
@@ -300,9 +374,17 @@ Leave things as they are: image `2.0`, message "Hello, Canada!", the `cost_cente
 
 ## Check yourself
 
-1. You change one tag and one environment variable in a single edit. What does `plan` say for the container group? *(replace, `-/+`; the whole resource is replaced if any one attribute forces it)*
-2. What does `# forces replacement` mean? *(this attribute can't be edited in place, so the resource is destroyed and recreated)*
-3. Why did `create_before_destroy` fail here? *(the new container has the same name/ID as the old one, so they can't exist together)*
+1. You change one tag and one environment variable in a single edit. What does `plan` say for the container group?
+2. What does `# forces replacement` mean?
+3. Why did `create_before_destroy` fail here?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. Replace, `-/+`: the whole resource is replaced if any one attribute forces it.
+2. This attribute can't be edited in place, so the resource is destroyed and recreated.
+3. The new container has the same name/ID as the old one, so they can't exist together.
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 

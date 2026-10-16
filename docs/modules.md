@@ -11,7 +11,7 @@ one is in the [Authoring guide](authoring.md#6-writing-a-module); each module's 
 | [`dns-gate`](#dns-gate) | `dns-api`: a gate in front of PowerDNS with per-account keys and CI by ID token | dns-as-code, cert-autorenewal, dojo-introduction |
 | [`dns-ui`](#dns-ui) | Live DNS Zones page and PowerDNS-Admin for the facilitator | dns-as-code, cert-autorenewal, dojo-introduction |
 | [`openbao`](#openbao) | One OpenBao for the class, SSO through Forgejo, audit reader, `bao` CLI | vault-fundamentals, ctf-secrets-config |
-| [`sensei`](#sensei) | PR reviewer, help desk (`sensei ask/why/hand`), stuck radar | all main-path workshops |
+| [`sensei`](#sensei) | PR reviewer, help desk (`dojo sensei ask/why/hand`), stuck radar | all main-path workshops |
 | [`achievements`](#achievements) | Scoring, toasts, leaderboard, challenges, certificate | any pack with a catalog, when `ACHIEVEMENTS_ENABLED` |
 | [`ctf-range`](#ctf-range) | Vulnerable targets, boxed Docker host, flag service, attacker bots | ctf-* packs |
 | `_shared` | Single copies of helper code (`dojo_http.py`, `adapter_client.py`) | built into several modules via `SHARED=` |
@@ -127,7 +127,7 @@ An offline reviewer and support desk. It reads like a helpful senior engineer; i
   `git merge main` pushed to it.
 - **Modes**: default merges the roster PR (git-fundamentals). `SENSEI_MODE=approve` (dns-as-code) approves but never
   merges, and requires a student to have reviewed someone else first (or `SENSEI_PATIENCE_SECONDS` 180).
-- **Terminal commands**: `sensei help|status|review|approve [--force]`, `ask "..."`, `why`, `hand "..."`, `inbox`, `check`.
+- **Terminal commands**: `dojo sensei help|status|review|approve [--force]`, `ask "..."`, `why`, `hand "..."`, `inbox`, `check`.
 - **Support desk**: hand-written answers (`modules/sensei/answers/shared.json`, optional `workshops/<name>/sensei/answers.json`)
   first, then a section-by-section search of the pack's own `content/lab/*.md`; `why` explains the nearest known error
   from the last 60 screen lines using a table derived from the labs' "You see | Cause / fix" tables plus
@@ -150,10 +150,10 @@ Scoring layered over a pack's labs. On by default (`ACHIEVEMENTS_ENABLED`) for p
   `cloud`/`bao`/`ca`/`dns`/`ctf`/`soc` adapter events, `verify` state milestones, `service`-fired cheats.
 - **Service** (`server.py`, `store.py`, `ledger.py`): signed events (HMAC), replay protection, a masher limit,
   `state.json` on a volume, student pages under `/achievements`, facilitator tab under `/achievements-admin`.
-- **Terminal**: `dojo-check`, `dojo-challenge start|reset`, a zsh prompt hook that echoes new unlocks. Tamper-evident:
+- **Terminal**: `dojo check`, `dojo challenge start|reset`, a zsh prompt hook that echoes new unlocks. Tamper-evident:
   an edited client or someone else's identity headers cost a point ("cheat-client", "cheat-identity").
 - **Challenges**: a student's own seeded repo, verified by the service with assertions that must mention `{user}`;
-  exactly two hints; Start/Reset buttons from `<!-- dojo-challenge: c1 -->` markers in a lab; `watch` challenges
+  exactly two hints; started with `dojo challenge start ID`, checked with `dojo check ID`; `watch` challenges
   re-checked over time.
 - **Privacy**: commands are matched and dropped; no command text is stored.
 

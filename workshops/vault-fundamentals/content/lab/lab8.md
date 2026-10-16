@@ -18,24 +18,24 @@ A **workflow** is a YAML file in `.forgejo/workflows/` that tells Forgejo Action
 
 ## 1. Your own copy of the repo
 
-The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone. This asks Forgejo's API to make the fork (`--netrc` signs in as you; `-d '{}'` sends an empty request body):
+The team's repo is `platform-team/vault-fundamentals`. Each of you works in your own **fork**, a copy under your account, so your pipelines and secrets are yours alone. The first command asks Forgejo's API to make the fork (`--netrc` signs in as you; `-d '{}'` sends an empty request body). No password prompt: your terminal came with a Forgejo **access token** for your account, which `curl --netrc` reads from `~/.netrc` and git reads from `~/.git-credentials`. The second block clones it (downloads it into `~/lab/vault-fundamentals`).
 
-```bash
+**Your turn:** make the fork and clone it. Predict what a successful fork request prints.
+
+```sh
 curl --netrc -H "Content-Type: application/json" -d '{}' \
   http://git-server:3000/api/v1/repos/platform-team/vault-fundamentals/forks
-```
-
-No password prompt: your terminal came with a Forgejo **access token** for your account, which `curl --netrc` reads from `~/.netrc` and git reads from `~/.git-credentials`. A block of JSON means it worked; `repository is already forked` means you made it earlier.
-
-Clone it (download it into `~/lab/vault-fundamentals`):
-
-```bash
 cd ~/lab
 git clone http://git-server:3000/$USER/vault-fundamentals.git
 cd vault-fundamentals
 ```
 
-The folder appears in VS Code's Explorer as **vault-fundamentals**.
+<!-- dojo-reveal: Result of the fork and clone -->
+
+A block of JSON means it worked; `repository is already forked` means you made it earlier. The folder appears in VS Code's Explorer as **vault-fundamentals**.
+
+<!-- /dojo-reveal -->
+
 
 A token in a plain-text file sounds like what this workshop warns against, so look at what makes it acceptable here. `ls -l ~/.netrc ~/.git-credentials` shows `-rw-------`: only you can read them. It's a token, not a password: limited to repositories, revocable on its own, and it can't sign in to the Forgejo web page. And the platform issued it (secret zero again, as in lab 0). For your own accounts, prefer a credential manager or git's in-memory `cache` helper.
 
@@ -50,11 +50,20 @@ In the browser, open the **Forgejo** card, then your fork (**studentXX/vault-fun
 
 Once saved, the value can't be shown again, not even to you. It's stored encrypted, and handed only to jobs.
 
+The workflow in the next step reads it as `${{ secrets.DEMO_API_KEY }}`, which Forgejo fills in when the job starts.
+
 ## 3. A workflow that uses it
+
+Read the workflow top to bottom:
+
+- `on: push`: run on every push, to any branch.
+- `jobs: demo:`: one job, called `demo`. `runs-on: host` picks the class runners.
+- **Where does this job run?**: prints the runner's Linux user and how many processes it can see. You'll use that in a moment.
+- **Use the secret**: `env:` hands the step the secret as the environment variable `API_KEY`. `${{ secrets.DEMO_API_KEY }}` is filled in by Forgejo when the job starts; the file itself never holds the value. The step then prints it, and its length (`${#API_KEY}`).
 
 Make the folder Forgejo looks in for workflows:
 
-```bash
+```sh
 mkdir -p .forgejo/workflows
 ```
 
@@ -79,32 +88,29 @@ jobs:
           echo "It is ${#API_KEY} characters long"
 ```
 
-Read it top to bottom:
+Save it.
 
-- `on: push`: run on every push, to any branch.
-- `jobs: demo:`: one job, called `demo`. `runs-on: host` picks the class runners.
-- **Where does this job run?**: prints the runner's Linux user and how many processes it can see. You'll use that in a moment.
-- **Use the secret**: `env:` hands the step the secret as the environment variable `API_KEY`. `${{ secrets.DEMO_API_KEY }}` is filled in by Forgejo when the job starts; the file itself never holds the value. The step then prints it, and its length (`${#API_KEY}`).
+**Your turn:** commit and push it; the push starts the workflow (`git push` signs in with your token; nothing to type). Then open your fork in Forgejo → **Actions** → the newest run → the **demo** job, and open each step. Before you look, predict what the secret will look like in the log.
 
-Save it. Commit and push it; the push starts the workflow:
-
-```bash
+```sh
 git add .forgejo/workflows/secrets-demo.yml
 git commit -m "Add a workflow that uses a repository secret"
 git push
 ```
 
-`git push` signs in with your token; nothing to type.
-
-Open your fork in Forgejo → **Actions** → the newest run → the **demo** job, and open each step.
+<!-- dojo-reveal: What the first run shows -->
 
 - **"The key is \*\*\*"**: Forgejo replaces the secret's exact value with `***` in the log.
 - **The runner user** is named like `pool-3f9a1c`. It was created for this job and deleted after it. Push again (`git commit --allow-empty -m again && git push`) and the next run gets a different one: nothing one job leaves behind reaches the next, not even another student's.
 - **Processes this job can see**: only its own handful, although the runners share one machine.
 
+<!-- /dojo-reveal -->
+
 ## 4. Masking is not protection
 
-Masking only matches the exact value. In VS Code, add one more step at the end of `secrets-demo.yml`, at the same indent as the other `- name:` lines, and save:
+Masking only matches the exact value, so any transformation gets past it. **base64** is a common way to turn any bytes into letters (not encryption), and `sed 's/./& /g'` puts a space after every character.
+
+In VS Code, add one more step at the end of `secrets-demo.yml`, at the same indent as the other `- name:` lines, and save:
 
 ```yaml
       - name: Print it in a form the mask doesn't know
@@ -115,16 +121,24 @@ Masking only matches the exact value. In VS Code, add one more step at the end o
           echo "$API_KEY" | sed 's/./& /g'
 ```
 
-It prints the key twice more: **base64-encoded** (a common way to turn any bytes into letters, not encryption), and with a space after every character (`sed 's/./& /g'`). Commit and push:
+It prints the key twice more: base64-encoded, and with a space after every character.
 
-```bash
+**Your turn:** commit and push, then read the last step in the new run. Predict: will the log show `***` for these?
+
+```sh
 git commit -am "Show that masking is only cosmetic"
 git push
 ```
 
-In the new run, the last step shows both, unmasked. Decode it in your terminal (paste the base64 line from the log):
+<!-- dojo-reveal: Result of the second run -->
 
-```bash
+In the new run, the last step shows both forms, unmasked.
+
+<!-- /dojo-reveal -->
+
+Decode it in your terminal (paste the base64 line from the log):
+
+```sh
 echo 'PASTE-THE-BASE64-LINE-HERE' | base64 -d
 ```
 
@@ -147,7 +161,7 @@ The key is now in your job logs in two readable forms. In real life you'd **rota
 
 Then remove the demo workflow, so later pushes don't run it. `git rm` deletes the file and stages the deletion:
 
-```bash
+```sh
 git rm .forgejo/workflows/secrets-demo.yml
 git commit -m "Remove the secrets demo"
 git push
@@ -155,9 +169,30 @@ git push
 
 ## Check yourself
 
-1. A job's log shows `***`. Is the secret safe? *(No: masking hides exact matches only. Any transformation, such as base64, prints it.)*
-2. Who can read a repository secret? *(Anyone who can push a workflow to the repo, plus whoever reads a log that printed it.)*
-3. Why does it matter that each runner is used for one job only? *(A job can leave files and processes behind. On a single-use runner, the next job, maybe someone else's, starts clean.)*
+1. A job's log shows `***`. Is the secret safe?
+
+<!-- dojo-reveal: Show the answer -->
+
+No: masking hides exact matches only. Any transformation, such as base64, prints it.
+
+<!-- /dojo-reveal -->
+
+2. Who can read a repository secret?
+
+<!-- dojo-reveal: Show the answer -->
+
+Anyone who can push a workflow to the repo, plus whoever reads a log that printed it.
+
+<!-- /dojo-reveal -->
+
+3. Why does it matter that each runner is used for one job only?
+
+<!-- dojo-reveal: Show the answer -->
+
+A job can leave files and processes behind. On a single-use runner, the next job, maybe someone else's, starts clean.
+
+<!-- /dojo-reveal -->
+
 
 Lab 9 replaces the stored secret with the job's own identity.
 

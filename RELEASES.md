@@ -7,6 +7,39 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Challenge briefs and an open-ended git-fundamentals capstone (2026-10-16, `feat/lab-teach-first-structure`)
+
+- `dojo challenge start|reset` writes the brief to `~/capstone.md` or `~/challenge-cN.md` and shows it with glow (Goal, End result, Where to work, When you're done, Start over); plain text if glow can't run.
+- Every workshop lab with challenges (git-fundamentals, dns-as-code, tofu-basics, vault-fundamentals, cert-autorenewal, cloud-policy-as-code) has a "(bonus)" section (start, brief file, check, reset) and a section named for the challenge with a story and an end-result list. Catalog goals are stories with end-result `constraints`. Wording only outside git-fundamentals; tested with the unit suites, not live.
+- git-fundamentals capstone "The Great Merge" is now outcome-checked: conflicting changelog, a bad commit and a stray `debug.log`; any method passes if `main` ends right and its history is intact (new `file_absent` and `history_preserved` verbs; the seed records each branch's commits). Solved live once (student02, +300); the force-push failure is unit-tested only.
+
+## `./dojo stop` saves the class's results first (2026-10-16, `feat/lab-teach-first-structure`)
+
+- Before the volumes are deleted, `stop` (and `down`, `restart --clean`) writes `results/<date>_<time>_<workshop>/`:
+  `manifest.json` (workshop, start command, started/stopped, duration, students, demo bots, services, what was saved or
+  skipped), `feedback.csv/json`, `achievements.csv/json`, `roster.csv` (no addresses). Each part is best effort and a failure
+  is recorded in the manifest, never blocking the teardown; a stack with no sign-ins, feedback or scores saves nothing.
+  `--no-archive` skips it. New `./dojo export-feedback [--format csv|json] [--out FILE]`. `results/` is git-ignored.
+- Unit-tested (`engine/dojo/tests/test_archive.py`, 134 engine tests pass); `export-feedback` run against the live
+  stack. Not yet run: a real `stop` with feedback submitted.
+
+## The student `dojo` command (2026-10-16, `feat/lab-teach-first-structure`)
+
+- One command for every lab: `engine/web-terminal/dojo` (base image) runs plug-ins from `/usr/local/share/dojo/cmd.d/`;
+  `dojo help` lists only what the workshop has, `dojo help NAME` shows one command's options, a typo gets a suggestion,
+  zsh completes the names. A command describes itself with a `# dojo-summary:` line and sees `DOJO_SUBCOMMAND`.
+- Subcommands: `fix-terminal` (base image, every workshop; moved out of the Zellij image), `challenge start|reset` and
+  `check` (achievements, one file so the service's client hash still matches), `sensei` (consolidated:
+  `dojo sensei ask|why|hand|...`), `prep N` (lab-prep module links each workshop's script), `flag` and `reset` (ctf-range),
+  `env` (dojo-cloud). The old names (`dojo-check`, `dojo-challenge`, `lab-prep`, `sensei`, `dojo-fix-terminal`) stay as shims.
+- Lab pages no longer have Start/Reset buttons (a browser can't clone into the terminal): the markers are gone from every
+  lab, the reader drops an old one, and each section leads with `dojo challenge start cN` and `dojo check cN`.
+  About 140 labs, slides, hints, READMEs and bot scripts now say `dojo ...`; student guide has a "The `dojo` command" table.
+- Tested locally on git-fundamentals, `--test 2 --fast`: `dojo help`, `challenge start c1`, `check`, `check c1`, `sensei help`,
+  `prep 2`, `fix-terminal` (tmux flavor message) and every old name as a student; no cheat-client strike through the
+  symlinks; both bots finished with no command-not-found. Unit tests: engine 122 (+8 for the dispatcher), allocator 175,
+  achievements 514, sensei 77, catalog 60. Not covered: the Zellij flavor, `flag`/`reset`/`env` live, tab completion by hand.
+
 ## Platform review: RV26, RV32, RV33 (2026-10-15, `feat/platform-review-tier3-4`)
 
 - **RV26**: a `lab-prep` module installs `/usr/local/lib/dojo/lab-prep-lib.sh`; the five workshop `lab-prep` scripts source it

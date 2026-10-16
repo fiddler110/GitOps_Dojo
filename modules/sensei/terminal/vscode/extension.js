@@ -50,7 +50,7 @@ function show(tok, r) {
       if (!text || !text.trim()) { return; }
       post(tok, '/api/student/reply', { id: r.id, text: text.trim() }, 5000, (doc) => {
         if (doc && doc.ok) { vscode.window.showInformationMessage('🥋 Sent. The facilitator will see it.'); }
-        else { vscode.window.showWarningMessage('🥋 Couldn\'t send that. Try `sensei reply ' + r.id + ' "..."` in the terminal.'); }
+        else { vscode.window.showWarningMessage('🥋 Couldn\'t send that. Try `dojo sensei reply ' + r.id + ' "..."` in the terminal.'); }
       });
     });
   });

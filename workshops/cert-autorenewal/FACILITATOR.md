@@ -73,7 +73,7 @@ with a verified certificate, and a second visit upgraded by HSTS.
   removes the crontab and re-seeds their two DNS records.
 - **Lab 5 (dns-01)** writes real TXT records; watch them appear and clear on the `/dns` page. A stale
   `_acme-challenge` record from an interrupted run is the usual cause of a failed re-issue.
-- **Lagging student:** `lab-prep <N>` brings them to the start of lab N; safe to re-run.
+- **Lagging student:** `dojo prep <N>` brings them to the start of lab N; safe to re-run.
 
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show
 immediately, a new lab file reaches `~/lab` on the next terminal restart, an edited file is never

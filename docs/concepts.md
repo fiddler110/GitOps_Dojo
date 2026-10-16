@@ -105,7 +105,7 @@ not incidents, because everything belongs to the lab.
 
 | Layer | What it adds |
 |---|---|
-| **Sensei** | Offline helper: reviews and merges practice pull requests, `sensei ask` and `sensei why` in the terminal |
+| **Sensei** | Offline helper: reviews and merges practice pull requests, `dojo sensei ask` and `dojo sensei why` in the terminal |
 | **Achievements** | Points, toasts, leaderboard, per-lab challenges, certificate; on by default for workshops with a catalog |
 | **Demo bots** (`--test`) | Simulated students that run the labs for real; for rehearsal, demos and load tests |
 | **Student reset** | Put one student back to start without disturbing the class |

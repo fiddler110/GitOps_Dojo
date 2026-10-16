@@ -47,7 +47,7 @@ nothing to set up yourself.
 | **1** | Core workflow: clone → branch → edit → commit → push → PR, and the wrong-branch rescue | ~20 min |
 | 2 | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | 3 | Stashing — switching gears without committing | ~8 min |
-| 4 | Investigating history: log, blame, show | ~10 min |
+| 4 | Investigating history: log, blame, show, finding a leaked secret | ~15 min |
 | 5 | Merge conflicts and safely undoing a shared change | ~12 min |
 
 ---
@@ -91,7 +91,7 @@ everyone makes once: committing on `main` and moving it to a branch.
 </div>
 <div>
 <h3>Lab 4 — History</h3>
-<p><code>log</code>, <code>blame</code>, <code>show</code> — find out what changed, when, and why.</p>
+<p><code>log</code>, <code>blame</code>, <code>show</code>, <code>gitleaks</code> — investigate a real-looking history, branches and a leaked secret included.</p>
 </div>
 <div>
 <h3>Lab 5 — Merge Conflicts</h3>

@@ -485,7 +485,7 @@ class Store:
             return out
 
     def progress(self, user):
-        """A student's core milestones by lab, done or not, for `sensei check`. Titles and the lab step only:
+        """A student's core milestones by lab, done or not, for `dojo sensei check`. Titles and the lab step only:
         challenges, funny unlocks and cheats stay out."""
         with self.lock:
             have = self.ledger.unlocked_ids(user)
@@ -1162,7 +1162,8 @@ class Store:
                 mine = self.seeds.setdefault(user, {})
                 old = mine.get(res["plan"], {})
                 if res["created"]:
-                    mine[res["plan"]] = {"repo": res["repo"], "commits": res["commits"], "at": self.clock(),
+                    mine[res["plan"]] = {"repo": res["repo"], "commits": res["commits"],
+                                         "branches": res.get("branches", {}), "at": self.clock(),
                                          "resets": old.get("resets", -1) + 1}
                 self._save()
             return {"repo": res["repo"], "created": res["created"],

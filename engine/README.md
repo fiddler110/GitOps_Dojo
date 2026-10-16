@@ -661,6 +661,14 @@ assigned student (name, account, IP, live active/inactive status) at
 `/admin`, gated by `FACILITATOR_USERNAME`/`PASSWORD` — see
 **Facilitator operations** below.
 
+**Student `dojo` command.** `engine/web-terminal/dojo` (in the base image, so both flavors and every workshop) is the one
+command students learn: `dojo help`, `dojo challenge`, `dojo check`, `dojo sensei`, `dojo prep`, `dojo fix-terminal`.
+It runs plug-ins from `/usr/local/share/dojo/cmd.d/<name>` (an executable or a link to one; dangling links and
+non-executables are hidden). A module or workshop adds a command by linking its script there in its terminal
+Dockerfile, with a `# dojo-summary: one line` comment for `dojo help` (`dojo-summary(name):` when one file serves several
+names). The command runs with `DOJO_SUBCOMMAND=<name>` and as `argv[0]`'s basename. The base image ships only `help` and
+`fix-terminal`; `_dojo` is the zsh completion. The older `dojo-*` names remain as shims. Tests: `engine/dojo/tests/test_student_dojo.py`.
+
 **Terminal flavor** (`[terminal] flavor` in `dojo.toml`, which sets `TERMINAL_FLAVOR`): `"code-server"` (the default; `web` is the same) gives each student VS Code
 in the browser plus a tmux terminal. `"zellij"` gives a terminal only: a Zellij
 session with a read-only listing of the shell's directory (`dojo-sidebar`), the

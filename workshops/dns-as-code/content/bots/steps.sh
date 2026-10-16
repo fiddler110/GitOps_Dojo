@@ -300,7 +300,7 @@ step_dns_lab3_merge() {
   practice="$(dns_pr_for_branch dns-bot/add-status any)"
   if [ -n "$practice" ] && ! api_curl "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls/$practice/reviews" | grep -q "\"login\":\"$BOT_USER\""; then
     narrate "Lab 3, step 6 -- asking Sensei what to review, then reviewing Sensei's practice pull request #$practice"
-    command -v sensei >/dev/null && run_cmd "sensei review"
+    command -v sensei >/dev/null && run_cmd "dojo sensei review"
     run_cmd "git fetch -q origin dns-bot/add-status"
     run_cmd "git diff main origin/dns-bot/add-status"
     api_curl -o /dev/null -X POST "$API/repos/$FORGEJO_ORG/$FORGEJO_REPO/pulls/$practice/reviews" \
@@ -309,7 +309,7 @@ step_dns_lab3_merge() {
   fi
 
   [ -n "$PENDING_PR_NUMBER" ] || return 0
-  command -v sensei >/dev/null && run_cmd "sensei status"
+  command -v sensei >/dev/null && run_cmd "dojo sensei status"
   narrate "Lab 3, step 7 -- merge once Sensei approves and the DNS Preview check is green"
   if dns_merge_when_ready "$PENDING_PR_NUMBER" "$PENDING_PR_BRANCH" api; then
     printf '%s\n' "$PENDING_PR_NUMBER" > "$HOME/.dojo-bot-lab3-pr"

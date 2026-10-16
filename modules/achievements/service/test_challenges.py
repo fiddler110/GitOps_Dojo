@@ -125,7 +125,7 @@ class Seeding(Base):
         res = self.start("amy")
         self.assertEqual((res["repo"], res["created"]), ("amy/challenge-repo", True))
         repo = self.fj.repos["amy/challenge-repo"]
-        self.assertEqual(len(repo["commits"]), 11)
+        self.assertEqual(len(repo["commits"]), 12)
         self.assertIn("amy", self.fj.file("amy/challenge-repo", "main", "README.md"))
         roster = self.fj.file("amy/challenge-repo", "main", "roster/team.yaml")
         self.assertIn(f"- name: amy\n  role: {self.vals('amy')['role_typo']}\n", roster)
@@ -336,36 +336,49 @@ class Capstone(Base):
         repo = self.fj.repos[REPO.format(user)]
         return next(s for s, c in repo["commits"].items() if c["message"] == self.BAD)
 
-    def solve(self, user="amy", keep=("a", "b"), markers=False, revert="both", drop_bad=False,
-              pr=True, merge=True, settings=None):
-        """The student's side: merge-{user} off main, merge feature-a and feature-b (conflict
-        resolved by hand), revert the bad commit, PR into main and merge it."""
+    def solve(self, user="amy", keep=("a", "b"), markers=False, bad="revert", log="rm", ignore=True,
+              pr=True, merge=True, settings=None, rewrite=False):
+        """The student's side: release-{user} off main, merge feature-a and feature-b (conflict
+        resolved by hand), deal with the bad commit (`bad`: revert, forward = fix by hand, skip =
+        never take it, none), drop debug.log (`log`: rm or left) and ignore *.log, PR into main, merge."""
         repo, v = REPO.format(user), self.vals(user, "capstone")
-        branch = f"merge-{user}"
+        branch = f"release-{user}"
         base = self.fj.file(repo, "main", "CHANGELOG.md")
-        self.fj.commit(repo, branch, {"CHANGELOG.md": base + f"- {v['feature_a']}\n"}, user, start="main",
-                       message="Merge branch 'feature-a'", merge="feature-a")
+        fa_log = self.fj.file(repo, "feature-a", "debug.log")
+        self.fj.commit(repo, branch, {"CHANGELOG.md": base + f"- {v['feature_a']}\n", "debug.log": fa_log},
+                       user, start="main", message="Merge branch 'feature-a'", merge="feature-a")
         lines = "".join(f"- {v['feature_' + k]}\n" for k in keep)
         if markers:
             lines = f"<<<<<<< HEAD\n- {v['feature_a']}\n=======\n- {v['feature_b']}\n>>>>>>> feature-b\n"
         fb = self.fj.file(repo, "feature-b", "config/settings.yaml")
         files = {"CHANGELOG.md": base + lines}
-        if drop_bad:        # took feature-b's line by hand, without its commits
-            self.fj.commit(repo, branch, files, user, message="Add feature-b's line")
-        else:
+        if bad != "skip":
             files["config/settings.yaml"] = fb
-            self.fj.commit(repo, branch, files, user, message="Merge branch 'feature-b'", merge="feature-b")
-        if revert:
+        self.fj.commit(repo, branch, files, user, message="Merge branch 'feature-b'", merge="feature-b")
+        fixed = settings or fb.replace("timeout_seconds: 0", "timeout_seconds: 30")
+        if bad == "revert":
             sha = self.bad_sha(user)
-            msg = {"both": f'Revert "{self.BAD}"\n\nThis reverts commit {sha}.',
-                   "subject": f'Revert "{self.BAD}"', "body": f"Undo the timeout\n\nThis reverts commit {sha[:9]}.",
-                   "edit": "Put the timeout back"}[revert]
-            fixed = settings or fb.replace("timeout_seconds: 0", "timeout_seconds: 30")
-            self.fj.commit(repo, branch, {"config/settings.yaml": fixed}, user, message=msg)
+            self.fj.commit(repo, branch, {"config/settings.yaml": fixed}, user,
+                           message=f'Revert "{self.BAD}"\n\nThis reverts commit {sha}.')
+        elif bad == "forward":
+            self.fj.commit(repo, branch, {"config/settings.yaml": fixed}, user, message="Put the timeout back")
+        elif settings:
+            self.fj.commit(repo, branch, {"config/settings.yaml": settings}, user, message="Set the timeout")
+        cleanup = {}
+        if log == "rm":
+            cleanup["debug.log"] = None
+        if ignore:
+            cleanup[".gitignore"] = "*.log\n"
+        if cleanup:
+            self.fj.commit(repo, branch, cleanup, user, message="Stop tracking logs")
         if pr:
             n = self.fj.open_pr(repo, branch, "main", "The great merge")
             if merge:
                 self.fj.merge_pr(repo, n, user)
+        if rewrite:         # a force-push: main becomes one brand-new root commit with the same files
+            r = self.fj.repos[repo]
+            tree, who = r["commits"][r["branches"]["main"]]["tree"], {"name": user, "email": f"{user}@lab.test"}
+            r["branches"]["main"] = self.fj._new_commit(r, [], tree, who, who, "Squashed")
 
     def test_seed_has_the_conflict_and_the_bad_commit(self):
         repo, v = "amy/challenge-repo", self.vals("amy", "capstone")
@@ -375,6 +388,8 @@ class Capstone(Base):
         self.assertTrue(self.fj.file(repo, "feature-b", "CHANGELOG.md").endswith(f"- {v['feature_b']}\n"))
         self.assertNotIn(v["feature_a"], self.fj.file(repo, "main", "CHANGELOG.md"))
         r = self.fj.repos[repo]
+        self.assertIn("DEBUG", self.fj.file(repo, "feature-a", "debug.log"))
+        self.assertIsNone(self.fj.file(repo, "main", "debug.log"))
         self.assertNotIn(self.bad_sha(), self.fj._log(r, r["branches"]["main"]))
         self.assertIn(self.bad_sha(), self.fj._log(r, r["branches"]["feature-b"]))
 
@@ -392,12 +407,13 @@ class Capstone(Base):
         self.assertEqual(r["points"], 300)
         self.assertEqual(self.store.ledger.score("amy"), 350)
 
-    def test_either_revert_message_counts(self):
-        for style in ("subject", "body"):
-            with self.subTest(style=style):
+    def test_any_way_of_handling_the_bad_commit_passes(self):
+        for kw in ({"bad": "revert"}, {"bad": "forward"}, {"bad": "skip"}):
+            with self.subTest(kw=kw):
                 self.start("amy", "capstone", "reset")
-                self.solve(revert=style)
-                self.assertTrue(self.runner.verify(CATALOG["capstone"], "amy")["passed"])
+                self.solve(**kw)
+                r = self.check("amy", "capstone")
+                self.assertTrue(r["passed"], r)
 
     def test_wrong_answers(self):
         cases = [
@@ -405,10 +421,11 @@ class Capstone(Base):
             ({"merge": False}, "merged pull request"),
             ({"markers": True}, "CHANGELOG.md"),
             ({"keep": ("a",)}, "CHANGELOG.md"),
-            ({"revert": None}, self.BAD),
-            ({"revert": "edit"}, "still in effect"),
-            ({"drop_bad": True, "revert": None}, "history"),
-            ({"settings": "timeout_seconds: 5\n"}, "settings.yaml"),
+            ({"bad": "none"}, "settings.yaml"),
+            ({"settings": "timeout_seconds: 5\n", "bad": "none"}, "settings.yaml"),
+            ({"log": "left"}, "debug.log is still on main"),
+            ({"ignore": False}, ".gitignore"),
+            ({"rewrite": True}, "history was rewritten"),
         ]
         for kw, want in cases:
             with self.subTest(kw=kw):

@@ -198,7 +198,7 @@ step_cpc_lab0() {
   # lab-prep calls the Forgejo API with `curl --netrc`. A student's ~/.netrc comes from forgejo-token.py; a bot has
   # only its own netrc (same machine, password instead of a token), so give lab-prep that.
   [ -e "$HOME/.netrc" ] || install -m 600 "$HOME/.dojo-bot-netrc" "$HOME/.netrc"
-  run_cmd "lab-prep 0" || return 1
+  run_cmd "dojo prep 0" || return 1
   run_cmd "ls infra policy/cloud policy/cloud/rules policy/rego .forgejo/workflows"
   run_cmd "cat infra/main.tf | head -20"
   narrate "Lab 0 -- first apply: the app"

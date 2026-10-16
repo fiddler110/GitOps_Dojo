@@ -2,7 +2,7 @@
 
 **Goal:** make three deliberate mistakes, read the errors the cloud gives back, and learn where each kind of mistake gets caught.
 
-> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 6` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `dojo prep 6` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -34,12 +34,32 @@ Undo your experiments with git as you go: everything you edit is a tracked file,
 
 ## 1. Mistake one: a missing required tag
 
-Remove the `owner` tag from `locals.tf`: delete the line `owner = var.owner` inside `tags` (line 16), or do it from the terminal:
+Every resource must carry the tags `owner` and `env`. What happens if one goes missing? Two things to know before you try:
+
+- `plan` computes changes from your files and your state. It has no idea what the cloud's policy says, so it will happily plan something the cloud will refuse.
+- The refusal arrives during `apply`, as a cloud error. Learn to read it from the end backwards, the way you'd read a stack trace:
+
+1. `with azurerm_resource_group.main, on main.tf line 4`: **which resource in which file** OpenTofu was working on.
+2. `RequestDisallowedByPolicy`: **the error code** (search for this word).
+3. `Policy: 'Require tag 'owner''. The resource is missing the required tag 'owner'.`: **which rule, and what to do**.
+4. `unexpected status 403`: the HTTP status the cloud answered with (403 = forbidden, 400 = bad request, 409 = conflict).
+
+Now make the mistake. Open `locals.tf` in your editor and delete the line `owner = var.owner` inside `tags` (line 16). Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i '/^    owner /d' locals.tf
-git diff
 ```
+
+**Your turn:** check your edit with `git diff`. Before you run `terraform plan`, predict: will it complain about the missing tag?
+
+```sh
+git diff
+terraform plan
+```
+
+<!-- dojo-reveal: Results of git diff and plan -->
 
 ```diff
    tags = {
@@ -49,11 +69,7 @@ git diff
    }
 ```
 
-(Only the changed lines are shown; the `git diff` header is trimmed.) Now plan:
-
-```sh
-terraform plan
-```
+(Only the changed lines are shown; the `git diff` header is trimmed.) Then the plan:
 
 Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
 
@@ -87,13 +103,19 @@ Expected (abridged: the "Refreshing state" lines and the footer are trimmed):
 Plan: 0 to add, 2 to change, 0 to destroy.
 ```
 
-The plan looks perfectly reasonable. That is the point: it doesn't know the rule. Apply it:
+The plan looks perfectly reasonable. That is the point: it doesn't know the rule.
+
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it and type `yes`. Predict how it ends.
 
 ```sh
 terraform apply
 ```
 
-Type `yes`. It fails in about two seconds:
+<!-- dojo-reveal: Results of apply -->
+
+It fails in about two seconds:
 
 ```text
 azurerm_resource_group.main: Modifying... [id=/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac]
@@ -105,32 +127,49 @@ Error: updating "Resource Group (Subscription: \"260eb175-2be3-5b4e-a481-d14ff2e
    4: resource "azurerm_resource_group" "main" {
 ```
 
-**How to read a cloud error.** Work from the end backwards, the way you'd read a stack trace:
+The cloud named the rule and the tag. Nothing was changed.
 
-1. `with azurerm_resource_group.main, on main.tf line 4`: **which resource in which file** OpenTofu was working on.
-2. `RequestDisallowedByPolicy`: **the error code** (search for this word).
-3. `Policy: 'Require tag 'owner''. The resource is missing the required tag 'owner'.`: **which rule, and what to do**.
-4. `unexpected status 403`: the HTTP status the cloud answered with (403 = forbidden, 400 = bad request, 409 = conflict).
+<!-- /dojo-reveal -->
 
-The cloud named the rule and the tag. Nothing was changed. Undo your edit and confirm:
+Clean up: undo your edit and confirm.
 
 ```sh
 git checkout locals.tf
 terraform plan
 ```
 
-Expected: `No changes. Your infrastructure matches the configuration.`
+<!-- dojo-reveal: Results of the clean-up plan -->
+
+`No changes. Your infrastructure matches the configuration.`
+
+<!-- /dojo-reveal -->
 
 ## 2. Mistake two: a region that isn't allowed
 
-Open `terraform.tfvars` and change the location:
+The cloud only allows two regions. Your code can repeat that rule in a `validation` block, so the mistake is caught instantly, locally, with a message you wrote yourself. That is the difference between the two layers:
+
+| Layer | Checked when | Speed | Authority |
+| ----- | ------------ | ----- | --------- |
+| `validation` in `variables.tf` | at `plan`, on your machine | instant | a convenience you write |
+| Cloud policy | at `apply`, in the cloud | a real request | the actual rule; can't be bypassed |
+
+Open `terraform.tfvars` in your editor and change the location to `"eastus"`. Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i 's/^location .*/location    = "eastus"/' terraform.tfvars
+```
+
+**Your turn:** before you run the plan, predict: will it reach the cloud this time?
+
+```sh
 terraform plan
 ```
 
-This time it doesn't even reach the cloud:
+<!-- dojo-reveal: Results of plan -->
+
+It doesn't even reach the cloud:
 
 ```text
 Planning failed. OpenTofu encountered an error while generating this plan.
@@ -148,14 +187,13 @@ policy allows).
 This was checked by the validation rule at variables.tf:26,3-13.
 ```
 
-Open `variables.tf` and find the `validation` block on `location`. It repeats the cloud's rule **inside your code**, so the mistake is caught instantly, locally, with a message you wrote yourself. That is the difference between the two layers:
+Open `variables.tf` and find the `validation` block on `location`: it repeats the cloud's rule inside your code.
 
-| Layer | Checked when | Speed | Authority |
-| ----- | ------------ | ----- | --------- |
-| `validation` in `variables.tf` | at `plan`, on your machine | instant | a convenience you write |
-| Cloud policy | at `apply`, in the cloud | a real request | the actual rule; can't be bypassed |
+<!-- /dojo-reveal -->
 
 **Optional: what does the cloud itself say?** Switch the validation off and ask it. Do this in a **scratch copy** so your real resources are safe (a folder has its own state; if you did it in your real folder, changing a resource group's region would make OpenTofu try to *replace* your working deployment):
+
+The `sed` below puts a `#` in front of lines 26-29, the four lines of the `location` validation block. Type `yes` at the prompt (the plan just says "2 to add", the same as Lab 5). Predict what the cloud answers.
 
 ```sh
 mkdir ~/scratch
@@ -166,7 +204,9 @@ sed -i '26,29s/^/# /' variables.tf
 terraform apply
 ```
 
-The `sed` puts a `#` in front of lines 26-29, the four lines of the `location` validation block. Type `yes` at the prompt (the plan just says "2 to add", the same as Lab 5). The answer:
+<!-- dojo-reveal: Results of the scratch apply -->
+
+The answer:
 
 ```text
 azurerm_resource_group.main: Creating...
@@ -178,7 +218,11 @@ Error: creating "Resource Group (Subscription: \"260eb175-2be3-5b4e-a481-d14ff2e
    4: resource "azurerm_resource_group" "main" {
 ```
 
-Same rule, same fix, but the cloud is the one enforcing it. (Your subscription ID will differ.) Clean up:
+Same rule, same fix, but the cloud is the one enforcing it. (Your subscription ID will differ.)
+
+<!-- /dojo-reveal -->
+
+Clean up:
 
 ```sh
 cd ~/lab/tofu-basics
@@ -188,13 +232,24 @@ git checkout terraform.tfvars
 
 ## 3. Mistake three: too big
 
-Ask for 2 vCPUs instead of 0.25:
+Some attributes can't be edited in place: changing them makes OpenTofu **destroy** the resource and **create** a new one (`-/+`, marked `# forces replacement`). Policy is only checked when the new one is created, so a rejected replacement can leave you with *less* than you started with. That is why you always read a plan for `-/+` before you say `yes`: it means downtime.
+
+Ask for 2 vCPUs instead of 0.25. Open `main.tf` in your editor and change `cpu = 0.25` to `cpu = 2`. Save.
+
+**Prefer the terminal?**
 
 ```sh
 sed -i 's/cpu    = 0.25/cpu    = 2/' main.tf
+```
+
+**Your turn:** before you plan, predict: in place (`~`) or replacement (`-/+`)?
+
+```sh
 git diff main.tf
 terraform plan
 ```
+
+<!-- dojo-reveal: Results of plan -->
 
 Expected (abridged):
 
@@ -218,13 +273,17 @@ Expected (abridged):
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-`# forces replacement`: the size of a container can't be edited in place, so OpenTofu will **destroy** the container and **create** a new one. Again the plan is happy. Apply it, and watch closely:
+`# forces replacement`: the size of a container can't be edited in place, so OpenTofu will **destroy** the container and **create** a new one. Again the plan is happy.
+
+<!-- /dojo-reveal -->
+
+**Your turn:** apply it, type `yes`, and watch closely. Predict whether the site survives.
 
 ```sh
 terraform apply
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -->
 
 ```text
 azurerm_container_group.hello: Destroying... [id=/subscriptions/260eb175-2be3-5b4e-a481-d14ff2e938cf/resourceGroups/rg-hello-dev-cac/providers/Microsoft.ContainerInstance/containerGroups/ci-hello-dev]
@@ -241,11 +300,17 @@ Container Group Name: "ci-hello-dev"): performing ContainerGroupsCreateOrUpdate:
   13: resource "azurerm_container_group" "hello" {
 ```
 
-**Look at what happened.** The cloud only checks the rules when the *new* container is created, and by then the *old* one had already been destroyed. Check:
+The cloud only checks the rules when the *new* container is created, and by then the *old* one had already been destroyed.
+
+<!-- /dojo-reveal -->
+
+Check what is left:
 
 ```sh
 terraform state list
 ```
+
+<!-- dojo-reveal: Results of state list -->
 
 ```text
 azurerm_resource_group.main
@@ -253,14 +318,18 @@ azurerm_resource_group.main
 
 Your site is **gone**. Look at the portal's **Container instances** page: empty. Refresh your site: 404. This is how real clouds behave too: **policy failures happen at create time, and a failed replacement can leave you with less than you started with.** Always read a plan for `-/+` before you say `yes`, and remember `# forces replacement` means *downtime*.
 
-Recovery is the loop you already know. Undo the edit and apply again:
+<!-- /dojo-reveal -->
+
+Recovery is the loop you already know. Undo the edit and apply again, typing `yes`:
 
 ```sh
 git checkout main.tf
 terraform apply
 ```
 
-Type `yes`. The plan is `Plan: 1 to add, 0 to change, 0 to destroy.` and it finishes in about 14 seconds:
+<!-- dojo-reveal: Results of the recovery apply -->
+
+The plan is `Plan: 1 to add, 0 to change, 0 to destroy.` and it finishes in about 14 seconds:
 
 ```text
 azurerm_container_group.hello: Creating...
@@ -271,6 +340,8 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
 That is the GitOps safety net: your code is in git, so getting back to a known-good state is `git checkout` plus `apply`.
+
+<!-- /dojo-reveal -->
 
 ## What just happened
 
@@ -284,9 +355,17 @@ Three mistakes, three different catches:
 
 ## Check yourself
 
-1. Why did `plan` succeed with the missing tag? *(`plan` only computes changes; policy is enforced when a request is sent by `apply`)*
-2. What are the three things to find in a cloud error? *(the resource and file line, the error code, the rule/reason)*
-3. Why is `-/+` more dangerous than `~`? *(the old resource is destroyed first, so a failure part-way leaves it gone)*
+1. Why did `plan` succeed with the missing tag?
+2. What are the three things to find in a cloud error?
+3. Why is `-/+` more dangerous than `~`?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. `plan` only computes changes; policy is enforced when a request is sent by `apply`.
+2. The resource and file line, the error code, the rule/reason.
+3. The old resource is destroyed first, so a failure part-way leaves it gone.
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 

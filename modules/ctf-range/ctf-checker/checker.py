@@ -1,7 +1,7 @@
 """ctf-checker: runs a target's check.py and returns a verdict.
 
   POST /check  {"user": "student01"}  -> {"results": [{target, verdict, note, at}]}
-      Student-facing (via `dojo-check`). Identity is the caller's $USER, as for
+      Student-facing (via `dojo check`). Identity is the caller's $USER, as for
       dojo-flag; the worst a spoofed name does is check someone else's slot,
       which only reveals a verdict word. One run per user per RATE_S seconds.
   POST /reset  {"user": "student01", "target": "policy-bypass"} -> {ok, message}

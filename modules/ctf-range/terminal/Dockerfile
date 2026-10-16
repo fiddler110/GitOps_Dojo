@@ -22,6 +22,12 @@ COPY start.d/50-ctf-range.sh /etc/dojo/start.d/50-ctf-range.sh
 # list git-secrets in CTF_ATTACK_TARGETS (module.env) — see the hook itself.
 COPY start.d/55-git-secrets.sh /etc/dojo/start.d/55-git-secrets.sh
 RUN chmod 0755 /usr/local/bin/dojo-flag /usr/local/bin/dojo-check /usr/local/bin/dojo-check-targets /usr/local/bin/dojo-reset /etc/dojo/start.d/50-ctf-range.sh /etc/dojo/start.d/55-git-secrets.sh
+# `dojo check`, `dojo flag`, `dojo reset`: links in the dojo cmd.d (dojo-check is re-pointed at a wrapper in
+# packs that also list achievements; the link follows it).
+RUN mkdir -p /usr/local/share/dojo/cmd.d \
+    && ln -sf /usr/local/bin/dojo-check /usr/local/share/dojo/cmd.d/check \
+    && ln -sf /usr/local/bin/dojo-flag /usr/local/share/dojo/cmd.d/flag \
+    && ln -sf /usr/local/bin/dojo-reset /usr/local/share/dojo/cmd.d/reset
 
 # dojo-flag talks to ctf-flags directly on workshop_lab, not through the
 # gateway (same shape as openbao's BAO_ADDR - see modules/openbao/terminal).
