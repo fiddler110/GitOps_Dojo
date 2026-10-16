@@ -1,4 +1,6 @@
 /.env
+# What `./dojo stop` saves from each class (feedback, scores, roster): student comments, so not committed.
+/results/
 # `./dojo setup` keeps the superseded secrets file as `.env.previous` (docs/cli-reference.md).
 /.env.previous
 /dojo.local.toml

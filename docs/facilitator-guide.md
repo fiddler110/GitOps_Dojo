@@ -134,8 +134,12 @@ demos. See [Authoring → bots](authoring.md#7-demo-bots-and-tests) for pack-spe
 
 ## 4. After the class
 
-1. Copy out anything worth keeping (pull request text, the roster file, scores) by hand. There is **no archive step**.
-2. `./dojo stop`. It deletes every container and **every volume**: homes, Forgejo, accounts, CA keys, DNS zones.
+1. `./dojo stop` first saves the class's feedback, scores and roster to `results/<date>_<time>_<workshop>/`
+   (`manifest.json` says which workshop, when it started and stopped, how many students and what was saved;
+   `feedback.csv/json`, `achievements.csv/json`, `roster.csv`). A stack nobody used saves nothing; `--no-archive`
+   skips it; `./dojo export-feedback` pulls the feedback any time. `results/` is git-ignored (student comments).
+   Anything else worth keeping (pull request text, repos) is still yours to copy out by hand, or `./dojo backup`.
+2. `./dojo stop`. After saving, it deletes every container and **every volume**: homes, Forgejo, accounts, CA keys, DNS zones.
    `./dojo stop --dry-run` shows exactly what first. To clean up automatically: `echo "cd $(pwd) && ./dojo stop" | at now + 4 hours`.
 3. On a VM, deallocate or delete the VM: the cleanest end of all.
 4. Note what confused people (a lab step, a timing, a failure not in the table) in `ROADMAP.md` and fix the lab.

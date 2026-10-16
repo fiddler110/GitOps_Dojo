@@ -114,7 +114,7 @@ class DojoGroup(click.Group):
 
 QUIET_COMMANDS = {"help", "stop", "down", "teardown", "alias-setup", "restart", "status", "doctor", "config", "list",
                   "modules", "logs", "completion", "exec", "shell", "urls", "open", "wait", "version", "roster",
-                  "reset-student", "backup", "restore", "export-results", "prune", "validate", "test", "ps"}
+                  "reset-student", "backup", "restore", "export-results", "export-feedback", "prune", "validate", "test", "ps"}
 
 
 def _offer_completion() -> None:
@@ -166,18 +166,22 @@ def restart(services: Tuple[str, ...], clean: bool) -> None:
 
 @cli.command(context_settings=SETTINGS)
 @click.option("--dry-run", is_flag=True, help="List what would be removed; remove nothing.")
-def stop(dry_run: bool) -> None:
-    """Stop the stack and delete ALL its volumes (student homes, Forgejo data). No undo."""
+@click.option("--no-archive", is_flag=True, help="Skip saving feedback, scores and the roster to results/ first.")
+def stop(dry_run: bool, no_archive: bool) -> None:
+    """Stop the stack and delete ALL its volumes (student homes, Forgejo data). No undo.
+
+    First saves the class's feedback, scores and roster to results/<date>_<time>_<workshop>/."""
     from .stop import run_stop
-    sys.exit(run_stop(dry_run))
+    sys.exit(run_stop(dry_run, archive=not no_archive))
 
 
 @cli.command("down", context_settings=SETTINGS)
 @click.option("--dry-run", is_flag=True, help="List what would be removed; remove nothing.")
-def down(dry_run: bool) -> None:
-    """Same as stop: stop the stack and delete ALL its volumes. No undo."""
+@click.option("--no-archive", is_flag=True, help="Skip saving feedback, scores and the roster to results/ first.")
+def down(dry_run: bool, no_archive: bool) -> None:
+    """Same as stop: save results/, then stop the stack and delete ALL its volumes. No undo."""
     from .stop import run_stop
-    sys.exit(run_stop(dry_run))
+    sys.exit(run_stop(dry_run, archive=not no_archive))
 
 
 @cli.command("teardown", context_settings=SETTINGS, hidden=True)
@@ -590,6 +594,24 @@ def export_results(fmt: str, out_file: Optional[str]) -> None:
     """Scores and achievements from the achievements module (json adds the CTF/SOC data)."""
     from . import results
     text = results.render(results.fetch_results(Runtime()), fmt)
+    if out_file:
+        with open(out_file, "w") as fh:
+            fh.write(text)
+        console.print(f"Wrote {out_file}")
+    else:
+        click.echo(text, nl=False)
+
+
+@cli.command("export-feedback", context_settings=SETTINGS)
+@click.option("--format", "fmt", type=click.Choice(["csv", "json"]), default="csv", show_default=True)
+@click.option("--out", "out_file", type=click.Path(dir_okay=False), default=None, help="Write here instead of stdout.")
+@_stack_errors
+def export_feedback(fmt: str, out_file: Optional[str]) -> None:
+    """The feedback module's answers (no usernames). `stop` saves them to results/ on its own."""
+    import json as _json
+    from . import archive
+    rt = Runtime()
+    text = archive.fetch_feedback_csv(rt) if fmt == "csv" else _json.dumps(archive.fetch_feedback(rt), indent=2) + "\n"
     if out_file:
         with open(out_file, "w") as fh:
             fh.write(text)
