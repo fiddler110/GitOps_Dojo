@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# dojo-summary: catch your workspace up to where a lab starts: dojo prep N (safe to repeat)
+# dojo prep <lab>: bring this student's workspace to the state lab <lab> starts
 # from, so someone joining late (or coming back another day) can resume there
 # instead of redoing every earlier lab. Each step checks before it acts, so
 # running it twice, or after doing some labs by hand, is safe. It only moves
@@ -13,7 +14,7 @@
 #   4-6   the shared repo cloned to ~/lab/dns-as-code (Lab 4 step 1 runs
 #         dnsctl.py setup itself, and no other lab needs it)
 #   5     your $USER-app record merged into dojo.test (Lab 3). Merging needs a
-#         classmate's (or Sensei's) approval, so lab-prep opens the pull request and stops.
+#         classmate's (or Sensei's) approval, so dojo prep opens the pull request and stops.
 set -euo pipefail
 . /usr/local/lib/dojo/lab-prep-lib.sh
 
@@ -26,14 +27,14 @@ LAST_LAB=6
 MIN_LAB=1
 usage() {
   cat <<EOF
-Usage: lab-prep <lab>       (1-$LAST_LAB)
+Usage: dojo prep <lab>       (1-$LAST_LAB)
 
 Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once. It never reverts or undoes
 an edit you made.
 
-  lab-prep 2    push your own zone to the server
-  lab-prep 4    clone the shared repo
+  dojo prep 2    push your own zone to the server
+  dojo prep 4    clone the shared repo
 EOF
 }
 
@@ -72,7 +73,7 @@ lab3_record() {
     done_ "branch add-$USER-app is pushed"
   else
     [ -z "$(git status --porcelain)" ] ||
-      die "~/lab/dns-as-code has uncommitted edits. Commit or 'git restore' them, then run lab-prep again."
+      die "~/lab/dns-as-code has uncommitted edits. Commit or 'git restore' them, then run dojo prep again."
     run git checkout -q main
     run git pull -q --ff-only
     run git checkout -q -B "add-$USER-app"
@@ -91,14 +92,14 @@ open(p, "w").write(s)
   cat <<EOF
 
     Lab 5 rolls this record back, so it has to be merged first. Merging needs
-    someone else's approval, which lab-prep can't give you:
+    someone else's approval, which dojo prep can't give you:
       1. python3 scripts/dnsctl.py status          # your PR's number
       2. ask a neighbour (or the facilitator) to run:
            python3 scripts/dnsctl.py approve <PR#>
-         or run `sensei approve --force` and Sensei approves it at once (it
+         or run `dojo sensei approve --force` and Sensei approves it at once (it
          checks the change is only your own record)
       3. python3 scripts/dnsctl.py merge <PR#> --wait
-    Then run lab-prep 5 again, or go straight to Lab 5.
+    Then run dojo prep 5 again, or go straight to Lab 5.
 EOF
   return 1
 }

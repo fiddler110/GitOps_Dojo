@@ -15,5 +15,5 @@ What the platform provides:
   front of it: any request that reaches the app is anonymous unless the app checks it.
 - The Basic auth check for the service account already exists in `app.py` as `_check_auth(request)`.
 - Your pull request is built and tested before it can be merged; merging to `main` redeploys your slot.
-- `dojo-check leaky-config` in your terminal reports whether the live app is still exploitable.
+- `dojo check leaky-config` in your terminal reports whether the live app is still exploitable.
 - File reads and authentication attempts appear in the security dashboard.

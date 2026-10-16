@@ -45,10 +45,10 @@ other without passwords.
 
 `members.{user}.certs.dojo.test` serves its own valid certificate, refuses a client without a certificate and lets in
 one with a certificate from the lab CA (the checker has its own), and the `members.conf` you run is pushed to `main`
-here. Then `dojo-check c3`.
+here. Then `dojo check c3`.
 
 ## Keep keys out of git
 
 Certificates and private keys live in `/srv/webroot/{user}/certs/` and in your ACME client's own folder, never in this
-repo. The check scans the repo's **whole history** for a private key. If one gets in, `dojo-challenge reset c3`
+repo. The check scans the repo's **whole history** for a private key. If one gets in, `dojo challenge reset c3`
 rebuilds the repo from scratch (in a real team you'd also replace the key).

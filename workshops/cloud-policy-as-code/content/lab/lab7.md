@@ -2,9 +2,9 @@
 
 **Time:** about 30 minutes (one slow apply of about 3.5 minutes). **Goal:** write a policy that does not refuse a resource but *changes* it, understand why that needs an identity, make OpenTofu coexist with it, and bring resources that already exist into line with remediation.
 
-> **Starting here?** This lab needs your clone, the app applied, and the policy from Labs 3-6 (the `team-baseline` set assigned). Run `lab-prep 7` to set that up. It is safe to run even if you did the earlier labs, and the policy apply it performs takes about 3.5 minutes.
+> **Starting here?** This lab needs your clone, the app applied, and the policy from Labs 3-6 (the `team-baseline` set assigned). Run `dojo prep 7` to set that up. It is safe to run even if you did the earlier labs, and the policy apply it performs takes about 3.5 minutes.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 ```
 
@@ -22,11 +22,7 @@ The `modify` effect makes the cloud *write the field itself*. A resource arrives
 
 ## 1. Read the rule
 
-The rule is already in the repo:
-
-```bash
-cat policy/cloud/rules/add-managedby-tag.json
-```
+The rule is already in the repo at `policy/cloud/rules/add-managedby-tag.json`:
 
 ```json
 {
@@ -52,23 +48,25 @@ Read it as a sentence: *if the resource has no `managedBy` tag, modify it: add o
 
 The definition uses `mode = "Indexed"`. Indexed mode only looks at resources that have a location and tags and skips resource groups, which is what you want for a tag that belongs on workloads. So the resource group will not be tagged, but container groups will.
 
+**Your turn:** open the rule file in your editor, or print it. Predict first: what value will the tag get?
+
+```sh
+cat policy/cloud/rules/add-managedby-tag.json
+```
+
+<!-- dojo-reveal: What the file shows -->
+
+- `managedBy = policy`, added with `addOrReplace` when the tag is missing.
+
+<!-- /dojo-reveal -->
+
 ## 2. Enable the definition and the assignment
 
 Open `policy/cloud/main.tf` and find the block headed `# Lab 7: modify and remediation`. Uncomment the **definition** and the **assignment**, but leave the `azurerm_resource_group_policy_remediation` block commented out for now. You will add it in step 6, because the order matters.
 
 > Tip: in VS Code, select the lines and press `Ctrl+/` to toggle comments.
 
-```bash
-cd policy/cloud
-tofu fmt
-tofu validate
-```
-
-```text
-Success! The configuration is valid.
-```
-
-Look at the assignment you just enabled:
+The assignment you are enabling looks like this:
 
 ```hcl
 resource "azurerm_subscription_policy_assignment" "add_managedby_tag" {
@@ -83,17 +81,39 @@ resource "azurerm_subscription_policy_assignment" "add_managedby_tag" {
 }
 ```
 
-`identity { type = "SystemAssigned" }` is the managed identity: the cloud creates it and ties its lifetime to the assignment. Remove the `identity` block and try `tofu validate`; it still passes, because the provider cannot know the rule says `modify`. The cloud refuses at apply instead. (Put it back if you tried this.)
+`identity { type = "SystemAssigned" }` is the managed identity: the cloud creates it and ties its lifetime to the assignment. Remove the `identity` block and `tofu validate` still passes, because the provider cannot know the rule says `modify`. The cloud refuses at apply instead. (Don't remove it for real.)
+
+**Your turn:** after uncommenting the definition and the assignment, validate. Predict what it prints.
+
+```sh
+cd policy/cloud
+tofu fmt
+tofu validate
+```
+
+<!-- dojo-reveal: Results of tofu validate -->
+
+```text
+Success! The configuration is valid.
+```
+
+<!-- /dojo-reveal -->
 
 ## 3. Apply, and read while it runs
 
-```bash
+The plan will show 2 to add: the definition and the assignment.
+
+```sh
 tofu apply
 ```
 
-Review the plan (2 to add: the definition and the assignment), type `yes`.
+Type `yes` after reviewing the plan.
 
 > **This apply is slow, about 100 seconds for the definition and the assignment, in parallel.** That is not Dojo Cloud being sluggish: the provider creates the object and then *waits until a read returns it*, because real clouds are eventually consistent and a policy that is not yet visible would make the next step fail randomly. Use the time: reread the paragraph "Why modify exists" above, then open the portal's **Policy** blade and look at the `team-baseline` row to see how the other assignments show up.
+
+**Your turn:** when it finishes, open the portal's **Policy** blade. Predict: is your existing `ci-<you>-app` compliant with `add-managedby-tag`?
+
+<!-- dojo-reveal: Results of the apply -->
 
 ```text
 azurerm_policy_definition.add_managedby_tag: Creation complete after 1m40s
@@ -101,11 +121,15 @@ azurerm_subscription_policy_assignment.add_managedby_tag: Creation complete afte
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 ```
 
-Open the portal's **Policy** blade. `add-managedby-tag` is listed with effect `modify`. Look at its **Non-compliant** column: your existing `ci-<you>-app` container group has no `managedBy` tag, so it is non-compliant. Nothing has changed it, because nothing wrote to it since the policy arrived. This is point 2 above, made visible.
+`add-managedby-tag` is listed with effect `modify`. Look at its **Non-compliant** column: your existing `ci-<you>-app` container group has no `managedBy` tag, so it is non-compliant. Nothing has changed it, because nothing wrote to it since the policy arrived. This is point 2 above, made visible.
+
+<!-- /dojo-reveal -->
 
 ## 4. A new resource is modified at once
 
-You are allowed two container groups. Add a second one to `infra/main.tf`, below the first:
+You are allowed two container groups. Add a second one so you can watch the policy act on a brand-new resource. Notice that its `tags = local.tags` contains no `managedBy`.
+
+In your editor, add this to `infra/main.tf`, below the first:
 
 ```hcl
 resource "azurerm_container_group" "second" {
@@ -137,23 +161,22 @@ resource "azurerm_container_group" "second" {
 }
 ```
 
-Notice that `tags = local.tags` contains no `managedBy`. Apply it:
+**Your turn:** apply it, then plan. Predict: will the apply be refused? And what will the next plan say?
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 tofu apply
+tofu plan
 ```
+
+<!-- dojo-reveal: Results of apply and plan -->
 
 ```text
 azurerm_container_group.second: Creation complete after 20s
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-No refusal, no warning: the request was accepted and the cloud quietly changed it on the way in. Now ask OpenTofu what it thinks:
-
-```bash
-tofu plan
-```
+No refusal, no warning: the request was accepted and the cloud quietly changed it on the way in. Then the plan:
 
 ```text
   # azurerm_container_group.second will be updated in-place
@@ -169,9 +192,13 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 
 **This is the fight.** The code says "these three tags", reality has four. OpenTofu plans to remove `managedBy`. If you applied, the cloud would run the policy again on that write and put it back, and the next plan would show the same diff, forever. A pipeline that applies on every merge would also "change" the resource on every run, hiding real changes in noise.
 
+<!-- /dojo-reveal -->
+
 ## 5. Tell OpenTofu the tag is not its business
 
-The tag is owned by policy, so tell OpenTofu to ignore it. Add a `lifecycle` block to **both** container groups (the `second` one now, and `app`, which will be remediated in the next step):
+The tag is owned by policy, so tell OpenTofu to ignore it with a `lifecycle` block. `ignore_changes = [tags["managedBy"]]` is narrow on purpose. It ignores one tag key, not all of `tags`, so if someone removes `costCenter` from the config, OpenTofu still notices. Ignoring a whole attribute because one key in it is noisy is how real drift gets hidden. Rule of thumb: **whichever system owns a field, the other one must be told to leave it alone.**
+
+In your editor, add the block to **both** container groups in `infra/main.tf` (the `second` one now, and `app`, which will be remediated in the next step):
 
 ```hcl
   tags = local.tags
@@ -182,20 +209,26 @@ The tag is owned by policy, so tell OpenTofu to ignore it. Add a `lifecycle` blo
   }
 ```
 
-```bash
+**Your turn:** predict what the plan will say now.
+
+```sh
 tofu fmt
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
 No changes. Your infrastructure matches the configuration.
 ```
 
-`ignore_changes = [tags["managedBy"]]` is narrow on purpose. It ignores one tag key, not all of `tags`, so if someone removes `costCenter` from the config, OpenTofu still notices. Ignoring a whole attribute because one key in it is noisy is how real drift gets hidden. Rule of thumb: **whichever system owns a field, the other one must be told to leave it alone.**
+<!-- /dojo-reveal -->
 
 ## 6. Remediate what already exists
 
-`ci-<you>-app` still has no `managedBy` tag. A **remediation** is a one-off task that runs a `modify` policy over resources that already exist. Back in `policy/cloud/main.tf`, uncomment the last block of Lab 7:
+`ci-<you>-app` still has no `managedBy` tag. A **remediation** is a one-off task that runs a `modify` policy over resources that already exist. It names a scope (your app resource group) and an assignment, and says "apply this assignment's modify to everything in that scope". It uses the assignment's identity, which is why that identity exists. Remediations are instant.
+
+Back in `policy/cloud/main.tf`, uncomment the last block of Lab 7:
 
 ```hcl
 resource "azurerm_resource_group_policy_remediation" "managedby" {
@@ -205,32 +238,42 @@ resource "azurerm_resource_group_policy_remediation" "managedby" {
 }
 ```
 
-It names a scope (your app resource group) and an assignment, and says "apply this assignment's modify to everything in that scope". It uses the assignment's identity, which is why that identity exists.
+**Your turn:** apply it. Predict: what will the portal show for `ci-<you>-app`'s tags afterwards, and what will `tofu plan` in `infra/` say?
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud
 tofu apply
 ```
+
+<!-- dojo-reveal: Results of the remediation -->
 
 ```text
 azurerm_resource_group_policy_remediation.managedby: Creation complete after 1s
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-Remediations are instant. Go to the portal's **Policy** blade and press **Evaluate now** on the assignment row: **Non-compliant** for `add-managedby-tag` drops to 0. Open `ci-<you>-app` in the portal's resource view and check its tags: `managedBy = policy` is there now. Then, in `infra/`, run `tofu plan` once more; thanks to step 5 it still says no changes.
+- In the portal's **Policy** blade press **Evaluate now** on the assignment row: **Non-compliant** for `add-managedby-tag` drops to 0.
+- `ci-<you>-app`'s tags in the resource view now include `managedBy = policy`.
+- In `infra/`, `tofu plan` still says no changes, thanks to step 5.
+
+<!-- /dojo-reveal -->
 
 ## 7. Tidy up the experiment
 
-You only needed the second group to see the policy act on a new resource. Delete the whole `azurerm_container_group.second` block from `infra/main.tf` (keep the `lifecycle` on `app`), and:
+You only needed the second group to see the policy act on a new resource. Delete the whole `azurerm_container_group.second` block from `infra/main.tf` (keep the `lifecycle` on `app`), and apply:
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 tofu apply
 ```
 
+<!-- dojo-reveal: Results of tofu apply -->
+
 ```text
 Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
 ```
+
+<!-- /dojo-reveal -->
 
 ## What just happened
 
@@ -241,9 +284,17 @@ Apply complete! Resources: 0 added, 0 changed, 1 destroyed.
 
 ## Check yourself
 
-1. Why does a modify assignment need an identity, when deny does not? *(it writes to resources, possibly later by remediation, so it needs permission of its own; deny only reads the request)*
-2. After you assigned the policy, was `ci-<you>-app` tagged? *(no: policy acts on writes; it needed a remediation)*
-3. Why `ignore_changes = [tags["managedBy"]]` and not `ignore_changes = [tags]`? *(ignoring one key keeps OpenTofu watching every other tag)*
+1. Why does a modify assignment need an identity, when deny does not?
+2. After you assigned the policy, was `ci-<you>-app` tagged?
+3. Why `ignore_changes = [tags["managedBy"]]` and not `ignore_changes = [tags]`?
+
+<!-- dojo-reveal: Show the answers -->
+
+1. It writes to resources, possibly later by remediation, so it needs permission of its own; deny only reads the request.
+2. No: policy acts on writes; it needed a remediation.
+3. Ignoring one key keeps OpenTofu watching every other tag.
+
+<!-- /dojo-reveal -->
 
 **Check box.** You are done when all of these hold:
 

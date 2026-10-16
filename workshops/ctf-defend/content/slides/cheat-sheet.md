@@ -43,8 +43,8 @@ git clone http://git-server:3000/$USER/leaky-config.git
 ## Check your slots
 
 ```sh
-dojo-check                  # all three
-dojo-check leaky-config     # one
+dojo check                  # all three
+dojo check leaky-config     # one
 ```
 
 `contained` = blocked and still usable. `broke-normal-use` = you broke it.
@@ -66,5 +66,5 @@ git push -u origin fix-<target>
 
 ## After merge
 
-Merge redeploys that slot in place. Run `dojo-check <target>`, then
+Merge redeploys that slot in place. Run `dojo check <target>`, then
 watch the SIEM go from under attack to contained.

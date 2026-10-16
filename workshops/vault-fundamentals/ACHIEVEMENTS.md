@@ -9,7 +9,7 @@ column) name where the event comes from:
 - `shell:` the student ran this command and it exited as stated (shell hook; the command and the branch are logged)
 - `forgejo:` a Forgejo webhook event for that student
 - `dns:`, `ca:`, `cloud:`, `bao:` an audit or activity line from that service, read by the module that owns it
-- `verify:` the achievements service checks the end state (verifiers, run by `dojo-check` or after an event)
+- `verify:` the achievements service checks the end state (verifiers, run by `dojo check` or after an event)
 
 `{user}` is the student's login (`student07`). Jokes are the toast text.
 
@@ -187,11 +187,11 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 - **Points:** 100
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot
 - **Goal shown to the student:** Give a teammate's app read access to one of your secrets without giving it access to anything else in your namespace.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-secret` (cloned to `~/lab/challenge-secret`) with a brief and `seed.sh`. The student runs `sh seed.sh` with their own token: in `students/{user}` it mounts a KV engine `challenge/` with secrets `challenge/one` and `challenge/two`, and makes the AppRole `buddy-{user}` with no policy. The service writes nothing in OpenBao.
+- **Seed:** `dojo challenge start c1` creates `{user}/challenge-secret` (cloned to `~/lab/challenge-secret`) with a brief and `seed.sh`. The student runs `sh seed.sh` with their own token: in `students/{user}` it mounts a KV engine `challenge/` with secrets `challenge/one` and `challenge/two`, and makes the AppRole `buddy-{user}` with no policy. The service writes nothing in OpenBao.
 - **Verify:** in `students/{user}` (read with the read-only bao checker token, policy text and role settings only, never a value): the AppRole `buddy-{user}` has a policy other than `default`, and together its policies allow read of `challenge/data/one` and do not allow read of `challenge/data/two`.
 - **Hint 1:** A policy, then attach it.
 - **Hint 2:** The path in the policy is the whole permission.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-secret`, `sh seed.sh`, `export BAO_NAMESPACE=students/$USER`, `printf 'path "challenge/data/one" {\n  capabilities = ["read"]\n}\n' | bao policy write share-one -`, `bao write auth/approle/role/buddy-$USER token_policies=share-one`, then `dojo-check c1`.
+- **Answer:** `dojo challenge start c1`, `cd ~/lab/challenge-secret`, `sh seed.sh`, `export BAO_NAMESPACE=students/$USER`, `printf 'path "challenge/data/one" {\n  capabilities = ["read"]\n}\n' | bao policy write share-one -`, `bao write auth/approle/role/buddy-$USER token_policies=share-one`, then `dojo check c1`.
 - **Collision check:** namespace-scoped: the seed script and the check both work only in `students/{user}` (the checker's namespace comes from the student, never from an argument); the shared `secret/` mount is not touched.
 
 ### C2: The Right Lease (after Lab 12)
@@ -199,11 +199,11 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 - **Points:** 100
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot
 - **Goal shown to the student:** The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a **new** role called `c2-app`, and get a credential from it.
-- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-lease` (cloned to `~/lab/challenge-lease`) with a brief only. The student's own `database/config/app-db` from Lab 12 step 1 is the connection; the student creates `c2-app` and its credential.
+- **Seed:** `dojo challenge start c2` creates `{user}/challenge-lease` (cloned to `~/lab/challenge-lease`) with a brief only. The student's own `database/config/app-db` from Lab 12 step 1 is the connection; the student creates `c2-app` and its credential.
 - **Verify:** in `students/{user}`: database role `c2-app` has `default_ttl` 2m and `max_ttl` 10m, and at least one lease exists under `database/creds/c2-app` (lease ids only, never the credential).
 - **Hint 1:** TTL and max TTL are separate settings.
 - **Hint 2:** On the role, not on the mount.
-- **Answer:** `dojo-challenge start c2`, `export BAO_NAMESPACE=students/$USER`, `bao write database/roles/c2-app` as in Lab 12 step 2 (same `db_name` and statements) with `"default_ttl": "2m", "max_ttl": "10m"`, `bao read database/creds/c2-app`, then `dojo-check c2`.
+- **Answer:** `dojo challenge start c2`, `export BAO_NAMESPACE=students/$USER`, `bao write database/roles/c2-app` as in Lab 12 step 2 (same `db_name` and statements) with `"default_ttl": "2m", "max_ttl": "10m"`, `bao read database/creds/c2-app`, then `dojo check c2`.
 - **Collision check:** each student has their own database `app_{user}` and their own `database/` engine; the check reads only `students/{user}` (the namespace is derived from the student).
 
 ## Capstone (300 points, optional): Zero Standing Secrets
@@ -211,11 +211,11 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 - **Points:** 300
 - **Where it runs:** the student's own namespace `students/{user}`, database `app_{user}`, repo `{user}/capstone` and capstone slot `{user}-capstone`
 - **Goal shown to the student:** Give your app slot a new app with no secret stored anywhere in git, CI or on disk: identity from the platform, its own least-privilege policy, one static secret and one dynamic credential, and prove a rotation with no deploy.
-- **Seed:** `dojo-challenge start capstone` creates `{user}/capstone` (cloned to `~/lab/capstone`) with a brief and a starter `capstone/agent.hcl`; the names to use are policy `capstone-app`, platform role `capstone-app`, database role `capstone-app`, KV mount `capstone/` and secret `capstone/app`. Starting the capstone also unlocks the student's second app slot, `{user}-capstone` (platform identity `slot:{user}-capstone`): a push to `main` of `{user}/capstone` deploys there, and the app the labs left in `{user}` keeps running. The brief says so.
+- **Seed:** `dojo challenge start capstone` creates `{user}/capstone` (cloned to `~/lab/capstone`) with a brief and a starter `capstone/agent.hcl`; the names to use are policy `capstone-app`, platform role `capstone-app`, database role `capstone-app`, KV mount `capstone/` and secret `capstone/app`. Starting the capstone also unlocks the student's second app slot, `{user}-capstone` (platform identity `slot:{user}-capstone`): a push to `main` of `{user}/capstone` deploys there, and the app the labs left in `{user}` keeps running. The brief says so.
 - **Verify:** Two steps. Step 1, in `students/{user}` (metadata only, never a value): policy `capstone-app` names only paths under `capstone/` and `database/creds/`, allows read of `capstone/data/app` and `database/creds/capstone-app`, and not of `secret/`; the `jwt-platform` role `capstone-app` carries that policy; database role `capstone-app` exists with a credential issued from it; `capstone/app` exists; `capstone/agent.hcl` in the student's repo holds no `role_id` or `secret_id`. Step 2, the rotation with no deploy: `capstone/app` has been written again since step 1 passed, and `main` of `{user}/capstone` has no commit newer than that (a push deploys; one sends the student back to step 1). Not checked: that the app shows the new value, and that the scanner passes.
 - **Hint 1:** Labs 9, 11 and 12 combined.
 - **Hint 2:** Rotation is a write, not a deploy.
-- **Answer:** `dojo-challenge start capstone`, then in `students/$USER`: enable `kv-v2` at `capstone`, write `capstone/app` (once now; the rotation comes after the first check), write policy `capstone-app` (read `capstone/data/app` and `database/creds/capstone-app`), a database role `capstone-app`, the `jwt-platform` role `capstone-app` with `bound_subject=slot:$USER-capstone` and `token_policies=capstone-app`, read `database/creds/capstone-app` once, keep `agent.hcl` free of any role or secret id, push, then `dojo-check capstone`; then, without pushing, `bao kv put capstone/app` a new value and `dojo-check capstone` again.
+- **Answer:** `dojo challenge start capstone`, then in `students/$USER`: enable `kv-v2` at `capstone`, write `capstone/app` (once now; the rotation comes after the first check), write policy `capstone-app` (read `capstone/data/app` and `database/creds/capstone-app`), a database role `capstone-app`, the `jwt-platform` role `capstone-app` with `bound_subject=slot:$USER-capstone` and `token_policies=capstone-app`, read `database/creds/capstone-app` once, keep `agent.hcl` free of any role or secret id, push, then `dojo check capstone`; then, without pushing, `bao kv put capstone/app` a new value and `dojo check capstone` again.
 - **Collision check:** namespace, database, repo and capstone slot are all the student's own; the checks read only `students/{user}` and `{user}/capstone`. It is safe for the whole class to run it at once. Each student's capstone slot stays locked (no identity, no deploys) until their `{user}/capstone` repo exists.
 - **Badge tier:** capstone (stars)
 

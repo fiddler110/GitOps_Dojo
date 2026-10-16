@@ -27,7 +27,7 @@ The session slides cover the *why*. This lab is the *how*, in two parts.
 
 The **DNS Zones** page (a card on the workshop landing page) shows every zone and record PowerDNS is serving right now, and highlights what changed since you opened it. Keep it open in a tab and watch your changes land.
 
-**Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.
+**Starting partway through?** Run `dojo prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `dojo prep 4`). It's safe to run more than once and never undoes your own work.
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane or another tab while you work — it's a condensed reference to every command used across all five labs, with a short explanation of how each one works.
 
@@ -52,8 +52,8 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `c2` | The Cutover | end of [Lab 5](lab5.md) |
 | `capstone` | The Bad Push | end of [Lab 6](lab6.md) |
 
-Start one in the terminal with `dojo-challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo-check <id>`. A wrong
-answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
+answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. `dojo check` on its own lists them
 with what each is worth.
 
 ## 1. Check your shell

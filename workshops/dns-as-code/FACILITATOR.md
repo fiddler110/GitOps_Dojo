@@ -63,7 +63,7 @@ is in `/admin`.
 
 - **Say it first:** CI takes a little while; a PR is mergeable only once **DNS Preview** is green, and the
   record only appears after **DNS Apply** is green on `main`. Students often `dig` too early.
-- **Lagging student:** `lab-prep <N>` brings them to the start of lab N; safe to re-run.
+- **Lagging student:** `dojo prep <N>` brings them to the start of lab N; safe to re-run.
 - Lab 3 needs a review by someone else before merge (`DNS_REQUIRED_APPROVALS=1`). If the room is small or
   uneven, the `dns-bot` PR gives everyone one PR to review; you can also approve as the facilitator.
 

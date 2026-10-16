@@ -14,7 +14,7 @@ a class.
 
 | Block | Minutes | What |
 | ----- | ------- | ---- |
-| Talk | ~15 | Three apps on fire, the loop, `dojo-check`, the PR gate |
+| Talk | ~15 | Three apps on fire, the loop, `dojo check`, the PR gate |
 | Lab 1 | ~90 | Incident triage: detect, triage, contain, fix, verify, on all three targets |
 | Recap | ~15 | Order of work vs the room's; the per-target debriefs; the capstone for early finishers |
 
@@ -25,7 +25,7 @@ comes up. Each student has **three own Forgejo repos** (`<student>/<target>`, pr
 order differs per student (six permutations dealt from a seed; set `CTF_SCHEDULE_SEED` to reproduce a run) and each
 target starts on a stagger (`CTF_TARGET_STAGGER`), so breaches pile up. Class size is at most 20.
 
-**The loop is the lesson**: detect, triage, contain, fix, verify. `dojo-check` runs the attack against a live slot
+**The loop is the lesson**: detect, triage, contain, fix, verify. `dojo check` runs the attack against a live slot
 and one legitimate request, so a student sees `exploitable`, `contained`, `broke-normal-use` or `unreachable`
 per target. The PR gate runs the same checks; it's advisory, so a failing check doesn't block the merge
 (decided 2026-10-15: no `INCIDENT.md` requirement — the presence-only check added nothing a reviewer couldn't
@@ -47,7 +47,7 @@ Students' points come from a city-level lookup of where they connect from (optio
 sit around `CTF_HOME_REGION` (default Toronto).
 
 **Don't name the bugs from the stage.** The deck describes the apps and the pipeline, never a flaw. Students find
-each one in its own signal and source. If someone is stuck, point at `dojo-check` and the lab's hints for that
+each one in its own signal and source. If someone is stuck, point at `dojo check` and the lab's hints for that
 target, in order; never at a line number.
 
 ## Before the session
@@ -63,9 +63,9 @@ target, in order; never at a line number.
    **SOC** to go green. Confirm the `attacker-bot` container is up (idle) — `podman ps`.
 4. **Size the machine:** `./dojo capacity ctf-defend --students 30` if you expect a full room — the
    range's `ctf-host`/`ctf-controller` plus the `attacker-bot` swarm sit alongside the terminals.
-5. **Rehearse as a student** in a private window: clone all three repos, run `dojo-check` (all
+5. **Rehearse as a student** in a private window: clone all three repos, run `dojo check` (all
    `exploitable`), fix each, PR it, watch the gate fail against a bad fix and pass a good one, merge, confirm
-   `dojo-check` says `contained`, and check the per-target milestones land. Then try
+   `dojo check` says `contained`, and check the per-target milestones land. Then try
    the capstone (`customer-portal`'s `/login` has the same bug). `./dojo stop` and start clean afterward.
    Run `content/sync-sample-repos.sh` first if a target's source changed.
 6. Skim the deck with speaker notes on.
@@ -83,12 +83,12 @@ target, in order; never at a line number.
 
 - **Press Start Attack Swarm once the room has cloned their repos and read the briefing** — not before.
   Starting it too early just burns the green/recon window while people are still reading the deck.
-- **`dojo-check` is the fastest way to confirm a theory** (lightly rate limited). It says whether, never how.
+- **`dojo check` is the fastest way to confirm a theory** (lightly rate limited). It says whether, never how.
 - **Triage is visible.** On the SOC tab, watch who works the high-severity target first and who is
   still on the quiet one while a breach sits unattended.
 - **The PR gate is the real judge.** If a "fix" merges without the Actions check passing, something's
   wrong with the pipeline, not the lesson — report it, don't wave it through.
-- **Lagging student:** there's no `lab-prep` to fast-forward with — one lab, no sequence. If someone's
+- **Lagging student:** there's no `dojo prep` to fast-forward with — one lab, no sequence. If someone's
   stuck well past the second hint for a target, that's the point to intervene directly.
 - **Early finisher:** point them at the capstone achievement (`achievements/capstone.json`) — the same
   bug lives in `customer-portal`'s `/login` too, and the gate only re-tests `/search`.
@@ -134,7 +134,7 @@ rotation is operational. `customer-portal`: a fixed query does not undo what was
 | PR gate never runs / stays pending | Confirm the repo's Actions secrets (`CTF_BUILD_TOKEN`, `CTF_CONTROL_TOKEN`) exist — the same provisioning hook sets them; a student who force-pushed over the initial seed may have lost them |
 | Merge doesn't redeploy the slot | `defend-main.yml` calls `ctf-controller`'s `/redeploy`; check `/admin`'s SOC tab and `ctf-controller` logs for a rejected control token |
 | SOC shows nothing after pressing Start | Confirm `attacker-bot` is actually running (`podman ps`) — it's idle-but-present before the press, not absent |
-| `dojo-check` says `unreachable` | The checker could not reach that slot: check `ctf-checker` and `ctf-controller` are up and the slot exists (`/slots`) |
+| `dojo check` says `unreachable` | The checker could not reach that slot: check `ctf-checker` and `ctf-controller` are up and the slot exists (`/slots`) |
 | One student's terminal wedged | Roster → **Release**; their Forgejo repo and running slot are untouched by a terminal release |
 
 ## After the session

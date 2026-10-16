@@ -65,7 +65,7 @@ Content only; the engine exactly as is. Pure git against Forgejo.
 - **Seed repo**: `training/sample-training-repo` with `roster/team.yaml`. Lab 1: add yourself to the roster, open a
   PR; **Sensei** reviews and merges it.
 - **Hardest part**: Lab 5 (merge conflicts) is deliberately the hardest.
-- **Extras**: `lab-prep N`; `tmux-guide.md`, `zellij-guide.md`; achievements c1 (The Hotfix) and c2; an
+- **Extras**: `dojo prep N`; `tmux-guide.md`, `zellij-guide.md`; achievements c1 (The Hotfix) and c2; an
   [Azure DevOps edition](../workshops/git-fundamentals/delivery-azure-devops/) of the same session (facilitator guide,
   pre-work checklist, FAQ, feedback survey) for delivery against Azure Repos.
 

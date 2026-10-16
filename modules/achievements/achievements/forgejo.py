@@ -140,7 +140,7 @@ def no_push_since_step(api, a, ctx):
 
 def repo_exists(api, a, ctx):
     if _get(api, repo_path(a["repo"])) is None:
-        return False, f"{a['repo']} doesn't exist yet (dojo-challenge start first)"
+        return False, f"{a['repo']} doesn't exist yet (dojo challenge start first)"
     return True, "repo exists"
 
 
@@ -229,7 +229,7 @@ def answer_names_commit(api, a, ctx):
     s = a["search"]
     culprit = introduced_by(api, a["repo"], s.get("branch", "main"), s["path"], s["text"])
     if culprit is None:
-        return False, f"the planted line is no longer in {s.get('branch', 'main')}'s history; dojo-challenge reset gives a fresh copy"
+        return False, f"the planted line is no longer in {s.get('branch', 'main')}'s history; `dojo challenge reset ID` gives a fresh copy"
     content = _raw(api, a["repo"], a["ref"], a["path"])
     if content is None:
         return False, f"no {a['path']} on {a['ref']}"
@@ -284,7 +284,7 @@ def history_absent(api, a, ctx):
     rp = repo_path(repo)
     branches = _paged(api, f"{rp}/branches")
     if branches is None:
-        return False, f"{repo} doesn't exist yet (dojo-challenge start first)"
+        return False, f"{repo} doesn't exist yet (dojo challenge start first)"
     trees = set()
     for b in branches:
         for c in _commits(api, repo, b["name"]) or []:
@@ -308,7 +308,7 @@ def history_absent(api, a, ctx):
         if rx.search(text):
             return False, (f"{a.get('what', 'something that must stay out of git')} is in {path}, somewhere in "
                            f"{repo}'s history. Deleting it in a later commit doesn't remove it: "
-                           f"`dojo-challenge reset {ctx.get('challenge', 'ID')}` rebuilds the repo")
+                           f"`dojo challenge reset {ctx.get('challenge', 'ID')}` rebuilds the repo")
     return True, f"no {a.get('what', 'match')} anywhere in the history"
 
 

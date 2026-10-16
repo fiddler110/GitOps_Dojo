@@ -98,6 +98,20 @@
         "cmd": "git push",
         "exit": 1
       }
+    },
+    {
+      "id": "f-leak",
+      "title": "Metal Detector",
+      "joke": "You swept every commit and found buried treasure. Sadly, it was a credential.",
+      "when": "shell: `gitleaks git` (or `detect`) exits 1, meaning it found a leak",
+      "match": {
+        "source": "shell",
+        "cmd": [
+          "gitleaks git",
+          "gitleaks detect"
+        ],
+        "exit": 1
+      }
     }
   ]
 }

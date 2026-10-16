@@ -4,7 +4,7 @@
   "after": "after Lab 3 or 4",
   "space": "the student's own repo `{user}/challenge-repo` (a seeded fork of the shared lab repo); its `main` is theirs alone",
   "goal": "Someone changed a line they shouldn't have. Find the commit that introduced `{target_line}` and tell us its short hash and its author. Put both in `answer.txt` on a branch called `case-{user}` and push it.",
-  "seed": "planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo-challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.",
+  "seed": "planted commits in `{user}/challenge-repo` (`seeds/challenge-repo.json`, built by `dojo challenge start c2`): `{target_line}` and its author `{culprit}` are picked per student from lists, and the verifier finds the true commit in that repo's own history from its diffs. Each student's repo has its own hashes (its README names the student), so an answer can't be shared.",
   "verify_text": "forgejo `branch_exists` `case-{user}`, then `answer_names_commit`: the service finds the oldest commit on `main` whose diff adds `{target_line}` to `config/settings.yaml` and checks that `answer.txt` on `case-{user}` holds its short hash (7+ characters) and its author.",
   "seed_plan": "challenge-repo.json",
   "verify": [

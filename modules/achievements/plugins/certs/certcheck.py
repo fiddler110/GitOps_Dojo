@@ -209,7 +209,7 @@ def _head(host, tls, client=None):
                 sslctx.load_cert_chain(*client)
             sock = sslctx.wrap_socket(raw, server_hostname=host) if tls else raw
             try:
-                sock.sendall(f"GET / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: dojo-check\r\n"
+                sock.sendall(f"GET / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: dojo check\r\n"
                              "Connection: close\r\n\r\n".encode())
                 resp = http.client.HTTPResponse(sock)
                 resp.begin()

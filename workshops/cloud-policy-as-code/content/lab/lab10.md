@@ -2,9 +2,9 @@
 
 **Time:** about 25 minutes. **Goal:** run the unit tests for your Rego, write a test that fails because it found a real bug, fix the bug, and see why policy deserves tests as much as application code.
 
-> **Starting here?** This lab needs your clone and the policy from Labs 3-8 (Lab 9 left nothing behind). Run `lab-prep 10` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone and the policy from Labs 3-8 (Lab 9 left nothing behind). Run `dojo prep 10` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 ```
 
@@ -21,9 +21,19 @@ Neither shows up as an error. A rule that *runs* is not a rule that is *right*. 
 
 ## 1. Run the tests that exist
 
-```bash
+`opa test` runs every rule whose name starts with `test_`. `-v` lists every test rather than just failures. `--ignore fixtures` matters: the `fixtures/` folder holds sample plans as JSON, and OPA tries to load every file as data, which clashes with the other documents, giving `merge error`. Try it without the flag if you are curious.
+
+```text
+opa test <dir> --ignore <pattern> -v
+```
+
+**Your turn:** predict how many tests pass.
+
+```sh
 opa test policy/rego --ignore fixtures -v
 ```
+
+<!-- dojo-reveal: Results of opa test -->
 
 ```text
 rego/costcenter_test.rego:9:
@@ -35,13 +45,13 @@ data.main.test_other_region_denied: PASS (2.8ms)
 PASS: 8/8
 ```
 
-(Your times and the order will differ.) `--ignore fixtures` matters: the `fixtures/` folder holds sample plans as JSON, and OPA tries to load every file as data, which clashes with the other documents, giving `merge error`. Try it without the flag if you are curious. `-v` lists every test rather than just failures.
+(Your times and the order will differ.)
+
+<!-- /dojo-reveal -->
 
 ## 2. Read a test
 
-```bash
-cat policy/rego/regions_test.rego
-```
+This is `policy/rego/regions_test.rego`:
 
 ```rego
 package main
@@ -69,11 +79,15 @@ test_other_region_denied if {
 
 Good tests come in pairs: something that must pass and something that must fail. A suite with only passing examples proves nothing, because a rule that never denies anything passes it.
 
+**Your turn:** open the test file in your editor, or print it.
+
+```sh
+cat policy/rego/regions_test.rego
+```
+
 ## 3. Look at the rule under test
 
-```bash
-cat policy/rego/regions.rego
-```
+This is the rule, `policy/rego/regions.rego`:
 
 ```rego
 package main
@@ -93,11 +107,27 @@ deny contains msg if {
 }
 ```
 
-The error message and the `allowed_regions` set both say two regions are allowed. Read the condition. It does not use the set. Someone took a shortcut: "all our regions start with `canada`". The two existing tests pass: `canadaeast` is allowed, `eastus` is refused. Do you see a region that starts with `canada` and is not allowed?
+The error message and the `allowed_regions` set both say two regions are allowed. Read the condition. It does not use the set. Someone took a shortcut: "all our regions start with `canada`". The two existing tests pass: `canadaeast` is allowed, `eastus` is refused.
+
+**Check yourself:** Do you see a region that starts with `canada` and is not allowed?
+
+<!-- dojo-reveal: Show the answer -->
+
+`canadawest`: it starts with `canada`, so the rule never denies it, though it is not in the allowed set.
+
+<!-- /dojo-reveal -->
+
+**Your turn:** open the rule in your editor, or print it.
+
+```sh
+cat policy/rego/regions.rego
+```
 
 ## 4. Write the test first
 
-The platform's guardrail allows `canadacentral` and `canadaeast` only. A third Canadian region, `canadawest`, exists in the real world but is **not** allowed here. Write a test that says so. Append to `policy/rego/regions_test.rego`:
+The platform's guardrail allows `canadacentral` and `canadaeast` only. A third Canadian region, `canadawest`, exists in the real world but is **not** allowed here. Writing the test before the fix means you *see it fail*, so you know the test can detect the bug (a test written after the fix might never have been capable of failing).
+
+In your editor, append to `policy/rego/regions_test.rego`:
 
 ```rego
 test_canadawest_denied if {
@@ -105,9 +135,24 @@ test_canadawest_denied if {
 }
 ```
 
-```bash
+**Prefer the terminal?**
+
+```sh
+cat >> policy/rego/regions_test.rego <<'EOT'
+
+test_canadawest_denied if {
+	count(deny) == 1 with input as rc("canadawest")
+}
+EOT
+```
+
+**Your turn:** predict: will the new test pass or fail?
+
+```sh
 opa test policy/rego --ignore fixtures
 ```
+
+<!-- dojo-reveal: Results of opa test -->
 
 ```text
 rego/regions_test.rego:18:
@@ -117,22 +162,28 @@ PASS: 8/9
 FAIL: 1/9
 ```
 
-**This failure is the point.** You have a test that describes the behaviour you want, and it proves the rule does not have it: `startswith("canadawest", "canada")` is true, so the rule never denies it. Writing the test before the fix gives you two things. You *saw it fail*, so you know the test can detect the bug (a test written after the fix might never have been capable of failing), and when it turns green you know it was the fix.
+**This failure is the point.** You have a test that describes the behaviour you want, and it proves the rule does not have it: `startswith("canadawest", "canada")` is true, so the rule never denies it. When it turns green after the fix, you know it was the fix.
+
+<!-- /dojo-reveal -->
 
 ## 5. Fix the rule
 
-In `policy/rego/regions.rego`, replace the `startswith` line, so the rule uses the set that is already there:
+The message and the `allowed_regions` set already name the right regions; only the check disagrees. In your editor, in `policy/rego/regions.rego`, replace the `startswith` line so the rule uses the set that is already there:
 
 ```rego
 	not loc in allowed_regions
 ```
 
-`loc in allowed_regions` is true if `loc` is a member of the set; `not` turns that around. The message and the check now come from the same list, so they cannot disagree. Run the tests:
+`loc in allowed_regions` is true if `loc` is a member of the set; `not` turns that around. The message and the check now come from the same list, so they cannot disagree. `opa fmt --diff` prints nothing when the files are already formatted (`opa fmt -w policy/rego` rewrites them in place).
 
-```bash
+**Your turn:** run the tests again. Predict the count.
+
+```sh
 opa fmt --diff policy/rego
 opa test policy/rego --ignore fixtures -v
 ```
+
+<!-- dojo-reveal: Results of opa test -->
 
 ```text
 data.main.test_canadawest_denied: PASS (1.5ms)
@@ -140,11 +191,13 @@ data.main.test_canadawest_denied: PASS (1.5ms)
 PASS: 9/9
 ```
 
-`opa fmt --diff` prints nothing when the files are already formatted (`opa fmt -w policy/rego` rewrites them in place).
+<!-- /dojo-reveal -->
 
 ## 6. Test the edges
 
-A bug like this hides at the boundary between "obviously fine" and "obviously wrong". Add one more test that throws a list of awkward values at the rule, using `every`:
+A bug like this hides at the boundary between "obviously fine" and "obviously wrong". `--coverage` reports which lines of the policy the tests ran; 100 means every line of every rule was exercised at least once. Coverage cannot tell you the tests are *good* (the old suite also covered `regions.rego` fully, and still missed the bug), but low coverage tells you for certain that something is untested.
+
+In your editor, add one more test to `policy/rego/regions_test.rego` that throws a list of awkward values at the rule, using `every`:
 
 ```rego
 test_near_misses_denied if {
@@ -154,21 +207,31 @@ test_near_misses_denied if {
 }
 ```
 
-```bash
-opa test policy/rego --ignore fixtures --coverage | python3 -c "import sys,json; print(json.load(sys.stdin)['coverage'])"
+**Prefer the terminal?**
+
+```sh
+cat >> policy/rego/regions_test.rego <<'EOT'
+
+test_near_misses_denied if {
+	every loc in ["eastus", "westeurope", "canada", "canadacentral2"] {
+		count(deny) == 1 with input as rc(loc)
+	}
+}
+EOT
 ```
+
+**Your turn:** predict the coverage number. Then confirm the same rule still works on a real plan from the fixtures (the files the pull request pipeline will check): one should pass and one should fail.
+
+```sh
+opa test policy/rego --ignore fixtures --coverage | python3 -c "import sys,json; print(json.load(sys.stdin)['coverage'])"
+conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-good.json
+conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-bad.json
+```
+
+<!-- dojo-reveal: Results of the coverage and fixture checks -->
 
 ```text
 100
-```
-
-`--coverage` reports which lines of the policy the tests ran. 100 means every line of every rule was exercised at least once. Coverage cannot tell you the tests are *good* (the old suite also covered `regions.rego` fully, and still missed the bug), but low coverage tells you for certain that something is untested.
-
-Also confirm the same rule still works on a real plan from the fixtures (the files the pull request pipeline will check):
-
-```bash
-conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-good.json
-conftest test --policy policy/rego --namespace main policy/rego/fixtures/plan-bad.json
 ```
 
 ```text
@@ -180,9 +243,11 @@ FAIL - policy/rego/fixtures/plan-bad.json - main - azurerm_resource_group.app is
 
 `plan-bad.json` is a cut-down real plan, kept in the repo so the rules are exercised against the real structure of a plan and not only against hand-built examples.
 
-Commit your work. You are on `main` of your fork; the next lab uses a branch and a pull request, and `lab-prep 11` assumes these changes are made.
+<!-- /dojo-reveal -->
 
-```bash
+Commit your work. You are on `main` of your fork; the next lab uses a branch and a pull request, and `dojo prep 11` assumes these changes are made.
+
+```sh
 git add policy/rego
 git commit -m "regions.rego: check the allowed set, not a prefix; test canadawest"
 git push origin main
@@ -197,9 +262,17 @@ git push origin main
 
 ## Check yourself
 
-1. Why must a suite include a case that is supposed to be refused? *(a rule that denies nothing passes any suite of "good" examples)*
-2. What does `with input as rc("canadawest")` do? *(runs the rule as if that were the plan, for that one expression)*
-3. Why `--ignore fixtures`? *(OPA loads every file in the folder as data; the fixture plans clash with each other)*
+1. Why must a suite include a case that is supposed to be refused?
+2. What does `with input as rc("canadawest")` do?
+3. Why `--ignore fixtures`?
+
+<!-- dojo-reveal: Show the answers -->
+
+1. A rule that denies nothing passes any suite of "good" examples.
+2. It runs the rule as if that were the plan, for that one expression.
+3. OPA loads every file in the folder as data; the fixture plans clash with each other.
+
+<!-- /dojo-reveal -->
 
 **Check box.** You are done when all of these hold:
 

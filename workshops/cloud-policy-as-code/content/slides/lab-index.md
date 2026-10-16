@@ -28,7 +28,7 @@ footer: '[&larr; Hub](index.md)'
 </div>
 </div>
 
-<p class="setup-label">Every lab works in your fork of the starter repo (Lab 0). Make it once, or run <code>lab-prep N</code> to catch up to lab N:</p>
+<p class="setup-label">Every lab works in your fork of the starter repo (Lab 0). Make it once, or run <code>dojo prep N</code> to catch up to lab N:</p>
 
 ```sh
 curl --netrc -H "Content-Type: application/json" -d '{}' \

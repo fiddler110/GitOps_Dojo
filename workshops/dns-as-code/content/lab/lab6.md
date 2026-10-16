@@ -10,24 +10,43 @@ git checkout main
 git pull
 ```
 
-> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `lab-prep 6` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `dojo prep 6` to set that up; it's safe to run even if you did the earlier labs.
 
 ---
 
 ## Part A — Causing and resolving a conflict
 
-A conflict happens when two branches change the *same line* in different ways. Normally that's two different people; here, you'll play both parts yourself so you can see it end to end without needing a partner.
+**The idea.** A conflict happens when two branches change the *same line* in different ways. Normally that's two different people; here, you'll play both parts yourself so you can see it end to end without needing a partner. When git can't combine the changes it stops and wraps the disputed lines in markers:
+
+```text
+<<<<<<< HEAD
+	A("www", "203.0.113.50"),
+=======
+	A("www", "203.0.113.40"),
+>>>>>>> conflict-a
+```
+
+- Everything between `<<<<<<< HEAD` and `=======` is your current branch's version.
+- Everything between `=======` and `>>>>>>> conflict-a` is the incoming branch's version.
+
+You resolve it by deciding which value to keep (or a third one entirely) and deleting the `<<<<<<<`/`=======`/`>>>>>>>` markers yourself. Git won't do this part for you.
+
+**Your turn:**
+
+Create the first branch:
 
 ```sh
 git checkout main
 git checkout -b conflict-a
 ```
 
-Edit `dnsconfig.js` and change the `www` record's IP:
+Open `dnsconfig.js` in your editor and change the `www` record's IP:
 
 ```js
 A("www", "203.0.113.40"),
 ```
+
+Commit it and start the second branch:
 
 ```sh
 git add dnsconfig.js
@@ -47,38 +66,21 @@ git add dnsconfig.js
 git commit -m "conflict-b: repoint www"
 ```
 
-Now try to bring both changes together:
+Before you run the merge, predict: will git manage it on its own?
 
 ```sh
 git merge conflict-a
-```
-
-Git stops and reports a conflict. Look at the file:
-
-```sh
 batcat dnsconfig.js
 ```
 
-You'll see something like:
+<!-- dojo-reveal: Results of git merge conflict-a -->
 
-```js
-A("www", "203.0.113.50"),
-```
+- Git stops and reports a conflict in `dnsconfig.js`.
+- The file shows the `www` line wrapped in the markers above.
 
-wrapped in git's markers:
+<!-- /dojo-reveal -->
 
-```text
-<<<<<<< HEAD
-	A("www", "203.0.113.50"),
-=======
-	A("www", "203.0.113.40"),
->>>>>>> conflict-a
-```
-
-- Everything between `<<<<<<< HEAD` and `=======` is your current branch's version.
-- Everything between `=======` and `>>>>>>> conflict-a` is the incoming branch's version.
-
-**Resolve it:** decide which value to keep (or a third one entirely), and delete the `<<<<<<<`/`=======`/`>>>>>>>` markers yourself — git won't do this part for you. For example, keep just:
+**Resolve it:** in your editor, keep just one line and delete the markers. For example:
 
 ```js
 A("www", "203.0.113.40"),
@@ -88,34 +90,34 @@ A("www", "203.0.113.40"),
 
 ## Part B — Don't just commit: preview first
 
-This is the one step that has no equivalent in a plain git conflict, and it's the important part of this lab. Before finishing the merge, run:
+This is the one step that has no equivalent in a plain git conflict, and it's the important part of this lab. Git's conflict resolution only checked that the file has no leftover `<<<<<<<`/`=======`/`>>>>>>>` markers. It has no idea whether the JavaScript is still syntactically valid, whether you left a stray comma, or whether you accidentally kept *both* lines instead of picking one (which would leave two `A` records with the same name: legal DNS, almost never what you meant). `preview` is what actually tells you the resolved file makes sense.
+
+**Rule of thumb: always run `dnscontrol preview` after resolving any conflict in `dnsconfig.js`, before you commit the merge, not just here, in a real repo too.** A bad resolution that looks fine to git can still be wrong DNS.
+
+If you ever want to back out of a conflict entirely and start over, run `git merge --abort`. (No need to run that now, since your merge is already resolved.)
+
+**Your turn:**
+
+Before you run it, predict: what should the diff show?
 
 ```sh
 dnscontrol preview
 ```
 
-Git's conflict resolution only checked that the file has no leftover `<<<<<<<`/`=======`/`>>>>>>>` markers — it has no idea whether the JavaScript is still syntactically valid, whether you left a stray comma, or whether you accidentally kept *both* lines instead of picking one (which would leave two `A` records with the same name — legal DNS, almost never what you meant). `preview` is what actually tells you the resolved file makes sense. Confirm it shows a clean, expected diff before you go any further.
+<!-- dojo-reveal: Results of dnscontrol preview -->
 
-**Rule of thumb: always run `dnscontrol preview` after resolving any conflict in `dnsconfig.js`, before you commit the merge — not just here, in a real repo too.** A bad resolution that looks fine to git can still be wrong DNS.
+- A clean, expected diff, e.g. one `± MODIFY` of `www` to the value you kept. Confirm that before you go any further.
 
-Now finish the merge:
+<!-- /dojo-reveal -->
+
+Now finish the merge. Git pre-fills a merge commit message; accepting the default is fine.
 
 ```sh
 git add dnsconfig.js
 git commit
 ```
 
-Git pre-fills a merge commit message — accepting the default is fine.
-
-If you ever want to back out of a conflict entirely and start over:
-
-```sh
-git merge --abort
-```
-
-(No need to run that now — your merge is already resolved.)
-
-Clean up — none of this was ever pushed, so deleting the branches is all that's needed:
+Clean up. None of this was ever pushed, so deleting the branches is all that's needed:
 
 ```sh
 git checkout main
@@ -155,17 +157,16 @@ rewrite history. It pushes to your own zone, `$USER.dojo.test`, the same one `~/
 Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
 
 ```sh
-dojo-challenge start capstone
+dojo challenge start capstone
 cd ~/lab/challenge-badpush
 ```
 
 That makes your own repo `$USER/challenge-badpush` and clones it to `~/lab/challenge-badpush`, and prints the goal, with your own names in it. When you think it's done:
 
 ```sh
-dojo-check capstone
+dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points, and
-`dojo-challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
+`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
 
-<!-- dojo-challenge: capstone -->

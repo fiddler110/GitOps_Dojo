@@ -8,7 +8,7 @@ submitted flag and, if it checks out, credit the achievement.
                   -> {"ok": false}  (wrong flag, or a malformed body)
 
 `user` is self-asserted (the CLI sends `id -un`'s own account), the same trust
-level as a terminal's other self-reported identity (dojo-check's shell hook,
+level as a terminal's other self-reported identity (dojo check's shell hook,
 for one). That is deliberately not a security boundary here: the actual
 secret is the flag VALUE (plan.render, the per-slot HMAC keyed on a seed the
 student never sees), not who claims to hold it. Lying about `user` only lets

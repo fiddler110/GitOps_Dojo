@@ -12,15 +12,15 @@ valid for 20 minutes without you touching it.
 
 ## Done when
 
-Push `renew-and-reload.sh` and `renew.cron` to `main` here, then run `dojo-check c2` **once**. From then on the
+Push `renew-and-reload.sh` and `renew.cron` to `main` here, then run `dojo check c2` **once**. From then on the
 service watches your site by itself: it clears when 20 minutes have passed with at least two renewals and no moment
-without a valid certificate. `dojo-check c2` shows how far the watch has got.
+without a valid certificate. `dojo check c2` shows how far the watch has got.
 
 ## Keep keys out of git
 
 Certificates and private keys live in `/srv/webroot/{user}/certs/` and in your ACME client's own folder, never in this
 repo. The check scans the repo's **whole history** for a private key: deleting one in a later commit doesn't remove it.
-If one gets in, `dojo-challenge reset c2` rebuilds the repo from scratch (in a real team you'd also replace the key).
+If one gets in, `dojo challenge reset c2` rebuilds the repo from scratch (in a real team you'd also replace the key).
 
-`dojo-challenge reset c2` only rebuilds this repo. Files you copied into `/srv/webroot/{user}/`, certificates you
+`dojo challenge reset c2` only rebuilds this repo. Files you copied into `/srv/webroot/{user}/`, certificates you
 issued and cron entries stay as they are.

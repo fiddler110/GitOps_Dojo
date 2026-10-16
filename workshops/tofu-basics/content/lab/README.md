@@ -35,7 +35,7 @@ The HCL language, the commands, and the files (`*.tf`, `.terraform/`, `terraform
 
 **Track B (Dojo Cloud)** deploys a real container to a practice cloud that works like Azure: you get your own subscription, a web **portal** to watch it, and **policy** and **quota** rules to run into. It is an Azure-*inspired* training environment (not affiliated with Microsoft) but you use the real `azurerm` provider, so the HCL you write is genuine Azure HCL. Do Labs 4-10 in order, after Track A. Each lab builds on the previous one's deployment, so don't destroy anything until Lab 10. Open the portal from the landing page's **Dojo Cloud** card, and keep it open in its own tab.
 
-**Starting partway through?** Run `lab-prep <N>` in your terminal (for example `lab-prep 6`). It sets up what the earlier labs would have left behind (your fork and clone, `init`, the deployment) so you can start Lab N right away. Each lab also says what it needs at the top.
+**Starting partway through?** Run `dojo prep <N>` in your terminal (for example `dojo prep 6`). It sets up what the earlier labs would have left behind (your fork and clone, `init`, the deployment) so you can start Lab N right away. Each lab also says what it needs at the top.
 
 Keep [cheat-sheet.md](cheat-sheet.md) open in a split pane (`Ctrl+b %` in tmux) while you work.
 
@@ -56,8 +56,8 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `c2` | Quota Whisperer | end of [Lab 10](lab10.md) |
 | `capstone` | Site Factory | end of [Lab 10](lab10.md) |
 
-Start one in the terminal with `dojo-challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo-check <id>`. A wrong
-answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
+answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. `dojo check` on its own lists them
 with what each is worth.
 
 ## Check your shell

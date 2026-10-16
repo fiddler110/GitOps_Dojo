@@ -11,7 +11,7 @@ is not on an approved list. Different teams approve different lists, so the list
 3. `tofu init && tofu apply`. The resource group is tagged `env = "sandbox"`, so after the apply the
    Policy blade should list `rg-{user}-c1` as **non-compliant** for your assignment (press
    **Evaluate now** if you are impatient).
-4. Commit and push `main.tf` and the rule to this repo (`git push origin main`), then run `dojo-check c1`.
+4. Commit and push `main.tf` and the rule to this repo (`git push origin main`), then run `dojo check c1`.
 
 Everything here lives in `rg-{user}-c1` and its own state, so your lab policy is untouched. Clean up
 afterwards with `tofu destroy`.

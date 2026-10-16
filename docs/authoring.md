@@ -80,10 +80,11 @@ file declares it; this trips people up.
 - Use `studentXX` for the student's account in commands; the reader substitutes the real name.
 - Inside the terminal use `git-server:3000`, never `localhost`.
 - **Never put challenge answers in a lab.** Sensei skips headings that name a challenge, but that is a backstop.
-- A lab that ends with an achievements challenge can end its section with `<!-- dojo-challenge: c1 -->` (or
-  `capstone`); the lab reader shows Start/Reset buttons only when the achievements module is on.
+- A lab that ends with an achievements challenge ends its section with the commands in text: `dojo challenge start c1`,
+  then `dojo check c1` (and `dojo challenge reset c1` to start over). No markers or buttons.
 - List every lab in `content/lab/README.md` **and** `content/slides/lab-index.md`.
-- A late-joiner helper: put `lab-prep` in `compose/terminal/` and keep its header table in step with the labs.
+- A late-joiner helper: put `lab-prep` in `compose/terminal/` (students run it as `dojo prep N`; the `lab-prep` module links it
+  into the `dojo` command) and keep its header table in step with the labs.
 - After editing a lab on a running stack, copy it to `content/slides/lab/<name>.md.txt`; those copies are git-ignored
   and regenerated at start, so never edit them as source.
 

@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""dojo-check: the student's window on their achievements.
+# dojo-summary(check): your score, and check a challenge: dojo check c1  (dojo check hint c1 for a hint)
+# dojo-summary(challenge): start or reset your own challenge repo: dojo challenge start c1
+"""dojo check / dojo challenge: the student's window on their achievements.
 
-  dojo-check                 your score, rank and completion
-  dojo-check hint ID         the next hint for a challenge (each one costs points)
-  dojo-check reveal ID       the answer, once both hints are used (scores 0)
-  dojo-check ID              check a challenge, e.g. dojo-check c1 (a wrong answer costs nothing)
-  dojo-challenge start ID    make your own challenge repo and clone it into ~/lab (safe to repeat)
-  dojo-challenge reset ID    throw it away and start again from a fresh copy (as often as you like;
+  dojo check                 your score, rank and completion
+  dojo check hint ID         the next hint for a challenge (each one costs points)
+  dojo check reveal ID       the answer, once both hints are used (scores 0)
+  dojo check ID              check a challenge, e.g. dojo check c1 (a wrong answer costs nothing)
+  dojo challenge start ID    make your own challenge repo and clone it into ~/lab (safe to repeat)
+  dojo challenge reset ID    throw it away and start again from a fresh copy (as often as you like;
                              hints already used stay used)
   dojo-check --echo          print new unlocks in colour (the prompt hook calls this)
   dojo-check --shell         send one finished command to the service (the prompt hook
                              calls this in the background, with DOJO_SH_* in its environment)
+
+The older names dojo-check ... and dojo-challenge ... still work.
 
 This file holds no answers and no checks: the achievements service holds the catalog and does
 the checking. It proves who you are with your own Forgejo token (the one in ~/.git-credentials,
@@ -165,7 +169,7 @@ def check(cid):
         print("\033[1;32mHalfway:\033[0m %s" % doc.get("message", ""))
         return 1
     print("\033[1;33mNot yet:\033[0m %s" % doc.get("message", ""))
-    print("(Checking again is free. Stuck? dojo-check hint %s)" % challenge_id(cid))
+    print("(Checking again is free. Stuck? dojo check hint %s)" % challenge_id(cid))
     return 1
 
 
@@ -185,7 +189,7 @@ def challenge(action, cid):
         print("No repo for this one: it works in your own lab space, so start where the lab left you.")
         if doc.get("done"):
             print("(You already cleared %s; practising again scores nothing new.)" % cid)
-        print("When you think you're done: dojo-check %s" % cid)
+        print("When you think you're done: dojo check %s" % cid)
         return 0
     name = repo.rsplit("/", 1)[-1]
     if not name or "/" in name or name.startswith(".") or not url.startswith("http://" + HOST + "/"):
@@ -200,7 +204,7 @@ def challenge(action, cid):
         shutil.rmtree(dest)
         print("Removed your old copy at %s" % dest)
     if os.path.isdir(os.path.join(dest, ".git")):
-        print("Your repo %s is already in %s (dojo-challenge reset %s for a fresh one)." % (repo, dest, cid))
+        print("Your repo %s is already in %s (dojo challenge reset %s for a fresh one)." % (repo, dest, cid))
     else:
         os.makedirs(lab, exist_ok=True)
         if subprocess.call(["git", "clone", "-q", url, dest]) != 0:
@@ -208,25 +212,47 @@ def challenge(action, cid):
         print("Cloned %s into %s" % (repo, dest))
     if doc.get("done"):
         print("(You already cleared %s; practising again scores nothing new.)" % cid)
-    print("When you think you're done: dojo-check %s" % cid)
+    print("When you think you're done: dojo check %s" % cid)
     return 0
 
 
 def fail(code, doc):
-    print("dojo-check: %s" % (doc.get("error") or "HTTP %s" % code), file=sys.stderr)
+    print("dojo %s: %s" % (name(), doc.get("error") or "HTTP %s" % code), file=sys.stderr)
     return 1
 
 
+def name():
+    """Which command this is: `dojo challenge` sets DOJO_SUBCOMMAND; the old links are named after themselves."""
+    n = os.environ.get("DOJO_SUBCOMMAND") or os.path.basename(sys.argv[0])
+    return "challenge" if n in ("challenge", "dojo-challenge") else "check"
+
+
+USAGE_CHECK = """dojo check                 your score, rank and completion
+dojo check ID              check a challenge, e.g. dojo check c1 (a wrong answer costs nothing)
+dojo check hint ID         the next hint for a challenge (each one costs points)
+dojo check reveal ID       the answer, once both hints are used (scores 0)"""
+USAGE_CHALLENGE = """dojo challenge start ID    make your own challenge repo and clone it into ~/lab (safe to repeat)
+dojo challenge reset ID    throw it away and start again from a fresh copy (as often as you like;
+                           hints already used stay used)
+Then work in the repo and run: dojo check ID"""
+
+
 def main(argv):
-    if os.path.basename(sys.argv[0]) == "dojo-challenge":
-        if len(argv) == 2 and argv[0] in ("start", "reset"):
-            return challenge(argv[0], argv[1])
-        print("usage: dojo-challenge start|reset ID   (e.g. dojo-challenge start c1)", file=sys.stderr)
-        return 2
     if argv[:1] == ["--echo"]:
         return echo()
     if argv[:1] == ["--shell"]:
         return shell()
+    if name() == "challenge":
+        if argv[:1] in (["-h"], ["--help"]):
+            print(USAGE_CHALLENGE)
+            return 0
+        if len(argv) == 2 and argv[0] in ("start", "reset"):
+            return challenge(argv[0], argv[1])
+        print(USAGE_CHALLENGE, file=sys.stderr)
+        return 2
+    if argv[:1] in (["-h"], ["--help"]):
+        print(USAGE_CHECK)
+        return 0
     if not argv or argv == ["status"]:
         return status()
     if argv[0] in ("hint", "reveal") and len(argv) == 2:
@@ -242,7 +268,7 @@ def main(argv):
         return 0
     if len(argv) == 1 and not argv[0].startswith("-"):
         return check(argv[0])
-    print(__doc__.strip().split("\n\n")[0], file=sys.stderr)
+    print(USAGE_CHECK, file=sys.stderr)
     return 2
 
 

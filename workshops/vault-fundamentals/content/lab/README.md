@@ -71,8 +71,8 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `c2` | The Right Lease | end of [Lab 12](lab12.md) |
 | `capstone` | Zero Standing Secrets | end of [Lab 13](lab13.md) |
 
-Start one in the terminal with `dojo-challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo-check <id>`. A wrong
-answer costs nothing; `dojo-check hint <id>` gives a hint for part of the points. `dojo-check` on its own lists them
+Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
+answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. `dojo check` on its own lists them
 with what each is worth.
 
 ## The rules every lab comes back to

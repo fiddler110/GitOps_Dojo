@@ -23,7 +23,7 @@ against this pack so far. Do a full rehearsal below before a room.
 | Recap | ~20 | What surprised them; the "deleting is not revoking" lesson; point out the exploit guides for anyone who didn't finish |
 
 **No lab depends on another.** Students can do them in any order and start fresh from the **Attack
-Range** card each time — there is no `lab-prep <N>` here because there's nothing sequential to catch up
+Range** card each time — there is no `dojo prep <N>` here because there's nothing sequential to catch up
 on. `git-secrets` runs longer in practice than `leaky-config`: reading `git log -p` output and finding the
 right commit takes most rooms longer than reading one log file, budget accordingly.
 
@@ -99,7 +99,7 @@ Range**.
   Forgejo's git history, not in `ctf_net`. Redirect them to their own `internal-tools` repo.
 - **A queued start.** If the whole room clicks Start together, requests queue (`CTF_ATTACK_MAX_CONCURRENT`
   in the module); the card shows "queued, position N" — tell students this is normal, not stuck.
-- **Lagging student:** there's no `lab-prep` to fast-forward with (no sequential state to catch up on) —
+- **Lagging student:** there's no `dojo prep` to fast-forward with (no sequential state to catch up on) —
   point them at whichever lab's hints they want and let them start that target directly.
 
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show

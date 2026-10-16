@@ -11,7 +11,7 @@
     "Lab 5's allowed-images rule already compares a field with an array parameter.",
     "`notIn` with \"[parameters('allowedEnvs')]\", and the assignment's `parameters = jsonencode({ allowedEnvs = { value = [...] } })`."
   ],
-  "seed": "`dojo-challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a `main.tf` with the resource group `rg-{user}-c1` tagged `env = \"sandbox\"` and two TODOs, a starter `rules/allowed-envs.json` full of `TODO`s, provider files with local state, and a README with the brief.",
+  "seed": "`dojo challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a `main.tf` with the resource group `rg-{user}-c1` tagged `env = \"sandbox\"` and two TODOs, a starter `rules/allowed-envs.json` full of `TODO`s, provider files with local state, and a README with the brief.",
   "seed_plan": "c1.json",
   "verify": [
     {
@@ -37,5 +37,5 @@
       "regex": "^\\s*resource\\s+\"azurerm_resource_group_policy_assignment\""
     }
   ],
-  "answer": "`dojo-challenge start c1`, `cd ~/lab/challenge-c1`. Rule: `{\"if\": {\"field\": \"tags['env']\", \"notIn\": \"[parameters('allowedEnvs')]\"}, \"then\": {\"effect\": \"audit\"}}`. In `main.tf`: `resource \"azurerm_policy_definition\" \"allowed_envs\" { name = \"allowed-envs-c1\", policy_type = \"Custom\", mode = \"All\", display_name = \"Allowed env tags (c1)\", policy_rule = file(\"${path.module}/rules/allowed-envs.json\"), parameters = jsonencode({ allowedEnvs = { type = \"Array\" } }) }` and `resource \"azurerm_resource_group_policy_assignment\" \"allowed_envs\" { name = \"allowed-envs-c1\", resource_group_id = azurerm_resource_group.c1.id, policy_definition_id = azurerm_policy_definition.allowed_envs.id, parameters = jsonencode({ allowedEnvs = { value = [\"dev\", \"test\"] } }) }`. `tofu init && tofu apply`, `git add . && git commit -m 'c1' && git push origin main`, `dojo-check c1`, then `tofu destroy`."
+  "answer": "`dojo challenge start c1`, `cd ~/lab/challenge-c1`. Rule: `{\"if\": {\"field\": \"tags['env']\", \"notIn\": \"[parameters('allowedEnvs')]\"}, \"then\": {\"effect\": \"audit\"}}`. In `main.tf`: `resource \"azurerm_policy_definition\" \"allowed_envs\" { name = \"allowed-envs-c1\", policy_type = \"Custom\", mode = \"All\", display_name = \"Allowed env tags (c1)\", policy_rule = file(\"${path.module}/rules/allowed-envs.json\"), parameters = jsonencode({ allowedEnvs = { type = \"Array\" } }) }` and `resource \"azurerm_resource_group_policy_assignment\" \"allowed_envs\" { name = \"allowed-envs-c1\", resource_group_id = azurerm_resource_group.c1.id, policy_definition_id = azurerm_policy_definition.allowed_envs.id, parameters = jsonencode({ allowedEnvs = { value = [\"dev\", \"test\"] } }) }`. `tofu init && tofu apply`, `git add . && git commit -m 'c1' && git push origin main`, `dojo check c1`, then `tofu destroy`."
 }

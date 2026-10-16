@@ -11,5 +11,5 @@ What the platform provides:
 
 - The app is built from this repo's `Dockerfile` and listens on port 5000.
 - Your pull request is built and tested before it can be merged; merging to `main` redeploys your slot.
-- `dojo-check customer-portal` in your terminal reports whether the live app is still exploitable.
+- `dojo check customer-portal` in your terminal reports whether the live app is still exploitable.
 - Request logs from your slot appear in the security dashboard.

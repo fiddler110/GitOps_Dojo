@@ -138,7 +138,7 @@ EOF
   # password from GIT_ASKPASS (bot-runner.sh exports it; see
   # bot-askpass.sh), so the bot run itself never needed this -- but anything
   # else acting as a bot does: the achievements module writes a real Forgejo
-  # token to ~/.git-credentials so `dojo-check` can prove who the bot is
+  # token to ~/.git-credentials so `dojo check` can prove who the bot is
   # (modules/achievements/terminal/dojo-achievements-bot.sh), and without
   # `store` configured git ignores that file. A facilitator or a test
   # driving git as a bot then hits "could not read Username for

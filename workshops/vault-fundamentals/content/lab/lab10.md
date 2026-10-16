@@ -36,9 +36,11 @@ sequenceDiagram
 
 ## 1. Catch up
 
-This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), AppRole (Lab 6), and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway). It also switches your clone to `main` and pulls the latest:
+This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), AppRole (Lab 6), and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway). It also switches your clone to `main` and pulls the latest.
 
-```bash
+**Your turn:** run it. It should finish without an error.
+
+```sh
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 bao kv get team/app >/dev/null 2>&1 || until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
@@ -54,27 +56,37 @@ cd ~/lab/vault-fundamentals && git switch main && git pull
 
 ## 2. The app's role, made strict
 
-Lab 6's role handed out secret IDs that lasted an hour and worked any number of times. Start the role again, with the settings a delivered secret ID should have:
-
-```bash
-bao delete auth/approle/role/app
-bao write auth/approle/role/app \
-    token_policies=app-read token_period=10m \
-    secret_id_num_uses=1 secret_id_ttl=5m
-```
+Lab 6's role handed out secret IDs that lasted an hour and worked any number of times. You start the role again, with the settings a delivered secret ID should have:
 
 - `bao delete` first: every secret ID Lab 6 made dies with the old role.
 - `secret_id_num_uses=1`: a secret ID logs in **once**, then it's spent.
 - `secret_id_ttl=5m`: one that's never used is worthless after five minutes.
 - `token_period=10m`: a **periodic** token. It has no maximum age: it lives as long as someone renews it within ten minutes. The Agent does that for as long as the app runs, so the app never needs a second login, or a second secret ID. If the app stops, nobody renews it and it lapses.
 
+**Your turn:** run these. Predict what happens to the secret IDs Lab 6 made.
+
+```sh
+bao delete auth/approle/role/app
+bao write auth/approle/role/app \
+    token_policies=app-read token_period=10m \
+    secret_id_num_uses=1 secret_id_ttl=5m
+```
+
+<!-- dojo-reveal: Result of the strict role -->
+
+They die with the old role, and the new role is written.
+
+<!-- /dojo-reveal -->
+
 ## 3. The deliverer's policy
 
 The deliverer may **make** secret IDs for `app`, and nothing else. It can't read `team/app`, and it can't even see a secret ID: the policy refuses any request that isn't **response-wrapped**. **Response wrapping** means the vault doesn't return the answer itself: it locks it in a one-time box and returns a **wrapping token**, the key to that box.
 
+`update` on `.../secret-id` is "make a new secret ID". The two `wrapping_ttl` lines are what forces wrapping: a request must ask for a wrapper that lives between 10 and 120 seconds, and a request without one is refused.
+
 Keep the policy as code, in the repo. Make a folder for it:
 
-```bash
+```sh
 mkdir -p policies
 ```
 
@@ -89,17 +101,19 @@ path "auth/approle/role/app/secret-id" {
 }
 ```
 
-`update` on `.../secret-id` is "make a new secret ID". The two `wrapping_ttl` lines are what forces wrapping: a request must ask for a wrapper that lives between 10 and 120 seconds, and a request without one is refused. Save it, and upload it:
+**Your turn:** save it, and upload it.
 
-```bash
+```sh
 bao policy write app-deliver policies/app-deliver.hcl
 ```
 
 ## 4. Be the deliverer once, by hand
 
-Before a pipeline does it, do it yourself with a token that has only `app-deliver` (the way Lab 4 tested `app-read`). Run these one at a time, and read each answer:
+Before a pipeline does it, do it yourself with a token that has only `app-deliver` (the way Lab 4 tested `app-read`). `bao unwrap` with no argument opens the wrapper it's signed in with, so `BAO_TOKEN=...` in front hands it the wrapper without putting it on the command line (Lab 3: on a shared machine every account can see a command line in `ps`). A wrapper opens **once**.
 
-```bash
+**Your turn:** run these one at a time, and read each answer. Predict which of the first three are refused.
+
+```sh
 DELIVER=$(bao token create -orphan -policy=app-deliver -ttl=10m -field=token)
 BAO_TOKEN=$DELIVER bao kv get team/app                           # 403: it can't even see team/
 BAO_TOKEN=$DELIVER bao write -f auth/approle/role/app/secret-id  # permission denied: not wrapped
@@ -107,22 +121,31 @@ WRAPPED=$(BAO_TOKEN=$DELIVER bao write -f -wrap-ttl=60s -field=wrapping_token au
 printf '%s' "$WRAPPED" | bao write sys/wrapping/lookup token=-
 ```
 
+<!-- dojo-reveal: Results of the hand-off commands -->
+
 The first two are refused: `kv get` stops at its preflight check (`preflight capability check returned 403`: this token can't even see the `team/` mount), and the unwrapped request gets `permission denied`. The third asks for the same thing wrapped (`-wrap-ttl=60s`), and works. What came back isn't the secret ID: it's the **wrapping token**. The lookup shows the box's label, not what's inside: `creation_path` (where it was made, so the app can check it came from the right place) and `creation_ttl` (60 seconds, then it's gone).
 
-Open it, as the app would. Then try to open it again, as someone who intercepted it would:
+<!-- /dojo-reveal -->
 
-```bash
+**Your turn:** open it, as the app would. Then try to open it again, as someone who intercepted it would. Predict the second result.
+
+```sh
 SECRET_ID=$(BAO_TOKEN="$WRAPPED" bao unwrap -field=secret_id) && echo "unwrapped: got a secret ID"
 BAO_TOKEN="$WRAPPED" bao unwrap
 ```
 
-`bao unwrap` with no argument opens the wrapper it's signed in with, so `BAO_TOKEN=...` in front hands it the wrapper without putting it on the command line (Lab 3: on a shared machine every account can see a command line in `ps`). The lookup above did the same with `token=-` and standard input.
 
-The second one fails: `wrapping token is not valid or does not exist`. A wrapper opens **once**. If the app ever gets that error, someone opened its wrapper first: an interception you *know* about, instead of one you don't.
+<!-- dojo-reveal: Result of unwrapping twice -->
 
-Now log in with the secret ID, twice. The first login prints only the parts of the answer worth seeing (`jq` picks them out); then the deliverer's token is revoked and the variables cleared:
+The first prints `unwrapped: got a secret ID`. The second fails: `wrapping token is not valid or does not exist`. A wrapper opens **once**. If the app ever gets that error, someone opened its wrapper first: an interception you *know* about, instead of one you don't. (The lookup above did the same hand-off with `token=-` and standard input.)
 
-```bash
+<!-- /dojo-reveal -->
+
+Now log in with the secret ID, twice. The first login prints only the parts of the answer worth seeing (`jq` picks them out); then the deliverer's token is revoked and the variables cleared.
+
+**Your turn:** run these. Predict whether the second login works.
+
+```sh
 ROLE_ID=$(bao read -field=role_id auth/approle/role/app/role-id)
 printf '%s' "$SECRET_ID" | bao write -format=json auth/approle/login role_id="$ROLE_ID" secret_id=- \
   | jq '.auth | {policies, lease_duration, renewable}'
@@ -131,15 +154,21 @@ BAO_TOKEN="$DELIVER" bao token revoke -self
 unset SECRET_ID WRAPPED DELIVER
 ```
 
+<!-- dojo-reveal: Results of the two logins -->
+
 The first login gets `app-read` and a 600-second, renewable token. The second: `invalid role or secret ID`. It was spent at the first login. (Nobody renews the token you just got, so it lapses in ten minutes by itself.)
+
+<!-- /dojo-reveal -->
 
 That's the whole hand-off. Next, a pipeline does it at every deploy.
 
 ## 5. A CI identity for the deliverer
 
-The pipeline logs in with its **job's own identity**, as in Lab 9, so it has no stored secret of its own. A new role on the same `jwt-ci` login, in the same JSON form as Lab 9's `ci-main`: only your fork, only `main`, and only `app-deliver`:
+The pipeline logs in with its **job's own identity**, as in Lab 9, so it has no stored secret of its own. You add a new role on the same `jwt-ci` login, in the same JSON form as Lab 9's `ci-main`: only your fork, only `main`, and only `app-deliver`.
 
-```bash
+**Your turn:** run it.
+
+```sh
 bao write auth/jwt-ci/role/deliver-main - <<EOF
 {
   "role_type": "jwt",
@@ -159,9 +188,11 @@ EOF
 
 The app goes in `app/` in your repo. It runs on `app-host`, which runs one **slot** per student: a Linux user with your name, whose home is `/srv/apps/<you>`. At each deploy, `app-host` unpacks the `app/` folder there and runs its `start.sh`.
 
-Four files go in `app/`, and none of them is a secret. The first is the **role ID**: it's the app's user name, not a secret, since on its own it logs nobody in. Write it from the vault:
+Four files go in `app/`, and none of them is a secret. The first is the **role ID**: it's the app's user name, not a secret, since on its own it logs nobody in. The other three are the Agent's config, the start script and the app.
 
-```bash
+**Your turn:** write the role ID from the vault into the folder.
+
+```sh
 mkdir -p app
 bao read -field=role_id auth/approle/role/app/role-id > app/role-id
 ```
@@ -288,7 +319,7 @@ The deploy workflow uses **two identities, one per job to do**, as the platform 
 
 Make sure the workflows folder is there:
 
-```bash
+```sh
 mkdir -p .forgejo/workflows
 ```
 
@@ -337,70 +368,89 @@ jobs:
           rm -f app.tgz
 ```
 
-Step by step:
+Save it. Step by step:
 
 - **Get the code**: clone the repo at the commit that was pushed.
 - **Deliver**: get an ID token for the vault (as in Lab 9) and log in as `deliver-main`. Prove it can't read `team/app`, and stop the job if it can. Ask for a wrapped secret ID and write the wrapper to `src/app/secret-id`, readable by the job only (`umask 077`). Print what the wrapper says about itself, never the wrapper. Revoke the job's vault token.
 - **Deploy**: get a second ID token, this time for `app-host`. Pack `app/` (with the wrapper) into `app.tgz`, delete the wrapper from the job's disk, and send the bundle to `app-host`, which answers with your slot's state.
 
-Save it. Commit everything and push:
+**Your turn:** commit everything and push, then in Forgejo → **Actions**, open the **deploy** run. Predict what the deliver step says about the deliverer.
 
-```bash
+```sh
 git add policies app .forgejo/workflows/deploy.yml
 git commit -m "Deploy the app; the pipeline delivers its secret ID"
 git push
 ```
 
-In Forgejo → **Actions**, open the **deploy** run:
+<!-- dojo-reveal: Result of the deploy run -->
 
 - The deliver step says `permission denied for the deliverer`, then shows the wrapper's `creation_path` and a `creation_ttl` of 60. No secret ID, and no wrapper, is in the log.
 - The deploy step prints `"state": "running"` and your slot.
 
+<!-- /dojo-reveal -->
+
 ## 8. Look at the app
 
-Ask the app for its page, and work out the fingerprint to expect for `API_KEY`:
+**Your turn:** ask the app for its page, and work out the fingerprint to expect for `API_KEY`. Predict whether the secret-id file is still there. (Or open the **My App** card on the landing page, then **Open the app**.)
 
-```bash
+```sh
 curl -s http://app-host:8080/$USER/
 printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12
 ```
 
-Or open the **My App** card on the landing page, then **Open the app**. You'll see:
+<!-- dojo-reveal: Result of the app page -->
 
 - `delivered secret-id file: gone`. The Agent opened the wrapper, logged in, and deleted the file.
 - `API_KEY` and `DB_PASSWORD` fingerprints; the `API_KEY` one matches the vault's.
 
 The **My App** page also shows your slot's log: the Agent's `authentication successful` and `rendered` lines.
 
+<!-- /dojo-reveal -->
+
 ## 9. Check what's left
 
-The secret ID is spent, so the vault no longer lists it. The audit log shows who did what: `deliver-main` made it, and the app's login used it. `bao-audit` shows your namespace's audit entries; here the last 4 under `auth/approle`:
+The secret ID is spent, so the vault no longer lists it. The audit log shows who did what: `deliver-main` made it, and the app's login used it. `bao-audit` shows your namespace's audit entries; here the last 4 under `auth/approle`.
 
-```bash
+**Your turn:** run these. Before you do, predict whether any secret ID is left for `app`, and which address made each request.
+
+```sh
 bao list auth/approle/role/app/secret-id
 bao-audit --path auth/approle -n 4 --json \
   | jq '.[] | {time, path, display_name, policies, remote_address}'
 ```
 
+
+<!-- dojo-reveal: Results of the audit check -->
+
 - `No value found`: no secret ID for `app` is left to steal, anywhere.
 - `auth/approle/role/app/secret-id` came from the pipeline: its `display_name` names the `jwt-ci` login, your repo and `refs/heads/main`, and its only policy is `app-deliver`.
 - `auth/approle/login` came a few seconds later from a **different address** (`app-host`), with `app-read`: the Agent, using the secret ID once.
+
+<!-- /dojo-reveal -->
 
 Push again, and it all happens again with a **brand-new** secret ID. That is the rotation: nobody schedules it, every deploy just does it.
 
 ## 10. A branch gets nothing
 
-The deliverer's role trusts `main` only. Push an empty commit from a branch, as in Lab 9:
+The deliverer's role trusts `main` only.
 
-```bash
+**Your turn:** push an empty commit from a branch, as in Lab 9. Predict which step of the **deploy** run fails.
+
+```sh
 git switch -c try-a-branch
 git commit --allow-empty -m "Try a deploy from a branch"
 git push -u origin try-a-branch
 ```
 
+<!-- dojo-reveal: Result of the branch deploy -->
+
 The **deploy** run fails at the deliver step: `claim "ref" does not match any associated bound claim values`. A branch can't get a secret ID for your app, so unreviewed code can't log in as it.
 
-```bash
+<!-- /dojo-reveal -->
+
+Clean up:
+
+```sh
 git switch main
 git branch -D try-a-branch
 git push origin --delete try-a-branch
@@ -408,19 +458,25 @@ git push origin --delete try-a-branch
 
 ## 11. The cost: a restart without a deploy
 
-The app crashes, or the server reboots. `app-host` starts it again, as any platform would. Try it: tell the app to stop, give the platform 15 seconds to start it again, and look:
+The app crashes, or the server reboots. `app-host` starts it again, as any platform would.
 
-```bash
+**Your turn:** tell the app to stop, give the platform 15 seconds to start it again, and look. Predict: will the app come back, and will it have its secrets?
+
+```sh
 curl -s -X POST http://app-host:8080/$USER/restart
 sleep 15
 curl -s http://app-host:8080/$USER/
 ```
 
+<!-- dojo-reveal: Result of the restart -->
+
 The app is back, but it has **no secrets**. On the **My App** page, the log shows the platform restarting it, then the Agent trying again and again: `error="no known secret ID"`. Its secret ID was spent at the last deploy, and the file is gone. That's exactly what you asked for (used once, then worthless), and it has a price: **only a new deploy brings the app back**, because only the deliverer can make a new secret ID.
 
-Deploy again with an empty commit, wait for the run, and look:
+<!-- /dojo-reveal -->
 
-```bash
+**Your turn:** deploy again with an empty commit, wait for the run, and look.
+
+```sh
 git commit --allow-empty -m "Redeploy: a new secret ID"
 git push
 sleep 45
@@ -428,7 +484,13 @@ curl -s http://app-host:8080/$USER/
 unset BAO_NAMESPACE
 ```
 
-The fingerprints are back. It works, but the app now depends on the pipeline to start. That's the trade-off of option 2. **What if nobody had to deliver anything?** If the platform itself could vouch for the app, a restart would just log in again. That's Lab 11.
+<!-- dojo-reveal: Result of the redeploy -->
+
+The fingerprints are back.
+
+<!-- /dojo-reveal -->
+
+It works, but the app now depends on the pipeline to start. That's the trade-off of option 2. **What if nobody had to deliver anything?** If the platform itself could vouch for the app, a restart would just log in again. That's Lab 11.
 
 ## At work
 
@@ -438,10 +500,38 @@ The fingerprints are back. It works, but the app now depends on the pipeline to 
 
 ## Check yourself
 
-1. What can the pipeline do in the vault? *(Make wrapped secret IDs for the `app` role, and nothing else. It can't read `team/app`, can't get an unwrapped secret ID, and only from `main`.)*
-2. Someone copies the wrapper from the bundle and opens it first. What happens? *(They get a secret ID the app then can't have: the app's Agent fails with `wrapping token is not valid or does not exist`, which tells you it was intercepted. And that secret ID dies in five minutes or at one use.)*
-3. Why does a restart without a deploy fail, and why is that the price, not a bug? *(The secret ID was single-use and spent at the last deploy. Single use is what makes it worthless to a thief; the cost is that only the deliverer can start the app again.)*
-4. Why is the role ID fine in git? *(It's a user name: on its own it logs nobody in. The half that matters travels separately, once, wrapped.)*
+1. What can the pipeline do in the vault?
+
+<!-- dojo-reveal: Show the answer -->
+
+Make wrapped secret IDs for the `app` role, and nothing else. It can't read `team/app`, can't get an unwrapped secret ID, and only from `main`.
+
+<!-- /dojo-reveal -->
+
+2. Someone copies the wrapper from the bundle and opens it first. What happens?
+
+<!-- dojo-reveal: Show the answer -->
+
+They get a secret ID the app then can't have: the app's Agent fails with `wrapping token is not valid or does not exist`, which tells you it was intercepted. And that secret ID dies in five minutes or at one use.
+
+<!-- /dojo-reveal -->
+
+3. Why does a restart without a deploy fail, and why is that the price, not a bug?
+
+<!-- dojo-reveal: Show the answer -->
+
+The secret ID was single-use and spent at the last deploy. Single use is what makes it worthless to a thief; the cost is that only the deliverer can start the app again.
+
+<!-- /dojo-reveal -->
+
+4. Why is the role ID fine in git?
+
+<!-- dojo-reveal: Show the answer -->
+
+It's a user name: on its own it logs nobody in. The half that matters travels separately, once, wrapped.
+
+<!-- /dojo-reveal -->
+
 
 **Rules used:** 4 (secret zero, delivered small), 5 (the deliverer deploys, it can't read), 3 (a five-minute, single-use secret ID; a periodic token), 7 (every deploy rotates it), 6 (the audit shows both halves), 1 (one role, one path, one branch).
 

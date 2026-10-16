@@ -935,6 +935,20 @@
     "merging_after": false
    },
    "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "gitleaks git -v --no-banner .",
+    "exit": 1,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-leak"
+   ]
   }
  ],
  "lab5": [
@@ -1478,6 +1492,32 @@
    ],
    "expect": [
     "l1-push"
+   ]
+  },
+  {
+   "shell": {
+    "cmd": "gitleaks git -v --no-banner .",
+    "exit": 0,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": []
+  },
+  {
+   "shell": {
+    "cmd": "gitleaks git -v --no-banner .",
+    "exit": 1,
+    "branch": "main",
+    "branch_before": "main",
+    "in_repo": true,
+    "merging": false,
+    "merging_after": false
+   },
+   "expect": [
+    "f-leak"
    ]
   }
  ]

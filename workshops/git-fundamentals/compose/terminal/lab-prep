@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lab-prep <lab>: bring this student's workspace to the state lab <lab> starts
+# dojo-summary: catch your workspace up to where a lab starts: dojo prep N (safe to repeat)
+# dojo prep <lab>: bring this student's workspace to the state lab <lab> starts
 # from, so someone joining late (or coming back another day) can resume there
 # instead of redoing every earlier lab. Each step checks before it acts, so
 # running it twice, or after doing some labs by hand, is safe. It never
@@ -22,13 +23,13 @@ LAST_LAB=5
 MIN_LAB=1
 usage() {
   cat <<EOF2
-Usage: lab-prep <lab>       (1-$LAST_LAB)
+Usage: dojo prep <lab>       (1-$LAST_LAB)
 
 Sets up everything the earlier labs would have left behind, so you can start
 lab <lab> right away. Safe to run more than once.
 
-  lab-prep 2    clone the repo (labs 2-5 all start from a clone on main)
-  lab-prep 4    ...and build ~/lab/history-repo, Lab 4's practice history
+  dojo prep 2    clone the repo (labs 2-5 all start from a clone on main)
+  dojo prep 4    ...and build ~/lab/history-repo, Lab 4's practice history
 EOF2
 }
 

@@ -22,9 +22,11 @@
 
 ## 1. Catch up
 
-This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), lab 9's CI login, and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway):
+This lab uses your namespace, `team/app` and the `app-read` policy (Labs 4 and 6), lab 9's CI login, and your fork (Lab 8). If you skipped any of them, this block catches you up (it's safe to run anyway).
 
-```bash
+**Your turn:** run it. It should finish without an error.
+
+```sh
 export BAO_NAMESPACE=students/$USER
 bao secrets list | grep -q '^team/' || bao secrets enable -path=team kv-v2
 bao kv get team/app >/dev/null 2>&1 || until echo '{"db_password": "app-db-pass", "api_key": "app-api-key"}' | bao kv put team/app -; do sleep 2; done
@@ -46,41 +48,49 @@ cd ~/lab/vault-fundamentals && git switch main && git pull
 
 `app-host` runs one **slot** per student. Your slot is a Linux user with your name, and your app runs there as that user. Nobody else's code runs as you, and yours can't see theirs.
 
-Every few minutes the platform writes your slot a fresh **identity token**: a JWT, signed with the platform's own key, valid for ten minutes, readable only by your slot. It says `sub: slot:<you>`. To let others check that signature, the platform publishes its **public** keys, the way Kubernetes and Azure publish theirs. Look at them:
+Every few minutes the platform writes your slot a fresh **identity token**: a JWT, signed with the platform's own key, valid for ten minutes, readable only by your slot. It says `sub: slot:<you>`. To let others check that signature, the platform publishes its **public** keys, the way Kubernetes and Azure publish theirs. Your namespace already trusts those keys (your facilitator set that up, as with `jwt-ci` in Lab 9).
 
-```bash
+**Your turn:** look at the platform's public keys and at the vault's trust in them. Predict: do the keys contain anything secret?
+
+```sh
 curl -s http://app-host:8080/.well-known/jwks.json | jq '.keys[] | {kid, kty, alg}'
-```
-
-Your namespace already trusts those keys (your facilitator set that up, as with `jwt-ci` in Lab 9):
-
-```bash
 bao read auth/jwt-platform/config
 ```
 
+<!-- dojo-reveal: Results of the platform keys and trust -->
+
+No: only key IDs, types and algorithms of **public** keys. The config names the platform's issuer and where the vault fetches those keys.
+
+<!-- /dojo-reveal -->
+
+
 ## 3. A role for your slot
 
-What's missing is the **role**: which slot may log in, and what it gets. Only your slot, with the audience `openbao`, and only `app-read`:
+What's missing is the **role**: which slot may log in, and what it gets. Only your slot, with the audience `openbao`, and only `app-read`. `bound_subject` is the whole trust decision: a token that says `slot:<someone else>` is refused, even though the same platform signed it.
 
-```bash
+**Your turn:** create the role.
+
+```sh
 bao write auth/jwt-platform/role/app \
   role_type=jwt user_claim=sub bound_audiences=openbao \
   bound_subject="slot:$USER" \
   token_policies=app-read token_ttl=15m token_max_ttl=1h
 ```
 
-`bound_subject` is the whole trust decision: a token that says `slot:<someone else>` is refused, even though the same platform signed it.
-
 ## 4. The app, and the Agent next to it
 
-The app stays in `app/` in your repo. Three files, and **none of them holds a secret**. If you did Lab 10, you're replacing its files, and its role ID goes: nothing will log in with AppRole any more. Make sure the folder is there, and remove the role ID (`--ignore-unmatch`: no error if it isn't there):
+The app stays in `app/` in your repo. Three files, and **none of them holds a secret**. If you did Lab 10, you're replacing its files, and its role ID goes: nothing will log in with AppRole any more. Make sure the folder is there, and remove the role ID (`--ignore-unmatch`: no error if it isn't there).
 
-```bash
+**Your turn:** run these.
+
+```sh
 mkdir -p app
 git rm -q --ignore-unmatch app/role-id
 ```
 
-**The Agent's config.** In VS Code, create or open **app → `agent.hcl`**, and replace the whole file with this. It has your user name in three places (the lab page fills it in; if you see student**XX**, replace it with yours):
+**The Agent's config.** The only change from Lab 10 is `auto_auth`: the `jwt` method, on the `jwt-platform` login, reads the platform's token from your slot's file and logs in as the role `app`. It must not delete that file (`remove_jwt_after_reading = false`): the platform replaces it every few minutes, and the Agent logs in again with the new one when it needs to.
+
+In VS Code, create or open **app → `agent.hcl`**, and replace the whole file with this. It has your user name in three places (the lab page fills it in; if you see student**XX**, replace it with yours):
 
 ```hcl
 vault {
@@ -115,9 +125,7 @@ template {
 }
 ```
 
-The only change from Lab 10 is `auto_auth`: the `jwt` method, on the `jwt-platform` login, reads the platform's token from your slot's file and logs in as the role `app`. It must not delete that file (`remove_jwt_after_reading = false`): the platform replaces it every few minutes, and the Agent logs in again with the new one when it needs to.
-
-**How the platform starts it.** Replace **app → `start.sh`** with this (`$HOME` is your slot's home, `/srv/apps/<you>`):
+**How the platform starts it.** No delivered file to clean up any more; a restart just logs in again. Replace **app → `start.sh`** with this (`$HOME` is your slot's home, `/srv/apps/<you>`):
 
 ```sh
 #!/bin/sh
@@ -126,8 +134,6 @@ mkdir -p "$HOME/secrets"
 bao agent -config=agent.hcl &
 exec python3 app.py
 ```
-
-No delivered file to clean up any more; a restart just logs in again.
 
 **The app.** It still knows nothing about vaults: it reads the Agent's file on every request and shows fingerprints, never values. It also shows what the platform says about it, tries to read another slot's identity (to prove it can't), and has a database part for Lab 12. Replace **app → `app.py`** with this:
 
@@ -219,7 +225,7 @@ The deploy workflow replaces Lab 10's: there's no deliver step any more. It stil
 
 Make sure the workflows folder is there:
 
-```bash
+```sh
 mkdir -p .forgejo/workflows
 ```
 
@@ -260,62 +266,77 @@ jobs:
           echo "team/app: permission denied for the pipeline, as it should be."
 ```
 
-Save it. Commit everything and push:
+**Your turn:** save it, commit everything and push, then in Forgejo → **Actions**, open the **deploy** run. Predict what the last step says.
 
-```bash
+```sh
 git add app .forgejo/workflows/deploy.yml
 git commit -m "Deploy the app to app-host"
 git push
 ```
 
-In Forgejo → **Actions**, open the **deploy** run. The deploy step prints `"state": "running"` and your slot; the last step says the pipeline was refused `team/app`.
+<!-- dojo-reveal: Result of the deploy run -->
+
+The deploy step prints `"state": "running"` and your slot; the last step says the pipeline was refused `team/app`.
+
+<!-- /dojo-reveal -->
+
 
 ## 6. Look at the app
 
-From the terminal:
+**Your turn:** from the terminal, ask the app for its page (or open the **My App** card on the landing page, then **Open the app**). Predict what it says about a neighbour's identity. Then compare the `API_KEY` fingerprint with the vault's.
 
-```bash
+```sh
 curl -s http://app-host:8080/$USER/
-```
-
-Or open the **My App** card on the landing page, then **Open the app**. You'll see:
-
-- `platform identity: sub=slot:<you>`: who the platform says this app is.
-- Another slot's identity: `Permission denied`. The app runs as your slot's user; it can't read a neighbour's token.
-- `API_KEY` and `DB_PASSWORD` fingerprints. Compare one with the vault:
-
-```bash
 printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12
 ```
 
+<!-- dojo-reveal: Results of the app page -->
+
+- `platform identity: sub=slot:<you>`: who the platform says this app is.
+- Another slot's identity: `Permission denied`. The app runs as your slot's user; it can't read a neighbour's token.
+- `API_KEY` and `DB_PASSWORD` fingerprints; the `API_KEY` one matches the vault's.
+
 The **My App** page also shows your slot's log: the Agent's `authentication successful` and `rendered` lines.
+
+<!-- /dojo-reveal -->
 
 ## 7. Rotate, with no deploy
 
-Change the API key in the vault, give the Agent 12 seconds (it checks every 10), then compare the app's fingerprint with the vault's:
+**Your turn:** change the API key in the vault, give the Agent 12 seconds (it checks every 10), then compare the app's fingerprint with the vault's. Predict whether they match.
 
-```bash
+```sh
 printf '%s' "rotated-$(date +%s)" | bao kv patch team/app api_key=-
 sleep 12
 curl -s http://app-host:8080/$USER/ | grep API_KEY
 printf %s "$(bao kv get -field=api_key team/app)" | sha256sum | cut -c1-12
 ```
 
+<!-- dojo-reveal: Result of the rotation -->
+
 The new fingerprint is live. No commit, no pipeline run, no restart: the Agent noticed and rewrote the file.
+
+<!-- /dojo-reveal -->
+
 
 ## 8. A branch can't deploy
 
-Push an empty commit from a branch, as in Labs 9 and 10:
+**Your turn:** push an empty commit from a branch, as in Labs 9 and 10. Predict which step fails.
 
-```bash
+```sh
 git switch -c try-a-branch
 git commit --allow-empty -m "Try a deploy from a branch"
 git push -u origin try-a-branch
 ```
 
+<!-- dojo-reveal: Result of the branch deploy -->
+
 The **deploy** run fails at its deploy step: `deploy refused: only main deploys; this run is on 'refs/heads/try-a-branch'`. The same person, the same repo, the same workflow: the platform still says no, because the job's identity says it's a branch.
 
-```bash
+<!-- /dojo-reveal -->
+
+Clean up:
+
+```sh
 git switch main
 git push origin --delete try-a-branch
 unset BAO_NAMESPACE
@@ -329,9 +350,30 @@ unset BAO_NAMESPACE
 
 ## Check yourself
 
-1. What stops student02's app from logging in as your app? *(It can't read your slot's token file (the platform gives each slot its own user), and your role accepts only `sub: slot:<you>`.)*
-2. The pipeline deployed the app. Why can't it read the app's secrets? *(It has two identities with different rights: the platform lets it deploy, the vault gives it `ci-read` only. Separation of duties.)*
-3. Where is the app's password stored on the server? *(In a file only the slot's user can read, written by the Agent from the vault. It isn't in the repo, the image, the pipeline or an environment variable, and a rotation reaches it without a deploy.)*
+1. What stops student02's app from logging in as your app?
+
+<!-- dojo-reveal: Show the answer -->
+
+It can't read your slot's token file (the platform gives each slot its own user), and your role accepts only `sub: slot:<you>`.
+
+<!-- /dojo-reveal -->
+
+2. The pipeline deployed the app. Why can't it read the app's secrets?
+
+<!-- dojo-reveal: Show the answer -->
+
+It has two identities with different rights: the platform lets it deploy, the vault gives it `ci-read` only. Separation of duties.
+
+<!-- /dojo-reveal -->
+
+3. Where is the app's password stored on the server?
+
+<!-- dojo-reveal: Show the answer -->
+
+In a file only the slot's user can read, written by the Agent from the vault. It isn't in the repo, the image, the pipeline or an environment variable, and a rotation reaches it without a deploy.
+
+<!-- /dojo-reveal -->
+
 
 **Rules used:** 2 (the app proves where it runs; no password handed over), 5 (deploy without read), 3 (ten-minute platform tokens, fifteen-minute vault tokens), 1 (one slot, one path), 4 (no secret zero: the platform is the root of trust).
 

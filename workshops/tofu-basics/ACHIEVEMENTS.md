@@ -9,7 +9,7 @@ column) name where the event comes from:
 - `shell:` the student ran this command and it exited as stated (shell hook; the command and the branch are logged)
 - `forgejo:` a Forgejo webhook event for that student
 - `dns:`, `ca:`, `cloud:`, `bao:` an audit or activity line from that service, read by the module that owns it
-- `verify:` the achievements service checks the end state (verifiers, run by `dojo-check` or after an event)
+- `verify:` the achievements service checks the end state (verifiers, run by `dojo check` or after an event)
 
 `{user}` is the student's login (`student07`). Jokes are the toast text.
 
@@ -161,11 +161,11 @@ capstone's clean-up) does not undo it.
 - **Points:** 100
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c1` (cloned to `~/lab/challenge-c1`, own state); resources tagged `challenge=c1`
 - **Goal shown to the student:** Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL.
-- **Seed:** `dojo-challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.
+- **Seed:** `dojo challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.
 - **Verify:** Dojo Cloud (the student's own subscription, read-only): exactly one `challenge=c1` container running, site name `{user}-second`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` of `{user}/challenge-c1` declares `output "url"` whose value is a URL (a string with `http://`, `https://` or the portal's `/site/` path, not a bare host name; push it). Not checked: that the URL points at this site, and that the code is the only source of the site (the state is not read).
 - **Hint 1:** Copy your first site, and remember what the policy asked for.
 - **Hint 2:** Tags, region, size, and a new name.
-- **Answer:** `dojo-challenge start c1`, `cd ~/lab/challenge-c1`, then in `main.tf`: location `canadacentral`, `cpu = 0.25`, tags `{ owner = var.owner, env = "dev", challenge = "c1" }` on the group (and the resource group), `dns_name_label = "{user}-second"`, and add `output "url" { value = "${var.portal_base_url}/site/{user}-second/" }` (with a `portal_base_url` variable, as in Lab 5). `tofu init && tofu apply`, `git add . && git commit && git push origin main`, `dojo-check c1`.
+- **Answer:** `dojo challenge start c1`, `cd ~/lab/challenge-c1`, then in `main.tf`: location `canadacentral`, `cpu = 0.25`, tags `{ owner = var.owner, env = "dev", challenge = "c1" }` on the group (and the resource group), `dns_name_label = "{user}-second"`, and add `output "url" { value = "${var.portal_base_url}/site/{user}-second/" }` (with a `portal_base_url` variable, as in Lab 5). `tofu init && tofu apply`, `git add . && git commit && git push origin main`, `dojo check c1`.
 - **Collision check:** the site name has `{user}`, so the class-wide unique DNS label can't clash; the cloud check reads only the checking student's own subscription (the verb takes no account argument), and the repo is their own.
 
 ### C2: Quota Whisperer (after Lab 9; needs 1 free container group)
@@ -173,11 +173,11 @@ capstone's clean-up) does not undo it.
 - **Points:** 100
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, own state); resources tagged `challenge=c2`
 - **Goal shown to the student:** Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.
-- **Seed:** `dojo-challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.
+- **Seed:** `dojo challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.
 - **Verify:** Dojo Cloud (own subscription, read-only): one or two `challenge=c2` containers running, each with a `{user}-c2-` site name and the `owner` and `env` tags (the exact count depends on the quota left from the labs, so any count from 1 to 2 passes); and `main.tf` on `main` of `{user}/challenge-c2` no longer declares the original list of 5 sites (push the change). Not checked: that the last `apply` had no `QuotaExceeded` and that the plan is clean (shell output and state are not read); the pushed code stands in for them.
 - **Hint 1:** The error tells you the limit.
 - **Hint 2:** The list feeding `for_each` is what decides how many.
-- **Answer:** `dojo-challenge start c2`, `cd ~/lab/challenge-c2`, shorten `local.sites` to what fits (for example `["alpha"]`, or two names if the quota allows; `tofu apply` errors with `QuotaExceeded` and tells the limit), `tofu init && tofu apply`, commit and `git push origin main`, `dojo-check c2`.
+- **Answer:** `dojo challenge start c2`, `cd ~/lab/challenge-c2`, shorten `local.sites` to what fits (for example `["alpha"]`, or two names if the quota allows; `tofu apply` errors with `QuotaExceeded` and tells the limit), `tofu init && tofu apply`, commit and `git push origin main`, `dojo check c2`.
 - **Collision check:** every site label starts with `{user}-c2-`, so labels can't clash; the cloud check reads only the checking student's own subscription and the repo is their own; the challenge never asks for more than 2 groups.
 
 ## Capstone (300 points, optional): Site Factory
@@ -185,11 +185,11 @@ capstone's clean-up) does not undo it.
 - **Points:** 300
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/site-factory` (cloned to `~/lab/site-factory`, own state); resources tagged `challenge=capstone`
 - **Goal shown to the student:** Build, from scratch, one module-like layout that deploys **two** differently named sites from one `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing running.
-- **Seed:** `dojo-challenge start capstone` creates `{user}/site-factory` (cloned to `~/lab/site-factory`): a README with the brief, `providers.tf`, `versions.tf`, `variables.tf` (`owner`) and a `.gitignore`. All names use `{user}`.
-- **Verify:** Two steps. Step 1, while the sites run (`dojo-check capstone` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`. Step 2, after `tofu destroy` (`dojo-check capstone` again): no `challenge=capstone` container group is left in any state. The output map is not checked.
+- **Seed:** `dojo challenge start capstone` creates `{user}/site-factory` (cloned to `~/lab/site-factory`): a README with the brief, `providers.tf`, `versions.tf`, `variables.tf` (`owner`) and a `.gitignore`. All names use `{user}`.
+- **Verify:** Two steps. Step 1, while the sites run (`dojo check capstone` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`. Step 2, after `tofu destroy` (`dojo check capstone` again): no `challenge=capstone` container group is left in any state. The output map is not checked.
 - **Hint 1:** Lab 9 plus Lab 10, in one go.
 - **Hint 2:** `for_each` gives you `each.key`; outputs can use a `for` expression.
-- **Answer:** `dojo-challenge start capstone`, `cd ~/lab/site-factory`, write `main.tf` (one `azurerm_container_group` with `for_each = toset(["a", "b"])`, `dns_name_label = "{user}-${each.key}"`, tags `owner`, `env`, `challenge = "capstone"`, canadacentral, `cpu = 0.25`), `outputs.tf` (`output "urls" { value = { for k, g in azurerm_container_group.site : k => g.fqdn } }`), `tofu init && tofu apply`, push to `main`, `dojo-check capstone`, then `tofu destroy` and `dojo-check capstone` again.
+- **Answer:** `dojo challenge start capstone`, `cd ~/lab/site-factory`, write `main.tf` (one `azurerm_container_group` with `for_each = toset(["a", "b"])`, `dns_name_label = "{user}-${each.key}"`, tags `owner`, `env`, `challenge = "capstone"`, canadacentral, `cpu = 0.25`), `outputs.tf` (`output "urls" { value = { for k, g in azurerm_container_group.site : k => g.fqdn } }`), `tofu init && tofu apply`, push to `main`, `dojo check capstone`, then `tofu destroy` and `dojo check capstone` again.
 - **Collision check:** names carry `{user}`; the cloud check reads only the checking student's own subscription and the repo is their own; needs the 2 groups of the quota, so old lab sites must be destroyed first.
 - **Badge tier:** capstone (stars)
 

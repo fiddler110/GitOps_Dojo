@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""dojo: the one command a student learns, the same in every workshop.
+
+  dojo help               what this workshop's terminal can do
+  dojo help COMMAND       that command's own help
+  dojo COMMAND [args]     run a command, e.g. dojo challenge start c1
+
+Commands are plug-ins: an executable (or a link to one) in /usr/local/share/dojo/cmd.d/<name>.
+The base image ships `help` and `fix-terminal`; each module and workshop drops in its own
+(challenge, check, sensei, prep, ...), so a workshop shows only what it has. A command says what
+it does in a comment line in its file:
+
+  # dojo-summary: one line for `dojo help`
+  # dojo-summary(name): one line for the link called <name>, when one file serves several names
+
+The command runs with DOJO_SUBCOMMAND=<name> in its environment (and as argv[0]'s basename),
+so one file can behave differently behind different names. Stdlib only.
+"""
+import difflib
+import os
+import re
+import sys
+
+CMD_DIR = os.environ.get("DOJO_CMD_DIR", "/usr/local/share/dojo/cmd.d")
+NAME_OK = re.compile(r"^[a-z][a-z0-9-]*$")
+SUMMARY = re.compile(r"dojo-summary(?:\(([a-z][a-z0-9-]*)\))?:\s*(.+?)\s*$")
+# Shown first in `dojo help`, in this order, when present; the rest follow alphabetically.
+FIRST = ("challenge", "check", "prep", "sensei", "fix-terminal", "flag", "reset", "env")
+
+
+def commands():
+    """name -> path of every runnable entry (dangling links and non-executables are skipped)."""
+    found = {}
+    try:
+        names = sorted(os.listdir(CMD_DIR))
+    except OSError:
+        return found
+    for n in names:
+        p = os.path.join(CMD_DIR, n)
+        if NAME_OK.match(n) and os.path.isfile(p) and os.access(p, os.X_OK):
+            found[n] = p
+    return found
+
+
+def summary(name, path):
+    """The one-line description from the command's own file ('' if it has none)."""
+    generic = ""
+    try:
+        with open(path, "r", errors="replace") as f:
+            head = f.read(6000)
+    except OSError:
+        return ""
+    for line in head.splitlines():
+        m = SUMMARY.search(line)
+        if not m:
+            continue
+        if m.group(1) == name:
+            return m.group(2)
+        if m.group(1) is None and not generic:
+            generic = m.group(2)
+    return generic
+
+
+def ordered(cmds):
+    names = [n for n in FIRST if n in cmds] + sorted(n for n in cmds if n not in FIRST)
+    return names
+
+
+def show_help(cmds):
+    print("dojo: your lab's one command.  dojo COMMAND [args]\n")
+    rows = [("help", "this list; `dojo help COMMAND` for one command's options")]
+    rows += [(n, summary(n, cmds[n]) or "(no description)") for n in ordered(cmds) if n != "help"]
+    width = max(len(n) for n, _ in rows)
+    for n, d in rows:
+        print("  %-*s  %s" % (width, n, d))
+    print("\nNew to this? Try `dojo help` any time, and `dojo COMMAND` on its own to see how a command is used.")
+    return 0
+
+
+def run(name, path, args):
+    env = dict(os.environ, DOJO_SUBCOMMAND=name)
+    try:
+        os.execve(path, [path] + args, env)
+    except OSError as e:
+        print("dojo %s: cannot run it (%s)" % (name, e.strerror or e), file=sys.stderr)
+        return 126
+
+
+def main(argv):
+    cmds = commands()
+    if not argv or (len(argv) == 1 and argv[0] in ("-h", "--help", "help")):
+        return show_help(cmds)
+    if argv[0] == "--complete":
+        # name:description lines, for the shell completion
+        for n in ["help"] + [n for n in ordered(cmds) if n != "help"]:
+            print("%s:%s" % (n, (summary(n, cmds[n]) if n in cmds else "this list").replace(":", " -")))
+        return 0
+    if argv[0] in ("help", "-h", "--help"):
+        target = argv[1]
+        if target == "help":
+            return show_help(cmds)
+        if target not in cmds:
+            return unknown(target, cmds)
+        return run(target, cmds[target], ["--help"])
+    if argv[0] not in cmds:
+        return unknown(argv[0], cmds)
+    return run(argv[0], cmds[argv[0]], argv[1:])
+
+
+def unknown(name, cmds):
+    print("dojo: no command called '%s' in this workshop." % name, file=sys.stderr)
+    near = difflib.get_close_matches(name, list(cmds) + ["help"], n=2, cutoff=0.6)
+    if near:
+        print("Did you mean: %s" % ", ".join("dojo " + n for n in near), file=sys.stderr)
+    print("`dojo help` lists what is here.", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

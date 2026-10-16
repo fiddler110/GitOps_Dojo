@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""sensei: the class helper. Ask it about the labs, have it explain an error, or raise your hand.
+# dojo-summary: the class helper: ask about the labs, explain an error, raise your hand
+"""dojo sensei: the class helper. Ask it about the labs, have it explain an error, or raise your hand.
 
-  sensei help             this text
-  sensei ask "question"   search this workshop's labs (what do I run to undo a push?)
-  sensei why              explain the last error on your screen, if it is one Sensei knows
-  sensei hand "message"   raise your hand: the facilitator sees your message and your last screen of output
-  sensei inbox            replies to your hand-raises
-  (sensei notify, popup and watch are run for you: they announce the facilitator's replies; you don't call them)
-  sensei reply N "text"   answer the facilitator on request N (it goes back to the top of their queue)
-  sensei check            your progress: which steps of the current lab are done and what's next
-  sensei status           where your pull request stands with Sensei
-  sensei review           which pull request to review next (peer review unlocks your own approval)
+  dojo sensei help             this text
+  dojo sensei ask "question"   search this workshop's labs (what do I run to undo a push?)
+  dojo sensei why              explain the last error on your screen, if it is one Sensei knows
+  dojo sensei hand "message"   raise your hand: the facilitator sees your message and your last screen of output
+  dojo sensei inbox            replies to your hand-raises
+  (dojo sensei notify, popup and watch are run for you: they announce the facilitator's replies; you don't call them)
+  dojo sensei reply N "text"   answer the facilitator on request N (it goes back to the top of their queue)
+  dojo sensei check            your progress: which steps of the current lab are done and what's next
+  dojo sensei status           where your pull request stands with Sensei
+  dojo sensei review           which pull request to review next (peer review unlocks your own approval)
                           [only in workshops with peer review, e.g. dns-as-code; elsewhere Sensei merges for you]
-  sensei approve          ask Sensei to approve your pull request (needs a review of someone else's first,
+  dojo sensei approve          ask Sensei to approve your pull request (needs a review of someone else's first,
                           or a few minutes' wait)
-  sensei approve --force  approve it right now, if it follows the rules (your own records only, one change)
+  dojo sensei approve --force  approve it right now, if it follows the rules (your own records only, one change)
 
 Sensei never merges for you: the merge is yours to click (or run). Proves who you are with your own Forgejo
-token (~/.git-credentials), the same way dojo-check does. Stdlib only.
+token (~/.git-credentials), the same way dojo check does. Stdlib only.
 """
 import json
 import os
@@ -87,7 +88,7 @@ def status():
         print("  " + line + ("  [%d min]" % p["minutes"] if p["status"] not in ("merged", "approved") else ""))
     if doc["mode"] == "approve":
         if any(p["status"] == "waiting" for p in doc["prs"]):
-            print("  Next: `sensei review`, review what it gives you, then `sensei approve`.")
+            print("  Next: `dojo sensei review`, review what it gives you, then `dojo sensei approve`.")
         elif any(p["status"] == "approved" for p in doc["prs"]):
             print("  Approved. Merge it when the DNS Preview check is green.")
     return 0
@@ -106,7 +107,7 @@ def review():
     print("  Read Files changed and the DNS Preview comment: exactly one new record of theirs, one + CREATE?")
     print("  In the dnsconfig repo:  python3 scripts/dnsctl.py review %d" % pr["number"])
     print("                          python3 scripts/dnsctl.py approve %d   (only if it's right)" % pr["number"])
-    print("  Then `sensei approve` for your own.")
+    print("  Then `dojo sensei approve` for your own.")
     return 0
 
 
@@ -123,13 +124,13 @@ def approve(force):
         return 0
     if result == "waiting":
         mins = max(1, (doc.get("patience") or 0) // 60)
-        say("not yet: review someone else's pull request first (`sensei review`). Or wait about %d minutes, "
-            "or use `sensei approve --force`." % mins)
+        say("not yet: review someone else's pull request first (`dojo sensei review`). Or wait about %d minutes, "
+            "or use `dojo sensei approve --force`." % mins)
         return 1
     if result == "conflicts":
         say("#%d conflicts with main, so there's nothing to approve yet." % doc["number"])
         print("  Bring main into your branch: git pull origin main, keep both records, preview, commit, push.")
-        print("  (Lab 3, \"If your branch is behind main, or your pull request has conflicts\".) Then run `sensei approve` again.")
+        print("  (Lab 3, \"If your branch is behind main, or your pull request has conflicts\".) Then run `dojo sensei approve` again.")
         return 1
     if result == "needs-review":
         say("I can't approve #%d: %s" % (doc["number"], doc.get("reason", "")))
@@ -182,7 +183,7 @@ def render(markdown):
 def ask(argv):
     q = " ".join(argv).strip()
     if not q:
-        print('usage: sensei ask "how do I undo a pushed change"')
+        print('usage: dojo sensei ask "how do I undo a pushed change"')
         return 2
     code, doc = call("/api/student/ask", {"q": q})
     if code != 200:
@@ -235,7 +236,7 @@ def why():
 def hand(argv):
     msg = " ".join(argv).strip()
     if not msg:
-        print('usage: sensei hand "what you are stuck on"')
+        print('usage: dojo sensei hand "what you are stuck on"')
         return 2
     code, doc = call("/api/student/hand", {"text": msg, "context": screen()})
     if code != 200:
@@ -249,7 +250,7 @@ def hand(argv):
     elif doc.get("ask"):
         f = doc["ask"][0]
         print("  While you wait, the labs cover this in %s > %s." % (f["file"], f["heading"]))
-    print("  Check for an answer with `sensei inbox`.")
+    print("  Check for an answer with `dojo sensei inbox`.")
     return 0
 
 
@@ -259,7 +260,7 @@ def inbox():
         return fail(doc)
     reqs = doc.get("requests", [])
     if not reqs:
-        say("nothing in your inbox. `sensei hand \"...\"` raises your hand.")
+        say("nothing in your inbox. `dojo sensei hand \"...\"` raises your hand.")
         return 0
     for r in reqs:
         print("  #%d \"%s\"  [%s]" % (r["id"], clip(r["text"], 80), r["status"]))
@@ -268,7 +269,7 @@ def inbox():
         if not r["replies"]:
             print("      (no answer yet)")
         elif r["replies"][-1]["from"] == "facilitator":
-            print("      Answer back with: sensei reply %d \"...\"" % r["id"])
+            print("      Answer back with: dojo sensei reply %d \"...\"" % r["id"])
     return 0
 
 
@@ -277,7 +278,7 @@ def _opt(argv, name, default):
 
 
 def notify(argv=()):
-    """`sensei notify [--surface S] [--wait SECONDS] [--json]`. Called by the prompt hook (dojo-sensei.zsh): print a
+    """`dojo sensei notify [--surface S] [--wait SECONDS] [--json]`. Called by the prompt hook (dojo-sensei.zsh): print a
     banner for each new facilitator reply, once per surface. Silent when there is nothing new or Sensei can't be
     reached. With --wait it holds open until a reply arrives (the long poll the popup watchers use)."""
     wait = float(_opt(argv, "--wait", 0) or 0)
@@ -292,12 +293,12 @@ def notify(argv=()):
     for r in replies:
         print("\n\033[1;44;97m \U0001F94B The facilitator answered your request #%d \033[0m" % r["id"])
         print("\033[1;34m|\033[0m %s" % clip(r["text"], 300))
-        print("\033[1;34m|\033[0m reply: sensei reply %d \"...\"   or see everything: sensei inbox\n" % r["id"])
+        print("\033[1;34m|\033[0m reply: dojo sensei reply %d \"...\"   or see everything: dojo sensei inbox\n" % r["id"])
     return 0
 
 
 def popup(argv):
-    """`sensei popup N "text"`: what the Zellij floating pane runs. Shows the answer and takes a reply in place."""
+    """`dojo sensei popup N "text"`: what the Zellij floating pane runs. Shows the answer and takes a reply in place."""
     if len(argv) < 2 or not argv[0].isdigit():
         return 2
     rid, text = int(argv[0]), " ".join(argv[1:])
@@ -311,13 +312,13 @@ def popup(argv):
         return 0
     if answer:
         code, doc = call("/api/student/reply", {"id": rid, "text": answer})
-        print("  sent." if code == 200 and doc.get("ok") else "  couldn't send that: `sensei reply %d \"...\"`" % rid)
+        print("  sent." if code == 200 and doc.get("ok") else "  couldn't send that: `dojo sensei reply %d \"...\"`" % rid)
         time.sleep(1.2)
     return 0
 
 
 def watch():
-    """`sensei watch`: the Zellij flavor's popup watcher (started once per student by dojo-sensei.zsh). Long-polls
+    """`dojo sensei watch`: the Zellij flavor's popup watcher (started once per student by dojo-sensei.zsh). Long-polls
     for facilitator replies and opens each in a floating pane of the student's `main` session."""
     me = os.path.realpath(sys.argv[0])
     while True:
@@ -334,7 +335,7 @@ def watch():
 
 def reply(argv):
     if len(argv) < 2 or not argv[0].lstrip("#").isdigit():
-        print('usage: sensei reply N "your answer"   (N is the request number from `sensei inbox`)')
+        print('usage: dojo sensei reply N "your answer"   (N is the request number from `dojo sensei inbox`)')
         return 2
     code, doc = call("/api/student/reply", {"id": int(argv[0].lstrip("#")), "text": " ".join(argv[1:])})
     if code != 200:
@@ -342,7 +343,7 @@ def reply(argv):
     if not doc.get("ok"):
         say(doc.get("message", "I couldn't send that."))
         return 1
-    say("sent. The facilitator will see it at the top of their list; `sensei inbox` shows the answer.")
+    say("sent. The facilitator will see it at the top of their list; `dojo sensei inbox` shows the answer.")
     return 0
 
 
@@ -365,7 +366,7 @@ def check():
         print("    - %s   (%s)" % (m["title"], m["when"]))
     if cur["done"]:
         print("  Done here: " + ", ".join(cur["done"]))
-    print("\n  Stuck on one? `sensei why` explains the last error, `sensei hand \"...\"` asks the facilitator.")
+    print("\n  Stuck on one? `dojo sensei why` explains the last error, `dojo sensei hand \"...\"` asks the facilitator.")
     return 0
 
 
@@ -398,7 +399,7 @@ def main(argv):
         return review()
     if cmd == "approve":
         return approve("--force" in argv[2:])
-    print("sensei: unknown command %r (try `sensei help`)" % cmd, file=sys.stderr)
+    print("dojo sensei: unknown command %r (try `dojo sensei help`)" % cmd, file=sys.stderr)
     return 2
 
 

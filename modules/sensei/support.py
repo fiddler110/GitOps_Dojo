@@ -2,13 +2,13 @@
 
 Three pieces, all offline and deterministic (student terminals have no internet and Sensei has no model):
 
-* `LabIndex`   searches the workshop's own lab and cheat-sheet text, section by section (`sensei ask`).
-* `Patterns`   matches terminal output against known errors (`sensei why`). The table is derived from the labs
+* `LabIndex`   searches the workshop's own lab and cheat-sheet text, section by section (`dojo sensei ask`).
+* `Patterns`   matches terminal output against known errors (`dojo sensei why`). The table is derived from the labs
                themselves (every "You see / If it says" troubleshooting table), plus the shared git patterns
                and an optional per-workshop `sensei/patterns.json`.
 * `Radar`      who looks stuck, from the achievements service's per-student activity (the facilitator's tab)
-* `Achievements` that service's Sensei-only reads, and `current_lab` for `sensei check`
-* `HelpDesk`   the raise-a-hand queue the facilitator answers (`sensei hand`, `sensei inbox`).
+* `Achievements` that service's Sensei-only reads, and `current_lab` for `dojo sensei check`
+* `HelpDesk`   the raise-a-hand queue the facilitator answers (`dojo sensei hand`, `dojo sensei inbox`).
 
 Challenge and capstone text never goes in: the labs keep only a short teaser under a heading that names one, and those
 headings are skipped, so
@@ -50,7 +50,7 @@ def _clip(text, n=CLIP):
 
 
 def _block(level, heading, text, lines=120, chars=6000):
-    """The section as Markdown for `sensei ask` to render: its heading and as much body as fits, cut on a line
+    """The section as Markdown for `dojo sensei ask` to render: its heading and as much body as fits, cut on a line
     and never inside a code fence (an open fence is closed)."""
     out, size, fence, cut = [], 0, False, False
     for line in text.strip().splitlines():
@@ -148,7 +148,7 @@ class LabIndex:
 
 # -- ready-made answers ------------------------------------------------------------------------
 class Answers:
-    """Hand-written answers to the questions every class asks (`sensei ask` tries these before searching the labs).
+    """Hand-written answers to the questions every class asks (`dojo sensei ask` tries these before searching the labs).
     An entry is {id, title, match: [regex, ...], markdown, where?, section?}; the workshop's own come first and
     replace a shared entry with the same id."""
 
@@ -312,11 +312,11 @@ class HelpDesk:
         """(request or None, problem). One student can have a few open and can't flood the facilitator."""
         text = (text or "").strip()[:MAX_TEXT]
         if not text:
-            return None, "Say what you're stuck on, e.g. sensei hand \"my push is rejected\"."
+            return None, "Say what you're stuck on, e.g. dojo sensei hand \"my push is rejected\"."
         with self.lock:
             mine = [r for r in self.requests.values() if r["user"] == user and r["status"] != "closed"]
             if len(mine) >= MAX_OPEN:
-                return None, "You already have %d open requests: check `sensei inbox`, or wait for an answer." % len(mine)
+                return None, "You already have %d open requests: check `dojo sensei inbox`, or wait for an answer." % len(mine)
             if mine and self.clock() - max(r["created"] for r in mine) < MIN_GAP:
                 return None, "Give it a moment: your last request was just now."
             r = {"id": self.next, "user": user, "text": text, "context": (context or "")[-MAX_CONTEXT:],
@@ -382,7 +382,7 @@ class HelpDesk:
     def notify(self, user, surface="terminal", wait=0.0):
         """Facilitator replies this student's `surface` has not been told about yet. Each surface (the prompt
         banner, the VS Code popup, the Zellij popup) is told once per reply, independently, so a reply can show
-        in more than one place. Does not mark anything seen: `sensei inbox` still shows it as new. With `wait`,
+        in more than one place. Does not mark anything seen: `dojo sensei inbox` still shows it as new. With `wait`,
         holds the call open up to that many seconds for a reply to arrive (a long poll)."""
         deadline = time.monotonic() + max(0.0, wait)
         with self.changed:
@@ -494,7 +494,7 @@ class Achievements:
 
 
 def current_lab(progress):
-    """`sensei check`'s answer: per-lab counts, and the first lab with a milestone still to do.
+    """`dojo sensei check`'s answer: per-lab counts, and the first lab with a milestone still to do.
 
     Milestones are the lab's own steps, so what is missing doubles as "what to do next"."""
     labs = [{"title": l["title"], "done": sum(m["done"] for m in l["milestones"]), "total": len(l["milestones"])}

@@ -1,6 +1,6 @@
 # achievements module's link in the terminal build chain (dojo sets BASE to the image
-# below this one). Adds `dojo-check` (and `dojo-challenge`, a link to the same file, so the
-# client hash still matches) and the prompt hook (dojo-achievements.zsh) that sends each
+# below this one). Adds `dojo check` and `dojo challenge` (links in the dojo cmd.d to the one dojo-check file, so the
+# client hash still matches; the old dojo-check and dojo-challenge names keep working) and the prompt hook (dojo-achievements.zsh) that sends each
 # command to the service and echoes new unlocks in colour.
 # The client is copied unchanged: the service hashes the same file to spot an edited copy.
 # The entrypoint is inherited unchanged.
@@ -14,6 +14,9 @@ COPY dojo-achievements-bot.sh /etc/dojo/bot.d/50-achievements.sh
 RUN set -eux; \
     chmod 0755 /usr/local/bin/dojo-check; \
     ln -sf dojo-check /usr/local/bin/dojo-challenge; \
+    mkdir -p /usr/local/share/dojo/cmd.d; \
+    ln -sf /usr/local/bin/dojo-check /usr/local/share/dojo/cmd.d/check; \
+    ln -sf /usr/local/bin/dojo-check /usr/local/share/dojo/cmd.d/challenge; \
     chmod 0644 /etc/zsh/dojo-achievements.zsh /etc/dojo/bot.d/50-achievements.sh; \
     printf '%s\n' \
       '' \

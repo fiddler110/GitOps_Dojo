@@ -26,26 +26,47 @@ Later labs say "your turn" and leave the command to you. The [cheat sheet](cheat
 
 ## 1. Clone the sample repo
 
-Use the internal Forgejo URL from inside this terminal:
+`git clone` downloads the whole repository — every commit, every branch — to your machine. You get a full local copy; you don't need the network to look at history or make commits, only to share them. Inside this terminal, the repo lives at the internal Forgejo URL.
+
+```text
+git clone <url>
+```
+
+**Your turn:** clone the sample repo and move into it. Before you run it, predict: what will you have on disk afterwards, and will you need the network to run `git log` in it?
 
 ```sh
 git clone http://git-server:3000/training/sample-training-repo.git
 cd sample-training-repo
 ```
 
-`clone` downloads the whole repository — every commit, every branch — to your machine. You now have a full local copy; you don't need the network to look at history or make commits, only to share them.
+<!-- dojo-reveal: Results of git clone -->
+
+- A new `sample-training-repo` folder exists, with the project files and its full history.
+- `git log` works offline from now on.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 2. Create a branch
 
-Replace `yourname` with your name:
+A branch creates a new label pointing at the same commit as `main`, and `git checkout -b` switches you onto it. Anything you commit afterwards happens on that branch, not `main` — so there's no way to break anything anyone else is working on. Naming the branch after what it's for (or who it's for) helps everyone else understand it at a glance.
+
+```text
+git checkout -b <name>
+```
+
+**Your turn:** create your branch, replacing `yourname` with your name. Before you run it, predict: which branch will the prompt or `git status` report afterwards?
 
 ```sh
 git checkout -b add-yourname
 ```
 
-This creates a new branch pointing at the same commit as `main`, and switches you onto it. Anything you commit now happens on `add-yourname`, not `main` — so there's no way to break anything anyone else is working on. Naming the branch after what it's for (or who it's for) helps everyone else understand it at a glance.
+<!-- dojo-reveal: Results of git checkout -b -->
+
+- Git says it switched to a new branch `add-yourname`; `git status` reports "On branch add-yourname".
+
+<!-- /dojo-reveal -->
 
 ---
 
@@ -105,31 +126,57 @@ batcat roster/team.yaml
 
 ## 4. Review your change
 
+Two commands let you look at your work before it becomes history:
+
+- `git status` shows *which* files changed.
+- `git diff` shows *exactly what* changed, line by line, before you commit it. Get in the habit of reading this before every commit — it catches typos and accidental edits early.
+
+```text
+git status
+git diff
+```
+
+**Your turn:** before you run them, predict which files `git status` will list and what lines `git diff` will mark with `+`.
+
 ```sh
 git status
 git diff
 ```
 
-- `git status` shows *which* files changed — right now, `roster/team.yaml` should be listed as modified, and nothing else.
-- `git diff` shows *exactly what* changed, line by line, before you commit it. Get in the habit of reading this before every commit — it catches typos and accidental edits early.
+<!-- dojo-reveal: Results of git status and git diff -->
+
+- `roster/team.yaml` is listed as modified, and nothing else.
+- `git diff` shows your new entry as added lines.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 5. Stage and commit
 
-```sh
-git add roster/team.yaml
-git commit -m "Add Your Name to team roster"
-```
+Committing is two steps:
 
 - `git add` moves your change into the **staging area** — a holding pen for exactly what you want in the next commit. If you had touched other files you didn't mean to change, you could leave them unstaged.
 - `git commit` saves a permanent snapshot of everything staged, along with a message. A good commit message says *what* changed and, if it's not obvious, *why* — future-you (and your reviewer) will thank you.
 
-Check it landed:
+```text
+git add <file>
+git commit -m "message"
+```
+
+**Your turn:** stage and commit your roster change, then check it landed. Before you run it, predict what `git log -1` will show for author and message.
 
 ```sh
+git add roster/team.yaml
+git commit -m "Add Your Name to team roster"
 git log -1
 ```
+
+<!-- dojo-reveal: Results of git log -1 -->
+
+- `git log -1` shows your new commit with your name and your message.
+
+<!-- /dojo-reveal -->
 
 **Check yourself:** `git add` and `git commit` are two separate steps. Run `git status` after `git add` but before `git commit` the next time you do this: what would it show you, and what's different about it afterwards?
 
@@ -143,19 +190,34 @@ Between the two, `git status` lists the file under **"Changes to be committed"**
 
 Everything so far has been local: nobody else can see your branch or your commit. `git push` is the command that sends them to the shared server.
 
-**Your turn:** run a plain `git push` and read what git tells you. It will refuse. Work out why from the message, and from what you know about where this branch exists.
+```text
+git push -u origin <branch>
+```
 
-<!-- dojo-reveal: Show why it fails and the fix -->
-Your branch exists only on your machine, so git has no remote branch to send it to and doesn't know what to call it there. The error even prints the fix:
+`origin` is the name git gave the remote you cloned from, and `-u` records "this local branch tracks that remote branch", so from now on a plain `git push` from this branch just works. Your branch exists only on your machine so far, so a plain `git push` has no remote branch to send it to.
+
+**Your turn:** run a plain `git push` and read what git tells you. Predict first: will it succeed? Work out why from the message, and from what you know about where this branch exists.
+
+```sh
+git push
+```
+
+<!-- dojo-reveal: Results of git push -->
+
+- Git refuses, because there is no remote branch yet, and the error prints the fix.
+
+<!-- /dojo-reveal -->
+
+Now push with the fix it suggests (the long form is `git push --set-upstream origin add-yourname`):
 
 ```sh
 git push -u origin add-yourname
-
-# or the more verbose
-git push --set-upstream origin add-yourname
 ```
 
-This uploads your branch and its commit to the shared Forgejo server. `origin` is the name git gave the remote you cloned from, and `-u` records "this local branch tracks that remote branch", so from now on a plain `git push` from this branch just works.
+<!-- dojo-reveal: Results of git push -u -->
+
+- Your branch and its commit are uploaded to the shared Forgejo server.
+
 <!-- /dojo-reveal -->
 
 Git didn't ask for a password. Your terminal came with a Forgejo **access token** for your account, saved in `~/.git-credentials`; git's `store` helper (set in your `~/.gitconfig`) sends it with every push. Look at the file:
@@ -203,7 +265,9 @@ Forgejo deletes the remote branch as soon as a PR merges (this repo is configure
 git branch -d add-yourname
 ```
 
-`-d` is the safe delete: git checks that the branch is fully merged into your current branch first and refuses if it isn't (use `-D` to force it — but only once you're sure you don't need those commits). Confirm it's gone:
+`-d` is the safe delete: git checks that the branch is fully merged into your current branch first and refuses if it isn't (use `-D` to force it — but only once you're sure you don't need those commits). If it refuses even though your pull request shows as merged, your facilitator probably used a *squash* merge, which lands your change on `main` as a brand-new commit, so git can't see your branch's commits in `main`. The change is safely merged, so `git branch -D add-yourname` is fine here.
+
+Confirm it's gone:
 
 ```sh
 git branch
@@ -350,17 +414,16 @@ directly.
 Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
 
 ```sh
-dojo-challenge start c1
+dojo challenge start c1
 cd ~/lab/challenge-repo
 ```
 
 That makes your own repo `$USER/challenge-repo` and clones it to `~/lab/challenge-repo`, and prints the goal, with your own names in it. When you think it's done:
 
 ```sh
-dojo-check c1
+dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo-check hint c1` gives a hint for part of the points, and
-`dojo-challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
+`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
 
-<!-- dojo-challenge: c1 -->

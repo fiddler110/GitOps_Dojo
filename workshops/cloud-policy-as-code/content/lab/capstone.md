@@ -2,7 +2,7 @@
 
 **Time:** about 45 minutes (one slow apply of about 3.5 minutes). **Goal:** do everything from Labs 3-12 on a rule nobody has given you the steps for. This page is a brief, not a walkthrough.
 
-> **Starting here?** Run `lab-prep 12` to bring your clone to the end of Lab 12. It is safe to run if you did the earlier labs, and takes about 3.5 minutes.
+> **Starting here?** Run `dojo prep 12` to bring your clone to the end of Lab 12. It is safe to run if you did the earlier labs, and takes about 3.5 minutes.
 
 ```bash
 cd ~/lab/cloud-policy-as-code
@@ -115,16 +115,15 @@ Only when your class has achievements on (you see a score on your landing page).
 work in your fork, `~/lab/cloud-policy-as-code`. Print the goal in the terminal:
 
 ```sh
-dojo-challenge start capstone
+dojo challenge start capstone
 ```
 
 When the pull request is merged, the pipeline is green and your prod test was refused, run the check. Run it twice: once
 after the merge and the refused test, then again after you clean up (the first check says what's next):
 
 ```sh
-dojo-check capstone
+dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo-check hint capstone` gives a hint for part of the points.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points.
 
-<!-- dojo-challenge: capstone -->

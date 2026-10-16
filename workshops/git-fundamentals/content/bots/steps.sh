@@ -5,18 +5,18 @@
 #     the only step that earns `l1-rescue`, so without it a --test run leaves every bot one core
 #     milestone short and `l1-rescue` never gets a class-clear bonus.
 #   * the three challenges (c1 The Hotfix, c2 The Detective, capstone The Great Merge) right before
-#     step_wrap_round, each one the way the lab page says to do it: `dojo-challenge start`, work in
-#     ~/lab/challenge-repo, `dojo-check`.
-# Each challenge step ends with `dojo-check ID`, so the result is in the bot's log (~/.dojo-bot.log)
-# and in `dojo-check status` for that account.
+#     step_wrap_round, each one the way the lab page says to do it: `dojo challenge start`, work in
+#     ~/lab/challenge-repo, `dojo check`.
+# Each challenge step ends with `dojo check ID`, so the result is in the bot's log (~/.dojo-bot.log)
+# and in `dojo check status` for that account.
 
 GF_REPO="$BOT_USER/challenge-repo"
 GF_DIR="$HOME/lab/challenge-repo"
 
 gf_start() { # start challenge $1 from a clean copy and cd into it
   cd "$HOME/lab" && rm -rf "$GF_DIR"
-  printf '%s@dojo:~$ dojo-challenge reset %s\n' "$BOT_USER" "$1"
-  GF_OUT="$(dojo-challenge reset "$1" 2>&1)"; local rc=$?
+  printf '%s@dojo:~$ dojo challenge reset %s\n' "$BOT_USER" "$1"
+  GF_OUT="$(dojo challenge reset "$1" 2>&1)"; local rc=$?
   printf '%s\n' "$GF_OUT"
   [ "$rc" = 0 ] || return 1
   cd "$GF_DIR" || return 1
@@ -71,7 +71,7 @@ step_gf_c1() {
   local n; n="$(gf_open_pr "hotfix-$BOT_USER" "hotfix: fix my role")"
   narrate "opened PR #${n:-?} in $GF_REPO"
   [ -n "$n" ] || return 1
-  run_cmd "dojo-check c1"
+  run_cmd "dojo check c1"
 }
 
 step_gf_c2() {
@@ -88,7 +88,7 @@ step_gf_c2() {
   run_cmd "git add answer.txt"
   run_cmd "git commit -m 'Case closed'"
   run_cmd "git push -u origin case-$BOT_USER"
-  run_cmd "dojo-check c2"
+  run_cmd "dojo check c2"
 }
 
 step_gf_capstone() {
@@ -107,7 +107,7 @@ step_gf_capstone() {
   narrate "opened PR #${n:-?} in $GF_REPO"
   [ -n "$n" ] || return 1
   api_curl -X POST "$API/repos/$GF_REPO/pulls/$n/merge" -H 'Content-Type: application/json' -d '{"Do":"merge"}'
-  run_cmd "dojo-check capstone"
+  run_cmd "dojo check capstone"
 }
 
 # Lab 4 runs in the practice repo `lab-history` builds (~/lab/history-repo), not the sample repo, so
@@ -131,9 +131,10 @@ step_lab4_history() {
   run_cmd "git blame config/app.yaml"
   run_cmd "git log -p config/app.yaml | head -60"
   narrate "hunting for the leaked key"
-  run_cmd "git log -S'sk_live_' --oneline"
-  local added; added="$(git log -S'sk_live_' --format=%h | tail -1)"
+  run_cmd "git log -S'Dkx8Q~' --oneline"
+  local added; added="$(git log -S'Dkx8Q~' --format=%h | tail -1)"
   run_cmd "git show $added"
+  command -v gitleaks >/dev/null 2>&1 && run_cmd "gitleaks git -v --no-banner ."
 
   local branch; branch="$(branch_name "lab4-explore")"
   run_cmd "git checkout -b '$branch'"
@@ -147,10 +148,10 @@ step_lab4_history() {
 }
 
 # The wrong-branch drill follows the Lab 1 PR step (every persona reaches Lab 1, so every bot runs
-# it); the challenges go after the labs, just before the round ends, and only where dojo-challenge
+# it); the challenges go after the labs, just before the round ends, and only where dojo challenge
 # exists (achievements off = no challenges).
 gf_challenges=0
-command -v dojo-challenge >/dev/null 2>&1 && gf_challenges=1
+command -v dojo challenge >/dev/null 2>&1 && gf_challenges=1
 gf_steps=()
 for s in "${STEPS[@]}"; do
   [ "$s" = step_wrap_round ] && [ "$gf_challenges" = 1 ] && gf_steps+=(step_gf_c1 step_gf_c2 step_gf_capstone)

@@ -18,7 +18,7 @@ One-page runbook for tuning the three-target defend lab before a class. Settings
 |---|---|---|
 | time from first alert to first fix attempt | SIEM panel, repo PRs | per target, per person |
 | which signal they found first | what they say aloud, SIEM filter use | any signal nobody found |
-| fix PR outcomes | `dojo-check`, PR gate note | `broke-normal-use` count, retries |
+| fix PR outcomes | `dojo check`, PR gate note | `broke-normal-use` count, retries |
 | time contained vs `start_offset_s` | wall rows | targets still red at the end |
 | stuck points | your notes | needed a hint? which fact was missing from the lab text |
 
@@ -30,7 +30,7 @@ One-page runbook for tuning the three-target defend lab before a class. Settings
 - **Weights 3/2/1:** only change if the ranking is dominated by the order a person drew.
 - **Discoverability:** any fact someone could only learn from a hint or from you is a lab defect (CLAUDE.md rule); fix
   the text or the target page, not the hint.
-- **Gate:** note any case where `/gate` and `dojo-check` disagree for the same code.
+- **Gate:** note any case where `/gate` and `dojo check` disagree for the same code.
 
 ## After
 

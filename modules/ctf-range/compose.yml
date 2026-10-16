@@ -439,7 +439,7 @@ services:
 
   # ctf-checker: runs each target's check.py (held only in this image, never
   # in a student repo) against a student's live slot (POST /check, called by
-  # `dojo-check` from the terminal) and gates a candidate app.py before merge
+  # `dojo check` from the terminal) and gates a candidate app.py before merge
   # (POST /gate, Bearer CTF_BUILD_TOKEN, called by the PR workflow). Reaches
   # slots over ctf_net at ctf-host:<slot port>; clones from git-server itself
   # via runner_net/workshop_lab. No docker socket, no volume.

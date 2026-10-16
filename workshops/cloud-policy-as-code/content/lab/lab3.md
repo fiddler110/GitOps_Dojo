@@ -2,7 +2,7 @@
 
 **Time:** about 15 minutes, of which about 3.5 are waiting. **Goal:** write a real rule, "every resource must carry a `costCenter` tag", as a definition and an assignment in OpenTofu, watch it refuse a write, then fix the application so it passes.
 
-> **Starting here?** This lab needs your clone with the app applied (Lab 0). Run `lab-prep 3` to set that up; it is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone with the app applied (Lab 0). Run `dojo prep 3` to set that up; it is safe to run even if you did the earlier labs.
 
 ## Read this first: policy applies are slow
 
@@ -18,10 +18,7 @@ Finance needs every resource to carry a `costCenter` tag so that the bill can be
 
 ## 1. Read the rule
 
-```bash
-cd ~/lab/cloud-policy-as-code/policy/cloud
-cat rules/require-costcenter-tag.json
-```
+The rule is a separate JSON file, not an inline string, so that an editor, a script or a test can read it as plain JSON. It looks like this:
 
 ```json
 {
@@ -40,19 +37,22 @@ If the tag `costCenter` does not exist, then apply whatever effect the assignmen
 - The rule describes the **bad case** (tag missing), as you learned in Lab 2.
 - The effect is a **parameter**, not the word `deny`. The rule is written once and the assignment chooses how strict to be. You will use that in Lab 4.
 
-The rule is a separate JSON file, not an inline string, so that an editor, a script or a test can read it as plain JSON.
+**Your turn:** open `rules/require-costcenter-tag.json` in your editor, or print it. Before you do, predict: does the rule describe the good case or the bad case?
+
+```sh
+cd ~/lab/cloud-policy-as-code/policy/cloud
+cat rules/require-costcenter-tag.json
+```
+
+<!-- dojo-reveal: What the file shows -->
+
+- It describes the bad case: the tag missing. The effect is the parameter placeholder, not a fixed word.
+
+<!-- /dojo-reveal -->
 
 ## 2. Uncomment the definition and the assignment
 
-Open `policy/cloud/main.tf` in VS Code. Lines 5 to 27 are commented out: a definition and an assignment. Uncomment them (select the lines and press `Ctrl+/`), or do it from the terminal:
-
-```bash
-sed -i '5,27s/^# \{0,1\}//' main.tf
-tofu fmt
-sed -n 1,30p main.tf
-```
-
-Now read what you enabled:
+This is what `policy/cloud/main.tf` will contain once the commented-out lines 5 to 27 are enabled: a definition and an assignment.
 
 ```hcl
 resource "azurerm_policy_definition" "require_costcenter" {
@@ -92,22 +92,48 @@ The **assignment**:
 - `subscription_id` is the **scope**: your whole subscription. This folder deliberately assigns at subscription scope, not on the resource group, so you can apply policy without needing `infra/` first.
 - It supplies no `parameters`, so `effect` takes its default: `deny`.
 
+**Your turn:** open `policy/cloud/main.tf` in VS Code. Lines 5 to 27 are commented out. Uncomment them (select the lines and press `Ctrl+/`).
+
+**Prefer the terminal?**
+
+```sh
+sed -i '5,27s/^# \{0,1\}//' main.tf
+tofu fmt
+sed -n 1,30p main.tf
+```
+
 ## 3. Plan and apply
 
-```bash
+`tofu plan` previews, and `tofu apply` creates the definition and then the assignment. Remember the wait described at the top: start the apply, then read the next section while it runs.
+
+```text
+tofu init | plan | apply
+```
+
+**Your turn:** before you run the plan, predict how many resources it will add.
+
+```sh
 tofu init
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
 Plan: 2 to add, 0 to change, 0 to destroy.
 ```
 
-```bash
+<!-- /dojo-reveal -->
+
+Now apply, type `yes`, and **leave it running** while you read the next section.
+
+```sh
 tofu apply
 ```
 
-Type `yes`. Now **leave it running** and read the next section. About 3.5 minutes later:
+<!-- dojo-reveal: Results of tofu apply -->
+
+About 3.5 minutes later:
 
 ```text
 azurerm_policy_definition.require_costcenter: Creating...
@@ -123,6 +149,8 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 
 (Exact times vary by a few seconds.)
 
+<!-- /dojo-reveal -->
+
 ## While it runs: reading
 
 **Why a parameter for the effect?** Imagine the rule said `"effect": "deny"`. Switching to `audit` would mean editing the definition. A definition is shared: other assignments, and later a policy set, may use it. Changing it changes everyone's behaviour at once. A parameter moves the decision into the assignment, which is the place that knows the scope and the audience. This is the single most useful habit in policy design: *the definition says what is wrong; the assignment says how seriously.*
@@ -133,17 +161,43 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 
 **Open the portal.** Keep the Policy blade open and refresh now and then. About 100 seconds in, **Require a costCenter tag** appears under Definitions with policy type Custom. About 100 seconds later, the **Assignments** list shows `require-costcenter`, scope your subscription.
 
-**Think ahead.** The rule's first line is `"field": "tags['costCenter']"`. What would the rule do to a resource with the tag present but empty? (Answer: nothing. `exists` only asks whether the key is there. The built-in `env` rule used `isBlank` as well, because it cared. This rule does not.)
+**Check yourself:** The rule's first line is `"field": "tags['costCenter']"`. What would the rule do to a resource with the tag present but empty?
+
+<!-- dojo-reveal: Show the answer -->
+
+Nothing. `exists` only asks whether the key is there. The built-in `env` rule used `isBlank` as well, because it cared. This rule does not.
+
+<!-- /dojo-reveal -->
 
 ## 4. See it refuse a write
 
-Your app was created before the rule existed, so the rule has not touched it. Make something new without the tag, in the scratch folder:
+Your app was created before the rule existed, so the rule has not touched it. Make something new without the tag, in the scratch folder. The group will have `owner` and `env`, so it satisfies every built-in; only your new rule can object.
 
-```bash
+First set up the scratch folder:
+
+```sh
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
 sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
+```
+
+Then, in your editor, create `main.tf` there:
+
+```hcl
+resource "azurerm_resource_group" "scratch" {
+  name     = "rg-${var.owner}-scratch"
+  location = "canadacentral"
+  tags = {
+    owner = var.owner
+    env   = "dev"
+  }
+}
+```
+
+**Prefer the terminal?**
+
+```sh
 cat > main.tf <<'EOT'
 resource "azurerm_resource_group" "scratch" {
   name     = "rg-${var.owner}-scratch"
@@ -154,10 +208,17 @@ resource "azurerm_resource_group" "scratch" {
   }
 }
 EOT
+```
+
+**Your turn:** before you run it, predict: allowed or refused, and which policy will be named?
+
+```sh
 tofu apply -auto-approve
 ```
 
-The group has `owner` and `env`, so it satisfies every built-in. Expected (abridged):
+<!-- dojo-reveal: Results of the untagged apply -->
+
+Expected (abridged):
 
 ```text
 Error: creating "Resource Group (Subscription: \"<your subscription id>\"\nResource Group Name: \"rg-student01-scratch\")": unexpected status 403 (403 Forbidden) with error:
@@ -168,28 +229,44 @@ tag 'costCenter' does not exist.
 
 This is the form from Lab 1 with the extra detail that custom policies give: **which assignment** and **which definition** refused you, and the reason from your own rule. Everything is traceable back to the two resources in your `main.tf`.
 
-Now add the tag and apply the scratch again; it is allowed:
+<!-- /dojo-reveal -->
 
-```bash
+Now add the tag. In `main.tf`, add `costCenter = "cc-1001"` under `env`, and apply again.
+
+**Prefer the terminal?**
+
+```sh
 sed -i 's/env   = "dev"/env   = "dev"\n    costCenter = "cc-1001"/' main.tf
+```
+
+**Your turn:** predict the outcome, apply, then clean up before moving on.
+
+```sh
 tofu apply -auto-approve
+tofu destroy -auto-approve
 ```
 
-```text
-Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
-```
+<!-- dojo-reveal: Results of the tagged apply -->
 
-Remove it again (`tofu destroy -auto-approve`) before moving on.
+- The apply is allowed: `Apply complete! Resources: 1 added, 0 changed, 0 destroyed.`
+
+<!-- /dojo-reveal -->
 
 ## 5. What the policy thinks of your app
 
-In the portal's **Policy** blade, open **Compliance**. Your `rg-<you>-app` and `ci-<you>-app` are listed as **NonCompliant** against `require-costcenter`, with the reason `tag 'costCenter' does not exist`. They are running, untouched, and flagged. This is the difference between *enforcement* (blocks new writes) and *compliance* (reports what exists).
+Enforcement blocks new writes; *compliance* reports what exists. Compliance is recomputed on every write and on demand, so it goes green as soon as you fix the resource.
 
-Compliance is recomputed on every write and on demand, so it goes green as soon as you fix the resource.
+**Your turn:** open the portal's **Policy** blade, then **Compliance**. Predict first: is your running app compliant?
+
+<!-- dojo-reveal: What Compliance shows -->
+
+- Your `rg-<you>-app` and `ci-<you>-app` are listed as **NonCompliant** against `require-costcenter`, with the reason `tag 'costCenter' does not exist`. They are running, untouched, and flagged.
+
+<!-- /dojo-reveal -->
 
 ## 6. Fix the application
 
-The app's tags live in one place, `locals` in `infra/main.tf`. Edit it so that it reads:
+The app's tags live in one place, `locals` in `infra/main.tf`. Open it in your editor and edit it so that it reads:
 
 ```hcl
 locals {
@@ -202,13 +279,18 @@ locals {
 }
 ```
 
-(You can change the comment to anything. Only the `costCenter` line matters.) Check it and apply:
+(You can change the comment to anything. Only the `costCenter` line matters.)
 
-```bash
+**Your turn:** predict: will the plan add, change or replace resources, and will the app stay up?
+
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 tofu fmt
 tofu plan
+tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of the plan and apply -->
 
 ```text
 Plan: 0 to add, 2 to change, 0 to destroy.
@@ -216,19 +298,17 @@ Plan: 0 to add, 2 to change, 0 to destroy.
 
 Two in-place changes: a tag added to the resource group and to the container group. Nothing is replaced, so the app keeps running.
 
-```bash
-tofu apply -auto-approve
-```
-
 ```text
 Apply complete! Resources: 0 added, 2 changed, 0 destroyed.
 ```
 
 The policy checked these two writes and allowed them, because the tag is now present. Back in the portal, **Compliance** now shows both resources as **Compliant**.
 
+<!-- /dojo-reveal -->
+
 ## 7. Commit it
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git status --short
 git add infra policy
@@ -243,15 +323,19 @@ Commit but do **not** push yet. Pushing to `main` starts the Apply pipeline, whi
 - [ ] A resource group without `costCenter` was refused with a 403 naming the assignment and the definition.
 - [ ] `ci-<you>-app` and `rg-<you>-app` show Compliant after you added the tag.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud && tofu state list
 ```
+
+<!-- dojo-reveal: Results of tofu state list -->
 
 ```text
 data.azurerm_subscription.current
 azurerm_policy_definition.require_costcenter
 azurerm_subscription_policy_assignment.require_costcenter
 ```
+
+<!-- /dojo-reveal -->
 
 ## Recap
 

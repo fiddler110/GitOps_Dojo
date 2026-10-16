@@ -23,7 +23,7 @@ before a room.
 | Recap | ~10 | What surprised them; point out the exploit guides for anyone who didn't finish |
 
 **No lab depends on another.** Students can do them in any order and start fresh from the **Attack
-Range** card each time — there is no `lab-prep <N>` here because there's nothing sequential to catch up
+Range** card each time — there is no `dojo prep <N>` here because there's nothing sequential to catch up
 on. In a shorter slot, drop Lab 4 first (it's the newest and leans on `cert-autorenewal` ideas a room
 without that session hasn't seen yet).
 
@@ -83,7 +83,7 @@ Range**.
   "Login incorrect" — that dead end is intentional, not a bug report waiting to happen.
 - **A queued start.** If the whole room clicks Start together, requests queue (`CTF_ATTACK_MAX_CONCURRENT`
   in the module); the card shows "queued, position N" — tell students this is normal, not stuck.
-- **Lagging student:** there's no `lab-prep` to fast-forward with (no sequential state to catch up on) —
+- **Lagging student:** there's no `dojo prep` to fast-forward with (no sequential state to catch up on) —
   point them at whichever lab's hints they want and let them start that target directly.
 
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show

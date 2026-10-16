@@ -4,7 +4,7 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-15 (PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
+Last updated: 2026-10-16 (student `dojo` command built, git-fundamentals live check in progress; before that 2026-10-15, PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
 done locally, 7 overflowing slides trimmed; stale branch notes removed). Before that: 2026-10-09 (content-depth audit
 of all 5 CTF packs) and 2026-10-07 (ctf-range Target Viewer and the `ctf-access` pack, PR #17). ·
 Working branch: `main`; cut a feature branch for each new batch of work.
@@ -116,7 +116,7 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 |---|---|
 | 1 | Defend lab redesign: built and live-verified (RELEASES; as-built contract: plan 8.13; no `INCIDENT.md` gate, decided against 2026-10-15 and removed); open: a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell. Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
 | 2 | Target Viewer card as a student, in a browser (the real-time dwell run and the student SOC feed passed 2026-10-15, RELEASES) |
-| 3 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo-challenge` boxes. A second, more obscure path per target would be their bonus challenge |
+| 3 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo challenge` sections. A second, more obscure path per target would be their bonus challenge |
 
 ### N3 9.4: class-sized run
 
@@ -193,6 +193,16 @@ git-fundamentals and dns-as-code ([N3](#n3-94-class-sized-run)). Design, decisio
 | — | Browser look | S | Not looked at in a browser yet: a red negative score (board, widget, `/admin`) and a negative toast in VS Code; the badge PNG download, capstone badge tier and a typed certificate name; a real student's stale-branch roster PR |
 | — | Widget resize: browser check | S | Fixed 2026-10-02, not seen in a browser: the landing page's widget frame should have its full height on first load (`toast.js` asks the widget to report again once it listens) |
 | — | Hidden-tab toasts: browser check | S | Built 2026-10-02, not seen in a browser: with the landing page open in a background tab, an unlock in the VS Code terminal pops up in VS Code (`toast.js` skips polling while `document.hidden`), and the landing page shows queued toasts when it comes to the front |
+
+### Student `dojo` command follow-ups
+
+Built 2026-10-16 (see RELEASES). Left:
+
+| ID | Work | Effort | Description |
+|---|---|---|---|
+| D1 | Live checks not yet done | S | Zellij flavor (`dojo fix-terminal` opens the layout tab; `dojo help` in a Zellij pane), a CTF pack (`dojo flag submit`, `dojo reset`, `dojo check` through the ctf-defend wrapper), vault/tofu-basics (`dojo env`), and Tab completion by hand in a browser terminal |
+| D2 | Retire the shims | S | Once a live class has used `dojo ...`: drop `dojo-check`/`dojo-challenge`/`lab-prep`/`sensei` as student-facing names (the prompt hook still calls `dojo-check --shell`/`--echo`, which stay) and the old-marker strip in `lab-reader.js` |
+| D3 | `dojo help` per workshop | S | Optional workshop footer (e.g. "start with `dojo prep N` if you join late") from a `dojo-help` text file in `cmd.d`'s sibling; today every workshop shows the same generic footer |
 
 ### `dojo` CLI follow-ups
 

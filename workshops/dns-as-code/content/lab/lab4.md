@@ -11,26 +11,40 @@ git pull
 git status   # should be clean — finish or discard anything from Lab 3 first
 ```
 
-> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `lab-prep 4` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs the shared repo cloned to `~/lab/dns-as-code`. Run `dojo prep 4` to set that up; it's safe to run even if you did the earlier labs.
 
 ---
 
 ## 1. Check your setup
 
+`doctor` checks that `dnscontrol` is on `PATH`, that `creds.json` names the PowerDNS API, that the API answers, and that git hooks are enabled. This is the first thing to run in any DNS-as-code repo, including a real one. Git never turns on hooks from a repo you cloned, because a hook runs code on your machine, so each person enables them once per clone; `setup` does that.
+
+**Your turn:**
+
+Before you run it, predict: which check will not pass yet?
+
 ```sh
 python3 scripts/dnsctl.py doctor
 ```
 
-`doctor` checks that `dnscontrol` is on `PATH`, that `creds.json` names the PowerDNS API, that the API answers, and that git hooks are enabled. This is the first thing to run in any DNS-as-code repo, including a real one.
+<!-- dojo-reveal: Results of doctor -->
 
-Every check should say `[ok]` except one `[warn]`: git hooks aren't enabled yet. Git never turns on hooks from a repo you cloned, because a hook runs code on your machine, so each person enables them once per clone. Fix it:
+- Every check says `[ok]` except one `[warn]`: git hooks aren't enabled yet.
+
+<!-- /dojo-reveal -->
+
+Fix it:
 
 ```sh
 python3 scripts/dnsctl.py setup
 python3 scripts/dnsctl.py doctor   # all [ok] now
 ```
 
+<!-- dojo-reveal: What setup does -->
+
 `setup` enables `.githooks` (read them in `.githooks/`: a lint and secret check before every commit, and a `dnscontrol preview` check before anything is pushed to `main`) and creates `.env` from `.env.example`. `.env` is for optional personal settings and is never committed; nothing in this lab needs it.
+
+<!-- /dojo-reveal -->
 
 `setup` also adds a shortcut to `~/.zshrc_aliases` (your own alias file, loaded by every new terminal): `dnsc` means `python3 scripts/dnsctl.py`. Load it into this terminal and try it:
 
@@ -45,13 +59,7 @@ The rest of this lab spells out the full command so it's clear what runs; `dnsc`
 
 ## 2. Add a record with the wizard
 
-Use a different name than your Lab 3 record, with your username in it:
-
-```sh
-python3 scripts/dnsctl.py record add $USER-api.dojo.test
-```
-
-It asks for a record type and a value, shows the exact line it will add to `dnsconfig.js`, then offers to preview and submit. Answer its prompts like this:
+`record add` is a wizard: it asks for a record type and a value, shows the exact line it will add to `dnsconfig.js`, then offers to preview and submit. Answer its prompts like this:
 
 | Prompt | Answer | Why |
 | --- | --- | --- |
@@ -61,23 +69,34 @@ It asks for a record type and a value, shows the exact line it will add to `dnsc
 | ``Run `dnscontrol preview` now to verify? [Y/n]`` | **n** | You'll run it yourself in step 3. |
 | `Open a pull request for this change now? [y/N]` | **n** | You'll run `submit` yourself in step 3. |
 
-The last two are shortcuts for the next step; skipping them just lets you run each one on its own. Confirm the record is in your file, uncommitted:
+The last two are shortcuts for the next step; skipping them just lets you run each one on its own.
+
+**Your turn:**
+
+Use a different name than your Lab 3 record, with your username in it. Answer the prompts as in the table, then confirm. Before you run the `git diff`, predict what it shows.
+
+```sh
+python3 scripts/dnsctl.py record add $USER-api.dojo.test
+```
+
+Confirm the record is in your file, uncommitted:
 
 ```sh
 git diff dnsconfig.js   # one added line: your record
 ```
 
-If the diff is empty, you answered no to `Add it?`. Run the `record add` command again.
+<!-- dojo-reveal: Results of git diff -->
+
+- One added line: your record. If the diff is empty, you answered no to `Add it?`. Run the `record add` command again.
+
+<!-- /dojo-reveal -->
+
 
 ---
 
 ## 3. Preview and submit
 
 ### 3a. Preview
-
-```sh
-python3 scripts/dnsctl.py preview
-```
 
 This is the same `dnscontrol preview` you ran by hand in Lab 3. It compares `dnsconfig.js` with the live zone and lists what a push would change. The first few lines are dnscontrol reading the zone. The part that matters is at the end:
 
@@ -89,7 +108,13 @@ This is the same `dnscontrol preview` you ran by hand in Lab 3. It compares `dns
 Done. 1 corrections.
 ```
 
-Check it before going on:
+**Your turn:**
+
+Before you run it, predict: how many corrections should you see?
+
+```sh
+python3 scripts/dnsctl.py preview
+```
 
 | Look for | Means |
 | --- | --- |
@@ -102,11 +127,16 @@ Preview changes nothing: it only reads.
 
 ### 3b. Submit
 
+`submit "<message>"` does Lab 3's manual steps for you, but it shows you each one first and asks twice before changing anything. The text in quotes becomes the commit message and the PR title.
+
+**Your turn:**
+
+Before you run it, predict: what will it ask, and what is the safe default if you just press Enter?
+
 ```sh
 python3 scripts/dnsctl.py submit "Add $USER-api.dojo.test"
 ```
 
-The text in quotes becomes the commit message and the PR title. `submit` does Lab 3's manual steps for you, but it shows you each one first and asks twice before changing anything.
 
 **The check.** It runs the same preview as 3a again, under a `Check: dnscontrol preview` heading, then asks:
 
@@ -159,11 +189,17 @@ If `submit` stops partway:
 
 ### 4a. Status
 
+`status` lists every open pull request on the repo, yours and your classmates', with the state of its **DNS Preview** check. That check is the CI job that ran `dnscontrol preview` on your PR as soon as `submit` opened it, the same one you watched in Lab 3. It only reads; nothing changes.
+
+**Your turn:**
+
+Predict what your PR's `DNS Preview` state will be, then run:
+
 ```sh
 python3 scripts/dnsctl.py status
 ```
 
-`status` lists every open pull request on the repo, yours and your classmates', with the state of its **DNS Preview** check. That check is the CI job that ran `dnscontrol preview` on your PR as soon as `submit` opened it, the same one you watched in Lab 3. It only reads; nothing changes.
+<!-- dojo-reveal: Results of status -->
 
 ```text
 #7: Add studentXX-api.dojo.test
@@ -183,13 +219,22 @@ Find the line with your PR number and read its `DNS Preview` state:
 
 `No open pull requests.` means yours isn't open: it was already merged, or `submit` didn't get as far as `[5/5]`.
 
+<!-- /dojo-reveal -->
+
 ### 4b. Review
+
+`review` shows two things, each under a `===` heading. It only reads, so you can review any PR, not only your own.
+
+**Your turn:**
+
+Before you run it, predict: what two things will it show, and what should match?
 
 ```sh
 python3 scripts/dnsctl.py review <PR#>
 ```
 
-`review` shows two things, each under a `===` heading. It only reads, so you can review any PR, not only your own.
+<!-- dojo-reveal: Results of review -->
+
 
 ```text
 === dnsconfig.js diff for PR #7 ===
@@ -216,15 +261,23 @@ Done. 1 corrections.
 
 The diff is what the PR *says*; the preview is what it would *do*. A reviewer checks that they agree. If the second part says `No DNS Preview comment yet - the check may still be running.`, wait a few seconds and run `review` again.
 
+<!-- /dojo-reveal -->
+
 ---
 
 ## 5. Get it approved
 
-`main` needs one approval from someone other than the PR's author, so you can't approve your own. Try it to see what happens:
+`main` needs one approval from someone other than the PR's author, so you can't approve your own. Try it to see what happens.
+
+**Your turn:**
+
+Predict what happens, then run:
 
 ```sh
 python3 scripts/dnsctl.py approve <your-PR#>
 ```
+
+<!-- dojo-reveal: Results of approving your own PR -->
 
 ```text
 You can't approve your own pull request. main needs one approval from someone else: ask a teammate to run
@@ -232,7 +285,11 @@ You can't approve your own pull request. main needs one approval from someone el
 ...
 ```
 
-Nothing changed. Swap with a neighbour instead (or, with nobody free, run `sensei review` for a pull request to review with `review` and `approve` below: once you have reviewed someone else's, Sensei approves yours within a few seconds, or `sensei approve --force` to skip the wait): tell each other your PR numbers (or find theirs with `status`), then review their PR the way you reviewed your own in 4b:
+Nothing changed.
+
+<!-- /dojo-reveal -->
+
+Now swap with a neighbour instead (or, with nobody free, run `dojo sensei review` for a pull request to review with `review` and `approve` below: once you have reviewed someone else's, Sensei approves yours within a few seconds, or `dojo sensei approve --force` to skip the wait): tell each other your PR numbers (or find theirs with `status`), then review their PR the way you reviewed your own in 4b:
 
 ```sh
 python3 scripts/dnsctl.py review <their-PR#>
@@ -244,6 +301,8 @@ Approve it only if the diff adds just their record and the preview shows the one
 python3 scripts/dnsctl.py approve <their-PR#>
 ```
 
+<!-- dojo-reveal: Results of approve -->
+
 ```text
 Approved pull request #8
 ```
@@ -252,6 +311,8 @@ That's the same approval as the **Approve** button in the Forgejo web page, whic
 
 Once your neighbour (or Sensei) has approved yours, open your PR link from `status` and you'll see their approval on it.
 
+<!-- /dojo-reveal -->
+
 ---
 
 ## 6. Merge and validate
@@ -259,10 +320,6 @@ Once your neighbour (or Sensei) has approved yours, open your PR link from `stat
 ### 6a. Merge
 
 Once your PR's check shows `SUCCESS` and a neighbour has approved it:
-
-```sh
-python3 scripts/dnsctl.py merge <PR#>
-```
 
 `merge` does these in order:
 
@@ -276,28 +333,46 @@ python3 scripts/dnsctl.py merge <PR#>
    ```
 
    It asks for the whole word, not `y`, because this is the step that changes live DNS. Type **MERGE** (capitals). Anything else prints `Aborted.` and nothing happens.
-3. **Merges the PR into `main` and deletes its branch on Forgejo**, then prints:
+3. **Merges the PR into `main` and deletes its branch on Forgejo.**
 
-   ```text
-   Merged pull request #7
-   Merged. Run 'python3 scripts/dnsctl.py validate 7' to confirm 'DNS Apply' succeeded and live state matches dnsconfig.js, or watch the Actions tab yourself.
-   ```
+**Your turn:**
+
+Once your PR's check shows `SUCCESS` and a neighbour has approved it, predict what you have to type, then run:
+
+```sh
+python3 scripts/dnsctl.py merge <PR#>
+```
+
+<!-- dojo-reveal: Results of merge -->
+
+```text
+Merged pull request #7
+Merged. Run 'python3 scripts/dnsctl.py validate 7' to confirm 'DNS Apply' succeeded and live state matches dnsconfig.js, or watch the Actions tab yourself.
+```
 
 The merge itself doesn't touch DNS. It starts the **DNS Apply** CI job, which runs `dnscontrol push` from `main` a few seconds later. You don't run `dnscontrol push` yourself on this track. (`dnsctl.py push` exists, but from your terminal the lab's PowerDNS API refuses it for `dojo.test`, as in Lab 3.)
 
 If you see `error: PR #7 was not merged`, Forgejo refused: usually there's no approval yet, or the check hasn't passed. `merge --force` skips dnsctl's own check but not Forgejo's, so it won't help.
 
-### 6b. Validate
+<!-- /dojo-reveal -->
 
-```sh
-python3 scripts/dnsctl.py validate <PR#>
-```
+### 6b. Validate
 
 `validate` answers "is my change actually live?" It needs a clean working tree, because it:
 
 1. **Switches you to `main` and pulls it** (`Switching from 'dns/add-studentxx-api-dojo-test' to 'main' ...`), so it compares against what was merged. You're left on `main` afterwards, ready for the next change.
 2. **Finds the DNS Apply run for your merge** (`Found run 12 - waiting for it to complete...`) and waits for it to finish, up to 5 minutes.
 3. **Runs `dnscontrol preview` again** and expects `0 corrections`: the live zone now matches `dnsconfig.js` exactly.
+
+**Your turn:**
+
+Before you run it, predict: how many corrections should the final preview show?
+
+```sh
+python3 scripts/dnsctl.py validate <PR#>
+```
+
+<!-- dojo-reveal: Results of validate -->
 
 ```text
 Validating commit 5ef2a6f1...
@@ -320,11 +395,19 @@ Validated: commit 5ef2a6f1 is live and the zone matches dnsconfig.js exactly.
 
 `merge --wait <PR#>` does 6a and 6b in one go. `validate` with no number checks the latest commit on `main`.
 
+<!-- /dojo-reveal -->
+
 Finally, ask DNS yourself, as in Lab 3:
 
 ```sh
 dig @dns-server $USER-api.dojo.test A +short   # 203.0.113.40
 ```
+
+<!-- dojo-reveal: Results of dig -->
+
+- It prints `203.0.113.40`.
+
+<!-- /dojo-reveal -->
 
 ---
 

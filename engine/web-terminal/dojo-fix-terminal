@@ -1,16 +1,26 @@
 #!/bin/sh
-# dojo-fix-terminal: put a student's Zellij workspace back to the workshop layout
+# dojo-summary: put your terminal workspace back to the workshop layout after a pane was closed
+# dojo fix-terminal (also installed as dojo fix-terminal): put a student's Zellij workspace back to the workshop layout
 # (file listing on the left, shell on the right) after panes were closed or
 # rearranged. Run it from any shell pane in the session; it opens a fresh tab in
 # the same "main" session, so running work in other tabs is untouched.
-#   dojo-fix-terminal          open a fresh tab with the layout, close the tab you ran it from
-#   dojo-fix-terminal --keep   open the fresh tab but leave the old one
+#   dojo fix-terminal          open a fresh tab with the layout, close the tab you ran it from
+#   dojo fix-terminal --keep   open the fresh tab but leave the old one
 # On the tmux/VS Code flavor there is no layout to restore: reloading the page
 # reattaches to the same tmux session (or starts a new one if the last shell exited).
 set -eu
 
+case "${1:-}" in
+  -h|--help)
+    echo "dojo fix-terminal [--keep]"
+    echo "  Panes closed or rearranged? Opens a fresh tab with the workshop layout (file listing on the"
+    echo "  left, shell on the right) and closes the broken one; --keep leaves the old tab open."
+    echo "  Blank or closed terminal in the browser? Reload the page; it reconnects to your session."
+    exit 0 ;;
+esac
+
 if [ -z "${ZELLIJ:-}" ]; then
-  echo "dojo-fix-terminal: not inside Zellij, so there is no layout to restore."
+  echo "dojo fix-terminal: not inside Zellij, so there is no layout to restore."
   echo "If your terminal is blank or closed, reload the page; it reconnects to your session."
   exit 0
 fi

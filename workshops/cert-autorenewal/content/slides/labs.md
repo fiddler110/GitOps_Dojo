@@ -93,7 +93,7 @@ Trust the CA, put a real certificate on a real HTTPS site, then let cron renew i
 </div>
 
 Do them in order: Lab 3 after Lab 2, Lab 5 last. Lab 5 only depends on
-Lab 1 (trust), so it still works if you joined partway with `lab-prep`.
+Lab 1 (trust), so it still works if you joined partway with `dojo prep`.
 
 ---
 

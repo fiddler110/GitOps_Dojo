@@ -48,13 +48,13 @@ cp ~/lab/cert-heist/www.conf ~/lab/cert-heist/api.conf /srv/webroot/{user}/conf.
 Both sites serve the same valid wildcard certificate, redirect HTTP to HTTPS permanently and send HSTS, `api` sends
 `nosniff` and a CSP; and
 `www.conf` and `api.conf` (HTTPS block uncommented, certificate lines filled in) and an installed `renew.cron` are
-pushed to `main` here. Then `dojo-check capstone`.
+pushed to `main` here. Then `dojo check capstone`.
 
 ## Keep keys out of git
 
 Certificates and private keys live in `/srv/webroot/{user}/certs/` and in your ACME client's own folder, never in this
 repo. The check scans the repo's **whole history** for a private key: deleting one in a later commit doesn't remove it.
-If one gets in, `dojo-challenge reset capstone` rebuilds the repo from scratch (in a real team you'd also replace the key).
+If one gets in, `dojo challenge reset capstone` rebuilds the repo from scratch (in a real team you'd also replace the key).
 
-`dojo-challenge reset capstone` only rebuilds this repo. Files you copied into `/srv/webroot/{user}/`, certificates you
+`dojo challenge reset capstone` only rebuilds this repo. Files you copied into `/srv/webroot/{user}/`, certificates you
 issued and cron entries stay as they are.

@@ -11,6 +11,10 @@
 
 ## 1. Clone the shared repo
 
+The shared repo has the same layout as your own zone, but its `dnsconfig.js` declares `dojo.test` and lives on Forgejo, where the whole class works on it. The `.forgejo/workflows/` folder holds the two CI jobs: **DNS Preview** runs on every pull request, **DNS Apply** runs on every merge to `main`.
+
+**Your turn:**
+
 ```sh
 cd ~/lab
 git clone http://git-server:3000/dns-team/dns-as-code.git
@@ -18,50 +22,70 @@ cd dns-as-code
 batcat dnsconfig.js
 ```
 
-Same layout as your own zone, but this `dnsconfig.js` declares `dojo.test` and lives on Forgejo, where the whole class works on it. The `.forgejo/workflows/` folder holds the two CI jobs: **DNS Preview** runs on every pull request, **DNS Apply** runs on every merge to `main`.
-
 ---
 
 ## 2. Preview
+
+Unlike your own zone in Lab 1, `dojo.test` is already live: the DNS Apply job applied `main` when the repo was created, and again after every merge since. Production is never empty.
+
+> **`main` keeps moving.** The live zone is whatever `main` said at the last merge, and the whole class merges into it. `dnscontrol preview` compares *your files* with the *live zone*, so if your clone is behind `main`, a classmate's newer record looks like something you want to **delete**. Whenever a preview shows a `- DELETE` you didn't write, don't push: bring your clone up to date (`git pull`) and preview again.
+
+**Your turn:**
+
+Before you run it, predict: how many corrections will a fresh clone show?
 
 ```sh
 dnscontrol preview
 ```
 
-**0 corrections.** Unlike your own zone in Lab 1, `dojo.test` is already live: the DNS Apply job applied `main` when the repo was created, and again after every merge since. Production is never empty.
+<!-- dojo-reveal: Results of dnscontrol preview -->
 
-> **`main` keeps moving.** The live zone is whatever `main` said at the last merge, and the whole class merges into it. `dnscontrol preview` compares *your files* with the *live zone*, so if your clone is behind `main`, a classmate's newer record looks like something you want to **delete**. Whenever a preview shows a `- DELETE` you didn't write, don't push: bring your clone up to date (`git pull`) and preview again.
+- **0 corrections.**
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 3. Try to go around the process
 
-Add a record for yourself straight into `dnsconfig.js`, named after your username so nobody else's record is touched:
+Two gates stand between you and production: the PowerDNS API only lets CI change `dojo.test`, and Forgejo protects `main`. You'll try to get past each. Your terminal came with a Forgejo access token for your account, in `~/.git-credentials` (readable by you only), and git sends it on every push, so git never asks you to sign in.
+
+First add a record for yourself straight into `dnsconfig.js`, named after your username so nobody else's record is touched:
 
 ```sh
 sed -i "s/^\tA(\"mail\"/\tA(\"studentXX-quick\", \"203.0.113.99\"),\n&/" dnsconfig.js
 git diff   # one new A record, nothing else
 ```
 
-Then try to push it to the live zone:
+**Your turn:**
+
+Before you run it, predict: will `preview` accept it? Will `push` work?
 
 ```sh
 dnscontrol preview   # + CREATE studentXX-quick.dojo.test, as you'd expect
 dnscontrol push
 ```
 
-The push fails with `403` and the message *dojo.test is the shared zone: only CI changes it*. Your terminal can read the shared zone but not change it, exactly like a company where only the pipeline holds the production credential.
+<!-- dojo-reveal: Results of preview and push -->
 
-Now try the other shortcut, committing straight to `main`:
+- The push fails with `403` and the message *dojo.test is the shared zone: only CI changes it*. Your terminal can read the shared zone but not change it, exactly like a company where only the pipeline holds the production credential.
+
+<!-- /dojo-reveal -->
+
+Now try the other shortcut, committing straight to `main`. Predict first: what will Forgejo say?
 
 ```sh
 git commit -am "Quick add of studentXX-quick"
 git push
 ```
 
-Git doesn't ask you to sign in: your terminal came with a Forgejo access token for your account, in `~/.git-credentials` (readable by you only), and git sends it on every push.
+<!-- dojo-reveal: Results of git push to main -->
 
-Forgejo rejects it: `main` is a protected branch. Put everything back the way it was, on the latest `main`:
+- Forgejo rejects it: `main` is a protected branch.
+
+<!-- /dojo-reveal -->
+
+Put everything back the way it was, on the latest `main`:
 
 ```sh
 git fetch
@@ -73,7 +97,9 @@ dnscontrol preview   # 0 corrections
 
 ## 4. Make a change the proper way
 
-Start from the latest `main`, then create your branch. `main` is the shared source of truth and changes while you work, so always branch from a fresh copy:
+`main` is the shared source of truth and changes while you work, so always branch from a fresh copy. Add a record for an app of yours, with your username in the name so it can't clash with anyone else's.
+
+Start from the latest `main`, then create your branch:
 
 ```sh
 git checkout main
@@ -81,13 +107,13 @@ git pull
 git checkout -b add-studentXX-app
 ```
 
-Add a record for an app of yours. Use your username in the name, so it can't clash with anyone else's: add this line near the other `A` records, with your username (`studentXX`) in it:
+Open `dnsconfig.js` in your editor and add this line near the other `A` records, with your username (`studentXX`) in it:
 
 ```js
 	A("studentXX-app", "203.0.113.30"),
 ```
 
-Or let Python add it with your real username:
+**Prefer the terminal?** Let Python add it with your real username:
 
 ```sh
 python3 -c '
@@ -101,12 +127,20 @@ open(p, "w").write(s)
 '
 ```
 
-Preview it. The diff must show your one new record and nothing else:
+**Your turn:**
+
+Preview it. The diff must show your one new record and nothing else. Before you run it, predict what `preview` will list.
 
 ```sh
 dnscontrol preview
 git diff
 ```
+
+<!-- dojo-reveal: Results of preview and git diff -->
+
+- One `+ CREATE` for your record, and nothing else.
+
+<!-- /dojo-reveal -->
 
 **Saw a `- DELETE` (or a `± MODIFY`) of a record you didn't touch?** A classmate merged after you branched, and your branch doesn't have their record yet, so the preview wants to remove it from the live zone. Nothing is wrong with your change; your branch is just behind `main`. Bring `main` in, then preview again:
 
@@ -131,7 +165,7 @@ git push -u origin add-studentXX-app
 
 ## 5. Open a pull request
 
-On the workshop landing page, click **Open Forgejo** (it opens signed in as you). Forgejo offers to open a pull request for the branch you just pushed; open one into `main`. **Write down your PR number**; Lab 5 uses it.
+A pull request is the proposal to merge your branch into `main`. On the workshop landing page, click **Open Forgejo** (it opens signed in as you). Forgejo offers to open a pull request for the branch you just pushed; open one into `main`. **Write down your PR number**; Lab 5 uses it.
 
 Within a few seconds CI runs the **DNS Preview** job:
 
@@ -142,14 +176,16 @@ Within a few seconds CI runs the **DNS Preview** job:
 
 ## 6. Review someone else's change
 
-The merge button is still blocked: `main` needs one approval, and you can't approve your own pull request. Pair up with a neighbour and review each other's, or run `sensei review` and let Sensei approve yours. No neighbour free? Sensei, the class review bot, has opened a practice pull request ("Add status.dojo.test") that anyone can review. It only opens it: the facilitator decides whether it merges. Run `sensei review` in your terminal and it picks a pull request for you to review (someone's waiting longest, or the practice one). Once you have reviewed any pull request that isn't yours, Sensei approves yours too within a few seconds. `sensei status` shows where yours stands, and `sensei help` lists the rest: `sensei approve` asks for it now, and `sensei approve --force` approves right away as long as your change is just your own record. So you are never stuck waiting for a neighbour.
+The merge button is still blocked: `main` needs one approval, and you can't approve your own pull request. Pair up with a neighbour and review each other's, or run `dojo sensei review` and let Sensei approve yours. No neighbour free? Sensei, the class review bot, has opened a practice pull request ("Add status.dojo.test") that anyone can review. It only opens it: the facilitator decides whether it merges. Run `dojo sensei review` in your terminal and it picks a pull request for you to review (someone's waiting longest, or the practice one). Once you have reviewed any pull request that isn't yours, Sensei approves yours too within a few seconds. `dojo sensei status` shows where yours stands, and `dojo sensei help` lists the rest: `dojo sensei approve` asks for it now, and `dojo sensei approve --force` approves right away as long as your change is just your own record. So you are never stuck waiting for a neighbour.
+
+That's the real point of code review for DNS: a second person reads the diff *and* the preview before anything reaches production.
+
+**Your turn:**
 
 1. In Forgejo, open their pull request from the repo's **Pull requests** tab.
 2. Read **Files changed**: one new line, with their name on it?
 3. Read the **DNS Preview** comment: exactly one `+ CREATE`, for their record? A preview showing a `DELETE` or `MODIFY` of someone else's record is a reason to ask questions, not to approve.
 4. If it's right: **Review** (or **Finish review**) → **Approve**.
-
-That's the real point of code review for DNS: a second person reads the diff *and* the preview before anything reaches production.
 
 ---
 
@@ -157,19 +193,25 @@ That's the real point of code review for DNS: a second person reads the diff *an
 
 Once your PR has a green DNS Preview check and an approval, click **Merge** (Create merge commit).
 
-The merge to `main` starts the **DNS Apply** job, the one thing allowed to change `dojo.test`. It holds no stored password: it asks Forgejo for a short-lived **ID token**, signed by Forgejo, that says *this job runs for a push to `main` of `dns-team/dns-as-code`*, and hands that to the PowerDNS API as its key. The API checks the signature and those three facts, so a job on another branch, a pull request or a fork gets `403`, even if it edits the workflow file. Watch it in the repo's **Actions** tab, then check:
+The merge to `main` starts the **DNS Apply** job, the one thing allowed to change `dojo.test`. It holds no stored password: it asks Forgejo for a short-lived **ID token**, signed by Forgejo, that says *this job runs for a push to `main` of `dns-team/dns-as-code`*, and hands that to the PowerDNS API as its key. The API checks the signature and those three facts, so a job on another branch, a pull request or a fork gets `403`, even if it edits the workflow file.
+
+**Your turn:**
+
+Watch the job in the repo's **Actions** tab. Before you run these, predict: what will `dig` return, and how many corrections will `preview` show once your clone is current?
 
 ```sh
 dig @dns-server studentXX-app.dojo.test A +short
-```
-
-The DNS Zones tab highlights your record in `dojo.test`. Bring your clone up to date and confirm there's nothing left to apply:
-
-```sh
 git checkout main
 git pull
 dnscontrol preview   # 0 corrections: CI already applied it
 ```
+
+<!-- dojo-reveal: Results of dig and preview -->
+
+- `dig` prints `203.0.113.30`, and the DNS Zones tab highlights your record in `dojo.test`.
+- `preview` reports 0 corrections: CI already applied it.
+
+<!-- /dojo-reveal -->
 
 ---
 

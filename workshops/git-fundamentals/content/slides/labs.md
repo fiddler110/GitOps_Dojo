@@ -91,7 +91,7 @@ everyone makes once: committing on `main` and moving it to a branch.
 </div>
 <div>
 <h3>Lab 4 — History</h3>
-<p><code>log</code>, <code>blame</code>, <code>show</code> — find out what changed, when, and why.</p>
+<p><code>log</code>, <code>blame</code>, <code>show</code>, <code>gitleaks</code> — investigate a real-looking history, branches and a leaked secret included.</p>
 </div>
 <div>
 <h3>Lab 5 — Merge Conflicts</h3>

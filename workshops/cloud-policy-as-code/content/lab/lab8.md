@@ -2,9 +2,9 @@
 
 **Time:** about 20 minutes. **Goal:** grant a time-limited exception to a rule, and make the exception go through the same review as any other change to policy: a pull request on your fork.
 
-> **Starting here?** This lab needs your clone, the app and legacy resource group applied, and the policy from Labs 3-7. Run `lab-prep 8` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs your clone, the app and legacy resource group applied, and the policy from Labs 3-7. Run `dojo prep 8` to set that up (the policy apply takes about 3.5 minutes). It is safe to run even if you did the earlier labs.
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 ```
 
@@ -22,11 +22,17 @@ An **exemption** is the answer: *this one resource is excused from this one rule
 
 ## 1. See the problem first
 
-Open the portal's **Policy** blade and find the `team-baseline` assignment. Under **Non-compliant** the legacy resource group is listed with the reason: it has no `costCenter` tag. Write down the **Exempt** count for that row (0).
+**Your turn:** open the portal's **Policy** blade and find the `team-baseline` assignment. Predict what the legacy group's row says, and write down the **Exempt** count.
+
+<!-- dojo-reveal: What the blade shows -->
+
+- Under **Non-compliant** the legacy resource group is listed with the reason: it has no `costCenter` tag. The **Exempt** count is 0.
+
+<!-- /dojo-reveal -->
 
 ## 2. Read the exemption
 
-In `policy/cloud/main.tf`, find the block headed `# Lab 8: exemptions`. Uncomment the data source and the exemption:
+The exemption you will enable looks like this:
 
 ```hcl
 data "azurerm_resource_group" "legacy" {
@@ -56,25 +62,35 @@ Every argument is a decision somebody should be able to question:
 | `description` | The reason, and where to find the ticket. A waiver with no reason cannot be reviewed |
 | `expires_on` | When the waiver stops applying. Exceptions without a date become permanent |
 
+**Your turn:** in `policy/cloud/main.tf`, find the block headed `# Lab 8: exemptions` and uncomment the data source and the exemption (in VS Code, select the lines and press `Ctrl+/`). Set the date in step 3.
+
 ## 3. Set the expiry a week from today
 
-The date in the file is only an example. Ask the machine for one a week out:
+A week is long enough to do the migration and short enough that someone has to come back and decide again. When a waiver reaches its date it simply **stops applying**: the resource goes back to non-compliant and the blade shows the exemption as expired. Nothing is deleted, so the history stays visible.
 
-```bash
+The date in the file is only an example. Ask the machine for one a week out and put the value you get on the `expires_on` line in your editor.
+
+**Your turn:** predict the format of the output, then run it.
+
+```sh
 date -u -d '+7 days' +%Y-%m-%dT00:00:00Z
 ```
+
+<!-- dojo-reveal: Results of date -->
 
 ```text
 2026-10-09T00:00:00Z
 ```
 
-Put the value you got on the `expires_on` line. A week is long enough to do the migration and short enough that someone has to come back and decide again. When a waiver reaches its date it simply **stops applying**: the resource goes back to non-compliant and the blade shows the exemption as expired. Nothing is deleted, so the history stays visible.
+<!-- /dojo-reveal -->
 
 ## 4. Check it, then send it for review
 
-Waivers are the one place where policy gets *weaker*, so they are the changes most worth a second pair of eyes. Do not apply this from your terminal. Put it on a branch:
+Waivers are the one place where policy gets *weaker*, so they are the changes most worth a second pair of eyes. Do not apply this from your terminal. Put it on a branch, validate, and push it.
 
-```bash
+**Your turn:** predict: what will `git push` print?
+
+```sh
 git checkout -b waive-legacy-costcenter
 cd policy/cloud && tofu fmt && tofu validate && cd ../..
 git add policy/cloud/main.tf
@@ -82,9 +98,13 @@ git commit -m "Waive costCenter on the legacy resource group until 2026-10-09 (O
 git push -u origin waive-legacy-costcenter
 ```
 
+<!-- dojo-reveal: Results of git push -->
+
 ```text
  * [new branch]      waive-legacy-costcenter -> waive-legacy-costcenter
 ```
+
+<!-- /dojo-reveal -->
 
 Now open the pull request on **your fork**:
 
@@ -110,15 +130,19 @@ Merging pushes to `main`, which starts the **Apply** workflow (`main.yml`). Open
 
 ## 6. Check the result
 
-Back in the portal's **Policy** blade, press **Evaluate now**:
+**Your turn:** back in the portal's **Policy** blade, press **Evaluate now**. Predict: what will the `team-baseline` row's Exempt count be, and what will happen to the legacy group's non-compliant entry?
+
+<!-- dojo-reveal: What the blade shows -->
 
 - The `team-baseline` row shows **Exempt: 1**, and the legacy resource group has moved out of the non-compliant list.
 - The **Exemptions** card lists `legacy-costcenter` with its category, reason and expiry date.
 - The waiver is narrow: it names only `costcenter`. If the legacy group were also in a wrong region, the `locations` member of the set would still flag it.
 
+<!-- /dojo-reveal -->
+
 Pull the merged change into your clone so it matches the cloud:
 
-```bash
+```sh
 git checkout main
 git pull
 ```
@@ -131,9 +155,17 @@ git pull
 
 ## Check yourself
 
-1. Why name `policy_definition_reference_ids` instead of waiving the whole set? *(only the rule that cannot be met is waived; the rest of the set still protects the group)*
-2. What happens on the `expires_on` date? *(the exemption stops applying and the resource shows as non-compliant again; the exemption record stays)*
-3. Why raise the waiver as a pull request instead of applying it from the terminal? *(it makes the weakening of policy a reviewed, recorded decision)*
+1. Why name `policy_definition_reference_ids` instead of waiving the whole set?
+2. What happens on the `expires_on` date?
+3. Why raise the waiver as a pull request instead of applying it from the terminal?
+
+<!-- dojo-reveal: Show the answers -->
+
+1. Only the rule that cannot be met is waived; the rest of the set still protects the group.
+2. The exemption stops applying and the resource shows as non-compliant again; the exemption record stays.
+3. It makes the weakening of policy a reviewed, recorded decision.
+
+<!-- /dojo-reveal -->
 
 **Check box.** You are done when all of these hold:
 
@@ -156,17 +188,16 @@ expires within 14 days, all as code, and then destroy it again so nothing stays 
 Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
 
 ```sh
-dojo-challenge start c2
+dojo challenge start c2
 cd ~/lab/challenge-c2
 ```
 
 That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. Push `main` when you think it's done. Run the check twice: once while it is applied, then again after `tofu destroy` (the first check says what's next):
 
 ```sh
-dojo-check c2
+dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
+`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
-<!-- dojo-challenge: c2 -->

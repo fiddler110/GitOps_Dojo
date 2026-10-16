@@ -2,7 +2,7 @@
 
 "Who changed this? When? Why?" — these are the tools for answering that without asking around. They matter most once a repo has more than a handful of commits and more than one contributor, so this lab gives you a repo with a real past to investigate.
 
-> **Starting here?** Run `lab-prep 4`. It builds the practice repo below, and it's safe to run even if you did the earlier labs.
+> **Starting here?** Run `dojo prep 4`. It builds the practice repo below, and it's safe to run even if you did the earlier labs.
 
 ## Set up your practice history
 
@@ -29,6 +29,7 @@ It makes `~/lab/history-repo`: fifteen commits by two people (Alice and Bob) in 
 | `git blame <file>` | Show which commit and author last changed each line |
 | `git log -p <file>` | Show every change ever made to one file |
 | `git log -S<text>` | Find the commits that added or removed some text |
+| `gitleaks git` | Scan every commit for anything that looks like a credential |
 | `git diff <a>..<b>` | Show everything that differs between two branches |
 
 ---
@@ -63,7 +64,7 @@ git log --oneline --graph --all
 
 <!-- dojo-reveal: Reading the graph -->
 
-There are two merge commits (the ones where graph lines join), and the branches were merged in the opposite order from how they were started. Alice started `feature/logging` early, right after "Add database settings", and kept working on it. Bob started `feature/healthcheck` later, after "Remove API key", but finished it sooner, so it was merged first. Both branch names are gone (they were deleted after merging), but their commits are still in the history, and the graph shows exactly where each one forked and rejoined.
+There are two merge commits (the ones where graph lines join), and the branches were merged in the opposite order from how they were started. Alice started `feature/logging` early, right after "Add database settings", and kept working on it. Bob started `feature/healthcheck` later, after "Remove client secret", but finished it sooner, so it was merged first. Both branch names are gone (they were deleted after merging), but their commits are still in the history, and the graph shows exactly where each one forked and rejoined.
 
 <!-- /dojo-reveal -->
 
@@ -135,31 +136,43 @@ Run `git log -p config/app.yaml`. It lists only the commits that touched that fi
 
 ## 5. Hunt for a leaked secret
 
-Somewhere in this history, someone committed a payments API key and a later commit took it out. The file looks clean now:
+Somewhere in this history, someone committed an Azure client secret and a later commit took it out. The file looks clean now:
 
 ```sh
 cat config/app.yaml
 ```
 
-**Your turn:** the key started with `sk_live_`. Find the commit that added it and the one that removed it. `-S` (the "pickaxe") lists commits where the number of occurrences of a string changed, which is exactly an add and a remove.
+**Your turn:** Azure client secrets look like `abc8Q~...`, and this one started with `Dkx8Q~`. Find the commit that added it and the one that removed it. `-S` (the "pickaxe") lists commits where the number of occurrences of a string changed, which is exactly an add and a remove.
 
 ```text
 git log -S<text> --oneline
 ```
 
 ```sh
-git log -S"sk_live_" --oneline
+git log -S"Dkx8Q~" --oneline
 ```
 
-Then read the commit that added it, to see the key itself:
+Then read the commit that added it, to see the secret itself:
 
 ```sh
 git show <commit-that-added-it>
 ```
 
+That worked because you already knew what to search for. Usually you don't. **A second option:** `gitleaks` knows what hundreds of kinds of credentials look like (Azure, AWS, GitHub tokens, private keys) and scans every commit for them, so you don't need to know the secret in advance.
+
+```text
+gitleaks git [path]
+```
+
+```sh
+gitleaks git -v --no-banner .
+```
+
+Read the finding: the rule that matched, the file and line, and the commit and author. It points at the same commit the pickaxe did, without being told what to look for. Tools like this are what teams run in CI or a pre-commit hook to catch a secret before it is pushed.
+
 <!-- dojo-reveal: What this tells you -->
 
-The key is still there: in the "Add payments API key" commit's diff, and in every snapshot between that commit and the removal. Deleting a secret from the file only changes the latest snapshot; history keeps every earlier one, and anyone who clones the repo gets all of it.
+The key is still there: in the "Add Azure client secret" commit's diff, and in every snapshot between that commit and the removal. Deleting a secret from the file only changes the latest snapshot; history keeps every earlier one, and anyone who clones the repo gets all of it.
 
 So the fix for a leaked secret is never "commit a removal". **Revoke and replace the key first** (treat it as public), then, if you must, rewrite history with a tool like `git filter-repo` and force-push, which every collaborator then has to deal with. Better still, keep secrets out of the repo from the start: Bob's fix reads the key from an environment variable instead.
 
@@ -227,6 +240,7 @@ git branch -D lab4-explore
 - `git blame <file>` — see who last changed each line, and in which commit.
 - `git log -p <file>` — see every change ever made to one file.
 - `git log -S<text>` — find the commits that added or removed some text.
+- `gitleaks git` — scan the whole history for secrets when you don't know what to search for.
 - A secret removed in a later commit is still in history: revoke it, don't just delete it.
 - `git diff <branch-1>..<branch-2>` — compare two branches directly.
 
@@ -241,17 +255,16 @@ Someone changed a line they shouldn't have. Find the commit, and say whose it wa
 Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
 
 ```sh
-dojo-challenge start c2
+dojo challenge start c2
 cd ~/lab/challenge-repo
 ```
 
 That makes your own repo `$USER/challenge-repo` and clones it to `~/lab/challenge-repo`, and prints the goal, with your own names in it. When you think it's done:
 
 ```sh
-dojo-check c2
+dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo-check hint c2` gives a hint for part of the points, and
-`dojo-challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
+`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
 
-<!-- dojo-challenge: c2 -->

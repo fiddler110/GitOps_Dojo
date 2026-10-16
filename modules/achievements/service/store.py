@@ -485,7 +485,7 @@ class Store:
             return out
 
     def progress(self, user):
-        """A student's core milestones by lab, done or not, for `sensei check`. Titles and the lab step only:
+        """A student's core milestones by lab, done or not, for `dojo sensei check`. Titles and the lab step only:
         challenges, funny unlocks and cheats stay out."""
         with self.lock:
             have = self.ledger.unlocked_ids(user)

@@ -256,7 +256,7 @@ Full diagrams are in the root [`README.md`](../README.md#how-the-platform-is-put
 graph LR
     subgraph student["student terminal"]
         Z["zsh hooks preexec/precmd"]
-        DC["dojo-check"]
+        DC["dojo check"]
     end
     Z --> DC -->|"POST /api/shell, student's Forgejo token + client hash"| AS["achievements service"]
     GS["Forgejo system webhook"] -->|"signed X-Forgejo-Signature"| AS

@@ -9,7 +9,7 @@ can't see or signal another's processes or read its files.
 Each student also has a second slot, <name>-capstone (roadmap A24), for the
 capstone app, so it doesn't replace the app the labs left running. It stays
 locked (no platform identity, no deploys) until the student's capstone repo
-<name>/<CAPSTONE_REPO> exists, which `dojo-challenge start capstone` makes:
+<name>/<CAPSTONE_REPO> exists, which `dojo challenge start capstone` makes:
 the student's own status page checks for it, and a deploy from it unlocks it
 too. CAPSTONE_REPO="" turns the second slots off.
 

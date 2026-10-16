@@ -66,7 +66,7 @@ anyway** and **comment**. Challenge PRs are never touched.
 Slides, and **Sensei** (roster-PR status). The status strip (facilitator only; students never see service
 health) is one chip per service — green **Ready**, yellow **Starting**, red **Down** (hover for the reason).
 
-- **Lagging student:** `lab-prep <N>` in their terminal sets up what lab N needs from the earlier ones.
+- **Lagging student:** `dojo prep <N>` in their terminal sets up what lab N needs from the earlier ones.
   It is safe to re-run and never undoes their own work.
 - **Merge conflicts (Lab 5)** are the step people get stuck on. It is deliberately the hardest lab; expect
   questions, and that a wall of "conflict" messages is the lesson, not a fault.

@@ -9,51 +9,69 @@ serving HTTPS for your own site on the shared `demo-app`.
 
 ## 1. Set up your own space on demo-app
 
+`/srv/webroot` is shared with `demo-app`, but your `${me}/` subdirectory
+was already created for you, owned by your own account, before you ever
+logged in — so `mkdir -p` below just confirms it's there. Normal file
+permissions are what keep other students out of it: no other student can
+write inside `/srv/webroot/${me}/`, and you can't write inside theirs.
+It has three folders: `conf.d` (nginx config), `html` (the page) and
+`certs` (the certificate and key).
+
+**Your turn:** before you run it, predict: will `mkdir -p` complain that
+the folders already exist? Then add an `index.html` for the site to serve
+(this is a one-line file, so `echo` is the natural way).
+
 ```sh
 me="$(whoami)"
 host="${me}.certs.dojo.test"
 mkdir -p "/srv/webroot/${me}/conf.d" "/srv/webroot/${me}/html" "/srv/webroot/${me}/certs"
-```
-
-`/srv/webroot` is shared with `demo-app`, but your `${me}/` subdirectory
-was already created for you, owned by your own account, before you ever
-logged in — so the command above just confirms it's there. Normal file
-permissions are what keep other students out of it: no other student can
-write inside `/srv/webroot/${me}/`, and you can't write inside theirs.
-
-Add something to actually serve:
-
-```sh
 echo "<h1>${host}</h1>" > "/srv/webroot/${me}/html/index.html"
 ```
+
+<!-- dojo-reveal: Results of the setup -->
+
+- `mkdir -p` is silent: it never complains about folders that exist.
+- `/srv/webroot/${me}/html/index.html` now holds your `<h1>`.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 2. Write your port-80 vhost
 
-Copy the template and fill in your own hostname:
+A vhost is an nginx config block that says which hostname gets which site.
+The workshop ships a template with a `studentNN` placeholder.
+(`~/lab/sample-repo/` is a copy of this workshop's sample repo, seeded into
+your home directory — see its `README.md` for what's in it.) `sed` swaps
+the placeholder for your own name as it copies:
+
+```text
+sed "s/studentNN/<you>/g" <template> > <your .conf>
+```
+
+The moment that file is saved, `demo-app`'s watcher notices and reloads
+nginx — no restart, no facilitator action, nothing else to do.
+
+To test it, `curl --resolve` pins curl's DNS answer for one request
+without needing your own resolver to know about the private
+`certs.dojo.test` zone — `step-ca` is configured to query it directly,
+your terminal isn't, so this is the same trick a real client uses to test
+a vhost before DNS has actually propagated for it.
+
+**Your turn:** before you run it, predict: what will curl print?
 
 ```sh
 sed "s/studentNN/${me}/g" ~/lab/sample-repo/vhost-http.conf.template \
   > "/srv/webroot/${me}/conf.d/${me}.conf"
-```
-
-(`~/lab/sample-repo/` is a copy of this workshop's sample repo, seeded into
-your home directory — see its `README.md` for what's in it.)
-
-The moment you save that file, `demo-app`'s watcher notices and reloads
-nginx — no restart, no facilitator action, nothing else to do. Confirm:
-
-```sh
 demo_ip="$(dig @dns-server "${host}" +short)"
 curl --resolve "${host}:80:${demo_ip}" "http://${host}/"
 ```
 
-You should see your `<h1>`. (`--resolve` pins curl's DNS answer for this
-one request without needing your own resolver to know about the private
-`certs.dojo.test` zone — `step-ca` is configured to query it directly,
-your terminal isn't, so this is the same trick a real client uses to test
-a vhost before DNS has actually propagated for it.)
+<!-- dojo-reveal: Result of the curl -->
+
+- You see your `<h1>${host}</h1>`, served by nginx after the automatic reload.
+
+<!-- /dojo-reveal -->
 
 ---
 
@@ -63,7 +81,18 @@ certbot's **webroot** plugin proves you control `${host}` by writing a
 file into the path nginx already serves — no port-binding, no root needed.
 `--config-dir`/`--work-dir`/`--logs-dir` point certbot's own state at your
 home directory instead of the system-wide `/etc/letsencrypt` (which you
-don't have permission to write to, and shouldn't need to):
+don't have permission to write to, and shouldn't need to).
+
+`REQUESTS_CA_BUNDLE` is what tells certbot to trust `step-ca`'s own HTTPS
+listener — separate from the `step ca bootstrap` trust you set up in Lab 1
+(see that lab's step 4).
+
+```text
+certbot certonly --webroot -w <webroot> -d <host> --server <acme-directory>
+```
+
+**Your turn:** before you run it, predict: which ACME steps will certbot
+print? Then, with the result, predict how long the certificate lives.
 
 ```sh
 mkdir -p ~/certbot/{config,work,logs}
@@ -75,30 +104,27 @@ certbot certonly \
   -d "${host}" \
   --server https://step-ca:9443/acme/acme/directory \
   --agree-tos --non-interactive --email "${me}@example.com"
-```
-
-`REQUESTS_CA_BUNDLE` is what tells certbot to trust `step-ca`'s own HTTPS
-listener — separate from the `step ca bootstrap` trust you set up in Lab 1
-(see that lab's step 4). Watch the output: certbot prints each ACME step —
-account registration, order creation, the http-01 challenge, validation,
-and finalization — the exact protocol exchange the slides describe.
-
-If it succeeds, inspect what you got:
-
-```sh
 openssl x509 -in ~/certbot/config/live/${host}/fullchain.pem -noout -dates -subject
 ```
 
-Notice how short `notAfter` is relative to `notBefore` — that's the
-provisioner's 5-10 minute claim from the slides, not a mistake.
+<!-- dojo-reveal: Results of certbot and openssl -->
+
+- certbot prints each ACME step — account registration, order creation, the http-01 challenge, validation, and finalization — the exact protocol exchange the slides describe.
+- `notAfter` is only minutes after `notBefore`: that's the provisioner's 5-10 minute claim from the slides, not a mistake.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 4. Install it
 
-Copy the issued cert/key into your subdirectory of the shared volume —
-this is the only "installation" step there is, since `demo-app` picks up
-changes automatically:
+Installing means copying the issued cert/key into your subdirectory of the
+shared volume — this is the only "installation" step there is, since
+`demo-app` picks up changes automatically. Then you append the TLS block
+to the same `.conf` file (rather than a separate one), which is what
+triggers demo-app's watcher again.
+
+**Your turn:** before you run it, predict: what will make nginx reload?
 
 ```sh
 cp ~/certbot/config/live/${host}/fullchain.pem "/srv/webroot/${me}/certs/fullchain.pem"
@@ -108,22 +134,33 @@ sed "s/studentNN/${me}/g" ~/lab/sample-repo/vhost-tls.conf.template \
   >> "/srv/webroot/${me}/conf.d/${me}.conf"
 ```
 
-Appending the TLS block to the same `.conf` file (rather than a separate
-one) is what triggers demo-app's watcher again.
+<!-- dojo-reveal: Result of the install -->
+
+- The `.conf` changed, so the watcher reloads nginx with the certificate and TLS block in place.
+
+<!-- /dojo-reveal -->
 
 ---
 
 ## 5. Verify
 
+`--cacert` hands curl the root to validate against, so it checks the full
+chain up to `step-ca`'s root, the same validation any real client does.
+`--insecure`/`-k` instead still connects but no longer *verifies*
+anything — worth seeing the difference once.
+
+**Your turn:** before you run it, predict: what line in the verbose output
+proves the chain validated?
+
 ```sh
 curl --resolve "${host}:443:${demo_ip}" --cacert /opt/step-ca-root/root_ca.crt "https://${host}/" -v
 ```
 
-Look for `SSL certificate verify ok` in the verbose output — that means
-curl validated the full chain up to `step-ca`'s root, the same validation
-any real client does. Compare that against what happens with
-`--insecure`/`-k` instead of `--cacert`: it still connects, but it's no
-longer *verifying* anything — worth seeing the difference once.
+<!-- dojo-reveal: Result of the verify -->
+
+- `SSL certificate verify ok` appears in the verbose output, followed by your `<h1>`.
+
+<!-- /dojo-reveal -->
 
 Now the same check the way a browser makes it: open the **Site
 Inspector** card on the workshop homepage and visit `https://${host}`
@@ -149,23 +186,24 @@ redirect, then HSTS*):
   tells the browser to skip `http://` for your name for the next five
   minutes, even when you type it without `https://`.
 
-The template has both, marked `CHANGED`. Read it, then replace your file
-with it:
+The template has both, marked `CHANGED`. After you read it, you replace
+your file with it, and `-I` (headers only) lets you check both from the
+terminal.
+
+**Your turn:** before you run it, predict: what status and headers will
+each of the three requests return, and why is the third not a `301`?
 
 ```sh
 less ~/lab/sample-repo/vhost-https-only.conf.template
 sed "s/studentNN/${me}/g" ~/lab/sample-repo/vhost-https-only.conf.template \
   > "/srv/webroot/${me}/conf.d/${me}.conf"
-```
-
-Check both from the terminal (`-I` prints only the headers):
-
-```sh
 curl -sI --resolve "${host}:80:${demo_ip}" "http://${host}/"
 curl -sI --resolve "${host}:443:${demo_ip}" --cacert /opt/step-ca-root/root_ca.crt "https://${host}/"
 curl -s  --resolve "${host}:80:${demo_ip}" -o /dev/null -w '%{http_code}\n' \
   "http://${host}/.well-known/acme-challenge/missing"
 ```
+
+<!-- dojo-reveal: Results of the three curl checks -->
 
 ```text
 HTTP/1.1 301 Moved Permanently
@@ -179,6 +217,8 @@ Strict-Transport-Security: max-age=300
 
 The last one is `404`, not `301`: the challenge path still answers on
 plain HTTP.
+
+<!-- /dojo-reveal -->
 
 Now watch it from the browser's side. In the **Site Inspector**, visit
 `${host}` (no scheme) twice:

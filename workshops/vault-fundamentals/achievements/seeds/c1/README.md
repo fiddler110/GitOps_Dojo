@@ -7,4 +7,4 @@ engine `challenge/` with two secrets, `challenge/one` and `challenge/two`, and t
 
 Goal: let `buddy-{user}` read `challenge/one`, and nothing else. It must not be able to read `challenge/two`.
 
-Work in your own namespace: `export BAO_NAMESPACE=students/$USER`. Then run `dojo-check c1`.
+Work in your own namespace: `export BAO_NAMESPACE=students/$USER`. Then run `dojo check c1`.

@@ -463,17 +463,20 @@ git stash list     # See saved stashes
 ## Investigate history
 
 ```bash
-git log --oneline --graph   # Timeline
-git show <commit>           # One commit's changes
-git blame roster/team.yaml  # Last commit for each line
-git log -p -- <file>        # History of one file
+git log --oneline --graph --all     # Every branch, drawn
+git log --author=Bob --since=<date> # Filter by who and when
+git show <commit>                   # One commit's changes
+git blame <file>                    # Last commit for each line
+git log -p <file>                   # Every change to one file
+git log -S"text"                    # Commits that added or removed text
+gitleaks git                        # Scan every commit for secrets
 ```
 
 Use history to answer:
 
-- What changed?
-- When and why did it change?
+- What changed, when and why?
 - Who has useful context?
+- Did a secret ever get committed?
 
 ---
 
@@ -492,7 +495,7 @@ dist/
 - Does not stop tracking a file already committed
 - <u>*Does not remove a secret from history*</u>
 
-**If a secret is committed, rotate it immediately.**
+**If a secret is committed, rotate it immediately.** Find it: `git log -S`, `gitleaks`.
 
 ---
 

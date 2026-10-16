@@ -4,7 +4,7 @@ Optional leaderboard, "achievement unlocked" toasts, end-of-lab challenges and a
 
 **Status.** In progress; see "Achievements" in `ROADMAP.md`. Built: the catalog (loader, validator, markdown
 generator, editor), the service with its event API, points, hints and `/admin` tab, the shell and Forgejo event
-sources, and challenges (phase 4: `dojo-check`, `dojo-challenge start/reset`, the Forgejo verifiers and seed builder,
+sources, and challenges (phase 4: `dojo check`, `dojo challenge start/reset`, the Forgejo verifiers and seed builder,
 with git-fundamentals c1 and c2 specified). Not built yet: the capstone's seed and verbs, cheat tiers, the certificate,
 Sensei and the VS Code/Forgejo toast surfaces. Only git-fundamentals has `match` rules and challenge verifiers so far.
 
@@ -115,14 +115,14 @@ data-surface="portal">`); loading it on engine pages is open question A31 in ROA
 
 ## The terminal (`terminal/`)
 
-`dojo-check` (status, `hint ID`, `reveal ID`, `ID`) is one stdlib script with no answers in it.
+`dojo check` (status, `hint ID`, `reveal ID`, `ID`) is one stdlib script with no answers in it.
 It sends the student's own Forgejo token (from `~/.git-credentials`), which the service confirms
 with Forgejo, plus its own sha256: the service hashes the same file, so an edited copy costs -1
 ("cheat-client") and a mutating call without the shipped client is refused the same way.
 Identity headers next to a token that belong to someone else cost -1 ("cheat-identity").
 A prompt hook in `/etc/zsh/zshrc` runs `dojo-check --echo` at most every 5 s and prints new
 unlocks in colour once; the echo never marks an unlock delivered, so the browser still toasts it.
-`dojo-check ID` asks the service to check a challenge; `dojo-challenge start|reset ID` (a link to
+`dojo check ID` asks the service to check a challenge; `dojo challenge start|reset ID` (a link to
 the same file, so the hash matches) builds the student's own challenge repo and clones it into
 `~/lab`.
 
@@ -135,24 +135,22 @@ each checks, the Python file with `VERBS` and `BUILDERS`); this module ships the
 `seed_plan` (`workshops/<name>/achievements/seeds/`, each value picked by a hash of the user name;
 keys grouped in the plan's `linked` share one pick, e.g. a role and its misspelling),
 refuses any assertion or seed whose `repo` isn't `{user}/...`, and runs them with the service's
-own Forgejo admin login (no login: `dojo-check ID` answers 501). A pass is recorded once, never
+own Forgejo admin login (no login: `dojo check ID` answers 501). A pass is recorded once, never
 undone, and scores the usual points minus hints; a wrong answer costs nothing (only the masher
 limit applies); Forgejo being down is "try again" (503), not a wrong answer. `POST /api/challenge`
 `{challenge, action: start|reset}` builds the repo (start leaves an existing one alone, reset
 deletes and re-creates it; hints and points are untouched) and returns the goal with the
 student's values filled in. Check runs are logged for the facilitator (`/api/state` `checks`).
 A challenge with `"watch": true` is checked over time, not once (cert-autorenewal `c2`: the site renews itself for
-20 minutes): a failing `dojo-check ID` puts it on the student's watch list (kept in `state.json`), and the state sweep
+20 minutes): a failing `dojo check ID` puts it on the student's watch list (kept in `state.json`), and the state sweep
 re-runs its verifiers every `ACHIEVEMENTS_STATE_SECONDS` until they pass, then scores it like a check (logged with
 `watched: true`). The verb keeps its own progress (`served_renews` in memory, so a restart starts the window again).
 Tests: `service/test_challenges.py` against the in-memory `service/fake_forgejo.py`.
 
-**Lab buttons.** A lab adds a Start/Reset box for a challenge with one marker line, where the
-challenge's section ends: `<!-- dojo-challenge: c1 -->` (or `capstone`). Editors and Forgejo hide
-the comment; the lab reader (`workshops/assets/lab-reader.js`) shows the box only to a student
-when this module is on (`/achievements/api/me` lists that challenge), calls `POST
-/achievements/api/challenge` through the gateway, and tells the student to run `dojo-challenge
-start ID` to clone the repo into `~/lab`. With achievements off, or for the facilitator, nothing shows.
+**In the labs.** A lab ends a challenge's section with the commands in text: `dojo challenge start c1`, then
+`dojo check c1`. There are no lab-page buttons (a browser can't clone into the student's terminal, so they only
+half worked; the lab reader drops an old `<!-- dojo-challenge: c1 -->` marker line). `POST /achievements/api/challenge`
+stays: the terminal client calls it.
 
 **Shell events.** `dojo-achievements.zsh` (sourced from `/etc/zsh/zshrc`) records each command in `preexec` and, in
 `precmd`, sends it with its exit status, the branch before and after, and whether a merge was in progress before and

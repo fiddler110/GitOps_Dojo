@@ -106,9 +106,9 @@
       "title": "I'm behind: catch up to a lab",
       "match": [
         "\\b(behind|catch ?up|skip(ped)?|start (from|at)|broken (repo|lab)|lost my work|start over)\\b",
-        "\\blab-prep\\b"
+        "\\b(lab-prep|dojo prep)\\b"
       ],
-      "markdown": "## Catching up to a lab\n\n`lab-prep N` puts your fork and terminal where lab N expects them to be, using the solution up to the lab before:\n\n```sh\nlab-prep 5      # ready to start Lab 5\n```\n\nRun it from any folder; it is safe to run again. Applies that the lab needs still take their usual time.",
+      "markdown": "## Catching up to a lab\n\n`dojo prep N` puts your fork and terminal where lab N expects them to be, using the solution up to the lab before:\n\n```sh\nlab-prep 5      # ready to start Lab 5\n```\n\nRun it from any folder; it is safe to run again. Applies that the lab needs still take their usual time.",
       "where": "lab0.md",
       "section": "1. Fork the team repo"
     }

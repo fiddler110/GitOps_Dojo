@@ -86,7 +86,7 @@ Hover for the reason. Students never see service health.
 | A terminal is wedged | **Release**: kills their VS Code/terminal and frees the slot; their next visit reassigns |
 | A student wrecked their repo or state | **Reset**: back to stack-start, seat kept (see below) |
 | They forgot something about git auth | `git push` asking for a password means the token is missing; stop-gap: **Password** on their tile |
-| Late joiner | `lab-prep N` in their terminal (where the pack provides it) |
+| Late joiner | `dojo prep N` in their terminal (where the pack provides it) |
 | Class is full but seats are held by wanderers | **Release unused** above the grid frees slots older than 2 minutes with no running process |
 | Many people hitting "try again in N seconds" | The slot-assignment rate limit (10 at once, then 20/min) is smoothing a rush; a class of 30 is in within about a minute |
 

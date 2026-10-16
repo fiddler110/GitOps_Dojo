@@ -57,17 +57,17 @@ commit alice "2026-08-05T09:10:00" "Add logging settings"
 git checkout -q main
 
 # The mistake: a credential pasted in "just to test".
-printf 'payments:\n  api_key: sk_live_DOJO_NOT_A_REAL_KEY_51Hq9\n' >> config/app.yaml
-commit bob "2026-08-05T11:02:00" "Add payments API key so I can test checkout"
+printf 'azure:\n  client_secret: Dkx8Q~vT3nR1yWzUe5LqXo7bJ2hGcPaS9mKdF4iN\n' >> config/app.yaml
+commit bob "2026-08-05T11:02:00" "Add Azure client secret so I can test the deploy"
 
 printf '#!/usr/bin/env bash\nset -e\necho "Deploying webshop..."\n' > deploy.sh
 chmod +x deploy.sh
 commit alice "2026-08-05T15:40:00" "Add deploy script"
 
 # The cleanup: gone from the file, but not from history.
-sed -i '/^payments:/,$d' config/app.yaml
-printf 'payments:\n  api_key_env: PAYMENTS_API_KEY\n' >> config/app.yaml
-commit bob "2026-08-06T09:30:00" "Remove API key from config, read it from the environment"
+sed -i '/^azure:/,$d' config/app.yaml
+printf 'azure:\n  client_secret_env: AZURE_CLIENT_SECRET\n' >> config/app.yaml
+commit bob "2026-08-06T09:30:00" "Remove client secret from config, read it from the environment"
 
 # Bob's health-check branch forks later than Alice's, but is merged first.
 git checkout -q -b feature/healthcheck

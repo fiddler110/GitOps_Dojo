@@ -2,7 +2,7 @@
 
 **Time:** about 15 minutes, of which about 5 are waiting (two policy applies). **Goal:** write **one** "allowed images" definition and assign it **twice** with different parameter values at different scopes; use `enforce = false` (DoNotEnforce) to see what a rule *would* block before it blocks anything; then enforce it.
 
-> **Starting here?** This lab starts from the end of Lab 4 (costCenter rule on audit, the legacy group created). Run `lab-prep 5` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
+> **Starting here?** This lab starts from the end of Lab 4 (costCenter rule on audit, the legacy group created). Run `dojo prep 5` to set that up; it applies the earlier labs' work and takes about 3.5 minutes.
 
 ## Read this first: two slow applies
 
@@ -14,10 +14,7 @@ Platform rules already limit images to `dojo/hello:1.0` and `dojo/hello:2.0`. Yo
 
 ## 1. Read the definition
 
-```bash
-cd ~/lab/cloud-policy-as-code/policy/cloud
-cat rules/allowed-images.json
-```
+The rule file `rules/allowed-images.json` looks like this:
 
 ```json
 {
@@ -39,16 +36,22 @@ Read it as: *if the resource is a container group, and it is not true that its i
 - `containers[*].image` is a `[*]` field. The condition must hold for **every** container: one image outside the list makes the group non-compliant.
 - `[parameters('allowedImages')]` is an **Array parameter** with no default. The rule itself contains no image names at all. Whoever assigns it must say which are allowed.
 
-## 2. Enable the Lab 5 block
+**Your turn:** open `rules/allowed-images.json` in your editor, or print it. Predict first: does the file contain any image names?
 
-In `policy/cloud/main.tf`, the section from `# Lab 5:` to `# Lab 6:` is commented out. Uncomment it in VS Code, or:
-
-```bash
-sed -i '/^# Lab 5:/,/^# Lab 6:/{/^# Lab [56]:/!s/^# \{0,1\}//}' main.tf
-tofu fmt
+```sh
+cd ~/lab/cloud-policy-as-code/policy/cloud
+cat rules/allowed-images.json
 ```
 
-Read what you enabled. First the definition:
+<!-- dojo-reveal: What the file shows -->
+
+- No image names at all: only the `[parameters('allowedImages')]` placeholder.
+
+<!-- /dojo-reveal -->
+
+## 2. Enable the Lab 5 block
+
+The block you will enable in `policy/cloud/main.tf` has three resources. First the definition:
 
 ```hcl
 resource "azurerm_policy_definition" "allowed_images" {
@@ -100,23 +103,40 @@ resource "azurerm_resource_group_policy_assignment" "images_strict" {
 - **`images_strict`:** only on `rg-<you>-app` (the `data` block looks it up by name), only 2.0 allowed. The resource type changed too: `..._resource_group_policy_assignment` takes `resource_group_id` where the subscription one takes `subscription_id`. Same definition, a different scope.
 - **`enforce = false`:** the new idea. See below.
 
+**Your turn:** in `policy/cloud/main.tf`, the section from `# Lab 5:` to `# Lab 6:` is commented out. Uncomment it in VS Code.
+
+**Prefer the terminal?**
+
+```sh
+sed -i '/^# Lab 5:/,/^# Lab 6:/{/^# Lab [56]:/!s/^# \{0,1\}//}' main.tf
+tofu fmt
+```
+
 ## 3. Apply
 
-```bash
+`tofu plan` previews the changes and `tofu apply` creates them. Read the "while it runs" section below while the apply works.
+
+**Your turn:** before you plan, predict how many resources will be added.
+
+```sh
 tofu plan
 ```
+
+<!-- dojo-reveal: Results of tofu plan -->
 
 ```text
 Plan: 3 to add, 0 to change, 0 to destroy.
 ```
 
-One definition and two assignments. Apply it:
+One definition and two assignments.
 
-```bash
+<!-- /dojo-reveal -->
+
+Apply it, type `yes`, and read while it runs.
+
+```sh
 tofu apply
 ```
-
-Type `yes`, and read while it runs.
 
 ## While it runs: reading
 
@@ -143,7 +163,11 @@ They overlap, and teams use either. Rule of thumb: use the effect parameter when
 
 ## 4. The dry run
 
-When the apply is done:
+`enforce = false` means the new strict rule is evaluated but cannot refuse anything. Your app still runs `dojo/hello:1.0`.
+
+**Your turn:** when the apply is done, open the **Compliance** view in the portal. Predict: is `ci-<you>-app` compliant with `images-subscription`? With `images-strict`?
+
+<!-- dojo-reveal: Results of the apply and Compliance -->
 
 ```text
 azurerm_policy_definition.allowed_images: Creation complete after 1m40s
@@ -153,34 +177,37 @@ azurerm_subscription_policy_assignment.images_subscription: Creation complete af
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
 ```
 
-Your app was running `dojo/hello:1.0` the whole time, and it is untouched: nothing was refused, and no write was attempted. Open the **Compliance** view in the portal:
+Your app was running `dojo/hello:1.0` the whole time, and it is untouched: nothing was refused, and no write was attempted. In the **Compliance** view:
 
 - `ci-<you>-app` is **Compliant** with `images-subscription` (1.0 is on that list).
 - `ci-<you>-app` is **NonCompliant** with `images-strict`. The reason lists the conditions that matched, ending (abridged) in `containers[*].image is 'dojo/hello:1.0', which is not in [dojo/hello:2.0]`.
 
 That second line is the whole value of DoNotEnforce: before blocking anyone, you can see exactly which of your existing resources the stricter rule would catch. Here it catches one, and it is yours.
 
+<!-- /dojo-reveal -->
+
 ## 5. Move the app to 2.0
 
-Fix it before enforcing. In `infra/main.tf` change the image:
+Fix it before enforcing. The image of a container cannot be changed in place, so OpenTofu replaces the container group; expect a few seconds of downtime.
+
+Open `infra/main.tf` in your editor and change the image:
 
 ```hcl
     image  = "dojo/hello:2.0"
 ```
 
-```bash
+**Your turn:** predict: will the plan show a change in place, or a replacement?
+
+```sh
 cd ~/lab/cloud-policy-as-code/infra
 tofu plan
+tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of plan and apply -->
 
 ```text
 Plan: 1 to add, 0 to change, 1 to destroy.
-```
-
-(The image of a container cannot be changed in place, so OpenTofu replaces the container group; a few seconds of downtime.)
-
-```bash
-tofu apply -auto-approve
 ```
 
 ```text
@@ -192,15 +219,24 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
 In **Compliance**, `ci-<you>-app` is now Compliant with `images-strict` as well.
 
+<!-- /dojo-reveal -->
+
 ## 6. Enforce
 
-Remove the `enforce = false` line from `images_strict` in `policy/cloud/main.tf`, then:
+Removing `enforce = false` turns the dry run into a real rule, with no rule or parameter edited. It changes only the assignment and takes about 2 minutes.
 
-```bash
+Open `policy/cloud/main.tf` in your editor and remove the `enforce = false` line from `images_strict`.
+
+**Your turn:** predict what the plan will show, then apply.
+
+```sh
 cd ~/lab/cloud-policy-as-code/policy/cloud
 tofu fmt
 tofu plan
+tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of plan and apply -->
 
 ```text
   ~ resource "azurerm_resource_group_policy_assignment" "images_strict" {
@@ -210,26 +246,30 @@ tofu plan
 Plan: 0 to add, 1 to change, 0 to destroy.
 ```
 
-```bash
-tofu apply -auto-approve
-```
-
-This changes only the assignment and takes about 2 minutes. While you wait: notice that going from "report only" to "enforced" cost you *no* rule edits and nothing broke, because you checked the report first. That is the point of DoNotEnforce.
+Going from "report only" to "enforced" cost you *no* rule edits and nothing broke, because you checked the report first. That is the point of DoNotEnforce.
 
 ```text
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 ```
 
+<!-- /dojo-reveal -->
+
 ## 7. Same image, two scopes, two verdicts
 
-Prove the scope works. In the scratch folder, try to start a container group running 1.0 **inside the strict resource group**:
+Prove the scope works: the same image should be refused in one group and allowed in another. In the scratch folder, you will try to start a container group running 1.0 **inside the strict resource group**. (A subscription may hold at most two container groups and the app uses one, so run the second attempt only after the first was refused.)
 
-```bash
+Set up the scratch folder:
+
+```sh
 mkdir -p ~/lab/scratch && cd ~/lab/scratch
 cp ~/lab/cloud-policy-as-code/infra/{providers,versions,variables}.tf .
 sed -i 's#tfstate/infra#tfstate/scratch#' versions.tf
 tofu init
-cat > main.tf <<'EOT'
+```
+
+Create `main.tf` there in your editor:
+
+```hcl
 data "azurerm_resource_group" "rg" {
   name = "rg-${var.owner}-app"
 }
@@ -265,9 +305,17 @@ resource "azurerm_container_group" "scratch" {
     costCenter = "cc-1001"
   }
 }
-EOT
+```
+
+**Prefer the terminal?** Write the same file with a heredoc: `cat > main.tf <<'EOT'`, paste the block above, and end with `EOT`.
+
+**Your turn:** predict: refused or allowed, and which assignment will be named?
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of the strict-group apply -->
 
 ```text
 Error: creating Container Group (Subscription: "<your subscription id>"
@@ -277,28 +325,43 @@ RequestDisallowedByPolicy: Resource 'ci-student01-scratch' was disallowed by pol
 Policy: 'Allowed container images'. Assignment 'images-strict', definition 'Allowed container images': ...
 ```
 
-(abridged.) It names `images-strict`, not `images-subscription`. Now point the same container at the **legacy** group, which only the subscription-wide assignment covers. Switch the data source from the app group to the legacy group:
+(abridged.) It names `images-strict`, not `images-subscription`.
 
-```bash
+<!-- /dojo-reveal -->
+
+Now point the same container at the **legacy** group, which only the subscription-wide assignment covers. In `main.tf`, change `rg-${var.owner}-app` in the data source to `rg-${var.owner}-legacy`.
+
+**Prefer the terminal?**
+
+```sh
 sed -i 's/-app"/-legacy"/' main.tf
+```
+
+**Your turn:** predict the outcome, then apply.
+
+```sh
 tofu apply -auto-approve
 ```
+
+<!-- dojo-reveal: Results of the legacy-group apply -->
 
 ```text
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-(Take care to run this only after the first attempt was refused: a subscription may hold at most two container groups, and the app uses one.) The same image, 1.0, allowed in one group and refused in another: that is scope.
+The same image, 1.0, allowed in one group and refused in another: that is scope.
+
+<!-- /dojo-reveal -->
 
 Clean up:
 
-```bash
+```sh
 tofu destroy -auto-approve
 ```
 
 ## 8. Commit it
 
-```bash
+```sh
 cd ~/lab/cloud-policy-as-code
 git add infra policy
 git commit -m "Allowed images: one definition, two assignments; app on 2.0"
@@ -330,17 +393,16 @@ stay as they are.
 Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
 
 ```sh
-dojo-challenge start c1
+dojo challenge start c1
 cd ~/lab/challenge-c1
 ```
 
 That makes your own repo `$USER/challenge-c1` and clones it to `~/lab/challenge-c1`, and prints the goal, with your own names in it. Push `main` when you think it's done, then:
 
 ```sh
-dojo-check c1
+dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo-check hint c1` gives a hint for part of the points, and
-`dojo-challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
+`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
 
-<!-- dojo-challenge: c1 -->

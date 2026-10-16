@@ -78,6 +78,16 @@ RUN set -eux; \
     apt-get update && apt-get install -y --no-install-recommends /tmp/glow.deb; \
     rm -rf /tmp/glow.deb /var/lib/apt/lists/*
 
+# `dojo`: the one student command (see its header). Commands are plug-ins in cmd.d; this image ships
+# `fix-terminal`, and each module and workshop adds its own links there. dojo-fix-terminal is the
+# old name; completion is picked up by the shared compinit.
+COPY dojo /usr/local/bin/dojo
+COPY dojo-fix-terminal /usr/local/share/dojo/cmd.d/fix-terminal
+COPY _dojo /usr/share/zsh/vendor-completions/_dojo
+RUN chmod 0755 /usr/local/bin/dojo /usr/local/share/dojo/cmd.d/fix-terminal \
+    && chmod 0644 /usr/share/zsh/vendor-completions/_dojo \
+    && ln -sf /usr/local/share/dojo/cmd.d/fix-terminal /usr/local/bin/dojo-fix-terminal
+
 COPY entrypoint.sh /usr/local/bin/web-terminal-entrypoint
 COPY workspace-control.py /usr/local/bin/workspace-control.py
 COPY healthcheck.sh /usr/local/bin/web-terminal-healthcheck

@@ -2,7 +2,7 @@
 
 **Goal:** create several similar resources from one block with `for_each`, then run into a **quota**, and learn why the plan couldn't warn you.
 
-> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `lab-prep 9` to set that up; it's safe to run even if you did the earlier labs.
+> **Starting here?** This lab needs hello deployed to Dojo Cloud (Lab 5). Run `dojo prep 9` to set that up; it's safe to run even if you did the earlier labs.
 
 ```sh
 cd ~/lab/tofu-basics
@@ -18,7 +18,16 @@ You could copy-paste the `azurerm_container_group` block for every extra site. C
 
 ## 2. Add two more sites
 
-Append a second container group resource to `main.tf`. It's identical to `hello` except for its name, its site name (the DNS label), and the message, which all include the key:
+The second resource is identical to `hello` except for its name, its site name (the DNS label), and the message, which all include the key (`each.key`). The set `toset(["blue", "green"])` gives it two instances, addressed `extra["blue"]` and `extra["green"]`.
+
+```text
+for_each = toset(["blue", "green"])    # one instance per item
+each.key                               # the current item, e.g. "blue"
+```
+
+Open `main.tf` in your editor and paste the block below at the end of the file (everything between the `HCL` markers).
+
+**Prefer the terminal?** This appends it for you:
 
 ```sh
 cat >> main.tf <<'HCL'
@@ -61,7 +70,9 @@ resource "azurerm_container_group" "extra" {
 HCL
 ```
 
-Check it and preview:
+Before you apply, do the sums. Your quota is **2 container groups**. You have 1. This plan will add 2.
+
+**Your turn:** check the file and preview. Before you run it, predict: how many resources will the plan add, and will it warn you about the quota? (`-no-color` matters here: without it OpenTofu wraps the lines in colour codes and `grep` finds nothing.)
 
 ```sh
 terraform fmt -check && echo fmt-ok
@@ -69,7 +80,9 @@ terraform validate
 terraform plan -no-color | grep -E '^  # |^Plan:'
 ```
 
-(`-no-color` matters here: without it OpenTofu wraps the lines in colour codes and `grep` finds nothing.) Expected:
+<!-- dojo-reveal: Results of fmt, validate and plan -->
+
+Expected:
 
 ```text
 fmt-ok
@@ -81,15 +94,19 @@ Plan: 2 to add, 0 to change, 0 to destroy.
 
 Two new resources, addressed `extra["blue"]` and `extra["green"]`. Your existing `hello` is untouched. The plan is happy.
 
-Before you apply, do the sums. Your quota is **2 container groups**. You have 1. This plan adds 2.
+<!-- /dojo-reveal -->
 
 ## 3. Apply and hit the limit
+
+A **quota** is a hard cap on how much you may have, and no plan can predict it. `plan` computes what to *ask for*; whether the cloud will say yes depends on what else exists in the subscription, including things outside your code. Real clouds have quotas everywhere (vCPUs per region, public IPs, storage accounts), and the way you meet them is exactly this error, at `apply`.
+
+**Your turn:** apply and type `yes`. Predict: do both new sites get created? If not, which one, and what does the error code look like?
 
 ```sh
 terraform apply
 ```
 
-Type `yes`:
+<!-- dojo-reveal: Results of apply -->
 
 ```text
 azurerm_container_group.extra["green"]: Creating...
@@ -108,15 +125,19 @@ Container Group Name: "ci-hello-dev-green"): performing ContainerGroupsCreateOrU
 
 `QuotaExceeded`, status `409`. Both were requested at the same moment; **whichever request reaches the cloud first wins.** In this run `blue` won and `green` was refused; on your screen it may be the other way round (then the error names `ci-hello-dev-blue`). It took about 15 seconds.
 
-**A quota is a hard cap on how much you may have, and no plan can predict it.** `plan` computes what to *ask for*; whether the cloud will say yes depends on what else exists in the subscription, including things outside your code. Real clouds have quotas everywhere (vCPUs per region, public IPs, storage accounts), and the way you meet them is exactly this error, at `apply`.
+<!-- /dojo-reveal -->
 
 ## 4. See where you stand
 
-The apply half-succeeded. OpenTofu recorded what did get created:
+A failed `apply` is not a rollback: what succeeded stays created, and OpenTofu records it in state.
+
+**Your turn:** ask what got created. Predict which extra site survived.
 
 ```sh
 terraform state list
 ```
+
+<!-- dojo-reveal: Results of state list -->
 
 ```text
 azurerm_container_group.extra["blue"]
@@ -126,17 +147,28 @@ azurerm_resource_group.main
 
 (Yours might list `["green"]` instead of `["blue"]`.) In the portal, **Container instances** shows two (your `hello` and one extra), Home shows **Quota: 2 / 2**, and you can **Browse** both sites. Look at the extra one: its message ends with `(blue)`.
 
+<!-- /dojo-reveal -->
+
 ## 5. Fix the code to match reality
 
-You can't have three, so make the code say what you can have. Edit the `for_each` line in `main.tf` so it lists **only the site that exists** (the one in your `state list`). If yours is `blue`:
+You can't have three, so make the code say what you can have. Open `main.tf` in your editor and edit the `for_each` line so it lists **only the site that exists** (the one in your `state list`), for example `for_each = toset(["blue"])`. Save.
+
+**Prefer the terminal?** If yours is `blue` (use `"green"` instead if that's the survivor):
 
 ```sh
 sed -i 's/for_each = toset(\["blue", "green"\])/for_each = toset(["blue"])/' main.tf
+```
+
+**Your turn:** before you plan, predict what the plan will say now.
+
+```sh
 grep -n 'for_each =' main.tf
 terraform plan
 ```
 
-(If yours is `green`, use `"green"` instead.) Expected:
+<!-- dojo-reveal: Results of plan -->
+
+Expected:
 
 ```text
 48:  for_each = toset(["blue"])
@@ -146,6 +178,8 @@ No changes. Your infrastructure matches the configuration.
 
 Code, state and cloud agree again, and the quota is fully used. If you wanted a third site you'd have to give one back first: destroy something, or ask for more quota.
 
+<!-- /dojo-reveal -->
+
 ## What just happened
 
 - `for_each` turned one block into several **instances**, each with a key you can see in the address, `extra["blue"]`.
@@ -154,9 +188,17 @@ Code, state and cloud agree again, and the quota is fully used. If you wanted a 
 
 ## Check yourself
 
-1. Why did `terraform plan` say `2 to add` when you could only afford one more? *(plan doesn't know the cloud's quotas; they are enforced when the request is sent)*
-2. If you delete `"green"` from the set, what happens to `extra["blue"]`? *(nothing: instances are tracked by key, so only the removed key is destroyed)*
-3. After the failed apply, which command tells you what was actually created? *(`terraform state list`, plus the portal)*
+1. Why did `terraform plan` say `2 to add` when you could only afford one more?
+2. If you delete `"green"` from the set, what happens to `extra["blue"]`?
+3. After the failed apply, which command tells you what was actually created?
+
+<!-- dojo-reveal: Show the answer -->
+
+1. Plan doesn't know the cloud's quotas; they are enforced when the request is sent.
+2. Nothing: instances are tracked by key, so only the removed key is destroyed.
+3. `terraform state list`, plus the portal.
+
+<!-- /dojo-reveal -->
 
 ## Troubleshooting
 

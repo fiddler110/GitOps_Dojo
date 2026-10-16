@@ -21,7 +21,7 @@ scoping as a standalone pack. Do the rehearsal below before a room.
 | Recap | ~10 | What surprised them; point out the exploit guides for anyone who didn't finish |
 
 **No lab depends on another.** Students can do them in any order and start fresh from the **Attack
-Range** card each time — there is no `lab-prep <N>` here because there's nothing sequential to catch up
+Range** card each time — there is no `dojo prep <N>` here because there's nothing sequential to catch up
 on.
 
 **Lab 1 has two flags, and that trips people up.** The first flag is a captured service token (land the
@@ -85,7 +85,7 @@ Range**.
   a cycle or two is the normal flow, not a sign something's broken.
 - **A queued start.** If the whole room clicks Start together, requests queue (`CTF_ATTACK_MAX_CONCURRENT`
   in the module); the card shows "queued, position N" — tell students this is normal, not stuck.
-- **Lagging student:** there's no `lab-prep` to fast-forward with (no sequential state to catch up on) —
+- **Lagging student:** there's no `dojo prep` to fast-forward with (no sequential state to catch up on) —
   point them at whichever lab's hints they want and let them start that target directly.
 
 **Updating content mid-session.** Slides and labs are bind-mounted; edits to `content/slides/` show
