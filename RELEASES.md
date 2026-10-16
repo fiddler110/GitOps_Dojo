@@ -7,6 +7,12 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Challenge briefs and an open-ended git-fundamentals capstone (2026-10-16, `feat/lab-teach-first-structure`)
+
+- `dojo challenge start|reset` writes the brief to `~/capstone.md` or `~/challenge-cN.md` and shows it with glow (Goal, End result, Where to work, When you're done, Start over); plain text if glow can't run.
+- Every workshop lab with challenges (git-fundamentals, dns-as-code, tofu-basics, vault-fundamentals, cert-autorenewal, cloud-policy-as-code) has a "(bonus)" section (start, brief file, check, reset) and a section named for the challenge with a story and an end-result list. Catalog goals are stories with end-result `constraints`. Wording only outside git-fundamentals; tested with the unit suites, not live.
+- git-fundamentals capstone "The Great Merge" is now outcome-checked: conflicting changelog, a bad commit and a stray `debug.log`; any method passes if `main` ends right and its history is intact (new `file_absent` and `history_preserved` verbs; the seed records each branch's commits). Solved live once (student02, +300); the force-push failure is unit-tested only.
+
 ## `./dojo stop` saves the class's results first (2026-10-16, `feat/lab-teach-first-structure`)
 
 - Before the volumes are deleted, `stop` (and `down`, `restart --clean`) writes `results/<date>_<time>_<workshop>/`:

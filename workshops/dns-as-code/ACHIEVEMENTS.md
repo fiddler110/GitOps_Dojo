@@ -122,7 +122,7 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
-- **Goal shown to the student:** Your zone repo has a record that points at the wrong hostname. Find it and fix it without touching any other record, then push.
+- **Goal shown to the student:** The copy of your zone you were given has a record pointing at the wrong hostname, and `dnscontrol` refuses to push it. Find it and fix it without touching any other record, then push.
 - **Seed:** `dojo challenge start c1` creates `{user}/challenge-typo` (owned by the student, cloned to `~/lab/challenge-typo`): a zone for `{user}.dojo.test` with six records; the `{label}` CNAME target is missing its trailing dot, so dnscontrol refuses the file ("must end with a (.)"). `{label}` is picked per student.
 - **Verify:** the zone `{user}.dojo.test` (read through the dns-gate read key): the apex A, `www` and `mail` A records are as seeded, `{label}` is a CNAME to `www.{user}.dojo.test.`, and the bad target is gone.
 - **Hint 1:** Run the tool that shows you what it would change.
@@ -134,7 +134,7 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 
 - **Points:** 100
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
-- **Goal shown to the student:** `app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, and the zone must show no other changes.
+- **Goal shown to the student:** `app` is moving to a new server and `www` should become an alias of it. `app.{user}.dojo.test` must point at the new server `10.20.0.{n}` and `www` must become an alias of `app`, in one commit, with no other change to the zone.
 - **Seed:** `dojo challenge start c2` creates `{user}/challenge-cutover` (cloned to `~/lab/challenge-cutover`): `app` and `www` are both A records at `10.10.0.5`; `n` is picked per student.
 - **Verify:** the zone `{user}.dojo.test`: `app` is an A record at `10.20.0.{n}`, `www` is a CNAME to `app.{user}.dojo.test.` (and no longer an A record), the apex A and `mail` are unchanged. It can't see how many commits made the change.
 - **Hint 1:** One commit, two records.
@@ -146,7 +146,8 @@ touches `dns-team/dns-as-code`, `dojo.test` or another student's records, and no
 
 - **Points:** 300
 - **Where it runs:** the student's own zone `{user}.dojo.test` and its repo; never the shared `dojo.test` zone
-- **Goal shown to the student:** A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic to the wrong address, in the same commit. Get your zone to the right state, keeping the good record and dropping the bad one, without rewriting history.
+- **Goal shown to the student:** A change was pushed to your zone an hour ago. In one commit it added a record you want to keep and a record that is sending traffic to the wrong address. Get your zone back to the right state: keep the good record, drop the bad one, and leave everything else as it was.
+- **Constraints:** in `{user}/challenge-badpush`; your zone `{user}.dojo.test` ends up with the good record `{good}` (an A record at `198.51.100.{good_octet}`) and without the bad record `{bad}`; the apex, `www` and `mail` records are unchanged; fix it with new commits and never rewrite history (this last rule is on you, the check can't see it)
 - **Seed:** `dojo challenge start capstone` creates `{user}/challenge-badpush` (cloned to `~/lab/challenge-badpush`) whose last commit, by someone else, adds two records at once: `{good}` (right) and `{bad}` (wrong address). Names and addresses are picked per student.
 - **Verify:** the zone `{user}.dojo.test`: `{good}` is an A record at `198.51.100.{good_octet}`, `{bad}` is absent, the apex, `www` and `mail` are unchanged. It can't see whether history was rewritten, so the goal only asks for that.
 - **Hint 1:** History shows you which commit.

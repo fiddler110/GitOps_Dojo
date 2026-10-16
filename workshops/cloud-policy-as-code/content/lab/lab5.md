@@ -384,25 +384,39 @@ git commit -m "Allowed images: one definition, two assignments; app on 2.0"
 
 ---
 
-## Challenge c1: Allowed Environments (bonus)
+## Challenge c1 (bonus)
 
-Write your own parameterised `audit` rule: flag any resource whose `env` tag is not in a list you pass in, and see it
-report a seeded resource group as non-compliant. It works on one resource group of your own, so the lab's assignments
-stay as they are.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c1
 cd ~/lab/challenge-c1
 ```
 
-That makes your own repo `$USER/challenge-c1` and clones it to `~/lab/challenge-c1`, and prints the goal, with your own names in it. Push `main` when you think it's done, then:
+That makes your own repo `$USER/challenge-c1`, clones it to `~/lab/challenge-c1` and shows your brief. The brief is
+saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. Push `main` when you think it's done, then:
 
 ```sh
 dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
-`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c1` deletes `~/lab/challenge-c1` (including any uncommitted work), builds a
+fresh copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check
+can't recognise.
+
+## Allowed Environments
+
+Your team wants to know when something is tagged with an environment nobody expects. On your own resource group
+`rg-$USER-c1`, write your own parameterised `audit` rule: flag any resource whose `env` tag is not in a list you pass
+in, and see it report the seeded resource group (tagged `env = "sandbox"`) as non-compliant. It works on that one
+group only, so the lab's assignments stay as they are.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c1`, with `main.tf` holding an `azurerm_resource_group_policy_assignment`.
+- A parameterised `audit` definition (parameter `allowedEnvs`, a rule on the `env` tag) is assigned at the scope of `rg-<you>-c1` **only**, never the subscription, with enforcement on and `allowedEnvs = ["dev", "test"]`.
+- The seeded group `rg-<you>-c1` shows as non-compliant. The effect is the literal `audit`, so nothing is refused.
 

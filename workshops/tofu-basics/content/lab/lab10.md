@@ -199,48 +199,72 @@ Where to go next, in a real project: keep state in a shared, locked **remote bac
 
 ---
 
-## Challenge c2: Quota Whisperer (bonus)
+## Challenge c2 (bonus)
 
-The code declares five sites; your subscription holds two container groups. Make the apply succeed without asking
-for more quota. Start it now that this lab has freed your quota.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/challenge-c2
 ```
 
-That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-c2`, clones it to `~/lab/challenge-c2` and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think
+it's done:
 
 ```sh
 dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
 
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-c2` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Quota Whisperer
+
+The code in your repo declares five sites, but your subscription holds only two container groups in total. The apply fails on quota. Make it succeed without asking for more quota. Start it now that this lab has freed your quota.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c2` and your own Dojo Cloud subscription.
+- One or two `challenge=c2` containers are running (any count from 1 to 2 passes), each named `<you>-c2-...` with the `owner` and `env` tags.
+- `main.tf` on `main` (pushed) no longer declares the original list of five sites.
 
 ---
 
-## Capstone: Site Factory (bonus)
+## Capstone (bonus)
 
-From a near-empty repo: two differently named sites from one `for_each`, each with the required tags, an output map
-of names to URLs, then a clean destroy that leaves nothing running.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start capstone
 cd ~/lab/site-factory
 ```
 
-That makes your own repo `$USER/site-factory` and clones it to `~/lab/site-factory`, and prints the goal, with your own names in it. When you think it's done, run it twice: while both sites run, then again after `tofu destroy` (the first check says what's next):
+That makes your own repo `$USER/site-factory`, clones it to `~/lab/site-factory` and shows your brief. The brief is
+saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think
+it's done:
 
 ```sh
 dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
-`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+Run it twice: once while both sites run, then again after `tofu destroy` (the first check says what's next).
 
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/site-factory` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Site Factory
+
+Starting from a near-empty repo, build the code for two differently named sites from one `for_each`, each with the required tags, and an output map of names to URLs. When both are running, check; then tear everything down cleanly and check again.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/site-factory` and your own Dojo Cloud subscription. Needs both of your container groups, so destroy old lab sites first.
+- **Step 1, while the sites run:** exactly two `challenge=capstone` containers, named `<you>-...`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` uses `for_each`.
+- **Step 2, after `tofu destroy`:** no `challenge=capstone` container group is left.

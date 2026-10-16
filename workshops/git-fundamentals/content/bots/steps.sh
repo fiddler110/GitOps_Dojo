@@ -94,7 +94,7 @@ step_gf_c2() {
 step_gf_capstone() {
   narrate "Capstone -- The Great Merge"
   gf_start capstone || return 1
-  run_cmd "git switch -c merge-$BOT_USER"
+  run_cmd "git switch -c release-$BOT_USER"
   run_cmd "git merge origin/feature-a"
   run_cmd "git merge origin/feature-b"   # conflicts in CHANGELOG.md: expected
   run_cmd "sed -i '/^<<<<<<< /d;/^=======\$/d;/^>>>>>>> /d' CHANGELOG.md"
@@ -102,8 +102,12 @@ step_gf_capstone() {
   run_cmd "git commit --no-edit"
   run_cmd "git log --oneline"
   run_cmd "git revert --no-edit \$(git log --format=%h --grep='Make deploys faster' -1)"
-  run_cmd "git push -u origin merge-$BOT_USER"
-  local n; n="$(gf_open_pr "merge-$BOT_USER" "Merge both features")"
+  run_cmd "git rm -q debug.log"
+  run_cmd "echo '*.log' >> .gitignore"
+  run_cmd "git add .gitignore"
+  run_cmd "git commit -m 'Stop tracking logs'"
+  run_cmd "git push -u origin release-$BOT_USER"
+  local n; n="$(gf_open_pr "release-$BOT_USER" "Release both features")"
   narrate "opened PR #${n:-?} in $GF_REPO"
   [ -n "$n" ] || return 1
   api_curl -X POST "$API/repos/$GF_REPO/pulls/$n/merge" -H 'Content-Type: application/json' -d '{"Do":"merge"}'

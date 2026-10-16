@@ -149,24 +149,39 @@ You've now covered DNS as code in your own zone (Labs 1-2), the change process o
 
 ---
 
-## Capstone: The Bad Push (bonus)
+## Capstone (bonus)
 
-Someone pushed one good record and one bad one in the same commit. Keep the good one, drop the bad one, and don't
-rewrite history. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start capstone
 cd ~/lab/challenge-badpush
 ```
 
-That makes your own repo `$USER/challenge-badpush` and clones it to `~/lab/challenge-badpush`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-badpush`, clones it to `~/lab/challenge-badpush` and shows your brief. The brief is
+saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think
+it's done:
 
 ```sh
 dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
-`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/challenge-badpush` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like. Note that this challenge pushes to your own zone `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+## The Bad Push
+
+A change was pushed to your zone an hour ago. It added a record you want to keep and a record that is sending traffic
+to the wrong address, in the same commit. Get your zone to the right state without rewriting history.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-badpush`, and push to your own zone `<you>.dojo.test`.
+- The good record is an A record at the address given in your brief.
+- The bad record is gone from the zone.
+- The apex, `www` and `mail` are unchanged.
+- History is not rewritten (the check can't see this, so it is on you): fix it with new commits.
 

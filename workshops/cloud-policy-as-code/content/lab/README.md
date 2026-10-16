@@ -36,7 +36,7 @@ Only when your class has achievements on. They are bonus points and never count 
 
 Start one in the terminal with `dojo challenge start <id>` (c1 and c2 build your repo and clone it into `~/lab`; the
 capstone works in your fork), and check it with `dojo check <id>`. A wrong answer costs nothing; `dojo check hint <id>`
-gives a hint for part of the points.
+gives a hint for part of the points. Stuck in a mess? `dojo challenge reset <id>` throws the repo away for a fresh copy. Your brief is saved in `~` (`capstone.md`, `challenge-c1.md`, `challenge-c2.md`); read it with `glow ~/capstone.md`.
 
 **The timings are estimates.** Labs that apply policy (3, 4, 5, 6, 7, 8) include waits of 2 to 3.5 minutes. Creating or destroying a policy definition or assignment takes about 100 seconds, because the provider waits until the cloud's policy service has replicated the change everywhere (eventual consistency). Each of those labs says so up front and gives you something to read while it runs. The waits are part of the lesson, not a fault.
 

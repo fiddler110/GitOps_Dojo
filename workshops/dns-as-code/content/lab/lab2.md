@@ -106,24 +106,37 @@ dig @dns-server www.$USER.dojo.test A +short
 
 ---
 
-## Challenge c1: The Typo (bonus)
+## Challenge c1 (bonus)
 
-A copy of your zone that `dnscontrol` refuses to push: one record points at the wrong hostname. Find it and fix it
-without touching any other record, then push. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c1
 cd ~/lab/challenge-typo
 ```
 
-That makes your own repo `$USER/challenge-typo` and clones it to `~/lab/challenge-typo`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-typo`, clones it to `~/lab/challenge-typo` and shows your brief. The brief is
+saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. When you think
+it's done:
 
 ```sh
 dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
-`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c1` deletes `~/lab/challenge-typo` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like. Note that this challenge pushes to your own zone `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+## The Typo
+
+A copy of your zone that `dnscontrol` refuses to push: one record points at the wrong hostname. Find it and fix it
+without touching any other record, then push.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-typo`, and push to your own zone `<you>.dojo.test`.
+- The bad record is now a CNAME to `www.<you>.dojo.test.`, and the bad target is gone.
+- Every other record is untouched: the apex A, `www` and `mail` are as seeded.
 

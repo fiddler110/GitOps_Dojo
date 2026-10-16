@@ -248,23 +248,37 @@ git branch -D lab4-explore
 
 ---
 
-## Challenge c2: The Detective (bonus)
+## Challenge c2 (bonus)
 
-Someone changed a line they shouldn't have. Find the commit, and say whose it was.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/challenge-repo
 ```
 
-That makes your own repo `$USER/challenge-repo` and clones it to `~/lab/challenge-repo`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-repo`, clones it to `~/lab/challenge-repo` and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think
+it's done:
 
 ```sh
 dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
 
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-repo` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the
+check can't recognise.
+
+## The Detective
+
+Someone changed a line in `config/settings.yaml` they shouldn't have, and nobody owns up to it. Your brief names the
+line. Find the commit that introduced it and say whose it was.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-repo`.
+- Create a file called `answer.txt` on a branch called `case-<you>` and push it to Forgejo.
+- It names the commit's short hash (7 or more characters) and the author's name, for example `abc1234 Jane Doe`.

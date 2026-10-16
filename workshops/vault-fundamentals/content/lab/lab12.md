@@ -218,23 +218,31 @@ Nothing it was given: its platform identity gets a vault token, and the vault ma
 
 ---
 
-## Challenge c2: The Right Lease (bonus)
+## Challenge c2 (bonus)
 
-Database logins that last 2 minutes and never more than 10 in total, on a new role `c2-app`, and one login from it.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/challenge-lease
 ```
 
-That makes your own repo `$USER/challenge-lease` and clones it to `~/lab/challenge-lease`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-lease`, clones it to `~/lab/challenge-lease` and shows your brief. The brief is saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think it's done:
 
 ```sh
 dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-lease` (including any uncommitted work), builds a fresh copy and clones it, as often as you like.
+
+## The Right Lease
+
+The app's database logins are living too long. It needs them valid for 2 minutes, and never longer than 10 minutes in total, and you don't want to disturb the role you built in the lab. Set this up on a new role called `c2-app`, and take one login from it.
+
+**End result (what the check looks for)**
+
+- In your namespace `students/$USER`, the database role `c2-app` exists with a default TTL of 2 minutes and a max TTL of 10 minutes.
+- At least one login (lease) has been issued from `c2-app`.
 

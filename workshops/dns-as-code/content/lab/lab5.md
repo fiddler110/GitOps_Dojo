@@ -137,23 +137,38 @@ python3 scripts/dnsctl.py submit "Re-add $USER-app"
 
 ---
 
-## Challenge c2: The Cutover (bonus)
+## Challenge c2 (bonus)
 
-Move `app` to a new server and make `www` an alias of it, in one commit, with no other change to the zone. It pushes to your own zone, `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/challenge-cutover
 ```
 
-That makes your own repo `$USER/challenge-cutover` and clones it to `~/lab/challenge-cutover`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-cutover`, clones it to `~/lab/challenge-cutover` and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think
+it's done:
 
 ```sh
 dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-cutover` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like. Note that this challenge pushes to your own zone `$USER.dojo.test`, the same one `~/lab/my-zone` pushes to: whichever you push last wins.
+
+## The Cutover
+
+`app` is moving to a new server, and `www` should stop being a separate address and become an alias of `app`. Do it in
+one commit, with no other change to the zone.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-cutover`, and push to your own zone `<you>.dojo.test`.
+- `app` is an A record at the new server's address given in your brief.
+- `www` is a CNAME to `app.<you>.dojo.test.` and no longer an A record.
+- Nothing else changed: the apex A and `mail` are as seeded.
 

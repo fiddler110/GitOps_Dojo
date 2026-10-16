@@ -3,7 +3,8 @@
   "title": "Quota Whisperer",
   "after": "after Lab 9; needs 1 free container group",
   "space": "the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, own state); resources tagged `challenge=c2`",
-  "goal": "Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.",
+  "goal": "Your code declares 5 sites but your subscription only holds 2 container groups in total, so the apply fails on quota. Make the apply succeed without asking for more quota.",
+  "constraints": "in `{user}/challenge-c2`; one or two `challenge=c2` containers are running, each named `{user}-c2-...` with the `owner` and `env` tags; `main.tf` on `main` no longer declares the original list of 5 sites",
   "seed": "`dojo challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.",
   "verify_text": "Dojo Cloud (own subscription, read-only): one or two `challenge=c2` containers running, each with a `{user}-c2-` site name and the `owner` and `env` tags (the exact count depends on the quota left from the labs, so any count from 1 to 2 passes); and `main.tf` on `main` of `{user}/challenge-c2` no longer declares the original list of 5 sites (push the change). Not checked: that the last `apply` had no `QuotaExceeded` and that the plan is clean (shell output and state are not read); the pushed code stands in for them.",
   "hints": [

@@ -1162,7 +1162,8 @@ class Store:
                 mine = self.seeds.setdefault(user, {})
                 old = mine.get(res["plan"], {})
                 if res["created"]:
-                    mine[res["plan"]] = {"repo": res["repo"], "commits": res["commits"], "at": self.clock(),
+                    mine[res["plan"]] = {"repo": res["repo"], "commits": res["commits"],
+                                         "branches": res.get("branches", {}), "at": self.clock(),
                                          "resets": old.get("resets", -1) + 1}
                 self._save()
             return {"repo": res["repo"], "created": res["created"],

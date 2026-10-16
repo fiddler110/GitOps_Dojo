@@ -3,7 +3,8 @@
   "title": "The Second Site",
   "after": "after Lab 2 or 3",
   "space": "the student's own vhost directory `/srv/webroot/{user}/` and names under `{user}.certs.dojo.test`",
-  "goal": "Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.",
+  "goal": "Your first site is live, but the shop has no certificate of its own. Give `shop.{user}.certs.dojo.test` its own trusted certificate, using either tool, without touching the first site.",
+  "constraints": "in `{user}/cert-shop`; `shop.{user}.certs.dojo.test` serves a trusted certificate different from your first site's; `shop.conf` on `main` has a `server_name` for the shop name and `listen 443 ssl`; no private key anywhere in the repo history",
   "verify_text": "`demo-app`'s HTTPS listener serves `shop.{user}.certs.dojo.test` (checked over SNI) a certificate that chains to the CA root, matches the name and is not expired, and is not the certificate served for `{user}.certs.dojo.test`. It cannot see whether the first site's serial changed, only that the two sites hold different certificates. And `shop.conf` on `main` of `{user}/cert-shop` names `shop.{user}.certs.dojo.test` and has a `listen 443 ssl` block (push the vhost you run). The repo's whole history (every branch, every commit) holds no private key.",
   "isolation": "a second vhost in the student's own subdirectory and the student's own repo `{user}/cert-shop`; issuance goes through the shared CA, which handles concurrent orders for different names. The check reads only names under `{user}.certs.dojo.test` and that repo.",
   "hints": [

@@ -278,24 +278,59 @@ You've now covered the full loop (Lab 1) plus the most common "something went si
 
 ---
 
-## Capstone: The Great Merge (bonus)
+## Capstone (bonus)
 
-Two feature branches change the same spot, and one of them also broke something. Bring both into `main` through a
-pull request, keep both changes, and undo the broken commit the safe way.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start capstone
 cd ~/lab/challenge-repo
 ```
 
-That makes your own repo `$USER/challenge-repo` and clones it to `~/lab/challenge-repo`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-repo`, clones it to `~/lab/challenge-repo` and shows your brief. The brief is
+saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think
+it's done:
 
 ```sh
 dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
-`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
 
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/challenge-repo` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the
+check can't recognise.
+
+## The Great Merge
+
+It's release day. Alice's `feature-a` and Bob's `feature-b` are both finished and have to ship together on `main`, but
+the release has three problems hiding in it:
+
+1. Both features added their line to the end of `CHANGELOG.md`, so git can't combine them on its own.
+2. A commit on `feature-b`, "Make deploys faster", set `timeout_seconds` to 0 and breaks every deploy.
+3. Alice committed her `debug.log` test output on `feature-a`, and nothing stops it happening again.
+
+Get a clean release onto `main`. How you do it is up to you, as long as the end result below is true. Everything you
+need is in the labs: Lab 2 (`.gitignore`, untracking a file), Lab 4 (reading history) and Lab 5 (conflicts and `git revert`).
+
+**About the branches.** Both feature branches are already in your clone, but only as remote-tracking branches, so
+`git branch` shows just `main`. See them with `git branch -a` (`origin/feature-a`, `origin/feature-b`). You can merge
+`origin/feature-a` straight in, or make a local copy to look around first:
+
+```sh
+git switch feature-a        # creates a local feature-a that tracks origin/feature-a
+git log --oneline main..feature-a
+git switch main
+```
+
+If they ever seem missing, `git fetch origin` brings them down.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-repo`.
+- `main` changes only through a **merged pull request** (from any branch, built any way you like). Pushing straight to `main` fails the check.
+- `CHANGELOG.md` on `main` has **both** feature lines and none of the `<<<<<<<`, `=======`, `>>>>>>>` marker lines.
+- `config/settings.yaml` on `main` has `timeout_seconds: 30`. Revert the commit, fix the value forward, or leave that commit out of your merge: all count.
+- `debug.log` is **not** on `main`, and `.gitignore` on `main` ignores it (a rule like `*.log`).
+- The **history is intact**: every commit `main` started with is still there. A force-push, or rebasing or squashing `main`, fails the check. Never rewrite shared history.

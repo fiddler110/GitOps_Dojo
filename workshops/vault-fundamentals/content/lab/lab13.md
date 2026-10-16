@@ -212,26 +212,37 @@ The audit log shows the read was denied: the value never left the vault.
 
 ---
 
-## Capstone: Zero Standing Secrets (bonus)
+## Capstone (bonus)
 
-A new app with no secret in git, CI or on disk: identity from the platform, its own least-privilege policy, one
-static secret, one dynamic database login, and a rotation with no deploy. Starting the capstone unlocks your second
-app slot, `$USER-capstone` (see **My App**): a push to `main` of your capstone repo deploys there, and your lab app
-keeps running.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start capstone
 cd ~/lab/capstone
 ```
 
-That makes your own repo `$USER/capstone` and clones it to `~/lab/capstone`, and prints the goal, with your own names in it. When you think it's done, run it twice: once it's built, then again after you rotate `capstone/app` without pushing (the first check says what's next):
+That makes your own repo `$USER/capstone`, clones it to `~/lab/capstone` and shows your brief. The brief is saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think it's done, run it twice: once it's built, then again after you rotate `capstone/app` without pushing (the first check says what's next):
 
 ```sh
 dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
-`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/capstone` (including any uncommitted work), builds a fresh copy and clones it, as often as you like. Use it if the repo is in a mess.
+
+## Zero Standing Secrets
+
+A new app is coming, and this time no secret may live in git, CI or on disk. It gets its identity from the platform, has its own least-privilege policy, reads one static secret and one dynamic database login, and its secret can be rotated without a deploy. Starting the capstone unlocks your second app slot, `$USER-capstone` (see **My App**): a push to `main` of your capstone repo deploys there, and your lab app keeps running.
+
+**End result (what the check looks for)**
+
+Two steps, so run the check twice.
+
+- Step 1, in `students/$USER`: policy `capstone-app` names only paths under `capstone/` and `database/creds/`, allows reading `capstone/app` and `database/creds/capstone-app`, and does not allow `secret/`.
+- The `jwt-platform` role `capstone-app` carries that policy.
+- A database role `capstone-app` exists and a login has been issued from it.
+- The secret `capstone/app` exists.
+- `capstone/agent.hcl` in your repo holds no `role_id` or `secret_id`.
+- Step 2, the rotation: `capstone/app` has been written again since step 1 passed, and `main` of your capstone repo has no newer commit than that write (a push deploys, which sends you back to step 1).
 

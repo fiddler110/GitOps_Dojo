@@ -160,20 +160,19 @@ Next: [lab5.md](lab5.md), the dns-01 challenge.
 
 ---
 
-## Challenge c2: The Short Fuse (bonus)
+## Challenge c2 (bonus)
 
-Keep your site's certificate valid for 20 minutes straight without touching it. Once renewal is in place,
-run `dojo check c2` once: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two
-renewals and no gap.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/cert-fuse
 ```
 
-That makes your own repo `$USER/cert-fuse` and clones it to `~/lab/cert-fuse`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+That makes your own repo `$USER/cert-fuse`, clones it to `~/lab/cert-fuse` with starter files, and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. When you think it's
+done, push your files and run:
 
 ```sh
 dojo check c2
@@ -181,6 +180,20 @@ dojo check c2
 
 Keep keys out of the repo: the check looks through its whole history for a private key.
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c2` deletes `~/lab/cert-fuse` (including any uncommitted work), builds a fresh
+copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check can't recognise.
+
+## The Short Fuse
+
+Certificates from this CA only last 5-10 minutes, so a renewal you forget to automate fails fast. Keep the certificate for `$USER.certs.dojo.test` valid for 20 minutes straight without touching it. Once renewal is in place, run `dojo check c2` once: from then on it keeps watching by itself and clears when 20 minutes have passed with at least two renewals and no gap.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `$USER/cert-fuse`.
+- `$USER.certs.dojo.test` stays valid for 20 minutes, with at least two renewals and no gap.
+- `renew.cron` on `main` has a real (uncommented) schedule line.
+- No private key appears anywhere in the repo's history.
+
 

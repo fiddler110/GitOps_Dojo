@@ -56,8 +56,9 @@ with no steps, in a space of your own, for extra points. They never count toward
 | `capstone` | The Wildcard Heist | end of [Lab 5](lab5.md) |
 
 Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
-answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. `dojo check` on its own lists them
-with what each is worth.
+answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. Stuck in a mess? `dojo challenge reset <id>`
+throws your repo away and starts you over from a fresh copy. Your brief is saved in `~` (`capstone.md`, `challenge-c1.md`);
+read it with `glow ~/capstone.md`. `dojo check` on its own lists them with what each is worth.
 
 ## 1. Check your shell
 

@@ -173,6 +173,68 @@ def check(cid):
     return 1
 
 
+def split_rules(text):
+    """Split a constraints string on '; ' (not inside backticks) so each rule is its own bullet."""
+    parts, cur = [], ""
+    for chunk in text.split("; "):
+        cur = cur + "; " + chunk if cur else chunk
+        if cur.count("`") % 2 == 0:
+            parts.append(cur.strip())
+            cur = ""
+    if cur:
+        parts.append(cur.strip())
+    return [x.rstrip(".") for x in parts if x]
+
+
+def brief_markdown(cid, doc, dest):
+    """The challenge as a Markdown brief: goal, rules, where to work, how to finish."""
+    head = "# %s: %s" % ("Capstone" if cid == "capstone" else "Challenge " + cid, doc.get("title", ""))
+    out = [head, "", "## Goal", "", doc.get("goal", "")]
+    if doc.get("constraints"):
+        out += ["", "## End result", ""] + ["- " + r for r in split_rules(doc["constraints"])]
+    out += ["", "## Where to work", ""]
+    out.append("Your repo is cloned at `%s`:" % dest.replace(HOME, "~", 1) if dest
+               else "This one works in your own lab space: start where the lab left you.")
+    if dest:
+        out += ["", "```bash", "cd " + dest.replace(HOME, "~", 1), "```", "",
+                "Other branches on the server show up as `origin/<name>` (`git branch -a`); "
+                "`git fetch origin` refreshes them and `git switch <name>` makes a local copy."]
+    out += ["", "## When you're done", "", "```bash", "dojo check " + cid, "```", "",
+            "Stuck? `dojo check hint %s` (each hint costs points). Checking again is free." % cid,
+            "", "## Start over", "", "```bash", "dojo challenge reset " + cid, "```", "",
+            "That deletes your repo copy (and any uncommitted work) and gives you a fresh one. Hints already used stay used."]
+    if doc.get("done"):
+        out += ["", "> You already cleared %s; practising again scores nothing new." % cid]
+    return "\n".join(out) + "\n"
+
+
+def show_brief(cid, markdown):
+    """Save the brief to ~/ (challenge-c2.md, capstone.md) and show it with glow; plain text if glow can't."""
+    path = os.path.join(HOME, "capstone.md" if cid == "capstone" else "challenge-%s.md" % cid)
+    try:
+        with open(path, "w") as f:
+            f.write(markdown)
+    except OSError:
+        path = None
+    shown = False
+    if sys.stdout.isatty():
+        width = min(max(os.get_terminal_size().columns - 4, 40), 100)
+        # Capture glow's output instead of letting it write to the tty: on a tty it asks the terminal for its
+        # colours and waits, which web terminals don't always answer.
+        try:
+            r = subprocess.run(["glow", "-s", "dark", "-w", str(width), "-"], input=markdown, text=True,
+                               capture_output=True, timeout=10, env=dict(os.environ, CLICOLOR_FORCE="1"))
+            if r.returncode == 0 and r.stdout.strip():
+                print("\n".join(line.rstrip() for line in r.stdout.splitlines()))
+                shown = True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if not shown:
+        print(markdown)
+    if path:
+        print("Saved to %s  (read it again any time: glow -p %s)" % (path.replace(HOME, "~", 1), path.replace(HOME, "~", 1)))
+
+
 def challenge(action, cid):
     """Build (or rebuild) your challenge repo on the server, then clone it into ~/lab."""
     cid = challenge_id(cid)
@@ -182,24 +244,13 @@ def challenge(action, cid):
         return fail(code, doc)
     repo, url = doc.get("repo") or "", doc.get("clone_url") or ""
     if not repo:
-        print("\033[1;36m%s: %s\033[0m" % (cid, doc.get("title", "")))
-        print("Goal: %s" % doc.get("goal", ""))
-        if doc.get("constraints"):
-            print("Rules: %s" % doc["constraints"])
-        print("No repo for this one: it works in your own lab space, so start where the lab left you.")
-        if doc.get("done"):
-            print("(You already cleared %s; practising again scores nothing new.)" % cid)
-        print("When you think you're done: dojo check %s" % cid)
+        show_brief(cid, brief_markdown(cid, doc, None))
         return 0
     name = repo.rsplit("/", 1)[-1]
     if not name or "/" in name or name.startswith(".") or not url.startswith("http://" + HOST + "/"):
         return fail(0, {"error": "the service sent an odd repo name"})
     lab = os.path.join(HOME, "lab")
     dest = os.path.join(lab, name)
-    print("\033[1;36m%s: %s\033[0m" % (cid, doc.get("title", "")))
-    print("Goal: %s" % doc.get("goal", ""))
-    if doc.get("constraints"):
-        print("Rules: %s" % doc["constraints"])
     if action == "reset" and os.path.isdir(dest):
         shutil.rmtree(dest)
         print("Removed your old copy at %s" % dest)
@@ -210,9 +261,7 @@ def challenge(action, cid):
         if subprocess.call(["git", "clone", "-q", url, dest]) != 0:
             return fail(0, {"error": "git clone %s failed; the repo is there, try: git clone %s" % (url, url)})
         print("Cloned %s into %s" % (repo, dest))
-    if doc.get("done"):
-        print("(You already cleared %s; practising again scores nothing new.)" % cid)
-    print("When you think you're done: dojo check %s" % cid)
+    show_brief(cid, brief_markdown(cid, doc, dest))
     return 0
 
 

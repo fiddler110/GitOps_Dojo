@@ -159,21 +159,19 @@ You've completed every lab in this workshop.
 
 ---
 
-## Capstone: The Wildcard Heist (a friendly one) (bonus)
+## Capstone (bonus)
 
-One wildcard certificate for `*.$USER.certs.dojo.test`, issued with dns-01, serving two sites (`www` and `api`
-under your name), with renewal that covers both. Then make HTTPS the only way in: plain HTTP redirects to HTTPS for
-good, and HTTPS tells browsers never to try plain HTTP again (HSTS). `api` also sends two headers from the slides'
-bonus wall: `X-Content-Type-Options: nosniff` and a `Content-Security-Policy`.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start capstone
 cd ~/lab/cert-heist
 ```
 
-That makes your own repo `$USER/cert-heist` and clones it to `~/lab/cert-heist`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+That makes your own repo `$USER/cert-heist`, clones it to `~/lab/cert-heist` with starter files, and shows your brief. The brief is
+saved as `~/capstone.md` with your own names filled in; read it again any time with `glow ~/capstone.md`. When you think it's
+done, push your files and run:
 
 ```sh
 dojo check capstone
@@ -181,6 +179,24 @@ dojo check capstone
 
 Keep keys out of the repo: the check looks through its whole history for a private key.
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points, and
-`dojo challenge reset capstone` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset capstone` deletes `~/lab/cert-heist` (including any uncommitted work), builds a fresh
+copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check can't recognise.
+
+## The Wildcard Heist
+
+One wildcard certificate, two sites. Issue `*.$USER.certs.dojo.test` with dns-01 and serve both `www` and `api` under your name with it, with renewal that covers both. Then make HTTPS the only way in: plain HTTP redirects to HTTPS for good, and HTTPS tells browsers never to try plain HTTP again (HSTS). `api` also sends two headers from the slides' bonus wall, to harden it.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `$USER/cert-heist`.
+- `www` and `api` under `$USER.certs.dojo.test` both serve the same wildcard certificate (`*.$USER.certs.dojo.test`).
+- Plain HTTP on both redirects to HTTPS.
+- HTTPS on both sends HSTS with a max-age of at least one day (86400).
+- `api` sends `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` with a `default-src`.
+- `www.conf` and `api.conf` on `main` listen on 443 ssl and set a real `ssl_certificate` (not the `TODO`).
+- `renew.cron` on `main` has a real (uncommented) schedule line.
+- No private key appears anywhere in the repo's history.
+
 

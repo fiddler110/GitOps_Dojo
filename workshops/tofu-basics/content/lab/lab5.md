@@ -298,24 +298,35 @@ All three (config, state, cloud) agree. `git status --short` prints nothing: `te
 
 ---
 
-## Challenge c1: Tag Team (bonus)
+## Challenge c1 (bonus)
 
-Deploy a second site, `$USER-second`, from a starter that policy rejects four ways, with an output that prints its
-URL. It needs one free container group (your subscription holds two).
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c1
 cd ~/lab/challenge-c1
 ```
 
-That makes your own repo `$USER/challenge-c1` and clones it to `~/lab/challenge-c1`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-c1`, clones it to `~/lab/challenge-c1` and shows your brief. The brief is
+saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. When you think
+it's done:
 
 ```sh
 dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
-`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
 
+**Start over.** `dojo challenge reset c1` deletes `~/lab/challenge-c1` (including any uncommitted work),
+builds a fresh copy and clones it, as often as you like.
+
+## Tag Team
+
+Your first site is up, and now a second one is needed: `$USER-second`. The starter in your repo is a site that the Dojo Cloud policy rejects four ways. It needs one free container group (your subscription holds two), and it should print its URL as an output.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c1` and your own Dojo Cloud subscription.
+- Exactly one `challenge=c1` container is running, named `<you>-second`, in an allowed region, with the `owner` and `env` tags.
+- `main.tf` on `main` (pushed) declares an `output "url"` whose value is a URL (with `http://`, `https://` or the portal's `/site/` path, not a bare host name).

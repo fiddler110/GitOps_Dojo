@@ -270,7 +270,7 @@ def commit_reverted(api, a, ctx):
         for m in re.finditer(r"this reverts commit ([0-9a-f]{7,40})", msg):
             if any(s.startswith(m.group(1)) for s in shas):
                 return True, "the bad commit is reverted"
-    return False, f"'{subject}' is still in effect on {branch}: undo it with a commit that reverts it"
+    return False, f"'{subject}' is still in effect on {branch}: undo it with a commit made by `git revert` (fixing the value by hand does not count)"
 
 
 MAX_SCAN_BLOBS = 300           # history_absent reads at most this many distinct files
@@ -312,6 +312,34 @@ def history_absent(api, a, ctx):
     return True, f"no {a.get('what', 'match')} anywhere in the history"
 
 
+def file_absent(api, a, ctx):
+    """The path is not in the tree of the branch, tag or commit: a file that was merged and never
+    removed, or removed later, are told apart, so any way of getting rid of it passes."""
+    if _commits(api, a["repo"], a["ref"]) is None:
+        return False, f"no {a['ref']} in {a['repo']}"
+    if _raw(api, a["repo"], a["ref"], a["path"]) is not None:
+        return False, f"{a['path']} is still on {a['ref']}"
+    return True, f"{a['path']} is not on {a['ref']}"
+
+
+def history_preserved(api, a, ctx):
+    """Every commit the seed put on the branch is still in its history, so nobody force-pushed,
+    rebased or squashed away what the team already had. Merging, reverting and fixing forward
+    all keep the old commits; rewriting them changes their ids."""
+    branch = a.get("branch", "main")
+    want = ((ctx.get("seed") or {}).get("branches") or {}).get(branch)
+    if not want:
+        return False, (f"this repo was seeded before the history check existed: "
+                       f"`dojo challenge reset {ctx.get('challenge', 'ID')}` rebuilds it")
+    commits = _commits(api, a["repo"], branch)
+    if commits is None:
+        return False, f"no branch {branch} in {a['repo']}"
+    have = {c.get("sha") for c in commits}
+    if any(sha not in have for sha in want):
+        return False, f"{branch} lost commits it started with: its history was rewritten (force-push, rebase or squash)"
+    return True, f"{branch}'s original history is intact"
+
+
 VERBS = {
     "repo_exists": repo_exists,
     "branch_exists": branch_exists,
@@ -322,6 +350,8 @@ VERBS = {
     "no_direct_push": no_direct_push,
     "answer_names_commit": answer_names_commit,
     "commit_reverted": commit_reverted,
+    "file_absent": file_absent,
+    "history_preserved": history_preserved,
     "history_absent": history_absent,
     "no_push_since_step": no_push_since_step,
 }
@@ -366,6 +396,7 @@ def build_repo(api, plan, fill, read_seed, now, reset=False):
         raise SeedError(f"couldn't create {repo} (Forgejo answered {status})")
     trees = {}
     shas = []
+    on_branch = {}      # branch -> the seed commits in its history, for history_preserved
     for i, c in enumerate(plan["commits"]):
         branch = c.get("branch", "main")
         body = {"message": fill(c["message"]), "author": person(fill(c.get("author", "Dojo Seed <seed@dojo.invalid>"))),
@@ -406,8 +437,13 @@ def build_repo(api, plan, fill, read_seed, now, reset=False):
         status, data = api("POST", f"{rp}/contents", body)
         if status not in (200, 201) or not isinstance(data, dict):
             raise SeedError(f"seed commit {i + 1} was refused (Forgejo answered {status})")
-        shas.append(((data.get("commit") or {}).get("sha")))
-    return {"repo": repo, "created": True, "commits": [s for s in shas if s]}
+        sha = (data.get("commit") or {}).get("sha")
+        shas.append(sha)
+        if branch not in on_branch:
+            on_branch[branch] = list(on_branch.get(c.get("from", "main"), []))
+        if sha:
+            on_branch[branch].append(sha)
+    return {"repo": repo, "created": True, "commits": [s for s in shas if s], "branches": on_branch}
 
 
 BUILDERS = {"forgejo-repo": build_repo}

@@ -180,24 +180,39 @@ A rule that is right but cannot be met by one resource yet needs an exception, n
 
 ---
 
-## Challenge c2: Waiver With a Deadline (bonus)
+## Challenge c2 (bonus)
 
-Assign a `deny` rule to one resource group of your own, waive the group that already exists with an exemption that
-expires within 14 days, all as code, and then destroy it again so nothing stays assigned.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c2
 cd ~/lab/challenge-c2
 ```
 
-That makes your own repo `$USER/challenge-c2` and clones it to `~/lab/challenge-c2`, and prints the goal, with your own names in it. Push `main` when you think it's done. Run the check twice: once while it is applied, then again after `tofu destroy` (the first check says what's next):
+That makes your own repo `$USER/challenge-c2`, clones it to `~/lab/challenge-c2` and shows your brief. The brief is
+saved as `~/challenge-c2.md` with your own names filled in; read it again any time with `glow ~/challenge-c2.md`. Push `main` when you think it's done. Run the check twice: once while it is applied, then again after `tofu destroy` (the first check says what's next):
 
 ```sh
 dojo check c2
 ```
 
-A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points, and
-`dojo challenge reset c2` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c2` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c2` deletes `~/lab/challenge-c2` (including any uncommitted work), builds a
+fresh copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check
+can't recognise.
+
+## Waiver With a Deadline
+
+A rule every resource group must follow, a `reviewedBy` tag, is about to be enforced, but your existing group
+`rg-$USER-c2` can't meet it yet and needs a time-limited exception. Assign the seeded `deny` rule to that group, waive
+the group with an exemption that expires within 14 days, all as code, and then destroy it again so nothing stays assigned.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `<you>/challenge-c2`, with `main.tf` holding an `azurerm_resource_group_policy_exemption`.
+- A `deny` assignment on `reviewedBy` exists at the scope of `rg-<you>-c2` **only**.
+- A `Waiver` exemption there **expires within 14 days** (a waiver without a deadline is a permanent hole). First check: at least one resource is exempt and none is non-compliant.
+- Second check, after `tofu destroy`: nothing stays assigned.
 

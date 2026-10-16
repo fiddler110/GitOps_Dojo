@@ -54,7 +54,7 @@ with no steps, in a space of your own, for extra points. They never count toward
 
 Start one in the terminal with `dojo challenge start <id>` (it builds your repo and clones it into `~/lab`), and check it with `dojo check <id>`. A wrong
 answer costs nothing; `dojo check hint <id>` gives a hint for part of the points. `dojo check` on its own lists them
-with what each is worth.
+with what each is worth. If you get stuck in a mess, `dojo challenge reset <id>` throws the repo away for a fresh copy. Your brief is saved in `~` (`capstone.md`, `challenge-c1.md`, `challenge-c2.md`) and can be read with `glow`.
 
 ## 1. Check your shell
 

@@ -101,19 +101,19 @@ Next: [lab4.md](lab4.md), automating renewal.
 
 ---
 
-## Challenge c1: The Second Site (bonus)
+## Challenge c1 (bonus)
 
-Give a second name, `shop.$USER.certs.dojo.test`, its own trusted certificate, with either tool, and leave your
-first site alone. The name already points at the demo site; the vhost is yours to write.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c1
 cd ~/lab/cert-shop
 ```
 
-That makes your own repo `$USER/cert-shop` and clones it to `~/lab/cert-shop`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+That makes your own repo `$USER/cert-shop`, clones it to `~/lab/cert-shop` with starter files, and shows your brief. The brief is
+saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. When you think it's
+done, push your files and run:
 
 ```sh
 dojo check c1
@@ -121,27 +121,37 @@ dojo check c1
 
 Keep keys out of the repo: the check looks through its whole history for a private key.
 
-A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
-`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
 
+**Start over.** `dojo challenge reset c1` deletes `~/lab/cert-shop` (including any uncommitted work), builds a fresh
+copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check can't recognise.
+
+## The Second Site
+
+Your first site is live and trusted. Now the shop needs its own front door: the name `shop.$USER.certs.dojo.test` already points at the demo site, but it has no certificate of its own, and the vhost is yours to write. Use either tool, and leave your first site alone.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `$USER/cert-shop`.
+- `shop.$USER.certs.dojo.test` serves a trusted certificate that is different from the one on your first site.
+- `shop.conf` on `main` has a `server_name` for the shop name and a `listen 443 ssl`.
+- No private key appears anywhere in the repo's history.
 
 ---
 
-## Challenge c3: Members Only (bonus)
+## Challenge c3 (bonus)
 
-Mutual TLS: serve `https://members.$USER.certs.dojo.test` only to clients that present a certificate from the lab
-CA, and turn everyone else away. Until now only the server proved who it was; here the client does too, the way
-services talk to each other without passwords. Any fresh certificate from the lab CA doubles as the client
-certificate to test with.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in
+a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c3
 cd ~/lab/cert-members
 ```
 
-That makes your own repo `$USER/cert-members` and clones it to `~/lab/cert-members`, with a brief and starter files, and prints the goal, with your own names in it. When you think it's done, push your files and run:
+That makes your own repo `$USER/cert-members`, clones it to `~/lab/cert-members` with starter files, and shows your brief. The brief is
+saved as `~/challenge-c3.md` with your own names filled in; read it again any time with `glow ~/challenge-c3.md`. When you think it's
+done, push your files and run:
 
 ```sh
 dojo check c3
@@ -149,6 +159,21 @@ dojo check c3
 
 Keep keys out of the repo: the check looks through its whole history for a private key.
 
-A wrong answer costs nothing. `dojo check hint c3` gives a hint for part of the points, and
-`dojo challenge reset c3` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c3` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c3` deletes `~/lab/cert-members` (including any uncommitted work), builds a fresh
+copy and clones it, as often as you like. Use it if the repo is in a mess, or if you fixed it a way the check can't recognise.
+
+## Members Only
+
+Until now only the server proved who it was. Here the client does too, the way services talk to each other without passwords: `https://members.$USER.certs.dojo.test` must be served only to clients that present a certificate from the lab CA, and everyone else is turned away. Any fresh certificate from the lab CA doubles as the client certificate to test with.
+
+**End result (what the check looks for)**
+
+- Work in your own repo `$USER/cert-members`.
+- `members.$USER.certs.dojo.test` serves a trusted server certificate.
+- A client presenting a lab CA certificate is let in; a client without one is refused (mutual TLS).
+- `members.conf` on `main` turns client verification on (`ssl_verify_client on;`).
+- No private key appears anywhere in the repo's history.
+
 

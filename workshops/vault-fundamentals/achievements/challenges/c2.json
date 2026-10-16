@@ -3,7 +3,8 @@
   "title": "The Right Lease",
   "after": "after Lab 12",
   "space": "the student's own namespace `students/{user}`, database `app_{user}`, fork and app slot",
-  "goal": "The app needs DB credentials valid 2 minutes and never longer than 10 minutes in total. Make it so on a **new** role called `c2-app`, and get a credential from it.",
+  "goal": "The app's database logins are living too long: it needs credentials valid 2 minutes and never longer than 10 minutes in total. Set that up on a **new** role called `c2-app`, and get a credential from it.",
+  "constraints": "in `students/{user}`, database role `c2-app` has a default TTL of 2m and a max TTL of 10m; at least one credential (lease) has been issued from `c2-app`",
   "verify_text": "in `students/{user}`: database role `c2-app` has `default_ttl` 2m and `max_ttl` 10m, and at least one lease exists under `database/creds/c2-app` (lease ids only, never the credential).",
   "isolation": "each student has their own database `app_{user}` and their own `database/` engine; the check reads only `students/{user}` (the namespace is derived from the student).",
   "hints": [

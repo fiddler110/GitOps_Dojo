@@ -160,7 +160,8 @@ capstone's clean-up) does not undo it.
 
 - **Points:** 100
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c1` (cloned to `~/lab/challenge-c1`, own state); resources tagged `challenge=c1`
-- **Goal shown to the student:** Deploy a second site named `{user}-second` that passes every policy, with an output that prints its URL.
+- **Goal shown to the student:** Your first site is up and you need a second, `{user}-second`. The starter in your repo is a site that the policy rejects. Get a compliant second site running, with an output that prints its URL.
+- **Constraints:** in `{user}/challenge-c1`; exactly one `challenge=c1` container is running, named `{user}-second`, in an allowed region, with the `owner` and `env` tags; `main.tf` on `main` declares `output "url"` whose value is a URL (`http://`, `https://` or the portal's `/site/` path, not a bare host name)
 - **Seed:** `dojo challenge start c1` creates `{user}/challenge-c1` (owned by the student, cloned to `~/lab/challenge-c1`): a starter `main.tf` for a site that policy rejects (wrong region, oversized CPU, missing `owner` and `env` tags, a label without the username), plus provider files and a README.
 - **Verify:** Dojo Cloud (the student's own subscription, read-only): exactly one `challenge=c1` container running, site name `{user}-second`, in an allowed region, with the `owner` and `env` tags; and `main.tf` on `main` of `{user}/challenge-c1` declares `output "url"` whose value is a URL (a string with `http://`, `https://` or the portal's `/site/` path, not a bare host name; push it). Not checked: that the URL points at this site, and that the code is the only source of the site (the state is not read).
 - **Hint 1:** Copy your first site, and remember what the policy asked for.
@@ -172,7 +173,8 @@ capstone's clean-up) does not undo it.
 
 - **Points:** 100
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/challenge-c2` (cloned to `~/lab/challenge-c2`, own state); resources tagged `challenge=c2`
-- **Goal shown to the student:** Your code declares 5 sites but your subscription only holds 2 container groups in total. Make the apply succeed without asking for more quota.
+- **Goal shown to the student:** Your code declares 5 sites but your subscription only holds 2 container groups in total, so the apply fails on quota. Make the apply succeed without asking for more quota.
+- **Constraints:** in `{user}/challenge-c2`; one or two `challenge=c2` containers are running, each named `{user}-c2-...` with the `owner` and `env` tags; `main.tf` on `main` no longer declares the original list of 5 sites
 - **Seed:** `dojo challenge start c2` creates `{user}/challenge-c2` (owned by the student, cloned to `~/lab/challenge-c2`): a `main.tf` whose `for_each` declares 5 sites (labels `{user}-c2-<name>`), provider files and a README.
 - **Verify:** Dojo Cloud (own subscription, read-only): one or two `challenge=c2` containers running, each with a `{user}-c2-` site name and the `owner` and `env` tags (the exact count depends on the quota left from the labs, so any count from 1 to 2 passes); and `main.tf` on `main` of `{user}/challenge-c2` no longer declares the original list of 5 sites (push the change). Not checked: that the last `apply` had no `QuotaExceeded` and that the plan is clean (shell output and state are not read); the pushed code stands in for them.
 - **Hint 1:** The error tells you the limit.
@@ -184,7 +186,8 @@ capstone's clean-up) does not undo it.
 
 - **Points:** 300
 - **Where it runs:** the student's own Dojo Cloud subscription (`{user}`) and their own repo `{user}/site-factory` (cloned to `~/lab/site-factory`, own state); resources tagged `challenge=capstone`
-- **Goal shown to the student:** Build, from scratch, one module-like layout that deploys **two** differently named sites from one `for_each`, each with the required tags, an output map of names to URLs, then destroys cleanly and leaves nothing running.
+- **Goal shown to the student:** Starting from a near-empty repo, build one layout that deploys **two** differently named sites from one `for_each`, each with the required tags, with an output map of names to URLs. Then destroy cleanly and leave nothing running.
+- **Constraints:** in `{user}/site-factory`; while the sites run, exactly two `challenge=capstone` containers named `{user}-...` in an allowed region with the `owner` and `env` tags; `main.tf` on `main` uses `for_each`; after `tofu destroy`, no `challenge=capstone` container group is left
 - **Seed:** `dojo challenge start capstone` creates `{user}/site-factory` (cloned to `~/lab/site-factory`): a README with the brief, `providers.tf`, `versions.tf`, `variables.tf` (`owner`) and a `.gitignore`. All names use `{user}`.
 - **Verify:** Two steps. Step 1, while the sites run (`dojo check capstone` before the destroy): Dojo Cloud (own subscription, read-only) shows exactly two `challenge=capstone` containers running, with `{user}-` site names, an allowed region and the `owner` and `env` tags; and `main.tf` on `main` of `{user}/site-factory` uses `for_each`. Step 2, after `tofu destroy` (`dojo check capstone` again): no `challenge=capstone` container group is left in any state. The output map is not checked.
 - **Hint 1:** Lab 9 plus Lab 10, in one go.

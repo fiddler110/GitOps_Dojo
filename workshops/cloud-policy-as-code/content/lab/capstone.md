@@ -109,21 +109,41 @@ You have written a policy, tested it, shifted it left, gated it behind review, a
 
 ---
 
-## Score the capstone (bonus)
+## Capstone (bonus)
 
-Only when your class has achievements on (you see a score on your landing page). This one has no repo of its own: you
-work in your fork, `~/lab/cloud-policy-as-code`. Print the goal in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A capstone is a goal with no steps,
+for extra points. This one has no repo of its own: you work in your fork, `~/lab/cloud-policy-as-code`. Start it in
+the terminal:
 
 ```sh
 dojo challenge start capstone
 ```
 
-When the pull request is merged, the pipeline is green and your prod test was refused, run the check. Run it twice: once
-after the merge and the refused test, then again after you clean up (the first check says what's next):
+That shows your brief, saved as `~/capstone.md` with your own names filled in; read it again any time with
+`glow ~/capstone.md`. When the pull request is merged, the pipeline is green and your prod test was refused, run the
+check. Run it twice: once after the merge and the refused test, then again after you clean up (the first check says
+what's next):
 
 ```sh
 dojo check capstone
 ```
 
-A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points.
+A wrong answer costs nothing. `dojo check hint capstone` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** The capstone works in your fork, so there is no separate repo to reset. `dojo challenge start capstone` shows the brief again any time; to get back to a clean starting point, `dojo prep 12` brings your fork to the end of Lab 12.
+
+## A New Rule, Start to Finish
+
+The team has agreed a new rule: container groups tagged `env=prod` must run `dojo/hello:2.0`, and nothing enforces it
+yet. Deliver it the way every change arrives, and prove it works by getting a prod group on `dojo/hello:1.0` refused.
+Then leave no test resource behind.
+
+**End result (what the check looks for)**
+
+- Work in your fork `<you>/cloud-policy-as-code`.
+- A `_test.rego` file under `policy/rego` has at least 4 tests that mention `prod` and `dojo/hello:1.0`, and a rule file there mentions `prod` and `dojo/hello:2.0`.
+- A pull request is merged, and its `pr.yml` run succeeded (green CI).
+- The latest `main.yml` (apply) and `drift.yml` runs have completed.
+- Your subscription has a `deny` assignment on the `env` tag and `dojo/hello:2.0`, and your prod test was refused.
+- Second check: your test resources are cleaned up.
 

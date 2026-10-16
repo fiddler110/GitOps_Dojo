@@ -20,6 +20,10 @@
                             "does": "the file names the short hash (7+ hex characters) and the author of the oldest commit on search.branch whose diff adds a line equal to search.text in search.path"},
     "commit_reverted": {"args": ["repo", "branch?", "message"],
                         "does": "the commit whose subject is message is in the branch's history (default main) and a later commit there reverts it (git revert's 'This reverts commit <sha>' or subject 'Revert \"<message>\"')"},
+    "file_absent": {"args": ["repo", "ref", "path"],
+                    "does": "the path is not in the tree of the branch, tag or commit (however it got there or went away)"},
+    "history_preserved": {"args": ["repo", "branch?"],
+                          "does": "every commit the seed put on the branch (default main) is still in its history, so nothing was force-pushed, rebased or squashed away; merging, reverting and fixing forward all pass"},
     "history_absent": {"args": ["repo", "regex", "what?"],
                        "does": "no file in any commit on any branch matches the regex, so a secret deleted in a later commit still fails; what names it in the message"}
   },

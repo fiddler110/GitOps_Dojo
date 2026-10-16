@@ -223,24 +223,32 @@ Review, history and rollback, like any code. The UI is for exploring.
 
 ---
 
-## Challenge c1: The Shared Secret (bonus)
+## Challenge c1 (bonus)
 
-Give a teammate's app read access to one of your secrets and to nothing else in your namespace. The repo's
-`seed.sh`, run with your own token, makes the secrets and the app's AppRole for you.
-
-Only when your class has achievements on (you see a score on your landing page). Start it in the terminal:
+Only when your class has achievements on (you see a score on your landing page). A challenge is a goal with no steps, in a repo of your own, for extra points. Start it in the terminal:
 
 ```sh
 dojo challenge start c1
 cd ~/lab/challenge-secret
 ```
 
-That makes your own repo `$USER/challenge-secret` and clones it to `~/lab/challenge-secret`, and prints the goal, with your own names in it. When you think it's done:
+That makes your own repo `$USER/challenge-secret`, clones it to `~/lab/challenge-secret` and shows your brief. The brief is saved as `~/challenge-c1.md` with your own names filled in; read it again any time with `glow ~/challenge-c1.md`. When you think it's done:
 
 ```sh
 dojo check c1
 ```
 
-A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points, and
-`dojo challenge reset c1` throws the repo away and starts you over from a fresh copy.
+A wrong answer costs nothing. `dojo check hint c1` gives a hint for part of the points (hints already used stay used).
+
+**Start over.** `dojo challenge reset c1` deletes `~/lab/challenge-secret` (including any uncommitted work), builds a fresh copy and clones it, as often as you like.
+
+## The Shared Secret
+
+A teammate's app needs to read one of your secrets, and only that one. The repo's `seed.sh`, run with your own token, makes two secrets in your namespace and an AppRole for the teammate's app with no policy yet. Give the app read access to one secret and to nothing else in your namespace.
+
+**End result (what the check looks for)**
+
+- In your namespace `students/$USER`, the app's AppRole (`buddy-$USER`) has a policy other than `default`.
+- Together its policies allow reading `challenge/one`.
+- They do not allow reading `challenge/two`.
 
