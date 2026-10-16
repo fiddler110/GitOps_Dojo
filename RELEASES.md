@@ -7,6 +7,16 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `./dojo stop` saves the class's results first (2026-10-16, `feat/lab-teach-first-structure`)
+
+- Before the volumes are deleted, `stop` (and `down`, `restart --clean`) writes `results/<date>_<time>_<workshop>/`:
+  `manifest.json` (workshop, start command, started/stopped, duration, students, demo bots, services, what was saved or
+  skipped), `feedback.csv/json`, `achievements.csv/json`, `roster.csv` (no addresses). Each part is best effort and a failure
+  is recorded in the manifest, never blocking the teardown; a stack with no sign-ins, feedback or scores saves nothing.
+  `--no-archive` skips it. New `./dojo export-feedback [--format csv|json] [--out FILE]`. `results/` is git-ignored.
+- Unit-tested (`engine/dojo/tests/test_archive.py`, 134 engine tests pass); `export-feedback` run against the live
+  stack. Not yet run: a real `stop` with feedback submitted.
+
 ## The student `dojo` command (2026-10-16, `feat/lab-teach-first-structure`)
 
 - One command for every lab: `engine/web-terminal/dojo` (base image) runs plug-ins from `/usr/local/share/dojo/cmd.d/`;
