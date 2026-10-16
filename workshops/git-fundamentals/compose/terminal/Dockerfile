@@ -8,7 +8,9 @@ FROM ${BASE}
 # `lab-prep <lab>` brings a student's workspace to where that lab starts, so
 # they can resume mid-workshop (see the script's header for what each lab needs).
 COPY lab-prep /usr/local/bin/lab-prep
-RUN chmod 0755 /usr/local/bin/lab-prep
+# `lab-history` builds ~/lab/history-repo, the 15-commit practice repo for Lab 4.
+COPY lab-history /usr/local/bin/lab-history
+RUN chmod 0755 /usr/local/bin/lab-prep /usr/local/bin/lab-history
 
 # Base image's HEALTHCHECK is inherited too; restated here so a static scan
 # of this file alone (which doesn't resolve FROM) doesn't flag it missing.

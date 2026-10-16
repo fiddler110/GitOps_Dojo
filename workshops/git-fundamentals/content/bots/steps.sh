@@ -110,6 +110,42 @@ step_gf_capstone() {
   run_cmd "dojo-check capstone"
 }
 
+# Lab 4 runs in the practice repo `lab-history` builds (~/lab/history-repo), not the sample repo, so
+# this replaces the engine's step_lab4_history (it is sourced before this file, so the redefinition wins).
+# It follows lab4.md: browse, filter, show, blame/log -p, the pickaxe hunt for the leaked key, then the
+# throwaway-branch diff. Without `lab-history` (an image built before it existed) it falls back to the
+# engine's sample-repo walk.
+eval "$(declare -f step_lab4_history | sed '1s/step_lab4_history/gf_engine_lab4_history/')"
+step_lab4_history() {
+  if ! command -v lab-history >/dev/null 2>&1; then gf_engine_lab4_history; return; fi
+  narrate "Lab 4 -- investigating a longer history (lab-history practice repo)"
+  run_cmd "lab-history"
+  cd "$HOME/lab/history-repo" || return 1
+  git config user.name "$BOT_USER"; git config user.email "$BOT_USER@example.com"
+  run_cmd "git log --oneline --graph --all"
+  run_cmd "git log --oneline --author=Bob"
+  run_cmd "git log --oneline --since=2026-08-07"
+  run_cmd "git log --stat --oneline -4"
+  local db; db="$(git log --format=%h --grep='Add database settings' -1)"
+  run_cmd "git show $db"
+  run_cmd "git blame config/app.yaml"
+  run_cmd "git log -p config/app.yaml | head -60"
+  narrate "hunting for the leaked key"
+  run_cmd "git log -S'sk_live_' --oneline"
+  local added; added="$(git log -S'sk_live_' --format=%h | tail -1)"
+  run_cmd "git show $added"
+
+  local branch; branch="$(branch_name "lab4-explore")"
+  run_cmd "git checkout -b '$branch'"
+  run_cmd "sed -i 's/port: 8080/port: 9090/' config/app.yaml"
+  run_cmd "git add config/app.yaml"
+  run_cmd "git commit -m 'Lab 4: branch comparison example'"
+  run_cmd "git diff main..$branch"
+  run_cmd "git checkout main"
+  run_cmd "git branch -D '$branch'"
+  cd "$REPO_DIR" || return 1
+}
+
 # The wrong-branch drill follows the Lab 1 PR step (every persona reaches Lab 1, so every bot runs
 # it); the challenges go after the labs, just before the round ends, and only where dojo-challenge
 # exists (achievements off = no challenges).

@@ -13,7 +13,7 @@ The session slides cover the *why*. This lab is the *how* — five short, self-c
 | [lab1.md](lab1.md) | The core workflow: clone → branch → edit → commit → push → pull request, and rescuing commits made on the wrong branch | ~20 min |
 | [lab2.md](lab2.md) | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | [lab3.md](lab3.md) | Stashing — switching gears without committing | ~8 min |
-| [lab4.md](lab4.md) | Investigating history: log, blame, show | ~10 min |
+| [lab4.md](lab4.md) | Investigating history: log, show, blame, finding a leaked secret (practice repo from `lab-history`) | ~15 min |
 | [lab5.md](lab5.md) | Merge conflicts and safely undoing a shared change | ~12 min |
 
 **Starting partway through?** Run `lab-prep <N>` in the terminal to set up what lab N needs from the earlier labs (for example `lab-prep 4`). It's safe to run more than once and never undoes your own work.

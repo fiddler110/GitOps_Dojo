@@ -47,7 +47,7 @@ nothing to set up yourself.
 | **1** | Core workflow: clone → branch → edit → commit → push → PR, and the wrong-branch rescue | ~20 min |
 | 2 | Reviewing changes and undoing mistakes before you commit | ~10 min |
 | 3 | Stashing — switching gears without committing | ~8 min |
-| 4 | Investigating history: log, blame, show | ~10 min |
+| 4 | Investigating history: log, blame, show, finding a leaked secret | ~15 min |
 | 5 | Merge conflicts and safely undoing a shared change | ~12 min |
 
 ---
