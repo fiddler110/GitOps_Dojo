@@ -40,8 +40,9 @@ RUN chmod -R a+rX /etc/zellij
 # The side pane: a read-only listing of the shell's current directory. The shell
 # records its directory in ~/.dojo-cwd (zshrc-zellij) and dojo-sidebar redraws when
 # that or the directory's contents change.
-COPY dojo-sidebar zshrc-zellij /usr/local/share/dojo-zellij/
+COPY dojo-sidebar dojo-fix-terminal zshrc-zellij /usr/local/share/dojo-zellij/
 RUN install -m 0755 /usr/local/share/dojo-zellij/dojo-sidebar /usr/local/bin/dojo-sidebar \
+    && install -m 0755 /usr/local/share/dojo-zellij/dojo-fix-terminal /usr/local/bin/dojo-fix-terminal \
     && cat /usr/local/share/dojo-zellij/zshrc-zellij >> /opt/dojo-shell/zshrc
 
 # Prompt (starship), pinned and sha256-verified, with its plain-Unicode config, and the

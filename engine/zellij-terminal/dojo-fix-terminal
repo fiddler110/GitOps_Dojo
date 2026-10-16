@@ -1,0 +1,25 @@
+#!/bin/sh
+# dojo-fix-terminal: put a student's Zellij workspace back to the workshop layout
+# (file listing on the left, shell on the right) after panes were closed or
+# rearranged. Run it from any shell pane in the session; it opens a fresh tab in
+# the same "main" session, so running work in other tabs is untouched.
+#   dojo-fix-terminal          open a fresh tab with the layout, close the tab you ran it from
+#   dojo-fix-terminal --keep   open the fresh tab but leave the old one
+# On the tmux/VS Code flavor there is no layout to restore: reloading the page
+# reattaches to the same tmux session (or starts a new one if the last shell exited).
+set -eu
+
+if [ -z "${ZELLIJ:-}" ]; then
+  echo "dojo-fix-terminal: not inside Zellij, so there is no layout to restore."
+  echo "If your terminal is blank or closed, reload the page; it reconnects to your session."
+  exit 0
+fi
+
+old=$(zellij action current-tab-info | sed -n 's/^id: //p')
+zellij action new-tab --layout dojo --cwd "$PWD" >/dev/null
+echo "Opened a fresh workspace tab."
+
+# Run from the broken tab (the point of this command), so close it; --keep leaves it.
+if [ "${1:-}" != "--keep" ] && [ -n "$old" ]; then
+  zellij action close-tab-by-id "$old"
+fi

@@ -523,12 +523,23 @@ def start_watch(username):
 
 
 def stop_user(username):
+    stale = []
     with running_lock:
         for key in list(running):
             if key[1] == username:
-                del running[key]
+                stale.append(running.pop(key))
         watch_target.pop(username, None)
         holders.pop(username, None)  # pkill below ends it; the next start makes a new one
+    # ttyd runs as root, so the pkill below can't reach it. Left alive it would keep
+    # its port and keep execing `nsenter` against the old (now dead) PID namespace.
+    for proc in stale:
+        if proc.poll() is None:
+            proc.kill()
+    for proc in stale:
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
     subprocess.run(["pkill", "-KILL", "-u", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audit("workspace-stop", account=username)
 
