@@ -371,10 +371,10 @@ Everything below shipped. At the time of writing, `git status` on `feat/ctf-wrap
 6. ~~`ctf-builder`'s pip install failure~~ — root-caused and fixed 2026-10-15 (above).
 7. ~~`ctf-secrets-config`'s `openbao-server` audit race~~ — fixed 2026-10-15, with a caveat worth reading (above):
    a different, equally benign single-node-raft startup message surfaced in its place.
-8. **Never live-tested, and agent-doable:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For`
-   through Caddy), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch`.
-   Carried forward from the 2026-10-12 handoff item 3, minus `CTF_TIME_SCALE=1`, which passed 2026-10-15. Also
-   tracked as ROADMAP's `dojo` CLI follow-up **C6**, which is where it belongs: none of these is CTF-specific.
+8. **Never live-tested:** ~~`dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
+   `status --watch`~~ -- all five run live 2026-10-17 on `git-fundamentals` (RELEASES; they found a real `stop`
+   bug, fixed). Left: **the geo database path** (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy),
+   which still needs a browser and a real client address.
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 

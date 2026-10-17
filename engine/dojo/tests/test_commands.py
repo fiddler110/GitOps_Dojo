@@ -16,7 +16,7 @@ from unittest import mock
 
 from click.testing import CliRunner
 
-from dojo import backup, cli, logs, maintain, paths, results, stackapi, testrun, tools, validate
+from dojo import backup, cli, logs, maintain, paths, results, stackapi, stop, testrun, tools, validate
 from dojo.runtime import Container
 from dojo.stackapi import StackError
 
@@ -28,6 +28,7 @@ def C(service, status="Up 1 minute (healthy)", name=None):
 class FakeRt:
     cli = "podman"
     available = True
+    compose_cmd = ("podman-compose",)
 
     def __init__(self, containers=(), volumes=(), runs=None):
         self._c, self._v, self.runs, self.calls = list(containers), list(volumes), runs or {}, []
@@ -354,6 +355,43 @@ class Validate(Sandbox):
         self.assertEqual(r.exit_code, 0, r.output)
         r = CliRunner().invoke(cli.cli, ["validate", "absent"])
         self.assertEqual(r.exit_code, 1)
+
+
+class StopLeftoverVolumes(unittest.TestCase):
+    """`down --volumes` exits 0 without removing anything when the pod is already gone
+    (the state `restore` leaves, and any stack whose containers went by hand or in a
+    crash). stop must not then claim the data is gone. Found live 2026-10-17."""
+
+    def _stop(self, rt):
+        with mock.patch("dojo.stop.Runtime", return_value=rt), \
+             mock.patch("dojo.stop.state.read_current", return_value=None), \
+             mock.patch("dojo.stop.state.record"), \
+             mock.patch("dojo.stop.state.clear_current"), \
+             mock.patch("dojo.stop.operator_env", return_value={}), \
+             mock.patch("dojo.stop.project_name", return_value="engine"), \
+             mock.patch("dojo.stop._down_live", return_value=0), \
+             mock.patch("dojo.stop.subprocess.run",
+                        return_value=SimpleNamespace(returncode=0, stdout="", stderr="")):
+            return stop.run_stop(dry_run=False, archive=False)
+
+    def test_volumes_left_by_a_no_op_down_are_removed(self):
+        rt = FakeRt(containers=(), volumes=("engine_forgejo_data", "engine_terminal_home"))
+        self.assertEqual(self._stop(rt), 0)
+        self.assertEqual([a for a in rt.calls if a[:2] == ("volume", "rm")],
+                         [("volume", "rm", "-f", "engine_forgejo_data"),
+                          ("volume", "rm", "-f", "engine_terminal_home")])
+
+    def test_a_volume_that_cannot_be_removed_fails_the_stop(self):
+        stuck = lambda *a: SimpleNamespace(
+            returncode=0 if a[-1] == "engine_terminal_home" else 125, stdout="", stderr="in use")
+        rt = FakeRt(containers=(), volumes=("engine_forgejo_data", "engine_terminal_home"),
+                    runs={"volume rm": stuck})
+        self.assertEqual(self._stop(rt), 1)   # never claims the data is gone
+
+    def test_nothing_to_tear_down_is_still_cheap(self):
+        rt = FakeRt(containers=(), volumes=())
+        self.assertEqual(self._stop(rt), 0)
+        self.assertEqual([a for a in rt.calls if a[:2] == ("volume", "rm")], [])
 
 
 class TestRun(unittest.TestCase):

@@ -98,6 +98,22 @@ def run_stop(dry_run: bool, archive: bool = True) -> int:
         bad(f"compose down failed (exit {rc}); the run stays recorded. Re-run `{paths.PROG} stop` to finish.")
         return rc
     state.clear_current()
+    left = rt.volumes(project)
+    if left:
+        # `down --volumes` is a no-op that still exits 0 when the pod is already
+        # gone, so the volumes outlive it while the message below says they did
+        # not. `restore` leaves exactly that state (volumes created, nothing
+        # started), and so does any stack whose containers were removed by hand
+        # or lost to a crash. Found live 2026-10-17 running the C6 checks:
+        # restore, then stop, reported "No workshop data was retained" with all
+        # 7 volumes still present. Remove them by name before claiming that.
+        gone = [v for v in left if rt.run("volume", "rm", "-f", v).returncode == 0]
+        left = [v for v in left if v not in gone]
+    if left:
+        bad(f"{len(left)} volume(s) could not be removed, so student data is still on this machine: "
+            + ", ".join(left))
+        bad(f"Remove them with `{rt.cli} volume rm -f " + " ".join(left) + "`.")
+        return 1
     console.print("Done. No workshop data was retained.")
     return 0
 
