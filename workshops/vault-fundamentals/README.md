@@ -67,7 +67,8 @@ Memory limits per container (the engine's own services come on top):
 | `runner-pool` (every CI job runs here) | 2 GiB | `RUNNER_POOL_MEM_LIMIT` |
 | `app-host` (every student's app) | 1 GiB | `APP_HOST_MEM_LIMIT` |
 | `app-db` | 512 MiB | `APP_DB_MEM_LIMIT` |
-| `openbao-audit`, `runner-controller`, the shims, `openbao-setup` | 64-128 MiB each | |
+| `openbao-audit`, `runner-controller`, the shims | 64-128 MiB each | |
+| `openbao-setup` (`SETUP_JOBS` parallel `bao` runs) | 256 MiB | `OPENBAO_SETUP_MEM_LIMIT` |
 
 Measured (T5.6, 2026-09-28, locally on a WSL2 desktop, 8 vCPU / 14 GiB): `--test 10`, the full `e2e.sh` (every lab
 script as one student, the browser checks) and then `e2e.sh --load 15` with the bots doing labs 0-11, sampled every

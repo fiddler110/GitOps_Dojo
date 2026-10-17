@@ -124,7 +124,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 60
-    mem_limit: 256m
+    # par_each (setup/setup.sh) runs up to SETUP_JOBS (default 8) `bao` CLI
+    # processes at once, for SSO and the per-student hooks, so this is a
+    # concurrency budget, not a per-process one. Raise it if a heavier
+    # workshop's stack slows the host enough that those runs overlap past the
+    # limit and get OOM-killed, which surfaces as the setup loop reporting
+    # "could not make every student's identity".
+    mem_limit: ${OPENBAO_SETUP_MEM_LIMIT:-256m}
     restart: unless-stopped
 
   # The audit trail for students (audit/audit.py): each namespace's admin
