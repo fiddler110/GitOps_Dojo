@@ -4,7 +4,7 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-17 (CTF plan status refreshed to match `main`; wall-of-shame toggle now gated in achievements; C6 added. Before that 2026-10-16: student `dojo` command built, git-fundamentals live check in progress; before that 2026-10-15, PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
+Last updated: 2026-10-17 (dependency-pin and seed-repo-sync checks added and CI re-enabled; CTF plan status refreshed to match `main`; wall-of-shame toggle now gated in achievements; C6 added. Before that 2026-10-16: student `dojo` command built, git-fundamentals live check in progress; before that 2026-10-15, PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
 done locally, 7 overflowing slides trimmed; stale branch notes removed). Before that: 2026-10-09 (content-depth audit
 of all 5 CTF packs) and 2026-10-07 (ctf-range Target Viewer and the `ctf-access` pack, PR #17). ·
 Working branch: `main`; cut a feature branch for each new batch of work.

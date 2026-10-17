@@ -4,15 +4,16 @@
 # the check scripts live only here, never in a student repo or terminal.
 FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
-# Flask/Werkzeug carry the same pins as every target requirements.txt (Werkzeug is
-# Flask's WSGI layer and floats unless named): the checker imports the targets' own app
-# modules, so drift here would run their code on a different Flask than the lab does.
-# Kept on the pip line itself rather than as a comment inside the RUN continuation,
-# which not every builder in this stack strips the same way (CTF-D27).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.1.9
+    && rm -rf /var/lib/apt/lists/*
+
+# The checker imports the targets' own app modules, so it has to run them on the same
+# Flask the lab does. Installing from a target's own requirements.txt rather than
+# repeating the pins here means there is no second copy to drift (every target ships
+# the identical file; customer-portal's is the one ctf-builder also rebuilds against).
+COPY targets/customer-portal/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Seed copy of every target: check.py, proxy.py, seed.py and the pristine app.
 COPY targets /targets

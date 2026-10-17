@@ -7,6 +7,34 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Dependency pins checked repo-wide, seed-repo sync checked, CI back on (2026-10-17, `fix/dep-pin-checks`)
+
+- **`engine/scripts/check-dep-pins.sh`** (new, run by every `--dry-run` beside `check-pins.sh` and
+  `check-tool-pins.sh`): fails when the same Python package is pinned to two versions in two places. It reads every
+  `requirements*.txt` and the `name==version` tokens on a Dockerfile's `pip install` line (following `\`
+  continuations), and compares names the way pip does (PEP 503). Only `check-tool-pins.sh`'s `ARG <TOOL>_VERSION`
+  lines were covered before, which saw none of this. `engine/dojo/requirements.lock` is deliberately excluded: it
+  pins the CLI's own host-side wheels and already disagrees on `click` (8.1.8 vs the targets' 8.5.0), correctly.
+- **Flask's whole tree is pinned**, not just Flask. `Flask==3.0.3` carried the comment "pinned so the image rebuilds
+  identically for years", but `blinker`, `click`, `itsdangerous`, `Jinja2`, `MarkupSafe` and `Werkzeug` all arrived
+  unpinned and were resolved at image build time. All six are now pinned in the 13 targets and the 4 synced seed
+  repos; 7 shared pins agree.
+- **`ctf-checker` no longer repeats the pins**: it installed `Flask==3.0.3` inline, an 18th copy. It now installs
+  from `targets/customer-portal/requirements.txt`, so that copy is gone rather than kept in step.
+- **`workshops/ctf-defend/check-pins-sync.sh`** (new, picked up by `dry-runs.sh`'s existing
+  `workshops/*/check-pins-sync.sh` loop): the three seed repos a student clones are copies of
+  `modules/ctf-range/targets/`, made by a hand-run `sync-sample-repos.sh`. Nothing verified it had been run, so a
+  student could have patched code the lab was not running. Checks every file the sync copies, plus the
+  `README.defend.md` to `README.md` rename and the `content/sample-repo/` master seed.
+- **CI re-enabled** (`.github/workflows/ci.yml`, disabled 2026-10-14 in `a74d33a` "for now"). Unchanged config:
+  pull requests into `main` and `workflow_dispatch` only. Both scripts now pass on a runner with no Flask, since the
+  three suites that need it skip themselves.
+- Verified: both new checkers pass, and each was confirmed to **fail** on deliberately introduced drift (a bumped
+  pin in one of 18 files; a changed inline pin; an edited seed file). `ctf-checker` built with podman twice and
+  `pip list` in the image shows all seven pinned versions on the image's own Python 3.12. The three target suites
+  pass against a venv built from the pinned `requirements.txt`. `unit-tests.sh` and `dry-runs.sh` both exit 0;
+  `./dojo validate` clean.
+
 ## `CTF_WALL_OF_SHAME=off` now serves no wall (2026-10-17, `fix/achievements-wall-toggle`)
 
 - The toggle reached only `ctf-controller`, which uses it to decide whether its projector page draws. Achievements

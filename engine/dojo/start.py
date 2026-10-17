@@ -576,11 +576,21 @@ def _dry_run_checks(p: Plan) -> int:
             bad(line)
         bad("pin drift: bump every copy of a shared pin together (see scripts/check-tool-pins.sh)")
     console.print()
+    step("Checking dependency pins")
+    deps = subprocess.run(["sh", "scripts/check-dep-pins.sh"], cwd=str(paths.ENGINE), capture_output=True, text=True)
+    if deps.returncode == 0:
+        ok("every shared package pin agrees across its requirements and Dockerfiles")
+    else:
+        for line in (deps.stdout + deps.stderr).strip().splitlines()[:-1]:
+            bad(line)
+        bad("pin drift: bump every copy of a shared pin together (see scripts/check-dep-pins.sh)")
+    console.print()
     console.print(f"Would run: compose {' '.join(compose_args(p.files))} up -d")
-    if pins.returncode != 0 or tools.returncode != 0:
+    if pins.returncode != 0 or tools.returncode != 0 or deps.returncode != 0:
         pins_problem = "drifted image pins" if (pins.returncode != 0 and is_drift) else "unpinned images"
         found = " and ".join(w for w in (pins_problem if pins.returncode != 0 else "",
-                                        "drifted tool pins" if tools.returncode != 0 else "") if w)
+                                        "drifted tool pins" if tools.returncode != 0 else "",
+                                        "drifted dependency pins" if deps.returncode != 0 else "") if w)
         fail(f"Dry run complete: nothing was built or started, but {found} were found.")
         return 1
     console.print("Dry run complete: nothing was built or started.")
