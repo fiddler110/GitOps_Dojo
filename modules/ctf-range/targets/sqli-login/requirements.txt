@@ -1,1 +1,5 @@
-flask==3.0.3
+Flask==3.0.3
+# Werkzeug is Flask's own WSGI layer and its only unpinned-by-Flask runtime piece that
+# matters here: without this line a rebuild years later quietly gets a different one,
+# which is the opposite of what the Flask pin is for. Bump the two together.
+Werkzeug==3.1.9

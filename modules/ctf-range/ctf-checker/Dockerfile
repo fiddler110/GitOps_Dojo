@@ -4,10 +4,15 @@
 # the check scripts live only here, never in a student repo or terminal.
 FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
+# Flask/Werkzeug carry the same pins as every target requirements.txt (Werkzeug is
+# Flask's WSGI layer and floats unless named): the checker imports the targets' own app
+# modules, so drift here would run their code on a different Flask than the lab does.
+# Kept on the pip line itself rather than as a comment inside the RUN continuation,
+# which not every builder in this stack strips the same way (CTF-D27).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir Flask==3.0.3
+    && pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.1.9
 
 # Seed copy of every target: check.py, proxy.py, seed.py and the pristine app.
 COPY targets /targets

@@ -1,5 +1,11 @@
 import importlib.util, os, sys, tempfile, threading, unittest
-from werkzeug.serving import make_server
+try:
+    import flask                            # noqa: F401 - app.py imports it; checked here so a
+    from werkzeug.serving import make_server  # machine without it skips instead of erroring
+except ImportError as exc:                  # this target's one dependency (requirements.txt)
+    raise unittest.SkipTest("needs Flask (%s): pip install -r %s" % (
+        exc.name, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "requirements.txt")))
 
 T = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

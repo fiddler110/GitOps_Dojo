@@ -1,3 +1,7 @@
 # Pinned so the image rebuilds identically for years (CTF-D16 precedent).
-# sqlite3 is stdlib; Flask is the only dependency.
+# sqlite3 is stdlib; Flask is the only direct dependency.
 Flask==3.0.3
+# Werkzeug is Flask's own WSGI layer and its only unpinned-by-Flask runtime piece that
+# matters here: without this line a rebuild years later quietly gets a different one,
+# which is the opposite of what the Flask pin is for. Bump the two together.
+Werkzeug==3.1.9

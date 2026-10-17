@@ -1,7 +1,11 @@
 #!/bin/sh
 # Every unit-test suite in the repo, the way each one is meant to be run
-# (RV13), plus the shell test harnesses' offline self-tests. Stdlib Python
-# only; no containers. Runs locally too:
+# (RV13), plus the shell test harnesses' offline self-tests. No containers.
+# Stdlib Python, with one exception: the three ctf-range defend targets'
+# tests/test_check.py start the real Flask app, so they SKIP themselves (and
+# say how to install it) when Flask is missing rather than erroring. A machine
+# without Flask therefore still reports a clean run, three suites short.
+# Runs locally too:
 #   sh .github/scripts/unit-tests.sh
 # Each suite runs from its own folder (the modules import their siblings by
 # plain name), so a new folder with test_*.py files is picked up by itself.
