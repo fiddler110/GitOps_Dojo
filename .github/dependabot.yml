@@ -16,6 +16,11 @@ updates:
     groups:
       base-images:
         patterns: ["*"]
+    # data.forgejo.org answers Dependabot's anonymous tag lookup with 401, which it
+    # reports as a private-registry failure on every run. Bump the runner pin by hand
+    # (modules/runner-pool/pool/Dockerfile); the weekly image-scan still covers it.
+    ignore:
+      - dependency-name: "forgejo/runner"
 
   - package-ecosystem: docker-compose
     directories:
