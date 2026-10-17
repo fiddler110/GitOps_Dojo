@@ -107,9 +107,10 @@ services:
   # on the first start. The superuser's password is random and thrown away:
   # set-up runs over the local socket, and nothing else needs it.
   app-db:
-    # 17.11, pinned by its multi-arch index digest (amd64
-    # sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3,
-    # arm64 sha256:0b2882c46a2b8d8e148431b333394348cf4d7f15aec6df7f17d51dc641e56cfa).
+    # 18.6, pinned by its multi-arch index digest. 18's image keeps its data in
+    # /var/lib/postgresql/18/docker and refuses to start with a mount at the old
+    # /var/lib/postgresql/data ("unused mount/volume"), so app_db_data is mounted
+    # one level up, at /var/lib/postgresql.
     image: docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: workshop_app_db
     # Starts as root: /bootstrap is the postgres user's to write (init.sh),
@@ -136,7 +137,7 @@ services:
     volumes:
       - ../workshops/vault-fundamentals/compose/app-db/init.sh:/docker-entrypoint-initdb.d/10-students.sh:ro
       - ../workshops/vault-fundamentals/compose/app-db:/opt/app-db:ro
-      - app_db_data:/var/lib/postgresql/data
+      - app_db_data:/var/lib/postgresql
       - app_db_bootstrap:/bootstrap
     networks:
       - workshop_lab
