@@ -1,4 +1,4 @@
-Flask==3.0.3
+Flask==3.1.3
 # Flask's own dependency tree, pinned too. Flask alone does not pin these, so without
 # them a rebuild years later resolves whatever is current - the opposite of what the
 # Flask pin is for. Bump them together; engine/scripts/check-dep-pins.sh fails if the
