@@ -110,7 +110,7 @@ services:
     # 17.11, pinned by its multi-arch index digest (amd64
     # sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3,
     # arm64 sha256:0b2882c46a2b8d8e148431b333394348cf4d7f15aec6df7f17d51dc641e56cfa).
-    image: docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: workshop_app_db
     # Starts as root: /bootstrap is the postgres user's to write (init.sh),
     # then the image's entrypoint drops to that user. Mode 1777 as well as the chown: podman chowns a
