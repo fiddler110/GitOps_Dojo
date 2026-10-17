@@ -418,7 +418,7 @@ class TestRun(unittest.TestCase):
             with self.assertRaises(ValueError):
                 testrun.parse_matrix(bad)
 
-    def run_it(self, matrix, start_rc=0, keep=False, done=3, boom=None):
+    def run_it(self, matrix, start_rc=0, keep=False, done=3, boom=None, skips=(), allow_skips=False):
         events, seen = [], []
 
         def start(w, n, env):
@@ -427,9 +427,10 @@ class TestRun(unittest.TestCase):
             if boom:
                 raise boom
             return start_rc
-        with mock.patch("dojo.testrun.skipped_steps", return_value=["FAST: skipping it"]):
+        with mock.patch("dojo.testrun.skipped_steps", return_value=list(skips)):
             res = testrun.run_matrix("w", 3, matrix, keep, 60, None, start, lambda: events.append("stop") or 0, FakeRt(),
-                                     say=lambda *_: None, wait=lambda rt, bots, timeout, on_progress=None: done)
+                                     say=lambda *_: None, wait=lambda rt, bots, timeout, on_progress=None: done,
+                                     allow_skips=allow_skips)
         return res, events, seen
 
     def test_pass_stops_and_env_is_exported_then_restored(self):
@@ -438,6 +439,19 @@ class TestRun(unittest.TestCase):
         self.assertEqual(events, ["start", "stop", "start", "stop"])
         self.assertEqual(seen, ["a", "b"])
         self.assertNotIn("KEY", os.environ)
+
+    def test_a_step_given_up_fails_the_run_unless_allowed(self):
+        gave_up = ["testuser1: # FAST: step_lab3_stash failed 3 times -- skipping it"]
+        res, events, _ = self.run_it(None, skips=gave_up)
+        self.assertFalse(res[0].ok)
+        self.assertIn("1 step(s) given up", res[0].note)
+        self.assertEqual(events, ["start", "stop"])
+        res, _, _ = self.run_it(None, skips=gave_up, allow_skips=True)
+        self.assertTrue(res[0].ok)
+        self.assertIn("--allow-skips", res[0].note)
+        # "still not ready" is reported, but the bots went on: not a failure
+        res, _, _ = self.run_it(None, skips=["testuser2: # FAST: stack still not ready after 15 minutes"])
+        self.assertTrue(res[0].ok)
 
     def test_keep_skips_last_stop_only(self):
         _, events, _ = self.run_it(("KEY", ["a", "b"]), keep=True)

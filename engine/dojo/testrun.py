@@ -2,7 +2,9 @@
 
 Starts `WORKSHOP --test N --fast`, waits for every bot's ~/.dojo-bot-done, reports
 which bots finished and which steps they skipped, then stops the stack (always,
-even on failure or Ctrl-C, unless --keep). --matrix KEY=a,b repeats the whole
+even on failure or Ctrl-C, unless --keep). A step a bot gave up on (failed 3 times,
+then skipped) fails the run: the bot still finishes, so a broken lab step would
+otherwise pass unnoticed. --allow-skips restores the old verdict. --matrix KEY=a,b repeats the whole
 sequence per value with KEY=value exported."""
 from __future__ import annotations
 
@@ -15,7 +17,10 @@ from .runtime import Runtime
 from .stackapi import StackError, find_container, project
 
 MARKERS = 'ls /home/testuser*/.dojo-bot-done 2>/dev/null | wc -l'
-SKIPS = 'grep -hE "FAST: .*(skipping it|still not ready)" /home/testuser*/.dojo-bot.log 2>/dev/null | head -20'
+# "testuser2: # FAST: step_x failed 3 times -- skipping it", colour codes stripped.
+SKIPS = (r'grep -HE "FAST: .*(skipping it|still not ready)" /home/testuser*/.dojo-bot.log 2>/dev/null'
+         r' | sed -e "s#^/home/\([^/]*\)/\.dojo-bot\.log:#\1: #" -e "s/\x1b\[[0-9;]*m//g" | head -20')
+GAVE_UP = "skipping it"
 
 
 @dataclass
@@ -74,7 +79,7 @@ def wait_for_bots(rt: Runtime, bots: int, timeout: float, clock=time.monotonic, 
 
 def run_matrix(workshop: str, bots: int, matrix: Optional[Tuple[str, List[str]]], keep: bool, timeout: float,
                env_name: Optional[str], start: Callable, stop: Callable, rt: Runtime,
-               say: Callable[[str], None] = print, wait=wait_for_bots) -> List[RunResult]:
+               say: Callable[[str], None] = print, wait=wait_for_bots, allow_skips: bool = False) -> List[RunResult]:
     """One run per matrix value (one plain run without). The stack is stopped after every run, except the
     last when `keep`. `start(workshop, bots, env_name) -> exit code`, `stop() -> exit code`."""
     runs = [(f"{matrix[0]}={v}", matrix[0], v) for v in matrix[1]] if matrix else [("default", None, None)]
@@ -95,9 +100,13 @@ def run_matrix(workshop: str, bots: int, matrix: Optional[Tuple[str, List[str]]]
             else:
                 r.done = wait(rt, bots, timeout, on_progress=lambda n: say(f"    bots done: {n} of {bots}"))
                 r.skips = skipped_steps(rt)
-                r.ok = r.done >= bots
-                if not r.ok:
+                gave_up = [s for s in r.skips if GAVE_UP in s]
+                r.ok = r.done >= bots and (allow_skips or not gave_up)
+                if r.done < bots:
                     r.note = f"timed out after {timeout / 60:.0f} min with {r.done} of {bots} bots done"
+                elif gave_up:
+                    r.note = (f"{len(gave_up)} step(s) given up after 3 tries"
+                              + (" (allowed by --allow-skips)" if allow_skips else ""))
         except KeyboardInterrupt:
             r.note = "interrupted"
             _finish(r, t0, key, saved)
