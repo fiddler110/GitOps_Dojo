@@ -102,8 +102,9 @@ student's own work.
 A projector-friendly list of breached students: **LIVE** while the swarm's dumps keep landing, **DISCONNECTED
 (contained)** once a patched redeploy makes them fail, then it ages off (`CTF_WALL_AGE_OFF_SECONDS`, 5 min).
 It is the **Wall of Shame** `/admin` tab and a widget on the landing page. Set `CTF_WALL_OF_SHAME=off` in
-`workshop.env` (or `dojo.local.toml` / `--env`) for a quieter or smaller room: only the display goes; the status
-light, MTTP and incident summary keep working. Data is synthetic and derived from lab handles only.
+`workshop.env` (or `dojo.local.toml` / `--env`) for a quieter or smaller room: the wall goes entirely, including by
+URL (there is no page left to open), while the status light, MTTP and incident summary keep working. Data is
+synthetic and derived from lab handles only.
 
 ## The SIEM request log (`CTF_SIEM_DETAIL`, default full)
 

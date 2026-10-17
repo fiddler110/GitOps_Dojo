@@ -86,5 +86,7 @@ live stack start. Rehearse before a class (see `FACILITATOR.md`).
 ## Wall of shame
 
 `CTF_WALL_OF_SHAME=on|off` in `workshop.env` (default `on`) controls whether the room-wide wall of breached
-students is drawn (landing-page widget at `/ctf-wall/` and a facilitator `/admin` tab). Off hides the display only;
-events, status light, MTTP and incident summary are unaffected. Details: `modules/ctf-range/README.md`.
+students is drawn (landing-page widget at `/ctf-wall/` and a facilitator `/admin` tab). Off serves no wall at all:
+the widget draws nothing and achievements' own `/achievements/wall` page and `/achievements/api/wall` are 404, so
+there is no URL to reach it by. Events, status light, MTTP and incident summary are unaffected either way.
+Details: `modules/ctf-range/README.md`.

@@ -7,6 +7,19 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## `CTF_WALL_OF_SHAME=off` now serves no wall (2026-10-17, `fix/achievements-wall-toggle`)
+
+- The toggle reached only `ctf-controller`, which uses it to decide whether its projector page draws. Achievements
+  served its own copy of the wall regardless, so `/achievements/wall` and `/achievements/api/wall` stayed reachable
+  by URL in a pack that had switched the wall off (the caveat recorded in `modules/ctf-range/README.md` and the
+  plan's open decision (c)).
+- `modules/achievements/compose.yml` now passes `CTF_WALL_OF_SHAME` too, parsed exactly as `ctf-controller`'s
+  `Config` parses it, and off makes `/wall`, `/wall.js` and `/api/wall` 404 rather than merely undrawn. Off is the
+  default, so a pack that never mentions the wall serves none of it; `ctf-defend` sets it on and is unchanged.
+  The controller's own page loses nothing, since it already draws nothing when the toggle is off.
+- Unit-tested at the route level, both ways (`test_server.py`, 515 achievements tests pass); the test was confirmed
+  to fail without the gate. Not live-checked on a stack.
+
 ## Challenge briefs and an open-ended git-fundamentals capstone (2026-10-16, `feat/lab-teach-first-structure`)
 
 - `dojo challenge start|reset` writes the brief to `~/capstone.md` or `~/challenge-cN.md` and shows it with glow (Goal, End result, Where to work, When you're done, Start over); plain text if glow can't run.

@@ -161,6 +161,7 @@ class Store:
         # CTF_SIEM_DETAIL (full|paths|off, set by server.py): how much of each logged request a
         # student's own feed carries. The facilitator always gets the whole record (_present).
         self.siem_detail = "full"
+        self.wall_enabled = False       # CTF_WALL_OF_SHAME, set by server.py: gates the wall page and /api/wall
         self._soc_seq = 0
         self._saved_at = None
         self.save_delay = save_delay

@@ -352,13 +352,16 @@ clock, not independent per-persona timers).
   works as a manual stand-in in the meantime.
 - **Wall render toggle and projector route (built, not live-verified).** `CTF_WALL_OF_SHAME=on|off`
   (`module.env` default `off`; `workshops/ctf-defend/workshop.env` sets `on`) reaches `ctf-controller`
-  via `compose.yml`. It gates ONLY drawing: the controller serves the wall page at `/ctf-wall/`
-  (its `/ctf-wall/config` says whether to draw), and the page polls achievements' existing
-  `/achievements/api/wall`. Events, status light, MTTP and incident summary never read it. A pack opts in by
+  via `compose.yml`, and `modules/achievements/compose.yml` passes the same variable to achievements.
+  In `ctf-controller` it gates drawing: the controller always serves the wall page at `/ctf-wall/`
+  (its `/ctf-wall/config` says whether to draw), and the page polls achievements'
+  `/achievements/api/wall`. In achievements it gates serving: off means `/achievements/wall`, its
+  script and `/achievements/api/wall` are all 404, so the wall cannot be reached by typing the URL in a
+  pack that switched it off (the controller's page then draws nothing anyway, so it loses nothing).
+  Events, status light, MTTP and incident summary never read it. A pack opts in by
   listing the `widgets` entry, `/ctf-wall` route (identity gate, `strip_prefix: false`) and a same-id admin tab in its own
   `extensions.json` (ctf-defend does). `CTF_WALL_AGE_OFF_SECONDS` (300) is how long a DISCONNECTED
-  (contained) entry stays before the page ages it off. Caveat: achievements' own `/achievements/wall` page is
-  unchanged and still reachable by URL when the toggle is off.
+  (contained) entry stays before the page ages it off.
 - **Bonus second flaws (`CTF_BONUS_FLAWS=on|off`, plan 8.7 / CTF-D17, built, not live-verified).** A pack
   switches the bonus on or off with one variable; `workshops/ctf-defend/workshop.env` defaults it to `on`
   (the module itself sets nothing, so a pack that never mentions it is unaffected). Today the only bonus is

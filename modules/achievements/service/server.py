@@ -98,6 +98,10 @@ ADMIN_ASSETS = ("admin.js", "style.css", "soc.js", "soc-admin.js", "map.js", "ma
 # The SOC alerts, cyber map and incident summary are one dashboard now (/soc); the old page
 # addresses (and any ?user=NAME) still work by redirecting there.
 SOC_REDIRECTS = ("/map", "/incident")
+# Served only when CTF_WALL_OF_SHAME is on (see make_store). ctf-controller's own /ctf-wall
+# projector page polls /api/wall and already draws nothing when the toggle is off, so a 404 here
+# costs it nothing; it stops the wall being reachable by URL in a pack that switched it off.
+WALL_PATHS = ("/wall", "/wall.js", "/api/wall")
 
 CLIENT_FILE = os.environ.get("CLIENT_FILE", os.path.join(HERE, "..", "terminal", "dojo-check.py"))
 FORGEJO_URL = os.environ.get("FORGEJO_URL", "http://git-server:3000")
@@ -172,6 +176,11 @@ def make_store():
     store.time_scale = scale
     detail = (env.get("CTF_SIEM_DETAIL") or "full").strip().lower()
     store.siem_detail = detail if detail in ("full", "paths", "off") else "full"
+    # CTF_WALL_OF_SHAME (plan 8.12), parsed exactly as ctf-controller's Config does, so one
+    # variable means the same thing in both services. Off (the default, and the case for every
+    # pack that never mentions it) serves no wall at all: the page, its script and /api/wall are
+    # 404, not just undrawn, so the wall cannot be reached by typing the URL.
+    store.wall_enabled = (env.get("CTF_WALL_OF_SHAME") or "off").strip().lower() in ("on", "1", "true", "yes")
     store.locator = geo.Locator(env.get("CTF_GEOIP_DB") or GEOIP_DB, env.get("CTF_HOME_REGION") or "toronto")
     store.signature = env.get("ACHIEVEMENTS_SIGNATURE", "")[:80]
     store.class_date = env.get("ACHIEVEMENTS_CLASS_DATE", "")[:40]
@@ -357,6 +366,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._admin_get(path[len(ADMIN_PREFIX):] or "/")
         if path in SOC_REDIRECTS:
             return self._redirect("soc")
+        if path in WALL_PATHS and not store.wall_enabled:
+            raise Denied(404, "not found")
         if path in PAGES:
             return self._static(PAGES[path])
         if path.lstrip("/") in ASSETS:
@@ -380,7 +391,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(200, {"rows": store.board(self._need(caller))})
         if path == "/api/wall":
             # Room-wide (plan §8.12's wall of shame), same visibility tier as /api/board's "whole
-            # class" view: any signed-in caller, not bound to one student's own rows.
+            # class" view: any signed-in caller, not bound to one student's own rows. Gated above
+            # by WALL_PATHS: a pack with the wall off serves none of this.
             return self._json(200, {"rows": store.wall_rows()})
         if path == "/api/soc":
             # The caller's own SOC feed (plan §8.2's "SIEM" page) - not room-wide, unlike
