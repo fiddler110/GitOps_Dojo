@@ -978,6 +978,23 @@ class HttpTests(unittest.TestCase):
             doc = raw
         return r.status, doc, r
 
+    def test_wall_routes_follow_the_wall_of_shame_toggle(self):
+        st = server.store
+        st.ctf_dumps[("rita", "customer-portal")] = st.clock()
+        was = st.wall_enabled
+        try:
+            st.wall_enabled = False                 # the default, and every non-CTF pack
+            for path in ("/wall", "/wall.js", "/api/wall"):
+                self.assertEqual(self.call("GET", path, user="rita")[0], 404, path)
+            st.wall_enabled = True                  # ctf-defend's workshop.env sets CTF_WALL_OF_SHAME=on
+            for path in ("/wall", "/wall.js"):
+                self.assertEqual(self.call("GET", path, user="rita")[0], 200, path)
+            code, doc, _ = self.call("GET", "/api/wall", user="rita")
+            self.assertEqual((code, doc["rows"][0]["target"]), (200, "customer-portal"))
+        finally:
+            st.wall_enabled = was
+            st.ctf_dumps.clear()
+
     def test_student_reset_hooks(self):
         st = server.store
         st.ledger.unlock("rita", "l1-clone", 5)

@@ -94,8 +94,9 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
 4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
    repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
    `targets/customer-portal` and always stores cleartext passwords, so with the bonus off the live dump still shows
-   cleartext until their first redeploy (fix: env passthrough in `ctf-controller._env_for`); (c) `/achievements/wall`
-   is still reachable when the wall toggle is off; (d) wall rows carry no dumped-record payload; (e) the bonus
+   cleartext until their first redeploy (fix: env passthrough in `ctf-controller._env_for`); (c) ~~`/achievements/wall`
+   is still reachable when the wall toggle is off~~ -- fixed 2026-10-17: `CTF_WALL_OF_SHAME` now reaches
+   achievements too, and off makes the page, its script and `/api/wall` 404 rather than merely undrawn; (d) wall rows carry no dumped-record payload; (e) the bonus
    appears as a challenge titled "Second Look" when on; (f) the pre-breach `full` SIEM detail equals `paths`, and
    bonus-path probes are synthetic 404s whatever the real app answers.
 5. **Housekeeping done 2026-10-12:** `RELEASES.md` has an entry for the wall, bonus flaw, scoring, one-page SOC,

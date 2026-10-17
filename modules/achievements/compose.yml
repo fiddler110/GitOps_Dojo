@@ -71,6 +71,9 @@ services:
       - CTF_TIME_SCALE=${CTF_TIME_SCALE:-1}
       # What a student's SOC request log shows (full | paths | off); the facilitator always sees all of it.
       - CTF_SIEM_DETAIL=${CTF_SIEM_DETAIL:-full}
+      # Wall of shame (plan 8.12). The same variable ctf-range passes to ctf-controller, which owns the
+      # projector page; off here means achievements serves no wall page, script or /api/wall at all.
+      - CTF_WALL_OF_SHAME=${CTF_WALL_OF_SHAME:-off}
       # Where students with no usable client address (a LAN, WSL) sit on the map; a city or "lat,lon,Label".
       - CTF_HOME_REGION=${CTF_HOME_REGION:-Toronto}
       - ACHIEVEMENTS_CHALLENGE_POINTS=${ACHIEVEMENTS_CHALLENGE_POINTS:-100}
