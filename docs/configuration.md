@@ -81,6 +81,7 @@ dojo.toml  <  dojo.local.toml  <  .env  <  profile (--env NAME)  <  workshop.env
 | `CLOUD_HOST_MEM_LIMIT`, `CLOUD_HOST_PIDS_LIMIT`, `CLOUD_API_MEM_LIMIT` | 3g, 4096, 256m | dojo-cloud |
 | `CLOUD_API_RATE_BURST`, `CLOUD_API_RATE_PER_SEC` | 200, ... | Per-student ARM call tripwire |
 | `OPENBAO_MEM_LIMIT` | 512m | openbao |
+| `OPENBAO_SETUP_MEM_LIMIT` | 256m | `openbao-setup`; budgets `SETUP_JOBS` parallel `bao` runs, not one process |
 | `SENSEI_REPO`, `SENSEI_FILE`, `SENSEI_MODE`, `SENSEI_INTERVAL`, `SENSEI_PATIENCE_SECONDS` | per workshop | Sensei behaviour |
 | `DNS_GATE_USER_PARENTS`, `_SHARED_ZONES`, `_CI_ZONES`, `_CI_REPO`, `_RESET_RECORDS` | per workshop | dns-gate ownership rules |
 | `FORGEJO_FORK_WORKFLOW` | 0 | Each student forks the team repo (bots too) |
