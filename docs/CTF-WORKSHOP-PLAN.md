@@ -86,9 +86,10 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
   Lesson for any overlay that uses `extends:`: relative paths resolve against the extended file, and `--dry-run`
   does not exercise a build.
 - **Removed:** `feat/ctf-wall-and-bonus`'s last commit (`e390cc3`) only commented out `.github/workflows/ci.yml`; it
-  was dropped, not merged. Three Dependabot Flask 3.0.3 to 3.1.3 branches were deleted unmerged, so the targets and
-  the `ctf-defend` sample repo are still on `Flask==3.0.3` (a deliberate pin for teaching targets; test before
-  bumping).
+  was dropped, not merged. Three Dependabot Flask 3.0.3 to 3.1.3 branches were deleted unmerged. The bump was then
+  made by hand in all 17 copies (2026-10-17) after testing: every Flask target built with 3.0.3 and again with 3.1.3,
+  and its own `exploit/solve.py` (customer-portal: `check.py`) gave the same verdict, exploitable, on both. Flask is
+  not what any target's flaw rests on; a bump that would change a flaw must be checked the same way first.
 
 **Handoff as it stood on 2026-10-12** (historical; items 1, 2 and 7 were live checks that passed, and item 3's list is carried forward as "Open, in order" item 8):
 
