@@ -27,7 +27,8 @@ the gateway at `PUBLIC_BASE_URL` exactly as a browser would.
   not name. Use `./dojo restart <service>`.
 - `restart <service>` also recreates services linked to it, and says which.
 - Rootless podman cannot bind ports below 1024; the defaults are 8080/8443.
-- On macOS with rootful Podman use `--env mac-podman` (runner-pool needs `unmask=/proc/*`).
+- On macOS with rootful Podman use `--env mac-podman` (runner-pool needs `unmask=/proc/*`; web-terminal needs it too,
+  with `label=disable`, for each student's own PID namespace).
 - If `./dojo logs web-terminal` shows `pidns-unavailable`, students have no PID namespace (and no user-namespace cap):
   set `WEB_TERMINAL_SECURITY_OPT_1=unmask=/proc/*` (and on SELinux hosts `WEB_TERMINAL_SECURITY_OPT_2`), see
   [security](security.md#3-kernel-checks-a-shared-container-not-a-shared-identity).
