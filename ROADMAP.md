@@ -211,7 +211,6 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Steps: [`C5-guide.md`](C5-guide.md). (The flaky allocator test first seen here is fixed: see RELEASES.) |
-| C6 | Commands never run live | S | Unit-tested and dry-run only, never exercised on a real stack: `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch`. Tracked here from 2026-10-17; they were recorded only inside the CTF plan's 2026-10-12 handoff before that (plan "Open, in order" item 8). One pass on any pack covers them |
 
 ### Remediation leftovers
 
