@@ -8,7 +8,7 @@
 # (checked with `podman manifest inspect`: linux/amd64 and linux/arm64 are
 # both present under this digest, plus two attestation-only sub-manifests
 # with no runnable content).
-FROM docker.io/powerdnsadmin/pda-legacy@sha256:66dd8522c19a3950556ec2d3d3de7f7b9f9672f6442a6692e36349e636abae3b
+FROM docker.io/powerdnsadmin/pda-legacy@sha256:5bcea2c641d04f25792cf2eba84eef2b30d9618f1756102ec808e336d6f07c1a
 
 # The sqlite file lives in the container's own /data (the base image has the
 # directory; no VOLUME): ephemeral like dns-server itself, so a restart never

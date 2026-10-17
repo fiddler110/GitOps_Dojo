@@ -1,6 +1,6 @@
 # Stock Caddy, pinned by multi-arch index digest. Sign-in is the allocator's
 # /login page, so no plugins are needed. Bump the tag and digest together.
-FROM docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+FROM docker.io/library/caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
 
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY static/ /srv/static/

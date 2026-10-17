@@ -2,7 +2,7 @@
 # (POST /check) and gates a candidate app.py before merge (POST /gate).
 # Build context is the module root (compose.yml) so targets/ can be COPYed;
 # the check scripts live only here, never in a student repo or terminal.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \

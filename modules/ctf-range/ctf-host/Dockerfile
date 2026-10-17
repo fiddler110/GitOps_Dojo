@@ -26,7 +26,7 @@
 # --- the target's filesystem: a ready-to-run customer-portal rootfs ----------
 # Mirrors targets/customer-portal/Dockerfile (same deps, same non-root user) so
 # the imported image behaves like the standalone one.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS portal
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS portal
 COPY targets/customer-portal/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/customer-portal/app.py targets/customer-portal/seed.py targets/customer-portal/entrypoint.sh /app/
@@ -46,7 +46,7 @@ RUN chmod +x /app/entrypoint.sh \
 # gitopsdojo/ctf-customer-portal-base:pinned, which
 # targets/customer-portal/Dockerfile now FROMs instead of installing Flask
 # itself — see docs/CTF-SPIKES.md S6 "Scoped" (2026-10-05).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS portal-deps
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS portal-deps
 COPY targets/customer-portal/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
@@ -60,25 +60,25 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # mirrors its targets/<name>/Dockerfile exactly (same deps, same uid, same
 # EXPOSE set including the decoy ports — see controller.py's Config.attack_ports
 # and each app.py's decoy-listener comment).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS sqli-login
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS sqli-login
 COPY targets/sqli-login/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/sqli-login/app.py /app/app.py
 RUN useradd --uid 10015 --no-create-home --home-dir /app --shell /usr/sbin/nologin sqli
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS idor-pcap
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS idor-pcap
 COPY targets/idor-pcap/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/idor-pcap/app.py /app/app.py
 RUN useradd --uid 10016 --no-create-home --home-dir /app --shell /usr/sbin/nologin idor
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS weak-auth-portal
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS weak-auth-portal
 COPY targets/weak-auth-portal/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/weak-auth-portal/app.py /app/app.py
 RUN useradd --uid 10017 --no-create-home --home-dir /app --shell /usr/sbin/nologin weakauth
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS cert-trust-bypass
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS cert-trust-bypass
 COPY targets/cert-trust-bypass/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/cert-trust-bypass/app.py /app/app.py
@@ -87,7 +87,7 @@ RUN useradd --uid 10018 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 # ping-tool alone needs `host` (dnsutils) on PATH — see its app.py docstring
 # for why a DNS lookup stands in for real `ping` under this range's global
 # CapDrop (no raw ICMP socket is possible here regardless).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS ping-tool
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS ping-tool
 RUN apt-get update && apt-get install -y --no-install-recommends dnsutils \
     && rm -rf /var/lib/apt/lists/*
 COPY targets/ping-tool/requirements.txt /app/requirements.txt
@@ -95,19 +95,19 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/ping-tool/app.py /app/app.py
 RUN useradd --uid 10019 --no-create-home --home-dir /app --shell /usr/sbin/nologin pingtool
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS ssrf-fetcher
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS ssrf-fetcher
 COPY targets/ssrf-fetcher/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/ssrf-fetcher/app.py /app/app.py
 RUN useradd --uid 10020 --no-create-home --home-dir /app --shell /usr/sbin/nologin ssrffetcher
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS api-mass-assignment
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS api-mass-assignment
 COPY targets/api-mass-assignment/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/api-mass-assignment/app.py /app/app.py
 RUN useradd --uid 10021 --no-create-home --home-dir /app --shell /usr/sbin/nologin massassign
 
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS api-bfla
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS api-bfla
 COPY targets/api-bfla/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/api-bfla/app.py /app/app.py
@@ -116,7 +116,7 @@ RUN useradd --uid 10022 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 # leaky-config — CTF-3 "Secrets and misconfiguration" (plan §7.3 row 5), not
 # yet in a real session pack (CTF-3/CTF-4 stay on the shared full-catalog
 # stage below until that pack work happens — see CTF-D26).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS leaky-config
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS leaky-config
 COPY targets/leaky-config/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/leaky-config/app.py /app/app.py
@@ -125,7 +125,7 @@ RUN useradd --uid 10023 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 # git-secrets — CTF-3, ties git-fundamentals (plan §7.3 row 8). No bug in
 # this image at all; the foothold is in Forgejo's git history
 # (terminal/start.d/55-git-secrets.sh), not here — see app.py's docstring.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS git-secrets
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS git-secrets
 COPY targets/git-secrets/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/git-secrets/app.py /app/app.py
@@ -135,7 +135,7 @@ RUN useradd --uid 10024 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 # cloud-policy-as-code. No bug in how the rule is evaluated
 # (policy_engine.py is vendored verbatim from modules/dojo-cloud/cloud-api/)
 # — the deployed rule itself is wrong. See app.py's docstring.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS policy-bypass
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS policy-bypass
 COPY targets/policy-bypass/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/policy-bypass/policy_engine.py targets/policy-bypass/app.py targets/policy-bypass/proxy.py targets/policy-bypass/entrypoint.sh /app/
@@ -157,7 +157,7 @@ RUN useradd --uid 10025 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 # "pin by digest" rule applies at the tarball level here (sha256 of
 # toolchain.tar.bz2); the toolchain itself bundles buildroot-pinned uClibc-ng
 # 1.0.39 (summary.csv in the tarball).
-FROM --platform=linux/amd64 docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS dns-resolver-cve-agent-build
+FROM --platform=linux/amd64 docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS dns-resolver-cve-agent-build
 ARG TOOLCHAIN_URL=https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--uclibc--stable-2021.11-5.tar.bz2
 ARG TOOLCHAIN_SHA256=e68fd1b23f4a5c5132f2122e4012c17eb24e5179b2ff45bb793a27ac30dd454f
 RUN apt-get update \
@@ -181,7 +181,7 @@ RUN set -eux; \
 # module docstring for why the attacker's observe-and-spoof is modelled on
 # loopback inside this one container, not across ctf_net — the inner dockerd's
 # --icc=false topology forbids a real cross-slot off-path attack).
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS dns-resolver-cve
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS dns-resolver-cve
 COPY targets/dns-resolver-cve/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY targets/dns-resolver-cve/app.py /app/app.py
@@ -236,7 +236,7 @@ RUN chmod 0755 /app/agent \
 #     runs), `docker image load` dropped from ~58s to ~6-17s for this one
 #     image — the fetch below only ever touches amd64 bytes, so the
 #     student-facing ~3min startup cost shrinks accordingly.
-FROM quay.io/skopeo/stable@sha256:dcb473551681437c514d5eabd9d01f7f69d5be1218d36b9be3ad1a40e5add9e4 AS base-image-fetch
+FROM quay.io/skopeo/stable@sha256:7e735527d9d64c7456fc82d7f954c380b4a5dd1a8173115ce2ed7b3442ef36e0 AS base-image-fetch
 RUN set -eux; \
     mkdir -p /tmp/idx-only /tmp/amd64-only /out/merged/blobs/sha256; \
     skopeo copy --multi-arch index-only \
@@ -256,7 +256,7 @@ RUN set -eux; \
 # then never even builds the stages a pack doesn't reference (not "baked but
 # skipped at import", genuinely absent: zero extra build time, zero extra
 # image bytes for a scoped pack).
-FROM docker.io/library/docker:29.8.1-dind@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0 AS range-base
+FROM docker.io/library/docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470 AS range-base
 
 # dnsmasq, for entrypoint.sh's fake-DNS stub (see its own comment): a fast,
 # local, always-reachable DNS responder for the inner dockerd's embedded
