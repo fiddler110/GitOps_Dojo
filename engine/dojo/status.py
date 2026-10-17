@@ -44,6 +44,9 @@ def collect(rt: Runtime) -> Dict[str, Any]:
         "services": [{"service": c.service, "container": c.name, "state": c.state, "status": c.status}
                      for c in containers],
         "ready": sum(1 for c in containers if c.state in READY),
+        # Running an older build of their image (a rebuild whose container was never
+        # recreated): the change isn't live yet. See Runtime.stale_services.
+        "stale": rt.stale_services(containers),
         "students": None,
         "checks": None,
         # A start in flight shows up here before any container has appeared,
@@ -126,3 +129,7 @@ def show(info: Dict[str, Any]) -> None:
                       f"[{style}]{row['state']}[/]", row["status"])
     console.print()
     console.print(table)
+    if info.get("stale"):
+        names = " ".join(info["stale"])
+        console.print(f"\n[yellow]Running an older build:[/] {', '.join(info['stale'])}. Its image was rebuilt "
+                      f"after the container was made, so the change isn't live: [cyan]{paths.PROG} restart {names}[/]")

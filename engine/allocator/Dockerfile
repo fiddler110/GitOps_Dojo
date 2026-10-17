@@ -21,10 +21,14 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD wget -q -O /dev/null --header="X-Gateway-Token: ${GATEWAY_TOKEN}" http://127.0.0.1:8080/ || exit 1
 
-# Runs as the image's default root user (python:3.12-alpine's default) --
-# container-scoped root, not host root. The allocator holds Forgejo admin
-# credentials and the control-plane shared secret (CONTROL_TOKEN) in its
-# environment, so this is not a low-value target -- it's reachable only
-# from other containers on the internal workshop_lab Docker network, which
-# has no published port and no host access.
-CMD ["python3", "/usr/local/bin/allocator-server.py"]
+# Not root: the allocator holds the Forgejo admin password, the student
+# password seed and both control-plane tokens, and needs no privilege at all.
+# The state directory is created here, owned by that user, so a fresh named
+# volume mounted on it (allocator_state) starts with the same owner. Compose
+# also drops every capability and makes the root filesystem read-only.
+# (sensei builds FROM this image but runs as 0:0 with no capabilities.)
+RUN adduser -D -H -u 10001 allocator \
+    && mkdir -p /var/lib/dojo-allocator \
+    && chown allocator:allocator /var/lib/dojo-allocator
+USER 10001:10001
+CMD ["python3", "-B", "/usr/local/bin/allocator-server.py"]

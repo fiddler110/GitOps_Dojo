@@ -22,6 +22,7 @@ import json
 import os
 import pwd
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -297,6 +298,17 @@ def is_alive(username):
 # facilitator and demo bots stay outside. setuid tools (su, sudo, ping) don't
 # work inside; no lab uses them. If a namespace can't be made, the workspace
 # starts without one and a pidns-unavailable line is logged.
+#
+# The holder also caps its user namespace at zero nested user namespaces
+# before dropping every capability (HOLDER_SH). A student inside can then no
+# longer make one of their own (and a network namespace in it), which is the
+# usual way into kernel attack surface (nf_tables and friends) from a shell
+# in this container, the one that holds every lab secret. Only a process with
+# CAP_SYS_RESOURCE in that namespace may raise the limit, and nothing of the
+# student's in it has any. SELinux (rootful Podman on macOS) refuses the write;
+# the namespace still starts, and pidns-start logs nested_userns=allowed.
+# A fresh /proc mount needs the runtime's /proc masks lifted: see
+# WEB_TERMINAL_SECURITY_OPT_* in docker-compose.yml.
 
 def uses_pid_namespace(username):
     return username != FACILITATOR_USERNAME and not username.startswith(BOT_PREFIX)
@@ -330,6 +342,32 @@ def _is_ns_init(pid):
     return False
 
 
+HOLDER_SH = ("echo 0 > /proc/sys/user/max_user_namespaces; "
+             "exec setpriv --inh-caps=-all --ambient-caps=-all --bounding-set=-all sleep infinity")
+
+
+def _comm(pid):
+    try:
+        with open(f"/proc/{pid}/comm") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _nested_userns(username, init_pid):
+    """"blocked" if the student's namespace allows no nested user namespace,
+    else "allowed". Read from inside it, as the student: root here can't see
+    that namespace's limits (they are per namespace) or the holder's environment."""
+    try:
+        out = subprocess.run(
+            ["su", "-", username, "-c",
+             f"nsenter -t {init_pid} -U -p -m --preserve-credentials -- cat /proc/sys/user/max_user_namespaces"],
+            capture_output=True, text=True, timeout=5).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        out = []
+    return "blocked" if out[-1:] == ["0"] else "allowed"
+
+
 def ensure_holder(username):
     """The init pid of this student's PID namespace, starting its holder
     first if needed; None if one can't be made. Called with running_lock held."""
@@ -338,14 +376,17 @@ def ensure_holder(username):
         return held[2]
     proc = subprocess.Popen(
         ["su", "-", username, "-c",
-         f"exec {nproc_prefix(username)}unshare -U --map-current-user -p -f --mount-proc --kill-child sleep infinity"],
+         f"exec {nproc_prefix(username)}unshare -U --map-current-user --keep-caps -p -f --mount-proc --kill-child "
+         f"sh -c {shlex.quote(HOLDER_SH)}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(50):
         for unshare_pid in _children(proc.pid):
             for init_pid in _children(unshare_pid):
-                if _is_ns_init(init_pid):
+                # comm turns to sleep once HOLDER_SH has set the limit and dropped capabilities.
+                if _is_ns_init(init_pid) and _comm(init_pid) == "sleep":
                     holders[username] = (proc, unshare_pid, init_pid)
-                    audit("pidns-start", account=username, holder=init_pid)
+                    audit("pidns-start", account=username, holder=init_pid,
+                          nested_userns=_nested_userns(username, init_pid))
                     return init_pid
         if proc.poll() is not None:
             break

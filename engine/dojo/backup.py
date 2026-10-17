@@ -2,11 +2,15 @@
 (Forgejo, student homes, achievements ...) through `podman volume export/import`.
 
 Layout: manifest.json (workshop, flags, compose files, volume names) plus
-volumes/<name>.tar per volume. Podman only: Docker has no volume export."""
+volumes/<name>.tar per volume. Podman only: Docker has no volume export.
+
+A backup holds every secret the class made (Forgejo's database, each student's
+~/.git-credentials, vault data), so the file is created mode 0600."""
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tarfile
 import tempfile
@@ -41,6 +45,9 @@ def backup(rt: Runtime, dest: Optional[Path]) -> Dict[str, Any]:
         dest = dest / default_path(workshop).name
     live = [c for c in rt.containers(proj) if c.state in ("healthy", "running")]
     mode = "w:gz" if dest.suffix in (".gz", ".tgz") else "w"
+    # Owner-only before any byte is written; tarfile truncates it and keeps the mode.
+    os.close(os.open(dest, os.O_WRONLY | os.O_CREAT, 0o600))
+    os.chmod(dest, 0o600)
     with tempfile.TemporaryDirectory() as tmp:
         manifest = {"version": 1, "project": proj, "workshop": workshop, "args": cur.args if cur else [],
                     "files": cur.files if cur else [], "env_name": cur.env_name if cur else None,
@@ -85,6 +92,11 @@ def plan_restore(rt: Runtime, path: Path) -> Dict[str, Any]:
                          "Refusing to restore across workshops.")
     if m.get("project") and m["project"] != proj:
         raise StackError(f"This backup is of Compose project '{m['project']}', this machine uses '{proj}'.")
+    # Restore removes and recreates each volume the manifest names: only ever
+    # one of this project's (as `backup` lists them), never anything else on the machine.
+    for v in m.get("volumes", []):
+        if not (isinstance(v, str) and v.startswith(f"{proj}_") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", v)):
+            raise StackError(f"This backup names volume {v!r}, which is not one of project '{proj}'s. Refusing.")
     m["existing"] = [v for v in rt.volumes(proj) if v in set(m.get("volumes", []))]
     return m
 

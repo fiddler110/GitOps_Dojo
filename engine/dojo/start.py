@@ -624,6 +624,8 @@ def _compose_up(p: Plan) -> int:
                                 stdout=log_file or None, stderr=subprocess.STDOUT if log_file else None)
         rc = proc.wait()
         if rc == 0:
+            rc = _recreate_stale(p, mon, log_file)
+        if rc == 0:
             mon.wait_until_ready(float(p.env.get("STARTUP_WAIT") or 300))
     except KeyboardInterrupt:
         if proc is not None and proc.poll() is None:
@@ -650,6 +652,27 @@ def _compose_up(p: Plan) -> int:
         console.print("The run stays recorded so `./dojo stop` can remove what did start; "
                       "fix the error, then `./dojo stop` and start again.")
     return rc
+
+
+def _recreate_stale(p: Plan, mon: StartMonitor, log_file) -> int:
+    """After `up -d`: recreate any container still running an image that was rebuilt
+    since it was made (Runtime.stale_services; podman-compose only recreates on a
+    config change), with what podman links to it, as `restart SERVICE` does. Without
+    this the rebuilt image never runs and the superseded one can't be reaped. A
+    restart already recreated everything it names."""
+    if p.o.recreate is not None:
+        return 0
+    cs = p.rt.containers(p.project)
+    stale = p.rt.stale_services(cs)
+    if not stale:
+        return 0
+    also = p.rt.dependents(cs, stale)
+    mon.note("warn", f"recreating {', '.join(stale)}: image rebuilt since its container was made"
+             + (f" (and {', '.join(also)}, which depend on it)" if also else ""))
+    proc = subprocess.Popen([*p.compose, "up", "-d", "--force-recreate", "--no-deps", *stale, *also],
+                            cwd=str(paths.ENGINE), env=p.env,
+                            stdout=log_file or None, stderr=subprocess.STDOUT if log_file else None)
+    return proc.wait()
 
 
 def _up_args(p: Plan) -> List[str]:

@@ -707,12 +707,15 @@ def validate(workshops: Tuple[str, ...]) -> None:
 @click.option("--matrix", default=None, metavar="KEY=a,b", help="Run once per value with KEY=value exported (stopping between runs).")
 @click.option("--keep", is_flag=True, help="Leave the stack up after the (last) run instead of stopping it.")
 @click.option("--timeout", default=15.0, show_default=True, metavar="MIN", help="Minutes to wait for the bots, per run.")
+@click.option("--allow-skips", is_flag=True, help="Pass even if a bot gave up on a step (failed it 3 times, then skipped it).")
 @ENV_OPTION
-def test_cmd(workshop: str, bots: int, matrix: Optional[str], keep: bool, timeout: float, env_name: Optional[str]) -> None:
+def test_cmd(workshop: str, bots: int, matrix: Optional[str], keep: bool, timeout: float, allow_skips: bool,
+             env_name: Optional[str]) -> None:
     """Start WORKSHOP with fast bots, wait for them to finish, report pass/fail, then stop.
 
-    The same as 'WORKSHOP --test N --fast' and waiting on every ~/.dojo-bot-done. The stack is stopped
-    afterwards even on failure or Ctrl-C (unless --keep). Exits 1 if any run failed."""
+    The same as 'WORKSHOP --test N --fast' and waiting on every ~/.dojo-bot-done. A run fails if a bot
+    timed out or gave up on a step (unless --allow-skips). The stack is stopped afterwards even on
+    failure or Ctrl-C (unless --keep). Exits 1 if any run failed."""
     from . import testrun
     from .start import StartOptions, run_start
     from .stop import run_stop
@@ -727,7 +730,7 @@ def test_cmd(workshop: str, bots: int, matrix: Optional[str], keep: bool, timeou
 
     try:
         results = testrun.run_matrix(workshop, bots, spec, keep, timeout * 60, env_name, start,
-                                     lambda: run_stop(False), Runtime(), say=console.print)
+                                     lambda: run_stop(False), Runtime(), say=console.print, allow_skips=allow_skips)
     except KeyboardInterrupt:
         fail("Interrupted (the stack was stopped).")
         sys.exit(130)

@@ -78,7 +78,9 @@ step_gf_c2() {
   narrate "Challenge c2 -- The Detective"
   gf_start c2 || return 1
   local line hash who
-  line="$(printf '%s\n' "$GF_OUT" | sed -n 's/^Goal: .*introduced `\([^`]*\)`.*/\1/p' | head -1)"
+  # The goal sentence ("...introduced `meetings_per_day: 11`..."), wherever the
+  # challenge text puts it: it used to be a "Goal: " line, now it is under "## Goal".
+  line="$(printf '%s\n' "$GF_OUT" | sed -n 's/.*introduced `\([^`]*\)`.*/\1/p' | head -1)"
   [ -n "$line" ] || { narrate "could not read the target line from the goal"; return 1; }
   run_cmd "git log -S'$line' --format='%h %an' -- config/settings.yaml"
   hash="$(git log -S"$line" --format=%h -- config/settings.yaml | tail -1)"

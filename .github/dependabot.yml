@@ -1,0 +1,37 @@
+# Version bumps for what the lab pulls from outside: base images (Dockerfiles),
+# service images (Compose files) and CI actions. Everything stays pinned by
+# digest; this only proposes the next pin, grouped into one PR per ecosystem a
+# month. Seed repos under workshops/*/content are left alone: their pins are
+# lab content (and some CTF ones are deliberately old).
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories:
+      - /engine/*
+      - /modules/*
+      - /modules/*/*
+      - /workshops/*/compose/*
+    schedule:
+      interval: monthly
+    groups:
+      base-images:
+        patterns: ["*"]
+
+  - package-ecosystem: docker-compose
+    directories:
+      - /engine
+      - /modules/*
+      - /workshops/*/compose
+    schedule:
+      interval: monthly
+    groups:
+      service-images:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

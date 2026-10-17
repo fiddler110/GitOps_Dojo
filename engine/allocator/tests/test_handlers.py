@@ -6,6 +6,7 @@ engine/allocator:
   python3 -B -m unittest discover -s tests -v
 """
 
+import http.client
 import json
 import os
 import select
@@ -27,6 +28,7 @@ for _k, _v in {"FORGEJO_ADMIN_USER": "admin", "FORGEJO_ADMIN_PASSWORD": "x",
 import accounts  # noqa: E402
 import allocation  # noqa: E402
 import config  # noqa: E402
+import handler  # noqa: E402
 import server  # noqa: E402
 
 FAC = config.FACILITATOR_USERNAME
@@ -117,10 +119,10 @@ class GatewayToken(HandlerTest):
 
 
 class PostBody(HandlerTest):
-    """A rejected POST is answered only after its body is read. Every reply
-    closes the connection, and closing over unread bytes sends RST, so the
-    client could get ConnectionResetError instead of the status (it made
-    test_reset's 403 checks flaky under load). Raw sockets, so the body can be
+    """A rejected POST is answered only after its body is read. Closing over
+    unread bytes sends RST, so the client could get ConnectionResetError
+    instead of the status (it made test_reset's 403 checks flaky under load),
+    and on a kept-alive connection they would be read as the next request. Raw sockets, so the body can be
     held back: a reply that comes first was sent without reading it."""
 
     def test_rejections_wait_for_the_body(self):
@@ -140,7 +142,47 @@ class PostBody(HandlerTest):
                     self.assertFalse(select.select([s], [], [], 0.3)[0], "replied before reading the body")
                     s.sendall(body)
                     reply = s.recv(4096)
-                self.assertTrue(reply.startswith(f"HTTP/1.0 {status} ".encode()), reply[:40])
+                self.assertTrue(reply.startswith(f"HTTP/1.1 {status} ".encode()), reply[:40])
+
+
+class KeepAlive(HandlerTest):
+    """Caddy reuses its connection to the allocator for /session-check and
+    /auth-check; a reply that can't be framed must close it instead."""
+
+    def conn(self):
+        return http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+
+    def test_framed_replies_share_one_connection(self):
+        c = self.conn()
+        gw = {"X-Gateway-Token": config.GATEWAY_TOKEN}
+        for _ in range(3):
+            c.request("GET", "/session-check?role=any", headers=gw)
+            r = c.getresponse()
+            r.read()
+            self.assertEqual(r.status, 401)
+            self.assertIsNone(r.getheader("Connection"))
+        first = c.sock
+        c.request("GET", "/session-check?role=any", headers=gw)
+        c.getresponse().read()
+        self.assertIs(c.sock, first)
+        c.close()
+
+    def test_reply_without_length_closes(self):
+        c = self.conn()
+        c.request("GET", "/session-check")  # no gateway token: a bare 403
+        r = c.getresponse()
+        r.read()
+        self.assertEqual((r.status, r.getheader("Connection")), (403, "close"))
+        c.close()
+
+    def test_body_over_the_cap_closes(self):
+        c = self.conn()
+        c.request("POST", "/login", body=b"x" * (handler.Handler.MAX_BODY_BYTES + 10),
+                  headers={"X-Gateway-Token": config.GATEWAY_TOKEN})
+        r = c.getresponse()
+        r.read()
+        self.assertEqual(r.getheader("Connection"), "close")
+        c.close()
 
 
 class AuthCheck(HandlerTest):
@@ -324,8 +366,26 @@ class SessionsApi(HandlerTest):
 
     def test_empty_class_makes_no_call(self):
         with mock.patch.object(config, "BOT_IDS", []):
-            self.assertEqual(json.loads(self.request("GET", "/admin/api/sessions")[2]), [])
+            self.assertEqual(json.loads(self.request("GET", "/admin/api/sessions",
+                                                     headers={"X-Auth-User": FAC})[2]), [])
         self.assertEqual(self.control.calls, [])
+
+
+class AdminNeedsFacilitator(HandlerTest):
+    """Every /admin path checks the facilitator itself, not just Caddy's routing."""
+
+    def test_admin_paths_refuse_anyone_else(self):
+        sid, cookie = self.student()
+        for who in ({}, cookie, {"X-Auth-User": "student"}):
+            for method, path in (("GET", "/admin"), ("GET", "/admin/"), ("GET", "/admin/admin.js"),
+                                 ("GET", "/admin/api/sessions"), ("GET", "/admin/api/status"),
+                                 ("GET", f"/admin/api/forgejo-password/{sid}"),
+                                 ("POST", f"/admin/release/{sid}"), ("POST", "/admin/release-unused")):
+                headers = {**who, "X-Requested-With": "dojo-admin"}
+                status = self.request(method, path, "" if method == "POST" else None, headers)[0]
+                self.assertEqual(status, 403, f"{method} {path} as {who}")
+        self.assertTrue(self.held(sid))
+        self.assertEqual(self.request("GET", "/admin/api/status", headers={"X-Auth-User": FAC})[0], 200)
 
 
 class LoginPage(HandlerTest):

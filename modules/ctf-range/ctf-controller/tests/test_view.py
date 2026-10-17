@@ -31,7 +31,36 @@ class ResolveTest(unittest.TestCase):
         self.assertIsNone(view.resolve(cfg(), "student01", False, "/zzz/")[0])
 
     def test_cookie_path(self):
-        self.assertEqual(view.rewrite_cookie("s=1; Path=/x; HttpOnly"), "s=1; HttpOnly; Path=/")
+        self.assertEqual(view.rewrite_cookie("s=1; Path=/x; Domain=lab.example; HttpOnly", "/ctf-view/a"),
+                         "s=1; HttpOnly; Path=/ctf-view/a/")
+
+    def test_target_cannot_set_dojo_cookie(self):
+        for name in ("dojo_login", "dojo_session", "DOJO_gate"):
+            self.assertIsNone(view.rewrite_cookie(f"{name}=x; Path=/", "/ctf-view/a"))
+
+    def test_no_dojo_cookie_reaches_target(self):
+        self.assertEqual(view.target_cookies("dojo_login=a; s=1; dojo_session=b;dojo_gate=c; t=2"), "s=1; t=2")
+        self.assertIsNone(view.target_cookies("dojo_login=a; dojo_session=b"))
+        self.assertIsNone(view.target_cookies(None))
+
+
+class IsolationTest(unittest.TestCase):
+    """A target is attacker-controlled script on the dojo origin: it must not reach
+    a same-origin window (frame, framed by, opened) or a worker."""
+
+    def test_csp_blocks_frames_and_workers(self):
+        csp = view.SANDBOX["Content-Security-Policy"]
+        for directive in ("connect-src 'none'", "frame-src 'none'", "worker-src 'none'", "frame-ancestors 'none'"):
+            self.assertIn(directive, csp)
+        self.assertEqual(view.SANDBOX["X-Frame-Options"], "DENY")
+        self.assertEqual(view.SANDBOX["Cross-Origin-Opener-Policy"], "same-origin")
+
+    def test_origin_wide_headers_dropped(self):
+        for h in ("Service-Worker-Allowed", "Clear-Site-Data", "Strict-Transport-Security", "Refresh",
+                  "Access-Control-Allow-Origin", "Cross-Origin-Opener-Policy", "Content-Security-Policy"):
+            self.assertTrue(view.drop_response_header(h), h)
+        for h in ("Content-Type", "Content-Disposition", "WWW-Authenticate", "X-Debug-Token"):
+            self.assertFalse(view.drop_response_header(h), h)
 
 
 

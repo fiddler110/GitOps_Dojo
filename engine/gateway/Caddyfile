@@ -54,15 +54,25 @@
 	}
 }
 
-# Every call to the allocator (remediation T3.4, FIND-07). It serves one
-# request at a time, so a stuck call must fail fast instead of queueing the
-# whole class behind it: a dial that takes over 3 s or a reply that hasn't
-# started within 10 s is a 502. Imported into each allocator block below and
-# into the rendered extension gates (allocator/render_extensions.py).
+# Every call to the allocator (remediation T3.4, FIND-07). A stuck call must
+# fail fast instead of queueing the class behind it: a dial that takes over
+# 3 s or a reply that hasn't started within 10 s is a 502. The allocator keeps
+# connections alive (HTTP/1.1) and closes one after 3 s idle (Handler.timeout),
+# so Caddy drops its idle ones at 2 s and never sends a request down a
+# connection the allocator is closing. Imported into each allocator block
+# below and into the rendered extension gates (allocator/render_extensions.py).
+#
+# X-Forwarded-For is replaced with {client_ip}, the one address the login and
+# access-code limits key on (allocator handler.py client_ip()). Left to Caddy,
+# a request from a trusted proxy (GATEWAY_TRUSTED_PROXIES) arrives as
+# "browser, proxy", and the allocator would count every class's guesses
+# against the proxy's address.
 (allocator_timeouts) {
+	header_up X-Forwarded-For {client_ip}
 	transport http {
 		dial_timeout 3s
 		response_header_timeout 10s
+		keepalive 2s
 	}
 }
 
@@ -223,6 +233,12 @@
 		# facilitator credential is accepted here.
 		@slides path /slides*
 		handle @slides {
+			# A Marp deck is one large HTML page (~100 KB) that Marp sends
+			# uncompressed. Forgejo and code-server compress their own
+			# responses; nothing else is encoded here on purpose: a page
+			# holding a secret (a CSRF token) next to reflected input leaks
+			# that secret through compressed sizes (BREACH). Slides hold neither.
+			encode zstd gzip
 			uri strip_prefix /slides
 			reverse_proxy presentation:8080
 		}

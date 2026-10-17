@@ -21,14 +21,52 @@ from views import ViewsMixin
 
 
 class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
-    server_version = "AllocatorHTTP/1.0"
+    server_version = "AllocatorHTTP/1.1"
+    # Keep-alive: Caddy calls /session-check (and /auth-check for /ide and
+    # /term) on every gated request, and with HTTP/1.0 each of those was a
+    # new TCP connection and a new thread. A reply keeps the connection open
+    # only if it has a Content-Length and the request's body was read in
+    # full; anything else is sent with Connection: close (end_headers).
+    protocol_version = "HTTP/1.1"
     # Per-connection socket timeout. Each connection has its own thread
     # (AllocatorServer), so a client that connects and then sends slowly or
     # not at all only holds its own thread, for at most this long per read,
     # and never delays anyone else. 3 s is plenty for any legitimate request
     # (all local; control_request/forgejo_login_request have their own
-    # CONTROL_TIMEOUT).
+    # CONTROL_TIMEOUT). It is also how long an idle kept-alive connection
+    # lasts; gateway/Caddyfile's allocator_timeouts drops its own idle
+    # connections sooner (keepalive 2s), so Caddy never reuses one this
+    # side has just closed.
     timeout = 3
+
+    def send_response(self, code, message=None):
+        self._sent_length = False
+        super().send_response(code, message)
+
+    def send_header(self, keyword, value):
+        if keyword.lower() == "content-length":
+            self._sent_length = True
+        super().send_header(keyword, value)
+
+    def end_headers(self):
+        """A reply without Content-Length, or one whose request left body bytes
+        unread, closes the connection: the client could not otherwise tell
+        where this reply ends, or this side where the next request starts."""
+        if not getattr(self, "_sent_length", True) or self.close_connection:
+            super().send_header("Connection", "close")
+        super().end_headers()
+
+    def body_unread(self, read):
+        """True (and the connection is closed after this reply) when the
+        request declared more body than `read` bytes, or a chunked one."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = -1
+        if length != read or "Transfer-Encoding" in self.headers:
+            self.close_connection = True
+            return True
+        return False
 
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
@@ -89,6 +127,20 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         token = self.headers.get("X-Gateway-Token", "")
         return hmac.compare_digest(token, GATEWAY_TOKEN)
 
+    def refuse_non_facilitator(self, path):
+        """403 and True for any /admin path unless the gateway named the
+        facilitator. Caddy's @admin block already lets only the facilitator's
+        login reach /admin*; this keeps a routing slip (a new extension route,
+        a matcher change) from opening the roster, passwords or Release."""
+        if not (path == "/admin" or path.startswith("/admin/")):
+            return False
+        if self.resolve_identity()[0] == FACILITATOR_USERNAME:
+            return False
+        self.send_response(403)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def get_cookie(self):
         cookie_header = self.headers.get("Cookie", "")
         for part in cookie_header.split(";"):
@@ -101,17 +153,13 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         """Return (username_for_control_plane, student_id_or_None) for the
         current request, or (None, None) if it isn't valid.
 
-        Facilitator identity comes from X-Auth-User, set by
-        gateway/Caddyfile's basic_auth + header_up on every request (this
-        always overwrites any client-supplied value, so it can't be
-        spoofed by a browser/curl -- only Caddy, on the internal-only
-        network, can set it) to whichever account actually satisfied the
-        shared or /admin basic_auth challenge. Caddy authenticates every
-        request before it ever reaches this process, so this header is
-        always present and correct -- typing the facilitator credential
-        once, anywhere, is immediately enough; no cookie needed. A student
-        identity, by contrast, only ever comes from the dojo_session
-        cookie minted when they claim a slot via /assign.
+        Facilitator identity comes from X-Auth-User. gateway/Caddyfile sets
+        it on every request from the signed dojo_login cookie (session_gate:
+        /session-check answers X-Session-User, copied upstream with header_up,
+        which overwrites anything the client sent). gateway_authorized() has
+        already proved the request came through Caddy. A student identity, by
+        contrast, only ever comes from the dojo_session cookie minted when
+        they claim a slot via /assign.
         """
         if self.headers.get("X-Auth-User") == FACILITATOR_USERNAME:
             return FACILITATOR_USERNAME, None
@@ -125,16 +173,12 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         return None, None
 
     def client_ip(self):
-        # gateway/Caddyfile has no trusted_proxies configured, so Caddy's
-        # reverse_proxy APPENDS the address it actually saw to whatever
-        # X-Forwarded-For value the client already sent, rather than
-        # replacing it -- the same header a curl/browser client is free to
-        # set to anything. That means the FIRST entry can be attacker-
-        # supplied, but the LAST entry is always the address Caddy itself
-        # observed on the connection, since gateway is the sole public
-        # entry point with nothing in front of it to have appended anything
-        # earlier. Only that last hop is safe to trust (this is only ever
-        # used for the facilitator roster display, not an auth decision).
+        # gateway/Caddyfile (allocator_timeouts) replaces X-Forwarded-For with
+        # {client_ip}: the connecting address, or with GATEWAY_TRUSTED_PROXIES
+        # set, the browser's address read right to left past that proxy. The
+        # last entry is used so a direct, older-style "a, b" chain still keys
+        # on the hop Caddy saw. Used for the login and access-code limits and
+        # the roster, never for an identity decision.
         forwarded = self.headers.get("X-Forwarded-For")
         if forwarded:
             return forwarded.split(",")[-1].strip()
@@ -143,23 +187,26 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
     # Real form bodies here are tiny (a name, capped at 60 chars, is the
     # only field any form on this service ever submits) -- capping well
     # above that but far below "attacker-declared Content-Length" stops a
-    # client from making this single-threaded process (see class docstring)
-    # allocate or block on reading an enormous declared body.
+    # client from making a request thread allocate or block on reading an
+    # enormous declared body.
     MAX_BODY_BYTES = 4096
 
     def read_body(self):
         """Read the request body, once, before do_POST routes or rejects anything.
-        Every reply closes the connection (HTTP/1.0), and closing a socket with
-        unread bytes in its receive buffer makes the kernel send RST instead of
+        On a kept-alive connection unread bytes would be parsed as the next
+        request; on a closing one they make the kernel send RST instead of
         FIN, which can reach the client before it reads the reply: it gets
         ConnectionResetError, not the 403/404 it was sent. A body over the cap
-        still leaves bytes behind; no real form comes near it."""
+        still leaves bytes behind (body_unread then closes the connection); no
+        real form comes near it."""
         try:
             length = int(self.headers.get("Content-Length", 0))
         except ValueError:
             length = 0
         length = max(0, min(length, self.MAX_BODY_BYTES))
-        return self.rfile.read(length) if length else b""
+        body = self.rfile.read(length) if length else b""
+        self.body_unread(len(body))
+        return body
 
     def read_form_body(self):
         parsed = urllib.parse.parse_qs(self.body.decode("utf-8", errors="replace"))
@@ -167,12 +214,15 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
 
     # -- GET routes ----------------------------------------------------
     def do_GET(self):
+        self.body_unread(0)  # a GET with a body (none is ever sent) closes the connection
         if not self.gateway_authorized():
             self.send_response(403)
             self.end_headers()
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+        if self.refuse_non_facilitator(path):
+            return
 
         if path == "/session-check":
             self.handle_session_check(parsed)
@@ -292,9 +342,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
 
         if path in ("/admin", "/admin/"):
-            # Reaching this route at all means Caddy's own facilitator-only
-            # basic_auth (see gateway/Caddyfile's @admin block) already
-            # passed -- no separate cookie/login step needed.
+            # Facilitator only: Caddy's @admin session gate, then
+            # refuse_non_facilitator() above.
             self.send_html(self.render_facilitator_workspace())
             return
 
@@ -328,6 +377,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+        if self.refuse_non_facilitator(path):
+            return
 
         if path == "/login":
             self.handle_login()
@@ -338,12 +389,10 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
 
         if path.startswith("/admin/release/"):
-            # HTTP Basic Auth (unlike a cookie) carries no SameSite
-            # protection of its own -- a browser that's already satisfied
-            # /admin's basic_auth reattaches those credentials to ANY
-            # same-origin request, including one triggered by a hidden form
-            # on a page a facilitator merely has open in another tab. A
-            # plain cross-site <form method=post> can't set a custom
+            # The facilitator's dojo_login cookie rides along on any
+            # same-site request (SameSite=Lax), including one a page in
+            # another tab triggers. A plain cross-site <form method=post>
+            # can't set a custom
             # header, and a cross-site fetch() that tries to would first
             # need this server to answer its CORS preflight (it doesn't) --
             # so requiring this header on the actual roster JS's own fetch

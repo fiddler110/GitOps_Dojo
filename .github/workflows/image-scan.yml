@@ -1,0 +1,48 @@
+# Weekly vulnerability report for every external image the lab pins by digest
+# (Compose `image:` and Dockerfile `FROM`, seed-repo content excluded). Report
+# only: it never fails, the findings land in each job's summary. Pins are
+# bumped by Dependabot (.github/dependabot.yml); this shows which ones matter.
+name: image-scan
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: list
+        run: |
+          images=$(git grep -hoE '(image:|FROM( --platform=[^ ]+)?) +[a-z0-9.-]+\.[a-z]+/[^ ]+@sha256:[0-9a-f]{64}' \
+                     -- '*.yml' '*Dockerfile*' ':!workshops/*/content/**' \
+                   | awk '{print $NF}' | sort -u | jq -R . | jq -sc .)
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+          echo "$images" | jq -r '.[]'
+
+  scan:
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.list.outputs.images) }}
+    steps:
+      # Pinned to a commit: this action's tags were rewritten in a 2026 supply-chain attack.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          output: trivy.txt
+          exit-code: "0"
+      - run: |
+          { echo "### ${{ matrix.image }}"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

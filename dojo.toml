@@ -96,7 +96,16 @@ forgejo_repo = "sample-training-repo"
 
 # macOS with rootful Podman (podman machine, SELinux in the VM). Without these no runner-pool
 # runner or vault app can start (`unshare: mount /proc failed`); see modules/runner-pool/README.md.
-# Not needed on Linux or with Docker.
+# The RUNNER_POOL pair is not needed on Linux or with Docker.
+#
+# The WEB_TERMINAL pair does the same for each student's own PID namespace (without it `ps`
+# shows every classmate's command lines; the log says pidns-unavailable). It needs
+# label=disable, not runner-pool's container_engine_t: that type can't exec the container's
+# init (`/run/podman-init: Permission denied`) and refuses the namespace's user-namespace cap.
+# Acceptable here because the podman machine VM is itself the wall between containers and
+# macOS. On a Linux host keep SELinux: set only WEB_TERMINAL_SECURITY_OPT_1 (docs/security.md §3).
 [profiles.mac-podman.env]
 RUNNER_POOL_SECURITY_OPT_1 = "unmask=/proc/*"
 RUNNER_POOL_SECURITY_OPT_2 = "label=type:container_engine_t"
+WEB_TERMINAL_SECURITY_OPT_1 = "unmask=/proc/*"
+WEB_TERMINAL_SECURITY_OPT_2 = "label=disable"

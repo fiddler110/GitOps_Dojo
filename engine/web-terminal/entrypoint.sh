@@ -252,6 +252,10 @@ done
 # arriving from the Caddy gateway container over the docker network is
 # unaffected.
 iptables -A DOJO_ISOLATION -p tcp -m multiport --dports 9000:9099,9500:9599,9600:9699,9700:9799,9800:9899 -j DROP
+# workspace-control.py's control port: only the allocator (over the network,
+# with CONTROL_TOKEN) and root's own healthcheck use it. CONTROL_TOKEN starts a
+# shell as any account, so no account here gets to try for it at all.
+iptables -A DOJO_ISOLATION -p tcp --dport 7682 -j DROP
 
 # -- Ingress: IDE/terminal ports only through the gateway --------------------
 # (remediation T2.2a, D4, FIND-04.) DOJO_ISOLATION above covers traffic from
