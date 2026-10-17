@@ -489,21 +489,44 @@ step_lab2_review_and_undo() {
 }
 
 step_lab3_stash() {
+  # Follows lab3.md: a fresh practice branch with a commit of its own, an
+  # unfinished edit on it, a stash to visit main, then apply, pop and clean up.
+  # (It used to stash on main and pop onto the lab 1 branch, whose roster had
+  # its own line at the same end of the file: a conflict every time.)
   cd "$REPO_DIR" || return 1
   narrate "Lab 3 -- stashing"
+  local branch; branch="$(branch_name "stash-demo")"
+  # A retry restarts the step from the top: drop what the failed attempt left.
+  git restore --staged --worktree roster/team.yaml 2>/dev/null
+  git stash clear 2>/dev/null
   orient
+  run_cmd "git checkout main" || return 1
+  run_cmd "git checkout -B '$branch'" || return 1
+  run_cmd "git branch --show-current"
+  run_cmd "echo '- name: ${BOT_USER} (stash demo)' >> roster/team.yaml"
+  run_cmd "git add roster/team.yaml"
+  run_cmd "git commit -m 'Add my entry'" || return 1
   run_cmd "echo '- name: Work In Progress' >> roster/team.yaml"
   run_cmd "git status"
-  run_cmd "git stash"
+  run_cmd "git checkout main" || narrate "refused, as the lab says: switching would overwrite the unsaved edit"
+  run_cmd "git branch --show-current"
+  run_cmd "git stash" || return 1
   run_cmd "git status"
   run_cmd "git stash list"
-  run_cmd "git checkout main"
+  run_cmd "git checkout main" || return 1
   run_cmd "git status"
-  local branch; branch="$(branch_name "add-${BOT_USER}")"
-  run_cmd "git checkout '$branch'"
-  run_cmd "git stash pop"
-  run_cmd "git diff"
+  run_cmd "git log --oneline -3"
+  run_cmd "git checkout '$branch'" || return 1
+  run_cmd "git stash apply" || return 1
+  run_cmd "git status"
+  run_cmd "git stash list"
   run_cmd "git restore roster/team.yaml"
+  run_cmd "git stash pop" || return 1
+  run_cmd "git diff"
+  run_cmd "git stash list"
+  run_cmd "git restore roster/team.yaml"
+  run_cmd "git checkout main" || return 1
+  run_cmd "git branch -D '$branch'"
 }
 
 step_lab4_history() {
