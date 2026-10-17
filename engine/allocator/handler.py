@@ -89,6 +89,20 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         token = self.headers.get("X-Gateway-Token", "")
         return hmac.compare_digest(token, GATEWAY_TOKEN)
 
+    def refuse_non_facilitator(self, path):
+        """403 and True for any /admin path unless the gateway named the
+        facilitator. Caddy's @admin block already lets only the facilitator's
+        login reach /admin*; this keeps a routing slip (a new extension route,
+        a matcher change) from opening the roster, passwords or Release."""
+        if not (path == "/admin" or path.startswith("/admin/")):
+            return False
+        if self.resolve_identity()[0] == FACILITATOR_USERNAME:
+            return False
+        self.send_response(403)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def get_cookie(self):
         cookie_header = self.headers.get("Cookie", "")
         for part in cookie_header.split(";"):
@@ -173,6 +187,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+        if self.refuse_non_facilitator(path):
+            return
 
         if path == "/session-check":
             self.handle_session_check(parsed)
@@ -328,6 +344,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
+        if self.refuse_non_facilitator(path):
+            return
 
         if path == "/login":
             self.handle_login()

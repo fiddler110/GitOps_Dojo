@@ -324,8 +324,26 @@ class SessionsApi(HandlerTest):
 
     def test_empty_class_makes_no_call(self):
         with mock.patch.object(config, "BOT_IDS", []):
-            self.assertEqual(json.loads(self.request("GET", "/admin/api/sessions")[2]), [])
+            self.assertEqual(json.loads(self.request("GET", "/admin/api/sessions",
+                                                     headers={"X-Auth-User": FAC})[2]), [])
         self.assertEqual(self.control.calls, [])
+
+
+class AdminNeedsFacilitator(HandlerTest):
+    """Every /admin path checks the facilitator itself, not just Caddy's routing."""
+
+    def test_admin_paths_refuse_anyone_else(self):
+        sid, cookie = self.student()
+        for who in ({}, cookie, {"X-Auth-User": "student"}):
+            for method, path in (("GET", "/admin"), ("GET", "/admin/"), ("GET", "/admin/admin.js"),
+                                 ("GET", "/admin/api/sessions"), ("GET", "/admin/api/status"),
+                                 ("GET", f"/admin/api/forgejo-password/{sid}"),
+                                 ("POST", f"/admin/release/{sid}"), ("POST", "/admin/release-unused")):
+                headers = {**who, "X-Requested-With": "dojo-admin"}
+                status = self.request(method, path, "" if method == "POST" else None, headers)[0]
+                self.assertEqual(status, 403, f"{method} {path} as {who}")
+        self.assertTrue(self.held(sid))
+        self.assertEqual(self.request("GET", "/admin/api/status", headers={"X-Auth-User": FAC})[0], 200)
 
 
 class LoginPage(HandlerTest):
