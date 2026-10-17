@@ -99,7 +99,17 @@ elif [ "$baked_stamp" != "$cached_stamp" ]; then
   # Nuke everything under /var/lib/docker before dockerd starts. We only
   # own the mountpoint's contents, not the mountpoint itself (bind mount),
   # so delete children only. The stamp is rewritten after imports succeed.
-  find "$cache_root" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  # overlayfs leaves each snapshot's work/work at mode 000. Where the cache
+  # is a host folder shared into a VM (podman machine on macOS, virtiofs),
+  # the host enforces that mode even on root, and the entry can't even be
+  # seen from here, so only the host can fix it: dojo does, before every
+  # start (engine/dojo/start.py ensure_cache_dirs). Say so instead of
+  # restart-looping on a bare rm error.
+  if ! find "$cache_root" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; then
+    echo "ctf-host: could not wipe the image cache (.cache/ctf-docker on the host)." >&2
+    echo "ctf-host: start the lab with ./dojo, which repairs it, or on the host: chmod -R u+rwx .cache/ctf-docker && rm -rf .cache/ctf-docker/*" >&2
+    exit 1
+  fi
 fi
 
 # A fake, always-reachable, instantly-answering DNS stub for the inner
