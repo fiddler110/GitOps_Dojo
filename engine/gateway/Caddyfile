@@ -54,15 +54,18 @@
 	}
 }
 
-# Every call to the allocator (remediation T3.4, FIND-07). It serves one
-# request at a time, so a stuck call must fail fast instead of queueing the
-# whole class behind it: a dial that takes over 3 s or a reply that hasn't
-# started within 10 s is a 502. Imported into each allocator block below and
-# into the rendered extension gates (allocator/render_extensions.py).
+# Every call to the allocator (remediation T3.4, FIND-07). A stuck call must
+# fail fast instead of queueing the class behind it: a dial that takes over
+# 3 s or a reply that hasn't started within 10 s is a 502. The allocator keeps
+# connections alive (HTTP/1.1) and closes one after 3 s idle (Handler.timeout),
+# so Caddy drops its idle ones at 2 s and never sends a request down a
+# connection the allocator is closing. Imported into each allocator block
+# below and into the rendered extension gates (allocator/render_extensions.py).
 (allocator_timeouts) {
 	transport http {
 		dial_timeout 3s
 		response_header_timeout 10s
+		keepalive 2s
 	}
 }
 

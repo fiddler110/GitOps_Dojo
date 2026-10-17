@@ -21,14 +21,52 @@ from views import ViewsMixin
 
 
 class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
-    server_version = "AllocatorHTTP/1.0"
+    server_version = "AllocatorHTTP/1.1"
+    # Keep-alive: Caddy calls /session-check (and /auth-check for /ide and
+    # /term) on every gated request, and with HTTP/1.0 each of those was a
+    # new TCP connection and a new thread. A reply keeps the connection open
+    # only if it has a Content-Length and the request's body was read in
+    # full; anything else is sent with Connection: close (end_headers).
+    protocol_version = "HTTP/1.1"
     # Per-connection socket timeout. Each connection has its own thread
     # (AllocatorServer), so a client that connects and then sends slowly or
     # not at all only holds its own thread, for at most this long per read,
     # and never delays anyone else. 3 s is plenty for any legitimate request
     # (all local; control_request/forgejo_login_request have their own
-    # CONTROL_TIMEOUT).
+    # CONTROL_TIMEOUT). It is also how long an idle kept-alive connection
+    # lasts; gateway/Caddyfile's allocator_timeouts drops its own idle
+    # connections sooner (keepalive 2s), so Caddy never reuses one this
+    # side has just closed.
     timeout = 3
+
+    def send_response(self, code, message=None):
+        self._sent_length = False
+        super().send_response(code, message)
+
+    def send_header(self, keyword, value):
+        if keyword.lower() == "content-length":
+            self._sent_length = True
+        super().send_header(keyword, value)
+
+    def end_headers(self):
+        """A reply without Content-Length, or one whose request left body bytes
+        unread, closes the connection: the client could not otherwise tell
+        where this reply ends, or this side where the next request starts."""
+        if not getattr(self, "_sent_length", True) or self.close_connection:
+            super().send_header("Connection", "close")
+        super().end_headers()
+
+    def body_unread(self, read):
+        """True (and the connection is closed after this reply) when the
+        request declared more body than `read` bytes, or a chunked one."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = -1
+        if length != read or "Transfer-Encoding" in self.headers:
+            self.close_connection = True
+            return True
+        return False
 
     def log_message(self, fmt, *args):
         pass  # keep container logs quiet; nothing sensitive is worth logging by default
@@ -163,17 +201,20 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
 
     def read_body(self):
         """Read the request body, once, before do_POST routes or rejects anything.
-        Every reply closes the connection (HTTP/1.0), and closing a socket with
-        unread bytes in its receive buffer makes the kernel send RST instead of
+        On a kept-alive connection unread bytes would be parsed as the next
+        request; on a closing one they make the kernel send RST instead of
         FIN, which can reach the client before it reads the reply: it gets
         ConnectionResetError, not the 403/404 it was sent. A body over the cap
-        still leaves bytes behind; no real form comes near it."""
+        still leaves bytes behind (body_unread then closes the connection); no
+        real form comes near it."""
         try:
             length = int(self.headers.get("Content-Length", 0))
         except ValueError:
             length = 0
         length = max(0, min(length, self.MAX_BODY_BYTES))
-        return self.rfile.read(length) if length else b""
+        body = self.rfile.read(length) if length else b""
+        self.body_unread(len(body))
+        return body
 
     def read_form_body(self):
         parsed = urllib.parse.parse_qs(self.body.decode("utf-8", errors="replace"))
@@ -181,6 +222,7 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
 
     # -- GET routes ----------------------------------------------------
     def do_GET(self):
+        self.body_unread(0)  # a GET with a body (none is ever sent) closes the connection
         if not self.gateway_authorized():
             self.send_response(403)
             self.end_headers()
