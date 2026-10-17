@@ -46,6 +46,14 @@ services:
       timeout: 5s
       retries: 24
       start_period: 10s
+    # The image starts as root and drops to its git user, so it keeps the
+    # default set minus what nothing here uses (raw sockets: packet spoofing
+    # on the lab networks; device nodes).
+    cap_drop:
+      - NET_RAW
+      - MKNOD
+    security_opt:
+      - no-new-privileges:true
     # Backstop so a git-gc/large-push spike here can't eat into the memory
     # budget web-terminal's own mem_limit was sized against (see
     # scripts/capacity-calc.sh) -- generous for 30 concurrent students'
@@ -85,6 +93,11 @@ services:
       - ./git-server/dojo-secret.sh:/dojo-secret.sh:ro
       - ${WORKSHOP_CONTENT_DIR:?Set WORKSHOP_CONTENT_DIR in .env or dojo.toml}/sample-repo:/seed:ro
     entrypoint: [ "/bin/sh", "/bootstrap.sh" ]
+    # Runs as 1000:1000 and only calls Forgejo's CLI/API and git.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     # Isolated to its own network, not workshop_lab -- bootstrap only ever
     # calls git-server (see bootstrap.sh), it never needs to reach allocator
     # or web-terminal, so it genuinely can be denied any path to either
@@ -121,6 +134,14 @@ services:
     networks:
       - web_lab
     restart: unless-stopped
+    # Serves read-only slides as uid 1000 and needs no privilege.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     # Backstop, same reasoning as git-server's above.
     mem_limit: ${PRESENTATION_MEM_LIMIT:-512m}
 
@@ -225,6 +246,11 @@ services:
     # container's own interfaces/netns only, not the host's.
     cap_add:
       - NET_ADMIN
+    # Students are never root here, but a local privilege escalation would be:
+    # nothing in the image needs raw sockets (ping is not offered) or mknod.
+    cap_drop:
+      - NET_RAW
+      - MKNOD
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
     # the per-process code-server heap cap above -- this is the ceiling
@@ -325,6 +351,16 @@ services:
     networks:
       - workshop_lab
     restart: unless-stopped
+    # It holds every lab secret and needs no privilege: a non-root user (see
+    # allocator/Dockerfile), no capabilities, no setuid, and a read-only root
+    # filesystem; slots.json is the only thing it writes.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     # Backstop, same reasoning as git-server's above -- roster state for 30
     # students is trivial, this is just a ceiling in case of a leak.
     mem_limit: ${ALLOCATOR_MEM_LIMIT:-256m}
@@ -368,6 +404,13 @@ services:
       - web_lab
       - terminal_ingress
     restart: unless-stopped
+    # Runs as nobody (gateway/Dockerfile). The upstream caddy binary carries
+    # the cap_net_bind_service file capability, and exec fails if that is not
+    # in the bounding set, so it is the one capability kept.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     # Backstop, same reasoning as git-server's above -- Caddy proxying 30
     # concurrent sessions is still lightweight, this is just a ceiling.
     mem_limit: ${GATEWAY_MEM_LIMIT:-256m}
