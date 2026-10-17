@@ -233,6 +233,12 @@
 		# facilitator credential is accepted here.
 		@slides path /slides*
 		handle @slides {
+			# A Marp deck is one large HTML page (~100 KB) that Marp sends
+			# uncompressed. Forgejo and code-server compress their own
+			# responses; nothing else is encoded here on purpose: a page
+			# holding a secret (a CSRF token) next to reflected input leaks
+			# that secret through compressed sizes (BREACH). Slides hold neither.
+			encode zstd gzip
 			uri strip_prefix /slides
 			reverse_proxy presentation:8080
 		}
