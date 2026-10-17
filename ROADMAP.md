@@ -4,7 +4,7 @@ The single list of open work. Finished work moves to [`RELEASES.md`](RELEASES.md
 (design, decisions, task logs) are frozen in [`docs/archive/`](docs/archive/); read them for the why, but don't
 update them. When you finish an item: delete it here and add a line to RELEASES.md.
 
-Last updated: 2026-10-16 (student `dojo` command built, git-fundamentals live check in progress; before that 2026-10-15, PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
+Last updated: 2026-10-17 (CTF plan status refreshed to match `main`; wall-of-shame toggle now gated in achievements; C6 added. Before that 2026-10-16: student `dojo` command built, git-fundamentals live check in progress; before that 2026-10-15, PR #34: vault reset twice plus lab 11/12 passed locally, ctf-defend fix-then-age-off run
 done locally, 7 overflowing slides trimmed; stale branch notes removed). Before that: 2026-10-09 (content-depth audit
 of all 5 CTF packs) and 2026-10-07 (ctf-range Target Viewer and the `ctf-access` pack, PR #17). ·
 Working branch: `main`; cut a feature branch for each new batch of work.
@@ -211,6 +211,7 @@ C1-C4 shipped 2026-10-01 (see RELEASES).
 | ID | Work | Effort | Description |
 |---|---|---|---|
 | C5 | Untested paths | S | Everything else passed on macOS (podman) and Docker (RELEASES). Left, for the user out of band: `CORP_CA_BUNDLE` for the first-run wheel download behind TLS inspection, and the error without it (C5-guide.md step 2). Steps: [`C5-guide.md`](C5-guide.md). (The flaky allocator test first seen here is fixed: see RELEASES.) |
+| C6 | Commands never run live | S | Unit-tested and dry-run only, never exercised on a real stack: `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch`. Tracked here from 2026-10-17; they were recorded only inside the CTF plan's 2026-10-12 handoff before that (plan "Open, in order" item 8). One pass on any pack covers them |
 
 ### Remediation leftovers
 
