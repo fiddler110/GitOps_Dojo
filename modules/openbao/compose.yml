@@ -13,7 +13,7 @@ services:
   # named `openbao` so its DNS name and any overlay's `networks:` for it stay
   # as they were.
   openbao:
-    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    image: ghcr.io/openbao/openbao:2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
     container_name: workshop_openbao_net
     entrypoint: ["sh", "-c", "exec sleep 2147483647"]
     init: true
@@ -30,7 +30,7 @@ services:
     # 2.7.0, pinned by its multi-arch index digest (amd64
     # sha256:6d575d906d70d40b9d789149c8dc09897291c5a1707d4d0ba8a459eaaa94c8c4,
     # arm64 sha256:4ca9310dd2a50c746d4227f44058088ee0470a8470031ee3f09cc8b1a69dd7f6).
-    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    image: ghcr.io/openbao/openbao:2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
     container_name: workshop_openbao
     command: ["server", "-config=/openbao/config/config.hcl"]
     volumes:
@@ -80,7 +80,7 @@ services:
   # on openbao_setup, mounted nowhere else; no live token does (the reset token
   # is in the tmpfs below, memory only).
   openbao-setup:
-    image: ghcr.io/openbao/openbao:2.7.0@sha256:71156a1c6623a5fa3f5e61b0c6a8ead0faf0df29a778339188443551995d1315
+    image: ghcr.io/openbao/openbao:2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
     container_name: workshop_openbao_setup
     entrypoint: ["sh", "/etc/openbao-setup/setup.sh"]
     # Root: writes the key to the volume. No capabilities needed.

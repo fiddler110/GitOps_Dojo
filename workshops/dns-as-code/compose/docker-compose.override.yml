@@ -72,7 +72,7 @@ services:
   # (compose/gates/protect-main.sh). Same image and admin credentials as the
   # engine's bootstrap, after it has created and seeded the repo.
   dns-gates:
-    image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
+    image: codeberg.org/forgejo/forgejo:17.0.0@sha256:06d38310de496a10186d952bdad5ca764c153c8023ede8dfa0944c79a1dc5412
     container_name: workshop_dns_gates
     depends_on:
       bootstrap:
