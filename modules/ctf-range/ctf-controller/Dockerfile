@@ -4,7 +4,7 @@
 # docker socket, shared through a named volume and reachable only because
 # compose group_add's it into the socket's group (CTF_GID), exactly as
 # cloud-api is the sole member of cloud-host's socket group.
-FROM docker.io/library/python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
+FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 COPY controller.py docker_api.py flags.py schedule.py view.py /app/
 COPY _shared/ /app/_shared/
