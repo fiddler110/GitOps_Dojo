@@ -23,7 +23,7 @@ For people changing GitOps Dojo itself: the engine, the CLI, modules and worksho
 │   ├── zellij-terminal/      # Zellij leaf
 │   ├── git-server/           # bootstrap.sh, dojo-secret.sh
 │   ├── presentation/         # Marp engine (engine.js grammars)
-│   ├── scripts/              # env-setup, capacity-calc, check-pins, check-tool-pins, teardown, lib.sh, alias-setup
+│   ├── scripts/              # env-setup, capacity-calc, check-pins, check-tool-pins, check-dep-pins, teardown, lib.sh, alias-setup
 │   └── completions/          # bash/zsh
 ├── modules/                  # achievements, ctf-range, dns-gate, dns-ui, dojo-cloud, openbao, runner-pool, sensei, _shared
 ├── workshops/

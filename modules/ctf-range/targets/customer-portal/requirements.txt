@@ -1,7 +1,13 @@
 # Pinned so the image rebuilds identically for years (CTF-D16 precedent).
 # sqlite3 is stdlib; Flask is the only direct dependency.
 Flask==3.0.3
-# Werkzeug is Flask's own WSGI layer and its only unpinned-by-Flask runtime piece that
-# matters here: without this line a rebuild years later quietly gets a different one,
-# which is the opposite of what the Flask pin is for. Bump the two together.
+# Flask's own dependency tree, pinned too. Flask alone does not pin these, so without
+# them a rebuild years later resolves whatever is current - the opposite of what the
+# Flask pin is for. Bump them together; engine/scripts/check-dep-pins.sh fails if the
+# copies of a pin stop agreeing.
+blinker==1.9.0
+click==8.5.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.4
 Werkzeug==3.1.9

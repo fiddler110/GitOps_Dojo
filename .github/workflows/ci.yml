@@ -3,6 +3,9 @@
 #   sh .github/scripts/dry-runs.sh     (~45 s)
 # Here only on pull requests into main, or by hand (Actions > CI > Run workflow),
 # to save the private repo's Actions minutes on everyday branch pushes.
+#
+# Neither job installs Flask: the three ctf-range defend-target suites that need
+# it skip themselves and say so, so a bare runner still reports a clean run.
 name: CI
 
 on:

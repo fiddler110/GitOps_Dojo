@@ -162,7 +162,8 @@ Key points:
   [Authoring](authoring.md#4-the-extensionsjson-manifest)).
 - **Mutual exclusion**: a run lock (`/tmp/gitops-dojo-<uid>.lock`) means one build or start at a time, worktrees included.
 - **Pins are enforced**: every external image must be pinned by digest and every tool by version and sha256;
-  `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`, `check-tool-pins.sh`).
+  `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`, `check-tool-pins.sh`,
+  `check-dep-pins.sh` for `<pkg>==<version>` in requirements files and `pip install` lines).
 
 ## 5. How the gateway decides what to do
 

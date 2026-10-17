@@ -91,6 +91,7 @@ nothing is left over; if you find an anonymous volume after a stop, a service de
 | "A different workshop is running"                      | `./dojo stop` first                                                                                                                             |
 | Start fails at manifest rendering                      | The message names the file and rule (overlapping path, unknown service, duplicate id, off-site link). Fix the `extensions.json` and `--dry-run` |
 | `--dry-run` fails on pins                              | An external image or tool is unpinned. Pin by digest/sha256 (`engine/scripts/check-pins.sh`, `check-tool-pins.sh`)                              |
+| `--dry-run` fails on dependency pins                   | The same Python package is pinned to two versions in two files. Bump every copy together (`engine/scripts/check-dep-pins.sh` names them)        |
 | Lock held / "build in flight"                          | Another `./dojo` (or a worktree) is mid-start. Wait; `./dojo status` shows it                                                                   |
 | Mixed list/map `networks:` error at `up`               | Under podman-compose use list form on engine services, map form on `web-terminal`                                                               |
 | Build fails with `wget`/TLS errors fetching extensions | TLS inspection. Set `build.corp_ca_bundle` or `CORP_CA_BUNDLE`; it is passed as a BuildKit secret, only for that step                           |
