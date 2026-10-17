@@ -16,11 +16,21 @@ version: '3.8'
 # bind mounts for runtime data. `./dojo stop` (or
 # `docker compose down --volumes`) always returns to a clean slate.
 
+# Container logs: Docker's default json-file driver never rotates, and the
+# gateway logs every request (JSON access log) for the whole class, all day.
+# 3 x 20 MB per service is hours of a busy class. Podman logs to journald,
+# which rotates on its own and ignores these.
+x-logging: &logging
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   # 1. Git server (Forgejo)
   git-server:
     image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_forge
+    logging: *logging
     environment:
       - USER_UID=1000
       - USER_GID=1000
@@ -65,6 +75,7 @@ services:
   bootstrap:
     image: codeberg.org/forgejo/forgejo:16.0.4@sha256:a3e33d03e771d3e58b27de5573c3a25dc4f670583a6724c1878a6d0bbecf3556
     container_name: workshop_bootstrap
+    logging: *logging
     depends_on:
       git-server:
         condition: service_healthy
@@ -118,6 +129,7 @@ services:
       context: ./presentation
     image: gitopsdojo/presentation:local
     container_name: workshop_presentation
+    logging: *logging
     # PID 1 here is python/node with no SIGTERM handler, and the kernel ignores
     # SIGTERM for PID 1, so `stop` waited 10 s then SIGKILLed. init: true runs a
     # tiny init as PID 1 that forwards the signal.
@@ -159,6 +171,7 @@ services:
     # last link. Overlays no longer set image: here themselves.
     image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
     container_name: workshop_terminal
+    logging: *logging
     init: true  # PID 1 is python; see presentation's note
     environment:
       - WORKSHOP_NAME=${WORKSHOP_NAME:-Workshop Lab}
@@ -287,6 +300,7 @@ services:
     # auto-generated.
     image: gitopsdojo/allocator:local
     container_name: workshop_allocator
+    logging: *logging
     init: true  # PID 1 is python; see presentation's note
     environment:
       # Read only to decide whether the session cookie should be marked
@@ -386,6 +400,7 @@ services:
     # Stable local tag -- see the same note on allocator above.
     image: gitopsdojo/gateway:local
     container_name: workshop_gateway
+    logging: *logging
     environment:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env or dojo.toml}
       # Set only when another proxy terminates TLS in front of the lab.
