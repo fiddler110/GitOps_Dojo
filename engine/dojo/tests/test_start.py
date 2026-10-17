@@ -107,6 +107,73 @@ class Dependents(unittest.TestCase):
         self.assertEqual(rt.dependents(rows, ["step-ca"]), [])
 
 
+class StaleContainers(unittest.TestCase):
+    """A rebuild keeps the tag, so podman-compose's `up -d` keeps the old container
+    (and the superseded image it holds); dojo finds and recreates those."""
+
+    def runtime(self, cli, rows, inspect, tags):
+        rt = Runtime.__new__(Runtime)
+        rt.cli, rt._oneshot = cli, {}
+        self.calls = []
+
+        def out(*a, **k):
+            self.calls.append(a)
+            if a[:2] == ("image", "inspect"):
+                return tags.get(a[-1], "") + "\n"
+            return "\n".join(inspect)
+        rt.out = out
+        return rt
+
+    def test_podman_finds_only_rebuilt_running_containers(self):
+        rows = [Container("web-terminal", "t", "Up 1 minute (healthy)", "aa" * 6),
+                Container("gateway", "g", "Up 1 minute (healthy)", "bb" * 6),
+                Container("bootstrap", "b", "Exited (0) 1 minute ago", "cc" * 6)]
+        inspect = ["aa" * 32 + "|old1|localhost/gitopsdojo/web-terminal:x",
+                   "bb" * 32 + "|same|localhost/gitopsdojo/gateway:local"]
+        tags = {"localhost/gitopsdojo/web-terminal:x": "new1", "localhost/gitopsdojo/gateway:local": "same"}
+        rt = self.runtime("podman", rows, inspect, tags)
+        self.assertEqual(rt.stale_services(rows), ["web-terminal"])
+        self.assertNotIn("cc" * 6, self.calls[0])                 # an exited one-shot isn't asked about
+        self.assertIn("{{.ImageName}}", self.calls[0][2])
+
+    def test_docker_ids_compare_without_prefix_and_missing_tag_is_not_stale(self):
+        rows = [Container("allocator", "a", "Up 2 minutes", "dd" * 6),
+                Container("sensei", "s", "Up 2 minutes", "ee" * 6)]
+        inspect = ["dd" * 32 + "|sha256:abc|gitopsdojo/allocator:local", "ee" * 32 + "|sha256:def|gone:tag"]
+        rt = self.runtime("docker", rows, inspect, {"gitopsdojo/allocator:local": "sha256:abc"})
+        self.assertEqual(rt.stale_services(rows), [])
+        self.assertIn("{{.Config.Image}}", self.calls[0][2])
+
+    def plan(self, recreate=None, stale=(), also=()):
+        rt = mock.Mock(spec=Runtime)
+        rt.compose_cmd = ["podman-compose"]
+        rt.stale_services.return_value = list(stale)
+        rt.dependents.return_value = list(also)
+        res = mock.Mock(env={})
+        return start.Plan(StartOptions("x", recreate=recreate), rt, res, "engine", [], ["a.yml"], [], "")
+
+    def recreate(self, p):
+        mon = mock.Mock()
+        with mock.patch.object(start.subprocess, "Popen") as popen:
+            popen.return_value.wait.return_value = 0
+            rc = start._recreate_stale(p, mon, None)
+        return rc, popen, mon
+
+    def test_rebuilt_services_and_their_dependents_are_recreated(self):
+        rc, popen, mon = self.recreate(self.plan(stale=["web-terminal"], also=["sensei"]))
+        self.assertEqual(rc, 0)
+        args = popen.call_args[0][0]
+        self.assertEqual(args[-5:], ["-d", "--force-recreate", "--no-deps", "web-terminal", "sensei"])
+        self.assertIn("web-terminal", mon.note.call_args[0][1])
+
+    def test_nothing_stale_or_a_restart_runs_nothing(self):
+        for p in (self.plan(), self.plan(recreate=[], stale=["gateway"]), self.plan(recreate=["gateway"], stale=["x"])):
+            rc, popen, mon = self.recreate(p)
+            self.assertEqual(rc, 0)
+            popen.assert_not_called()
+            mon.note.assert_not_called()
+
+
 class RestartKeepsAchievements(unittest.TestCase):
     """restart repeats whether the running start had the achievements module (the environment switches it)."""
     def restart(self, files, environ):

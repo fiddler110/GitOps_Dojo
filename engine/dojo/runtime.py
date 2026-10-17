@@ -147,6 +147,30 @@ class Runtime:
                     grew = True
         return sorted(want - set(services))
 
+    def stale_services(self, containers: List[Container]) -> List[str]:
+        """Services whose running container was made from an older build of its image:
+        the tag it names now points elsewhere. Our images keep stable tags, and
+        podman-compose decides on recreating by config alone, so after a rebuild `up -d`
+        leaves the old container (and the superseded image it holds) in place. Docker
+        Compose compares image IDs itself, so there this finds nothing to do."""
+        live = [c for c in containers if c.state not in ("done", "failed", "waiting")]
+        if not live:
+            return []
+        name_field = "{{.ImageName}}" if self.cli == "podman" else "{{.Config.Image}}"
+        current: dict = {}  # image name -> the ID its tag points to now
+        stale = set()
+        for line in self.out("inspect", "--format", "{{.Id}}|{{.Image}}|" + name_field,
+                             *[c.id for c in live]).splitlines():
+            full, image_id, name = (line.split("|") + ["", ""])[:3]
+            if not (full and image_id and name):
+                continue
+            if name not in current:
+                current[name] = self.out("image", "inspect", "--format", "{{.Id}}", name).strip()
+            now = current[name]
+            if now and now.removeprefix("sha256:") != image_id.removeprefix("sha256:"):
+                stale.update(c.service for c in live if full.startswith(c.id))
+        return sorted(stale)
+
     def volumes(self, project: str) -> List[str]:
         return [v for v in self.out("volume", "ls", "-q").split() if v.startswith(f"{project}_")]
 
