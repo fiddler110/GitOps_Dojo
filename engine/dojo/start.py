@@ -180,7 +180,36 @@ def ensure_cache_dirs() -> None:
     in the repo root. ctf-host's inner-dockerd image store lives at
     .cache/ctf-docker (modules/ctf-range/compose.yml, ~1.5 GB cached per
     pack); any future "download it once" cache goes here too."""
-    (paths.REPO / ".cache" / "ctf-docker").mkdir(parents=True, exist_ok=True)
+    ctf = paths.REPO / ".cache" / "ctf-docker"
+    ctf.mkdir(parents=True, exist_ok=True)
+    unlock_overlay_workdirs(ctf)
+
+
+# Where overlayfs keeps the work dirs it leaves at mode 000: containerd's snapshotter
+# (docker 29's default) and the classic overlay2 driver.
+_OVERLAY_WORKDIRS = ("containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/*/work/work",
+                     "overlay2/*/work/work")
+
+
+def unlock_overlay_workdirs(cache: Path) -> int:
+    """Give the owner rwx back on overlayfs's work/work dirs in an inner-dockerd
+    cache, so ctf-host can wipe it. The kernel leaves them at mode 000, and where
+    the cache is a host folder shared into a VM (podman machine on macOS) the
+    host enforces that even on the container's root, which can't see the entry
+    at all: its wipe failed and ctf-host restart-looped after every rebuild. The
+    host user owns them there, so the fix has to happen here. Elsewhere (rootful
+    docker on Linux) they belong to root and this changes nothing. Returns how
+    many were changed."""
+    changed = 0
+    for pattern in _OVERLAY_WORKDIRS:
+        for d in cache.glob(pattern):
+            try:
+                if d.is_dir() and (d.stat().st_mode & 0o700) != 0o700:
+                    d.chmod(d.stat().st_mode | 0o700)
+                    changed += 1
+            except OSError:
+                continue
+    return changed
 
 
 def run_once_cmd(rt: Runtime) -> List[str]:

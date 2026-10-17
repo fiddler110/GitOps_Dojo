@@ -252,6 +252,33 @@ class UpArgs(unittest.TestCase):
         self.assertEqual(self.args(["step-ca"], ["sensei"]), ["--force-recreate", "--no-deps", "step-ca", "sensei"])
 
 
+class OverlayWorkdirs(unittest.TestCase):
+    """ctf-host's cache wipe needs the host to undo overlayfs's mode-000 work/work dirs."""
+
+    def test_locked_workdirs_are_opened_and_the_tree_is_removable(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "ctf-docker"
+            snaps = cache / "containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots"
+            locked = [snaps / "9/work/work", cache / "overlay2/abc/work/work"]
+            for d in locked:
+                d.mkdir(parents=True)
+                d.chmod(0)
+            (snaps / "10/fs").mkdir(parents=True)          # an ordinary dir: left alone
+            self.assertEqual(start.unlock_overlay_workdirs(cache), 2)
+            for d in locked:
+                self.assertEqual(d.stat().st_mode & 0o700, 0o700)
+            self.assertEqual(start.unlock_overlay_workdirs(cache), 0)   # nothing left to do
+            shutil.rmtree(cache)                            # what ctf-host's wipe needs to succeed
+            self.assertFalse(cache.exists())
+
+    def test_missing_cache_is_fine(self):
+        from pathlib import Path
+        self.assertEqual(start.unlock_overlay_workdirs(Path("/nonexistent/ctf-docker")), 0)
+
+
 class Mountpoints(unittest.TestCase):
     """slides/assets exists before compose up (Docker can't create it inside the read-only slides mount)."""
 
