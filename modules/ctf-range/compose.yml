@@ -86,7 +86,7 @@ services:
   # for a redeploy) and ctf-builder (the push side), both on ctf_ops, and
   # neither is student-reachable.
   registry:
-    image: docker.io/library/registry:2@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+    image: docker.io/library/registry:3@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8
     container_name: workshop_ctf_registry
     networks:
       - ctf_ops
