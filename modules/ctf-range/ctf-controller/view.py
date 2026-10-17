@@ -13,8 +13,15 @@ dojo origin, so every reply carries a CSP that lets the page render and post its
 own forms but forbids script from calling back to the gateway (connect-src
 'none'). A CSP `sandbox` was tried and does not work: the opaque origin makes
 the browser drop the login cookie on the page's own CSS and form posts (401).
-The dojo login cookie is HttpOnly and is never forwarded to, or settable by,
-the target.
+
+connect-src alone is not enough: a same-origin page the target frames, opens or
+is framed by (/admin embeds /ctf-view/) lends script its own fetch, and a
+facilitator viewing a student's popped target would hand that student the
+/admin API. So the target may not frame anything (frame-src), be framed
+(frame-ancestors, X-Frame-Options), keep a handle on a window it opens
+(Cross-Origin-Opener-Policy) or register a worker (worker-src, and
+Service-Worker-Allowed is dropped). No dojo_* cookie is forwarded to, or
+settable by, the target; its own cookies are scoped to its own prefix.
 """
 import concurrent.futures
 import html
@@ -36,13 +43,19 @@ MAX_BODY = 5 * 1024 * 1024
 TIMEOUT = 10
 FORWARD = ("content-type", "content-length", "cookie", "authorization", "user-agent", "accept", "accept-language")
 DROP_RESP = {"connection", "keep-alive", "transfer-encoding", "content-length", "content-encoding",
-             "content-security-policy", "x-frame-options", "set-cookie", "location"}
+             "content-security-policy", "x-frame-options", "set-cookie", "location",
+             # Headers that would act on the whole dojo origin, not just this page.
+             "service-worker-allowed", "clear-site-data", "strict-transport-security", "refresh", "link",
+             "content-security-policy-report-only", "permissions-policy", "origin-agent-cluster",
+             "report-to", "reporting-endpoints", "nel", "referrer-policy", "cache-control"}
+DROP_RESP_PREFIXES = ("access-control-", "cross-origin-")
 ATTR = re.compile(rb"""(\b(?:href|src|action)\s*=\s*["']?)/(?!/)""", re.I)
 SANDBOX = {"Content-Security-Policy": ("default-src 'self' data:; script-src 'self' 'unsafe-inline'; "
                                        "style-src 'self' 'unsafe-inline'; connect-src 'none'; "
-                                       "object-src 'none'; base-uri 'none'"),
-           "X-Frame-Options": "SAMEORIGIN", "X-Content-Type-Options": "nosniff",
-           "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"}
+                                       "frame-src 'none'; worker-src 'none'; frame-ancestors 'none'; "
+                                       "form-action 'self'; object-src 'none'; base-uri 'none'"),
+           "X-Frame-Options": "DENY", "Cross-Origin-Opener-Policy": "same-origin",
+           "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"}
 
 
 def resolve(cfg, user, is_fac, path):
@@ -145,8 +158,24 @@ def index_page(cfg, user, is_fac, path):
     return page.encode()
 
 
-def rewrite_cookie(value):
-    return re.sub(r"(?i);\s*path=[^;]*", "", value) + "; Path=/"
+def rewrite_cookie(value, prefix):
+    """A target's Set-Cookie, scoped to its own prefix with no Domain, or None
+    for a dojo_* name (the lab's own cookies are never the target's to set)."""
+    if value.lstrip().lower().startswith("dojo_"):
+        return None
+    return re.sub(r"(?i);\s*(?:path|domain)=[^;]*", "", value) + f"; Path={prefix}/"
+
+
+def target_cookies(header):
+    """The request's Cookie header without any dojo_* cookie, or None if nothing is left."""
+    kept = [c.strip() for c in (header or "").split(";")
+            if c.strip() and not c.strip().lower().startswith("dojo_")]
+    return "; ".join(kept) or None
+
+
+def drop_response_header(name):
+    n = name.lower()
+    return n in DROP_RESP or n.startswith(DROP_RESP_PREFIXES)
 
 
 def make_handler(cfg):
@@ -190,10 +219,9 @@ def make_handler(cfg):
                 return self._text(413, "body too large")
             body = self.rfile.read(n) if n else None
             hdrs = {k: self.headers[k] for k in FORWARD if self.headers.get(k)}
-            ck = [c for c in hdrs.get("cookie", "").split(";") if not c.strip().startswith("dojo_login=")]
-            hdrs.pop("cookie", None)
-            if any(c.strip() for c in ck):
-                hdrs["Cookie"] = ";".join(ck).strip()
+            ck = target_cookies(hdrs.pop("cookie", None))
+            if ck:
+                hdrs["Cookie"] = ck
             hdrs["Accept-Encoding"] = "identity"
             hdrs["Host"] = f"{ip}:{cfg.container_port}"
             try:
@@ -211,12 +239,12 @@ def make_handler(cfg):
             self.send_response(r.status)
             for k, v in r.getheaders():
                 kl = k.lower()
-                if kl in DROP_RESP:
+                if drop_response_header(kl):
                     if kl == "location":
                         loc = v if not v.startswith("/") or v.startswith("//") else prefix + v
                         self.send_header("Location", loc)
-                    elif kl == "set-cookie" and not v.lstrip().lower().startswith("dojo_login="):
-                        self.send_header("Set-Cookie", rewrite_cookie(v))
+                    elif kl == "set-cookie" and rewrite_cookie(v, prefix):
+                        self.send_header("Set-Cookie", rewrite_cookie(v, prefix))
                     continue
                 self.send_header(k, v)
             for k, v in SANDBOX.items():
