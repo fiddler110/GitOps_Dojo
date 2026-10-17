@@ -1,17 +1,32 @@
 # CTF workshop series: plan
 
-Status: **draft 5, 2026-10-15.** The range, all 14 attack-ladder targets, all five session packs and the CTF-5
-defend tooling are built; the wall of shame, bonus flaw, scoring, one-page SOC, student SIEM view, the defend
-redesign and all four attack packs' demo bots are on `feat/ctf-wrapup`, ready for PR. What is
-left is listed under "Where it stands" below. What was
-built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log", "CTF wrapup"). The
-spike answers and the decisions log (CTF-S1..S17, CTF-D1..D27) are in [`CTF-SPIKES.md`](CTF-SPIKES.md), a companion
-file to this one.
+Status: **draft 6, 2026-10-17. Everything described below is built and merged to `main`.** The range, all 14
+attack-ladder targets, all five session packs, the CTF-5 defend tooling, the three-target defend redesign, the wall
+of shame, scoring, the one-page SOC, the student SIEM view and all four attack packs' demo bots are in `main`; the
+bonus second flaw was dropped by the redesign, not shipped. No CTF work sits on a branch any more.
+
+**What is actually left** (the short list; [`ROADMAP.md`](../ROADMAP.md) is authoritative, and "Open, in order"
+below has the detail):
+
+| Open | Who can do it |
+|---|---|
+| A pilot with 2-3 people to tune the stagger interval and dwell | Needs real people, not bots |
+| The Target Viewer card as a student, in a browser | A browser pass |
+| `git-secrets` as a fourth defend target | Only if a rotation mechanism proves out (stretch) |
+| Never live-tested: the geo database path, `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch` | Agent or user |
+
+What was built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log", "CTF wrapup",
+"Live checks"). The spike answers and the decisions log (CTF-S1..S17, CTF-D1..D27) are in
+[`CTF-SPIKES.md`](CTF-SPIKES.md), a companion file to this one.
 Sections 1-13 below are the design; where the build deviated from them, the section carries a note.
+
+> **Reading the log below.** "Where it stands" is a dated build log, newest entries last, kept for the why. Its
+> "pick up here" and "uncommitted" notes are historical: every branch it names is merged and deleted. Trust the
+> table above and `ROADMAP.md` for what is open.
 
 ---
 
-## Where it stands (2026-10-12)
+## Where it stands: the build log (2026-10-09 to 2026-10-15)
 
 **Built:**
 
@@ -75,7 +90,7 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
   the `ctf-defend` sample repo are still on `Flask==3.0.3` (a deliberate pin for teaching targets; test before
   bumping).
 
-**Handoff: pick up here (updated 2026-10-12):**
+**Handoff as it stood on 2026-10-12** (historical; items 1, 2 and 7 were live checks that passed, and item 3's list is carried forward as "Open, in order" item 8):
 
 1. **Verified live 2026-10-12, locally:** `./dojo ctf-defend --test 3 --fast` after the fixes above: 20 services
    healthy, three `~/.dojo-bot-done` markers, `./dojo logs --errors` clean, `./dojo stop` removed everything,
@@ -91,14 +106,19 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
    always shows private so it falls back), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
    `status --watch`, `CTF_TIME_SCALE=1` full-length run, (the other four CTF packs were started under
    the new tag scheme on 2026-10-12, see item 7).
-4. **Decisions still open:** (a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
-   repos, a bigger change than "second flaws"; (b) the live slot before a student's first merge is built from
+4. **Decisions still open** (rechecked 2026-10-17: (a), (b) and (e) are **moot** -- the three-target redesign
+   dropped the bonus second flaw, `workshops/ctf-defend/compose/docker-compose.override.yml` hardcodes
+   `CTF_BONUS_FLAWS=off`, and no `CTF_BONUS_FLAWS` branch is left in `targets/customer-portal/app.py` at all, so
+   there is no hashing-vs-cleartext distinction to pass through; the password column is simply part of what the SQLi
+   dump is meant to expose): ~~(a) bonus flaws for targets 8-11 would need those targets added to `ctf-defend` as extra
+   repos, a bigger change than "second flaws"~~; ~~(b) the live slot before a student's first merge is built from
    `targets/customer-portal` and always stores cleartext passwords, so with the bonus off the live dump still shows
-   cleartext until their first redeploy (fix: env passthrough in `ctf-controller._env_for`); (c) ~~`/achievements/wall`
+   cleartext until their first redeploy (fix: env passthrough in `ctf-controller._env_for`)~~; (c) ~~`/achievements/wall`
    is still reachable when the wall toggle is off~~ -- fixed 2026-10-17: `CTF_WALL_OF_SHAME` now reaches
-   achievements too, and off makes the page, its script and `/api/wall` 404 rather than merely undrawn; (d) wall rows carry no dumped-record payload; (e) the bonus
-   appears as a challenge titled "Second Look" when on; (f) the pre-breach `full` SIEM detail equals `paths`, and
-   bonus-path probes are synthetic 404s whatever the real app answers.
+   achievements too, and off makes the page, its script and `/api/wall` 404 rather than merely undrawn; (d) wall rows carry no dumped-record payload (still true: `store.wall_rows()`
+   returns user, target, severity, state, last_seen and weight, by design); ~~(e) the bonus
+   appears as a challenge titled "Second Look" when on~~; (f) the pre-breach `full` SIEM detail equals `paths` (the
+   bonus-path half of this one is moot with the bonus gone).
 5. **Housekeeping done 2026-10-12:** `RELEASES.md` has an entry for the wall, bonus flaw, scoring, one-page SOC,
    SIEM view and the new CLI commands, and the `ROADMAP.md` row no longer lists the wall toggle as unbuilt.
 6. **Observed live:** breach rows only appear at most once per 15s x scale per student; the student bots in
@@ -124,7 +144,8 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
   they expected), labs state required facts in the step text, each CTF cheat sheet has three core-command slides,
   and Lab Info has a `curl` primer. Flaws, flags and `solve.py` are unchanged.
 
-**Defend lab redesign (decided with the user 2026-10-14; built on `feat/ctf-defend-three-targets`, live verification pending; as-built contract in 8.13):** `ctf-defend` becomes three live targets per
+**Defend lab redesign (decided with the user 2026-10-14; built, live-verified and merged to `main` -- as-built
+contract in 8.13; only the stagger/dwell pilot is left):** `ctf-defend` becomes three live targets per
 student at once, attacked in a per-student order, and the bonus second flaw (8.7, CTF-D17) is dropped.
 
 - **Shape:** three targets up at once per student, the lab as incident triage ("a mess") rather than the sequential
@@ -166,9 +187,10 @@ student at once, attacked in a per-student order, and the bonus second flaw (8.7
 - **Build map:** superseded by the as-built contract in 8.13 (controller, builder, checker, bot, SIEM and pack all
   under `workshops/` or `modules/`, no `engine/` edit).
 
-**Session 2026-10-14 evening — scorecard, demo bots, one engine fix (uncommitted, branch `feat/ctf-wrapup`, pick up here):**
+**Session 2026-10-14 evening — scorecard, demo bots, one engine fix (all merged to `main` in `0d5e585`; the
+branch is gone):**
 
-Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`, this file, `engine/docker-compose.yml`,
+Everything below shipped. At the time of writing, `git status` on `feat/ctf-wrapup` had: `ROADMAP.md`, this file, `engine/docker-compose.yml`,
 `modules/achievements/{README.md,service/server.py,service/store.py,service/static/soc*.{html,js}}` (scorecard),
 `modules/achievements/service/test_scorecard.py` (new), `modules/ctf-range/targets/ssrf-fetcher/app.py`, and new
 `workshops/{ctf-access,ctf-server-trust,ctf-secrets-config,ctf-trust-chain}/content/bots/` directories.
@@ -332,10 +354,14 @@ Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`,
 
 **Open, in order:**
 
-1. **Real-time dwell and the Target Viewer card.** The swarm has only run at `CTF_TIME_SCALE=0.1`; watch one run at
-   scale 1 and open the Target Viewer card as a student. (Class-sized runs are dropped from the plan, 2026-10-14.)
-2. **The defend redesign above:** decisions, then spec into section 8, then build. `INCIDENT.md` gate enforcement
-   decided against 2026-10-15 (above); the stagger interval still needs a pilot.
+1. **The Target Viewer card as a student, in a browser.** ~~Real-time dwell~~ ran at `CTF_TIME_SCALE=1` on
+   2026-10-15 and passed (RELEASES, "Live checks"), along with the student SOC feed; the Target Viewer card itself
+   has still never been opened as a student. A browser pass, so it belongs with ROADMAP's "Manual checks".
+   (Class-sized runs are dropped from the plan, 2026-10-14.)
+2. **The stagger/dwell pilot**, the last of the defend redesign. The redesign itself is built, live-verified and
+   merged (8.13); `INCIDENT.md` gate enforcement was decided against 2026-10-15 (above). The pilot needs 2-3 real
+   people -- bots cannot tune a stagger interval -- starting near half the median fix time.
+   Stretch, separate: `git-secrets` as a fourth target, only if a rotation mechanism proves out.
 3. ~~End-of-session scoring summary~~ — built 2026-10-14 evening; arithmetic-mismatch decision closed and
    student-side route verified live, both 2026-10-15 (above).
 4. ~~Check that `customer-portal` is in no attack catalog~~ — confirmed 2026-10-14 evening (above).
@@ -345,6 +371,10 @@ Nothing below is committed. `git status` on `feat/ctf-wrapup` has: `ROADMAP.md`,
 6. ~~`ctf-builder`'s pip install failure~~ — root-caused and fixed 2026-10-15 (above).
 7. ~~`ctf-secrets-config`'s `openbao-server` audit race~~ — fixed 2026-10-15, with a caveat worth reading (above):
    a different, equally benign single-node-raft startup message surfaced in its place.
+8. **Never live-tested, and agent-doable:** the geo database path (run `fetch_geoip.sh`, check `X-Forwarded-For`
+   through Caddy), `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch`.
+   Carried forward from the 2026-10-12 handoff item 3, minus `CTF_TIME_SCALE=1`, which passed 2026-10-15. Also
+   tracked as ROADMAP's `dojo` CLI follow-up **C6**, which is where it belongs: none of these is CTF-specific.
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 
