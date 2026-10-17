@@ -251,6 +251,17 @@ services:
     cap_drop:
       - NET_RAW
       - MKNOD
+    # Each student's PID namespace (workspace-control.py) mounts its own /proc,
+    # which the kernel refuses while the runtime masks parts of the container's
+    # (/proc/kcore, /proc/keys ...): students then run without one and
+    # pidns-unavailable is logged. Where that happens, lift the masks for this
+    # container only, as runner-pool does: WEB_TERMINAL_SECURITY_OPT_1=unmask=/proc/*
+    # on Podman (the mac-podman profile sets both; SELinux also needs _2) or
+    # systempaths=unconfined on Docker. Unset, both are no-ops: no-new-privileges
+    # stays off, since the facilitator's sudo needs setuid.
+    security_opt:
+      - ${WEB_TERMINAL_SECURITY_OPT_1:-no-new-privileges=false}
+      - ${WEB_TERMINAL_SECURITY_OPT_2:-no-new-privileges:false}
     # Container-wide backstop for the per-account ulimits set in
     # entrypoint.sh (nproc/fsize per student/facilitator shell), AND for
     # the per-process code-server heap cap above -- this is the ceiling

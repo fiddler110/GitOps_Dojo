@@ -63,7 +63,8 @@ source IP means nothing. The kernel separates them:
 | One Linux user each | Own uid, `0700` home, **locked password** (no `su`), no root |
 | Per-uid firewall | `iptables` chain `DOJO_ISOLATION` with `-m owner --uid-owner`: a uid may connect only to its own workspace ports; other uids' ports are dropped |
 | Ingress network | The gateway reaches workspace ports over `terminal_ingress`; the entrypoint drops those ports on every other interface |
-| PID namespace each | `ps` shows only your processes, never a neighbour's command line. Facilitator and bots stay outside; `su`, `sudo`, `ping` do not work inside |
+| PID namespace each | `ps` shows only your processes, never a neighbour's command line. Facilitator and bots stay outside; `su`, `sudo`, `ping` do not work inside. Needs a fresh `/proc` mount, which the runtime's `/proc` masks block: where the log says `pidns-unavailable`, set `WEB_TERMINAL_SECURITY_OPT_1=unmask=/proc/*` (Podman; `systempaths=unconfined` on Docker) |
+| No nested user namespaces | The namespace above is capped at zero user namespaces of its own, so a student can't `unshare -Ur`/`-n` their way to kernel attack surface (nf_tables and the like) in the container that holds every lab secret. `pidns-start` logs `nested_userns=blocked`; SELinux (rootful Podman on macOS) refuses the cap unless the container runs with `label=disable`, and then it logs `allowed` |
 | `prlimit --nproc` | Per-student fork-bomb tripwire (1024), below the container pids cap. No address-space or per-user memory cap (breaks node; needs per-user cgroups) |
 | Brokers read the uid from the kernel | Cloud `ARM_*` credentials, vault JWTs and similar come from a root-owned unix-socket broker using `SO_PEERCRED`; the signing key is root-only |
 | Reserved ports | Services a student must reach must avoid TCP 9000-9099 and 9500-9899 |
