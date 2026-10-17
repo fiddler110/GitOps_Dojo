@@ -234,6 +234,22 @@ class BackupRestore(Sandbox):
         self.assertEqual(self.imported[0], ("engine_forge", b"data-engine_forge"))
         self.assertIn(("volume", "create", "engine_forge"), rt2.calls)
 
+    def test_backup_is_owner_only(self):
+        with mock.patch("dojo.state.last_start", return_value=["ctf-defend"]):
+            path = Path(backup.backup(self.fake_rt(), self.root / "p.tar")["path"])
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_restore_refuses_foreign_volumes(self):
+        for vol in ("other_db", "engine_../x", "engine_ok; rm -rf /"):
+            man = {"workshop": "ctf-defend", "project": "engine", "volumes": [vol]}
+            mp = self.root / "m.json"
+            mp.write_text(json.dumps(man))
+            with tarfile.open(self.root / "foreign.tar", "w") as t:
+                t.add(mp, arcname="manifest.json")
+            with mock.patch("dojo.state.last_start", return_value=["ctf-defend"]):
+                with self.assertRaises(StackError, msg=vol):
+                    backup.plan_restore(self.fake_rt(vols=()), self.root / "foreign.tar")
+
     def test_backup_without_volumes_fails(self):
         with self.assertRaises(StackError):
             backup.backup(self.fake_rt(vols=()), self.root / "x.tar")
