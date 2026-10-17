@@ -153,17 +153,13 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         """Return (username_for_control_plane, student_id_or_None) for the
         current request, or (None, None) if it isn't valid.
 
-        Facilitator identity comes from X-Auth-User, set by
-        gateway/Caddyfile's basic_auth + header_up on every request (this
-        always overwrites any client-supplied value, so it can't be
-        spoofed by a browser/curl -- only Caddy, on the internal-only
-        network, can set it) to whichever account actually satisfied the
-        shared or /admin basic_auth challenge. Caddy authenticates every
-        request before it ever reaches this process, so this header is
-        always present and correct -- typing the facilitator credential
-        once, anywhere, is immediately enough; no cookie needed. A student
-        identity, by contrast, only ever comes from the dojo_session
-        cookie minted when they claim a slot via /assign.
+        Facilitator identity comes from X-Auth-User. gateway/Caddyfile sets
+        it on every request from the signed dojo_login cookie (session_gate:
+        /session-check answers X-Session-User, copied upstream with header_up,
+        which overwrites anything the client sent). gateway_authorized() has
+        already proved the request came through Caddy. A student identity, by
+        contrast, only ever comes from the dojo_session cookie minted when
+        they claim a slot via /assign.
         """
         if self.headers.get("X-Auth-User") == FACILITATOR_USERNAME:
             return FACILITATOR_USERNAME, None
@@ -177,16 +173,12 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
         return None, None
 
     def client_ip(self):
-        # gateway/Caddyfile has no trusted_proxies configured, so Caddy's
-        # reverse_proxy APPENDS the address it actually saw to whatever
-        # X-Forwarded-For value the client already sent, rather than
-        # replacing it -- the same header a curl/browser client is free to
-        # set to anything. That means the FIRST entry can be attacker-
-        # supplied, but the LAST entry is always the address Caddy itself
-        # observed on the connection, since gateway is the sole public
-        # entry point with nothing in front of it to have appended anything
-        # earlier. Only that last hop is safe to trust (this is only ever
-        # used for the facilitator roster display, not an auth decision).
+        # gateway/Caddyfile (allocator_timeouts) replaces X-Forwarded-For with
+        # {client_ip}: the connecting address, or with GATEWAY_TRUSTED_PROXIES
+        # set, the browser's address read right to left past that proxy. The
+        # last entry is used so a direct, older-style "a, b" chain still keys
+        # on the hop Caddy saw. Used for the login and access-code limits and
+        # the roster, never for an identity decision.
         forwarded = self.headers.get("X-Forwarded-For")
         if forwarded:
             return forwarded.split(",")[-1].strip()
@@ -195,8 +187,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
     # Real form bodies here are tiny (a name, capped at 60 chars, is the
     # only field any form on this service ever submits) -- capping well
     # above that but far below "attacker-declared Content-Length" stops a
-    # client from making this single-threaded process (see class docstring)
-    # allocate or block on reading an enormous declared body.
+    # client from making a request thread allocate or block on reading an
+    # enormous declared body.
     MAX_BODY_BYTES = 4096
 
     def read_body(self):
@@ -350,9 +342,8 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
 
         if path in ("/admin", "/admin/"):
-            # Reaching this route at all means Caddy's own facilitator-only
-            # basic_auth (see gateway/Caddyfile's @admin block) already
-            # passed -- no separate cookie/login step needed.
+            # Facilitator only: Caddy's @admin session gate, then
+            # refuse_non_facilitator() above.
             self.send_html(self.render_facilitator_workspace())
             return
 
@@ -398,12 +389,10 @@ class Handler(ViewsMixin, ApiMixin, http.server.BaseHTTPRequestHandler):
             return
 
         if path.startswith("/admin/release/"):
-            # HTTP Basic Auth (unlike a cookie) carries no SameSite
-            # protection of its own -- a browser that's already satisfied
-            # /admin's basic_auth reattaches those credentials to ANY
-            # same-origin request, including one triggered by a hidden form
-            # on a page a facilitator merely has open in another tab. A
-            # plain cross-site <form method=post> can't set a custom
+            # The facilitator's dojo_login cookie rides along on any
+            # same-site request (SameSite=Lax), including one a page in
+            # another tab triggers. A plain cross-site <form method=post>
+            # can't set a custom
             # header, and a cross-site fetch() that tries to would first
             # need this server to answer its CORS preflight (it doesn't) --
             # so requiring this header on the actual roster JS's own fetch

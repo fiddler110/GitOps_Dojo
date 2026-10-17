@@ -152,7 +152,7 @@ class ApiMixin:
 
     def handle_auth_check_watch(self, parsed):
         """Gates /admin/watch/<studentId> (see gateway/Caddyfile). Reached
-        only after Caddy's own facilitator-only basic_auth on /admin*, but
+        only after Caddy's facilitator-only session gate on /admin*, but
         re-checked here too -- this process shouldn't trust routing alone
         to keep a student out of another student's terminal."""
         username, _sid = self.resolve_identity()
@@ -186,7 +186,7 @@ class ApiMixin:
     def handle_status_api(self):
         """Facilitator service status: authorised exactly like
         /admin/api/sessions (do_GET's gateway_authorized() ran first; Caddy's
-        /admin* basic_auth is the facilitator gate). Reads the snapshot the
+        /admin* session gate and refuse_non_facilitator() are the facilitator gate). Reads the snapshot the
         probe thread publishes -- no upstream I/O here."""
         self.send_json(probes._status_snapshot)
 
@@ -408,7 +408,7 @@ class ApiMixin:
         the reset runs on the worker thread and its progress shows in
         /admin/api/sessions. Never the facilitator's own account."""
         if self.resolve_identity()[0] != FACILITATOR_USERNAME:
-            # Caddy's /admin* basic_auth already decided; checked again here,
+            # Caddy's /admin* session gate already decided; checked again here,
             # as /auth-check-watch does, since a reset deletes data.
             self.send_response(403)
             self.end_headers()

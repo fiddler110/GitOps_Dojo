@@ -195,9 +195,8 @@ class ViewsMixin:
         in the tile header, an iframe onto /admin/watch/<sid>/ underneath),
         plus their own VS Code/Terminal/Forgejo/Slides as further tabs, all
         on one wide page -- no dependency on the shared student gate either
-        (see gateway/Caddyfile: /admin has its own basic_auth, which is
-        also now accepted at the shared gate, so a facilitator never needs
-        the student credential at all).
+        (the facilitator's own login passes the class gate too, so a
+        facilitator never needs the class credential at all).
 
         Deliberately its own full HTML document rather than page() (which
         is tuned for the narrow single-column student flow) -- this page
@@ -207,9 +206,8 @@ class ViewsMixin:
         same /ide/, /term/, /forgejo-login, /slides/ routes the old
         separate-tab links used -- nothing new for Caddy or the allocator
         to authorize, since the facilitator's browser already carries
-        whatever those routes need (the shared-gate basic_auth realm is
-        reused automatically once /admin's has been satisfied -- see the
-        Caddyfile comment above the shared block -- and neither ttyd nor
+        whatever those routes need (its dojo_login cookie passes every
+        session gate -- and neither ttyd nor
         code-server nor Forgejo send X-Frame-Options/frame-ancestors, the
         same fact that already makes the watch tiles embeddable). Each
         iframe's src is set lazily, on that tab's first click, so opening

@@ -61,7 +61,14 @@
 # so Caddy drops its idle ones at 2 s and never sends a request down a
 # connection the allocator is closing. Imported into each allocator block
 # below and into the rendered extension gates (allocator/render_extensions.py).
+#
+# X-Forwarded-For is replaced with {client_ip}, the one address the login and
+# access-code limits key on (allocator handler.py client_ip()). Left to Caddy,
+# a request from a trusted proxy (GATEWAY_TRUSTED_PROXIES) arrives as
+# "browser, proxy", and the allocator would count every class's guesses
+# against the proxy's address.
 (allocator_timeouts) {
+	header_up X-Forwarded-For {client_ip}
 	transport http {
 		dial_timeout 3s
 		response_header_timeout 10s
