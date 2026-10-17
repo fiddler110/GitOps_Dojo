@@ -10,6 +10,10 @@ updates:
       - /engine/*
       - /modules/*
       - /modules/*/*
+      # Each target's Dockerfile and its mirror stage in ctf-range/ctf-host/Dockerfile must
+      # move together. A base bump here is not routine: before merging, build each target
+      # on the new base and run its exploit/solve.py, as #49 and #51 were checked.
+      - /modules/ctf-range/targets/*
       - /workshops/*/compose/*
     schedule:
       interval: monthly
