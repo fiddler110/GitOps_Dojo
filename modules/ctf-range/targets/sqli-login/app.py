@@ -45,11 +45,11 @@ PAGE = """
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Employee Sign-in &middot; Meridian Intranet</title>
-<link rel="stylesheet" href="/assets/theme.css"><script src="/assets/show.js" defer></script></head>
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/theme.css"><script src="/assets/show.js" defer></script></head>
 <body>
 <div class="shell">
 <aside class="brandpanel">
-  <img class="mark" src="/assets/logo.svg" alt="Meridian Corp" width="84" height="84">
+  <img class="mark" src="/assets/logo.svg" alt="Meridian Corp" width="132" height="132">
   <div class="name">Meridian<span>Corp</span></div>
   <p class="tag">One network. Every office. Always on.</p>
   <ul class="facts"><li>Employee directory</li><li>Payroll and benefits</li><li>IT service desk</li></ul>
@@ -80,7 +80,7 @@ body{margin:0;min-height:100vh;font:15px/1.5 system-ui,Segoe UI,sans-serif;color
 background:radial-gradient(circle at 20% 15%,#1d4ed8 0,#0f2a5c 38%,#0b1b3a 80%);padding:1.5rem}
 .shell{display:flex;width:100%;max-width:820px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px #0008}
 .brandpanel{flex:1 1 44%;padding:2.4rem 2rem;color:#e8efff;background:linear-gradient(160deg,#0f2a5c,#1740a8);display:flex;flex-direction:column;gap:.6rem}
-.mark{display:block}
+.mark{display:block;background:#fff;border-radius:50%;padding:10px;box-shadow:0 10px 30px #0006;margin-bottom:.8rem}
 .name{font-size:1.7rem;font-weight:700;letter-spacing:.01em}.name span{font-weight:300;margin-left:.35rem;color:#9db8ff}
 .tag{margin:0;color:#b8cbff}
 .facts{list-style:none;margin:1.4rem 0 0;padding:0;color:#c9d8ff;font-size:.9rem}
@@ -107,14 +107,7 @@ def theme_css():
     return Response(_CSS, mimetype="text/css")
 
 
-_LOGO = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f9bff"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
-<circle cx="48" cy="48" r="44" fill="#0b1b3a" stroke="url(#g)" stroke-width="4"/>
-<ellipse cx="48" cy="48" rx="18" ry="44" fill="none" stroke="#6f9bff" stroke-width="1.6" opacity=".7"/>
-<ellipse cx="48" cy="48" rx="44" ry="16" fill="none" stroke="#6f9bff" stroke-width="1.2" opacity=".35"/>
-<line x1="48" y1="4" x2="48" y2="92" stroke="#fff" stroke-width="2.4"/>
-<path d="M27 66V32l21 22 21-22v34" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="48" cy="54" r="3.6" fill="#6f9bff"/></svg>"""
+_LOGO = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Meridian_Logo.svg"), "rb").read()
 
 
 @app.get("/assets/logo.svg")
