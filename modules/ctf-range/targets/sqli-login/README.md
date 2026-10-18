@@ -28,8 +28,8 @@ the vulnerable line.
 
 ## The second step: SSH (and the decoys)
 
-Behind the login the portal shows IT notes with a service account, `svc-print`, and a random password. That
-account logs into the SSH service on container port 2222, which ctf-controller publishes as host port 22 on
+Behind the login the portal links three log files (placement differs per box: one holds two credentials, one
+holds one, one holds none) that leak three accounts. Only `svc-print`, with a random password, logs into the SSH service on container port 2222, which ctf-controller publishes as host port 22 on
 the student's own box IP. It is a real SSH-2 server (`sshshell.py`, asyncssh) with an emulated shell: a few
 built-in commands over a fake filesystem, no real shell. A real sshd can't run here (the container drops
 every capability and runs non-root). `flag.txt` in the account's home directory holds the flag; the web page

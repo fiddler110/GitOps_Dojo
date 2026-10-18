@@ -3,7 +3,7 @@
 plain string formatting, so the classic auth-bypass payload
 (`' OR '1'='1' -- `) logs in as `admin` without knowing the password.
 Two stages, like a HackTheBox box: the login bypass is the foothold; behind
-it the portal shows IT notes with a service account, which logs into the box
+it the portal links three log files that leak service accounts; one logs into the box
 over SSH (sshshell.py, an emulated shell) where flag.txt holds the flag.
 
 Env:
@@ -19,17 +19,20 @@ read-only with no bind mount to manage at all (lighter than
 targets/customer-portal's /data tmpfs, which this target doesn't need).
 """
 import os
+import random
 import socket
 import sqlite3
 import threading
 
 import sshshell
-from flask import Flask, Response, render_template_string, request
+from flask import Flask, Response, redirect, render_template_string, request, session
 
 app = Flask(__name__)
+app.config.update(SESSION_COOKIE_NAME="meridian", SESSION_COOKIE_HTTPONLY=True)
 
 FLAG = os.environ.get("CTF_FLAG", "flag{sqli-login-dev0000000000}")
 STUDENT = os.environ.get("CTF_STUDENT", "student07")
+app.secret_key = "meridian:" + FLAG
 
 # One connection for the process lifetime. The dev server below runs
 # single-threaded (threaded=False), so this is never touched concurrently.
@@ -42,9 +45,67 @@ _DB.execute("INSERT INTO users VALUES (?, ?)", ("admin", os.urandom(16).hex()))
 _DB.execute("INSERT INTO users VALUES (?, ?)", (STUDENT, "changeme123"))
 _DB.commit()
 
-# The service account the portal's IT notes reveal; it logs into the box over SSH.
+# Three accounts turn up in the operations logs behind the login; only the first logs into the box
+# over SSH. The other two are stale service accounts the SSH server has never heard of.
+_rnd = random.Random(FLAG)
 SSH_USER = "svc-print"
 SSH_PASSWORD = "Print-" + os.urandom(4).hex()
+_CREDS = [
+    (SSH_USER, SSH_PASSWORD),
+    ("svc-backup", "Bk-%08x" % _rnd.getrandbits(32)),
+    ("helpdesk", "Help-%08x" % _rnd.getrandbits(32)),
+]
+
+LOGS = [
+    ("print-queue.log", "Print queue service log"),
+    ("maintenance.log", "Nightly maintenance jobs"),
+    ("helpdesk-sync.log", "Helpdesk ticket sync"),
+]
+
+
+def _cred_line(kind, n, user, pw):
+    """One log line that leaks a credential, in the style of the service that wrote it."""
+    if n == 0:
+        return f"auth: login failed user={user} password={pw} src=10.0.4.{_rnd.randint(10, 90)} reason=bad-gateway-token"
+    if n == 1:
+        return f"/usr/local/bin/sync-queue.sh: sshpass -p '{pw}' ssh {user}@print01 'lpstat -o'"
+    return f"debug: connecting to print01 with credentials {user} / {pw}"
+
+
+_NOISE = {
+    "print-queue.log": ["job {n} queued on floor2-laser by dpatel", "job {n} completed, 3 pages",
+                        "printer floor3-color: toner low (12%)", "spooler: cleaned {n} stale jobs",
+                        "job {n} cancelled by owner", "printer floor2-laser: paper jam cleared"],
+    "maintenance.log": ["logrotate: rotated /var/log/cups/access_log", "backup: snapshot {n} ok, 412 MB",
+                        "apt: 0 upgraded, 0 newly installed", "cron: job nightly-cleanup finished in {n}s",
+                        "ntp: clock offset 0.0{n}s", "disk: /var at 41% used"],
+    "helpdesk-sync.log": ["ticket INC-{n} synced (status=resolved)", "ticket INC-{n} synced (status=open)",
+                          "sync: 14 tickets in, 0 conflicts", "sync: waiting for next interval",
+                          "ticket INC-{n} assigned to it-desk", "webhook: 200 OK from servicedesk"],
+}
+
+
+def _build_logs():
+    counts = [1, 2, 0]
+    _rnd.shuffle(counts)
+    creds = list(_CREDS)
+    _rnd.shuffle(creds)
+    logs, i = {}, 0
+    for (name, _title), count in zip(LOGS, counts):
+        lines = [_rnd.choice(_NOISE[name]).format(n=_rnd.randint(100, 9999)) for _ in range(28)]
+        for _ in range(count):
+            user, pw = creds[i]
+            lines.insert(_rnd.randint(3, len(lines) - 3), _cred_line(name, i % 3, user, pw))
+            i += 1
+        t, out = 8 * 3600 + _rnd.randint(0, 600), []
+        for line in lines:
+            t += _rnd.randint(7, 340)
+            out.append(f"2026-10-17 {t // 3600 % 24:02d}:{t // 60 % 60:02d}:{t % 60:02d} {name.split('.')[0]}[{_rnd.randint(200, 900)}]: {line}")
+        logs[name] = "\n".join(out) + "\n"
+    return logs
+
+
+_LOG_TEXT = _build_logs()
 
 PAGE = """
 <!doctype html>
@@ -65,15 +126,15 @@ PAGE = """
 <p class="sub">Sign in with your employee account.</p>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
 {% if welcome %}<p class="ok">Welcome, {{ welcome }}.</p>
-<div class="note"><b>IT notes: print server</b>
-<p>Host account for the print queue server. Shell access is enabled; rotate quarterly.</p>
-<p>Username: <code>{{ ssh_user }}</code><br>Password: <code>{{ ssh_password }}</code></p></div>{% endif %}
-<form method="post" action="/login">
+<div class="note"><b>Operations logs</b>
+<p>Service logs for the print server and its helpers. Internal use only.</p>
+<ul>{% for name, title in logs %}<li><a href="logs/{{ name }}">{{ title }}</a> <code>{{ name }}</code></li>{% endfor %}</ul></div>
+{% else %}<form method="post" action="/login">
   <label>Username <input name="username" autocomplete="off" placeholder="firstname.lastname"></label>
   <label>Password <input id="pw" name="password" type="password" autocomplete="off" spellcheck="false"></label>
   <label class="show"><input id="show" type="checkbox"> Show password</label>
   <button type="submit">Log in</button>
-</form>
+</form>{% endif %}
 <footer>Authorized personnel only. Activity is logged.</footer>
 </main>
 </div>
@@ -106,7 +167,7 @@ button{margin-top:1.2rem;width:100%;padding:.7rem;border:0;border-radius:8px;bac
 button:hover{background:#1e40af}
 .err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem}
 .ok{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:.6rem .7rem;word-break:break-all}
-.note{margin-top:.8rem;border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;background:#f8fafc;font-size:.9rem}.note p{margin:.3rem 0}.note code{background:#e8efff;padding:.05rem .35rem;border-radius:4px;word-break:break-all}
+.note{margin-top:.8rem;border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;background:#f8fafc;font-size:.9rem}.note p{margin:.3rem 0}.note ul{margin:.4rem 0 0;padding-left:1.1rem}.note a{color:var(--acc)}.note code{background:#e8efff;padding:.05rem .35rem;border-radius:4px;word-break:break-all}
 footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:1.4rem}
 @media (max-width:640px){.shell{flex-direction:column}.brandpanel{padding:1.4rem}.facts{display:none}}
 """
@@ -156,8 +217,29 @@ def login():
     except sqlite3.Error:
         row = None
     if row:
-        return render_template_string(PAGE, error=None, welcome=row[0], ssh_user=SSH_USER, ssh_password=SSH_PASSWORD)
+        session["user"] = row[0]
+        return redirect("portal")
     return render_template_string(PAGE, error="Invalid credentials", welcome=None)
+
+
+def _user():
+    return session.get("user")
+
+
+@app.get("/portal")
+def portal():
+    if not _user():
+        return redirect("./")
+    return render_template_string(PAGE, error=None, welcome=_user(), logs=LOGS)
+
+
+@app.get("/logs/<name>")
+def log_file(name):
+    if not _user():
+        return redirect("../")
+    if name not in _LOG_TEXT:
+        return Response("not found\n", 404, mimetype="text/plain")
+    return Response(_LOG_TEXT[name], mimetype="text/plain")
 
 
 # -- Decoy listener (plan §7.3's nmap primer: a student scans their box and

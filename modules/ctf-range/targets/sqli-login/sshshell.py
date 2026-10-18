@@ -7,7 +7,7 @@ client, but the shell behind the login is a handful of built-in commands over a
 fake filesystem. There is no real shell, no real filesystem access and nothing
 to escape to: the commands only read the dict below.
 
-One account (the service account the portal's IT notes reveal). The flag sits
+One account (the service account that leaks in the portal's logs). The flag sits
 in its home directory as flag.txt.
 """
 import asyncio

