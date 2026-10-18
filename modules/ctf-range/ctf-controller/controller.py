@@ -33,6 +33,7 @@ import hmac
 import http.server
 import json
 import os
+import random
 import re
 import signal
 import socket
@@ -80,6 +81,14 @@ ATTACK_PORT_BASE = 16000
 ATTACK_PORT_BLOCK = 3
 DECOY_SSH_CONTAINER_PORT = 2222
 DECOY_FTP_CONTAINER_PORT = 2121
+# A second HTTP listener some targets bind as a lookalike of the real app
+# (an admin console that always answers 401). Published only for a target
+# in CTF_RANDOM_PORT_TARGETS.
+DECOY_HTTP_CONTAINER_PORT = 8081
+# Host-side port ranges a randomized target draws from. The container ports
+# stay fixed (5000/2222/2121/8081) -- only the port the student's scan sees
+# moves, so the target images need no change to be randomized.
+RANDOM_PORT_RANGES = {"web": (8000, 8999), "alt": (8000, 8999), "ssh": (2200, 2299), "ftp": (2100, 2199)}
 
 # HackTheBox-style per-target IPs (student request 2026-10-07). Each student
 # gets one IP on ctf_net PER attack target in the pack's catalog, carved out
@@ -214,6 +223,11 @@ class Config:
         self.wall_enabled = env.get("CTF_WALL_OF_SHAME", "off").strip().lower() in ("on", "1", "true", "yes")
         self.wall_age_off = _int_env(env, "CTF_WALL_AGE_OFF_SECONDS", 300)
         self.attack_targets = parse_targets(env.get("CTF_ATTACK_TARGETS", ""))
+        # Targets whose host-side ports are drawn per (student, target) instead of
+        # sitting on 5000/2222/2121. Not a secret: a student's own scan finds
+        # their ports anyway; the seed only keeps them stable across Reset/restart.
+        self.random_port_targets = set(env.get("CTF_RANDOM_PORT_TARGETS", "").split())
+        self.port_seed = env.get("CTF_PORT_SEED", "") or "ctf-ports"
         self.attack_port_base = int(env.get("CTF_ATTACK_PORT_BASE", "") or ATTACK_PORT_BASE)
         self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
         self.attack_idle_seconds = int(env.get("CTF_ATTACK_IDLE_SECONDS", "") or ATTACK_IDLE_SECONDS)
@@ -309,6 +323,26 @@ class Config:
         target's reserved IP."""
         return {tid: self.attack_target_ip(user, tid) for tid in self.attack_targets}
 
+    def random_ports(self, user, target_id):
+        """{role: host_port} for a randomized target, or {} when it isn't one.
+        Deterministic in (port_seed, user, target), so Reset and a controller
+        restart keep a student's ports; the two HTTP ports never collide."""
+        if target_id not in self.random_port_targets:
+            return {}
+        rnd = random.Random(f"{self.port_seed}:{user}:{target_id}")
+        ports, taken = {}, set()
+        for role, (lo, hi) in RANDOM_PORT_RANGES.items():
+            port = rnd.randint(lo, hi)
+            while port in taken:
+                port = rnd.randint(lo, hi)
+            taken.add(port)
+            ports[role] = port
+        return ports
+
+    def attack_web_port(self, user, target_id):
+        """The port a student's browser (and ctf-view) uses for the real app."""
+        return self.random_ports(user, target_id).get("web", self.container_port)
+
     def attack_ports(self, user, target_id=None):
         """Port publish list for this student's attack slot.
 
@@ -323,6 +357,14 @@ class Config:
         keeps CTF-5 reconcile and any pack that hasn't opted in working.
         """
         host_ip = self.attack_target_ip(user, target_id) if target_id else ""
+        rp = self.random_ports(user, target_id) if host_ip else {}
+        if rp:
+            return [
+                (self.container_port, rp["web"], host_ip),
+                (DECOY_SSH_CONTAINER_PORT, rp["ssh"], host_ip),
+                (DECOY_FTP_CONTAINER_PORT, rp["ftp"], host_ip),
+                (DECOY_HTTP_CONTAINER_PORT, rp["alt"], host_ip),
+            ]
         if host_ip:
             return [
                 (self.container_port, self.container_port, host_ip),

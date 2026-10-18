@@ -537,3 +537,43 @@ class TestMultiTarget(unittest.TestCase):
         strip = lambda rows: [{k: v for k, v in r.items() if k != "secteam_key"} for r in rows]
         self.assertEqual(strip(one["targets"]), doc["users"]["student02"])
         self.assertTrue(all(r["secteam_key"] for r in one["targets"] if r["target"] == "policy-bypass"))
+
+
+class TestRandomPorts(unittest.TestCase):
+    def cfg(self, **extra):
+        env = {"CTF_ATTACK_TARGETS": "sqli-login=img:a,idor-pcap=img:b", "STUDENT_COUNT": "3",
+               "CTF_ATTACK_SUBNET_PREFIX": "10.42.0", "CTF_NET_SUBNET": "10.42.0.0/24",
+               "CTF_RANDOM_PORT_TARGETS": "sqli-login"}
+        env.update(extra)
+        return c.Config(env=env)
+
+    def test_stable_per_student_and_different_between_them(self):
+        cfg = self.cfg()
+        a = cfg.random_ports("student01", "sqli-login")
+        self.assertEqual(a, cfg.random_ports("student01", "sqli-login"))
+        self.assertEqual(a, self.cfg().random_ports("student01", "sqli-login"))
+        self.assertNotEqual(a, cfg.random_ports("student02", "sqli-login"))
+        self.assertNotEqual(a, self.cfg(CTF_PORT_SEED="x").random_ports("student01", "sqli-login"))
+
+    def test_ranges_and_no_collision(self):
+        cfg = self.cfg()
+        for n in range(60):
+            p = cfg.random_ports(f"student{n:02d}", "sqli-login")
+            self.assertEqual(len(set(p.values())), 4)
+            self.assertTrue(8000 <= p["web"] <= 8999 and 8000 <= p["alt"] <= 8999)
+            self.assertTrue(2200 <= p["ssh"] <= 2299 and 2100 <= p["ftp"] <= 2199)
+
+    def test_publish_list_maps_container_ports(self):
+        cfg = self.cfg()
+        p = cfg.random_ports("student01", "sqli-login")
+        ip = cfg.attack_target_ip("student01", "sqli-login")
+        self.assertEqual(cfg.attack_ports("student01", "sqli-login"),
+                         [(5000, p["web"], ip), (2222, p["ssh"], ip), (2121, p["ftp"], ip), (8081, p["alt"], ip)])
+        self.assertEqual(cfg.attack_web_port("student01", "sqli-login"), p["web"])
+
+    def test_other_targets_keep_fixed_ports(self):
+        cfg = self.cfg()
+        self.assertEqual(cfg.random_ports("student01", "idor-pcap"), {})
+        self.assertEqual(cfg.attack_web_port("student01", "idor-pcap"), 5000)
+        self.assertEqual([x[:2] for x in cfg.attack_ports("student01", "idor-pcap")],
+                         [(5000, 5000), (2222, 2222), (2121, 2121)])

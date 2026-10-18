@@ -34,8 +34,12 @@ their box and finds more than the port they'll actually use, same as a
 HackTheBox box). It speaks just enough of the SSH-2.0 banner to fingerprint
 under `nmap -sV`, then closes — not a real sshd; see `app.py`'s
 decoy-listener comment for why a real one can't run in this container at
-all. The standalone `docker run` below only publishes 5000; add
-`-p 2222:2222` to see the decoy too.
+all. It also binds an FTP decoy on 2121 (answers every login with 530) and
+an HTTP decoy on 8081 (answers 401 to everything). In the lab, ctf-controller
+publishes all four on host ports drawn per student (`CTF_RANDOM_PORT_TARGETS`,
+`Config.random_ports`), so the numbers differ on every box. The standalone
+`docker run` below only publishes 5000; add `-p 2222:2222` (and so on) to
+see the decoys too.
 
 ## Data
 

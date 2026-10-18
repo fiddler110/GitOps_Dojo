@@ -136,6 +136,42 @@ def _decoy_ssh_handler(conn):
         conn.close()
 
 
+def _decoy_ftp_handler(conn):
+    try:
+        conn.sendall(b"220 ProFTPD 1.3.7e Server (Meridian File Transfer) [10.0.0.14]\r\n")
+        while True:
+            line = conn.recv(256)
+            if not line:
+                break
+            verb = line.strip().split(b" ")[0].upper()
+            if verb == b"QUIT":
+                conn.sendall(b"221 Goodbye.\r\n")
+                break
+            if verb == b"USER":
+                conn.sendall(b"331 Password required\r\n")
+            else:
+                conn.sendall(b"530 Login incorrect.\r\n")
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+# A second web listener that looks like an admin console and answers 401 to
+# everything; nothing behind it. With the real port it is two HTTP services
+# to tell apart, which `nmap -sV` and a curl each do.
+def _decoy_http_handler(conn):
+    try:
+        conn.recv(2048)
+        conn.sendall(b"HTTP/1.1 401 Unauthorized\r\nServer: Apache/2.4.58 (Debian)\r\n"
+                     b"WWW-Authenticate: Basic realm=\"Meridian Print Server\"\r\n"
+                     b"Content-Length: 0\r\nConnection: close\r\n\r\n")
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
 def _start_decoy(port, handler):
     def _accept_loop():
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -152,6 +188,8 @@ def _start_decoy(port, handler):
 
 
 _start_decoy(2222, _decoy_ssh_handler)
+_start_decoy(2121, _decoy_ftp_handler)
+_start_decoy(8081, _decoy_http_handler)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), threaded=False)

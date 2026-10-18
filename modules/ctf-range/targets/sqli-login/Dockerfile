@@ -23,7 +23,7 @@ ENV PORT=5000 \
     PYTHONUNBUFFERED=1
 # 2222 is the decoy SSH listener app.py starts alongside the real app (plan
 # §7.3's nmap primer) — see its module-bottom comment. Not a real sshd.
-EXPOSE 5000 2222
+EXPOSE 5000 2222 2121 8081
 
 USER sqli
 WORKDIR /app

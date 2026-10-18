@@ -18,9 +18,11 @@ Open the **Attack Range** card, start `sqli-login`, and note your slot's IP. The
 nmap -sV -p- <your-slot-ip>
 ```
 
-You'll see more than one open port. Only one of them is the portal; `nmap`'s version-detection banner on
-the other tells you it isn't worth your time today (there's nothing behind it to exploit here) -- that's
-the point of scanning before guessing.
+You'll see several open ports, and they are different on every box: nothing here is on a port you could
+have guessed. Read each service banner. Some are decoys with nothing behind them (a file server that
+rejects every login, a second web server that only ever answers `401`); one is the portal you came for.
+Telling them apart is the point of scanning before guessing, and `curl -i http://<your-slot-ip>:<port>/`
+against each web port shows you which one is a login page.
 
 ## 2. Look at the login, not just at it
 

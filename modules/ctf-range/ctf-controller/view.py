@@ -138,11 +138,11 @@ def index_page(cfg, user, is_fac, path):
         ids = list(cfg.attack_targets)
         ips = [cfg.attack_target_ip(student, t) for t in ids]
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            up = list(ex.map(lambda ip: bool(ip) and _live(ip, cfg.container_port), ips))
+            up = list(ex.map(lambda ip, t: bool(ip) and _live(ip, cfg.attack_web_port(student, t)), ips, ids))
         cards = []
         for t, ip, on in zip(ids, ips, up):
             name, blurb = TITLES.get(t, (t, ""))
-            inner = (f'<b>{esc(name)}</b><span>{esc(blurb)}</span><code>{esc(ip)}:{cfg.container_port}</code>'
+            inner = (f'<b>{esc(name)}</b><span>{esc(blurb)}</span><code>{esc(ip) if t in cfg.random_port_targets else esc(ip) + ":" + str(cfg.container_port)}</code>'
                      f'<span class="state">{"Running - open" if on else "Not started"}</span>')
             cards.append(f'<a class="box live" href="{base}{esc(t)}/" target="_blank" rel="noopener">{inner}</a>'
                          if on else f'<div class="box off" aria-disabled="true">{inner}</div>')
@@ -223,9 +223,10 @@ def make_handler(cfg):
             if ck:
                 hdrs["Cookie"] = ck
             hdrs["Accept-Encoding"] = "identity"
-            hdrs["Host"] = f"{ip}:{cfg.container_port}"
+            port = cfg.attack_web_port(student, target)
+            hdrs["Host"] = f"{ip}:{port}"
             try:
-                c = http.client.HTTPConnection(ip, cfg.container_port, timeout=TIMEOUT)
+                c = http.client.HTTPConnection(ip, port, timeout=TIMEOUT)
                 c.request(self.command, rest + ("?" + query if query else ""), body, hdrs)
                 r = c.getresponse()
                 data = r.read(MAX_BODY + 1)

