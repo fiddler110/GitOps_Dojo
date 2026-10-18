@@ -25,6 +25,10 @@ class NotesTest(unittest.TestCase):
         self.assertEqual(text, notes.TEMPLATE)
         self.assertTrue(os.path.isfile(self.path("lab", "notes.md")))
 
+    def test_mtime_is_exact_in_javascript(self):
+        _, m = notes.read_notes("student01", self.root)
+        self.assertLess(m, 2 ** 53)
+
     def test_save_then_read_back(self):
         _, m = notes.read_notes("student01", self.root)
         ok, m2 = notes.write_notes("student01", "creds: a/b\n", m, self.root)

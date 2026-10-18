@@ -103,11 +103,16 @@ def open_notes(user, root=None):
             os.close(f)
 
 
+def _mtime(fd):
+    """Modification time in microseconds: nanoseconds overflow a JavaScript number's exact range."""
+    return os.fstat(fd).st_mtime_ns // 1000
+
+
 def read_notes(user, root=None):
     fd = open_notes(user, root)
     try:
         data = os.pread(fd, MAX_BYTES, 0)
-        return data.decode("utf-8", "replace"), os.fstat(fd).st_mtime_ns
+        return data.decode("utf-8", "replace"), _mtime(fd)
     finally:
         os.close(fd)
 
@@ -124,13 +129,13 @@ def write_notes(user, text, base, root=None):
 def _write(user, data, base, root):
     fd = open_notes(user, root)
     try:
-        now = os.fstat(fd).st_mtime_ns
+        now = _mtime(fd)
         if base is not None and base != now:
             return False, now
         os.ftruncate(fd, 0)
         os.pwrite(fd, data, 0)
         os.fsync(fd)
-        return True, os.fstat(fd).st_mtime_ns
+        return True, _mtime(fd)
     finally:
         os.close(fd)
 
