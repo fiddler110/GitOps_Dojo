@@ -132,6 +132,9 @@ services:
     image: gitopsdojo/allocator:local
     container_name: workshop_runner_token_init
     entrypoint: [ "python3", "-B", "/opt/runner-controller/mint_token.py" ]
+    # The allocator image runs as uid 10001 now; this needs root to own the shared volume.
+    # Rootless, that root is the invoking user, and every capability is dropped below.
+    user: "0:0"
     environment:
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
       - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD}
@@ -160,6 +163,9 @@ services:
     image: gitopsdojo/allocator:local
     container_name: workshop_runner_controller
     entrypoint: [ "python3", "-B", "/opt/runner-controller/controller.py" ]
+    # The allocator image runs as uid 10001 now; this needs root to own the shared volume.
+    # Rootless, that root is the invoking user, and every capability is dropped below.
+    user: "0:0"
     environment:
       # No admin password here (T5.2c): runner-token-init mints a scoped token.
       - FORGEJO_ADMIN_USER=${FORGEJO_ADMIN_USER}
@@ -195,6 +201,10 @@ services:
       interval: 15s
       timeout: 3s
       retries: 3
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     mem_limit: 128m
     restart: unless-stopped
 
