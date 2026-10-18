@@ -1,7 +1,11 @@
 # Lab 1: Staff login portal (`sqli-login`)
 
-By the end of this lab you'll have logged in as `admin` without ever knowing their password, and you'll
-understand why "the password is wrong" is sometimes the wrong thing for a login form to be checking.
+By the end of this lab you'll have logged in as `admin` without ever knowing their password, used what you
+find behind that login to get a shell on the server itself, and you'll understand why "the password is wrong"
+is sometimes the wrong thing for a login form to be checking.
+
+There are two steps, like most real boxes: the **foothold** (getting into the portal) and then the **box**
+(getting onto the machine it runs on).
 
 ---
 
@@ -18,8 +22,8 @@ Open the **Attack Range** card, start `sqli-login`, and note your slot's IP. The
 nmap -sV -p- <your-slot-ip>
 ```
 
-You'll see several open ports, and they are different on every box: nothing here is on a port you could
-have guessed. Read each service banner. Some are decoys with nothing behind them (a file server that
+You'll see several open ports. SSH is on its usual port, but the web and file-transfer ports are different
+on every box: nothing else here is on a port you could have guessed. Read each service banner. Some are decoys with nothing behind them (a file server that
 rejects every login, a second web server that only ever answers `401`); one is the portal you came for.
 Telling them apart is the point of scanning before guessing, and `curl -i http://<your-slot-ip>:<port>/`
 against each web port shows you which one is a login page.
@@ -54,9 +58,25 @@ login form and read from how the response changes.
 > password field says. What boolean expression is always true, and how do you close the username's quote
 > early enough to add it?
 
-## 3. Submit
+## 3. Look behind the login
 
-Once you're logged in as `admin`, the flag is right there on the welcome page.
+Once you're logged in as `admin`, read everything on the page. A real intranet portal holds things staff
+need, and some of them are things an attacker needs too. Write down anything that looks like a way into
+another system.
+
+## 4. Get on the box
+
+The portal runs on a server, and you've already scanned that server. One of its open services takes a
+login, and you've just found a login. Use your terminal's `ssh` client against your slot's IP. Once you're
+in, the shell is a small one: type `help` to see what it understands, and look around the account's home
+directory.
+
+> **Hint.** The account is on the same machine you scanned, so you don't need a new IP. If `ssh` says the
+> host is unreachable or refused, re-read your nmap output for the port SSH is on.
+
+## 5. Submit
+
+The flag is a file in the account's home directory. Read it, then submit it.
 
 ```sh
 dojo flag '<flag>'
@@ -68,7 +88,9 @@ The login built its SQL query by gluing your text straight into the statement, s
 tell your data from the program's own instructions. Input that closes the quote and adds logic became part of
 the query, and the password check simply stopped mattering. The real fix is parameterized queries (prepared
 statements), which send the values separately from the SQL, plus least-privilege database accounts and
-hashed passwords so a slip does less damage. This is **OWASP A03:2021 Injection**.
+hashed passwords so a slip does less damage. The second half is a different lesson: a credential left
+in an internal page turned one web bug into a shell on the server, which is why secrets don't belong in
+intranet notes. This is **OWASP A03:2021 Injection**.
 
 Reflect: input validation or escaping at the form would also have helped, but why is parameterization the
 more dependable defense? Where else in your own stack does user text end up inside a command or query?

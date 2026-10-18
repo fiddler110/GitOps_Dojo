@@ -578,8 +578,9 @@ class TestRandomPorts(unittest.TestCase):
         for n in range(60):
             p = cfg.random_ports(f"student{n:02d}", "sqli-login")
             self.assertEqual(len(set(p.values())), 4)
+            self.assertEqual(p["ssh"], 22)
             self.assertTrue(8000 <= p["web"] <= 8999 and 8000 <= p["alt"] <= 8999)
-            self.assertTrue(2200 <= p["ssh"] <= 2299 and 2100 <= p["ftp"] <= 2199)
+            self.assertTrue(2100 <= p["ftp"] <= 2199)
 
     def test_publish_list_maps_container_ports(self):
         cfg = self.cfg()

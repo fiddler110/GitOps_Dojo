@@ -1,9 +1,10 @@
 """sqli-login — CTF target 0 (plan docs/CTF-WORKSHOP-PLAN.md §7.3, CTF-1
 "Access and identity"). The warm-up: a login form whose query is built by
 plain string formatting, so the classic auth-bypass payload
-(`' OR '1'='1' -- `) logs in as `admin` without knowing the password. Single
-flag, shown right on the welcome page — no second stage (the ladder's row for
-this target: "none; single flag shown in the page").
+(`' OR '1'='1' -- `) logs in as `admin` without knowing the password.
+Two stages, like a HackTheBox box: the login bypass is the foothold; behind
+it the portal shows IT notes with a service account, which logs into the box
+over SSH (sshshell.py, an emulated shell) where flag.txt holds the flag.
 
 Env:
   CTF_FLAG      this slot's flag value (rendered by ctf-controller's
@@ -22,6 +23,7 @@ import socket
 import sqlite3
 import threading
 
+import sshshell
 from flask import Flask, Response, render_template_string, request
 
 app = Flask(__name__)
@@ -39,6 +41,10 @@ _DB.execute("CREATE TABLE users (username TEXT NOT NULL, password TEXT NOT NULL)
 _DB.execute("INSERT INTO users VALUES (?, ?)", ("admin", os.urandom(16).hex()))
 _DB.execute("INSERT INTO users VALUES (?, ?)", (STUDENT, "changeme123"))
 _DB.commit()
+
+# The service account the portal's IT notes reveal; it logs into the box over SSH.
+SSH_USER = "svc-print"
+SSH_PASSWORD = "Print-" + os.urandom(4).hex()
 
 PAGE = """
 <!doctype html>
@@ -58,7 +64,10 @@ PAGE = """
 <h1>Internal Portal</h1>
 <p class="sub">Sign in with your employee account.</p>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
-{% if welcome %}<p class="ok">Welcome, {{ welcome }}! {{ flag }}</p>{% endif %}
+{% if welcome %}<p class="ok">Welcome, {{ welcome }}.</p>
+<div class="note"><b>IT notes: print server</b>
+<p>Host account for the print queue server. Shell access is enabled; rotate quarterly.</p>
+<p>Username: <code>{{ ssh_user }}</code><br>Password: <code>{{ ssh_password }}</code></p></div>{% endif %}
 <form method="post" action="/login">
   <label>Username <input name="username" autocomplete="off" placeholder="firstname.lastname"></label>
   <label>Password <input id="pw" name="password" type="password" autocomplete="off" spellcheck="false"></label>
@@ -97,6 +106,7 @@ button{margin-top:1.2rem;width:100%;padding:.7rem;border:0;border-radius:8px;bac
 button:hover{background:#1e40af}
 .err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem}
 .ok{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:.6rem .7rem;word-break:break-all}
+.note{margin-top:.8rem;border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;background:#f8fafc;font-size:.9rem}.note p{margin:.3rem 0}.note code{background:#e8efff;padding:.05rem .35rem;border-radius:4px;word-break:break-all}
 footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:1.4rem}
 @media (max-width:640px){.shell{flex-direction:column}.brandpanel{padding:1.4rem}.facts{display:none}}
 """
@@ -124,7 +134,7 @@ def show_js():
 
 @app.get("/")
 def index():
-    return render_template_string(PAGE, error=None, welcome=None, flag=None)
+    return render_template_string(PAGE, error=None, welcome=None)
 
 
 @app.post("/login")
@@ -146,29 +156,16 @@ def login():
     except sqlite3.Error:
         row = None
     if row:
-        return render_template_string(PAGE, error=None, welcome=row[0], flag=FLAG)
-    return render_template_string(PAGE, error="Invalid credentials", welcome=None, flag=None)
+        return render_template_string(PAGE, error=None, welcome=row[0], ssh_user=SSH_USER, ssh_password=SSH_PASSWORD)
+    return render_template_string(PAGE, error="Invalid credentials", welcome=None)
 
 
 # -- Decoy listener (plan §7.3's nmap primer: a student scans their box and
 # finds more than the one port they'll actually use, same as a HackTheBox
 # box) -----------------------------------------------------------------
-# NOT a real sshd: every slot container drops every Linux capability and
-# runs read-only as a non-root user (docker_api.py's build_create_request()),
-# which makes a genuine sshd impossible here at all (host keys, privilege
-# separation and setuid-per-connection all need root). This speaks just
-# enough of the real SSH-2.0 handshake to fingerprint correctly under
-# `nmap -sV`, then closes — there is no key exchange and no account behind
-# it. ctf-controller's AttackManager always reserves this port
-# (DECOY_SSH_CONTAINER_PORT); it has nothing to do with this target's bug.
-def _decoy_ssh_handler(conn):
-    try:
-        conn.sendall(b"SSH-2.0-OpenSSH_9.7p1 Debian-7\r\n")
-        conn.recv(256)
-    except OSError:
-        pass
-    finally:
-        conn.close()
+# The SSH service on 2222 (the host publishes it as 22) is the second stage:
+# a real SSH server with an emulated shell, see sshshell.py. The service
+# account's password is shown only on the portal page behind the login.
 
 
 def _decoy_ftp_handler(conn):
@@ -222,7 +219,7 @@ def _start_decoy(port, handler):
     threading.Thread(target=_accept_loop, daemon=True).start()
 
 
-_start_decoy(2222, _decoy_ssh_handler)
+sshshell.start(2222, SSH_USER, SSH_PASSWORD, FLAG, FLAG)
 _start_decoy(2121, _decoy_ftp_handler)
 _start_decoy(8081, _decoy_http_handler)
 

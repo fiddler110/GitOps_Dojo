@@ -63,7 +63,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS sqli-login
 COPY targets/sqli-login/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
-COPY targets/sqli-login/app.py /app/app.py
+COPY targets/sqli-login/app.py targets/sqli-login/sshshell.py /app/
 COPY targets/sqli-login/assets/ /app/assets/
 RUN useradd --uid 10015 --no-create-home --home-dir /app --shell /usr/sbin/nologin sqli
 
