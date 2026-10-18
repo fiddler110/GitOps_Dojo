@@ -66,6 +66,7 @@
     wrap.appendChild(head);
     var grid = el("div", "attack-range-grid");
     wrap.appendChild(grid);
+    wrap.appendChild(flagForm());
     cards.appendChild(wrap);
     return grid;
   }
@@ -137,6 +138,47 @@
       svg.appendChild(p);
     });
     return svg;
+  }
+
+  // "Found a flag?" box under the cards. The flag names its own challenge
+  // (flag{<target>-<hex>}), so a student pastes it and nothing else. The same
+  // submission is `dojo flag '<flag>'` in the terminal.
+  function flagForm() {
+    var form = el("form", "attack-flag");
+    form.appendChild(el("span", "attack-flag-title", "Found a flag?"));
+    var row = el("div", "attack-flag-row");
+    var input = el("input", "attack-flag-input");
+    input.type = "text";
+    input.name = "flag";
+    input.placeholder = "flag{...}";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.maxLength = 200;
+    var submit = el("button", "attack-btn", "Submit flag");
+    submit.type = "submit";
+    row.appendChild(input);
+    row.appendChild(submit);
+    form.appendChild(row);
+    var result = el("span", "attack-flag-result");
+    result.setAttribute("role", "status");
+    form.appendChild(result);
+    form.appendChild(el("span", "attack-flag-hint",
+      "Paste the whole flag, braces included. From a terminal: dojo flag 'flag{...}'. Each flag is yours alone."));
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var value = input.value.trim();
+      if (!value) return;
+      submit.disabled = true;
+      post("/ctf-attack/attack/flag", { flag: value }).then(function (doc) {
+        result.textContent = doc.message || "No answer from the flag service.";
+        result.className = "attack-flag-result " + (doc.ok ? "ok" : "bad");
+        if (doc.ok) input.value = "";
+      }).catch(function () {
+        result.textContent = "Could not reach the flag service.";
+        result.className = "attack-flag-result bad";
+      }).then(function () { submit.disabled = false; });
+    });
+    return form;
   }
 
   var busy = false;

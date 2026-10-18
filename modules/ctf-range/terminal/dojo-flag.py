@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
-# dojo-summary: submit a flag you found: dojo flag submit <challenge> <flag>
+# dojo-summary: submit a flag you found: dojo flag 'flag{...}'
 """dojo flag: submit a CTF flag (plan §5).
 
-    dojo flag submit <challenge> <flag>
+    dojo flag 'flag{...}'
+
+The flag names its own challenge (flag{<challenge>-<hex>}), so the flag is all
+you need. The older `dojo flag submit <challenge> <flag>` still works.
 
 Talks to the ctf-flags service on workshop_lab, over the account's own uid
 (ctf-flags trusts `user` only as far as crediting that account's own
 achievements - see ctf-flags/service.py's header). A wrong flag never raises;
 it just says so.
 """
-import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
 
 CTF_FLAGS_URL = os.environ.get("CTF_FLAGS_ADDR", "http://ctf-flags:8080")
+
+
+FLAG_RE = re.compile(r"^flag\{([a-z0-9][a-z0-9-]*?)-(?:[0-9a-f]{16}|dev-.+)\}$")
+USAGE = "usage: dojo flag 'flag{...}'   (quote it; paste the whole flag, braces included)"
 
 
 def submit(challenge, flag):
@@ -41,13 +48,25 @@ def submit(challenge, flag):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("submit", help="submit a flag for a challenge")
-    s.add_argument("challenge")
-    s.add_argument("flag")
-    args = ap.parse_args()
-    sys.exit(submit(args.challenge, args.flag))
+    args = sys.argv[1:]
+    if args[:1] == ["submit"]:
+        args = args[1:]
+    if args in ([], ["-h"], ["--help"]):
+        print(__doc__.strip())
+        sys.exit(0 if args else 2)
+    if len(args) == 1:
+        flag = args[0].strip()
+        m = FLAG_RE.match(flag)
+        if not m:
+            print(f"dojo flag: that doesn't look like a flag.\n{USAGE}", file=sys.stderr)
+            sys.exit(2)
+        challenge = m.group(1)
+    elif len(args) == 2:
+        challenge, flag = args
+    else:
+        print(USAGE, file=sys.stderr)
+        sys.exit(2)
+    sys.exit(submit(challenge, flag))
 
 
 if __name__ == "__main__":

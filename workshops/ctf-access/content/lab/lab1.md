@@ -59,7 +59,7 @@ login form and read from how the response changes.
 Once you're logged in as `admin`, the flag is right there on the welcome page.
 
 ```sh
-dojo-flag submit sqli-login '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

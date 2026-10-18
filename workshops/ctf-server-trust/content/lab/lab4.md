@@ -57,7 +57,7 @@ A route can get the first answer right and never ask the second.
 ## 3. Submit
 
 ```sh
-dojo-flag submit api-bfla '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

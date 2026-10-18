@@ -41,6 +41,8 @@ import socketserver
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -183,6 +185,34 @@ def _int_env(env, key, default):
         return default
 
 
+FLAG_RE = re.compile(r"^flag\{([a-z0-9][a-z0-9-]*?)-(?:[0-9a-f]{16}|dev-.+)\}$")
+
+
+def flag_challenge(flag):
+    """The challenge id a flag belongs to (flag{<challenge>-<hex>}), or None."""
+    m = FLAG_RE.match(flag.strip())
+    return m.group(1) if m else None
+
+
+def submit_flag(cfg, user, flag):
+    """Hand a pasted flag to ctf-flags as `user`. Returns (ok, message)."""
+    flag = flag.strip()
+    challenge = flag_challenge(flag)
+    if not challenge:
+        return False, "That doesn't look like a flag. A flag looks like flag{...}: copy the whole thing."
+    body = json.dumps({"user": user, "challenge": challenge, "flag": flag}).encode()
+    req = urllib.request.Request(cfg.flags_url + "/submit", data=body, method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            doc = json.load(resp)
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return False, "Could not reach the flag service. Try again in a moment."
+    if doc.get("ok"):
+        return True, f"Correct! {challenge} is solved."
+    return False, "That's not the right flag. Flags are personal: check you copied yours in full."
+
+
 class Config:
     def __init__(self, env=os.environ):
         self._env = env
@@ -228,6 +258,7 @@ class Config:
         # their ports anyway; the seed only keeps them stable across Reset/restart.
         self.random_port_targets = set(env.get("CTF_RANDOM_PORT_TARGETS", "").split())
         self.port_seed = env.get("CTF_PORT_SEED", "") or "ctf-ports"
+        self.flags_url = env.get("CTF_FLAGS_ADDR", "http://ctf-flags:8080").rstrip("/")
         self.attack_port_base = int(env.get("CTF_ATTACK_PORT_BASE", "") or ATTACK_PORT_BASE)
         self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
         self.attack_idle_seconds = int(env.get("CTF_ATTACK_IDLE_SECONDS", "") or ATTACK_IDLE_SECONDS)
@@ -879,6 +910,14 @@ def make_handler(ctl, atk):
                 if path == "/attack/reset":
                     ok, msg = atk.reset(user)
                     self._json(200 if ok else 409, {"ok": ok, "message": msg})
+                    return
+                if path == "/attack/flag":
+                    flag = body.get("flag")
+                    if not isinstance(flag, str) or not 0 < len(flag) <= 200:
+                        self._json(400, {"ok": False, "message": "Paste the flag you found."})
+                        return
+                    ok, msg = submit_flag(ctl.cfg, user, flag)
+                    self._json(200, {"ok": ok, "message": msg})
                     return
                 self._json(404, {"error": "not found"})
                 return

@@ -51,7 +51,7 @@ reach.
 Once the preview feature fetches the internal admin endpoint for you, the flag is in what it hands back.
 
 ```sh
-dojo-flag submit ssrf-fetcher '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

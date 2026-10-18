@@ -50,7 +50,7 @@ you a token. There's a second endpoint on this same app, `/escalate`, that wants
 Once `/escalate` accepts your token, the flag is in its response.
 
 ```sh
-dojo-flag submit ping-tool '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

@@ -49,7 +49,7 @@ on, and whether every one of those inputs is already public.
 Once you've reset `ops-admin`'s password and logged in, the flag is on their landing page.
 
 ```sh
-dojo-flag submit weak-auth-portal '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

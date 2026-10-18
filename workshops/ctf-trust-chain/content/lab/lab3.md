@@ -53,7 +53,7 @@ that's the finding, not a bug -- read `modules/runner-pool/README.md` for why.
 Once you have the flag out of the job and somewhere you can read it:
 
 ```sh
-dojo-flag submit runner-escape '<flag>'
+dojo flag '<flag>'
 ```
 
 ## 4. Debrief

@@ -98,6 +98,24 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.host_port("student02"), c.HOST_PORT_BASE + 1)
 
 
+class TestFlagSubmit(unittest.TestCase):
+    def test_challenge_comes_from_the_flag(self):
+        self.assertEqual(c.flag_challenge("flag{sqli-login-0123456789abcdef}"), "sqli-login")
+        self.assertEqual(c.flag_challenge(" flag{dns-resolver-cve-token-0123456789abcdef} "),
+                         "dns-resolver-cve-token")
+        self.assertEqual(c.flag_challenge("flag{idor-pcap-dev-student01}"), "idor-pcap")
+
+    def test_not_a_flag(self):
+        for bad in ("", "sqli-login", "flag{}", "flag{sqli-login-xyz}", "flag{sqli-login-0123}"):
+            self.assertIsNone(c.flag_challenge(bad), bad)
+
+    def test_malformed_flag_never_reaches_the_service(self):
+        cfg = c.Config({"CTF_FLAGS_ADDR": "http://127.0.0.1:1"})
+        ok, msg = c.submit_flag(cfg, "student01", "nope")
+        self.assertFalse(ok)
+        self.assertIn("flag{", msg)
+
+
 class TestReconcile(unittest.TestCase):
     def test_creates_one_slot_per_student(self):
         ctl, cfg, ex = make_controller(count=2)

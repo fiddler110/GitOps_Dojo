@@ -49,10 +49,10 @@ The same files are in the browser too: the Labs tab, or the Slides hub's "Labs" 
 ## Submitting a flag
 
 ```sh
-dojo-flag submit <target-id> '<flag>'
+dojo flag '<flag>'
 ```
 
-`<target-id>` is the short name on the Attack Range card for the target (`dns-resolver-cve`,
+The flag names its own target, so there is nothing else to type. You can also paste it into the **Found a flag?** box on your landing page. Target names are the short names on the Attack Range card for the target (`dns-resolver-cve`,
 `policy-bypass`) -- but `dns-resolver-cve` hands you **two separate flags**, each with its own id to
 submit: `dns-resolver-cve-token` for the captured credential, then `dns-resolver-cve` for the replay. A
 wrong flag just tells you to keep looking -- it never costs you anything.

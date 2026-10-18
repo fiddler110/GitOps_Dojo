@@ -49,7 +49,7 @@ Once you've reused the leaked credential to reach the admin area, the flag -- an
 privilege-escalation step this target's shape can't fully demonstrate -- is right there.
 
 ```sh
-dojo-flag submit idor-pcap '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief
