@@ -13,7 +13,7 @@ def cfg():
 class ResolveTest(unittest.TestCase):
     def test_student_own(self):
         self.assertEqual(view.resolve(cfg(), "student02", False, "/b/login"),
-                         ("student02", "b", "/ctf-view/b", "/login", False))
+                         ("student02", "b", "/ctf-view/b", "/login", False, None))
 
     def test_redirect_needs_slash(self):
         self.assertTrue(view.resolve(cfg(), "student01", False, "/a")[4])
@@ -89,3 +89,22 @@ class IndexTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PortTest(unittest.TestCase):
+    def test_port_suffix_is_parsed(self):
+        r = view.resolve(cfg(), "student01", False, "/a:8514/login")
+        self.assertEqual((r[1], r[2], r[3], r[5]), ("a", "/ctf-view/a:8514", "/login", 8514))
+
+    def test_no_port_is_none(self):
+        self.assertIsNone(view.resolve(cfg(), "student01", False, "/a/")[5])
+
+    def test_bad_port_refused(self):
+        for bad in ("/a:0/", "/a:70000/", "/a:x/"):
+            self.assertIsNone(view.resolve(cfg(), "student01", False, bad)[0], bad)
+
+
+class IndexTest(unittest.TestCase):
+    def test_index_csp_allows_its_own_form_only(self):
+        self.assertIn("form-action 'self'", view.INDEX_CSP["Content-Security-Policy"])
+        self.assertNotIn("form-action 'none'", view.INDEX_CSP["Content-Security-Policy"])

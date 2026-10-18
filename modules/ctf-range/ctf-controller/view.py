@@ -58,21 +58,32 @@ SANDBOX = {"Content-Security-Policy": ("default-src 'self' data:; script-src 'se
            "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"}
 
 
+# The picker page has the one form (a box's port field), which opens the proxied page.
+INDEX_CSP = {"Content-Security-Policy": dojo_http.CSP.replace("form-action 'none'", "form-action 'self'")}
+
+
 def resolve(cfg, user, is_fac, path):
-    """(student, target, prefix, rest, needs_slash) for a request path, or
-    (None, error, "", "", False)."""
+    """(student, target, prefix, rest, needs_slash, port) for a request path, or
+    (None, error, "", "", False, None). A target may be written <target>:<port>
+    (the port the student found with nmap); port is None when it wasn't."""
     parts = path.strip("/").split("/") if path.strip("/") else [""]
     student, seg = user, ""
     if parts[0] in cfg.index:
         student, seg, parts = parts[0], parts[0] + "/", parts[1:] or [""]
         if student != user and not is_fac:
-            return None, "not your target", "", "", False
+            return None, "not your target", "", "", False, None
     if student == user and is_fac:
-        return None, "facilitator: use /ctf-view/<student>/<target>/", "", "", False
-    if parts[0] not in cfg.attack_targets:
-        return None, "unknown target", "", "", False
+        return None, "facilitator: use /ctf-view/<student>/<target>/", "", "", False, None
+    name, _, num = parts[0].partition(":")
+    if name not in cfg.attack_targets:
+        return None, "unknown target", "", "", False, None
+    port = None
+    if num:
+        if not (num.isdigit() and 1 <= int(num) <= 65535):
+            return None, "bad port", "", "", False, None
+        port = int(num)
     prefix = "/ctf-view/" + seg + parts[0]
-    return student, parts[0], prefix, "/" + "/".join(parts[1:]), len(parts) == 1 and not path.endswith("/")
+    return student, name, prefix, "/" + "/".join(parts[1:]), len(parts) == 1 and not path.endswith("/"), port
 
 
 # Friendly names for the picker (presentation only; unknown ids fall back to the id).
@@ -105,6 +116,8 @@ h1{font-size:1.2rem;margin:0 0 .3rem}.hint{color:var(--mute);margin:0 0 1rem;fon
 .state{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase}
 a.live{border-color:var(--live);box-shadow:0 0 0 1px var(--live) inset}a.live:hover{background:color-mix(in srgb,var(--live) 8%,var(--card))}
 a.live .state{color:var(--live);font-weight:700}
+div.live .state{color:var(--live);font-weight:700}
+form input{width:6rem}
 div.off{opacity:.5;cursor:not-allowed;filter:grayscale(1)}
 ul.names{columns:3;list-style:none;padding:0}ul.names a{color:var(--acc)}
 """
@@ -142,15 +155,25 @@ def index_page(cfg, user, is_fac, path):
         cards = []
         for t, ip, on in zip(ids, ips, up):
             name, blurb = TITLES.get(t, (t, ""))
-            inner = (f'<b>{esc(name)}</b><span>{esc(blurb)}</span><code>{esc(ip) if t in cfg.random_port_targets else esc(ip) + ":" + str(cfg.container_port)}</code>'
+            rnd = t in cfg.random_port_targets
+            inner = (f'<b>{esc(name)}</b><span>{esc(blurb)}</span><code>{esc(ip) if rnd else esc(ip) + ":" + str(cfg.container_port)}</code>'
                      f'<span class="state">{"Running - open" if on else "Not started"}</span>')
-            cards.append(f'<a class="box live" href="{base}{esc(t)}/" target="_blank" rel="noopener">{inner}</a>'
-                         if on else f'<div class="box off" aria-disabled="true">{inner}</div>')
+            if rnd and on:
+                form = (f'<form method="get" action="{base}{esc(t)}/" target="_blank"><label>Port '
+                        '<input name="port" type="number" min="1" max="65535" required></label> '
+                        '<button type="submit">Open</button></form>')
+                cards.append(f'<div class="box live">{inner}{form}</div>')
+            elif on:
+                cards.append(f'<a class="box live" href="{base}{esc(t)}/" target="_blank" rel="noopener">{inner}</a>')
+            else:
+                cards.append(f'<div class="box off" aria-disabled="true">{inner}</div>')
         title = "Target Viewer" + (f" - {esc(student)}" if seg else "")
         hint = ("Open the web page of a box that is running. Start one on the "
-                '<a href="/ctf-attack/">Attack Range</a> page; this list refreshes by itself.')
+                '<a href="/ctf-attack/">Attack Range</a> page; this list refreshes by itself. '
+                "A box with several services asks for the port you found with nmap.")
         body = f'<p class="hint">{hint}</p><div class="grid">{"".join(cards)}</div>'
-        refresh = '<meta http-equiv="refresh" content="8">'
+        # A refresh would wipe a port someone is typing, so it stops once a port field is on the page.
+        refresh = '' if '<form' in body else '<meta http-equiv="refresh" content="8">'
     page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">' + refresh +
             f'<title>{title}</title><link rel="stylesheet" href="/ctf-view/ui.css"></head>'
@@ -201,10 +224,24 @@ def make_handler(cfg):
                 return dojo_http.send(self, 200, UI_CSS.encode(), "text/css; charset=utf-8")
             page = index_page(cfg, user, is_fac, path)
             if page is not None:
-                return dojo_http.send(self, 200, page, "text/html; charset=utf-8")
-            student, target, prefix, rest, slash = resolve(cfg, user, is_fac, path)
+                return dojo_http.send(self, 200, page, "text/html; charset=utf-8", INDEX_CSP)
+            student, target, prefix, rest, slash, port = resolve(cfg, user, is_fac, path)
             if student is None:
                 return self._text(404, target)
+            if target in cfg.random_port_targets:
+                # The box runs several services on ports the student must find; the
+                # viewer never guesses which is the web app. ?port=N picks one.
+                if port is None:
+                    asked = dict(q.split("=", 1) for q in query.split("&") if "=" in q).get("port", "")
+                    if not (asked.isdigit() and 1 <= int(asked) <= 65535):
+                        return self._text(404, "this box has several services: enter a port on the Target Viewer page")
+                    self.send_response(302)
+                    self.send_header("Location", f"{prefix}:{int(asked)}/")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+            else:
+                port = cfg.container_port
             if slash:
                 self.send_response(302)
                 self.send_header("Location", prefix + "/" + ("?" + query if query else ""))
@@ -223,7 +260,6 @@ def make_handler(cfg):
             if ck:
                 hdrs["Cookie"] = ck
             hdrs["Accept-Encoding"] = "identity"
-            port = cfg.attack_web_port(student, target)
             hdrs["Host"] = f"{ip}:{port}"
             try:
                 c = http.client.HTTPConnection(ip, port, timeout=TIMEOUT)
