@@ -45,7 +45,7 @@ PAGE = """
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Employee Sign-in &middot; Meridian Intranet</title>
-<link rel="stylesheet" href="/assets/theme.css"></head>
+<link rel="stylesheet" href="/assets/theme.css"><script src="/assets/show.js" defer></script></head>
 <body>
 <header><span class="logo">M</span><span class="brand">Meridian Corp Intranet</span></header>
 <main>
@@ -55,7 +55,8 @@ PAGE = """
 {% if welcome %}<p class="ok">Welcome, {{ welcome }}! {{ flag }}</p>{% endif %}
 <form method="post" action="/login">
   <label>Username <input name="username" autocomplete="off"></label>
-  <label>Password <input name="password" type="text" autocomplete="off" spellcheck="false"></label>
+  <label>Password <input id="pw" name="password" type="password" autocomplete="off" spellcheck="false"></label>
+  <label class="show"><input id="show" type="checkbox"> Show password</label>
   <button type="submit">Log in</button>
 </form>
 <footer>Authorized personnel only. Activity is logged.</footer>
@@ -72,6 +73,7 @@ header{background:linear-gradient(90deg,#0f2a5c,#1d4ed8);color:#fff;padding:.9re
 .logo{background:#fff;color:#1d4ed8;font-weight:800;border-radius:6px;padding:.1rem .5rem}.brand{font-weight:600;letter-spacing:.02em}
 main{max-width:380px;margin:3rem auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem;box-shadow:0 8px 30px #0f2a5c14}
 h1{margin:0 0 .3rem;font-size:1.4rem}.sub{color:var(--mute);margin:0 0 1.2rem}
+label.show{font-weight:400;display:flex;gap:.4rem;align-items:center}
 label{display:block;font-weight:600;font-size:.85rem;margin:.8rem 0 .25rem}
 input{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit}
 input:focus{outline:2px solid #93b4ff;border-color:var(--acc)}
@@ -85,6 +87,13 @@ footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:1.2rem}
 @app.get("/assets/theme.css")
 def theme_css():
     return Response(_CSS, mimetype="text/css")
+
+
+@app.get("/assets/show.js")
+def show_js():
+    return Response('document.getElementById("show").addEventListener("change", function (e) {\n'
+                    '  document.getElementById("pw").type = e.target.checked ? "text" : "password";\n});\n',
+                    mimetype="text/javascript")
 
 
 @app.get("/")
