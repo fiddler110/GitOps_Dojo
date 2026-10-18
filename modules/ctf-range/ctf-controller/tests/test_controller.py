@@ -98,6 +98,19 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.host_port("student02"), c.HOST_PORT_BASE + 1)
 
 
+class TestOnlyTargets(unittest.TestCase):
+    BASE = {"CTF_ATTACK_TARGETS": "a=img-a:1,b=img-b:1,c=img-c:1"}
+
+    def test_default_keeps_the_catalog(self):
+        self.assertEqual(list(c.Config(self.BASE).attack_targets), ["a", "b", "c"])
+
+    def test_narrowed_to_listed_ids(self):
+        cfg = c.Config(dict(self.BASE, CTF_ONLY_TARGETS="b"))
+        self.assertEqual(cfg.attack_targets, {"b": "img-b:1"})
+        cfg = c.Config(dict(self.BASE, CTF_ONLY_TARGETS="c, a"))
+        self.assertEqual(list(cfg.attack_targets), ["a", "c"])
+
+
 class TestFlagSubmit(unittest.TestCase):
     def test_challenge_comes_from_the_flag(self):
         self.assertEqual(c.flag_challenge("flag{sqli-login-0123456789abcdef}"), "sqli-login")

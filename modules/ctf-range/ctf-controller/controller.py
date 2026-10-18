@@ -255,6 +255,12 @@ class Config:
         self.wall_enabled = env.get("CTF_WALL_OF_SHAME", "off").strip().lower() in ("on", "1", "true", "yes")
         self.wall_age_off = _int_env(env, "CTF_WALL_AGE_OFF_SECONDS", 300)
         self.attack_targets = parse_targets(env.get("CTF_ATTACK_TARGETS", ""))
+        # CTF_ONLY_TARGETS narrows the catalog to a few ids (space or comma
+        # separated) so a lab can be run with just one box: the cards, the
+        # per-box IPs and the viewer all follow this dict.
+        only = env.get("CTF_ONLY_TARGETS", "").replace(",", " ").split()
+        if only:
+            self.attack_targets = {t: i for t, i in self.attack_targets.items() if t in only}
         # Targets whose host-side ports are drawn per (student, target) instead of
         # sitting on 5000/2222/2121. Not a secret: a student's own scan finds
         # their ports anyway; the seed only keeps them stable across Reset/restart.
