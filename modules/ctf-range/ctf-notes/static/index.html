@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes</title>
+<link rel="stylesheet" href="notes.css">
+</head>
+<body>
+<header>
+  <h1>Notes</h1>
+  <span class="path">~/lab/notes.md</span>
+  <span id="status" role="status"></span>
+  <button id="save" type="button">Save</button>
+</header>
+<p class="hint">This is the same file as <code>~/lab/notes.md</code> in your terminal, so you can edit it in either place.
+Write down scan results, accounts you find and ideas. It saves as you type.</p>
+<div id="banner" class="banner" hidden>
+  <span id="banner-text"></span>
+  <button id="take-theirs" type="button">Load the terminal version</button>
+  <button id="keep-mine" type="button">Keep mine</button>
+</div>
+<textarea id="text" spellcheck="false" autocomplete="off" aria-label="Lab notes"></textarea>
+<script src="notes.js"></script>
+</body>
+</html>

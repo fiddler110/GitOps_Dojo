@@ -16,6 +16,9 @@ password, a submit button -- fronting whatever's behind it. Nobody's touched the
 
 ## 1. Start the target and scan it
 
+Keep a notebook as you go: the **Notes** card on your landing page opens `~/lab/notes.md`, the same file you can
+`cat` or edit in your terminal. Write down your slot's IP, what the scan shows, and every account you find.
+
 Open the **Attack Range** card, start `sqli-login`, and note your slot's IP. Then:
 
 ```sh

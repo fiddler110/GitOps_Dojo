@@ -411,6 +411,42 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # ctf-notes: the Notes page (/ctf-notes/, identity gate), a browser editor for
+  # ~/lab/notes.md in a student's terminal home. It mounts the terminal_home
+  # volume read-write, so it is the one service here that touches student
+  # files: it runs as root inside the container with only DAC_OVERRIDE (open a
+  # 0700 home) and CHOWN (give a new file to its owner), and notes.py walks
+  # every path with O_NOFOLLOW and ownership checks. Reachable only through
+  # the gateway (it checks X-Gateway-Token itself).
+  ctf-notes:
+    build:
+      context: ../modules/ctf-range/ctf-notes
+    image: gitopsdojo/ctf-notes:${WORKSHOP_SLUG:-local}
+    container_name: workshop_ctf_notes
+    environment:
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_NOTES:-}
+    volumes:
+      - terminal_home:/home
+    networks:
+      - workshop_lab
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CTF_NOTES_MEM_LIMIT:-64m}
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9300/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
   # ctf-flags: the flag submission service (plan §5). Reachable directly by
   # every student's terminal on workshop_lab (no gateway hop — the terminal
   # is already the identified side of that trust boundary, see CLAUDE.md);
