@@ -55,7 +55,7 @@ PAGE = """
 {% if welcome %}<p class="ok">Welcome, {{ welcome }}! {{ flag }}</p>{% endif %}
 <form method="post" action="/login">
   <label>Username <input name="username" autocomplete="off"></label>
-  <label>Password <input name="password" type="password"></label>
+  <label>Password <input name="password" type="text" autocomplete="off" spellcheck="false"></label>
   <button type="submit">Log in</button>
 </form>
 <footer>Authorized personnel only. Activity is logged.</footer>
