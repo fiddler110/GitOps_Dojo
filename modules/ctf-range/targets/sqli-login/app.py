@@ -47,46 +47,79 @@ PAGE = """
 <title>Employee Sign-in &middot; Meridian Intranet</title>
 <link rel="stylesheet" href="/assets/theme.css"><script src="/assets/show.js" defer></script></head>
 <body>
-<header><span class="logo">M</span><span class="brand">Meridian Corp Intranet</span></header>
+<div class="shell">
+<aside class="brandpanel">
+  <img class="mark" src="/assets/logo.svg" alt="Meridian Corp" width="84" height="84">
+  <div class="name">Meridian<span>Corp</span></div>
+  <p class="tag">One network. Every office. Always on.</p>
+  <ul class="facts"><li>Employee directory</li><li>Payroll and benefits</li><li>IT service desk</li></ul>
+</aside>
 <main>
 <h1>Internal Portal</h1>
 <p class="sub">Sign in with your employee account.</p>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
 {% if welcome %}<p class="ok">Welcome, {{ welcome }}! {{ flag }}</p>{% endif %}
 <form method="post" action="/login">
-  <label>Username <input name="username" autocomplete="off"></label>
+  <label>Username <input name="username" autocomplete="off" placeholder="firstname.lastname"></label>
   <label>Password <input id="pw" name="password" type="password" autocomplete="off" spellcheck="false"></label>
   <label class="show"><input id="show" type="checkbox"> Show password</label>
   <button type="submit">Log in</button>
 </form>
 <footer>Authorized personnel only. Activity is logged.</footer>
 </main>
+</div>
 </body>
 </html>
 """
 
 
 _CSS = """
-:root{--bg:#eef2f7;--card:#fff;--ink:#1e293b;--mute:#64748b;--acc:#1d4ed8;--line:#d7dee9}
-*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
-header{background:linear-gradient(90deg,#0f2a5c,#1d4ed8);color:#fff;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.7rem}
-.logo{background:#fff;color:#1d4ed8;font-weight:800;border-radius:6px;padding:.1rem .5rem}.brand{font-weight:600;letter-spacing:.02em}
-main{max-width:380px;margin:3rem auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem;box-shadow:0 8px 30px #0f2a5c14}
-h1{margin:0 0 .3rem;font-size:1.4rem}.sub{color:var(--mute);margin:0 0 1.2rem}
+:root{--bg:#0b1b3a;--card:#fff;--ink:#1e293b;--mute:#64748b;--acc:#1d4ed8;--line:#d7dee9}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font:15px/1.5 system-ui,Segoe UI,sans-serif;color:var(--ink);display:flex;align-items:center;justify-content:center;
+background:radial-gradient(circle at 20% 15%,#1d4ed8 0,#0f2a5c 38%,#0b1b3a 80%);padding:1.5rem}
+.shell{display:flex;width:100%;max-width:820px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px #0008}
+.brandpanel{flex:1 1 44%;padding:2.4rem 2rem;color:#e8efff;background:linear-gradient(160deg,#0f2a5c,#1740a8);display:flex;flex-direction:column;gap:.6rem}
+.mark{display:block}
+.name{font-size:1.7rem;font-weight:700;letter-spacing:.01em}.name span{font-weight:300;margin-left:.35rem;color:#9db8ff}
+.tag{margin:0;color:#b8cbff}
+.facts{list-style:none;margin:1.4rem 0 0;padding:0;color:#c9d8ff;font-size:.9rem}
+.facts li{padding:.25rem 0 .25rem 1.1rem;position:relative}
+.facts li:before{content:"";position:absolute;left:0;top:.8rem;width:6px;height:6px;border-radius:50%;background:#6f9bff}
+main{flex:1 1 56%;background:var(--card);padding:2.4rem 2rem}
+h1{margin:0 0 .3rem;font-size:1.5rem}.sub{color:var(--mute);margin:0 0 1.2rem}
 label.show{font-weight:400;display:flex;gap:.4rem;align-items:center}
+label.show input{width:auto}
 label{display:block;font-weight:600;font-size:.85rem;margin:.8rem 0 .25rem}
-input{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit}
+input{width:100%;padding:.65rem .75rem;border:1px solid var(--line);border-radius:8px;font:inherit}
 input:focus{outline:2px solid #93b4ff;border-color:var(--acc)}
-button{margin-top:1.2rem;width:100%;padding:.65rem;border:0;border-radius:8px;background:var(--acc);color:#fff;font:600 1rem system-ui;cursor:pointer}
-button:hover{background:#1e40af}.err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem}
+button{margin-top:1.2rem;width:100%;padding:.7rem;border:0;border-radius:8px;background:var(--acc);color:#fff;font:600 1rem system-ui;cursor:pointer}
+button:hover{background:#1e40af}
+.err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem}
 .ok{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:.6rem .7rem;word-break:break-all}
-footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:1.2rem}
+footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:1.4rem}
+@media (max-width:640px){.shell{flex-direction:column}.brandpanel{padding:1.4rem}.facts{display:none}}
 """
 
 
 @app.get("/assets/theme.css")
 def theme_css():
     return Response(_CSS, mimetype="text/css")
+
+
+_LOGO = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f9bff"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
+<circle cx="48" cy="48" r="44" fill="#0b1b3a" stroke="url(#g)" stroke-width="4"/>
+<ellipse cx="48" cy="48" rx="18" ry="44" fill="none" stroke="#6f9bff" stroke-width="1.6" opacity=".7"/>
+<ellipse cx="48" cy="48" rx="44" ry="16" fill="none" stroke="#6f9bff" stroke-width="1.2" opacity=".35"/>
+<line x1="48" y1="4" x2="48" y2="92" stroke="#fff" stroke-width="2.4"/>
+<path d="M27 66V32l21 22 21-22v34" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="48" cy="54" r="3.6" fill="#6f9bff"/></svg>"""
+
+
+@app.get("/assets/logo.svg")
+def logo_svg():
+    return Response(_LOGO, mimetype="image/svg+xml")
 
 
 @app.get("/assets/show.js")
