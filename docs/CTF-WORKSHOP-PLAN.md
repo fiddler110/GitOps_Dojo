@@ -10,10 +10,9 @@ below has the detail):
 
 | Open | Who can do it |
 |---|---|
-| A pilot with 2-3 people to tune the stagger interval and dwell | Needs real people, not bots |
+| A pilot with 2-3 people to tune the stagger interval and dwell | Needs real people, not bots; runbook and report script are in [`CTF-PILOT.md`](CTF-PILOT.md) |
 | The Target Viewer card as a student, in a browser | A browser pass |
 | `git-secrets` as a fourth defend target | Only if a rotation mechanism proves out (stretch) |
-| Never live-tested: the geo database path, `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`, `status --watch` | Agent or user |
 
 What was built and how it was verified is in [`RELEASES.md`](../RELEASES.md) ("CTF range build log", "CTF wrapup",
 "Live checks"). The spike answers and the decisions log (CTF-S1..S17, CTF-D1..D27) are in
@@ -372,10 +371,9 @@ Everything below shipped. At the time of writing, `git status` on `feat/ctf-wrap
 6. ~~`ctf-builder`'s pip install failure~~ — root-caused and fixed 2026-10-15 (above).
 7. ~~`ctf-secrets-config`'s `openbao-server` audit race~~ — fixed 2026-10-15, with a caveat worth reading (above):
    a different, equally benign single-node-raft startup message surfaced in its place.
-8. **Never live-tested:** ~~`dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student`,
-   `status --watch`~~ -- all five run live 2026-10-17 on `git-fundamentals` (RELEASES; they found a real `stop`
-   bug, fixed). Left: **the geo database path** (run `fetch_geoip.sh`, check `X-Forwarded-For` through Caddy),
-   which still needs a browser and a real client address.
+8. ~~**Never live-tested:**~~ -- `dojo test`, `backup`/`restore`, `doctor --fix`, a real `reset-student` and
+   `status --watch` ran live 2026-10-17 on `git-fundamentals` (RELEASES; they found a real `stop` bug, fixed). The geo
+   database path ran live 2026-10-18 from a phone in Calgary through Cloudflare and the home Caddy (RELEASES).
 
 **Facts to keep in mind** (found while building, not obvious from the design below):
 

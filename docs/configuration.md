@@ -38,7 +38,7 @@ dojo.toml  <  dojo.local.toml  <  .env  <  profile (--env NAME)  <  workshop.env
 | `network.lab_host_ip` | `LAB_HOST_IP` | Interface the gateway binds on this machine (`127.0.0.1`; `0.0.0.0` for LAN/VM) |
 | `network.http_port` / `https_port` | `GATEWAY_HTTP_PORT` / `_HTTPS_PORT` | Published ports (8080/8443; rootless podman can't bind below 1024) |
 | `network.gateway_listen` | `GATEWAY_LISTEN` | Behind a TLS-terminating proxy, e.g. `http://:8080` |
-| `network.trusted_proxies` | `GATEWAY_TRUSTED_PROXIES` | The proxy's address only, e.g. `10.0.0.2/32`, never a range |
+| `network.trusted_proxies` | `GATEWAY_TRUSTED_PROXIES` | The proxy's address only, e.g. `10.0.0.2/32`, never a range. Behind rootless podman the gateway sees the podman bridge as its peer (e.g. `10.89.0.0/16`), not the proxy; the cyber map's student locations also need the proxy to forward the real client address in `X-Forwarded-For` (behind Cloudflare: `Cf-Connecting-Ip`) |
 | `network.allow_default_passwords` | `ALLOW_DEFAULT_PASSWORDS` | Permit public defaults off loopback (VPN-only labs) |
 | `network.terminal_ingress_subnet` | `TERMINAL_INGRESS_SUBNET` | Gateway-to-terminal private network (`172.30.9.0/24`) |
 | `terminal.flavor` | `TERMINAL_FLAVOR` | `code-server` (alias `web`) or `zellij` |

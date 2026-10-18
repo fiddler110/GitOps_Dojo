@@ -7,6 +7,10 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## Geo database path live-checked, and two start-up regressions fixed (2026-10-18, `feat/ctf-pilot-and-geo`)
+
+Ran `ctf-defend --env live --pass dojo` locally and loaded the SOC page from a phone in Calgary, through Cloudflare and the home Caddy. `fetch_geoip.sh` fetched the DB-IP database; the phone's student was placed at Calgary, AB (`src: geoip`). Two proxy settings were needed, neither in the repo: `10.89.0.0/16` (rootless podman's bridge, which is what the gateway sees as its peer) added to the profile's `network.trusted_proxies`, and `header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}` in the home Caddy's `dojo.` block, because the tunnel otherwise leaves only a private address in `X-Forwarded-For`. Without them every student falls back to `CTF_HOME_REGION`. Only the coarse region is stored, never the address. Found on the way, both from the unprivileged allocator image (782330f), and both stopped every start: `./dojo`'s extensions render ran as uid 10001 and could not write `engine/.generated` under rootless podman (now `--user 0`), and `runner-controller` could not `chmod` the root-owned `/spool` (now `user: "0:0"` on it and its token one-shot, plus `cap_drop ALL` and `no-new-privileges` on the controller). Added `docs/CTF-PILOT.md` and `workshops/ctf-defend/tools/pilot-report.py` for the stagger and dwell pilot; the report ran on made-up data only. WSL had also drifted to NAT networking, which broke the home proxy; mirrored mode fixed it. The pilot itself is still open.
+
 ## Dependency pins checked repo-wide, seed-repo sync checked, CI back on (2026-10-17, `fix/dep-pin-checks`)
 
 - **`engine/scripts/check-dep-pins.sh`** (new, run by every `--dry-run` beside `check-pins.sh` and

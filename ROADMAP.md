@@ -114,7 +114,7 @@ now ship all 3 of their targets each (see RELEASES, "`ctf-secrets-config`/`ctf-t
 
 | Step | Work |
 |---|---|
-| 1 | Defend lab redesign: built and live-verified (RELEASES; as-built contract: plan 8.13; no `INCIDENT.md` gate, decided against 2026-10-15 and removed); open: a pilot with 2-3 people to tune stagger (0.5 x dwell) and dwell. Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
+| 1 | Defend lab redesign: built and live-verified (RELEASES; as-built contract: plan 8.13; no `INCIDENT.md` gate, decided against 2026-10-15 and removed); open: a pilot with 2-3 people (runbook and report script ready: docs/CTF-PILOT.md) to tune stagger (0.5 x dwell) and dwell. Stretch: `git-secrets` as a fourth target only if a rotation mechanism proves out |
 | 2 | Target Viewer card as a student, in a browser (the real-time dwell run and the student SOC feed passed 2026-10-15, RELEASES) |
 | 3 | Parked (2026-10-12): the CTF packs are a challenge in themselves, so they get no `dojo challenge` sections. A second, more obscure path per target would be their bonus challenge |
 
