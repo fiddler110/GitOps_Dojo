@@ -7,6 +7,34 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## CTF student CI gets per-user tokens; facilitator reads students' Notes (2026-10-19, `fix/ctf-per-user-tokens`)
+
+Two decisions from the 2026-10-18 review. Student repos in ctf-defend held the class-wide `CTF_BUILD_TOKEN` and
+`CTF_CONTROL_TOKEN` as Actions secrets, so a workflow edit could print them and rebuild, gate or redeploy a classmate's
+slot. Each repo now gets HMAC(class token, `ctf-user:<user>`), which ctf-builder, ctf-checker `/gate` and
+ctf-controller `/redeploy` accept only for that same user; `/slots`, `/schedule` and `/reconcile` still need the class
+token. The facilitator's Notes tab gets a student picker: a student's `notes.md` opens read-only, and reading creates
+nothing in their home. Live, locally (`ctf-defend --test 2 --fast`): a student PR's gate ran with the per-user token
+(verdict `exploitable`, no 403) and the merge's build and redeploy succeeded; student01's tokens got 403 for
+student02 on `/gate`, `/build` and `/redeploy`, and 403 on `/slots`; the facilitator listed and read students' notes,
+a student got 403 on both. Unit tests in all four services; `pre-pr.sh` passes.
+
+## Terminal pids cap sized for the class (2026-10-19, PR #57)
+
+20 students filled the terminal container's 1024 pids, and a `workshop.env` value overrode the operator's sizing.
+Measured locally with 20 `--fast` bots: ~34 threads per student on dns-as-code, ~58 mid-apply on cloud-policy-as-code.
+A start now raises the cap to (students + bots + 1) × `pids_per_student` + 200 and says so (`doctor` and `capacity` use
+the same sum); a workshop or module can raise the terminal's limits but never lower them; cloud-policy-as-code states
+70 per student. Also `.github/scripts/pre-pr.sh`: every CI job locally, with CI's shellcheck and gitleaks versions.
+
+## Whole-repo review fixes (2026-10-19, PRs #55 and #56)
+
+`feat/ctf-randomized-ports` (#55) and about 20 fixes from the 2026-10-18 review (#56): per-account source-port rule
+against port squatting, an orphan-only reaper, per-account locks, gateway cookie strip and a login limiter that blocks
+before the password check, single-flight `/start`, reserved manifest paths, a refused real run without
+`STUDENT_PASSWORD_SEED`, per-account CTF keys, CTF tokens derived from `GATEWAY_TOKEN`, and a CI `lint` job
+(shellcheck, gitleaks 8.30.1, Caddy lint). Live-tested locally over three runs; details in the PR descriptions.
+
 ## Geo database path live-checked, and two start-up regressions fixed (2026-10-18, `feat/ctf-pilot-and-geo`)
 
 Ran `ctf-defend --env live --pass dojo` locally and loaded the SOC page from a phone in Calgary, through Cloudflare and the home Caddy. `fetch_geoip.sh` fetched the DB-IP database; the phone's student was placed at Calgary, AB (`src: geoip`). Two proxy settings were needed, neither in the repo: `10.89.0.0/16` (rootless podman's bridge, which is what the gateway sees as its peer) added to the profile's `network.trusted_proxies`, and `header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}` in the home Caddy's `dojo.` block, because the tunnel otherwise leaves only a private address in `X-Forwarded-For`. Without them every student falls back to `CTF_HOME_REGION`. Only the coarse region is stored, never the address. Found on the way, both from the unprivileged allocator image (782330f), and both stopped every start: `./dojo`'s extensions render ran as uid 10001 and could not write `engine/.generated` under rootless podman (now `--user 0`), and `runner-controller` could not `chmod` the root-owned `/spool` (now `user: "0:0"` on it and its token one-shot, plus `cap_drop ALL` and `no-new-privileges` on the controller). Added `docs/CTF-PILOT.md` and `workshops/ctf-defend/tools/pilot-report.py` for the stagger and dwell pilot; the report ran on made-up data only. WSL had also drifted to NAT networking, which broke the home proxy; mirrored mode fixed it. The pilot itself is still open.

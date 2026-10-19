@@ -213,7 +213,8 @@ How it behaves:
 - **Lab Info library**: a Linux/shell primer plus a primer per tool (`nmap`, `sqlmap`, `tshark`, `ffuf`, `opa`...),
   baked into `~/lab-info` and readable in the browser (a **Lab Info** card), mechanics only, never lab-specific payloads.
 - **Scoped images**: each pack builds a `ctf-host` stage with only its own targets (≈900 MB vs 1.89 GB for the full catalog).
-- **Set a real `CTF_CONTROL_TOKEN`** in `workshop.env`; the committed value is a placeholder.
+- **CTF tokens** are derived from `GATEWAY_TOKEN` (`modules/ctf-range/module.env`); student CI gets per-user tokens
+  that only work on that student's own slot.
 - **CTF-5 (Defend)**: the app (`customer-portal`) is attacked live by an **attacker-bot swarm** on a shared green →
   yellow → red clock; students patch the code, a PR runs the scan + exploit gate, and on merge `ctf-builder` builds
   and `ctf-controller` redeploys the slot in place. A SOC feed and a "wall of shame" show the room's state.

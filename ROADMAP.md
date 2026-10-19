@@ -103,6 +103,21 @@ idempotent, a bot restarts from round 1, the optional score clear clears only th
 
 ## Next
 
+### Review 2026-10-18 follow-ups
+
+The whole-repo review lives in `REVIEW.md` (untracked); its fixes shipped in PRs #55, #56, #57 and the CTF token/Notes
+PR (see RELEASES). Open from it:
+
+| Item | Effort | Notes |
+|---|---|---|
+| cloud-policy-as-code stalls at 20 bots | M | 2026-10-19, locally: all 20 sat in Lab 0's first apply (`azurerm_container_group.app: Still creating...`) for 33+ min, with no pids or thread errors. A second limit in cloud-host or cloud-api. Run 10 and 15 bots to find where it starts |
+| Bump OpenTofu 1.12.6 → 1.12.8 | S | 1.12.7 fixed CVE-2026-56855 and CVE-2026-78662; four Dockerfiles. Hold 1.13 until the labs and OPA pairing are tested |
+| Bump the OpenBao CLI 2.7.0 → 2.7.1 | S | Match the server (`modules/openbao/terminal/Dockerfile`) |
+| code-server 4.137.0 → 4.141.0 | S | Refresh the per-arch sha256; check the advisories page first |
+| P7 live for the other packs | M | Lab walk-throughs for cert-autorenewal and vault-fundamentals |
+| P8 on a CTF stack | S | The `/admin` tabs on a CTF stack, and the code-server IDE tab from `/admin` |
+| P9 load test, P10-P12, P15 `doctor --live` | L | Briefs in REVIEW.md |
+
 ### CTF workshop series
 
 A five-session capture-the-flag series (CTF-1 to CTF-5, packs `ctf-access`, `ctf-server-trust`, `ctf-secrets-config`,
@@ -269,7 +284,7 @@ in [Manual checks](#manual-checks) above), **dojo-introduction** and **cloud-pol
 
 | Check | Stack | Where it stands |
 |---|---|---|
-| Split smoke run (parked 2026-10-03) | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run 2026-10-03: labs 2, 4-7 and 12 ok in 9-18 min. Failed: 3, 9, 10 in lab-prep (provider "Plugin did not respond": the 320 pids cap was hit 333 times; the pack now sets `WEB_TERMINAL_PIDS_LIMIT=1024`); 0-1 (retest.sh killed the bot mid lab 0 apply, leaving a state lock lab-prep 0 never clears: a range starting at 0 should only be watched, not parked and re-prepped); 8 and 11 (pr.yml red: a lab-prep gap. From Lab 8, CI plans the fork's `main` against the cloud, and `lab-prep` pushed the rebuilt state to `main` only from Lab 12, so CI saw the whole policy as drift. Fixed (PR #10): push it from Lab 8. Rerun alone with the fix: labs 8 and 11 PASS). When picked up: a watch-only mode in `retest.sh` for a range starting at 0, then `./dojo stop` (image rebuild for lab-prep and the caps) and rerun the split |
+| Split smoke run (parked 2026-10-03) | `smoke.sh cloud-policy-as-code --split each --timeout 60` | First run 2026-10-03: labs 2, 4-7 and 12 ok in 9-18 min. Failed: 3, 9, 10 in lab-prep (provider "Plugin did not respond": the 320 pids cap was hit 333 times; since 2026-10-19 a start sizes the cap from the pack's `WEB_TERMINAL_PIDS_PER_STUDENT=70`); 0-1 (retest.sh killed the bot mid lab 0 apply, leaving a state lock lab-prep 0 never clears: a range starting at 0 should only be watched, not parked and re-prepped); 8 and 11 (pr.yml red: a lab-prep gap. From Lab 8, CI plans the fork's `main` against the cloud, and `lab-prep` pushed the rebuilt state to `main` only from Lab 12, so CI saw the whole policy as drift. Fixed (PR #10): push it from Lab 8. Rerun alone with the fix: labs 8 and 11 PASS). When picked up: a watch-only mode in `retest.sh` for a range starting at 0, then `./dojo stop` (image rebuild for lab-prep and the caps) and rerun the split |
 
 ### vault-fundamentals follow-ups
 

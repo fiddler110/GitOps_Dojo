@@ -12,6 +12,10 @@
   var saving = false;
   var timer = null;
   var conflict = false;
+  var who = document.getElementById("who");   // the facilitator's picker; "" = their own notes
+  var viewing = "";
+
+  function api() { return viewing ? API + "?user=" + encodeURIComponent(viewing) : API; }
 
   function say(msg) { status.textContent = msg; }
   function hideBanner() { banner.hidden = true; conflict = false; }
@@ -20,7 +24,7 @@
   function call(method, body) {
     var opts = { method: method, headers: { "Content-Type": "application/json" } };
     if (body) opts.body = JSON.stringify(body);
-    return fetch(API, opts).then(function (r) {
+    return fetch(method === "GET" ? api() : API, opts).then(function (r) {
       return r.json().then(function (doc) { return { status: r.status, doc: doc }; });
     });
   }
@@ -32,12 +36,12 @@
       base = r.doc.mtime;
       dirty = false;
       hideBanner();
-      say("loaded");
+      say(viewing ? "read-only" : "loaded");
     }).catch(function () { say("could not reach the notes service"); });
   }
 
   function persist(force) {
-    if (saving || (conflict && !force)) return;
+    if (viewing || saving || (conflict && !force)) return;
     saving = true;
     clearTimeout(timer);
     say("saving...");
@@ -65,7 +69,7 @@
       if (!dirty) {
         text.value = r.doc.text;
         base = r.doc.mtime;
-        say("updated from your terminal");
+        say(viewing ? "updated by " + viewing : "updated from your terminal");
       } else if (!conflict) {
         showBanner("The file changed in your terminal while you have unsaved edits.");
       }
@@ -84,6 +88,36 @@
   window.addEventListener("keydown", function (ev) {
     if ((ev.ctrlKey || ev.metaKey) && ev.key === "s") { ev.preventDefault(); persist(false); }
   });
+
+  function view(name) {
+    viewing = name;
+    text.readOnly = !!name;
+    save.disabled = !!name;
+    document.getElementById("readonly").hidden = !name;
+    document.getElementById("own-hint").hidden = !!name;
+    text.value = "";
+    base = null;
+    load();
+  }
+
+  // Only the facilitator gets a list (403 for everyone else): pick a student to read their notes.
+  fetch(API.replace("notes", "students")).then(function (r) {
+    if (r.status !== 200) return null;
+    return r.json();
+  }).then(function (doc) {
+    if (!doc || !doc.students) return;
+    doc.students.forEach(function (name) {
+      var o = document.createElement("option");
+      o.value = name;
+      o.textContent = name;
+      who.appendChild(o);
+    });
+    document.getElementById("picker").hidden = false;
+    who.addEventListener("change", function () {
+      if (dirty && !viewing) persist(false);
+      view(who.value);
+    });
+  }).catch(function () {});
 
   load();
   setInterval(poll, 4000);

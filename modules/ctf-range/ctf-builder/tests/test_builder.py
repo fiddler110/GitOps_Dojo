@@ -99,6 +99,13 @@ class TestHTTP(unittest.TestCase):
         self.assertEqual(self._req("POST", "/build", raw_body=body)[0], 403)
         self.assertEqual(self._req("POST", "/build", token="wrong", raw_body=body)[0], 403)
 
+    def test_a_students_own_token_only_builds_their_own_slot(self):
+        mine = b.user_token(TOKEN, "student01")
+        own = json.dumps({"user": "student01", "ref": "-x"}).encode()   # past auth, then a bad ref
+        self.assertEqual(self._req("POST", "/build", token=mine, raw_body=own)[0], 400)
+        theirs = json.dumps({"user": "student02", "ref": "main"}).encode()
+        self.assertEqual(self._req("POST", "/build", token=mine, raw_body=theirs)[0], 403)
+
     def test_bad_ref_returns_400_not_500(self):
         body = json.dumps({"user": "student01", "ref": "-x"}).encode()
         status, doc = self._req("POST", "/build", token=TOKEN, raw_body=body)

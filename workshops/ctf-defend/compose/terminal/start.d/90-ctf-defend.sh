@@ -137,8 +137,19 @@ else:
     hexd = hmac.new(seed.encode(), f"ctf:{target}:{user}".encode(), hashlib.sha256).hexdigest()[:16]
     print(f"flag{{{target}-{hexd}}}")
 ' "$username" "$repo_name")"
+    # Not the class tokens: a student can edit the workflow to print its secrets, so each
+    # repo gets HMAC(class token, "ctf-user:<user>"), which ctf-builder, ctf-checker and
+    # ctf-controller accept only for that user's own slot (user_token() in each).
+    user_tokens="$(python3 -c '
+import hashlib, hmac, sys
+user = sys.argv[1]
+for tok in sys.argv[2:]:
+    print(hmac.new(tok.encode(), f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest())
+' "$username" "$build_token" "$control_token")"
+    user_build_token="$(printf '%s\n' "$user_tokens" | sed -n 1p)"
+    user_control_token="$(printf '%s\n' "$user_tokens" | sed -n 2p)"
     secrets_api="$api/repos/$username/$repo_name/actions/secrets"
-    for pair in "CTF_BUILD_TOKEN=$build_token" "CTF_CONTROL_TOKEN=$control_token" "CTF_FLAG=$flag"; do
+    for pair in "CTF_BUILD_TOKEN=$user_build_token" "CTF_CONTROL_TOKEN=$user_control_token" "CTF_FLAG=$flag"; do
       name="${pair%%=*}"
       value="${pair#*=}"
       body="$(mktemp)"

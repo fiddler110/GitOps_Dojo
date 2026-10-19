@@ -58,7 +58,9 @@ target, in order; never at a line number.
    `FORGEJO_ADMIN_USER`/`FORGEJO_ADMIN_PASSWORD` (required — `90-ctf-defend.sh` provisions each
    student's repo through Forgejo's admin API and skips a student silently if these are missing).
 2. `CTF_BUILD_TOKEN`/`CTF_CONTROL_TOKEN` are derived from `GATEWAY_TOKEN` in
-   `modules/ctf-range/module.env` — nothing to generate by hand.
+   `modules/ctf-range/module.env` — nothing to generate by hand. Student repos never get them: each
+   repo's Actions secrets of the same names hold that student's own token (HMAC of the class token and
+   the account name), which only builds, gates and redeploys that student's own slot.
 3. `./dojo ctf-defend`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and
    **SOC** to go green. Confirm the `attacker-bot` container is up (idle) — `podman ps`.
 4. **Size the machine:** `./dojo capacity ctf-defend --students 30` if you expect a full room — the
