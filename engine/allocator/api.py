@@ -5,7 +5,8 @@ import json
 import time
 import urllib.parse
 
-from accounts import check_login, GATE_GUARD, is_bot_id, LOGIN_GUARD, make_session, SESSION_SECONDS
+from accounts import (check_login, GATE_GUARD, is_bot_id, LOGIN_GUARD, login_guard_key, LOGIN_USER_GUARD,
+                      make_session, SESSION_SECONDS)
 from allocation import (
     claim_slot, held_slots, ide_port, local_path, release_slot, slot_snapshot, slots, term_port,
     UNUSED_AFTER_SECONDS, watch_port,
@@ -62,14 +63,20 @@ class ApiMixin:
         started = time.monotonic()
         ready = allocation.READY_CACHE.get((tool, username)) is not None
         if not ready:
-            resp = allocation.control_request("POST", f"/start/{tool}/{username}")
-            if resp is not None:
-                try:
-                    ready = bool(json.loads(resp).get("ready"))
-                except (ValueError, AttributeError):
-                    ready = False
-            if ready:
-                allocation.READY_CACHE.put((tool, username), True)
+            def start():
+                resp = allocation.control_request("POST", f"/start/{tool}/{username}")
+                ok = False
+                if resp is not None:
+                    try:
+                        ok = bool(json.loads(resp).get("ready"))
+                    except (ValueError, AttributeError):
+                        ok = False
+                if ok:
+                    allocation.READY_CACHE.put((tool, username), True)
+                return ok
+            # Concurrent misses for this workspace share one start; a
+            # waiter gives up after the leader's own control timeout (202).
+            ready = allocation.START_FLIGHTS.do((tool, username), start, config.CONTROL_TIMEOUT + 0.5) is True
         audit_check("auth-check", username, tool, 200 if ready else 202, uri=uri,
                     ms=round((time.monotonic() - started) * 1000))
 
@@ -311,17 +318,20 @@ class ApiMixin:
         password = form.get("password") or ""
         nxt = self.login_next(form.get("next"))
         ip = self.client_ip()
+        user_key = login_guard_key(username)
+        # Checked before the password (REVIEW §1.3): once an address or an
+        # account is over its limit, a right guess is refused like a wrong one.
+        if LOGIN_GUARD.blocked(ip) or (user_key and LOGIN_USER_GUARD.blocked(user_key)):
+            config.audit("login", ip=ip, result="rate-limited")
+            self.send_html(self.render_login("Too many wrong guesses. Wait a minute and try again.",
+                                             username, nxt),
+                           status=429, headers=[("Retry-After", "60")] + NO_STORE_HEADERS)
+            return
         account = check_login(username, password)
         if account is None:
-            # A right password still gets in during someone else's guessing
-            # spree from the same address (a class behind one NAT).
-            if LOGIN_GUARD.blocked(ip):
-                config.audit("login", ip=ip, result="rate-limited")
-                self.send_html(self.render_login("Too many wrong guesses. Wait a minute and try again.",
-                                                 username, nxt),
-                               status=429, headers=[("Retry-After", "60")] + NO_STORE_HEADERS)
-                return
             LOGIN_GUARD.fail(ip)
+            if user_key:
+                LOGIN_USER_GUARD.fail(user_key)
             config.audit("login", ip=ip, result="failed")
             self.send_html(self.render_login("That username and password don't match. Try again.",
                                              username, nxt),

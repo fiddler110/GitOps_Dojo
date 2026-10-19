@@ -50,8 +50,8 @@ stage, for the mechanics.
 
 ## What's here
 
-- [`workshop.env`](workshop.env): identity, `MODULES="ctf-range"`, the CTF-D26 scoping vars above, and
-  `CTF_CONTROL_TOKEN` (dev value; generate a real one for a live class).
+- [`workshop.env`](workshop.env): identity, `MODULES="ctf-range"` and the CTF-D26 scoping vars above
+  (`CTF_CONTROL_TOKEN` comes from `modules/ctf-range/module.env`, derived from `GATEWAY_TOKEN`).
 - [`content/slides/`](content/slides/): the hub, a briefing deck that sets the scenario and the rules of
   engagement **without naming any target's specific bug**, the labs index/overview, and a session-mechanics
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).
@@ -69,7 +69,7 @@ stage, for the mechanics.
   core milestone per target (`l1-flag`..`l4-flag`), each matched on the `ctf`/`flag_solved` adapter event
   `ctf-flags` already posts with `challenge=<target-id>` -- no new plumbing needed, the achievements module
   already supports this exact event shape. This is what gives students a leaderboard/points confirmation
-  beyond `dojo-flag submit`'s own CLI response.
+  beyond `dojo flag`'s own CLI response.
 
 ## Facilitator view
 

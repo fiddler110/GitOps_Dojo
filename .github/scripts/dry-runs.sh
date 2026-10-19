@@ -9,7 +9,7 @@
 set -u
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-cd "$root"
+cd "$root" || exit 1
 
 [ -f .env ] || ./dojo setup --default >/dev/null || { echo "setup failed" >&2; exit 1; }
 

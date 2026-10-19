@@ -40,11 +40,11 @@ Two flags, both HMAC-derived per student (plan §5):
 
 - **Flag 1** — `flag{dns-resolver-cve-token-<hex>}` — the service token the
   agent carries. Captured when the student lands a spoof. Submittable as
-  `dojo-flag submit dns-resolver-cve-token <flag>`.
+  `dojo flag submit dns-resolver-cve-token <flag>`.
 - **Flag 2** — `flag{dns-resolver-cve-<hex>}` — reached by replaying the
-  captured token at `/admin`. Submittable as `dojo-flag submit dns-resolver-cve <flag>`.
+  captured token at `/admin`. Submittable as `dojo flag submit dns-resolver-cve <flag>`.
 
-```
+```text
 GET  /observations                              → observe recent TXIDs
 POST /spoof {"predicted_txid": last+1}          → arm one spoofed answer
 GET  /captured  (poll ~2s)                      → flag 1 lands here

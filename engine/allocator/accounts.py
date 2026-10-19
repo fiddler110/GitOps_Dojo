@@ -76,11 +76,21 @@ def check_login(username, password):
     return FACILITATOR_USERNAME if ok_fac else TTYD_USERNAME if ok_class else None
 
 
+def login_guard_key(username):
+    """The account name LOGIN_USER_GUARD counts failures under, or None for a
+    name no password opens (it can never succeed, and counting every random
+    name would only grow the table)."""
+    if username in (TTYD_USERNAME, FACILITATOR_USERNAME) or is_bot_id(username):
+        return username
+    return None
+
+
 class LoginGuard:
-    """Brute-force limit (remediation T1.1c, FIND-01): at most `limit` wrong
-    guesses per client address per `window` seconds; past it the answer is
-    429 before any password is compared. Only failures count, so a class
-    behind one NAT address signing in correctly is never limited."""
+    """Brute-force limit (remediation T1.1c, FIND-01; REVIEW §1.3): at most
+    `limit` wrong guesses per key (a client address, or an account name) per
+    `window` seconds. Past it handle_login answers 429 before any password is
+    compared, right or wrong, so a blocked guesser learns nothing. Only
+    failures count, so a class signing in correctly is never limited."""
 
     def __init__(self, limit=30, window=60, clock=time.monotonic):
         self.limit, self.window, self.clock = limit, window, clock
@@ -108,7 +118,14 @@ class LoginGuard:
             self.fails.setdefault(ip, []).append(self.clock())
 
 
-LOGIN_GUARD = LoginGuard()
+# Per address. A whole class can sit behind one NAT address (30+ students
+# fumbling the password at once), so this is generous: 60 wrong a minute.
+LOGIN_GUARD = LoginGuard(limit=60)
+# Per account name, across every address: someone rotating addresses (or
+# behind a shared proxy) can't keep guessing one account. Above the
+# per-address limit, so one address alone can never lock an account out for
+# everyone; only real account names count (login_guard_key).
+LOGIN_USER_GUARD = LoginGuard(limit=100)
 # Wrong access-code cookies seen by the gateway (--pass): 10 a minute per address.
 GATE_GUARD = LoginGuard(limit=10)
 

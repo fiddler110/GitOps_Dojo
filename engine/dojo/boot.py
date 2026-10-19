@@ -68,15 +68,20 @@ def _install(target):
                 _fail(f"{name} {version}: sha256 {got} does not match the pinned {sha}; not using it.")
             whl = staging / url.rsplit("/", 1)[1]
             whl.write_bytes(data)
-            with zipfile.ZipFile(whl) as zf:
-                zf.extractall(staging)
+            try:
+                with zipfile.ZipFile(whl) as zf:
+                    zf.extractall(staging)
+            except (OSError, zipfile.BadZipFile) as exc:
+                _fail(f"could not unpack {name} {version}: {exc}\n"
+                      f"  Fix: delete {CACHE}/pylib-* and run ./dojo again.")
             whl.unlink()
         (staging / ".complete").write_text("ok\n")
         try:
             staging.rename(target)
-        except OSError:
+        except OSError as exc:
             if not (target / ".complete").exists():  # lost a race to another run that finished: fine
-                raise
+                _fail(f"could not install dependencies into {target}: {exc}\n"
+                      f"  Fix: delete {CACHE}/pylib-* and run ./dojo again.")
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     # Older lock files' folders are no longer used.
@@ -87,7 +92,10 @@ def _install(target):
 
 def ensure_dependencies():
     target = CACHE / f"pylib-{hashlib.sha256(LOCK.read_bytes()).hexdigest()[:16]}"
-    if not (target / ".complete").exists():
+    marker = target / ".complete"
+    if not marker.exists() or not (target / "click").is_dir():
+        if target.exists():  # a damaged folder from an older run: rebuild it
+            shutil.rmtree(target, ignore_errors=True)
         _install(target)
     sys.path.insert(0, str(target))
     sys.path.insert(0, str(ENGINE))

@@ -202,7 +202,10 @@ def submit_flag(cfg, user, flag):
     challenge = flag_challenge(flag)
     if not challenge:
         return False, "That doesn't look like a flag. A flag looks like flag{...}: copy the whole thing."
-    body = json.dumps({"user": user, "challenge": challenge, "flag": flag}).encode()
+    # The gateway vouches for `user` here, so the controller signs for it with the
+    # account's own key (flags.user_key), as `dojo flag` does from the terminal.
+    body = json.dumps({"user": user, "key": flags.user_key(user, cfg.seed),
+                       "challenge": challenge, "flag": flag}).encode()
     req = urllib.request.Request(cfg.flags_url + "/submit", data=body, method="POST",
                                  headers={"Content-Type": "application/json"})
     try:

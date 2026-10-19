@@ -169,7 +169,7 @@ it enables, and ships its own labs and slides.
 
 ## Range control plane (CTF-D21 / spike S14, build/push half spike S6)
 
-```
+```text
 runner_net (modules/runner-pool):
   defend-main.yml job ──POST /build─────▶ ctf-builder
   (runs in the pool)  ──POST /redeploy───▶ ctf-controller (dual-homed, below)

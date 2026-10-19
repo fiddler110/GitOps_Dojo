@@ -30,6 +30,6 @@
     "Which command answers 'who changed this line?'",
     "`git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared."
   ],
-  "answer": "In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo-check c2`.",
+  "answer": "In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo check c2`.",
   "constraints": "in `{user}/challenge-repo`; a file called `answer.txt` on a branch called `case-{user}`, pushed to Forgejo; it names the commit's short hash (7 or more characters) and the author's name; the file can be as short as `abc1234 Jane Doe`"
 }

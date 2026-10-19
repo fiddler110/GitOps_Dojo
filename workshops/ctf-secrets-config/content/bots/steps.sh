@@ -75,7 +75,7 @@ step_leaky_config() {
     narrate "leaky-config: /internal/metrics didn't accept the credential this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit leaky-config '$flag'"
+  run_cmd "dojo flag submit leaky-config '$flag'"
 }
 
 # -- Lab 2: git-secrets -- the flag lives in /deploy/trigger, but the credential it wants is
@@ -108,7 +108,7 @@ step_git_secrets() {
     narrate "git-secrets: /deploy/trigger didn't accept the token this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit git-secrets '$flag'"
+  run_cmd "dojo flag submit git-secrets '$flag'"
 }
 
 # -- Lab 3: tfstate-treasure -- no container to start: the bot's own repo holds a committed
@@ -141,7 +141,7 @@ step_tfstate_treasure() {
     narrate "tfstate-treasure: logged in but the flag path was empty this round -- skipping"
     return 0
   fi
-  run_cmd "dojo-flag submit tfstate-treasure '$flag'"
+  run_cmd "dojo flag submit tfstate-treasure '$flag'"
 }
 
 case "$PERSONA" in

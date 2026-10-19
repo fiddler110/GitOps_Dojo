@@ -17,6 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 targets="$here/../../modules/ctf-range/targets"
 seeds="$here/content/sample-repos"
 rc=0
+tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 
 # Exactly what content/sync-sample-repos.sh copies, target by target. Keep the
 # two lists together: a file added to the sync has to be added here too.
@@ -24,7 +25,9 @@ check() { # target file...
   t="$1"; shift
   for f in "$@"; do
     [ -f "$targets/$t/$f" ] || { echo "sync drift: $t has no $f to copy"; rc=1; continue; }
-    cmp -s "$targets/$t/$f" "$seeds/$t/$f" \
+    # The seed is the target's file with the spoiler comments stripped (tools/strip_spoilers.py).
+    python3 -B "$here/tools/strip_spoilers.py" "$targets/$t/$f" "$tmp" || { rc=1; continue; }
+    cmp -s "$tmp" "$seeds/$t/$f" \
       || { echo "sync drift: sample-repos/$t/$f differs from the target's (run content/sync-sample-repos.sh)"; rc=1; }
   done
   # The target's student-facing README is copied in under its plain name.

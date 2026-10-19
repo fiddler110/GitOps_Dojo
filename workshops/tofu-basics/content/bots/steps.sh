@@ -1,5 +1,5 @@
 # tofu-basics demo bot steps (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE) -- replaces the
-# git-fundamentals default with Labs 0-10: the offline sandbox (Track A) always, and, only when this
+# git-fundamentals default with Labs 0-10 (drift in Lab 7 via the ARM API): the offline sandbox (Track A) always, and, only when this
 # bot's own Dojo Cloud credentials come back from the broker (same dojo-env a real student's shell
 # reads at login -- see modules/dojo-cloud/terminal/dojo-broker.py's roster, which includes testuserN), the Dojo
 # Cloud lifecycle (Track B: deploy hello, the three Lab 6 policy refusals, in-place vs replace, Lab 9's for_each and quota, then destroy + commit
@@ -140,6 +140,40 @@ step_tb_policy() {
   narrate "right -- too big for the size policy. Undoing (and re-applying: a replace may have removed hello first)."
   run_cmd "git checkout -q -- main.tf"
   run_cmd "terraform apply -auto-approve -no-color -input=false"
+}
+
+# Lab 7: drift. A student edits a tag and deletes the container in the portal; the bot makes the same two
+# changes straight against the cloud's ARM API (client-credentials token, same ARM_* values as the provider),
+# then lets plan/apply pull reality back to the code. Best-effort: any API hiccup narrates and moves on, and
+# the closing apply leaves hello deployed either way, so step_tb_cleanup still destroys it.
+step_tb_drift() {
+  cd "$REPO_DIR" || return 1
+  ensure_cloud_creds
+  [ "$TB_HAS_CLOUD" = 1 ] || return 0
+  local api="http://cloud-api:8080" cg token
+  cg="/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/rg-hello-dev-cac/providers/Microsoft.ContainerInstance/containerGroups/ci-hello-dev?api-version=2025-09-01"
+  token="$(curl -s -m 10 "$api/$ARM_TENANT_ID/oauth2/v2.0/token" \
+    --data-urlencode "client_id=$ARM_CLIENT_ID" --data-urlencode "client_secret=$ARM_CLIENT_SECRET" \
+    --data-urlencode "grant_type=client_credentials" --data-urlencode "scope=https://management.azure.com/.default" \
+    | sed -n 's/.*"access_token": *"\([^"]*\)".*/\1/p')"
+  if [ -z "$token" ]; then
+    narrate "Lab 7 -- could not get a cloud token for the drift demo -- skipping"
+    return 0
+  fi
+
+  narrate "Lab 7 -- a small drift: someone adds a tag behind OpenTofu's back"
+  run_cmd "curl -s -m 15 -o /dev/null -w 'HTTP %{http_code}\n' -X PATCH -H 'Authorization: Bearer $token' -H 'Content-Type: application/json' -d '{\"tags\":{\"owner\":\"$BOT_USER\",\"env\":\"dev\",\"managed_by\":\"opentofu\",\"edited_by\":\"portal\"}}' '$api$cg'"
+  run_cmd "terraform plan -no-color -input=false"
+  narrate "right -- no .tf changed, yet there is a plan: refresh found the extra tag. Code wins."
+  run_cmd "terraform apply -auto-approve -no-color -input=false"
+
+  narrate "Lab 7 -- a big drift: someone deletes the container"
+  run_cmd "curl -s -m 30 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE -H 'Authorization: Bearer $token' '$api$cg'"
+  run_cmd "terraform plan -no-color -input=false"
+  narrate "right -- 'Objects have changed outside of OpenTofu', then a plan to create it again."
+  run_cmd "terraform apply -auto-approve -no-color -input=false"
+  run_cmd "terraform plan -no-color -input=false -detailed-exitcode"
+  return 0
 }
 
 # Lab 8: a tag edit is in place, the message forces a replace, a new image, then -replace by hand.
@@ -290,6 +324,7 @@ case "$PERSONA" in
       step_tb_track_a
       step_tb_deploy
       step_tb_policy
+      step_tb_drift
       step_tb_edit
       step_tb_scale
       step_tb_cleanup
@@ -304,6 +339,7 @@ case "$PERSONA" in
       step_tb_track_a
       step_tb_deploy
       step_tb_policy
+      step_tb_drift
       step_tb_cleanup
       step_wrap_round
     )

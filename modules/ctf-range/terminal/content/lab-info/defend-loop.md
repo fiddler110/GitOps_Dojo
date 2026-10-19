@@ -34,7 +34,7 @@ dojo check                  # every target on your slot
 dojo check leaky-config     # one target
 ```
 
-Broke a box? `dojo-reset <target>` puts that one running target back to the starting app. Your repo is
+Broke a box? `dojo reset <target>` puts that one running target back to the starting app. Your repo is
 untouched, so the next merge to `main` redeploys your code; `git revert` undoes a bad merge.
 
 It asks the platform to run the attack against your **live** slot and send one legitimate request. It reports a

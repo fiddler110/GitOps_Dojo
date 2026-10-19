@@ -74,6 +74,10 @@ workshops use them.
    and records that file list in `engine/.build-state/current.json`, so
    `./dojo stop` tears down exactly what was started.
 
+> **Packs are trusted code.** `workshop.env` and `module.env` are sourced as shell by
+> `./dojo`, with the operator's full environment (including secrets from `.env`). Only run
+> packs and modules you have read or trust.
+
 ## Three kinds of workshop
 
 **Content-only** (like `git-fundamentals`): a `workshop.env` and a

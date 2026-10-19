@@ -207,6 +207,31 @@ class AuthCheck(HandlerTest):
         self.request("GET", "/auth-check?tool=ide", headers=cookie)
         self.assertEqual(self.control.calls, [("POST", f"/start/ide/{sid}"), ("POST", f"/start/term/{sid}")])
 
+    def test_cold_burst_makes_one_start(self):
+        """A cold VS Code load's asset requests share one POST /start."""
+        sid, cookie = self.student()
+        gate = threading.Event()
+        inner = self.control
+
+        def slow_control(method, path, timeout=None):
+            if path.startswith("/start/"):
+                gate.wait(5)
+            return inner(method, path, timeout)
+
+        self.control.answers["/start/"] = b'{"ready": true}'
+        statuses = []
+        with mock.patch.object(allocation, "control_request", slow_control):
+            threads = [threading.Thread(target=lambda: statuses.append(
+                self.request("GET", "/auth-check?tool=ide", headers=cookie)[0])) for _ in range(8)]
+            for t in threads:
+                t.start()
+            time.sleep(0.3)  # let them all reach the single flight
+            gate.set()
+            for t in threads:
+                t.join(5)
+        self.assertEqual(statuses, [200] * 8)
+        self.assertEqual(self.control.calls, [("POST", f"/start/ide/{sid}")])
+
     def test_not_ready_or_unreachable_is_the_starting_page_and_not_cached(self):
         sid, cookie = self.student()
         self.control.answers["/start/"] = b'{"ready": false}'

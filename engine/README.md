@@ -206,9 +206,10 @@ signs everyone out. Caddy's `session_gate` snippet then calls the allocator's
 `/session-check` on every other request: no cookie sends a page load to
 `/login?next=<page>` and answers anything else with 401; `/admin/*` asks for
 the facilitator account and answers the class login with 403. Wrong guesses
-are limited in the allocator (30 a minute per client address, then 429); a
-correct password is never refused, so a class behind one NAT address can
-still sign in. `/logout` clears the cookie. The login page shows
+are limited in the allocator: 60 a minute per client address (a class behind
+one NAT address shares it) and 100 a minute per account name across all
+addresses. Past either limit every attempt, right or wrong, gets 429 for the
+rest of the minute. `/logout` clears the cookie. The login page shows
 `WORKSHOP_NAME` and `WORKSHOP_DESCRIPTION` from `workshop.env`.
 
 Whichever account the cookie proves is forwarded to `allocator` on every

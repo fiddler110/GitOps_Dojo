@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -110,43 +111,70 @@ def config_document(rt: Runtime, files: List[str], env: Dict[str, str]) -> Dict[
                       and rt.compose_cmd[1] == "compose")
     if docker_compose:
         command += ["--format", "json"]
-    res = subprocess.run(command, cwd=str(paths.ENGINE), env=env, capture_output=True,
-                         text=True, timeout=120)
-    if res.returncode != 0:
-        raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
+    out = _config_text(command, env)
     if docker_compose:
-        return json.loads(res.stdout)
+        return json.loads(out)
     try:
         import yaml
-        return yaml.safe_load(res.stdout)
+        return yaml.safe_load(out)
     except ImportError:
-        executable = shutil.which(rt.compose_cmd[0])
-        if not executable:
-            raise RuntimeError("could not locate the Compose provider to parse its YAML config")
-        with open(executable, "rb") as provider:
-            shebang = provider.readline().decode("utf-8", errors="replace").strip()
-        interpreter = shlex.split(shebang[2:]) if shebang.startswith("#!") else []
-        if interpreter and Path(interpreter[0]).name == "env":
-            interpreter = interpreter[2:] if len(interpreter) > 1 and interpreter[1] == "-S" else interpreter[1:]
-            if interpreter:
-                interpreter[0] = shutil.which(interpreter[0]) or ""
-        if not interpreter or not interpreter[0] or "python" not in Path(interpreter[0]).name.lower():
-            raise RuntimeError("podman-compose's Python interpreter is unavailable to parse its YAML config")
         script = "import json,sys,yaml; sys.stdout.write(json.dumps(yaml.safe_load(sys.stdin.read())))"
-        parsed = subprocess.run([interpreter[0], "-c", script], input=res.stdout,
-                                capture_output=True, text=True, timeout=30)
-        if parsed.returncode != 0:
-            raise RuntimeError((parsed.stderr or "could not parse podman-compose config").strip())
-        return json.loads(parsed.stdout)
+        last = "no Python interpreter with PyYAML was found for podman-compose's config"
+        for interp in _yaml_interpreters(rt):
+            try:
+                parsed = subprocess.run([interp, "-c", script], input=out,
+                                        capture_output=True, text=True, timeout=30)
+            except (OSError, subprocess.SubprocessError) as exc:
+                last = str(exc)
+                continue
+            if parsed.returncode == 0:
+                return json.loads(parsed.stdout)
+            last = (parsed.stderr or "could not parse podman-compose config").strip().splitlines()[-1]
+        raise RuntimeError(last)
+
+
+_CONFIG_CACHE: Dict[tuple, str] = {}
+
+
+def _config_text(command: List[str], env: Dict[str, str]) -> str:
+    """Run `compose config` once per identical command and environment in this process."""
+    key = (tuple(command), tuple(sorted(env.items())))
+    if key not in _CONFIG_CACHE:
+        res = subprocess.run(command, cwd=str(paths.ENGINE), env=env, capture_output=True,
+                             text=True, timeout=120)
+        if res.returncode != 0:
+            raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
+        _CONFIG_CACHE[key] = res.stdout
+    return _CONFIG_CACHE[key]
+
+
+def _yaml_interpreters(rt: Runtime) -> List[str]:
+    """Candidate Pythons that may have PyYAML, best first: the one podman-compose itself
+    runs under (shebang, incl. `env python3`), the python beside it (pipx/venv), then PATH."""
+    found: List[str] = []
+    executable = shutil.which(rt.compose_cmd[0])
+    if executable:
+        try:
+            with open(executable, "rb") as provider:
+                shebang = provider.readline().decode("utf-8", errors="replace").strip()
+        except OSError:
+            shebang = ""
+        words = shlex.split(shebang[2:]) if shebang.startswith("#!") else []
+        if words and Path(words[0]).name == "env":
+            words = [w for w in words[1:] if w != "-S" and "=" not in w]
+            if words:
+                words[0] = shutil.which(words[0]) or ""
+        if words and words[0] and "python" in Path(words[0]).name.lower():
+            found.append(words[0])
+        beside = Path(executable).resolve().parent
+        found += [str(beside / n) for n in ("python", "python3") if (beside / n).is_file()]
+    found += [w for w in (shutil.which("python3"), sys.executable) if w]
+    return list(dict.fromkeys(found))
 
 
 def config_yaml(rt: Runtime, files: List[str], env: Dict[str, str]) -> str:
     """The merged Compose config, or a RuntimeError with Compose's own message."""
-    res = subprocess.run([*rt.compose_cmd, *compose_args(files), "config"],
-                         cwd=str(paths.ENGINE), env=env, capture_output=True, text=True, timeout=120)
-    if res.returncode != 0:
-        raise RuntimeError((res.stderr or res.stdout).strip() or "compose config failed")
-    return res.stdout
+    return _config_text([*rt.compose_cmd, *compose_args(files), "config"], env)
 
 
 def mem_limits(rt: Runtime, files: List[str], env: Dict[str, str]) -> Tuple[Dict[str, Optional[int]], List[str]]:

@@ -60,10 +60,10 @@ target is `contained` only when the attack is blocked **and** normal use still w
 the app off, you will see `broke-normal-use`. It never shows you the payload or the data, so it tells you whether,
 not how. Do not expect it to find the bug for you.
 
-### `dojo-reset`
+### `dojo reset`
 
 ```sh
-dojo-reset policy-bypass      # one target, back to the starting app
+dojo reset policy-bypass      # one target, back to the starting app
 ```
 
 If you break a box (it is down, or a merge made it worse), this replaces the running container with the original,
@@ -111,7 +111,7 @@ Open a pull request in Forgejo. The gate has two parts:
 - The checker runs the attack against **your branch** and one normal request.
 - Its note tells you what it saw, one sentence, never the payload.
 
-The gate is advisory: a failing check doesn't block the merge, so you can still ship and `dojo-reset <target>`
+The gate is advisory: a failing check doesn't block the merge, so you can still ship and `dojo reset <target>`
 undoes a box you broke.
 
 Merge. The merge rebuilds the image and redeploys that slot in place, with nothing for you to ask anyone.

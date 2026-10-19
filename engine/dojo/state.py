@@ -24,6 +24,10 @@ from . import paths
 
 CURRENT = paths.STATE / "current.json"
 HISTORY = paths.STATE / "history.jsonl"
+# The --pass access code, mode 600: the recorded flags say "--pass <redacted>"
+# and `restart` reads the code back from here.
+GATE_PASS = paths.STATE / "gate-pass"
+REDACTED = "<redacted>"
 LEGACY = (paths.LAST_OVERLAY, paths.RUNNING_WORKSHOP, paths.LAST_START)
 
 
@@ -49,6 +53,25 @@ def write_current(cur: Current) -> None:
     paths.LAST_START.write_text(" ".join(shlex.quote(a) for a in [cur.workshop, *cur.args]) + "\n")
     for old in (paths.LAST_OVERLAY, paths.RUNNING_WORKSHOP):
         old.unlink(missing_ok=True)
+
+
+def save_gate_pass(code: Optional[str]) -> None:
+    """Keep the --pass code for `restart` (owner-only), or forget it."""
+    if not code:
+        GATE_PASS.unlink(missing_ok=True)
+        return
+    paths.STATE.mkdir(exist_ok=True)
+    fd = os.open(GATE_PASS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(code + "\n")
+    os.chmod(GATE_PASS, 0o600)
+
+
+def load_gate_pass() -> Optional[str]:
+    try:
+        return GATE_PASS.read_text().strip() or None
+    except OSError:
+        return None
 
 
 def read_current() -> Optional[Current]:

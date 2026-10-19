@@ -74,7 +74,6 @@ CI runs on the single-use runner pool. The demo bots do the same.
 - **Say it first:** CI runners are single-use (Labs 8-9), so a job queues behind the pool. If everyone
   hits CI at once, raise the runner count (Runners tab, +). A job that "hangs" is usually waiting for a
   free runner.
-- **Lagging student:** `dojo prep <N>` brings them to the start of lab N; safe to re-run.
 - **Audit tab** is the teaching aid for the "what did I just do" question: filter by the student and you
   can see their path and operation (not the secret value — those are HMACed).
 - **Lab 11 is an incident drill** — expect deliberate breakage and questions; that is the lab.

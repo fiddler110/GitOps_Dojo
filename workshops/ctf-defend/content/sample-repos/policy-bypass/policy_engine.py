@@ -1,34 +1,3 @@
-# Vendored verbatim from modules/dojo-cloud/cloud-api/policy_engine.py (CTF target
-# 9 policy-bypass, plan §7.3 row 9, ties cloud-policy-as-code). Unlike every other
-# flag/token derivation in this range, this is real deterministic logic, not a
-# secret, so copying it exactly is the right move here -- there is nothing to
-# re-derive independently and no drift to guard against by reimplementing it. If
-# dojo-cloud's engine changes, re-copy this file; app.py's own vulnerable policy
-# (the actual target) is defined entirely in app.py, never here.
-"""Dojo Cloud Policy: a data-driven rule engine with an Azure-Policy-like grammar.
-
-Pure functions, stdlib only, no I/O (so it is unit-tested in test_policy_engine.py).
-
-Shapes
-  resource    {id, type, name, location, tags, properties}   (build one with resource_view)
-  definition  {id, name, properties: {displayName, policyType, mode, parameters, policyRule: {if, then}}}
-  set         {id, name, properties: {displayName, parameters, policyDefinitions: [...]}}
-  assignment  {id, name, properties: {policyDefinitionId, scope, notScopes, parameters, enforcementMode,
-              nonComplianceMessage | nonComplianceMessages, displayName}}
-  exemption   {id, name, properties: {policyAssignmentId, scope, policyDefinitionReferenceIds, expiresOn}}
-  lookup(id)  -> definition or set dict, or None
-
-Conditions: field + one operator (equals notEquals in notIn like notLike contains notContains exists less
-lessOrEquals greater greaterOrEquals), or allOf / anyOf / not. Strings compare case-insensitively.
-Dojo extensions (not in the real product): operator isBlank, operator inExact (case-sensitive in), and the
-alias .../containers[*].environmentVariableCount (there is no `count` expression).
-
-`[*]` arrays: a condition on an array alias is true only if it holds for EVERY element. An empty or missing
-array has no elements, so it is vacuously true (wrap in `not` to deny on "some element fails").
-Template expressions: "[parameters('name')]", whole string only.
-Effects: deny, audit, modify (tags only), append (tags only), disabled. Modify and append run first, then
-deny and audit see the changed resource.
-"""
 import copy
 import datetime
 import re
@@ -43,7 +12,7 @@ COMPARISON_OPS = ("equals", "notEquals", "in", "notIn", "like", "notLike", "cont
 PARAM_TYPES = ("String", "Array", "Integer", "Float", "Boolean", "Object")
 
 _P = CG + "/"
-_ALIASES = {  # lower-cased alias -> path into the resource; "*" flattens an array; "#envcount" is computed
+_ALIASES = {
     _P + "containers[*].name": ("properties", "containers", "*", "name"),
     _P + "containers[*].image": ("properties", "containers", "*", "properties", "image"),
     _P + "containers[*].resources.requests.cpu":
@@ -70,7 +39,7 @@ _TAG_DOT = re.compile(r"^tags\.([^.\[\]]+)\Z", re.I)
 
 
 class PolicyDefinitionError(ValueError):
-    """A definition, set or assignment that cannot be evaluated (bad parameter value, bad reference)."""
+    pass
 
 
 @dataclass
@@ -96,10 +65,7 @@ class Outcome:
     modified: list = dc_field(default_factory=list)
 
 
-# ---------------------------------------------------------------- resources
-
 def resource_view(kind, name, location, tags, props, sub, rg):
-    """Builds the ARM-shaped resource the engine evaluates. kind: 'resourceGroup' or 'containerGroup'."""
     if tags is None:
         tags = {}
     if not isinstance(tags, dict):
@@ -125,7 +91,6 @@ def _tag_name(fld):
 
 
 def _field_kind(fld):
-    """('basic', key) | ('tags',) | ('tag', name) | ('alias', path) | None when unknown."""
     if not isinstance(fld, str):
         return None
     low = fld.strip().lower()
@@ -151,7 +116,6 @@ def _tag_lookup(tags, name):
 
 
 def _resolve(res, fld):
-    """-> (values, is_array, present). Missing scalars give [None]."""
     kind = _field_kind(fld)
     if kind is None:
         raise PolicyDefinitionError(f"unknown field alias '{fld}'")
@@ -178,8 +142,6 @@ def _resolve(res, fld):
         cur = [None]
     return cur, is_arr, any(v is not None for v in cur)
 
-
-# ---------------------------------------------------------------- expressions and parameters
 
 def _subst(value, params):
     if isinstance(value, str):
@@ -213,8 +175,6 @@ def _type_ok(ptype, v):
 
 
 def resolve_parameters(declared, supplied):
-    """declared {name: {type, defaultValue, allowedValues}}, supplied {name: {value}|value}
-    -> (values, errors). Checks type, allowedValues, unknown and missing parameters."""
     declared, supplied = declared or {}, supplied or {}
     values, errors = {}, []
     for name in supplied:
@@ -242,8 +202,6 @@ def resolve_parameters(declared, supplied):
         values[name] = v
     return values, errors
 
-
-# ---------------------------------------------------------------- comparison
 
 def _eq(a, b):
     if isinstance(a, str) and isinstance(b, str):
@@ -330,8 +288,6 @@ def _eval(cond, res, params):
     return all(_cmp(op, v, operand) for v in values)
 
 
-# ---------------------------------------------------------------- reasons
-
 _WORDS = {"equals": ("is", "is not"), "notEquals": ("is not", "is"), "in": ("is in", "is not in"),
           "inExact": ("is in", "is not in"), "notIn": ("is not in", "is in"),
           "like": ("matches", "does not match"), "notLike": ("does not match", "matches"),
@@ -365,12 +321,10 @@ def _describe(cond, res, params, neg=False):
         return f"{name} {'is blank' if _truthy(operand) != neg else 'is not blank'}"
     word = _WORDS[op][1 if neg else 0]
     value = f"'{shown}'" if present else "not set"
-    if word == "is":  # the condition matched, so the value is the operand: "tag 'env' is 'dev'"
+    if word == "is":
         return f"{name} is {value}"
     return f"{name} is {value}, which {word} {_fmt(operand)}"
 
-
-# ---------------------------------------------------------------- validation
 
 def _walk_strings(x):
     if isinstance(x, str):
@@ -422,7 +376,6 @@ def _tag_field_ok(fld):
 
 
 def validate_definition(defn):
-    """-> list of human error strings (empty when the definition is usable)."""
     errors = []
     if not isinstance(defn, dict):
         return ["definition must be an object"]
@@ -488,8 +441,6 @@ def validate_definition(defn):
     return errors
 
 
-# ---------------------------------------------------------------- scopes, sets, exemptions
-
 def _under(scope, rid):
     if not isinstance(scope, str) or not isinstance(rid, str):
         return False
@@ -509,7 +460,6 @@ def _is_set(d):
 
 
 def expand_assignment(assignment, lookup):
-    """-> [(definition, resolved_params, referenceId)]. Raises PolicyDefinitionError on bad references or values."""
     ap = _props(assignment)
     target = lookup(ap.get("policyDefinitionId"))
     if target is None:
@@ -585,7 +535,6 @@ def _message(assignment, ref):
 
 
 def _tag_changes(defn, params, res):
-    """Planned tag edits [(label, tag, op, value)] that would actually change res for modify/append."""
     then = _props(defn)["policyRule"]["then"]
     effect = _effect(defn, params)
     out = []
@@ -618,7 +567,6 @@ def _apply(res, changes):
 
 
 def _items(res, assignments, lookup, exemptions, now):
-    """Yields (assignment, defn, params, ref, effect, exempt, enforced) for every applicable definition."""
     for a in assignments:
         if not _in_scope(a, res.get("id", "")):
             continue
@@ -654,8 +602,6 @@ def _now(now):
 
 
 def evaluate_write(resource, assignments, lookup, exemptions=(), now=None):
-    """Evaluates a create/update. Modify and append change a copy first, then deny and audit are judged on it.
-    DoNotEnforce assignments are recorded in `audited` (enforced=False) and never block or change anything."""
     now = _now(now)
     out = Outcome(resource=copy.deepcopy(resource))
     items = list(_items(out.resource, assignments, lookup, exemptions, now))
@@ -690,7 +636,6 @@ def evaluate_write(resource, assignments, lookup, exemptions=(), now=None):
 
 
 def compliance(resources, assignments, lookup, exemptions=(), now=None):
-    """-> [{assignmentId, definitionId, referenceId, resourceId, state, reason}] for deny/audit/modify/append."""
     now = _now(now)
     rows = []
     for res in resources:

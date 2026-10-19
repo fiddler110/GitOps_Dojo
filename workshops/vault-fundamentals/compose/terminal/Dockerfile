@@ -5,6 +5,7 @@
 # and sha256-verified per architecture. The entrypoint is inherited unchanged.
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TARGETARCH=amd64
 

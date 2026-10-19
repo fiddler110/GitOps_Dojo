@@ -259,6 +259,11 @@ services:
     # container's own interfaces/netns only, not the host's.
     cap_add:
       - NET_ADMIN
+      # workspace-control.py's port-squat sweep reads students' /proc/<pid>/fd
+      # to find who holds a workspace port and evict them (without it, root
+      # here gets EACCES). DOJO_ISOLATION already stops a squatter receiving
+      # traffic; this ends the denial of service. Students never hold it.
+      - SYS_PTRACE
     # Students are never root here, but a local privilege escalation would be:
     # nothing in the image needs raw sockets (ping is not offered) or mknod.
     cap_drop:

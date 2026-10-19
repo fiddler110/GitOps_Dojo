@@ -31,7 +31,7 @@ step_tour_dns() {
   run_cmd "dnscontrol preview 2>&1 | tail -3"
   run_cmd "dnscontrol push 2>&1 | tail -3"
   run_cmd "dig @dns-server www.${BOT_USER}.dojo.test A +short | grep 203.0.113.10" || return 1
-  cd "$REPO_DIR" 2>/dev/null || cd "$HOME"
+  cd "$REPO_DIR" 2>/dev/null || cd "$HOME" || return
 }
 
 step_tour_cloud() {
@@ -40,7 +40,7 @@ step_tour_cloud() {
   run_cmd ". <(dojo-env) && tofu init -input=false 2>&1 | tail -1"
   run_cmd ". <(dojo-env) && tofu apply -auto-approve -input=false 2>&1 | tail -2"
   run_cmd "tofu state list | grep azurerm_resource_group.tour" || return 1
-  cd "$REPO_DIR"
+  cd "$REPO_DIR" || return
 }
 
 step_wrap_round() {

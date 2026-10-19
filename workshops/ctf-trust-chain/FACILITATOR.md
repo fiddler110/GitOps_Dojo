@@ -26,7 +26,7 @@ on.
 
 **Lab 1 has two flags, and that trips people up.** The first flag is a captured service token (land the
 spoof, poll `/captured`); the second needs that token **replayed** at `/admin` as a Bearer token. Tell the
-room up front there are two `dojo-flag submit` calls for this one target, not one — the lab text makes
+room up front there are two `dojo flag` calls for this one target, not one — the lab text makes
 this explicit but it's easy to stop after the first flag and think you're done.
 
 **Don't volunteer hints from the stage.** The slides deliberately never name a specific bug, and each
@@ -42,8 +42,8 @@ them what's in it.
 
 1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
-2. Generate a real `CTF_CONTROL_TOKEN` for `workshop.env` (the committed value is a dev placeholder) —
-   it gates the Attack Range's start/stop/reset API.
+2. Nothing to generate for the range: `CTF_CONTROL_TOKEN` (it gates the Attack Range's start/stop/reset API)
+   is derived from `GATEWAY_TOKEN` in `modules/ctf-range/module.env`.
 3. `./dojo ctf-trust-chain`. First build takes a few minutes longer than most packs: `ctf-host` builds
    its `ctf-host-ctf4` stage (the 2-target image, not the full 14-target catalog — CTF-D26) on top of
    `docker:dind`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and **Attack Range**

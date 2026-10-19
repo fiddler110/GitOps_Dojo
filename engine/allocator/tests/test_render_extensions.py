@@ -92,6 +92,14 @@ class RouteRuleTests(unittest.TestCase):
         self.bad("allocator", path="/assign")
         self.bad("allocator", path="/forgejo-login")
 
+    def test_gateway_and_session_paths_reserved(self):
+        # REVIEW §1.6: the gateway's own sign-in and --pass paths.
+        for p in ("/login", "/login-help", "/_gate"):
+            with self.assertRaises(rx.ManifestError):
+                run_merge(manifest(routes=[route(path=p)]))
+        for p in ("/logout", "/session-check", "/gate-fail"):
+            self.bad("allocator", path=p)
+
     def test_path_shape(self):
         for p in ("portal", "/Portal", "/por tal", "/a/b", "/x{y}", "//evil", "/"):
             self.bad("path must match", path=p)
@@ -227,6 +235,14 @@ class CaddyTests(unittest.TestCase):
         self.assertNotIn("header_up Host", c)
         # client-supplied gate headers are removed before forward_auth copies them in
         self.assertLess(c.index("request_header -X-Dojo-User"), c.index("forward_auth"))
+
+    def test_every_gate_strips_dojo_cookies(self):
+        # REVIEW §1.2: the upstream never sees dojo_login/dojo_session/dojo_gate;
+        # the forward_auth call to the allocator (which needs them) keeps them.
+        for gate in rx.GATES:
+            c = self.render(gate=gate)
+            self.assertEqual(c.count("import strip_dojo_cookies"), 1, gate)
+            self.assertGreater(c.index("import strip_dojo_cookies"), c.index("reverse_proxy"), gate)
 
     def test_shared_gate_forwards_no_identity(self):
         c = self.render(gate="shared")

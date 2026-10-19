@@ -8,7 +8,7 @@ Use it when you have broken a box (it is down, or your merge made it worse and y
 want a clean start). It replaces the running container with the original, vulnerable
 app. Your repo is not touched: your commits are still there, and the next merge to
 main rebuilds and redeploys them. To undo a bad merge in the repo, `git revert` it.
-Talks to ctf-checker as the account's own $USER (same identity model as dojo check).
+Talks to ctf-checker as $USER, proven by the account's own key (~/.config/dojo/ctf-key).
 """
 import json
 import os
@@ -17,6 +17,17 @@ import urllib.error
 import urllib.request
 
 ADDR = os.environ.get("CTF_CHECKER_ADDR", "http://ctf-checker:9200")
+
+
+def own_key():
+    """This account's ctf key (account.d/57-ctf-key.sh writes it; "" if missing, which the
+    service refuses). CTF_KEY_FILE overrides the path, so root can act for a student."""
+    path = os.environ.get("CTF_KEY_FILE") or os.path.expanduser("~/.config/dojo/ctf-key")
+    try:
+        with open(path, encoding="ascii") as fh:
+            return fh.read().strip()
+    except (OSError, ValueError):
+        return ""
 
 
 def main(argv):
@@ -28,7 +39,7 @@ def main(argv):
         print("dojo reset: could not tell who you are ($USER is unset)", file=sys.stderr)
         return 1
     req = urllib.request.Request(f"{ADDR}/reset", method="POST",
-                                 data=json.dumps({"user": user, "target": argv[0]}).encode(),
+                                 data=json.dumps({"user": user, "key": own_key(), "target": argv[0]}).encode(),
                                  headers={"Content-Type": "application/json"})
     print(f"dojo reset: redeploying {argv[0]}; this takes a couple of minutes...", flush=True)
     try:

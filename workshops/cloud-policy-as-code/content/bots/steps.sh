@@ -191,12 +191,12 @@ step_cpc_reset() {
   return 0
 }
 
-# Lab 0: fork (done by step_ensure_clone), lab-prep, then the app applied from infra/.
+# Lab 0: fork (done by step_ensure_clone), `dojo prep 0`, then the app applied from infra/.
 step_cpc_lab0() {
   cpc_ready || return 0
-  narrate "Lab 0 -- lab-prep saves the cloud login as Actions secrets and protects main"
-  # lab-prep calls the Forgejo API with `curl --netrc`. A student's ~/.netrc comes from forgejo-token.py; a bot has
-  # only its own netrc (same machine, password instead of a token), so give lab-prep that.
+  narrate "Lab 0 -- dojo prep 0 saves the cloud login as Actions secrets and protects main"
+  # dojo prep calls the Forgejo API with `curl --netrc`. A student's ~/.netrc comes from forgejo-token.py; a bot has
+  # only its own netrc (same machine, password instead of a token), so give dojo prep that.
   [ -e "$HOME/.netrc" ] || install -m 600 "$HOME/.dojo-bot-netrc" "$HOME/.netrc"
   run_cmd "dojo prep 0" || return 1
   run_cmd "ls infra policy/cloud policy/cloud/rules policy/rego .forgejo/workflows"

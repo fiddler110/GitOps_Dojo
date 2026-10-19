@@ -1,0 +1,21 @@
+# Secret scan config (P13). Defaults plus an allowlist for the deliberate
+# teaching fakes found by the 2026-10-18 history scan (all verified fake).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "teaching fakes and test fixtures"
+paths = [
+  '''^workshops/vault-fundamentals/(content|tests)/''',
+  '''^workshops/tofu-basics/content/lab/''',
+  '''^modules/achievements/.*/test_.*\.py$''',
+  '''^engine/dojo/tests/test_commands\.py$''',
+  # the lab PowerDNS server's fixed API key, used in curl examples and bots
+  '''^workshops/(cert-autorenewal|dns-as-code)/content/''',
+  # the fake Azure secret the "remove a leaked secret" lab plants on purpose
+  '''^workshops/git-fundamentals/compose/terminal/lab-history$''',
+  # credentials planted in the CTF targets, which the exploit guides walk through
+  '''^workshops/ctf-[a-z-]+/content/lab/exploit-guide/''',
+  # a prose table row the generic-api-key rule mistakes for a key
+  '''^docs/CTF-WORKSHOP-PLAN\.md$''',
+]

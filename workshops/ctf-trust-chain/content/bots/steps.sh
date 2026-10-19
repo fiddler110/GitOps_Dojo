@@ -86,14 +86,14 @@ step_dns_resolver_cve() {
     return 0
   fi
   narrate "captured credential $token -- submitting flag 1 and replaying it at /admin for flag 2"
-  run_cmd "dojo-flag submit dns-resolver-cve-token '$token'"
+  run_cmd "dojo flag submit dns-resolver-cve-token '$token'"
   flag2="$(curl -s -X POST "http://$addr:5000/admin" -H "Authorization: Bearer $token" \
     -H 'Content-Type: application/json' -d '{}' | jq -r '.flag // ""' 2>/dev/null)"
   if [ -z "$flag2" ] || [ "$flag2" = "null" ]; then
     narrate "dns-resolver-cve: /admin didn't accept the replayed token this round -- skipping flag 2"
     return 0
   fi
-  run_cmd "dojo-flag submit dns-resolver-cve '$flag2'"
+  run_cmd "dojo flag submit dns-resolver-cve '$flag2'"
 }
 
 # -- Lab 2: policy-bypass -- the deployed policy is public (GET /api/policy); read which tag/value
@@ -126,7 +126,7 @@ step_policy_bypass() {
     narrate "policy-bypass: the provision didn't return a flag this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit policy-bypass '$flag'"
+  run_cmd "dojo flag submit policy-bypass '$flag'"
 }
 
 # -- Lab 3: runner-escape -- `pull_request` runs the PR branch's own copy of the workflow, so a
@@ -193,7 +193,7 @@ $current
     narrate "runner-escape: the job never commented a flag this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit runner-escape '$flag'"
+  run_cmd "dojo flag submit runner-escape '$flag'"
 }
 
 case "$PERSONA" in

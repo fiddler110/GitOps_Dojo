@@ -712,7 +712,7 @@
 
   const containersView = () => listView({
     nav: 'containers', title: 'Container instances', noun: 'container instances', filterKey: 'containers',
-    subtitle: 'Azure Container Instances-style container groups.',
+    subtitle: 'Container groups, one per running app.',
     items: (ov) => sortBy(ov.cgs, 'owner', 'resourceGroup', 'name'),
     keyOf: (c) => c.id || c.subscriptionId + '/' + c.resourceGroup + '/' + c.name,
     rowClass: () => null,

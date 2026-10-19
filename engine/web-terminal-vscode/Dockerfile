@@ -19,6 +19,7 @@
 # stays Debian-based rather than Alpine, to keep this leaf on the same libc.
 ARG BASE=gitopsdojo/web-terminal:core
 FROM ${BASE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # code-server: browser-based VS Code, the students' primary workspace.
 ARG CODE_SERVER_VERSION=4.137.0

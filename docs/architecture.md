@@ -191,8 +191,8 @@ flowchart TD
 ```
 
 The login cookie `dojo_login` is signed, derived from `GATEWAY_TOKEN` and both passwords (changing either password
-signs everyone out), and lasts 12 hours. Wrong passwords are rate-limited (30 a minute per client address, then 429;
-a correct password is never refused). Behind a trusted proxy, `GATEWAY_TRUSTED_PROXIES` names it so the limit counts
+signs everyone out), and lasts 12 hours. Wrong passwords are rate-limited (60 a minute per client address, 100 a minute
+per account name; past either, every attempt gets 429 until the minute is up). Behind a trusted proxy, `GATEWAY_TRUSTED_PROXIES` names it so the limit counts
 each browser rather than the proxy.
 
 ## 6. The allocator

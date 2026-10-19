@@ -2,12 +2,33 @@
 the published port and plain HTTP. Same rules dojo has always applied."""
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional
+
+from . import config, paths
 
 # Passwords anyone can know: .env.example's placeholder and the values
 # `./dojo setup --default` writes. Keep in step with engine/scripts/lib.sh
 # (tests/test_checks.py compares the two).
 DEFAULT_PASSWORDS = ("change-me", "student", "student123", "admin")
+
+
+def required_keys() -> List[str]:
+    """Variables docker-compose.yml refuses to start without (${VAR:?...}) that
+    the operator is meant to provide (.env.example's secrets, dojo.toml's settings)."""
+    from .envfiles import parse_literal
+    compose = (paths.ENGINE / "docker-compose.yml").read_text()
+    needed = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*):\?", compose))
+    example_file = paths.REPO / ".env.example"
+    example = {k for k, _, _ in parse_literal(example_file)} if example_file.is_file() else set()
+    example |= set(config.BY_ENV)
+    return sorted(needed & example) if example else sorted(needed)
+
+
+def missing_required(env: Dict[str, str]) -> List[str]:
+    """Required settings that are empty or missing (an empty password counts:
+    nobody could sign in with it)."""
+    return [k for k in required_keys() if not env.get(k)]
 
 
 def is_default_password(value: str) -> bool:

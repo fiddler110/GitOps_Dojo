@@ -81,8 +81,8 @@ source IP means nothing. The kernel separates them:
 
 - **Student-controlled strings are shown to the whole class.** Render with `textContent` only, never `innerHTML`.
 - **Strict CSP** on the allocator's pages: no inline script or style (`pages.py` serves static assets).
-- **Sign-in**: signed 12-hour cookie derived from the passwords and gateway token; wrong guesses limited (30/min per
-  client address, then 429); `/logout`. The login page can use `GATEWAY_TRUSTED_PROXIES` to count real client addresses.
+- **Sign-in**: signed 12-hour cookie derived from the passwords and gateway token; wrong guesses limited (60/min per
+  client address, 100/min per account, then 429 even for the right password); `/logout`. The login page can use `GATEWAY_TRUSTED_PROXIES` to count real client addresses.
 - **Plain http** off localhost prints a warning; https sends HSTS.
 - **Slides** sit behind the class login too.
 - **Caddy always strips `Authorization`** before Forgejo (Forgejo hard-fails on a foreign Basic credential, and it

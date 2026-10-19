@@ -7,6 +7,7 @@
 # dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TOFU_VERSION=1.12.6
 # TARGETARCH is set automatically by BuildKit to match the build platform

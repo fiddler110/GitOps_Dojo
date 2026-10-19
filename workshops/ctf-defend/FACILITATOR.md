@@ -57,8 +57,8 @@ target, in order; never at a line number.
 1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`, `STUDENT_COUNT`,
    `FORGEJO_ADMIN_USER`/`FORGEJO_ADMIN_PASSWORD` (required — `90-ctf-defend.sh` provisions each
    student's repo through Forgejo's admin API and skips a student silently if these are missing).
-2. `CTF_BUILD_TOKEN`/`CTF_CONTROL_TOKEN` in `workshop.env` are already derived from `GATEWAY_TOKEN` —
-   nothing to generate by hand here, unlike CTF-1's pack.
+2. `CTF_BUILD_TOKEN`/`CTF_CONTROL_TOKEN` are derived from `GATEWAY_TOKEN` in
+   `modules/ctf-range/module.env` — nothing to generate by hand.
 3. `./dojo ctf-defend`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and
    **SOC** to go green. Confirm the `attacker-bot` container is up (idle) — `podman ps`.
 4. **Size the machine:** `./dojo capacity ctf-defend --students 30` if you expect a full room — the
@@ -68,6 +68,8 @@ target, in order; never at a line number.
    `dojo check` says `contained`, and check the per-target milestones land. Then try
    the capstone (`customer-portal`'s `/login` has the same bug). `./dojo stop` and start clean afterward.
    Run `content/sync-sample-repos.sh` first if a target's source changed.
+   The student repos are stripped of every comment and docstring (they named the flaw and the fix);
+   the annotated originals, your answer key, are `modules/ctf-range/targets/<target>/app.py`.
 6. Skim the deck with speaker notes on.
 
 **On the day, 15 minutes before**
