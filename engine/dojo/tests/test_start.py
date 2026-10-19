@@ -5,6 +5,10 @@ on PYTHONPATH, or through boot.py once.)
 """
 import json
 import os
+import stat
+import subprocess
+import tempfile
+from pathlib import Path
 import unittest
 from unittest import mock
 
@@ -49,6 +53,83 @@ class Recorded(unittest.TestCase):
         self.assertEqual(bot_count(StartOptions("x", test="", fast=True), {}), "3")
         with self.assertRaises(StartError):
             bot_count(StartOptions("x", fast=True), {})
+
+
+LOCAL = {"PUBLIC_BASE_URL": "http://localhost:8080", "LAB_HOST_IP": "127.0.0.1"}
+
+
+class SafetyGates(unittest.TestCase):
+    def gates(self, o, env):
+        with mock.patch.object(start, "console"), \
+                mock.patch.object(start.checks, "required_keys", return_value=["FACILITATOR_PASSWORD"]):
+            start._safety_gates(o, {**LOCAL, "FACILITATOR_PASSWORD": "x9", **env})
+
+    def test_no_seed_refused_for_a_real_start(self):
+        with self.assertRaises(StartError) as cm:
+            self.gates(StartOptions("x"), {})
+        self.assertIn("STUDENT_PASSWORD_SEED", str(cm.exception))
+        self.assertIn("setup", str(cm.exception))
+
+    def test_no_seed_allowed_for_test_and_escape_hatch(self):
+        self.gates(StartOptions("x", test=""), {})
+        self.gates(StartOptions("x", allow_default_passwords=True), {})
+        self.gates(StartOptions("x"), {"ALLOW_DEFAULT_PASSWORDS": "1"})
+        self.gates(StartOptions("x", build_only=True), {})
+        self.gates(StartOptions("x"), {"STUDENT_PASSWORD_SEED": "ab" * 32})
+
+    def test_empty_required_password_refused(self):
+        with self.assertRaises(StartError) as cm:
+            self.gates(StartOptions("x", test=""), {"FACILITATOR_PASSWORD": ""})
+        self.assertIn("FACILITATOR_PASSWORD", str(cm.exception))
+        self.gates(StartOptions("x", build_only=True), {"FACILITATOR_PASSWORD": ""})
+
+
+class GatePass(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.object(state, "GATE_PASS", Path(self.tmp.name) / "gate-pass")
+        p.start()
+        self.addCleanup(p.stop)
+        q = mock.patch.object(state.paths, "STATE", Path(self.tmp.name))
+        q.start()
+        self.addCleanup(q.stop)
+
+    def test_recorded_redacted_and_restored(self):
+        o = StartOptions("x", gate_pass="s3cret")
+        self.assertEqual(o.flags, ["--pass", "<redacted>"])
+        self.assertNotIn("s3cret", json.dumps(o.flags))
+        state.save_gate_pass("s3cret")
+        self.assertEqual(stat.S_IMODE(state.GATE_PASS.stat().st_mode), 0o600)
+        self.assertEqual(parse_recorded(["x", *o.flags]).gate_pass, "s3cret")
+        state.save_gate_pass(None)
+        self.assertFalse(state.GATE_PASS.exists())
+
+    def test_old_plain_record_still_parses(self):
+        self.assertEqual(parse_recorded(["x", "--pass", "old"]).gate_pass, "old")
+
+    def test_restart_without_saved_code_refuses(self):
+        with mock.patch.object(state, "last_start", return_value=["x", "--pass", "<redacted>"]), \
+                mock.patch.object(start, "fail") as fail, mock.patch.object(start, "run_start") as rs:
+            self.assertEqual(start.run_restart([], False), 1)
+        rs.assert_not_called()
+        self.assertIn("--pass", fail.call_args[0][0])
+
+
+class EndProcess(unittest.TestCase):
+    def test_kills_after_grace(self):
+        proc = mock.Mock()
+        proc.wait.side_effect = [subprocess.TimeoutExpired("up", 1), 0]
+        start._end_process(proc, grace=0.01)
+        proc.terminate.assert_called_once()
+        proc.kill.assert_called_once()
+
+    def test_no_kill_when_it_exits(self):
+        proc = mock.Mock()
+        proc.wait.return_value = 0
+        start._end_process(proc)
+        proc.kill.assert_not_called()
+        proc.wait.assert_called_once_with(timeout=10.0)
 
 
 class ReleaseBots(unittest.TestCase):

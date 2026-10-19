@@ -18,7 +18,7 @@ from rich.table import Table
 
 from . import checks, paths, state
 from . import config
-from .envfiles import EnvError, operator_env, parse_literal, resolve, split_profiles
+from .envfiles import EnvError, operator_env, resolve, split_profiles
 from .runtime import Runtime, on_wsl, project_name
 from .stack import extra_files, mem_limits, read_state, services
 from .ui import console
@@ -44,14 +44,7 @@ def _mem_mb(value: str) -> Optional[int]:
 
 
 def _required_keys() -> List[str]:
-    """Variables docker-compose.yml refuses to start without (${VAR:?...}) that
-    the operator is meant to provide (.env.example's secrets, dojo.toml's settings)."""
-    compose = (paths.ENGINE / "docker-compose.yml").read_text()
-    needed = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*):\?", compose))
-    example_file = paths.REPO / ".env.example"
-    example = {k for k, _, _ in parse_literal(example_file)} if example_file.is_file() else set()
-    example |= set(config.BY_ENV)
-    return sorted(needed & example) if example else sorted(needed)
+    return checks.required_keys()
 
 
 def _port_free(host: str, port: int) -> bool:

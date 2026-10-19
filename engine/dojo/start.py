@@ -66,7 +66,8 @@ class StartOptions:
 
     @property
     def flags(self) -> List[str]:
-        """The flags as a start is recorded (for `restart` to repeat)."""
+        """The flags as a start is recorded (for `restart` to repeat). The --pass
+        code is recorded as <redacted>; state.GATE_PASS (mode 600) keeps it."""
         out: List[str] = []
         if self.test is not None:
             out += ["--test"] + ([self.test] if self.test else [])
@@ -79,7 +80,7 @@ class StartOptions:
         if self.allow_default_passwords:
             out.append("--allow-default-passwords")
         if self.gate_pass:
-            out += ["--pass", self.gate_pass]
+            out += ["--pass", state.REDACTED]
         return out
 
 
@@ -111,7 +112,11 @@ def parse_recorded(words: List[str]) -> StartOptions:
         elif w == "--allow-default-passwords":
             o.allow_default_passwords = True
         elif w == "--pass" and i + 1 < len(words):
+            # <redacted>: the code is in state.GATE_PASS; if that is gone it stays
+            # <redacted> and run_restart asks for it again. Older records hold it plain.
             o.gate_pass = words[i + 1]
+            if o.gate_pass == state.REDACTED:
+                o.gate_pass = state.load_gate_pass() or state.REDACTED
             i += 1
         i += 1
     return o
@@ -451,9 +456,23 @@ def _safety_gates(o: StartOptions, env: Dict[str, str]) -> None:
                 f"'{paths.PROG} setup --default' can sign in. Generate real ones with '{paths.PROG} setup --force'\n"
                 "(your PUBLIC_BASE_URL/LAB_HOST_IP stay in dojo.local.toml), or pass\n"
                 "--allow-default-passwords (or allow_default_passwords = true under [network] in a profile) to start anyway.")
-    if not env.get("STUDENT_PASSWORD_SEED"):
-        console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in .env: every student's Forgejo password is the\n"
-                      f"         shared STUDENT_PASSWORD. Add one ('openssl rand -hex 32') or run '{paths.PROG} setup'.[/]")
+    missing = [] if o.build_only else checks.missing_required(env)
+    if missing:
+        raise StartError(f"Refusing to start: empty or missing settings: {', '.join(missing)}.\n"
+                         f"Nobody could sign in with an empty password. Run '{paths.PROG} setup' to fill them in\n"
+                         f"(or set them in .env; '{paths.PROG} doctor' lists what is missing).")
+    if not env.get("STUDENT_PASSWORD_SEED") and not o.build_only:
+        if o.test is not None or o.allow_default_passwords or env.get("ALLOW_DEFAULT_PASSWORDS") == "1":
+            console.print("[yellow]WARNING: no STUDENT_PASSWORD_SEED in .env: every student's Forgejo password is the\n"
+                          "         shared STUDENT_PASSWORD and CTF flags are guessable (flag{<challenge>-dev-<user>}).\n"
+                          "         Allowed for --test / --allow-default-passwords runs only.[/]")
+        else:
+            raise StartError(
+                "Refusing to start: no STUDENT_PASSWORD_SEED in .env (or the profile's section). Without it every\n"
+                "student's Forgejo password is the shared STUDENT_PASSWORD and CTF flags are guessable.\n"
+                f"Run '{paths.PROG} setup', or add a line STUDENT_PASSWORD_SEED=<output of 'openssl rand -hex 32'>\n"
+                "to .env's top section (or the section of the --env profile this run uses),\n"
+                "or, for a throwaway rehearsal, pass --test or --allow-default-passwords.")
     if checks.plain_http_offbox(env):
         console.print(f"[yellow]WARNING: PUBLIC_BASE_URL={env.get('PUBLIC_BASE_URL')} is plain HTTP beyond this machine: passwords,\n"
                       "         cookies and terminal input travel unencrypted. For a class, use HTTPS: a real\n"
@@ -629,6 +648,7 @@ def _dry_run_checks(p: Plan) -> int:
 
 def _compose_up(p: Plan) -> int:
     """Step 5: record the run, mirror the lab docs, `compose up -d` and watch it settle."""
+    state.save_gate_pass(p.o.gate_pass)
     state.write_current(state.Current(p.o.workshop, p.o.flags, p.files, p.o.env_name, time.time()))
     for d in paths.WORKSHOPS.glob("*/content"):  # dojo-introduction shows other packs' labs too
         sync_lab_docs(d)
@@ -659,7 +679,7 @@ def _compose_up(p: Plan) -> int:
             mon.wait_until_ready(float(p.env.get("STARTUP_WAIT") or 300))
     except KeyboardInterrupt:
         if proc is not None and proc.poll() is None:
-            proc.terminate()
+            _end_process(proc)
         mon.stop(final=False)
         raise
     mon.stop()
@@ -735,6 +755,22 @@ def _open_up_log():
 BOTS_GO = "/run/dojo-bots-go"
 
 
+def _end_process(proc: subprocess.Popen, grace: float = 10.0) -> None:
+    """Stop compose on Ctrl-C: terminate, give it `grace` seconds, then kill,
+    so podman-compose doesn't outlive the CLI."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+    except KeyboardInterrupt:
+        proc.kill()
+
+
 def release_bots(rt) -> None:
     """--fast bots wait for this file before round 1, so they start on a stack that is up, not one still starting."""
     if rt.run("exec", "workshop_terminal", "touch", BOTS_GO).returncode == 0:
@@ -749,6 +785,10 @@ def run_restart(services_: List[str], clean: bool) -> int:
         fail("Nothing to restart: no workshop has been started from this checkout yet ('./dojo <workshop>').")
         return 1
     o = parse_recorded(last)
+    if o.gate_pass == state.REDACTED:
+        fail(f"The last start used --pass, but its code ({state.GATE_PASS}) is gone. Start it again with the code:\n"
+             f"  ./dojo stop && ./dojo {o.workshop} --pass CODE")
+        return 1
     if clean:
         if services_:
             fail("--clean restarts the whole stack; leave out the service names.")
