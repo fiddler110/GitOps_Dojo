@@ -856,9 +856,9 @@ Dojo Cloud's CA (the `cloud_pki` volume, read-only). Nothing reaches the interne
 every one of those is a path inside the stack.
 
 Each lab is a `tofu apply` against the real provider, so the pack raises its own
-ceilings in `workshop.env` (`WEB_TERMINAL_MEM_LIMIT=6g`,
-`WEB_TERMINAL_PIDS_LIMIT=1024`) — a whole class applying at the same moment went
-past the engine's defaults.
+ceilings in `workshop.env` (`WEB_TERMINAL_MEM_LIMIT=6g`, and
+`WEB_TERMINAL_PIDS_PER_STUDENT=70`, which the start turns into a cap for the
+class) — a whole class applying at the same moment went past the engine's defaults.
 
 ---
 

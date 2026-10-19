@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 from rich.markup import escape
 from rich.table import Table
 
-from . import checks, paths, state
+from . import checks, paths, sizing, state
 from . import config
 from .envfiles import EnvError, operator_env, resolve, split_profiles
 from .runtime import Runtime, on_wsl, project_name
@@ -187,6 +187,11 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
             return out
         for w in res.warnings:
             add(Check(WARN, f"Workshop {workshop}", w))
+        need, how = sizing.class_pids(res.env)
+        have = res.env.get("WEB_TERMINAL_PIDS_LIMIT") or "unset"
+        add(Check(OK if have.isdigit() and int(have) >= need else INFO, "Terminal processes",
+                  f"cap {have}; {need} for the class ({how}, plus any demo bots)"
+                  + ("" if have.isdigit() and int(have) >= need else "; the start raises it")))
         try:
             names = services(rt, extra_files(res), res.env)
             add(Check(OK, f"Workshop {workshop}", f"env resolves, modules: {', '.join(res.modules) or 'none'}; "

@@ -35,6 +35,7 @@ cd "$(dirname "$0")/.."
 STUDENTS=""
 HEAP_MB="${CODE_SERVER_MAX_HEAP_MB:-384}"
 PROCS_PER_STUDENT=5     # code-server entry + extensionHost + ptyHost + fileWatcher + one language server, observed live -- see note below
+PIDS_PER_STUDENT=50     # processes + threads per account; a workshop may need more (WEB_TERMINAL_PIDS_PER_STUDENT)
 RESERVE_MB=1024         # host OS + docker/podman daemon headroom
 # git-server(2g) + presentation(512m) + allocator(256m) + gateway(256m) --
 # matches the mem_limits docker-compose.yml sets on those four services, so
@@ -68,6 +69,9 @@ Options:
                             (default: 15)
   --host-mem-mb MB          plan for a machine you haven't provisioned yet;
                             skips memory auto-detection
+  --pids-per-student N      processes + threads per student account (default: 50;
+                            the workshop's WEB_TERMINAL_PIDS_PER_STUDENT when
+                            WORKSHOP is given)
   --procs-per-student N     node processes assumed per student for the
                             worst-case ceiling (default: 5)
   --reserve-mb MB           host OS + container-daemon headroom (default: 1024)
@@ -83,6 +87,7 @@ while [ $# -gt 0 ]; do
     --students) STUDENTS="$2"; shift 2 ;;
     --heap-mb) HEAP_MB="$2"; shift 2 ;;
     --procs-per-student) PROCS_PER_STUDENT="$2"; shift 2 ;;
+    --pids-per-student) PIDS_PER_STUDENT="$2"; shift 2 ;;
     --reserve-mb) RESERVE_MB="$2"; shift 2 ;;
     --other-services-mb) OTHER_SERVICES_MB="$2"; shift 2 ;;
     --other-services-from) OTHER_SERVICES_FROM="$2"; shift 2 ;;
@@ -224,11 +229,10 @@ MEM_LIMIT_MB=$(( BASE_MB + STUDENTS * PER_STUDENT_MB ))
 MEM_LIMIT_GB=$(( (MEM_LIMIT_MB + 1023) / 1024 ))
 if [ "$MEM_LIMIT_GB" -lt 1 ]; then MEM_LIMIT_GB=1; fi
 
-# Sustained-activity default (40 pids/student + a fixed base) rather than
-# the lighter 30/student rule of thumb -- a full 1-2hr session with every
-# student active the whole time tends to accumulate more terminal
-# tabs/background processes per student than a quick smoke test does.
-PIDS_LIMIT=$(( STUDENTS * 40 + 200 ))
+# The same rule as a start (engine/dojo/sizing.py): every account (the students
+# and the facilitator) x the per-student need, plus a base for the platform.
+# A start raises the cap to this by itself; this only shows the number.
+PIDS_LIMIT=$(( (STUDENTS + 1) * PIDS_PER_STUDENT + 200 ))
 
 TOTAL_NEEDED_MB=$(( MEM_LIMIT_MB + OTHER_SERVICES_MB + RESERVE_MB ))
 
