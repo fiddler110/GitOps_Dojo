@@ -16,7 +16,7 @@ access checks are weak. See the plan's section 8 for how this session fits with 
 
 | Target id | Lab | What it teaches |
 |---|---|---|
-| `sqli-login` | 1 | SQL injection login bypass (A03) |
+| `sqli-login` | 1 | SQL injection login bypass (A03), then SSH with a credential found behind the login |
 | `weak-auth-portal` | 2 | A derivable, time-based password-reset token (A07) |
 | `idor-pcap` | 3 | IDOR + credential reuse (A01 / API1 BOLA) |
 | `cert-trust-bypass` | 4 | A client-cert check that never verifies the chain or expiry (A02), ties `cert-autorenewal` |

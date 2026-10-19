@@ -111,7 +111,7 @@ never work for you and vice versa. One of today's two targets hands you **two** 
 will tell you when you've only found the first.
 
 ```sh
-dojo-flag submit <target-id> '<flag>'
+dojo flag '<flag>'
 ```
 
 Solving earns points on the room's leaderboard (the achievements module you may already know from other

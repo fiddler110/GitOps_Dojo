@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="165 165 694 694" width="694" height="694">
+  <title>Meridian</title>
+  <defs>
+    <radialGradient id="glow" cx="512" cy="512" r="253" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a1a45" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#0a1a45" stop-opacity="0.15"/>
+    </radialGradient>
+  </defs>
+  <!-- rings -->
+  <circle cx="512" cy="512" r="319" fill="none" stroke="#071730" stroke-width="36"/>
+  <circle cx="512" cy="512" r="274.5" fill="none" stroke="#071730" stroke-width="25"/>
+  <!-- globe -->
+  <circle cx="512" cy="512" r="253" fill="url(#glow)"/>
+  <g fill="none" stroke="#2a52c4" stroke-width="13" stroke-linecap="round">
+    <circle cx="512" cy="512" r="253"/>
+    <ellipse cx="512" cy="512" rx="175" ry="253"/>
+    <line x1="512" y1="259" x2="512" y2="765"/>
+    <line x1="259" y1="512" x2="765" y2="512"/>
+    <path d="M328 348 Q512 425 696 348"/>
+    <path d="M328 676 Q512 599 696 676"/>
+  </g>
+  <!-- M -->
+  <path d="M372.5 392.5 L442.5 392.5 L512.5 525 L582.5 392.5 L652.5 392.5 L652.5 620 L597.5 620 L597.5 477.5 L535 620 L490 620 L427.5 477.5 L427.5 620 L372.5 620 Z"
+        fill="#fff" stroke="#071730" stroke-width="28" stroke-linejoin="miter" paint-order="stroke"/>
+</svg>

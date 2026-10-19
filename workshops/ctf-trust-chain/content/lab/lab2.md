@@ -47,7 +47,7 @@ Then ask: what, specifically, does that condition check? And **who controls the 
 A successful provision into the protected resource group returns the flag directly in the response body.
 
 ```sh
-dojo-flag submit policy-bypass '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

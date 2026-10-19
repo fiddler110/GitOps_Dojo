@@ -110,7 +110,7 @@ Each solved target hands you a flag, `flag{...}`, unique to you -- a classmate's
 you and vice versa.
 
 ```sh
-dojo-flag submit <target-id> '<flag>'
+dojo flag '<flag>'
 ```
 
 Solving earns points on the room's leaderboard (the achievements module you may already know from other

@@ -12,7 +12,8 @@ FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY app.py /app/app.py
+COPY app.py sshshell.py /app/
+COPY assets/ /app/assets/
 
 # Fixed high uid, no home, no login — same convention as customer-portal,
 # a different uid so the two never collide if ever run on the same host
@@ -21,9 +22,9 @@ RUN useradd --uid 10015 --no-create-home --home-dir /app --shell /usr/sbin/nolog
 
 ENV PORT=5000 \
     PYTHONUNBUFFERED=1
-# 2222 is the decoy SSH listener app.py starts alongside the real app (plan
+# 2222 is the SSH service (sshshell.py: a real SSH server, emulated shell); the host publishes it as 22.
 # §7.3's nmap primer) — see its module-bottom comment. Not a real sshd.
-EXPOSE 5000 2222
+EXPOSE 5000 2222 2121 8081
 
 USER sqli
 WORKDIR /app

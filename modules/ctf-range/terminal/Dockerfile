@@ -21,7 +21,8 @@ COPY start.d/50-ctf-range.sh /etc/dojo/start.d/50-ctf-range.sh
 # git-secrets (target 8) provisioning: a no-op for every pack that doesn't
 # list git-secrets in CTF_ATTACK_TARGETS (module.env) — see the hook itself.
 COPY start.d/55-git-secrets.sh /etc/dojo/start.d/55-git-secrets.sh
-RUN chmod 0755 /usr/local/bin/dojo-flag /usr/local/bin/dojo-check /usr/local/bin/dojo-check-targets /usr/local/bin/dojo-reset /etc/dojo/start.d/50-ctf-range.sh /etc/dojo/start.d/55-git-secrets.sh
+COPY start.d/56-ctf-notes.sh /etc/dojo/start.d/56-ctf-notes.sh
+RUN chmod 0755 /usr/local/bin/dojo-flag /usr/local/bin/dojo-check /usr/local/bin/dojo-check-targets /usr/local/bin/dojo-reset /etc/dojo/start.d/50-ctf-range.sh /etc/dojo/start.d/55-git-secrets.sh /etc/dojo/start.d/56-ctf-notes.sh
 # `dojo check`, `dojo flag`, `dojo reset`: links in the dojo cmd.d (dojo-check is re-pointed at a wrapper in
 # packs that also list achievements; the link follows it).
 RUN mkdir -p /usr/local/share/dojo/cmd.d \

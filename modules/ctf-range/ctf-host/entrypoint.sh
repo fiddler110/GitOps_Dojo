@@ -245,7 +245,7 @@ import_attack_target() {
     - "$tag" >/dev/null
   echo "ctf-host: imported $tag"
 }
-import_attack_target ctf-sqli-login:base /opt/sqli-login-rootfs sqli "5000 2222" \
+import_attack_target ctf-sqli-login:base /opt/sqli-login-rootfs sqli "5000 2222 2121 8081" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"
 import_attack_target ctf-idor-pcap:base /opt/idor-pcap-rootfs idor "5000 2222 2121" \
   "PORT=5000 PYTHONUNBUFFERED=1 PATH=/usr/local/bin:/usr/bin:/bin"

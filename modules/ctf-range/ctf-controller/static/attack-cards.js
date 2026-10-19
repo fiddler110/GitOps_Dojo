@@ -1,8 +1,10 @@
 // Per-target attack-range cards rendered inline on the student landing page
 // (plan §4, CTF-D20). An attack pack adds this via extensions.json's
 // `scripts` kind; the engine's /workspace/extra.js loader appends a <script>
-// pointing here with data-surface=<page>. We act only on data-surface=portal
-// (the landing page); on every other surface this file is a no-op.
+// pointing here with data-surface=<page>. We act on data-surface=portal (the
+// landing page) and on data-surface=range (range.html, the same cards as a page
+// of their own, which the /workspace tab frames); on every other surface this
+// file is a no-op.
 //
 // Why cards and not an iframe widget: the user asked for native landing-page
 // cards with Start/Stop/Reset inline, rather than opening a separate page to
@@ -19,7 +21,7 @@
 
   var me = document.currentScript;
   var surface = me && me.getAttribute("data-surface");
-  if (surface !== "portal") return;
+  if (surface !== "portal" && surface !== "range") return;
 
   var STATUS_URL = "/ctf-attack/attack/status";
   var POLL_MS = 3000;
@@ -66,6 +68,7 @@
     wrap.appendChild(head);
     var grid = el("div", "attack-range-grid");
     wrap.appendChild(grid);
+    wrap.appendChild(flagForm());
     cards.appendChild(wrap);
     return grid;
   }
@@ -137,6 +140,47 @@
       svg.appendChild(p);
     });
     return svg;
+  }
+
+  // "Found a flag?" box under the cards. The flag names its own challenge
+  // (flag{<target>-<hex>}), so a student pastes it and nothing else. The same
+  // submission is `dojo flag '<flag>'` in the terminal.
+  function flagForm() {
+    var form = el("form", "attack-flag");
+    form.appendChild(el("span", "attack-flag-title", "Found a flag?"));
+    var row = el("div", "attack-flag-row");
+    var input = el("input", "attack-flag-input");
+    input.type = "text";
+    input.name = "flag";
+    input.placeholder = "flag{...}";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.maxLength = 200;
+    var submit = el("button", "attack-btn", "Submit flag");
+    submit.type = "submit";
+    row.appendChild(input);
+    row.appendChild(submit);
+    form.appendChild(row);
+    var result = el("span", "attack-flag-result");
+    result.setAttribute("role", "status");
+    form.appendChild(result);
+    form.appendChild(el("span", "attack-flag-hint",
+      "Paste the whole flag, braces included. From a terminal: dojo flag 'flag{...}'. Each flag is yours alone."));
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var value = input.value.trim();
+      if (!value) return;
+      submit.disabled = true;
+      post("/ctf-attack/attack/flag", { flag: value }).then(function (doc) {
+        result.textContent = doc.message || "No answer from the flag service.";
+        result.className = "attack-flag-result " + (doc.ok ? "ok" : "bad");
+        if (doc.ok) input.value = "";
+      }).catch(function () {
+        result.textContent = "Could not reach the flag service.";
+        result.className = "attack-flag-result bad";
+      }).then(function () { submit.disabled = false; });
+    });
+    return form;
   }
 
   var busy = false;
@@ -243,6 +287,12 @@
   function start() {
     var cards = document.querySelector(".cards");
     if (!cards) return;
+    // The landing page draws the range inline, so the manifest's "Attack Range"
+    // card (which exists for the /workspace tab) would only repeat it.
+    if (surface === "portal") {
+      var dup = document.querySelector('a.card[href="/ctf-attack/range"]');
+      if (dup) dup.remove();
+    }
     stylesheet();
     grid = section(cards);
     grid.appendChild(el("p", "attack-range-note", "Loading attack targets..."));

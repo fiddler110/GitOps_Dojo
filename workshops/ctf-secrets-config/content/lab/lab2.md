@@ -57,7 +57,7 @@ read the token out of history.
 ## 4. Submit
 
 ```sh
-dojo-flag submit git-secrets '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

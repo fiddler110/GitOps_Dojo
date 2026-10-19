@@ -48,10 +48,10 @@ Expect more than one open port. Some are decoys -- that's by design, not a bug i
 ## Submit a flag
 
 ```sh
-dojo-flag submit <target-id> '<flag>'
+dojo flag '<flag>'
 ```
 
-`<target-id>` is the short name on the card or Lab 3's own repo: `dns-resolver-cve` (two separate submissions --
+The flag names its own target, so there is nothing else to type. You can also paste it into the **Found a flag?** box on your landing page. Target names are the short names on the card or Lab 3's own repo: `dns-resolver-cve` (two separate submissions --
 `dns-resolver-cve-token` for the captured credential, `dns-resolver-cve` for the replay), `policy-bypass`.
 
 ---

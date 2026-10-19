@@ -45,7 +45,7 @@ what it needs to *say* about itself to pass, since nobody is going to vouch for 
 Once the endpoint accepts your certificate, the flag is in the response body.
 
 ```sh
-dojo-flag submit cert-trust-bypass '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

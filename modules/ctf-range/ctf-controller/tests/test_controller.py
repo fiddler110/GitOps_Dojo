@@ -98,6 +98,37 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.host_port("student02"), c.HOST_PORT_BASE + 1)
 
 
+class TestOnlyTargets(unittest.TestCase):
+    BASE = {"CTF_ATTACK_TARGETS": "a=img-a:1,b=img-b:1,c=img-c:1"}
+
+    def test_default_keeps_the_catalog(self):
+        self.assertEqual(list(c.Config(self.BASE).attack_targets), ["a", "b", "c"])
+
+    def test_narrowed_to_listed_ids(self):
+        cfg = c.Config(dict(self.BASE, CTF_ONLY_TARGETS="b"))
+        self.assertEqual(cfg.attack_targets, {"b": "img-b:1"})
+        cfg = c.Config(dict(self.BASE, CTF_ONLY_TARGETS="c, a"))
+        self.assertEqual(list(cfg.attack_targets), ["a", "c"])
+
+
+class TestFlagSubmit(unittest.TestCase):
+    def test_challenge_comes_from_the_flag(self):
+        self.assertEqual(c.flag_challenge("flag{sqli-login-0123456789abcdef}"), "sqli-login")
+        self.assertEqual(c.flag_challenge(" flag{dns-resolver-cve-token-0123456789abcdef} "),
+                         "dns-resolver-cve-token")
+        self.assertEqual(c.flag_challenge("flag{idor-pcap-dev-student01}"), "idor-pcap")
+
+    def test_not_a_flag(self):
+        for bad in ("", "sqli-login", "flag{}", "flag{sqli-login-xyz}", "flag{sqli-login-0123}"):
+            self.assertIsNone(c.flag_challenge(bad), bad)
+
+    def test_malformed_flag_never_reaches_the_service(self):
+        cfg = c.Config({"CTF_FLAGS_ADDR": "http://127.0.0.1:1"})
+        ok, msg = c.submit_flag(cfg, "student01", "nope")
+        self.assertFalse(ok)
+        self.assertIn("flag{", msg)
+
+
 class TestReconcile(unittest.TestCase):
     def test_creates_one_slot_per_student(self):
         ctl, cfg, ex = make_controller(count=2)
@@ -537,3 +568,44 @@ class TestMultiTarget(unittest.TestCase):
         strip = lambda rows: [{k: v for k, v in r.items() if k != "secteam_key"} for r in rows]
         self.assertEqual(strip(one["targets"]), doc["users"]["student02"])
         self.assertTrue(all(r["secteam_key"] for r in one["targets"] if r["target"] == "policy-bypass"))
+
+
+class TestRandomPorts(unittest.TestCase):
+    def cfg(self, **extra):
+        env = {"CTF_ATTACK_TARGETS": "sqli-login=img:a,idor-pcap=img:b", "STUDENT_COUNT": "3",
+               "CTF_ATTACK_SUBNET_PREFIX": "10.42.0", "CTF_NET_SUBNET": "10.42.0.0/24",
+               "CTF_RANDOM_PORT_TARGETS": "sqli-login"}
+        env.update(extra)
+        return c.Config(env=env)
+
+    def test_stable_per_student_and_different_between_them(self):
+        cfg = self.cfg()
+        a = cfg.random_ports("student01", "sqli-login")
+        self.assertEqual(a, cfg.random_ports("student01", "sqli-login"))
+        self.assertEqual(a, self.cfg().random_ports("student01", "sqli-login"))
+        self.assertNotEqual(a, cfg.random_ports("student02", "sqli-login"))
+        self.assertNotEqual(a, self.cfg(CTF_PORT_SEED="x").random_ports("student01", "sqli-login"))
+
+    def test_ranges_and_no_collision(self):
+        cfg = self.cfg()
+        for n in range(60):
+            p = cfg.random_ports(f"student{n:02d}", "sqli-login")
+            self.assertEqual(len(set(p.values())), 4)
+            self.assertEqual(p["ssh"], 22)
+            self.assertTrue(8000 <= p["web"] <= 8999 and 8000 <= p["alt"] <= 8999)
+            self.assertTrue(2100 <= p["ftp"] <= 2199)
+
+    def test_publish_list_maps_container_ports(self):
+        cfg = self.cfg()
+        p = cfg.random_ports("student01", "sqli-login")
+        ip = cfg.attack_target_ip("student01", "sqli-login")
+        self.assertEqual(cfg.attack_ports("student01", "sqli-login"),
+                         [(5000, p["web"], ip), (2222, p["ssh"], ip), (2121, p["ftp"], ip), (8081, p["alt"], ip)])
+        self.assertEqual(cfg.attack_web_port("student01", "sqli-login"), p["web"])
+
+    def test_other_targets_keep_fixed_ports(self):
+        cfg = self.cfg()
+        self.assertEqual(cfg.random_ports("student01", "idor-pcap"), {})
+        self.assertEqual(cfg.attack_web_port("student01", "idor-pcap"), 5000)
+        self.assertEqual([x[:2] for x in cfg.attack_ports("student01", "idor-pcap")],
+                         [(5000, 5000), (2222, 2222), (2121, 2121)])

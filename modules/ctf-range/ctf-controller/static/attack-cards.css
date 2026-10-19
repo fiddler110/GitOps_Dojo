@@ -95,3 +95,19 @@
 .attack-btn:disabled { opacity: 0.4; cursor: default; }
 
 .attack-range-note { margin: 0.2rem 0.1rem; font-size: 0.82rem; opacity: 0.7; }
+
+.attack-flag { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem 0.8rem; border: 1px solid #e2e2e2; border-radius: 0.6rem; }
+@media (prefers-color-scheme: dark) { .attack-flag { border-color: #333; } }
+.attack-flag-title { font-weight: 600; font-size: 0.9rem; }
+.attack-flag-row { display: flex; gap: 0.4rem; }
+.attack-flag-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 0.3rem 0.5rem; border: 1px solid #e2e2e2; border-radius: 0.4rem;
+  background: transparent; color: inherit;
+}
+@media (prefers-color-scheme: dark) { .attack-flag-input { border-color: #333; } }
+.attack-flag-result { font-size: 0.82rem; min-height: 1.1em; }
+.attack-flag-result.ok { color: var(--ctf-live); }
+.attack-flag-result.bad { color: var(--ctf-error); }
+.attack-flag-hint { font-size: 0.75rem; opacity: 0.65; }

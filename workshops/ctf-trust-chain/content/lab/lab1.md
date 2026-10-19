@@ -47,7 +47,7 @@ Is it random? Is there a pattern?
 Once `/captured` returns a token, that's **flag 1**. Submit it:
 
 ```sh
-dojo-flag submit dns-resolver-cve-token '<flag>'
+dojo flag '<flag>'
 ```
 
 ## 3. Use what you captured
@@ -63,7 +63,7 @@ credential, presented the normal way an API expects a bearer token.
 The response to a correctly authorized `/admin` call is **flag 2**:
 
 ```sh
-dojo-flag submit dns-resolver-cve '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

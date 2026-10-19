@@ -26,16 +26,19 @@ of the password field. The fix (not graded; this target has no gate) is the
 one-line parameterized version, written as a comment in `app.py` right above
 the vulnerable line.
 
-## Decoy port (nmap)
+## The second step: SSH (and the decoys)
 
-The attack ladder also publishes a decoy SSH listener on container port
-2222 alongside the real app (plan §7.3's own nmap primer — a student scans
-their box and finds more than the port they'll actually use, same as a
-HackTheBox box). It speaks just enough of the SSH-2.0 banner to fingerprint
-under `nmap -sV`, then closes — not a real sshd; see `app.py`'s
-decoy-listener comment for why a real one can't run in this container at
-all. The standalone `docker run` below only publishes 5000; add
-`-p 2222:2222` to see the decoy too.
+Behind the login the portal links three log files (placement differs per box: one holds two credentials, one
+holds one, one holds none) that leak three accounts. Only `svc-print`, with a random password, logs into the SSH service on container port 2222, which ctf-controller publishes as host port 22 on
+the student's own box IP. It is a real SSH-2 server (`sshshell.py`, asyncssh) with an emulated shell: a few
+built-in commands over a fake filesystem, no real shell. A real sshd can't run here (the container drops
+every capability and runs non-root). `flag.txt` in the account's home directory holds the flag; the web page
+no longer shows it. The host key is derived from the flag, so Reset doesn't trip a student's `known_hosts`.
+
+It also binds an FTP decoy on 2121 (answers every login with 530) and an HTTP decoy on 8081 (answers 401 to
+everything). In the lab, ctf-controller publishes the web, FTP and HTTP ports on host ports drawn per student
+(`CTF_RANDOM_PORT_TARGETS`, `Config.random_ports`), so those numbers differ on every box; SSH stays on 22. The
+standalone `docker run` below only publishes 5000; add `-p 2222:2222` (and so on) to see the others too.
 
 ## Data
 

@@ -1,7 +1,11 @@
 # Lab 1: Staff login portal (`sqli-login`)
 
-By the end of this lab you'll have logged in as `admin` without ever knowing their password, and you'll
-understand why "the password is wrong" is sometimes the wrong thing for a login form to be checking.
+By the end of this lab you'll have logged in as `admin` without ever knowing their password, used what you
+find behind that login to get a shell on the server itself, and you'll understand why "the password is wrong"
+is sometimes the wrong thing for a login form to be checking.
+
+There are two steps, like most real boxes: the **foothold** (getting into the portal) and then the **box**
+(getting onto the machine it runs on).
 
 ---
 
@@ -12,15 +16,20 @@ password, a submit button -- fronting whatever's behind it. Nobody's touched the
 
 ## 1. Start the target and scan it
 
+Keep a notebook as you go: the **Notes** card on your landing page opens `~/lab/notes.md`, the same file you can
+`cat` or edit in your terminal. Write down your slot's IP, what the scan shows, and every account you find.
+
 Open the **Attack Range** card, start `sqli-login`, and note your slot's IP. Then:
 
 ```sh
 nmap -sV -p- <your-slot-ip>
 ```
 
-You'll see more than one open port. Only one of them is the portal; `nmap`'s version-detection banner on
-the other tells you it isn't worth your time today (there's nothing behind it to exploit here) -- that's
-the point of scanning before guessing.
+You'll see several open ports. SSH is on its usual port, but the web and file-transfer ports are different
+on every box: nothing else here is on a port you could have guessed. Read each service banner. Some are decoys with nothing behind them (a file server that
+rejects every login, a second web server that only ever answers `401`); one is the portal you came for.
+Telling them apart is the point of scanning before guessing, and `curl -i http://<your-slot-ip>:<port>/`
+against each web port shows you which one is a login page.
 
 ## 2. Look at the login, not just at it
 
@@ -52,12 +61,29 @@ login form and read from how the response changes.
 > password field says. What boolean expression is always true, and how do you close the username's quote
 > early enough to add it?
 
-## 3. Submit
+## 3. Look behind the login
 
-Once you're logged in as `admin`, the flag is right there on the welcome page.
+Once you're logged in as `admin`, the portal takes you to a page of internal operations logs. Open every one
+and read them properly. Logs record what services were doing, and services are careless about what they
+write down. Note any account names and passwords you find; there may be more than one, and not every one
+is still good.
+
+## 4. Get on the box
+
+The portal runs on a server, and you've already scanned that server. One of its open services takes a
+login, and you've just collected some logins. Use your terminal's `ssh` client against your slot's IP and
+try each account you found. Only one is valid on this machine. Once you're in, the shell is a small one:
+type `help` to see what it understands, and look around the account's home directory.
+
+> **Hint.** The account is on the same machine you scanned, so you don't need a new IP. If `ssh` says the
+> host is unreachable or refused, re-read your nmap output for the port SSH is on.
+
+## 5. Submit
+
+The flag is a file in the account's home directory. Read it, then submit it.
 
 ```sh
-dojo-flag submit sqli-login '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief
@@ -66,7 +92,9 @@ The login built its SQL query by gluing your text straight into the statement, s
 tell your data from the program's own instructions. Input that closes the quote and adds logic became part of
 the query, and the password check simply stopped mattering. The real fix is parameterized queries (prepared
 statements), which send the values separately from the SQL, plus least-privilege database accounts and
-hashed passwords so a slip does less damage. This is **OWASP A03:2021 Injection**.
+hashed passwords so a slip does less damage. The second half is a different lesson: credentials
+written into log files turned one web bug into a shell on the server, which is why secrets don't belong in
+logs, and why stale accounts should be removed rather than left to rot. This is **OWASP A03:2021 Injection**.
 
 Reflect: input validation or escaping at the form would also have helped, but why is parameterization the
 more dependable defense? Where else in your own stack does user text end up inside a command or query?

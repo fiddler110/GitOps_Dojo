@@ -33,6 +33,7 @@ import hmac
 import http.server
 import json
 import os
+import random
 import re
 import signal
 import socket
@@ -40,6 +41,8 @@ import socketserver
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -80,6 +83,16 @@ ATTACK_PORT_BASE = 16000
 ATTACK_PORT_BLOCK = 3
 DECOY_SSH_CONTAINER_PORT = 2222
 DECOY_FTP_CONTAINER_PORT = 2121
+# A second HTTP listener some targets bind as a lookalike of the real app
+# (an admin console that always answers 401). Published only for a target
+# in CTF_RANDOM_PORT_TARGETS.
+DECOY_HTTP_CONTAINER_PORT = 8081
+# Host-side port ranges a randomized target draws from. The container ports
+# stay fixed (5000/2222/2121/8081) -- only the port the student's scan sees
+# moves, so the target images need no change to be randomized. SSH is not
+# randomized: it is always 22 on the student's own per-box IP (nothing else
+# listens on that IP, so no clash), like a real host.
+RANDOM_PORT_RANGES = {"web": (8000, 8999), "alt": (8000, 8999), "ssh": (22, 22), "ftp": (2100, 2199)}
 
 # HackTheBox-style per-target IPs (student request 2026-10-07). Each student
 # gets one IP on ctf_net PER attack target in the pack's catalog, carved out
@@ -174,6 +187,34 @@ def _int_env(env, key, default):
         return default
 
 
+FLAG_RE = re.compile(r"^flag\{([a-z0-9][a-z0-9-]*?)-(?:[0-9a-f]{16}|dev-.+)\}$")
+
+
+def flag_challenge(flag):
+    """The challenge id a flag belongs to (flag{<challenge>-<hex>}), or None."""
+    m = FLAG_RE.match(flag.strip())
+    return m.group(1) if m else None
+
+
+def submit_flag(cfg, user, flag):
+    """Hand a pasted flag to ctf-flags as `user`. Returns (ok, message)."""
+    flag = flag.strip()
+    challenge = flag_challenge(flag)
+    if not challenge:
+        return False, "That doesn't look like a flag. A flag looks like flag{...}: copy the whole thing."
+    body = json.dumps({"user": user, "challenge": challenge, "flag": flag}).encode()
+    req = urllib.request.Request(cfg.flags_url + "/submit", data=body, method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            doc = json.load(resp)
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return False, "Could not reach the flag service. Try again in a moment."
+    if doc.get("ok"):
+        return True, f"Correct! {challenge} is solved."
+    return False, "That's not the right flag. Flags are personal: check you copied yours in full."
+
+
 class Config:
     def __init__(self, env=os.environ):
         self._env = env
@@ -214,6 +255,18 @@ class Config:
         self.wall_enabled = env.get("CTF_WALL_OF_SHAME", "off").strip().lower() in ("on", "1", "true", "yes")
         self.wall_age_off = _int_env(env, "CTF_WALL_AGE_OFF_SECONDS", 300)
         self.attack_targets = parse_targets(env.get("CTF_ATTACK_TARGETS", ""))
+        # CTF_ONLY_TARGETS narrows the catalog to a few ids (space or comma
+        # separated) so a lab can be run with just one box: the cards, the
+        # per-box IPs and the viewer all follow this dict.
+        only = env.get("CTF_ONLY_TARGETS", "").replace(",", " ").split()
+        if only:
+            self.attack_targets = {t: i for t, i in self.attack_targets.items() if t in only}
+        # Targets whose host-side ports are drawn per (student, target) instead of
+        # sitting on 5000/2222/2121. Not a secret: a student's own scan finds
+        # their ports anyway; the seed only keeps them stable across Reset/restart.
+        self.random_port_targets = set(env.get("CTF_RANDOM_PORT_TARGETS", "").split())
+        self.port_seed = env.get("CTF_PORT_SEED", "") or "ctf-ports"
+        self.flags_url = env.get("CTF_FLAGS_ADDR", "http://ctf-flags:8080").rstrip("/")
         self.attack_port_base = int(env.get("CTF_ATTACK_PORT_BASE", "") or ATTACK_PORT_BASE)
         self.attack_port_block = int(env.get("CTF_ATTACK_PORT_BLOCK", "") or ATTACK_PORT_BLOCK)
         self.attack_idle_seconds = int(env.get("CTF_ATTACK_IDLE_SECONDS", "") or ATTACK_IDLE_SECONDS)
@@ -309,6 +362,26 @@ class Config:
         target's reserved IP."""
         return {tid: self.attack_target_ip(user, tid) for tid in self.attack_targets}
 
+    def random_ports(self, user, target_id):
+        """{role: host_port} for a randomized target, or {} when it isn't one.
+        Deterministic in (port_seed, user, target), so Reset and a controller
+        restart keep a student's ports; the two HTTP ports never collide."""
+        if target_id not in self.random_port_targets:
+            return {}
+        rnd = random.Random(f"{self.port_seed}:{user}:{target_id}")
+        ports, taken = {}, set()
+        for role, (lo, hi) in RANDOM_PORT_RANGES.items():
+            port = rnd.randint(lo, hi)
+            while port in taken:
+                port = rnd.randint(lo, hi)
+            taken.add(port)
+            ports[role] = port
+        return ports
+
+    def attack_web_port(self, user, target_id):
+        """The port a student's browser (and ctf-view) uses for the real app."""
+        return self.random_ports(user, target_id).get("web", self.container_port)
+
     def attack_ports(self, user, target_id=None):
         """Port publish list for this student's attack slot.
 
@@ -323,6 +396,14 @@ class Config:
         keeps CTF-5 reconcile and any pack that hasn't opted in working.
         """
         host_ip = self.attack_target_ip(user, target_id) if target_id else ""
+        rp = self.random_ports(user, target_id) if host_ip else {}
+        if rp:
+            return [
+                (self.container_port, rp["web"], host_ip),
+                (DECOY_SSH_CONTAINER_PORT, rp["ssh"], host_ip),
+                (DECOY_FTP_CONTAINER_PORT, rp["ftp"], host_ip),
+                (DECOY_HTTP_CONTAINER_PORT, rp["alt"], host_ip),
+            ]
         if host_ip:
             return [
                 (self.container_port, self.container_port, host_ip),
@@ -752,6 +833,12 @@ def make_handler(ctl, atk):
                 # (contained) entry ages off. The rows themselves come from achievements.
                 self._json(200, {"enabled": ctl.cfg.wall_enabled, "age_off": ctl.cfg.wall_age_off})
                 return
+            if path in ("/range", "/range/"):
+                self._static(STATIC["range.html"], "text/html; charset=utf-8")
+                return
+            if path == "/range.css":
+                self._static(STATIC["range.css"], "text/css; charset=utf-8")
+                return
             if path == "/attack-cards.css":
                 self._static(STATIC["attack-cards.css"], "text/css; charset=utf-8")
                 return
@@ -838,6 +925,14 @@ def make_handler(ctl, atk):
                     ok, msg = atk.reset(user)
                     self._json(200 if ok else 409, {"ok": ok, "message": msg})
                     return
+                if path == "/attack/flag":
+                    flag = body.get("flag")
+                    if not isinstance(flag, str) or not 0 < len(flag) <= 200:
+                        self._json(400, {"ok": False, "message": "Paste the flag you found."})
+                        return
+                    ok, msg = submit_flag(ctl.cfg, user, flag)
+                    self._json(200, {"ok": ok, "message": msg})
+                    return
                 self._json(404, {"error": "not found"})
                 return
             if path == "/redeploy":
@@ -867,7 +962,7 @@ def make_handler(ctl, atk):
 # set, loaded once at start, same pattern as dns-ui's zone-viewer).
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(HERE, "static"))
 STATIC = {}
-for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css",
+for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css", "range.html", "range.css",
               "wall.html", "wall.js", "wall.css"):
     with open(os.path.join(STATIC_DIR, _name), "rb") as _f:
         STATIC[_name] = _f.read()

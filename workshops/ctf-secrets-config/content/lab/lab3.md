@@ -13,7 +13,7 @@ There's no target to scan for this one either. Your team keeps its infrastructur
 identity is allowed to sign in and nothing more. Somewhere there is another way in.
 
 (Forgejo doesn't actually stop a classmate from reading your `infra-state` repo either -- the one check that
-really holds here is the flag itself: `dojo-flag submit` only credits a flag to the student it was derived
+really holds here is the flag itself: `dojo flag` only credits a flag to the student it was derived
 for, so finding someone else's secret doesn't get you their points. Keep that in mind if you go looking at a
 classmate's repo out of curiosity.)
 
@@ -71,7 +71,7 @@ Then read your secret with *that* token (`X-Vault-Token` header, path under `/v1
 ## 4. Submit
 
 ```sh
-dojo-flag submit tfstate-treasure '<flag>'
+dojo flag '<flag>'
 ```
 
 ## 5. Debrief

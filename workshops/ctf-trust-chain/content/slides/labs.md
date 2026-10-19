@@ -43,7 +43,7 @@ Budget ~125 minutes for all three, on top of the session's `nmap`/Linux primer.
 2. `nmap` it -- every target publishes more than one port, some real, some decoys.
 3. Investigate using the lab's guiding questions, not the exploit guide.
 4. Stuck after a real attempt? Each lab's last line points at that target's exploit guide.
-5. `dojo-flag submit <target-id> '<flag>'` -- Lab 1 needs this **twice**, once per flag.
+5. `dojo flag '<flag>'` -- Lab 1 needs this **twice**, once per flag.
 
 ---
 

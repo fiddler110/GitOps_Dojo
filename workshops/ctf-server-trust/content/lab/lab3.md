@@ -59,7 +59,7 @@ field before letting you through.
 ## 4. Submit
 
 ```sh
-dojo-flag submit api-mass-assignment '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief

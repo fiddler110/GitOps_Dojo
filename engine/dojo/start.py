@@ -213,10 +213,11 @@ def unlock_overlay_workdirs(cache: Path) -> int:
 
 
 def run_once_cmd(rt: Runtime) -> List[str]:
-    # Rootless podman already maps the container's root to us; rootful docker
-    # needs --user or the files it writes into engine/ end up owned by root.
+    # Rootless podman maps the container's root to us, so ask for root explicitly: the allocator
+    # image now runs as uid 10001, which maps to a subuid that can't write into engine/. Rootful
+    # docker needs --user or the files it writes into engine/ end up owned by root.
     if rt.cli == "podman":
-        return ["podman", "run", "--rm"]
+        return ["podman", "run", "--rm", "--user", "0"]
     return ["docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}"]
 
 

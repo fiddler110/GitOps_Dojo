@@ -51,10 +51,10 @@ The same files are in the browser too: the Labs tab, or the Slides hub's "Labs" 
 ## Submitting a flag
 
 ```sh
-dojo-flag submit <target-id> '<flag>'
+dojo flag '<flag>'
 ```
 
-`<target-id>` is the short name on the Attack Range card (`leaky-config`, `git-secrets`). A wrong flag
+The flag names its own target, so there is nothing else to type. You can also paste it into the **Found a flag?** box on your landing page. Target names are the short names on the Attack Range card (`leaky-config`, `git-secrets`). A wrong flag
 just tells you to keep looking -- it never costs you anything.
 
 ## Stuck?

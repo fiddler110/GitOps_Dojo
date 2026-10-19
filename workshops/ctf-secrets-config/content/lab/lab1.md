@@ -67,7 +67,7 @@ If you get `401 Unauthorized` back, the credential or the path is wrong. If you 
 ## 4. Submit
 
 ```sh
-dojo-flag submit leaky-config '<flag>'
+dojo flag '<flag>'
 ```
 
 ## Debrief
