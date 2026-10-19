@@ -16,6 +16,9 @@ section. Then workshop.env; and, if the workshop has modules, each module.env
 followed by the operator layers and workshop.env again, so a module only
 supplies defaults and the operator and the workshop win.
 
+The terminal's sizing (sizing.FLOOR_KEYS) is the exception: a workshop or module
+may raise the operator's value but never lower it.
+
 WORKSHOP_SLUG is the one value no layer may set: it is the pack's folder name,
 re-asserted on top of each operator layer and once more at the end. Compose image
 declarations use it as a fallback for raw Compose runs; dojo replaces those tags
@@ -32,7 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from . import config, paths
+from . import config, paths, sizing
 
 KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SECRET_RE = re.compile(r"PASSWORD|TOKEN|SEED|SECRET|_KEY$|^KEY$")
@@ -208,9 +211,13 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
     # The achievements toggle set in the shell beats the operator's files, so one run (or a
     # restart repeating the running start) can switch it without editing the file.
     shell_toggle = b.env.get("ACHIEVEMENTS_ENABLED")
+    operator: Dict[str, Origin] = {}  # the operator's sizing, before any workshop or module
 
     def operator_and_workshop() -> None:
         b.operator(profiles)
+        for k in sizing.FLOOR_KEYS:
+            if k not in operator and b.origins.get(k):
+                operator[k] = b.origins[k][-1]
         if shell_toggle is not None:
             b.env["ACHIEVEMENTS_ENABLED"] = shell_toggle
             b._note("ACHIEVEMENTS_ENABLED", "environment", shell_toggle)
@@ -232,6 +239,9 @@ def resolve(workshop: str, env_name: Optional[str] = None, base: Optional[Dict[s
             if module_env.is_file():
                 b.shell(module_env)
         operator_and_workshop()
+    for key, o in operator.items():
+        if sizing.lowered(key, o.value, b.env.get(key, "")):
+            b.row(key, o.value, f"{o.source} (kept: a workshop or module may raise it, not lower it)")
     b.row("WORKSHOP_SLUG", workshop, "dojo (the workshop's folder name)")
     return Resolution(b.env, b.origins, mods, warnings)
 

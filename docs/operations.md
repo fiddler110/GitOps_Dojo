@@ -42,7 +42,8 @@ the gateway at `PUBLIC_BASE_URL` exactly as a browser would.
 Cost scales with **concurrently active** students, not `student_count`: code-server starts on first `/ide` visit and
 is released when students leave. The three bounds are `mem_limit`/`pids_limit` (the container-wide ceiling),
 `code_server_max_heap_mb` (per node process), and the grace/idle timers (see [Configuration](configuration.md#dojotoml-sections-and-the-variables-they-set)).
-Without measurement the rule is RAM = students × 650 MB × 1.15 + 512 MB and pids = students × 40 + 200. The Zellij
+Without measurement the rule is RAM = students × 650 MB × 1.15 + 512 MB. The pids cap is sized by the start
+itself: (students + bots + 1) × `pids_per_student` + 200. The Zellij
 flavor needs far less. A pack that applies infrastructure in every lab (cloud-policy-as-code) raises its own ceilings.
 Vault-fundamentals needs about 2 GiB extra for 10 demo bots.
 

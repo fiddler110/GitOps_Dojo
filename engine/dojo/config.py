@@ -50,6 +50,7 @@ SCHEMA: Dict[Tuple[str, str], Tuple[str, str]] = {
     ("terminal", "font_size"): ("TERMINAL_FONT_SIZE", "int"),
     ("terminal", "mem_limit"): ("WEB_TERMINAL_MEM_LIMIT", "str"),
     ("terminal", "pids_limit"): ("WEB_TERMINAL_PIDS_LIMIT", "int"),
+    ("terminal", "pids_per_student"): ("WEB_TERMINAL_PIDS_PER_STUDENT", "int"),
     ("terminal", "nproc_limit"): ("TERMINAL_NPROC_LIMIT", "int"),
     ("terminal", "code_server_max_heap_mb"): ("CODE_SERVER_MAX_HEAP_MB", "int"),
     ("terminal", "reconnection_grace_seconds"): ("CODE_SERVER_RECONNECTION_GRACE_SECONDS", "int"),

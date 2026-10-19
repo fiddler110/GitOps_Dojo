@@ -44,7 +44,8 @@ dojo.toml  <  dojo.local.toml  <  .env  <  profile (--env NAME)  <  workshop.env
 | `terminal.flavor` | `TERMINAL_FLAVOR` | `code-server` (alias `web`) or `zellij` |
 | `terminal.font_family` / `font_size` | `TERMINAL_FONT_*` | Zellij browser terminal font |
 | `terminal.mem_limit` | `WEB_TERMINAL_MEM_LIMIT` | Container-wide RAM ceiling for all students (`4g`) |
-| `terminal.pids_limit` | `WEB_TERMINAL_PIDS_LIMIT` | Container-wide pid ceiling (2048) |
+| `terminal.pids_limit` | `WEB_TERMINAL_PIDS_LIMIT` | Container-wide pid ceiling (2048); a start raises it to fit the class |
+| `terminal.pids_per_student` | `WEB_TERMINAL_PIDS_PER_STUDENT` | Processes + threads one account needs (50) |
 | `terminal.nproc_limit` | `TERMINAL_NPROC_LIMIT` | Per-student `RLIMIT_NPROC`, a fork-bomb tripwire (1024; 0 off) |
 | `terminal.code_server_max_heap_mb` | `CODE_SERVER_MAX_HEAP_MB` | V8 heap cap per code-server node process (384) |
 | `terminal.reconnection_grace_seconds` | `CODE_SERVER_RECONNECTION_GRACE_SECONDS` | Free the extension host this long after a tab closes (300) |
@@ -190,3 +191,10 @@ Run `./dojo capacity <workshop> --students N` on the target machine; `setup` off
 to `dojo.local.toml`. Three knobs bound the cost of code-server (see [Architecture](architecture.md#10-scale-and-capacity)):
 the container-wide `mem_limit`/`pids_limit`, the per-process heap cap, and the grace/idle timers that release memory
 from students who have left.
+
+Two rules keep the pids cap honest. A start raises `pids_limit` to at least (`student_count` + demo bots + 1) ×
+`pids_per_student` + 200 and prints a line when it does; `./dojo doctor <workshop>` shows the same sum. And a
+workshop's `workshop.env` (or a module's `module.env`) may raise `mem_limit`, `pids_limit` and `pids_per_student`
+but never lower them: the pack can't know the machine or the class size. A pack with heavy labs states its need
+per student (`WEB_TERMINAL_PIDS_PER_STUDENT`), not a total; `./dojo config <workshop> WEB_TERMINAL_PIDS_LIMIT`
+shows which layer won.

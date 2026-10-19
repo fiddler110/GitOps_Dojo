@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from . import checks, paths, state
+from . import checks, paths, sizing, state
 from .build import Builder, BuildError, build_input_hash, sync_shared, terminal_input_hashes
 from . import config
 from .envfiles import EnvError, Resolution, parse_literal, resolve
@@ -363,6 +363,9 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
             console.print("           --fast: no pauses, mistakes every round, each bot stops after round 1.")
         if int(bots) > 3:
             console.print(f"           testuser1-3 = expert/intermediate/novice; the other {int(bots) - 3} get a random one of those.")
+    raised = sizing.fit_pids(env, int(bots or 0))
+    if raised:
+        console.print(raised)
 
     ca = env.get("CORP_CA_BUNDLE") or env.get("REQUESTS_CA_BUNDLE") or ""
     if ca and os.path.isfile(ca):

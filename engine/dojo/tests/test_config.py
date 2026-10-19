@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dojo import config, envfiles, migrate, paths
+from dojo import config, envfiles, migrate, paths, sizing
 
 NAMES = ("REPO", "ENGINE", "WORKSHOPS", "MODULES", "ENV_FILE", "CONFIG", "LOCAL_CONFIG", "LEGACY_ENV")
 
@@ -73,6 +73,48 @@ class Layers(Sandbox):
             with self.assertRaises(envfiles.EnvError, msg=bad) as cm:
                 self.resolve()
             self.assertIn(hint, str(cm.exception))
+
+
+class Sizing(Sandbox):
+    """A workshop or module may raise the terminal's limits, never lower them; a start fits the class."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("dojo.toml", '[terminal]\nmem_limit = "4g"\npids_limit = 2048\npids_per_student = 50\n')
+        self.write(".env", "")
+
+    def test_workshop_cannot_lower_the_operators_limits(self):
+        self.write("workshops/w/workshop.env", "WEB_TERMINAL_PIDS_LIMIT=1024\nWEB_TERMINAL_MEM_LIMIT=2g\n"
+                                               "WEB_TERMINAL_PIDS_PER_STUDENT=10\n")
+        res = self.resolve()
+        self.assertEqual((res.env["WEB_TERMINAL_PIDS_LIMIT"], res.env["WEB_TERMINAL_MEM_LIMIT"],
+                          res.env["WEB_TERMINAL_PIDS_PER_STUDENT"]), ("2048", "4g", "50"))
+        self.assertIn("kept", res.source_of("WEB_TERMINAL_PIDS_LIMIT"))
+        self.assertIn("dojo.toml", res.source_of("WEB_TERMINAL_PIDS_LIMIT"))
+
+    def test_workshop_can_raise_them(self):
+        self.write("dojo.local.toml", '[terminal]\npids_limit = 320\nmem_limit = "3g"\n')
+        self.write("workshops/w/workshop.env", "WEB_TERMINAL_PIDS_LIMIT=1024\nWEB_TERMINAL_MEM_LIMIT=6g\n"
+                                               "WEB_TERMINAL_PIDS_PER_STUDENT=80\n")
+        env = self.resolve().env
+        self.assertEqual((env["WEB_TERMINAL_PIDS_LIMIT"], env["WEB_TERMINAL_MEM_LIMIT"],
+                          env["WEB_TERMINAL_PIDS_PER_STUDENT"]), ("1024", "6g", "80"))
+
+    def test_module_cannot_lower_them_either(self):
+        (self.root / "modules" / "m").mkdir()
+        self.write("modules/m/module.env", "WEB_TERMINAL_MEM_LIMIT=1g\n")
+        self.write("workshops/w/workshop.env", 'MODULES="m"\n')
+        self.assertEqual(self.resolve().env["WEB_TERMINAL_MEM_LIMIT"], "4g")
+
+    def test_start_raises_the_cap_to_fit_the_class(self):
+        env = {"STUDENT_COUNT": "20", "WEB_TERMINAL_PIDS_LIMIT": "320", "WEB_TERMINAL_PIDS_PER_STUDENT": "50"}
+        msg = sizing.fit_pids(env, bots=3)
+        self.assertEqual(env["WEB_TERMINAL_PIDS_LIMIT"], str(24 * 50 + sizing.PIDS_BASE))
+        self.assertIn("320", msg)
+        self.assertEqual(sizing.fit_pids(env, bots=3), "")       # already enough: left alone
+        env["WEB_TERMINAL_PIDS_LIMIT"] = "9999"
+        self.assertEqual(sizing.fit_pids(env), "")
+        self.assertEqual(env["WEB_TERMINAL_PIDS_LIMIT"], "9999")  # never lowered
 
 
 class Profiles(Sandbox):

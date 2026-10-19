@@ -20,6 +20,7 @@ from rich.table import Table
 
 from . import doctor as doctor_mod
 from . import paths
+from . import sizing
 from . import stack
 from . import status as status_mod
 from .envfiles import EnvError, mask, resolve
@@ -823,7 +824,8 @@ def capacity(args):
         for name in sorted(k for k, v in counted.items() if v is None):
             console.print(f"[yellow]WARNING: {name} has no mem_limit, so nothing caps it; it isn't counted.[/]")
         total = sum(v for v in counted.values() if v)
-        args = ["--other-services-mb", str(total),
+        args = ["--pids-per-student", env.get("WEB_TERMINAL_PIDS_PER_STUDENT") or str(sizing.PIDS_PER_STUDENT),
+                "--other-services-mb", str(total),
                 "--other-services-from", f"{workshop}: " + ", ".join(f"{k} {v}" for k, v in sorted(counted.items()) if v),
                 *args]
     os.execvp("sh", ["sh", script, *args])
