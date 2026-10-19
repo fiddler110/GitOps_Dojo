@@ -66,6 +66,8 @@ HackTheBox-shaped box: scan, find the real service among decoys, get a foothold,
   the terminal (a start.d hook creates it at login). Service mounts `terminal_home`, runs as container-root with only
   DAC_OVERRIDE + CHOWN, walks paths with `O_NOFOLLOW` and owner checks. mtime is sent in microseconds (nanoseconds
   overflowed JS and every save looked like a conflict).
+  The facilitator's tab has a student picker (`/api/students`, `?user=`): a student's notes open read-only and
+  nothing is created in their home (2026-10-19).
 - **Attack Range as its own page** (`/ctf-attack/range`) so `/workspace` has an Attack Range tab (the inline landing
   section is not a card, so workspace mode had no way to start boxes). Cards added to all four attack packs'
   `extensions.json`; `attack-cards.js` removes the duplicate card on the landing page.

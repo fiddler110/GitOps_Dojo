@@ -97,5 +97,59 @@ class NotesTest(unittest.TestCase):
             notes.write_notes("student01", "x" * (notes.MAX_BYTES + 1), None, self.root)
 
 
+    def test_read_only_view_creates_nothing(self):
+        with self.assertRaises(notes.NotesError):
+            notes.read_notes("student01", self.root, create=False)
+        self.assertFalse(os.path.exists(self.path("lab")))
+        notes.write_notes("student01", "hi\n", None, self.root)
+        self.assertEqual(notes.read_notes("student01", self.root, create=False)[0], "hi\n")
+
+    def test_students_listed_without_the_facilitator(self):
+        os.mkdir(os.path.join(self.root, "admin"))
+        os.mkdir(os.path.join(self.root, "student02"))
+        os.symlink(os.path.join(self.root, "student02"), os.path.join(self.root, "student03"))
+        self.assertEqual(notes.list_students(self.root, "admin"), ["student01", "student02"])
+
+
+class FacilitatorViewTest(unittest.TestCase):
+    """Over HTTP: only the facilitator lists students or reads a student's notes."""
+
+    setUp_home, tearDown_home, path = NotesTest.setUp, NotesTest.tearDown, NotesTest.path
+
+    def setUp(self):
+        self.setUp_home()
+        import threading
+        self.saved = (notes.TOKEN, notes.FACILITATOR, notes.HOME_ROOT)
+        notes.TOKEN, notes.FACILITATOR, notes.HOME_ROOT = "gw", "admin", self.root
+        os.mkdir(os.path.join(self.root, "student02"))
+        notes.write_notes("student02", "secret plan\n", None, self.root)
+        self.srv = notes.http.server.ThreadingHTTPServer(("127.0.0.1", 0), notes.make_handler())
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        notes.TOKEN, notes.FACILITATOR, notes.HOME_ROOT = self.saved
+        self.tearDown_home()
+
+    def get(self, path, user):
+        import http.client
+        import json
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1], timeout=5)
+        c.request("GET", path, headers={"X-Gateway-Token": "gw", "X-Auth-User": user})
+        r = c.getresponse()
+        return r.status, json.loads(r.read() or b"{}")
+
+    def test_only_the_facilitator_lists_and_reads_others(self):
+        self.assertEqual(self.get("/api/students", "student01")[0], 403)
+        self.assertEqual(self.get("/api/notes?user=student02", "student01")[0], 403)
+        status, doc = self.get("/api/students", "admin")
+        self.assertEqual((status, doc["students"]), (200, ["student01", "student02"]))
+        status, doc = self.get("/api/notes?user=student02", "admin")
+        self.assertEqual((status, doc["text"]), (200, "secret plan\n"))
+        self.assertEqual(self.get("/api/notes?user=student01", "admin")[0], 409)   # no notes yet: nothing created
+        self.assertFalse(os.path.exists(self.path("lab")))
+
+
 if __name__ == "__main__":
     unittest.main()

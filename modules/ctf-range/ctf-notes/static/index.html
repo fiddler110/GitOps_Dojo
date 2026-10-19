@@ -10,10 +10,14 @@
 <header>
   <h1>Notes</h1>
   <span class="path">~/lab/notes.md</span>
+  <label id="picker" hidden>Notes of
+    <select id="who" aria-label="Whose notes"><option value="">me</option></select>
+  </label>
   <span id="status" role="status"></span>
   <button id="save" type="button">Save</button>
 </header>
-<p class="hint">This is the same file as <code>~/lab/notes.md</code> in your terminal, so you can edit it in either place.
+<p id="readonly" class="hint" hidden>Read-only: this is the student's own file. They see their changes here; you can't edit it.</p>
+<p id="own-hint" class="hint">This is the same file as <code>~/lab/notes.md</code> in your terminal, so you can edit it in either place.
 Write down scan results, accounts you find and ideas. It saves as you type.</p>
 <div id="banner" class="banner" hidden>
   <span id="banner-text"></span>

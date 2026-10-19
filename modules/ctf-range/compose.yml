@@ -425,6 +425,7 @@ services:
     container_name: workshop_ctf_notes
     environment:
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_NOTES:-}
+      - FACILITATOR_USERNAME=${FACILITATOR_USERNAME:-admin}
     volumes:
       - terminal_home:/home
     networks:

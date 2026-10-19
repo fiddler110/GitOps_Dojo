@@ -12,6 +12,10 @@ h1 { margin: 0; font-size: 1.2rem; }
 button { font: inherit; font-size: .85rem; padding: .3rem .8rem; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--acc); color: var(--acc); }
 button:disabled { opacity: .5; cursor: default; }
+#picker { font-size: .85rem; color: var(--mute); }
+#picker[hidden], .hint[hidden] { display: none; }
+select { font: inherit; padding: .2rem .4rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: inherit; }
+textarea[readonly] { opacity: .9; border-style: dashed; }
 .hint { margin: 0; font-size: .85rem; color: var(--mute); }
 .banner { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .5rem .7rem; border: 1px solid var(--warn); border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: .88rem; }
 .banner[hidden] { display: none; }
