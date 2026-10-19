@@ -833,6 +833,12 @@ def make_handler(ctl, atk):
                 # (contained) entry ages off. The rows themselves come from achievements.
                 self._json(200, {"enabled": ctl.cfg.wall_enabled, "age_off": ctl.cfg.wall_age_off})
                 return
+            if path in ("/range", "/range/"):
+                self._static(STATIC["range.html"], "text/html; charset=utf-8")
+                return
+            if path == "/range.css":
+                self._static(STATIC["range.css"], "text/css; charset=utf-8")
+                return
             if path == "/attack-cards.css":
                 self._static(STATIC["attack-cards.css"], "text/css; charset=utf-8")
                 return
@@ -956,7 +962,7 @@ def make_handler(ctl, atk):
 # set, loaded once at start, same pattern as dns-ui's zone-viewer).
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(HERE, "static"))
 STATIC = {}
-for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css",
+for _name in ("index.html", "app.js", "app.css", "attack-cards.js", "attack-cards.css", "range.html", "range.css",
               "wall.html", "wall.js", "wall.css"):
     with open(os.path.join(STATIC_DIR, _name), "rb") as _f:
         STATIC[_name] = _f.read()

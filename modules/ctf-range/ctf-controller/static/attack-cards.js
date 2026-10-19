@@ -1,8 +1,10 @@
 // Per-target attack-range cards rendered inline on the student landing page
 // (plan §4, CTF-D20). An attack pack adds this via extensions.json's
 // `scripts` kind; the engine's /workspace/extra.js loader appends a <script>
-// pointing here with data-surface=<page>. We act only on data-surface=portal
-// (the landing page); on every other surface this file is a no-op.
+// pointing here with data-surface=<page>. We act on data-surface=portal (the
+// landing page) and on data-surface=range (range.html, the same cards as a page
+// of their own, which the /workspace tab frames); on every other surface this
+// file is a no-op.
 //
 // Why cards and not an iframe widget: the user asked for native landing-page
 // cards with Start/Stop/Reset inline, rather than opening a separate page to
@@ -19,7 +21,7 @@
 
   var me = document.currentScript;
   var surface = me && me.getAttribute("data-surface");
-  if (surface !== "portal") return;
+  if (surface !== "portal" && surface !== "range") return;
 
   var STATUS_URL = "/ctf-attack/attack/status";
   var POLL_MS = 3000;
@@ -285,6 +287,12 @@
   function start() {
     var cards = document.querySelector(".cards");
     if (!cards) return;
+    // The landing page draws the range inline, so the manifest's "Attack Range"
+    // card (which exists for the /workspace tab) would only repeat it.
+    if (surface === "portal") {
+      var dup = document.querySelector('a.card[href="/ctf-attack/range"]');
+      if (dup) dup.remove();
+    }
     stylesheet();
     grid = section(cards);
     grid.appendChild(el("p", "attack-range-note", "Loading attack targets..."));

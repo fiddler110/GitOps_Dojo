@@ -1,12 +1,31 @@
 {
   "version": 1,
+  "cards": [
+    {
+      "id": "ctf-attack",
+      "label": "Attack Range",
+      "icon": "rocket",
+      "desc": "Start and stop your attack boxes, scan them, submit flags.",
+      "href": "/ctf-attack/range"
+    }
+  ],
   "scripts": [
-    { "id": "attack-cards", "src": "/ctf-attack/attack-cards.js" }
+    {
+      "id": "attack-cards",
+      "src": "/ctf-attack/attack-cards.js"
+    }
   ],
   "admin_tabs": [
-    { "id": "ctf-attack", "label": "Attack Range", "src": "/ctf-attack/" }
+    {
+      "id": "ctf-attack",
+      "label": "Attack Range",
+      "src": "/ctf-attack/"
+    }
   ],
   "status_checks": [
-    { "label": "Attack Range", "url": "http://ctf-controller:9000/healthz" }
+    {
+      "label": "Attack Range",
+      "url": "http://ctf-controller:9000/healthz"
+    }
   ]
 }
