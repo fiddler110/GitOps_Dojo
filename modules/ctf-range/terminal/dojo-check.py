@@ -5,8 +5,8 @@
     dojo check              all three targets
     dojo check <target>     one target
 
-Talks to ctf-checker on workshop_lab as the account's own $USER (same
-identity model as dojo flag). Always exits 0 unless it could not ask.
+Talks to ctf-checker on workshop_lab as $USER, proven by the account's own
+key (~/.config/dojo/ctf-key). Always exits 0 unless it could not ask.
 """
 import json
 import os
@@ -20,6 +20,17 @@ WORDS = {"exploitable": "still exploitable", "contained": "contained",
          "broke-normal-use": "broke normal use", "unreachable": "unreachable"}
 
 
+def own_key():
+    """This account's ctf key (account.d/57-ctf-key.sh writes it; "" if missing, which the
+    service refuses). CTF_KEY_FILE overrides the path, so root can act for a student."""
+    path = os.environ.get("CTF_KEY_FILE") or os.path.expanduser("~/.config/dojo/ctf-key")
+    try:
+        with open(path, encoding="ascii") as fh:
+            return fh.read().strip()
+    except (OSError, ValueError):
+        return ""
+
+
 def main(argv):
     if argv and argv[0] in ("-h", "--help"):
         print(__doc__)
@@ -28,7 +39,7 @@ def main(argv):
     if not user:
         print("dojo check: could not tell who you are ($USER is unset)", file=sys.stderr)
         return 1
-    body = {"user": user}
+    body = {"user": user, "key": own_key()}
     if argv:
         body["target"] = argv[0]
     req = urllib.request.Request(f"{ADDR}/check", data=json.dumps(body).encode(), method="POST",

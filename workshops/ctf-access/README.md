@@ -49,8 +49,8 @@ stage, for the mechanics.
 
 ## What's here
 
-- [`workshop.env`](workshop.env): identity, `MODULES="ctf-range"`, the CTF-D26 scoping vars above, and
-  `CTF_CONTROL_TOKEN` (dev value; generate a real one for a live class).
+- [`workshop.env`](workshop.env): identity, `MODULES="ctf-range"` and the CTF-D26 scoping vars above
+  (`CTF_CONTROL_TOKEN` comes from `modules/ctf-range/module.env`, derived from `GATEWAY_TOKEN`).
 - [`content/slides/`](content/slides/): the hub, a briefing deck that sets the scenario and the rules of
   engagement **without naming any target's specific bug**, the labs index/overview, and a session-mechanics
   cheat sheet (tool mechanics live in the module's **Lab Info** card instead).

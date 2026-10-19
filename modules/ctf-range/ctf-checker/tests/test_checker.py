@@ -10,6 +10,7 @@ import gitref  # noqa: E402
 
 ENV = {"STUDENT_COUNT": "3", "CTF_DEFEND_TARGETS": "customer-portal policy-bypass leaky-config",
        "CTF_PORT_STRIDE": "100", "CTF_HOST_PORT_BASE": "15000"}
+SEED = "range-seed"
 
 
 class Cfg(unittest.TestCase):
@@ -78,10 +79,12 @@ class Rate(unittest.TestCase):
 
 class ResetTests(unittest.TestCase):
     def setUp(self):
-        self.cfg = checker.Config(dict(ENV, CTF_CONTROL_TOKEN="tok"))
+        self.cfg = checker.Config(dict(ENV, CTF_CONTROL_TOKEN="tok", STUDENT_PASSWORD_SEED=SEED))
         self.calls = []
 
-    def _post(self, body, reset=None, limiter=None):
+    def _post(self, body, reset=None, limiter=None, path="/reset", keyed=True):
+        if keyed and "user" in body and "key" not in body:
+            body = dict(body, key=checker.user_key(body["user"], SEED))
         import http.client
         import threading
         fake = reset or (lambda cfg, u, t: (self.calls.append((u, t)) or (True, "redeployed")))
@@ -91,7 +94,7 @@ class ResetTests(unittest.TestCase):
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         try:
             c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
-            c.request("POST", "/reset", json.dumps(body), {"Content-Type": "application/json"})
+            c.request("POST", path, json.dumps(body), {"Content-Type": "application/json"})
             r = c.getresponse()
             return r.status, json.loads(r.read())
         finally:
@@ -112,6 +115,41 @@ class ResetTests(unittest.TestCase):
         body = {"user": "student01", "target": "leaky-config"}
         self.assertEqual(self._post(body, limiter=lim)[0], 200)
         self.assertEqual(self._post(body, limiter=lim)[0], 429)
+
+    def test_reset_and_check_need_the_users_own_key(self):
+        # REVIEW §1.1: naming a classmate without their key does nothing, and doesn't use up their turn.
+        lim = checker.RateLimiter(60)
+        bad_keys = (None, "", checker.user_key("student01", SEED), checker.user_key("student02", "other-seed"))
+        for path in ("/reset", "/check"):
+            for key in bad_keys:
+                body = {"user": "student02", "target": "leaky-config"}
+                if key is not None:
+                    body["key"] = key
+                self.assertEqual(self._post(body, limiter=lim, path=path, keyed=False)[0], 403, (path, key))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self._post({"user": "student02", "target": "leaky-config"}, limiter=lim)[0], 200)
+
+    def test_no_seed_means_no_key_works(self):
+        self.cfg = checker.Config(dict(ENV, CTF_CONTROL_TOKEN="tok"))
+        body = {"user": "student02", "target": "leaky-config", "key": checker.user_key("student02", "")}
+        self.assertEqual(self._post(body, keyed=False)[0], 403)
+        self.assertEqual(self.calls, [])
+
+    def test_key_matches_the_flags_copies_and_the_hook(self):
+        root = os.path.join(os.path.dirname(__file__), "..", "..")
+        for sub in ("ctf-flags", "ctf-controller"):
+            ns = {}
+            with open(os.path.join(root, sub, "flags.py"), encoding="utf-8") as fh:
+                exec(compile(fh.read(), sub, "exec"), ns)
+            self.assertEqual(ns["user_key"]("student02", SEED), checker.user_key("student02", SEED), sub)
+        hook = os.path.join(root, "terminal", "account.d", "57-ctf-key.sh")
+        with open(hook, encoding="utf-8") as fh:
+            src = fh.read()
+        code = src[src.index("python3 -c '") + len("python3 -c '"):]
+        code = code[:code.index("'")]
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
+                             env=dict(os.environ, STUDENT_PASSWORD_SEED=SEED, CTF_USER="student02")).stdout
+        self.assertEqual(out.strip(), checker.user_key("student02", SEED))
 
     def test_controller_refusal_is_a_409_with_its_message(self):
         status, doc = self._post({"user": "student01", "target": "leaky-config"},

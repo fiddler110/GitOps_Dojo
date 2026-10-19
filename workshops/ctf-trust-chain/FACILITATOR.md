@@ -42,8 +42,8 @@ them what's in it.
 
 1. `./dojo setup` if there is no `.env`. Set `PUBLIC_BASE_URL`, `GATEWAY_TOKEN`,
    `STUDENT_COUNT`.
-2. Generate a real `CTF_CONTROL_TOKEN` for `workshop.env` (the committed value is a dev placeholder) —
-   it gates the Attack Range's start/stop/reset API.
+2. Nothing to generate for the range: `CTF_CONTROL_TOKEN` (it gates the Attack Range's start/stop/reset API)
+   is derived from `GATEWAY_TOKEN` in `modules/ctf-range/module.env`.
 3. `./dojo ctf-trust-chain`. First build takes a few minutes longer than most packs: `ctf-host` builds
    its `ctf-host-ctf4` stage (the 2-target image, not the full 14-target catalog — CTF-D26) on top of
    `docker:dind`. Open `/admin` and wait for **Forgejo**, **Terminals**, **Slides** and **Attack Range**

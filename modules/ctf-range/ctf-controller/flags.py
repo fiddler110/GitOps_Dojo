@@ -32,3 +32,23 @@ def render(user, seed, challenge=CHALLENGE):
     msg = f"ctf:{challenge}:{user}".encode()
     hexd = hmac.new(seed, msg, hashlib.sha256).hexdigest()[:_HEXLEN]
     return f"flag{{{challenge}-{hexd}}}"
+
+
+def user_key(user, seed):
+    """A student's own key for the range's terminal-facing services (REVIEW §1.1):
+    HMAC-SHA256(STUDENT_PASSWORD_SEED, "ctf-user:<user>"), 32 hex. Installed as
+    ~/.config/dojo/ctf-key (0600) by terminal/start.d/57-ctf-key.sh; `dojo check`,
+    `dojo reset` and `dojo flag` send it, so a request can only act as its own
+    account. Same function in ctf-checker/checker.py, ctf-flags/flags.py and
+    ctf-controller/flags.py. Empty seed -> "" (no key verifies)."""
+    if not seed:
+        return ""
+    if isinstance(seed, str):
+        seed = seed.encode()
+    return hmac.new(seed, f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def key_ok(user, seed, key):
+    """True if `key` is `user`'s own key (constant-time); never with an empty seed."""
+    want = user_key(user, seed)
+    return bool(want) and isinstance(key, str) and hmac.compare_digest(key.encode(), want.encode())

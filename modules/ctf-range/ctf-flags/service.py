@@ -2,20 +2,17 @@
 directly over `workshop_lab` (plan §5). It does exactly one job: verify a
 submitted flag and, if it checks out, credit the achievement.
 
-    POST /submit  {"user": "student07", "challenge": "sqli-login", "flag": "flag{...}"}
+    POST /submit  {"user": "student07", "key": K, "challenge": "sqli-login", "flag": "flag{...}"}
                   -> {"ok": true}   (verified; a signed `ctf`/`flag_solved` event was
                                      queued for achievements — best effort, never blocks)
                   -> {"ok": false}  (wrong flag, or a malformed body)
+                  -> {"ok": false, "error": "..."}  (the key isn't this user's)
 
-`user` is self-asserted (the CLI sends `id -un`'s own account), the same trust
-level as a terminal's other self-reported identity (dojo check's shell hook,
-for one). That is deliberately not a security boundary here: the actual
-secret is the flag VALUE (plan.render, the per-slot HMAC keyed on a seed the
-student never sees), not who claims to hold it. Lying about `user` only lets
-a student credit themselves with a flag they already had — not a privilege
-a classmate's identity would grant them, and not worth the complexity of a
-stronger identity check in an ephemeral lab (see CLAUDE.md "don't
-overengineer" convention for this kind of residual risk).
+`key` is the account's own key (flags.user_key: HMAC(seed, user), installed as
+~/.config/dojo/ctf-key, readable only by that account; ctf-controller computes it
+for a submission from the Attack Range page, where the gateway vouches for the
+user). A body whose key isn't `user`'s is refused, so a student can only credit
+their own account (REVIEW §1.1).
 
 A wrong flag never raises or errors the CLI (plan §5) — this always answers
 200 with {"ok": bool}, even on a bad body.
@@ -102,6 +99,10 @@ def make_handler(cfg, adapter):
             user, challenge, flag = body.get("user"), body.get("challenge"), body.get("flag")
             if not all(_valid_field(v) for v in (user, challenge, flag)):
                 self._json(200, {"ok": False})
+                return
+            if not flags.key_ok(user, cfg.seed, body.get("key")):
+                self._json(200, {"ok": False, "error": "this is not your account's key: submit from your "
+                                                       "own terminal (~/.config/dojo/ctf-key)"})
                 return
             ok = verify(cfg, user, challenge, flag)
             if ok:

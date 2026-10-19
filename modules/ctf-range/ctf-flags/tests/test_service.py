@@ -14,6 +14,7 @@ import flags  # noqa: E402
 import service as svc  # noqa: E402
 
 SEED = "range-seed"
+KEY7 = flags.user_key("student07", SEED)
 
 
 class FakeAdapter:
@@ -79,14 +80,14 @@ class TestHTTP(unittest.TestCase):
     def test_submit_right_flag(self):
         flag = flags.render("student07", SEED, "sqli-login")
         status, doc = self._req("POST", "/submit",
-                                body={"user": "student07", "challenge": "sqli-login", "flag": flag})
+                                body={"user": "student07", "key": KEY7, "challenge": "sqli-login", "flag": flag})
         self.assertEqual((status, doc), (200, {"ok": True}))
         self.assertEqual(self.adapter.posted,
                          [{"source": "ctf", "event": "flag_solved", "user": "student07", "challenge": "sqli-login"}])
 
     def test_submit_wrong_flag_never_errors(self):
         status, doc = self._req("POST", "/submit",
-                                body={"user": "student07", "challenge": "sqli-login", "flag": "flag{nope}"})
+                                body={"user": "student07", "key": KEY7, "challenge": "sqli-login", "flag": "flag{nope}"})
         self.assertEqual((status, doc), (200, {"ok": False}))
         self.assertEqual(self.adapter.posted, [])
 
@@ -94,6 +95,22 @@ class TestHTTP(unittest.TestCase):
         for body in ({}, {"user": "student07"}, {"user": "", "challenge": "x", "flag": "y"}, []):
             status, doc = self._req("POST", "/submit", body=body)
             self.assertEqual((status, doc), (200, {"ok": False}))
+
+    def test_submit_needs_the_users_own_key(self):
+        # REVIEW §1.1: the right flag under someone else's name, or without a key, credits nobody.
+        flag = flags.render("student07", SEED, "sqli-login")
+        for key in (None, "", flags.user_key("student08", SEED), flags.user_key("student07", "other-seed"),
+                    KEY7[:-1] + ("0" if KEY7[-1] != "0" else "1")):
+            body = {"user": "student07", "challenge": "sqli-login", "flag": flag}
+            if key is not None:
+                body["key"] = key
+            status, doc = self._req("POST", "/submit", body=body)
+            self.assertEqual((status, doc["ok"], "error" in doc), (200, False, True), key)
+        self.assertEqual(self.adapter.posted, [])
+
+    def test_empty_seed_accepts_no_key(self):
+        self.assertEqual(flags.user_key("student07", ""), "")
+        self.assertFalse(flags.key_ok("student07", "", ""))
 
     def test_unknown_route_404(self):
         self.assertEqual(self._req("GET", "/nope")[0], 404)

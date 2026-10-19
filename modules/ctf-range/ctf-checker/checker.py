@@ -1,11 +1,11 @@
 """ctf-checker: runs a target's check.py and returns a verdict.
 
-  POST /check  {"user": "student01"}  -> {"results": [{target, verdict, note, at}]}
-      Student-facing (via `dojo check`). Identity is the caller's $USER, as for
-      dojo-flag; the worst a spoofed name does is check someone else's slot,
-      which only reveals a verdict word. One run per user per RATE_S seconds.
-  POST /reset  {"user": "student01", "target": "policy-bypass"} -> {ok, message}
-      Student-facing (via `dojo-reset`). Puts that one slot back on the target's
+  POST /check  {"user": "student01", "key": K}  -> {"results": [{target, verdict, note, at}]}
+      Student-facing (via `dojo check`). K is the account's own key (user_key:
+      HMAC(seed, user), ~/.config/dojo/ctf-key, readable only by that account), so
+      a caller can only name itself. One run per user per RATE_S seconds.
+  POST /reset  {"user": "student01", "key": K, "target": "policy-bypass"} -> {ok, message}
+      Student-facing (via `dojo-reset`), same key. Puts that one slot back on the target's
       base image by asking ctf-controller to redeploy it (the checker holds the
       control token so the terminal never does). One reset per user per
       RESET_RATE_S seconds. The student's repo is not touched.
@@ -18,6 +18,7 @@ check.py interface: `check.py --url URL [--expect-flag F] [--legit-key K]`
 prints {"verdict","note"}; exit 0 exploitable, 1 contained, 3 broke-normal-use,
 2 unreachable.
 """
+import hashlib
 import hmac
 import http.server
 import json
@@ -123,6 +124,26 @@ class RateLimiter:
     def touch(self, key):
         with self.lock:
             self.last[key] = self.clock()
+
+
+def user_key(user, seed):
+    """A student's own key for the range's terminal-facing services (REVIEW §1.1):
+    HMAC-SHA256(STUDENT_PASSWORD_SEED, "ctf-user:<user>"), 32 hex. Installed as
+    ~/.config/dojo/ctf-key (0600) by terminal/start.d/57-ctf-key.sh; `dojo check`,
+    `dojo reset` and `dojo flag` send it, so a request can only act as its own
+    account. Same function in ctf-checker/checker.py, ctf-flags/flags.py and
+    ctf-controller/flags.py. Empty seed -> "" (no key verifies)."""
+    if not seed:
+        return ""
+    if isinstance(seed, str):
+        seed = seed.encode()
+    return hmac.new(seed, f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def key_ok(user, seed, key):
+    """True if `key` is `user`'s own key (constant-time); never with an empty seed."""
+    want = user_key(user, seed)
+    return bool(want) and isinstance(key, str) and hmac.compare_digest(key.encode(), want.encode())
 
 
 def validate_check(body, cfg):
@@ -368,10 +389,15 @@ def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
             body = self._body()
             if body is None:
                 return self._json(400, {"error": "bad request"})
-            if path == "/reset":
+            if path in ("/check", "/reset"):
                 user, err = validate_check(body, cfg)
                 if err:
                     return self._json(400, {"error": err})
+                # Before the rate limit, so a wrong key can't use up someone else's turn.
+                if not key_ok(user, cfg.seed, body.get("key")):
+                    return self._json(403, {"error": "this is not your account's key: run it from your "
+                                                     "own terminal (~/.config/dojo/ctf-key)"})
+            if path == "/reset":
                 target = body.get("target")
                 if target not in cfg.targets:
                     return self._json(400, {"error": "name a target: " + ", ".join(cfg.targets)})
@@ -382,9 +408,6 @@ def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
                 _audit(f"reset {user} {target}", "ok" if ok else msg)
                 return self._json(200 if ok else 409, {"ok": ok, "message": msg})
             if path == "/check":
-                user, err = validate_check(body, cfg)
-                if err:
-                    return self._json(400, {"error": err})
                 if not limiter.allow(user):
                     return self._json(429, {"error": "slow down: one check every few seconds"})
                 only = body.get("target")
