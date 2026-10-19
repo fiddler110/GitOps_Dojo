@@ -168,7 +168,9 @@ iptables -C OUTPUT -j DOJO_ISOLATION 2>/dev/null || iptables -A OUTPUT -j DOJO_I
 iptables -A DOJO_ISOLATION -p tcp -m owner --uid-owner 0 -j ACCEPT
 
 # Reusable for the facilitator, each student, and each bot below: allows
-# only the given account's own uid to reach its own IDE/term ports.
+# only the given account's own uid to reach its own IDE/term ports, and to
+# answer from its own IDE port (its code-server; ttyd and the watch sessions
+# run as root, allowed above).
 add_isolation_rule() {
   user="$1"
   ide_port="$2"
@@ -176,6 +178,7 @@ add_isolation_rule() {
   uid="$(id -u "$user")"
   iptables -A DOJO_ISOLATION -p tcp --dport "$ide_port" -m owner --uid-owner "$uid" -j ACCEPT
   iptables -A DOJO_ISOLATION -p tcp --dport "$term_port" -m owner --uid-owner "$uid" -j ACCEPT
+  iptables -A DOJO_ISOLATION -p tcp --sport "$ide_port" -m owner --uid-owner "$uid" -j ACCEPT
 }
 
 # Mostly a no-op when FACILITATOR_USERNAME defaults to "root" (uid 0 is
@@ -252,6 +255,12 @@ done
 # arriving from the Caddy gateway container over the docker network is
 # unaffected.
 iptables -A DOJO_ISOLATION -p tcp -m multiport --dports 9000:9099,9500:9599,9600:9699,9700:9799,9800:9899 -j DROP
+# Port squatting (REVIEW.md P4): an account that binds someone else's IDE,
+# term or watch port first would get the gateway's connections, cookies
+# included. Its replies (the SYN-ACK onward) leave from that port as its own
+# uid and nothing above ACCEPTed them, so they stop here: the gateway never
+# connects. workspace-control.py's sweep then evicts the squatter.
+iptables -A DOJO_ISOLATION -p tcp -m multiport --sports 9000:9099,9500:9599,9600:9699,9700:9799,9800:9899 -j DROP
 # workspace-control.py's control port: only the allocator (over the network,
 # with CONTROL_TOKEN) and root's own healthcheck use it. CONTROL_TOKEN starts a
 # shell as any account, so no account here gets to try for it at all.

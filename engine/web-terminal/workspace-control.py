@@ -29,6 +29,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import weakref
 
 IDE_PORT_BASE = 9000
 TERM_PORT_BASE = 9500
@@ -239,6 +240,16 @@ running = {}  # (tool, username) -> subprocess.Popen
 running_lock = threading.Lock()
 watch_target = {}  # username -> tmux session name the running watch ttyd is attached to
 holders = {}  # username -> (Popen of su, unshare's pid, the namespace's init pid)
+# One lock per account, held around its slow start-up (the PID namespace holder
+# can take seconds) so running_lock only ever guards the dicts and one student's
+# start never stalls everyone else's /start, /stop and reset. Order: an account's
+# lock first, then running_lock.
+user_locks = {}  # username -> threading.Lock; guarded by running_lock
+
+
+def user_lock(username):
+    with running_lock:
+        return user_locks.setdefault(username, threading.Lock())
 
 
 def audit(event, **fields):
@@ -273,13 +284,92 @@ def watch_port(username):
     return WATCH_PORT_BASE + student_number(username)
 
 
-def is_alive(username):
+def _proc_euids():
+    """{pid: effective uid} for every process in this container, from one
+    pass over /proc (what `pgrep -u` matches on), so /status checks every
+    student without forking a pgrep each (REVIEW.md 2.3). Processes inside
+    a student's PID namespace show here under their container pids."""
+    euids = {}
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return euids
+    for name in names:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/status") as f:
+                for line in f:
+                    if line.startswith("Uid:"):
+                        euids[int(name)] = int(line.split()[2])
+                        break
+        except (OSError, ValueError, IndexError):
+            continue  # exited mid-scan
+    return euids
+
+
+def is_alive(username, euids=None):
     """Any of this account's processes running, not counting its PID
-    namespace holder (which runs for as long as the account is in use)."""
-    out = subprocess.run(["pgrep", "-u", username], capture_output=True, text=True).stdout.split()
+    namespace holder (which runs for as long as the account is in use).
+    `euids` is a _proc_euids() snapshot to share across many accounts."""
+    try:
+        uid = pwd.getpwnam(username).pw_uid
+    except KeyError:
+        return False
+    if euids is None:
+        euids = _proc_euids()
     holder = holders.get(username)
-    skip = {str(holder[1]), str(holder[2])} if holder else set()
-    return any(pid not in skip for pid in out)
+    skip = {holder[1], holder[2]} if holder else set()
+    return any(u == uid and pid not in skip for pid, u in euids.items())
+
+
+def _socket_listening(path):
+    """A server is accepting on this Unix socket (not just a stale file
+    left by one that was killed). Connects and hangs up at once, the same
+    liveness probe `tmux`/`zellij list-sessions` make."""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(0.2)
+    try:
+        s.connect(path)
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+TMUX_SOCKET = "/tmp/tmux-{uid}/default"
+ZELLIJ_SOCKET_DIRS = ("/tmp/zellij-{uid}", "/run/user/{uid}/zellij")
+
+
+def has_terminal_session(username):
+    """Cheap stand-in for `most_active_session(username) is not None`, for
+    the roster poll: no `su` fork, just the account's terminal server
+    socket. tmux keeps one server per uid at /tmp/tmux-<uid>/default (the
+    PID namespace doesn't change the uid or /tmp), and that server exits
+    with its last session, so a live socket means at least one session.
+    Zellij has one socket per running session under
+    /tmp/zellij-<uid>/<contract-version>/."""
+    try:
+        uid = pwd.getpwnam(username).pw_uid
+    except KeyError:
+        return False
+    if not ZELLIJ:
+        return _socket_listening(TMUX_SOCKET.format(uid=uid))
+    for top in (d.format(uid=uid) for d in ZELLIJ_SOCKET_DIRS):
+        try:
+            versions = [e.path for e in os.scandir(top) if e.is_dir(follow_symlinks=False)]
+        except OSError:
+            continue
+        for d in versions:
+            try:
+                socks = [e.path for e in os.scandir(d)
+                         if not e.is_dir(follow_symlinks=False) and not e.is_file(follow_symlinks=False)]
+            except OSError:
+                continue
+            if any(_socket_listening(p) for p in socks):
+                return True
+    return False
 
 
 # -- A PID namespace per student (remediation T2.3b, FIND-10) -------------------
@@ -370,7 +460,7 @@ def _nested_userns(username, init_pid):
 
 def ensure_holder(username):
     """The init pid of this student's PID namespace, starting its holder
-    first if needed; None if one can't be made. Called with running_lock held."""
+    first if needed; None if one can't be made. Called with user_lock(username) held."""
     held = holders.get(username)
     if held and held[0].poll() is None and _is_ns_init(held[2]):
         return held[2]
@@ -399,7 +489,7 @@ def ensure_holder(username):
 
 def ns_prefix(username):
     """`nsenter ... -- ` for this student's namespace, or "" (no namespace:
-    the facilitator, a bot, or one couldn't be made). Called with running_lock held."""
+    the facilitator, a bot, or one couldn't be made). Called with user_lock(username) held."""
     if not uses_pid_namespace(username):
         return ""
     init_pid = ensure_holder(username)
@@ -408,20 +498,105 @@ def ns_prefix(username):
     return f"nsenter -t {init_pid} -U -p -m --preserve-credentials -- "
 
 
-def port_open(port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.2)
-        return s.connect_ex(("127.0.0.1", port)) == 0
+# Port squatting (REVIEW.md P4): every account shares this container's network
+# namespace, and DOJO_ISOLATION only filters outgoing connections, so nothing
+# stops a student binding another account's IDE/term/watch port before its real
+# process does. The gateway would then proxy that account's traffic, cookies
+# and all, to the student. So a port only counts as ready when every listener on
+# it belongs to the account it serves: root for ttyd (term and watch), the
+# account itself for its code-server. Anyone else's listener there is killed.
+WORKSPACE_PORT_RANGES = ((9000, 9099), (9500, 9899))
+SQUAT_SWEEP_S = 3
+
+
+def _listeners():
+    """{port: [(uid, inode)]} of every listening TCP socket in this container."""
+    found = {}
+    for path in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            with open(path) as f:
+                next(f)
+                for line in f:
+                    fields = line.split()
+                    if fields[3] != "0A":  # TCP_LISTEN
+                        continue
+                    port = int(fields[1].rsplit(":", 1)[1], 16)
+                    found.setdefault(port, []).append((int(fields[7]), fields[9]))
+        except (OSError, ValueError, IndexError, StopIteration):
+            continue
+    return found
+
+
+def _owner_allowed(port, uid):
+    if uid == 0:
+        return True
+    try:
+        return port_for("ide", pwd.getpwuid(uid).pw_name) == port
+    except (KeyError, AttributeError):
+        return False  # no such account, or one without a student number
+
+
+def _evict(port, squatters):
+    """Kill whatever holds these sockets and log who it was."""
+    links = {f"socket:[{inode}]" for _uid, inode in squatters}
+    pids = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            fds = os.listdir(f"/proc/{d}/fd")
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                if os.readlink(f"/proc/{d}/fd/{fd}") in links:
+                    pids.append(int(d))
+                    break
+            except OSError:
+                continue
+    for pid in pids:
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            pass
+    for uid in sorted({uid for uid, _inode in squatters}):
+        try:
+            account = pwd.getpwuid(uid).pw_name
+        except KeyError:
+            account = str(uid)
+        audit("port-squat", port=port, account=account, killed=pids)
+
+
+def port_open(port, listeners=None):
+    """Ready to proxy: something listens on port and all of it is the right owner's."""
+    held = (listeners if listeners is not None else _listeners()).get(port, [])
+    squatters = [entry for entry in held if not _owner_allowed(port, entry[0])]
+    if squatters:
+        _evict(port, squatters)
+        return False
+    return bool(held)
+
+
+def sweep_squatters():
+    """Catch a squatter before anyone asks for its port, and one that binds
+    after a workspace exits."""
+    while True:
+        time.sleep(SQUAT_SWEEP_S)
+        listeners = _listeners()
+        for port in listeners:
+            if any(lo <= port <= hi for lo, hi in WORKSPACE_PORT_RANGES):
+                port_open(port, listeners)
 
 
 def start_workspace(tool, username):
-    with running_lock:
-        key = (tool, username)
-        proc = running.get(key)
-        if proc is not None and proc.poll() is None:
-            return  # already running
-        if username in resetting:
-            return  # the allocator fences this too; /start reports not ready
+    key = (tool, username)
+    with user_lock(username):
+        with running_lock:
+            proc = running.get(key)
+            if proc is not None and proc.poll() is None:
+                return  # already running
+            if username in resetting:
+                return  # the allocator fences this too; /start reports not ready
 
         port = port_for(tool, username)
         home = f"/home/{username}"
@@ -460,7 +635,10 @@ def start_workspace(tool, username):
             cmd = ["ttyd", "-p", str(port), "-W", "-t", "fontSize=16", "su", "-", username,
                    "-c", f"exec {nproc_prefix(username)}{ns}tmux new-session -A -s {TMUX_SESSION} -c \"$HOME/lab\""]
 
-        running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with running_lock:
+            if username in resetting:
+                return  # a reset began while the namespace was being set up
+            running[key] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audit("workspace-start", account=username, tool=tool, port=port)
     # Doesn't wait for the port to open -- the caller (do_POST's /start
     # handler) reports actual readiness back via port_open() right after
@@ -565,7 +743,9 @@ def start_watch(username):
 
 def stop_user(username):
     stale = []
-    with running_lock:
+    # The account's lock waits out a start in progress, so it can't spawn
+    # after this and outlive the stop.
+    with user_lock(username), running_lock:
         for key in list(running):
             if key[1] == username:
                 stale.append(running.pop(key))
@@ -710,15 +890,67 @@ def reset_user(username):
     return ok, steps
 
 
+# Every Popen this process makes, by pid, so reap_children() leaves their exit
+# statuses to subprocess. A blind waitpid(-1) here stole them: subprocess then
+# read ECHILD as success, so a failed command looked like returncode 0.
+# _tracked_lock is held across the fork and the registration, so the reaper can't
+# see a child before it is registered.
+_tracked = {}  # pid -> weakref to its subprocess.Popen
+_tracked_lock = threading.Lock()
+
+
+class _TrackedPopen(subprocess.Popen):
+    def __init__(self, *args, **kwargs):
+        with _tracked_lock:
+            super().__init__(*args, **kwargs)
+            _tracked[self.pid] = weakref.ref(self)
+
+
+subprocess.Popen = _TrackedPopen  # subprocess.run() looks Popen up at call time
+
+
+def _owner_popen(pid):
+    """The live Popen that will reap pid itself, or None if pid is an orphan.
+    Drops every entry whose Popen is gone or already reaped (its pid may have
+    been reused since), so _tracked stays small. Called with _tracked_lock held."""
+    for tracked_pid, ref in list(_tracked.items()):
+        proc = ref()
+        if proc is None or proc.returncode is not None:
+            del _tracked[tracked_pid]
+    ref = _tracked.get(pid)
+    return ref() if ref else None
+
+
 def reap_children():
     """This process is the container's PID 1 (see entrypoint.sh); nothing
-    else reaps the su/ttyd/code-server children we fork, so do it ourselves
-    to avoid zombie accumulation over a long-running workshop."""
+    else reaps the orphans that get reparented to us, so do it ourselves to
+    avoid zombie accumulation over a long-running workshop. Peek first
+    (WNOWAIT): a child with a Popen is reaped through that Popen, so its exit
+    status lands where subprocess.run/wait reads it."""
     while True:
         try:
-            pid, _status = os.waitpid(-1, 0)
+            info = os.waitid(os.P_ALL, 0, os.WEXITED | os.WNOWAIT)
         except ChildProcessError:
             time.sleep(1)
+            continue
+        except InterruptedError:
+            continue
+        if info is None:
+            continue
+        pid = info.si_pid
+        with _tracked_lock:
+            proc = _owner_popen(pid)
+            if proc is None:
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+                continue
+        # Reaped into proc.returncode, or None when another thread is inside
+        # proc.wait() right now and is about to reap it; don't spin meanwhile.
+        # Its _tracked entry goes stale then and is dropped on the next lookup.
+        if proc.poll() is None:
+            time.sleep(0.05)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -754,8 +986,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # actually spawning a watch ttyd -- the roster poll uses it to
             # know when a freshly-joined student's tile can connect its
             # iframe on its own, instead of waiting for a manual reload.
+            # One /proc pass and one socket probe per account, no forks
+            # (REVIEW.md 2.3): this runs every few seconds while the
+            # roster is open.
+            euids = _proc_euids()
             result = {
-                u: {"active": is_alive(u), "watchable": most_active_session(u) is not None}
+                u: {"active": is_alive(u, euids), "watchable": has_terminal_session(u)}
                 for u in users if u and valid_username(u)
             }
             self.send_json_ok(result)
@@ -842,6 +1078,7 @@ def main():
                          "zellij-terminal image (dojo does when the flavor is set).")
     print(f"terminal flavor: {TERMINAL_FLAVOR}", flush=True)
     threading.Thread(target=reap_children, daemon=True).start()
+    threading.Thread(target=sweep_squatters, daemon=True).start()
     print(f"per-student process limit (RLIMIT_NPROC): "
           f"{TERMINAL_NPROC_LIMIT or 'off'}", flush=True)
     server = http.server.ThreadingHTTPServer(("0.0.0.0", 7682), Handler)
