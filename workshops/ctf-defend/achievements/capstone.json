@@ -9,7 +9,7 @@
   "badge_tier": "capstone",
   "hints": [
     "The PR gate only re-tests the search endpoint; login shares the exact same bug.",
-    "`app.py` already shows the fix for search, right below the vulnerable line -- the same shape works for login."
+    "Whatever shape fixed search (a `?` placeholder with the values passed separately) works for login too."
   ],
   "verify": [
     {
@@ -31,5 +31,5 @@
       "student": "{user}"
     }
   ],
-  "answer": "Parameterize both queries: search already shows the pattern right below its vulnerable line (a `?` placeholder, the search term passed as a params tuple); apply the exact same shape to login's two values, then PR and merge to main."
+  "answer": "Parameterize both queries: a `?` placeholder for each value and the values passed as a params tuple (`conn.execute(sql, (email, password))`), for search and for login, then PR and merge to main."
 }
