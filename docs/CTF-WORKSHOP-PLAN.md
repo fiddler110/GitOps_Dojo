@@ -1,9 +1,9 @@
 # CTF workshop series: plan
 
-Status: **draft 6, 2026-10-17. Everything described below is built and merged to `main`.** The range, all 14
+Status: **draft 7, 2026-10-18. Everything described below is built and merged to `main`, except the 2026-10-18 work on branch `feat/ctf-randomized-ports` (next section).** The range, all 14
 attack-ladder targets, all five session packs, the CTF-5 defend tooling, the three-target defend redesign, the wall
 of shame, scoring, the one-page SOC, the student SIEM view and all four attack packs' demo bots are in `main`; the
-bonus second flaw was dropped by the redesign, not shipped. No CTF work sits on a branch any more.
+bonus second flaw was dropped by the redesign, not shipped. The only CTF work not in `main` is the branch below.
 
 **What is actually left** (the short list; [`ROADMAP.md`](../ROADMAP.md) is authoritative, and "Open, in order"
 below has the detail):
@@ -22,6 +22,98 @@ Sections 1-13 below are the design; where the build deviated from them, the sect
 > **Reading the log below.** "Where it stands" is a dated build log, newest entries last, kept for the why. Its
 > "pick up here" and "uncommitted" notes are historical: every branch it names is merged and deleted. Trust the
 > table above and `ROADMAP.md` for what is open.
+
+---
+
+## Resume here (2026-10-18): attack-box realism, branch `feat/ctf-randomized-ports`
+
+**Where the work is.** Branch `feat/ctf-randomized-ports`, 18 commits ahead of `main`, **unpushed**, tree clean. It is
+stacked on `feat/ctf-pilot-and-geo` (the 4 pilot/geo commits `2b1671c..1e2fdbb`, also unpushed). Nothing is merged;
+ask before pushing or opening PRs. A stack may still be up (`CTF_ONLY_TARGETS=sqli-login ./dojo ctf-access`); run
+`./dojo stop` first thing tomorrow if so.
+
+**Why.** Students were spoon-fed (web always on 5000, SSH on 2222, the flag on the welcome page). The goal is a
+HackTheBox-shaped box: scan, find the real service among decoys, get a foothold, then get onto the machine.
+`sqli-login` is the pilot target; the others are unchanged.
+
+**What was built (all on the branch):**
+
+- **Randomized ports** (`CTF_RANDOM_PORT_TARGETS=sqli-login`, seed `CTF_PORT_SEED`): `Config.random_ports()` draws the
+  host-side web/alt ports in 8000-8999 and FTP in 2100-2199, deterministic per (seed, student, target) so Reset
+  keeps them. **SSH is fixed at 22** on the student's own per-box IP (container port stays 2222).
+- **Decoys** in `targets/sqli-login/app.py`: ProFTPD banner that answers 530, an "Apache" admin console that answers 401.
+- **Target Viewer** no longer reveals the port: a Port field, `/ctf-view/<target>:<port>/`, a 302 for `?port=N`
+  (index page has its own CSP with `form-action 'self'`; no meta refresh while a form is shown).
+- **Meridian portal page**: redesigned, supplied logo (`assets/Meridian_Logo.svg`, viewBox cropped, white tile),
+  password stays masked with a Show password checkbox. The user said the first redesign was "not much of an
+  improvement": **not yet re-reviewed by them.**
+- **Two-stage box.** SQLi logs in and redirects to `/portal`, which links three log files (`print-queue.log`,
+  `maintenance.log`, `helpdesk-sync.log`). They leak three accounts (`svc-print` real; `svc-backup`, `helpdesk`
+  decoys), 1/2/0 per file, placement shuffled per box (seeded by the flag). The flag is `flag.txt` in `svc-print`'s
+  home on an **asyncssh server with an emulated shell** (`sshshell.py`: ls/cat/cd/pwd/whoami/id/uname/echo/help; a real
+  sshd can't run, the container drops all caps and is non-root). Host key derived from the flag so Reset does not trip
+  `known_hosts`. **The SSH password is derived from the flag** (it was random per start, which broke copied credentials
+  after any restart; fixed in the last commit).
+- **Stage 2 (root flag) is parked** by decision; a likely shape is a readable file or `sudo -l` rule leading to
+  `su root`, with a second flag id `sqli-login-root` (like `dns-resolver-cve-token`).
+- **Flag submission**: `dojo flag '<flag>'` (challenge inferred from the flag; `dojo-flag submit <id> <flag>` still
+  works), plus a "Found a flag?" box on the Attack Range section (`POST /ctf-attack/attack/flag`). Labs, slides,
+  cheat sheets of all four attack packs use the new form.
+- **`CTF_ONLY_TARGETS`** (`modules/ctf-range/module.env`): run just some boxes, e.g.
+  `CTF_ONLY_TARGETS=sqli-login ./dojo ctf-access`. Filters the controller and viewer catalog only; it does **not**
+  speed up start (all images are still baked and imported). Deliberately left that way.
+- **Notes page** (`modules/ctf-range/ctf-notes`, `/ctf-notes/`): browser editor for `~/lab/notes.md`, same file as in
+  the terminal (a start.d hook creates it at login). Service mounts `terminal_home`, runs as container-root with only
+  DAC_OVERRIDE + CHOWN, walks paths with `O_NOFOLLOW` and owner checks. mtime is sent in microseconds (nanoseconds
+  overflowed JS and every save looked like a conflict).
+- **Attack Range as its own page** (`/ctf-attack/range`) so `/workspace` has an Attack Range tab (the inline landing
+  section is not a card, so workspace mode had no way to start boxes). Cards added to all four attack packs'
+  `extensions.json`; `attack-cards.js` removes the duplicate card on the landing page.
+- Lab 1 (`workshops/ctf-access/content/lab/lab1.md`) and its exploit guide, the target README and the bot step
+  (`bots/steps.sh`: finds the web port, reads the logs, tries each account over ssh) all follow the new flow.
+
+**Verified (locally):** controller tests 91 pass, notes tests 11 pass (`python3 -B -m unittest discover -s tests` in
+each service dir); `check-dep-pins`; `./dojo ctf-access --dry-run`. Live: full four-box `--test 1 --fast` bot run
+(all four flags accepted, via SSH for sqli-login); `sqli-login`-only bot run after the log-file change (tried
+`helpdesk`, then `svc-print`, accepted); manual `ssh svc-print@10.42.0.100` from a student terminal; Notes page save
+via Playwright (file updated, owner kept); `/workspace` shows the Attack Range tab, landing page has no duplicate card.
+
+**Not verified yet (do these first):**
+
+1. The stable SSH password after a **Reset** / restart (last commit; stack was restarting when this was written).
+2. In a real browser: the Meridian page look and Show password; Target Viewer port form and the post-login redirect
+   under the `/ctf-view/<target>:<port>/` prefix; clicking Start from the new Attack Range tab.
+3. `dojo flag '<flag>'` from a live terminal (image only just rebuilt) and the "Found a flag?" success path in the page.
+4. Terminal edits showing up in the open Notes page (the reverse direction was tested).
+5. A full bot run after the stable-password change.
+
+**Next, in order:**
+
+1. Finish the checks above; get the user's verdict on the portal look.
+2. Decide whether to roll randomized ports, decoys and a two-stage shape to `weak-auth-portal`, `idor-pcap`,
+   `cert-trust-bypass` (and the other packs' boxes). Each needs decoy listeners in its `app.py`, a ctf-host Dockerfile
+   stage change, an `entrypoint.sh` import-port list and a `CTF_RANDOM_PORT_TARGETS` entry.
+3. Record in `ROADMAP.md` / `RELEASES.md`, the ctf-range README and `docs/` once verified. The `engine/README.md`
+   trusted-proxy note was left alone (engine/ needs the user's permission).
+4. Ask about pushing the two stacked branches and opening PRs.
+5. Still open from before: the stagger/dwell pilot with real people ([`CTF-PILOT.md`](CTF-PILOT.md)); the
+   Target Viewer browser pass is now mostly covered by the user's own testing (record it).
+
+**Things learned today, so they are not rediscovered:**
+
+- Log in at `http://localhost:8080` with the class login `student` / `student`, then enter a name to take a seat
+  (`student01`, ...). Facilitator is `admin` / `admin`. Release a seat:
+  `curl -b <admin cookie> -X POST -H 'X-Requested-With: dojo-admin' localhost:8080/admin/release/<studentNN>`.
+  (`student123` is the per-seat Forgejo password, not the class login.)
+- Per-box IPs are `10.42.0.<100 + 4*student_index + target_index>`; a typo like `10.0.42.100` gives "network is unreachable".
+- `./dojo restart` with no service is a **full** restart (rebuilds everything that changed); use
+  `./dojo restart <service>` for a single service. Env vars set in the calling shell (e.g. `CTF_ONLY_TARGETS`)
+  reach the stack only if module.env passes them through (`VAR=${VAR:-}`).
+- Target-image changes need a full stop/start (~3 min); viewer/controller/notes changes can use
+  `./dojo restart <service>` (~30 s).
+- Playwright for screenshots: `mcr.microsoft.com/playwright/python:v1.55.0-noble --network host`, mount the script
+  directory writable. `pkill -f` can kill your own shell; kill by saved PID.
+- Bot cookies are scoped to host `localhost`; bots reach the gateway with `--connect-to localhost:8080:gateway:8080`.
 
 ---
 
