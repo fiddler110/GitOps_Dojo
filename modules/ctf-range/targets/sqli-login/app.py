@@ -49,7 +49,7 @@ _DB.commit()
 # over SSH. The other two are stale service accounts the SSH server has never heard of.
 _rnd = random.Random(FLAG)
 SSH_USER = "svc-print"
-SSH_PASSWORD = "Print-" + os.urandom(4).hex()
+SSH_PASSWORD = "Print-%08x" % _rnd.getrandbits(32)  # stable per box: a Reset or restart must not change it
 _CREDS = [
     (SSH_USER, SSH_PASSWORD),
     ("svc-backup", "Bk-%08x" % _rnd.getrandbits(32)),
