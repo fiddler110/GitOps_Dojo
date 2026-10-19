@@ -69,5 +69,47 @@ class ControlRequestForgetsTest(unittest.TestCase):
         self.assertIsNone(allocation.READY_CACHE.get(("ide", "student01")))
 
 
+class SingleFlightTest(unittest.TestCase):
+    def test_concurrent_callers_share_one_call(self):
+        import threading
+        flights, gate, calls, results = allocation.SingleFlight(), threading.Event(), [], []
+
+        def slow():
+            calls.append(1)
+            gate.wait(5)
+            return True
+
+        threads = [threading.Thread(target=lambda: results.append(flights.do("k", slow, 5))) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for _ in range(100):  # every follower is parked on the leader
+            if len(calls) == 1 and flights._calls:
+                break
+        gate.set()
+        for t in threads:
+            t.join(5)
+        self.assertEqual((len(calls), results), (1, [True] * 20))
+        self.assertEqual(flights._calls, {})
+        self.assertEqual(flights.do("k", lambda: "again", 1), "again")  # a later call runs anew
+
+    def test_keys_are_independent_and_waiters_time_out(self):
+        import threading
+        flights, gate = allocation.SingleFlight(), threading.Event()
+        leader = threading.Thread(target=flights.do, args=("a", lambda: gate.wait(5), 5))
+        leader.start()
+        while not flights._calls:
+            pass
+        self.assertEqual(flights.do("b", lambda: 2, 1), 2)  # another workspace isn't held up
+        self.assertIsNone(flights.do("a", lambda: 3, 0.05))  # gave up waiting: not ready
+        gate.set()
+        leader.join(5)
+
+    def test_leader_exception_releases_waiters(self):
+        flights = allocation.SingleFlight()
+        with self.assertRaises(RuntimeError):
+            flights.do("k", lambda: (_ for _ in ()).throw(RuntimeError()), 1)
+        self.assertEqual(flights._calls, {})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -252,6 +252,40 @@ class TTLCache:
                 del self._items[key]
 
 
+class SingleFlight:
+    """At most one call per key in flight: the first caller (the leader)
+    runs it, callers for the same key that arrive meanwhile wait for it and
+    share its result (None if they give up after `timeout`). The lock only
+    guards the dict; the call itself runs outside it, so no Docker or
+    control call ever happens under a shared lock."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._calls = {}  # key -> [Event, result]
+
+    def do(self, key, fn, timeout):
+        with self._lock:
+            call = self._calls.get(key)
+            leader = call is None
+            if leader:
+                call = self._calls[key] = [threading.Event(), None]
+        if not leader:
+            call[0].wait(timeout)
+            return call[1]
+        try:
+            call[1] = fn()
+        finally:
+            with self._lock:
+                self._calls.pop(key, None)
+            call[0].set()
+        return call[1]
+
+
+# The POST /start a READY_CACHE miss makes, one per (tool, user) at a time: a
+# cold VS Code load sends dozens of asset requests at once, and they wait on
+# the first one's start instead of each making their own (REVIEW.md 2.3).
+START_FLIGHTS = SingleFlight()
+
 # A workspace that answered ready is trusted for this long, so the hundreds of
 # asset requests behind one VS Code page load don't each make a control call
 # (identity and the reset fence are still checked on every request). Any stop

@@ -76,6 +76,21 @@
 	}
 }
 
+# Inside every reverse_proxy to something other than the allocator (REVIEW
+# §1.2): drop the engine's own cookies -- dojo_login (the signed sign-in, a
+# facilitator's opens /admin for 12 h), dojo_session (the student slot) and
+# dojo_gate (the --pass code) -- so an upstream a student might control
+# (an extension route, a workspace port) never sees them. Every other cookie
+# (Forgejo's i_like_gitea/_csrf, code-server's) passes untouched. Only the
+# allocator reads dojo_* cookies; no upstream behind this gateway does.
+# Two regex replaces, in order: remove each dojo cookie with the ";" before
+# it, then trim separators left at either end, so "dojo_login=x" becomes ""
+# and "a=1; dojo_session=y; b=2" becomes "a=1; b=2".
+(strip_dojo_cookies) {
+	header_up Cookie `(^|;)\s*dojo_(login|session|gate)=[^;]*` ""
+	header_up Cookie `^[;\s]+|[;\s]+$` ""
+}
+
 # The sign-in check in front of everything except /login. Argument: who may
 # pass, "any" (either login) or "facilitator". Written to be imported inside
 # a handle block, before the routes it protects.
@@ -128,6 +143,7 @@
 		rewrite * /gate-fail
 		reverse_proxy allocator:8080 {
 			import allocator_timeouts
+			header_up -X-Auth-User
 			header_up X-Gateway-Token {$GATEWAY_TOKEN}
 		}
 	}
@@ -150,6 +166,7 @@
 		rewrite * /gate-fail
 		reverse_proxy allocator:8080 {
 			import allocator_timeouts
+			header_up -X-Auth-User
 			header_up X-Gateway-Token {$GATEWAY_TOKEN}
 			@wrong status 401
 			handle_response @wrong {
@@ -183,6 +200,7 @@
 	handle @login {
 		reverse_proxy allocator:8080 {
 			import allocator_timeouts
+			header_up -X-Auth-User
 			header_up X-Gateway-Token {$GATEWAY_TOKEN}
 		}
 	}
@@ -210,7 +228,9 @@
 				copy_headers X-Upstream-Port
 			}
 			uri strip_prefix /admin/watch/{re.watch.1}
-			reverse_proxy web-terminal-ingress:{http.request.header.X-Upstream-Port}
+			reverse_proxy web-terminal-ingress:{http.request.header.X-Upstream-Port} {
+				import strip_dojo_cookies
+			}
 		}
 
 		handle {
@@ -240,7 +260,9 @@
 			# that secret through compressed sizes (BREACH). Slides hold neither.
 			encode zstd gzip
 			uri strip_prefix /slides
-			reverse_proxy presentation:8080
+			reverse_proxy presentation:8080 {
+				import strip_dojo_cookies
+			}
 		}
 
 		@git path /git*
@@ -251,6 +273,7 @@
 			# Auth header, so don't forward it.
 			reverse_proxy git-server:3000 {
 				header_up -Authorization
+				import strip_dojo_cookies
 			}
 		}
 
@@ -277,7 +300,9 @@
 				@ide_ready status 200
 				handle_response @ide_ready {
 					uri strip_prefix /ide
-					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port}
+					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port} {
+						import strip_dojo_cookies
+					}
 				}
 
 				@starting status 202
@@ -304,7 +329,9 @@
 				@term_ready status 200
 				handle_response @term_ready {
 					uri strip_prefix /term
-					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port}
+					reverse_proxy web-terminal-ingress:{rp.header.X-Upstream-Port} {
+						import strip_dojo_cookies
+					}
 				}
 
 				@starting status 202

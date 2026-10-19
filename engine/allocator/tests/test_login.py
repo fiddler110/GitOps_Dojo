@@ -113,6 +113,60 @@ class GateFailTest(unittest.TestCase):
         accounts.GATE_GUARD.fails.clear()
 
 
+class HandleLoginLimitTest(unittest.TestCase):
+    """REVIEW §1.3: the limit is checked before the password."""
+
+    def setUp(self):
+        import api
+        self.api = api
+        self.saved = (accounts.LOGIN_GUARD, accounts.LOGIN_USER_GUARD)
+        api.LOGIN_GUARD = accounts.LoginGuard(limit=3)
+        api.LOGIN_USER_GUARD = accounts.LoginGuard(limit=5)
+        self.compared = []
+        self.real_check = api.check_login
+        api.check_login = lambda u, p: (self.compared.append(u), self.real_check(u, p))[1]
+
+    def tearDown(self):
+        self.api.LOGIN_GUARD, self.api.LOGIN_USER_GUARD = self.saved
+        self.api.check_login = self.real_check
+
+    def attempt(self, ip, username, password):
+        out = []
+
+        class Fake:
+            def read_form_body(self): return {"username": username, "password": password}
+            def login_next(self, n): return "/"
+            def client_ip(self): return ip
+            def render_login(self, *a): return "page"
+            def send_html(self, body, status=200, headers=()): out.append(status)
+            def redirect(self, nxt, cookies=()): out.append(303)
+            def session_cookie(self, *a): return "c"
+
+        self.api.ApiMixin.handle_login(Fake())
+        return out[0]
+
+    def test_blocked_address_refused_before_password(self):
+        for _ in range(3):
+            self.assertEqual(self.attempt("1.1.1.1", "student", "wrong"), 401)
+        before = len(self.compared)
+        self.assertEqual(self.attempt("1.1.1.1", "student", "class-pw"), 429)
+        self.assertEqual(len(self.compared), before, "password compared while blocked")
+        self.assertEqual(self.attempt("2.2.2.2", "student", "class-pw"), 303)
+
+    def test_account_limited_across_addresses(self):
+        for i in range(5):
+            self.assertEqual(self.attempt(f"10.0.0.{i}", "root", "wrong"), 401)
+        self.assertEqual(self.attempt("10.0.1.1", "root", "fac-pw"), 429)
+        # Another account, and unknown names, aren't counted against it.
+        self.assertEqual(self.attempt("10.0.1.2", "student", "class-pw"), 303)
+        self.attempt("10.0.2.1", "nobody", "x")
+        self.assertNotIn("nobody", self.api.LOGIN_USER_GUARD.fails)
+
+    def test_production_limits_fit_a_class_behind_one_nat(self):
+        self.assertGreaterEqual(accounts.LOGIN_GUARD.limit, 60)
+        self.assertGreater(accounts.LOGIN_USER_GUARD.limit, accounts.LOGIN_GUARD.limit)
+
+
 class RedirectTargetTest(unittest.TestCase):
     def test_login_next(self):
         nxt = handler.Handler.login_next

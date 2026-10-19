@@ -60,8 +60,12 @@ VERSION = 1
 # an extension path merely *starting with* one of these would be shadowed.
 # The allocator-only paths are exact, but the allocator is the catch-all,
 # so an extension route there would hijack it.
-ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/workspace")
-ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch")
+# /login and /_gate are the gateway's own (the sign-in page and the --pass
+# code page, both ahead of the session gate); the rest of ENGINE_EXACT are
+# allocator handlers (handler.py do_GET/do_POST).
+ENGINE_PREFIXES = ("/slides", "/admin", "/git", "/ide", "/term", "/workspace", "/login", "/_gate")
+ENGINE_EXACT = ("/", "/assign", "/forgejo-login", "/whoami", "/auth-check", "/auth-check-watch",
+                "/logout", "/session-check", "/gate-fail")
 
 # Built-in /admin tab ids (allocator/views.py render_facilitator_workspace).
 ENGINE_TAB_IDS = ("roster", "ide", "term", "forgejo", "slides")
@@ -372,8 +376,11 @@ def caddy_for_route(r, token=None):
     if r["strip_prefix"]:
         lines.append(f"\t\turi strip_prefix {path}")
     lines.append(f"\t\treverse_proxy {r['upstream']} {{")
-    # Any Authorization header is the browser's, not the upstream's.
+    # Any Authorization header is the browser's, not the upstream's, and so
+    # are the dojo_* cookies (REVIEW §1.2): a facilitator's dojo_login must
+    # never reach an upstream a student might control. Snippet in the Caddyfile.
     lines.append("\t\t\theader_up -Authorization")
+    lines.append("\t\t\timport strip_dojo_cookies")
     if r["gate"] in ("identity", "facilitator"):
         # header_up with no +/- replaces, so the upstream only ever sees
         # what the allocator vouched for, next to the token only Caddy has:
