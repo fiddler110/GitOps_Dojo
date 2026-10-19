@@ -44,7 +44,7 @@ Two flags, both HMAC-derived per student (plan §5):
 - **Flag 2** — `flag{dns-resolver-cve-<hex>}` — reached by replaying the
   captured token at `/admin`. Submittable as `dojo-flag submit dns-resolver-cve <flag>`.
 
-```
+```text
 GET  /observations                              → observe recent TXIDs
 POST /spoof {"predicted_txid": last+1}          → arm one spoofed answer
 GET  /captured  (poll ~2s)                      → flag 1 lands here

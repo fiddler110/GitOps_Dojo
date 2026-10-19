@@ -1,0 +1,13 @@
+# Secret scan config (P13). Defaults plus an allowlist for the deliberate
+# teaching fakes found by the 2026-10-18 history scan (all verified fake).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "teaching fakes and test fixtures"
+paths = [
+  '''^workshops/vault-fundamentals/(content|tests)/''',
+  '''^workshops/tofu-basics/content/lab/''',
+  '''^modules/achievements/.*/test_.*\.py$''',
+  '''^engine/dojo/tests/test_commands\.py$''',
+]

@@ -1,8 +1,10 @@
 # Unit tests and every workshop's dry run (RV13). Both scripts run locally too:
 #   sh .github/scripts/unit-tests.sh   (~2.5 min)
 #   sh .github/scripts/dry-runs.sh     (~45 s)
-# Here only on pull requests into main, or by hand (Actions > CI > Run workflow),
-# to save the private repo's Actions minutes on everyday branch pushes.
+# Here on pull requests into main, pushes to main, or by hand (Actions > CI >
+# Run workflow); everyday branch pushes are skipped to save the private repo's
+# Actions minutes. The lint job is  sh .github/scripts/lint-repo.sh  plus
+# shellcheck and a gitleaks history scan (suppressions: REVIEW.md P13).
 #
 # Neither job installs Flask: the three ctf-range defend-target suites that need
 # it skip themselves and say so, so a bare runner still reports a clean run.
@@ -10,6 +12,8 @@ name: CI
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -32,3 +36,25 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sh .github/scripts/dry-runs.sh
+
+  lint:
+    # Fence tags, retired command names, pin sync, Caddy header rules,
+    # shellcheck and a secret scan over the full history. No containers.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans history
+      - run: sh .github/scripts/lint-repo.sh
+      - name: shellcheck
+        run: |
+          sudo apt-get install -y --no-install-recommends shellcheck
+          git ls-files '*.sh' | xargs shellcheck -S warning -e SC2148,SC2034,SC2154,SC1090,SC1091,SC2317,SC2319,SC2016
+      - name: gitleaks
+        run: |
+          v=8.30.1
+          curl -fsSL -o gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v$v/gitleaks_${v}_linux_x64.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gl.tgz" | sha256sum -c -
+          tar -xzf gl.tgz gitleaks
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --no-banner

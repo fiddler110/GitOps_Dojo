@@ -32,7 +32,7 @@ remove_probes() { on_host rm-probes "$CLOUD_HOST_CONTAINER" docker rm -f secchk-
 area_security() {
   local other fac other_sub other_cid ip_host ip_api
   other=$(user_name 2); [ "$other" = "$STUDENT" ] && other=$(user_name 1)
-  if is_dry; then fac=admin; other_sub=OTHER-SUB; other_cid=OTHER-CID
+  if is_dry; then fac="admin"; other_sub=OTHER-SUB; other_cid=OTHER-CID
   else
     fac=$("$CLI" exec "$CLOUD_API_CONTAINER" printenv FACILITATOR_USERNAME 2>/dev/null)
     other_sub=$(portal_sub "$other"); other_cid=$("$CLI" exec -u "$other" "$TERMINAL_CONTAINER" zsh -lc 'printenv ARM_CLIENT_ID' 2>/dev/null)
@@ -41,7 +41,7 @@ area_security() {
   say "  probing as $STUDENT; the other tenant is $other"
 
   # ---- 1. ARM authorisation and token forgery ---------------------------------------------------------------------
-  local arm_probe="python3 - '$other_sub' '$other_cid' '$fac' <<'PY'"$'\n'"$(is_dry && echo '(helpers/sec_arm.py)' || cat "$TB_HELPERS/sec_arm.py")"$'\nPY'
+  local arm_probe; arm_probe="python3 - '$other_sub' '$other_cid' '$fac' <<'PY'"$'\n'"$(is_dry && echo '(helpers/sec_arm.py)' || cat "$TB_HELPERS/sec_arm.py")"$'\nPY'
   as_student "$STUDENT" "$arm_probe" 180 arm-probes
   expect_has "the student can get a token with their own credentials and read their own subscription" \
     'own_login=200' 'own_subscription=200'

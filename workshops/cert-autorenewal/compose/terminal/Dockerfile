@@ -10,6 +10,7 @@
 # dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
 ARG BASE=gitopsdojo/web-terminal:base
 FROM ${BASE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     certbot \

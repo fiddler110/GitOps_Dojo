@@ -12,7 +12,7 @@
 set -u
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-cd "$root"
+cd "$root" || exit 1
 
 failed=""
 run() { # name, then the command
@@ -26,6 +26,8 @@ run() { # name, then the command
 pylib="$(echo engine/.cache/pylib-*)"
 run engine/dojo env PYTHONPATH="engine:$pylib" python3 -B -m unittest discover -s engine/dojo/tests -t engine
 run engine/allocator sh -c 'cd engine/allocator && python3 -B -m unittest discover -s tests'
+
+run engine/web-terminal sh -c 'cd engine/web-terminal && python3 -B -m unittest discover -s tests'
 
 for dir in $(find modules workshops -name 'test_*.py' -not -path '*/node_modules/*' -exec dirname {} \; | sort -u); do
   run "$dir" sh -c "cd '$dir' && python3 -B -m unittest discover -p 'test_*.py'"

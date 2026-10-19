@@ -37,7 +37,7 @@ if [ -n "$split" ]; then
     split="" first=""
     for l in $labs; do
       if [ -z "$first" ] && [ "$l" = 0 ]; then first=0; continue; fi
-      if [ "$first" = 0 ]; then split="0-$l"; first=done; else split="$split $l"; fi
+      if [ "$first" = 0 ]; then split="0-$l"; first="done"; else split="$split $l"; fi
     done
   fi
   set -- $split
