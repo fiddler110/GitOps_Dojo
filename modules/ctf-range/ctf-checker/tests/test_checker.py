@@ -156,6 +156,26 @@ class ResetTests(unittest.TestCase):
                                  reset=lambda c, u, t: (False, "base image not present"))
         self.assertEqual((status, doc["ok"], doc["message"]), (409, False, "base image not present"))
 
+    def test_gate_takes_a_students_own_build_token_for_their_own_slot_only(self):
+        import http.client
+        import threading
+        self.cfg = checker.Config(dict(ENV, CTF_BUILD_TOKEN="btok", STUDENT_PASSWORD_SEED=SEED))
+        srv = checker.Server(("127.0.0.1", 0), checker.make_handler(self.cfg, checker.RateLimiter(), threading.Lock()))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        mine = checker.user_token("btok", "student01")
+
+        def gate(user, token):
+            conn = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+            conn.request("POST", "/gate", json.dumps({"user": user}),
+                         {"Content-Type": "application/json", "Authorization": "Bearer " + token})
+            return conn.getresponse().status
+        try:
+            self.assertEqual(gate("student01", mine), 400)     # past auth; no target or ref
+            self.assertEqual(gate("student02", mine), 403)
+            self.assertEqual(gate("student02", "btok"), 400)   # the class token still works
+        finally:
+            srv.shutdown()
+
     def test_unconfigured_token_is_refused(self):
         cfg = checker.Config(ENV)
         self.assertEqual(checker.do_reset(cfg, "student01", "leaky-config")[0], False)

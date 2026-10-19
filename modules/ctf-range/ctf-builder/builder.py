@@ -24,6 +24,7 @@ student's repo (the repo path is derived from a validated `user`, never taken
 from the caller) and ctf-builder itself never sees a Dockerfile or tar from
 the caller at all.
 """
+import hashlib
 import hmac
 import http.server
 import json
@@ -45,6 +46,14 @@ CLONE_TIMEOUT = 60
 BUILD_TIMEOUT = 180
 PUSH_TIMEOUT = 120
 
+
+
+def user_token(class_token, user):
+    """The token one student's CI gets in place of the class token (as ctf-checker's):
+    it only works for that user's own slot, so printing it from a workflow gains nothing."""
+    if not class_token or not user:
+        return ""
+    return hmac.new(class_token.encode(), f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()
 
 class Config:
     def __init__(self, env=os.environ):
@@ -163,14 +172,18 @@ def make_handler(cfg, ex, build_lock):
             if self.command != "HEAD":
                 self.wfile.write(body)
 
-        def _authed(self):
+        def _authed(self, user=None):
+            """The class token, or (when the request names a user) that user's own token."""
             want = cfg.control_token
             if not want:
                 return False  # fail closed: no token configured = no access
             given = self.headers.get("Authorization", "")
             if given.startswith("Bearer "):
                 given = given[len("Bearer "):]
-            return hmac.compare_digest(given.encode(), want.encode())
+            if hmac.compare_digest(given.encode(), want.encode()):
+                return True
+            mine = user_token(want, user) if isinstance(user, str) else ""
+            return bool(mine) and hmac.compare_digest(given.encode(), mine.encode())
 
         def _path(self):
             return self.path.split("?", 1)[0] or "/"
@@ -188,9 +201,6 @@ def make_handler(cfg, ex, build_lock):
             if self._path() != "/build":
                 self._json(404, {"error": "not found"})
                 return
-            if not self._authed():
-                self._json(403, {"error": "control token required"})
-                return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
                 if length <= 0 or length > MAX_BODY:
@@ -200,6 +210,9 @@ def make_handler(cfg, ex, build_lock):
                     raise ValueError
             except ValueError:
                 self._json(400, {"error": "bad request"})
+                return
+            if not self._authed(body.get("user")):
+                self._json(403, {"error": "control token required"})
                 return
             user = str(body.get("user") or "")
             ref = str(body.get("ref") or "")

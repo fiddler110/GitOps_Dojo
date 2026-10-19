@@ -411,6 +411,14 @@ class TestHTTP(unittest.TestCase):
     def test_redeploy_requires_token(self):
         self.assertEqual(self._req("POST", "/redeploy", body={"user": "student01"})[0], 403)
 
+    def test_a_students_own_token_only_redeploys_their_own_slot(self):
+        mine = c.user_token(TOKEN, "student01")
+        tag = "registry.ctf.internal/ctf-customer-portal:student01"
+        self.assertEqual(self._req("POST", "/redeploy", token=mine, body={"user": "student01", "image": tag})[0], 200)
+        self.assertEqual(self._req("POST", "/redeploy", token=mine, body={"user": "student02"})[0], 403)
+        self.assertEqual(self._req("GET", "/slots", token=mine)[0], 403)
+        self.assertEqual(self._req("POST", "/reconcile", token=mine, body={"user": "student01"})[0], 403)
+
     def test_redeploy_via_http(self):
         tag = "registry.ctf.internal/ctf-customer-portal:student01"
         status, doc = self._req("POST", "/redeploy", token=TOKEN,

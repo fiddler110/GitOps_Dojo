@@ -29,6 +29,7 @@ always-on CTF-5 model above — a different slot name, a different published-
 port range, and (unlike reconcile()) nothing auto-creates a slot: it stays
 "stopped" until a student asks for a target. See AttackManager's docstring.
 """
+import hashlib
 import hmac
 import http.server
 import json
@@ -108,6 +109,14 @@ ATTACK_IPS_PER_STUDENT = 4
 ATTACK_IDLE_SECONDS = 20 * 60  # plan §4 "Limits": ~20 min with no traffic
 ATTACK_MAX_CONCURRENT = 10     # plan §4 "Start queue": ~10 at once (tuned in S14)
 
+
+
+def user_token(class_token, user):
+    """The token one student's CI gets in place of the class token (as ctf-checker's):
+    it only works for that user's own slot, so printing it from a workflow gains nothing."""
+    if not class_token or not user:
+        return ""
+    return hmac.new(class_token.encode(), f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()
 
 def _mem_bytes(text, default=128 * 1024 ** 2):
     """Parse a compose-style size ('128m', '1g', '536870912') to bytes."""
@@ -787,14 +796,18 @@ def make_handler(ctl, atk):
             or wrong."""
             return dojo_http.gateway_user(self.headers, ctl.cfg.gateway_token)
 
-        def _authed(self):
+        def _authed(self, user=None):
+            """The class token, or (when the request names a user) that user's own token."""
             want = ctl.cfg.control_token
             if not want:
                 return False  # fail closed: no token configured = no access
             given = self.headers.get("Authorization", "")
             if given.startswith("Bearer "):
                 given = given[len("Bearer "):]
-            return hmac.compare_digest(given.encode(), want.encode())
+            if hmac.compare_digest(given.encode(), want.encode()):
+                return True
+            mine = user_token(want, user) if isinstance(user, str) else ""
+            return bool(mine) and hmac.compare_digest(given.encode(), mine.encode())
 
         def _path(self):
             return self.path.split("?", 1)[0] or "/"
@@ -895,9 +908,6 @@ def make_handler(ctl, atk):
                 if not user:
                     self._json(403, {"error": "gateway token required"})
                     return
-            elif not self._authed():
-                self._json(403, {"error": "control token required"})
-                return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
                 if length > 2048:
@@ -907,6 +917,10 @@ def make_handler(ctl, atk):
                     raise ValueError
             except ValueError:
                 self._json(400, {"error": "bad request"})
+                return
+            # A student's own token only redeploys their own slot; the rest needs the class token.
+            if not is_attack and not self._authed(body.get("user") if path == "/redeploy" else None):
+                self._json(403, {"error": "control token required"})
                 return
             if is_attack:
                 if user == ctl.cfg.facilitator:

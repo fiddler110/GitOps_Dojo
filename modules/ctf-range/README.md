@@ -226,7 +226,10 @@ capability: every mutating route still fails closed on the same
 constant-time control-token check (`_authed`) regardless of which network a
 request arrives on, and `ctf-builder` holds a **different** token
 (`CTF_BUILD_TOKEN`, not `CTF_CONTROL_TOKEN`) so a leaked build credential can
-never redeploy a slot.
+never redeploy a slot. Student CI never holds either class token: ctf-defend's repos get
+`user_token(class token, user)` (HMAC-SHA256 of `ctf-user:<user>`), which ctf-builder, ctf-checker's
+`/gate` and ctf-controller's `/redeploy` accept only when the request names that same user; `/slots`,
+`/schedule` and `/reconcile` still need the class token.
 
 ## Targets
 

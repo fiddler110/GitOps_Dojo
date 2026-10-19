@@ -9,7 +9,7 @@
       base image by asking ctf-controller to redeploy it (the checker holds the
       control token so the terminal never does). One reset per user per
       RESET_RATE_S seconds. The student's repo is not touched.
-  POST /gate   Bearer CTF_BUILD_TOKEN, {"user","target","ref"}
+  POST /gate   Bearer CTF_BUILD_TOKEN or that user's user_token(), {"user","target","ref"}
       Clones the student's repo at ref itself, runs the candidate app.py
       locally (seed files from the image, only app.py comes from the repo),
       runs check.py and returns {verdict, note, pass}.
@@ -138,6 +138,14 @@ def user_key(user, seed):
     if isinstance(seed, str):
         seed = seed.encode()
     return hmac.new(seed, f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def user_token(class_token, user):
+    """The token one student's CI gets in place of the class token: it only works for
+    that user's own slot, so printing it from a workflow gains nothing."""
+    if not class_token or not user:
+        return ""
+    return hmac.new(class_token.encode(), f"ctf-user:{user}".encode(), hashlib.sha256).hexdigest()
 
 
 def key_ok(user, seed, key):
@@ -365,14 +373,18 @@ def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
             except ValueError:
                 return None
 
-        def _authed(self):
+        def _authed(self, user=None):
+            """The class token, or (when the request names a user) that user's own token."""
             want = cfg.build_token
             if not want:
                 return False
             given = self.headers.get("Authorization", "")
             if given.startswith("Bearer "):
                 given = given[7:]
-            return hmac.compare_digest(given.encode(), want.encode())
+            if hmac.compare_digest(given.encode(), want.encode()):
+                return True
+            mine = user_token(want, user) if isinstance(user, str) else ""
+            return bool(mine) and hmac.compare_digest(given.encode(), mine.encode())
 
         def do_GET(self):
             if self.path.split("?", 1)[0] == "/healthz":
@@ -384,9 +396,9 @@ def make_handler(cfg, limiter, gate_lock, reset_limiter=None, reset=do_reset):
             path = self.path.split("?", 1)[0]
             if path not in ("/check", "/gate", "/reset"):
                 return self._json(404, {"error": "not found"})
-            if path == "/gate" and not self._authed():
-                return self._json(403, {"error": "build token required"})
             body = self._body()
+            if path == "/gate" and not self._authed(body.get("user") if body else None):
+                return self._json(403, {"error": "build token required"})
             if body is None:
                 return self._json(400, {"error": "bad request"})
             if path in ("/check", "/reset"):
