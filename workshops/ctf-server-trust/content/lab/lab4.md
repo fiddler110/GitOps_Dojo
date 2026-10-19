@@ -51,8 +51,8 @@ A route can get the first answer right and never ask the second.
 
 > **Hint 2.** If the response carries a flag at all, the authorization bug is already proven -- that's by
 > design here. You do **not** need to send anything beyond your ordinary bearer token to see it. (A
-> `confirm`-style header exists that would additionally mutate shared state; don't use it -- it's never
-> needed to prove the bug, and doing so against a shared range affects other students.)
+> `confirm`-style header exists that would additionally change the API's data; don't use it -- it's never
+> needed to prove the bug, and it would leave your own target in a state you'd have to reset.)
 
 ## 3. Submit
 

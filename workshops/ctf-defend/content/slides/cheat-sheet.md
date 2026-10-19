@@ -49,7 +49,7 @@ dojo check leaky-config     # one
 
 `contained` = blocked and still usable. `broke-normal-use` = you broke it.
 
-`dojo-reset <target>` = back to the starting app (repo untouched).
+`dojo reset <target>` = back to the starting app (repo untouched).
 
 ---
 

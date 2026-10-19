@@ -44,14 +44,16 @@ anything that looks like an identity, an id and a secret that belong together.
 
 The vault has more than one way to sign in. Your own login is one; a **role-based** method meant for
 automation is another, and it takes two values rather than a password. Find the method's login endpoint in
-the vault's documentation (or `bao auth list`), sign in with what you found, and note which token comes back
+the vault's documentation, sign in with what you found, and note which token comes back
 and what it is allowed to read.
 
 Two things to learn first, using a made-up example (`corp-ci` is not your method's name):
 
 ```sh
-# List the sign-in methods the vault has enabled: the left column is each method's mount path,
-# the second column is its type (one of them is the role-based type, called "approle").
+# Try listing the sign-in methods the vault has enabled: the left column is each method's mount path,
+# the second column is its type (one of them is the role-based type, called "approle"). Your own login
+# may be refused here, which is fine: the state file you are about to read, and the vault docs, also say
+# where the role-based method is mounted (an unchanged mount is just its type name, "approle/").
 bao auth list
 # A method mounted at "corp-ci/" is logged into at /v1/auth/corp-ci/login (path = auth/<mount>/login).
 
@@ -59,7 +61,7 @@ bao auth list
 jq '.resources[] | {type, name, attrs: .instances[].attributes}' terraform.tfstate
 ```
 
-Then sign in with the two values you found, at the login path for the mount you found in `bao auth list`:
+Then sign in with the two values you found, at the login path for the mount you found (in `bao auth list`, the state file or the docs):
 
 ```sh
 curl -s -X POST "http://openbao:8200/v1/auth/<mount>/login" -d '{"role_id":"...","secret_id":"..."}'

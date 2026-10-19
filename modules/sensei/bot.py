@@ -355,8 +355,11 @@ class Sensei:
                 "patience": self.patience}
 
     def _merge(self, pr):
-        status, _ = self.api("POST", f"/repos/{self.repo}/pulls/{pr['number']}/merge",
-                             {"Do": "merge", "delete_branch_after_merge": True})
+        body = {"Do": "merge", "delete_branch_after_merge": True}
+        sha = (pr.get("head") or {}).get("sha")
+        if sha:  # merge only the commit that was reviewed; a later push makes Forgejo refuse (409)
+            body["head_commit_id"] = sha
+        status, _ = self.api("POST", f"/repos/{self.repo}/pulls/{pr['number']}/merge", body)
         if status in (200, 204):
             return True
         if status in (405, 409):

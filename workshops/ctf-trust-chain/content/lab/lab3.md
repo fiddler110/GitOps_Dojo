@@ -46,7 +46,9 @@ A step that wants to get a value out of a job has those two channels: the log, a
 
 The same PR's workflow can also try to look around the runner for anything another job left behind: its own
 user, its home directory, running processes. Add a step that checks. It's meant to come back empty, and
-that's the finding, not a bug -- read `modules/runner-pool/README.md` for why.
+that's the finding, not a bug. The pool gives every job its own throwaway user, with a private home and
+process namespace, and deletes the runner and everything it left behind when the job ends; there is nothing
+of another job's to find, so the empty result is the pool working as designed.
 
 ## 3. Submit
 

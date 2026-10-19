@@ -89,8 +89,8 @@ Each has two hints (25% each by default) and an answer that scores zero. The che
 - **Seed:** Nothing extra to start: this is the same repo and the same PR flow as the lab, just finished all the way.
 - **Verify:** On `main` of `{user}/customer-portal`, both the search query and the login query build their SQL with a placeholder and a separate params tuple, not a string built from the request.
 - **Hint 1:** The PR gate only re-tests the search endpoint; login shares the exact same bug.
-- **Hint 2:** `app.py` already shows the fix for search, right below the vulnerable line -- the same shape works for login.
-- **Answer:** Parameterize both queries: search already shows the pattern right below its vulnerable line (a `?` placeholder, the search term passed as a params tuple); apply the exact same shape to login's two values, then PR and merge to main.
+- **Hint 2:** Whatever shape fixed search (a `?` placeholder with the values passed separately) works for login too.
+- **Answer:** Parameterize both queries: a `?` placeholder for each value and the values passed as a params tuple (`conn.execute(sql, (email, password))`), for search and for login, then PR and merge to main.
 - **Collision check:** entirely the student's own `{user}/customer-portal` repo; the check reads only that repo's `main` branch, nothing shared.
 - **Badge tier:** capstone (stars)
 

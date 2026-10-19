@@ -142,7 +142,8 @@ def load_catalog():
 
 
 def client_hash():
-    """sha256 of the dojo-check client baked into the terminal image (the same file)."""
+    """sha256 of the dojo-check client baked into the terminal image (the same file).
+    Not a secret (students can read that file); see _caller for what it is and is not for."""
     import hashlib
     try:
         with open(CLIENT_FILE, "rb") as f:
@@ -251,8 +252,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """The identified user, or None. Two ways in: the gateway's headers (the browser), or
         the student's own Forgejo token (the terminal, `dojo-check`), which Forgejo vouches for.
 
-        A token caller must use the client we shipped: a wrong hash costs -1 and refuses the
-        request, and so does no hash on a request that changes something. Identity headers
+        A token caller must present the hash of the shipped client: a wrong hash costs -1 and
+        refuses the request, and so does no hash on a request that changes something. This is
+        a guard against stale or accidentally different clients and casual tampering, not a
+        security boundary: students can read the client file and so can compute the hash. The
+        real protection is the signed events in store.py. Identity headers
         without the gateway token, next to a token, are someone else's name worn like a hat."""
         user = self._gateway_user()
         if user:

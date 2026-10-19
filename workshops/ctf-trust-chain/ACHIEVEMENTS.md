@@ -23,7 +23,7 @@ module, not in a workshop.
 
 ## Scoring
 
-Each flag you capture posts its own flag-verified event the moment `dojo flag` accepts it --
+Each flag you capture posts its own flag-verified event the moment `dojo-flag submit` accepts it --
 no separate check-in step. Two process milestones (scan with version detection, scan every port) reward
 doing the recon step properly before touching a target, since that's half the lesson. `core` covers all
 four flags (`dns-resolver-cve` is two: a captured credential, then its replay), so completion tracks

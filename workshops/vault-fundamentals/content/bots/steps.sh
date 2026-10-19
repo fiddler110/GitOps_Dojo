@@ -144,7 +144,7 @@ step_vf_lab1() {
   vf_env || return 1
   narrate "Lab 1 -- leak it: commit a secret, delete it, find it again"
   run_cmd "mkdir -p ~/lab/leak && cd ~/lab/leak && git init -q -b main"
-  run_cmd "printf 'GITHUB_TOKEN=ghp_%s\n' 'Xk3L9mQ2vR7tW1yZ5bN8cD4fG6hJ0pS2aE7u' > config.env"
+  run_cmd "printf 'GITHUB_TOKEN=ghp_%s\n' 'EXAMPLEfakeNotRealDoNotUse0000000003' > config.env"
   run_cmd "git add config.env && git commit -qm 'Add config'"
   run_cmd "git rm -q config.env && git commit -qm 'Remove the secret'"
   run_cmd "git log -p | grep ghp_"
@@ -152,7 +152,7 @@ step_vf_lab1() {
   run_cmd "gitleaks git -v"   # exits 1 when it finds something, as the lab expects
   narrate "a pre-commit hook stops the next one"
   run_cmd "printf '#!/bin/sh\\nexec gitleaks git --pre-commit --staged --redact -v\\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit"
-  run_cmd "echo 'BACKUP_TOKEN = \"ghp_Z3xQ9wLk2VbN7cRt5YmH8sJd4FgP1aKe6UoW\"' > app.py && git add app.py"
+  run_cmd "echo 'BACKUP_TOKEN = \"ghp_EXAMPLEfakeNotRealDoNotUse0000000002\"' > app.py && git add app.py"
   run_cmd "git commit -qm 'Add the backup token'"   # the hook refuses it
   run_cmd "git rm -qf --cached app.py && rm app.py"
   return 0   # a finding is the point; never retry the step for it

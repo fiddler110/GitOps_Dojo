@@ -23,7 +23,7 @@ module, not in a workshop.
 
 ## Scoring
 
-Each target you solve posts its own flag-verified event the moment `dojo flag` accepts it -- no
+Each target you solve posts its own flag-verified event the moment `dojo-flag submit` accepts it -- no
 separate check-in step. Two process milestones (scan with version detection, scan every port) reward doing
 the recon step properly before touching a target, since that's half the lesson. `core` is the four
 flag milestones, so completion tracks targets solved, not labs merely opened.

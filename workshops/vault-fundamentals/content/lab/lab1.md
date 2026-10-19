@@ -39,7 +39,7 @@ git init -b main
 
 ```python
 API_URL = "https://api.example.test"
-API_TOKEN = "ghp_R8vK2mQx7LpT4nWz9HcY1bFs6DjE3aGu5VtN"
+API_TOKEN = "ghp_EXAMPLEfakeNotRealDoNotUse0000000001"
 
 print(f"calling {API_URL}")
 ```
@@ -146,7 +146,7 @@ chmod +x .git/hooks/pre-commit
 Now make the same mistake again. Add this line to the end of `app.py` in VS Code, and save:
 
 ```python
-BACKUP_TOKEN = "ghp_Z3xQ9wLk2VbN7cRt5YmH8sJd4FgP1aKe6UoW"
+BACKUP_TOKEN = "ghp_EXAMPLEfakeNotRealDoNotUse0000000002"
 ```
 
 **Your turn:** try to commit it. Before you run it, predict: will the commit happen? What will the log show? `git checkout app.py` then throws away your change to the file and brings back the committed version.
