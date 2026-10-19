@@ -26,7 +26,7 @@ on.
 
 **Lab 1 has two flags, and that trips people up.** The first flag is a captured service token (land the
 spoof, poll `/captured`); the second needs that token **replayed** at `/admin` as a Bearer token. Tell the
-room up front there are two `dojo-flag submit` calls for this one target, not one — the lab text makes
+room up front there are two `dojo flag` calls for this one target, not one — the lab text makes
 this explicit but it's easy to stop after the first flag and think you're done.
 
 **Don't volunteer hints from the stage.** The slides deliberately never name a specific bug, and each

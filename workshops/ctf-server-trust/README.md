@@ -69,7 +69,7 @@ stage, for the mechanics.
   core milestone per target (`l1-flag`..`l4-flag`), each matched on the `ctf`/`flag_solved` adapter event
   `ctf-flags` already posts with `challenge=<target-id>` -- no new plumbing needed, the achievements module
   already supports this exact event shape. This is what gives students a leaderboard/points confirmation
-  beyond `dojo-flag submit`'s own CLI response.
+  beyond `dojo flag`'s own CLI response.
 
 ## Facilitator view
 

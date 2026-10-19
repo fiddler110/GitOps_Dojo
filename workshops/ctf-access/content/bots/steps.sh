@@ -2,7 +2,7 @@
 # git-fundamentals default with this pack's own four attack-range targets (plan rows 0, 2, 1, 3:
 # sqli-login, weak-auth-portal, idor-pcap, cert-trust-bypass). Every step walks the exact technique the
 # lab itself teaches (never a shortcut the lab doesn't hand the student) and ends with
-# `dojo-flag submit <challenge> <flag>`. `--fast` gets one pass (BOT_FAST is handled generically by
+# `dojo flag submit <challenge> <flag>`. `--fast` gets one pass (BOT_FAST is handled generically by
 # bot-runner.sh's run loop/think()/narrate(); nothing extra needed here). Re-runnable: every step
 # starts the target fresh and returns 0 (not an error) whenever the slot or the exploit didn't come
 # through this round, so a flaky round never wedges the retry loop.
@@ -106,7 +106,7 @@ step_sqli_login() {
     narrate "sqli-login: no flag over ssh this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit sqli-login '$flag'"
+  run_cmd "dojo flag submit sqli-login '$flag'"
 }
 
 # -- Lab 2: weak-auth-portal -- the reset token is sha256("reset:<user>:<minute-bucket>")[:6], the
@@ -128,7 +128,7 @@ step_weak_auth_portal() {
     narrate "weak-auth-portal: token/timing missed this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit weak-auth-portal '$flag'"
+  run_cmd "dojo flag submit weak-auth-portal '$flag'"
 }
 
 # -- Lab 3: idor-pcap -- enumerate /data/<n> for the one capture with cleartext FTP creds, reuse
@@ -161,7 +161,7 @@ step_idor_pcap() {
     narrate "idor-pcap: /admin didn't accept the leaked creds this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit idor-pcap '$flag'"
+  run_cmd "dojo flag submit idor-pcap '$flag'"
 }
 
 # -- Lab 4: cert-trust-bypass -- a throwaway self-signed cert with CN=ops-internal (openssl, the
@@ -187,7 +187,7 @@ step_cert_trust_bypass() {
     narrate "cert-trust-bypass: /internal/ops didn't accept the cert this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit cert-trust-bypass '$flag'"
+  run_cmd "dojo flag submit cert-trust-bypass '$flag'"
 }
 
 case "$PERSONA" in

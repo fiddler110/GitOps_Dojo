@@ -69,7 +69,7 @@ stage, for the mechanics.
   `ctf-flags` already posts with `challenge=<target-id>` -- no new plumbing needed, the achievements module
   already supports this exact event shape (`modules/achievements/service/test_adapter_sources.py`'s own
   fixture uses `sqli-login`). This is what gives students a leaderboard/points confirmation beyond
-  `dojo-flag submit`'s own CLI response; see "Known gap, closed" below.
+  `dojo flag`'s own CLI response; see "Known gap, closed" below.
 
 ## Facilitator view
 
@@ -82,7 +82,7 @@ is no attacker-bot swarm or SOC feed in CTF-1/CTF-2 -- that's CTF-5 only.
 Built on `feat/zellij-terminal`, live-verified 2026-10-06: a cold `./dojo ctf-access` start, claimed a
 student slot through the real `/assign` flow, started `sqli-login` through the real `/ctf-attack`
 gateway route, solved it from inside the student's own terminal account (not a standalone `podman run`),
-and submitted the flag through `dojo-flag submit`. The other three targets were already proven against
+and submitted the flag through `dojo flag`. The other three targets were already proven against
 the same gateway/firewall/`ctf-controller` path on the range's shared full-catalog image
 (`docs/CTF-WORKSHOP-PLAN.md`'s checkpoint); only this pack's own scoping and content were new here.
 
@@ -90,7 +90,7 @@ Found and fixed in that pass: `CTF_HOST_EXPECTED_IMAGES` needs to be a quoted va
 that overrides it (an unquoted multi-word shell assignment silently never persists) -- both this pack's
 and `modules/ctf-range/module.env`'s own default now quote it.
 
-**Known gap, closed:** the live test found no "solved" indicator anywhere except `dojo-flag submit`'s own
+**Known gap, closed:** the live test found no "solved" indicator anywhere except `dojo flag`'s own
 CLI response. `achievements/` (above) now gives each flag its own milestone and the room its usual
 leaderboard/points/toast feedback -- validated statically with the engine's own
 `modules/achievements/catalog/validate.py` (6 milestones, 4 core, 0 warnings) but **not yet live-verified

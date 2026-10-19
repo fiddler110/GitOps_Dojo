@@ -146,7 +146,7 @@ seeded fork owned by that student, with the challenge's planted branches and com
 - **Verify:** forgejo `branch_exists` `case-{user}`, then `answer_names_commit`: the service finds the oldest commit on `main` whose diff adds `{target_line}` to `config/settings.yaml` and checks that `answer.txt` on `case-{user}` holds its short hash (7+ characters) and its author.
 - **Hint 1:** Which command answers 'who changed this line?'
 - **Hint 2:** `git blame` on the file, or `git log -S '<text>'` to search history for when a string appeared.
-- **Answer:** In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo-check c2`.
+- **Answer:** In `~/lab/challenge-repo`: `git log -S '{target_line}' --format='%h %an' -- config/settings.yaml` (or `git blame config/settings.yaml`) prints the short hash and the author; `git switch -c case-{user}`, `echo '<hash> <author>' > answer.txt`, `git add answer.txt`, `git commit -m 'Case closed'`, `git push -u origin case-{user}`; then `dojo check c2`.
 - **Collision check:** read-only investigation of a private repo, one new branch.
 
 ## Capstone (300 points, optional): The Great Merge

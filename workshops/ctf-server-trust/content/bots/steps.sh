@@ -1,7 +1,7 @@
 # ctf-server-trust demo bot steps (see engine/web-terminal/bot-runner.sh's BOT_STEPS_FILE) -- replaces
 # the git-fundamentals default with this pack's own four attack-range targets (plan rows 4, 7, 12, 13:
 # ping-tool, ssrf-fetcher, api-mass-assignment, api-bfla). Every step walks the exact technique the lab
-# itself teaches and ends with `dojo-flag submit <challenge> <flag>`. `--fast` gets one pass
+# itself teaches and ends with `dojo flag submit <challenge> <flag>`. `--fast` gets one pass
 # (bot-runner.sh's run loop handles that generically). Re-runnable: every step starts the target fresh
 # and returns 0 whenever the slot or the exploit didn't come through this round.
 
@@ -61,7 +61,7 @@ step_ping_tool() {
     narrate "ping-tool: /escalate didn't accept the token this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit ping-tool '$flag'"
+  run_cmd "dojo flag submit ping-tool '$flag'"
 }
 
 # -- Lab 2: ssrf-fetcher -- point the public preview feature's server-side fetch at the loopback-
@@ -80,7 +80,7 @@ step_ssrf_fetcher() {
     narrate "ssrf-fetcher: the internal fetch didn't come back with a flag this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit ssrf-fetcher '$flag'"
+  run_cmd "dojo flag submit ssrf-fetcher '$flag'"
 }
 
 # -- Lab 3: api-mass-assignment -- log in as this bot's own account (its terminal username,
@@ -109,7 +109,7 @@ step_api_mass_assignment() {
     narrate "api-mass-assignment: /admin/report didn't return a flag this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit api-mass-assignment '$flag'"
+  run_cmd "dojo flag submit api-mass-assignment '$flag'"
 }
 
 # -- Lab 4: api-bfla -- log in as this bot's own ordinary account and call /admin/reset-all with
@@ -135,7 +135,7 @@ step_api_bfla() {
     narrate "api-bfla: /admin/reset-all didn't return a flag this round -- skipping submit"
     return 0
   fi
-  run_cmd "dojo-flag submit api-bfla '$flag'"
+  run_cmd "dojo flag submit api-bfla '$flag'"
 }
 
 case "$PERSONA" in
