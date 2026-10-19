@@ -57,7 +57,7 @@ which terraform tofu
 
 <!-- dojo-reveal: Results of terraform version -->
 
-- The version line reads `OpenTofu v1.12.6` (or similar).
+- The version line reads `OpenTofu v1.12.8` (or similar).
 - `terraform` is a link that points at `tofu`.
 
 <!-- /dojo-reveal -->
