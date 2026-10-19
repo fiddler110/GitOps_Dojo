@@ -10,12 +10,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG TARGETARCH=amd64
 
 # Checksums from the release's checksums.txt:
-# https://github.com/openbao/openbao/releases/tag/v2.7.0
-ARG BAO_VERSION=2.7.0
+# https://github.com/openbao/openbao/releases/tag/v2.7.1
+ARG BAO_VERSION=2.7.1
 RUN set -eux; \
     case "${TARGETARCH}" in \
-    amd64) sha256="c3ab5de9e778223445487ccbfb16c291bf491642b688f3a3df5aeba23d9b3667" ;; \
-    arm64) sha256="555bb2a955d88c83e4c025f63e1703a0f4c01161cd81728002992b9a82433e49" ;; \
+    amd64) sha256="0e2f1ce10d124e03112b50dd2fbec6b78003783253bc3a91587938f39d1e2243" ;; \
+    arm64) sha256="2b3807d90f224df05d4fe1fdede7f052d2227596c648a56bd291381f8fd01840" ;; \
     *) echo "Unsupported architecture for bao: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     wget -O /tmp/bao.tar.gz \

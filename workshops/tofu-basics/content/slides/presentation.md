@@ -180,14 +180,14 @@ on it. Lab 2 starts by proving it (apply twice, change once).
 - In your terminal, **`terraform` is a symlink to `tofu`**: type either
 
 ```sh
-terraform version     # prints "OpenTofu v1.12.6"
+terraform version     # prints "OpenTofu v1.12.8"
 ```
 
 > Error hints say `tofu init` even when you typed `terraform`. That is expected, not a bug.
 
 <!--
 Do not get pulled into the licensing history. One line: comparable tool,
-open source, drop-in for what we do today. Version is pinned to 1.12.6 in
+open source, drop-in for what we do today. Version is pinned to 1.12.8 in
 the image. "Almost": the two projects have added a few different features
 since the fork (2023), none of which we use today.
 -->

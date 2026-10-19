@@ -4,7 +4,7 @@ sub=${1:-}; shift || true
 user=${MOCK_USER:?}; statef=$MOCK_STATE_DIR/$user
 mkdir -p "$MOCK_STATE_DIR"
 case $sub in
-  version) echo "OpenTofu v1.12.6" ;;
+  version) echo "OpenTofu v1.12.8" ;;
   init)
     echo "Initializing provider plugins..."; echo "- Reusing previous version of hashicorp/azurerm from the dependency lock file"
     echo "OpenTofu has been successfully initialized!" ;;
