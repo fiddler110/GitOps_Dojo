@@ -105,18 +105,18 @@ idempotent, a bot restarts from round 1, the optional score clear clears only th
 
 ### Review 2026-10-18 follow-ups
 
-The whole-repo review lives in `REVIEW.md` (untracked); its fixes shipped in PRs #55, #56, #57 and the CTF token/Notes
-PR (see RELEASES). Open from it:
+The whole-repo review lives in [`docs/reviews/2026-10-18.md`](docs/reviews/2026-10-18.md) (code comments cite it as
+`REVIEW.md`); its fixes shipped in PRs #55-#59 (see RELEASES). Open from it:
 
 | Item | Effort | Notes |
 |---|---|---|
 | cloud-policy-as-code stalls at 20 bots | M | 2026-10-19, locally: all 20 sat in Lab 0's first apply (`azurerm_container_group.app: Still creating...`) for 33+ min, with no pids or thread errors. A second limit in cloud-host or cloud-api. Run 10 and 15 bots to find where it starts |
-| Bump OpenTofu 1.12.6 → 1.12.8 | S | 1.12.7 fixed CVE-2026-56855 and CVE-2026-78662; four Dockerfiles. Hold 1.13 until the labs and OPA pairing are tested |
-| Bump the OpenBao CLI 2.7.0 → 2.7.1 | S | Match the server (`modules/openbao/terminal/Dockerfile`) |
+| vault bot `IndexError` | S | 2026-10-19, `vault-fundamentals --test 2 --fast`: testuser2's log repeats `IndexError: list index out of range` from `vf_block` (`content/bots/steps.sh`), which picks the Nth code fence of a lab page; a block number no longer matches its lab. The bots still finished |
+| OpenTofu 1.13 | M | 1.12.8 is in (PR #59); move to 1.13.x once the labs and the OPA pairing are tested |
 | code-server 4.137.0 → 4.141.0 | S | Refresh the per-arch sha256; check the advisories page first |
 | P7 live for the other packs | M | Lab walk-throughs for cert-autorenewal and vault-fundamentals |
 | P8 on a CTF stack | S | The `/admin` tabs on a CTF stack, and the code-server IDE tab from `/admin` |
-| P9 load test, P10-P12, P15 `doctor --live` | L | Briefs in REVIEW.md |
+| P9 load test, P10-P12, P15 `doctor --live` | L | Briefs in the review |
 
 ### CTF workshop series
 

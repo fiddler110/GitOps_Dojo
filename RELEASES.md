@@ -7,6 +7,15 @@ and verified, it moves here in a line or two. Detail behind older entries (desig
 Entries are grouped by what reached `main`. Dates are commit or merge dates; "locally" means tested on the
 WSL2 desktop stack at `http://localhost:8080`.
 
+## OpenTofu 1.12.8, OpenBao CLI 2.7.1, node 26 for the slides (2026-10-19, PR #59 and this tidy-up)
+
+OpenTofu 1.12.6 → 1.12.8 (CVE-2026-56855, CVE-2026-78662) and the OpenBao CLI 2.7.0 → 2.7.1 (matches the server):
+live, locally, tofu-basics and vault-fundamentals `--test 2 --fast` built with the new checksums, report the new
+versions, and every bot finished. Dependabot's node 22 → 26 for Marp (#54) left the slides container exiting at start
+(node 26 needs `libatomic.so.1`); the runtime stage now installs it, and live the container runs v26.12.0 and both
+git-fundamentals decks render styled. The 2026-10-18 review moved from an untracked `REVIEW.md` to
+`docs/reviews/2026-10-18.md`.
+
 ## CTF student CI gets per-user tokens; facilitator reads students' Notes (2026-10-19, `fix/ctf-per-user-tokens`)
 
 Two decisions from the 2026-10-18 review. Student repos in ctf-defend held the class-wide `CTF_BUILD_TOKEN` and
