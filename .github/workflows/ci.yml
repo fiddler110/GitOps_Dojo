@@ -4,7 +4,7 @@
 # Here on pull requests into main, pushes to main, or by hand (Actions > CI >
 # Run workflow); everyday branch pushes are skipped to save the private repo's
 # Actions minutes. The lint job is  sh .github/scripts/lint-repo.sh  plus
-# shellcheck and a gitleaks history scan (suppressions: REVIEW.md P13).
+# shellcheck and a gitleaks history scan (suppressions: docs/reviews/2026-10-18.md P13).
 #
 # Neither job installs Flask: the three ctf-range defend-target suites that need
 # it skip themselves and say so, so a bare runner still reports a clean run.
