@@ -29,8 +29,8 @@ RUN npm ci --omit=dev --no-audit --no-fund \
     && find node_modules \( -name '*.map' -o -name '*.d.ts' \) -type f -delete
 
 FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
-# libstdc++ / libgcc: the only shared libraries node needs beyond musl.
-RUN apk add --no-cache libstdc++
+# libstdc++ / libgcc, and libatomic since node 26: the shared libraries node needs beyond musl.
+RUN apk add --no-cache libstdc++ libatomic
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /opt/marp /opt/marp
 # Adds an HCL/Terraform grammar to Marp's code highlighter (engine.js).
