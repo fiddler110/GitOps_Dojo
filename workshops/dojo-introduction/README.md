@@ -1,6 +1,6 @@
 # dojo-introduction: Dojo Introduction
 
-A show-and-tell of the GitOps Dojo, for a facilitator to click through as a student and as the facilitator. It is not
+A show-and-tell of Topiary, for a facilitator to click through as a student and as the facilitator. It is not
 a lab: nothing has to be completed. Forgejo with CI, DNS as code and Dojo Cloud are running at once.
 
 ```bash

@@ -133,7 +133,7 @@ def _offer_completion() -> None:
 
 @click.group(cls=DojoGroup, context_settings=SETTINGS, no_args_is_help=True)
 def cli() -> None:
-    """GitOps Dojo command centre: start, inspect and stop workshop stacks."""
+    """Topiary command centre: start, inspect and stop workshop stacks."""
     from . import migrate
     if migrate.needed() and not os.environ.get("_DOJO_COMPLETE"):
         for line in migrate.migrate():

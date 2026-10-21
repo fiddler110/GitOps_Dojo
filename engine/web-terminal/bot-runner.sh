@@ -697,7 +697,7 @@ if [ -f "$BOT_STEPS_FILE" ]; then
   narrate "workshop bot steps loaded from $BOT_STEPS_FILE"
 fi
 
-narrate "=== GitOps Dojo demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
+narrate "=== Topiary demo bot: $BOT_USER ($PERSONA, round $ROUND) ==="
 
 # Consecutive failures of whichever step is currently at index STEP --
 # reset on any success, at any index. A step can fail transiently (e.g.

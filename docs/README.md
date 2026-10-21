@@ -1,6 +1,6 @@
-# GitOps Dojo documentation
+# Topiary documentation
 
-GitOps Dojo is a lunch-and-learn training platform. A facilitator runs one command, students open one URL in a
+Topiary is a lunch-and-learn training platform. A facilitator runs one command, students open one URL in a
 browser, and each gets a private VS Code, terminal, git server account, slides and lab guide, already signed in.
 Everything the class needs runs inside one stack on one machine, with no internet needed once the images are built.
 

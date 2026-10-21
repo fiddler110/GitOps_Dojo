@@ -1,4 +1,4 @@
-# Guided Windows setup for GitOps Dojo.
+# Guided Windows setup for Topiary.
 #
 # The stack runs in Linux containers and dojo is a Python script, so on Windows
 # it is used from inside WSL2 with Ubuntu. This script gets you that far:
@@ -20,7 +20,7 @@ function Ask($q, $default = 'n') {
     return $r -match '^(y|yes)$'
 }
 
-Step 'GitOps Dojo Windows setup'
+Step 'Topiary Windows setup'
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     Bad 'wsl.exe not found. WSL needs Windows 10 (2004+) or Windows 11.'

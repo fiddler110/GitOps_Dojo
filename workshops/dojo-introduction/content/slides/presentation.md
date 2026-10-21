@@ -23,7 +23,7 @@ footer: "[&larr; Hub](index.md) &nbsp;|&nbsp; Dojo Introduction | Engineering & 
 <!-- _paginate: false -->
 <!-- _footer: "[&larr; Hub](index.md)" -->
 
-# GitOps Dojo
+# Topiary
 
 ## A hands-on lab platform, from one URL
 

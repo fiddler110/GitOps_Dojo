@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guided host setup for GitOps Dojo.
+# Guided host setup for Topiary.
 #
 # Works out what this machine still needs before `./dojo <workshop>` can run
 # (a container engine plus git and openssl), tells you what it found, and only
@@ -74,7 +74,7 @@ os_label() {
   esac
 }
 
-step "GitOps Dojo host setup"
+step "Topiary host setup"
 if [ -z "$OS" ]; then
   guess="$(detect_os)"
   echo "  This looks like: $(os_label "$guess")"
