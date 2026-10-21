@@ -1,14 +1,25 @@
-# GitOps Dojo
+<p align="center">
+  <img src="assets/branding/Topiary.png" alt="Topiary: containerized lab environment for education, CTFs and everything-as-code" width="720">
+</p>
 
-**A self-contained, offline, hands-on learning environment for practical
-infrastructure skills.**
+# Topiary
 
-GitOps Dojo runs short-lived workshops where students do the real work: they
-push commits and open pull requests, watch CI change a live DNS server, get TLS
-certificates from a working ACME authority, and deploy containers into a cloud
-that the real `azurerm` provider talks to. Every exercise uses real tools
-against real services. Each workshop's lab is built for one class and removed
+**A containerized, self-hosted lab environment for education, CTFs and
+everything-as-code.**
+
+Topiary runs short-lived, hands-on sessions where students do the real work:
+they push commits and open pull requests, watch CI change a live DNS server, get
+TLS certificates from a working ACME authority, and deploy containers into a
+cloud that the real `azurerm` provider talks to. Every exercise uses real tools
+against real services, inside a walled garden built for one class and removed
 completely at the end.
+
+Topiary has two tracks, both run with the same `./dojo` command:
+
+- **GitOps Dojo** is the learning track: guided workshops that build on each
+  other, from git fundamentals to cloud policy as code.
+- **CTF Dojo** is the challenge track: capture-the-flag sessions that cover
+  exploitation and, in the last one, defence.
 
 **Zero install for students.** A student opens one URL in any browser and gets
 their own VS Code, terminal, git server, slides and lab guide, already signed
@@ -43,7 +54,7 @@ is part of the lesson and never an incident.
 
 ## What's here
 
-### The workshops
+### GitOps Dojo: the workshops
 
 | # | Workshop | What students learn | Labs | Length |
 | - | -------- | ------------------- | ---- | ------ |
@@ -66,6 +77,21 @@ The **Length** of each is its `WORKSHOP_DURATION` (`workshops/<name>/workshop.en
 Each workshop pack has its own slide deck, lab guides, cheat sheet and a seed
 repository. The lab guides are copied into every student's `~/lab` and shown
 in the browser.
+
+### CTF Dojo: the challenges
+
+Five capture-the-flag sessions, each built on the `ctf-range` module's ladder of
+self-contained targets. They run on the same engine as the workshops above.
+The first four are attack sessions; the fifth is the only one where students
+patch instead of attack.
+
+| # | Session | What students do | Length |
+| - | ------- | ---------------- | ------ |
+| 1 | [**CTF-1: Access and Identity**](workshops/ctf-access/) | Getting in when auth or access checks are weak: four low-tier targets, with a Linux/nmap primer. | ~150 min |
+| 2 | [**CTF-2: Server-side Trust and APIs**](workshops/ctf-server-trust/) | Attacking servers that trust input or the caller a little too much: four medium/hard targets. | ~150 min |
+| 3 | [**CTF-3: Secrets and Misconfiguration**](workshops/ctf-secrets-config/) | Leaked credentials and how far they reach: two medium/hard targets, with OpenBao in the range. | ~115 min |
+| 4 | [**CTF-4: Trusting the Wrong Thing**](workshops/ctf-trust-chain/) | A component, a rule or a pipeline you trusted that you shouldn't have: two medium/hard targets. | ~155 min |
+| 5 | [**CTF-5: Defend**](workshops/ctf-defend/) | A live incident on your own app, defended with a PR, a CI gate and a redeploy. | ~2 h |
 
 ### The platform
 

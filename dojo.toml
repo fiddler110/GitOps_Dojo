@@ -1,4 +1,4 @@
-# GitOps Dojo settings: everything that is not a secret.
+# Topiary settings: everything that is not a secret.
 #
 #   dojo.toml        this file, committed: defaults that suit any machine.
 #   dojo.local.toml  git-ignored, same layout: this machine's overrides and your

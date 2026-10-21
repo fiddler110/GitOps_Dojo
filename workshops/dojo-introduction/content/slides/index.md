@@ -10,13 +10,13 @@ style: |
 
 <!-- _class: hub -->
 
-<span class="logo" style="display: inline-block; width: 50%; height: 150px; overflow: hidden;">
-<img src="assets/GitOps_Dojo_Dark.png" alt="GitOps Dojo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50px;">
+<span class="logo" style="display: inline-block; width: auto; height: 230px; overflow: hidden; border-radius: 40px;">
+<img src="assets/Topiary.png" alt="Topiary" style="width: auto; height: 100%;">
 </span>
 
 # Dojo Introduction
 
-<p class="tag">A look at the GitOps Dojo: how it works, with Forgejo, DNS as code and Dojo Cloud running at once.</p>
+<p class="tag">A look at Topiary: how it works, with Forgejo, DNS as code and Dojo Cloud running at once.</p>
 
 <div class="links">
 <a class="enter" href="presentation.md">&rarr; Platform tour</a>

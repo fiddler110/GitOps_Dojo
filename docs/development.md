@@ -1,6 +1,6 @@
 # Development guide
 
-For people changing GitOps Dojo itself: the engine, the CLI, modules and workshops. Day-to-day rules live in
+For people changing Topiary itself: the engine, the CLI, modules and workshops. Day-to-day rules live in
 `CLAUDE.md` (a local, git-ignored file for the maintainer's AI assistant); the durable ones are collected here.
 **If any document disagrees with the code, the code wins.**
 
