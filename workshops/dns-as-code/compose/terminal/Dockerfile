@@ -1,5 +1,5 @@
 # Extends the shared web-terminal base image (see engine/docker-compose.yml
-# and dojo, which builds and tags gitopsdojo/web-terminal:base
+# and dojo, which builds and tags topiary/web-terminal:base
 # before this Dockerfile runs) with the tools this workshop's lab needs:
 # dnscontrol itself and `dig` for querying it. python3 is already in the
 # base image (it runs workshop-control.py). Everything else (account
@@ -7,7 +7,7 @@
 # from the base image's entrypoint. Base image is Debian (see
 # engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
 # dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends dnsutils \

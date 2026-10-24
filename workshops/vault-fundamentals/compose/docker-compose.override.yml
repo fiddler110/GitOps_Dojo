@@ -36,11 +36,11 @@ services:
   # runner_net; apps reach OpenBao and app-db, and the gateway reaches the
   # /apps page, over workshop_lab.
   app-host:
-    image: gitopsdojo/app-host:${WORKSHOP_SLUG:-local}
+    image: topiary/app-host:${WORKSHOP_SLUG:-local}
     build:
       context: ../workshops/vault-fundamentals/compose/app-host
       args:
-        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-topiary/web-terminal:base}
     container_name: workshop_app_host
     # Root inside the container: it makes the slot users and runs each app as
     # its own. NET_ADMIN for the slots' egress allowlist (apphost.py's

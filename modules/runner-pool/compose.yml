@@ -35,11 +35,11 @@ services:
       # JOB_TOOLS comes from the workshop's overlay only: podman-compose
       # appends build args across files instead of replacing them.
       args:
-        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+        TOOLS_IMAGE: ${WEB_TERMINAL_IMAGE:-topiary/web-terminal:base}
     # dojo derives the final tag from TOOLS_IMAGE, JOB_TOOLS, and the build
     # context, so packs share only when those inputs match. WORKSHOP_SLUG is the
     # fallback for raw Compose; an overlay does not need to retag this service.
-    image: gitopsdojo/runner-pool:${WORKSHOP_SLUG:-local}
+    image: topiary/runner-pool:${WORKSHOP_SLUG:-local}
     container_name: workshop_runner_pool
     # Root inside the container: it creates and deletes the runner users.
     # Only what useradd/userdel, su, chown and killing a job's processes need
@@ -92,7 +92,7 @@ services:
   # ROOT_URL (and malforms it under /git/), and gives jobs its public URL for
   # git; the shim sends both straight to git-server.
   runner-pool-shim:
-    image: gitopsdojo/gateway:local
+    image: topiary/gateway:local
     container_name: workshop_runner_pool_shim
     entrypoint: [ "caddy" ]
     command: [ "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile" ]
@@ -129,7 +129,7 @@ services:
   # mounts read-only, then exits. Started (not healthy) is enough: the
   # controller waits on its completion.
   runner-token-init:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_runner_token_init
     entrypoint: [ "python3", "-B", "/opt/runner-controller/mint_token.py" ]
     # The allocator image runs as uid 10001 now; this needs root to own the shared volume.
@@ -160,7 +160,7 @@ services:
   # Registers runners, scales them and serves the Runners panel
   # (controller/controller.py, stdlib Python on the allocator's image).
   runner-controller:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_runner_controller
     entrypoint: [ "python3", "-B", "/opt/runner-controller/controller.py" ]
     # The allocator image runs as uid 10001 now; this needs root to own the shared volume.

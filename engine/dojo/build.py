@@ -44,8 +44,8 @@ from .runtime import Runtime
 from .ui import changed, console, ok
 
 SUPERSEDED = paths.STATE / "superseded-images"
-ENGINE_IMAGES = (("gitopsdojo/allocator:local", "./allocator"), ("gitopsdojo/gateway:local", "./gateway"),
-                 ("gitopsdojo/presentation:local", "./presentation"))
+ENGINE_IMAGES = (("topiary/allocator:local", "./allocator"), ("topiary/gateway:local", "./gateway"),
+                 ("topiary/presentation:local", "./presentation"))
 _record_lock = threading.Lock()  # concurrent builds append to SUPERSEDED
 
 
@@ -167,12 +167,12 @@ class Builder:
         return set(self.rt.out("images", "--filter", f"dangling={str(dangling).lower()}", "--format", "{{.ID}}").split())
 
     def _ours(self) -> Set[str]:
-        """Tagged images this project builds: gitopsdojo/* and Compose's names for
+        """Tagged images this project builds: topiary/* and Compose's names for
         overlay services (engine_x / engine-x). Only these are ever reaped."""
         ids = set()
         for line in self.rt.out("images", "--filter", "dangling=false", "--format", "{{.ID}} {{.Repository}}").splitlines():
             parts = line.split()
-            if len(parts) == 2 and ("gitopsdojo/" in parts[1] or parts[1].split("/")[-1].startswith(("engine_", "engine-"))):
+            if len(parts) == 2 and ("topiary/" in parts[1] or parts[1].split("/")[-1].startswith(("engine_", "engine-"))):
                 ids.add(parts[0])
         return ids
 
@@ -283,8 +283,8 @@ class Builder:
         this run selected (see start.py), so :core's code-server-free build
         never costs the Zellij flavor anything. A rebuilt parent rebuilds its
         children: the parent's image ID is part of each child's hash."""
-        self.build_if_changed("gitopsdojo/web-terminal:core", "./web-terminal")
-        parent = "gitopsdojo/web-terminal:core"
+        self.build_if_changed("topiary/web-terminal:core", "./web-terminal")
+        parent = "topiary/web-terminal:core"
         for image, context in links:
             if parent in self.would_build:
                 changed(f"{image}: parent changed, would build")

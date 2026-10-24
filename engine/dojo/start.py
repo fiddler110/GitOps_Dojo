@@ -42,8 +42,8 @@ MAX_BOTS = 35
 # two leaves respectively -- see build.py's terminal_chain() and
 # engine/README.md's "Terminal flavor" section.
 TERMINAL_FLAVORS = ("web", "zellij")
-VSCODE_BASE_IMAGE = "gitopsdojo/web-terminal:base"
-ZELLIJ_BASE_IMAGE = "gitopsdojo/zellij-terminal:base"
+VSCODE_BASE_IMAGE = "topiary/web-terminal:base"
+ZELLIJ_BASE_IMAGE = "topiary/zellij-terminal:base"
 ENGINE_BUILD_SERVICES = frozenset({"web-terminal", "allocator", "gateway", "presentation"})
 
 
@@ -392,10 +392,10 @@ def _plan(o: StartOptions, rt: Runtime) -> Plan:
     flavor_leaf = (ZELLIJ_BASE_IMAGE, "./zellij-terminal") if flavor == "zellij" \
         else (VSCODE_BASE_IMAGE, "./web-terminal-vscode")
     links = [flavor_leaf]
-    links += [(f"gitopsdojo/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
+    links += [(f"topiary/web-terminal:{o.workshop}.{m}", f"../modules/{m}/terminal")
               for m in res.modules if (paths.MODULES / m / "terminal").is_dir()]
     if (paths.WORKSHOPS / o.workshop / "compose" / "terminal").is_dir():
-        links.append((f"gitopsdojo/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
+        links.append((f"topiary/web-terminal:{o.workshop}", f"../workshops/{o.workshop}/compose/terminal"))
     terminal_hashes = terminal_input_hashes(links, Builder(rt).salt)
     env["WEB_TERMINAL_IMAGE"] = links[-1][0]
 
@@ -562,7 +562,7 @@ def _render_extensions(p: Plan) -> None:
             shutil.copyfile(manifest, gen / "in" / f"50-{n}-module-{m}.json")
     if (p.workshop_dir / "extensions.json").is_file():
         shutil.copyfile(p.workshop_dir / "extensions.json", gen / "in" / f"90-workshop-{p.o.workshop}.json")
-    if not p.rt.out("image", "inspect", "--format", "{{.Id}}", "gitopsdojo/allocator:local"):
+    if not p.rt.out("image", "inspect", "--format", "{{.Id}}", "topiary/allocator:local"):
         console.print("Extensions: not checked (the allocator image isn't built yet; a real run builds it first).")
     else:
         once = run_once_cmd(p.rt)
@@ -575,7 +575,7 @@ def _render_extensions(p: Plan) -> None:
         # GATEWAY_TOKEN (by name, never on the command line) derives each upstream's own token (FIND-16).
         r = subprocess.run([*once, "--network", "none", *ext_env, "-e", "GATEWAY_TOKEN",
                             "-v", f"{gen}:/gen", "-v", f"{paths.ENGINE / 'allocator' / 'render_extensions.py'}:/render_extensions.py:ro",
-                            "gitopsdojo/allocator:local", "python3", "-B", "/render_extensions.py",
+                            "topiary/allocator:local", "python3", "-B", "/render_extensions.py",
                             "--in", "/gen/in", "--out", "/gen", "--services", " ".join(p.services()) + " "], env=p.env)
         if r.returncode != 0:
             raise StartError("The workshop's extensions.json was rejected (see above); nothing was started.")
@@ -591,7 +591,7 @@ def _check_catalog(p: Plan, once: List[str]) -> None:
     r = subprocess.run([*once, "--network", "none",
                         "-v", f"{paths.MODULES / 'achievements'}:/opt/achievements:ro",
                         "-v", f"{catalog}:/w/{p.o.workshop}/achievements:ro",
-                        "gitopsdojo/allocator:local", "python3", "-B", "/opt/achievements/catalog/validate.py",
+                        "topiary/allocator:local", "python3", "-B", "/opt/achievements/catalog/validate.py",
                         f"/w/{p.o.workshop}"], env=p.env)
     if r.returncode != 0:
         raise StartError("The workshop's achievements catalog was rejected (see above); nothing was started.")

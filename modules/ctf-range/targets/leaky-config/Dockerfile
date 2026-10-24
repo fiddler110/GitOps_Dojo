@@ -5,7 +5,7 @@
 # customer-portal uses, imported into ctf-host's inner dockerd at start): ctf-builder
 # rebuilds this Dockerfile inside an air-gapped dockerd, so there is no `pip install`
 # on the default path.
-ARG BASE=gitopsdojo/ctf-customer-portal-base:pinned
+ARG BASE=topiary/ctf-customer-portal-base:pinned
 FROM ${BASE}
 
 COPY requirements.txt /app/requirements.txt

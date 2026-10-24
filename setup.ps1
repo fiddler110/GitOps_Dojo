@@ -54,7 +54,7 @@ if (-not $ubuntu) {
 Ok "WSL distro: $ubuntu"
 
 # Which repo URL to clone inside Ubuntu? Reuse this checkout's origin if it has one.
-$repoDir = 'GitOps_Dojo'
+$repoDir = 'Topiary'
 $url = ''
 if (Get-Command git.exe -ErrorAction SilentlyContinue) {
     $url = (& git.exe -C $PSScriptRoot remote get-url origin 2>$null)

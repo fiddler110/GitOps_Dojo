@@ -1,7 +1,7 @@
 # customer-portal, DEV PATH ONLY (CTF-D27). Built on the OUTER host engine by
 # modules/ctf-range/compose.yml's standalone `customer-portal` service, which
 # has a real network at build time but no local copy of
-# gitopsdojo/ctf-customer-portal-base:pinned (that tag only ever exists
+# topiary/ctf-customer-portal-base:pinned (that tag only ever exists
 # inside ctf-host's INNER dockerd, imported offline at container start --
 # see Dockerfile's own header and ctf-host/Dockerfile's `portal-deps` stage).
 # This file installs Flask the normal way instead of FROMing that tag. Never

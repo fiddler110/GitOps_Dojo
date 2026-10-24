@@ -43,7 +43,7 @@ RUN chmod +x /app/entrypoint.sh \
 # stage vendors Flask at THIS image's build time (network available then,
 # same trade as the `portal` stage's own `pip install` above) into a rootfs
 # that gets imported into the inner daemon at start as
-# gitopsdojo/ctf-customer-portal-base:pinned, which
+# topiary/ctf-customer-portal-base:pinned, which
 # targets/customer-portal/Dockerfile now FROMs instead of installing Flask
 # itself — see docs/CTF-SPIKES.md S6 "Scoped" (2026-10-05).
 FROM docker.io/library/python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS portal-deps

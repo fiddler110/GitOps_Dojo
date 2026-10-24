@@ -285,9 +285,9 @@ class BackupRestore(Sandbox):
 
 
 class Maintain(Sandbox):
-    def test_prune_only_dangling_gitopsdojo_unused(self):
-        rows = [{"Id": "a" * 64, "History": ["localhost/gitopsdojo/allocator:local"], "Containers": 0, "Size": 10},
-                {"Id": "b" * 64, "History": ["localhost/gitopsdojo/web-terminal:base"], "Containers": 1, "Size": 10},
+    def test_prune_only_dangling_topiary_unused(self):
+        rows = [{"Id": "a" * 64, "History": ["localhost/topiary/allocator:local"], "Containers": 0, "Size": 10},
+                {"Id": "b" * 64, "History": ["localhost/topiary/web-terminal:base"], "Containers": 1, "Size": 10},
                 {"Id": "c" * 64, "History": ["docker.io/library/other:tmp"], "Containers": 0, "Size": 10}]
         rt = FakeRt()
         rt.out = lambda *a, **k: json.dumps(rows)

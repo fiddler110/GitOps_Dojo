@@ -51,7 +51,7 @@ services:
   # the gateway). On an https:// name it serves with its own CA (kept in
   # openbao_shim_data), which OpenBao is told to trust.
   openbao-sso-shim:
-    image: gitopsdojo/gateway:local
+    image: topiary/gateway:local
     container_name: workshop_openbao_sso_shim
     entrypoint: ["caddy"]
     command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
@@ -137,7 +137,7 @@ services:
   # reads their own namespace's entries, proving it with their vault token.
   # The terminal's `bao-audit` calls it.
   openbao-audit:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_openbao_audit
     entrypoint: ["python3", "-B", "/opt/openbao-audit/audit.py"]
     environment:
@@ -178,7 +178,7 @@ services:
   # (and a reset.hcl) declares the `resets` entry in its own extensions.json,
   # in the order its other hooks need.
   openbao-reset:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_openbao_reset
     entrypoint: ["python3", "-B", "-u", "/opt/openbao-reset/reset.py"]
     environment:

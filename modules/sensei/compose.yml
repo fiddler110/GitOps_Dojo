@@ -4,7 +4,7 @@ services:
   sensei:
     build:
       context: ../modules/sensei
-    image: gitopsdojo/sensei:${WORKSHOP_SLUG:-local}
+    image: topiary/sensei:${WORKSHOP_SLUG:-local}
     container_name: workshop_sensei
     entrypoint: ["python3", "-B", "/opt/sensei/server.py"]
     environment:

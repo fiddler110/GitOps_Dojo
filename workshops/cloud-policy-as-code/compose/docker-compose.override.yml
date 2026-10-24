@@ -35,7 +35,7 @@ services:
 
   # One-shot: fills tofu_mirror from the terminal image, then exits.
   tofu-mirror-init:
-    image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    image: ${WEB_TERMINAL_IMAGE:-topiary/web-terminal:base}
     container_name: workshop_tofu_mirror_init
     entrypoint:
       - sh

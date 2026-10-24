@@ -161,7 +161,7 @@ Only if no module provides it.
 **Extra services** (`compose/docker-compose.override.yml`):
 
 - Do **not** set `image:` on `web-terminal`; `dojo` passes the final terminal image as `WEB_TERMINAL_IMAGE`.
-- Give every locally built service a stable image family such as `gitopsdojo/<name>:${WORKSHOP_SLUG:-local}`.
+- Give every locally built service a stable image family such as `topiary/<name>:${WORKSHOP_SLUG:-local}`.
   `dojo` keeps that tag and labels the built image with a fingerprint of the resolved context and build options.
   Matching builds across packs reuse the same image ID under their respective stable tags; changed inputs replace
   the existing tag and the displaced image is cleaned up after the stack starts. Keep the source `image:` family
@@ -182,7 +182,7 @@ Only if no module provides it.
 **Extra terminal tools** (`compose/terminal/Dockerfile`):
 
 ```dockerfile
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 # pin each tool's version and sha256 per architecture; the terminal has no internet at lab time
 ```

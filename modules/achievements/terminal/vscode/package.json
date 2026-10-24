@@ -2,7 +2,7 @@
   "name": "dojo-achievements",
   "displayName": "Dojo achievements",
   "description": "Shows this student's achievement toasts inside VS Code.",
-  "publisher": "gitopsdojo",
+  "publisher": "topiary",
   "version": "1.0.0",
   "engines": { "vscode": "^1.80.0" },
   "main": "./extension.js",

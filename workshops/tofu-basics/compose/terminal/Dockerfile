@@ -1,11 +1,11 @@
 # Extends the shared web-terminal base image (see engine/docker-compose.yml
-# and dojo, which builds and tags gitopsdojo/web-terminal:base
+# and dojo, which builds and tags topiary/web-terminal:base
 # before this Dockerfile runs) with OpenTofu and an offline provider mirror.
 # Everything else (account provisioning, code-server/ttyd, shell helpers) is
 # inherited unchanged from the base image's entrypoint. Base image is Debian
 # (see engine/web-terminal/Dockerfile for why), so this uses apt, not apk.
 # dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

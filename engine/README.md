@@ -339,7 +339,7 @@ this is how the engine uses it.
   Build-change detection hashes each module folder and the overlay folder,
   plus the stable image aliases and build fingerprints below.
 - **Stable tags, input-based reuse.** Compose keeps readable stable aliases
-  such as `gitopsdojo/web-terminal:git-fundamentals`. `dojo` labels builds with
+  such as `topiary/web-terminal:git-fundamentals`. `dojo` labels builds with
   a fingerprint of their context and resolved options. A matching image from
   another pack is retagged for this alias rather than rebuilt. Changed inputs
   rebuild under the same alias; after successful startup the displaced image
@@ -347,7 +347,7 @@ this is how the engine uses it.
   Terminal fingerprints include their parent layer, so `runner-pool` shares
   only when its terminal image and `JOB_TOOLS` match. Engine images (`allocator`,
   `gateway`, `presentation`, and terminal `:core`) keep their shared tags.
-- **Terminal chain.** `gitopsdojo/web-terminal:core` → the selected flavor
+- **Terminal chain.** `topiary/web-terminal:core` → the selected flavor
   image → each module's `terminal/` → the workshop's `compose/terminal/`. Each
   derived link has a stable tag, is `ARG BASE` / `FROM ${BASE}`, and inherits the
   entrypoint and HEALTHCHECK. The final tag reaches `docker-compose.yml` as
@@ -553,7 +553,7 @@ shell scripts under `scripts/` (sharing `scripts/lib.sh`), run by the CLI.
   `./dojo config <workshop> KEY` shows every value a key was given and which won.
 - **What a start does**, in order: resolve the settings, apply the safety gates
   (public passwords off loopback, the published port, plain HTTP), refuse a start
-  over a different running workshop, take the run lock (`/tmp/gitops-dojo-<uid>.lock`;
+  over a different running workshop, take the run lock (`/tmp/topiary-<uid>.lock`;
   one build or start at a time, worktrees included), build what changed, check and
   render the manifests, record the run, `compose up -d`, watch it settle, explain
   anything that didn't, and remove images the rebuilds superseded.
@@ -679,8 +679,8 @@ shell and an editor (micro), and no code-server, which is the large per-student 
 The terminal image chain has one flavor-agnostic root and two sibling leaves:
 `web-terminal:core` (`engine/web-terminal/`) holds everything both flavors
 need (shell, tmux, ttyd, provisioning, the entrypoint) and nothing
-flavor-specific; `gitopsdojo/web-terminal:base` (`engine/web-terminal-vscode/`,
-code-server + its curated extensions) and `gitopsdojo/zellij-terminal:base`
+flavor-specific; `topiary/web-terminal:base` (`engine/web-terminal-vscode/`,
+code-server + its curated extensions) and `topiary/zellij-terminal:base`
 (`engine/zellij-terminal/`) both build FROM `:core` as siblings, not one on
 top of the other. `dojo` builds `:core` plus only the one leaf
 `TERMINAL_FLAVOR` selects, then chains every module and workshop terminal
@@ -809,7 +809,7 @@ way to pick up any of that. It also cleans up after itself: an image whose
 tag a rebuild moves would otherwise linger as `<none>`, so `dojo` notes each
 image a build displaces and removes it once the containers are running on the
 new one (`track_superseded` / `reap_superseded`). Only images that rebuild
-displaced are touched, and only ones this project builds (`gitopsdojo/*` and
+displaced are touched, and only ones this project builds (`topiary/*` and
 Compose's own `engine_*` names): an image you tagged or built yourself is
 never a candidate. One still in use is kept in `.build-state/superseded-images`
 and retried next run. On podman, `dojo` builds in Docker image format

@@ -107,7 +107,7 @@ if [ "$OS" = windows ]; then
        wsl --install -d Ubuntu
      then reboot if it asks, and finish the Ubuntu first-run user setup.
   2. Open the Ubuntu terminal and clone this repo INSIDE it, in your Linux home
-     (for example ~/GitOps_Dojo), not under /mnt/c, which is slow and breaks file permissions.
+     (for example ~/Topiary), not under /mnt/c, which is slow and breaks file permissions.
   3. In that Ubuntu shell, run ./setup.sh again and pick the WSL option.
 
   Docker Desktop users: install it, turn on Settings > Resources > WSL integration

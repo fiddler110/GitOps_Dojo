@@ -3,7 +3,7 @@
 # see workshops/README.md). Adds sops, gitleaks and Python's hvac. Student
 # terminals have no internet, so every tool is baked in here, version-pinned
 # and sha256-verified per architecture. The entrypoint is inherited unchanged.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

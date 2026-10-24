@@ -3,7 +3,7 @@
 # chain). Students have no internet: pin each tool's version and check its
 # sha256 for every architecture. Don't set ENTRYPOINT. Start-up work goes in
 # /etc/dojo/start.d/90-<name>.sh hooks (run as root, after accounts exist).
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 # No extra tools: target 14's exploit/dump.py and sast/scan.py are stdlib

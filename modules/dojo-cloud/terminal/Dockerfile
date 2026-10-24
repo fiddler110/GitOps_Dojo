@@ -6,7 +6,7 @@
 # `dojo-env` client, and a start.d hook that trusts the cloud's private CA and
 # starts the broker. Without a running cloud-api all of this quietly does
 # nothing, so the rest of the lab still works.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 COPY dojo-broker.py /usr/local/bin/dojo-broker

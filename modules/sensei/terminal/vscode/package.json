@@ -2,7 +2,7 @@
   "name": "dojo-sensei",
   "displayName": "Dojo Sensei",
   "description": "Pops up the facilitator's answer to a raised hand inside VS Code, with a reply button.",
-  "publisher": "gitopsdojo",
+  "publisher": "topiary",
   "version": "1.0.0",
   "engines": { "vscode": "^1.80.0" },
   "main": "./extension.js",

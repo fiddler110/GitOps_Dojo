@@ -8,7 +8,7 @@ the path of its log. Delete this file once C5 is closed.
 ## 0. Get the branch
 
 ```bash
-git clone <repo> && cd GitOps_Dojo    # or, in an existing clone:
+git clone <repo> && cd Topiary    # or, in an existing clone:
 git fetch && git switch feat/achievements && git pull
 ```
 

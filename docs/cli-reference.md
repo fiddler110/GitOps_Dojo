@@ -31,7 +31,7 @@ that forwards to `./dojo`. Run from the repo root or from `engine/` (same result
 | `./dojo roster [--json]` / `reset-student USER [-y]` | The students and bots, and the Roster's Reset for one (through the allocator's admin API) |
 | `./dojo export-results [--format csv\|json] [--out FILE]` | Scores, unlocks and (json) SOC data from the achievements module; fails if it isn't running |
 | `./dojo backup [PATH]` / `restore PATH [-y]` | Tar of every volume via `podman volume export/import`; restore only into a stopped stack of the same workshop |
-| `./dojo prune [--dry-run]` | Remove dangling `gitopsdojo/` images; never volumes or containers |
+| `./dojo prune [--dry-run]` | Remove dangling `topiary/` images; never volumes or containers |
 | `./dojo validate [<workshop>...]` | Static checks of every pack (workshop.env, MODULES, extensions.json, catalog); exit 1 on failure |
 | `./dojo doctor --fix` | Safe fixes first: stale run lock, missing `.env` (`setup --default`), `.env` mode 600 |
 | `./dojo version` | Git revision, engine versions, pinned wheels |
@@ -169,7 +169,7 @@ commands, workshop names, flags, `--env` profile names and the running stack's s
 | `engine/.build-state/last-start` | Arguments `restart` repeats |
 | `engine/.build-state/history.jsonl` | One line per start, restart, build, stop, with duration and outcome |
 | `engine/.build-state/*.overlay-hash`, `superseded-images` | Change detection and image housekeeping |
-| `/tmp/gitops-dojo-<uid>.lock` | The run lock |
+| `/tmp/topiary-<uid>.lock` | The run lock |
 | `engine/.cache/` | Unpacked, hash-checked Python dependencies |
 
 An old checkout's `engine/.env` and `engine/.env.NAME` files are migrated automatically on the first command into the

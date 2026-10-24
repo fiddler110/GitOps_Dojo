@@ -9,7 +9,7 @@ CONFIG = """networks:
   web_lab:
 services:
   achievements:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     mem_limit: 128m
   bootstrap:
     restart: 'no'
@@ -39,13 +39,13 @@ class MemLimits(unittest.TestCase):
 
 BUILT = {"services": {
     "sensei-a": {"build": {"context": "../modules/sensei", "args": {}},
-                 "image": "gitopsdojo/sensei:git-fundamentals"},
+                 "image": "topiary/sensei:git-fundamentals"},
     "sensei-b": {"build": {"context": "../modules/sensei", "args": {}},
-                 "image": "gitopsdojo/sensei:tofu-basics"},
+                 "image": "topiary/sensei:tofu-basics"},
     "runner-pool": {"build": {"context": "../modules/runner-pool/pool",
                                 "args": {"JOB_TOOLS": "tofu"}},
-                    "image": "gitopsdojo/runner-pool:cloud-policy-as-code"},
-    "runner-alias": {"image": "gitopsdojo/runner-pool:cloud-policy-as-code"},
+                    "image": "topiary/runner-pool:cloud-policy-as-code"},
+    "runner-alias": {"image": "topiary/runner-pool:cloud-policy-as-code"},
     "external": {"image": "docker.io/library/alpine:3"},
 }}
 
@@ -56,11 +56,11 @@ class BuildImages(unittest.TestCase):
 
   def test_service_images_include_aliases_and_compose_defaults(self):
     images = stack.parse_service_images(BUILT)
-    self.assertEqual(images["runner-alias"], "gitopsdojo/runner-pool:cloud-policy-as-code")
-    self.assertEqual(images["sensei-a"], "gitopsdojo/sensei:git-fundamentals")
+    self.assertEqual(images["runner-alias"], "topiary/runner-pool:cloud-policy-as-code")
+    self.assertEqual(images["sensei-a"], "topiary/sensei:git-fundamentals")
 
   def test_rendered_override_is_deterministic(self):
-    images = {"sensei": "gitopsdojo/sensei:local", "runner-pool": "gitopsdojo/runner-pool:cloud-policy-as-code"}
+    images = {"sensei": "topiary/sensei:local", "runner-pool": "topiary/runner-pool:cloud-policy-as-code"}
     hashes = {"sensei": "abcd", "runner-pool": "1234"}
     self.assertEqual(stack.render_image_override(images, hashes),
                      stack.render_image_override(dict(reversed(list(images.items()))), hashes))
@@ -70,7 +70,7 @@ class BuildImages(unittest.TestCase):
     with mock.patch("dojo.start.config_document", return_value=BUILT):
       build_tags, hashes, overrides = _content_image_tags(Runtime(), [], {})
     self.assertEqual(hashes["sensei-a"], hashes["sensei-b"])
-    self.assertEqual(overrides["sensei-a"], "gitopsdojo/sensei:git-fundamentals")
+    self.assertEqual(overrides["sensei-a"], "topiary/sensei:git-fundamentals")
     self.assertNotEqual(hashes["sensei-a"], hashes["runner-pool"])
 
 

@@ -16,7 +16,7 @@ services:
       - FORGEJO__webhook__ALLOWED_HOST_LIST=achievements
 
   achievements:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_achievements
     entrypoint: ["python3", "-B", "/opt/achievements/service/server.py"]
     environment:

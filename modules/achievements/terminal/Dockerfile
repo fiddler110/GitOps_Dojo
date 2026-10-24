@@ -4,7 +4,7 @@
 # command to the service and echoes new unlocks in colour.
 # The client is copied unchanged: the service hashes the same file to spot an edited copy.
 # The entrypoint is inherited unchanged.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 COPY dojo-check.py /usr/local/bin/dojo-check
@@ -34,7 +34,7 @@ RUN set -eux; \
       python3 -B -c 'import zipfile; z = zipfile.ZipFile("/tmp/dojo-achievements.vsix", "w", zipfile.ZIP_DEFLATED); \
 [z.write("/tmp/dojo-vscode/" + f, "extension/" + f) for f in ("package.json", "extension.js")]; \
 z.writestr("[Content_Types].xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/Content-Types\"><Default Extension=\".json\" ContentType=\"application/json\"/><Default Extension=\".js\" ContentType=\"application/javascript\"/><Default Extension=\".vsixmanifest\" ContentType=\"text/xml\"/></Types>"); \
-z.writestr("extension.vsixmanifest", "<?xml version=\"1.0\" encoding=\"utf-8\"?><PackageManifest Version=\"2.0.0\" xmlns=\"http://schemas.microsoft.com/developer/vsx-schema/2011\"><Metadata><Identity Language=\"en-US\" Id=\"dojo-achievements\" Version=\"1.0.0\" Publisher=\"gitopsdojo\"/><DisplayName>Dojo achievements</DisplayName><Description xml:space=\"preserve\">Achievement toasts</Description></Metadata><Installation><InstallationTarget Id=\"Microsoft.VisualStudio.Code\"/></Installation><Assets><Asset Type=\"Microsoft.VisualStudio.Code.Manifest\" Path=\"extension/package.json\" Addressable=\"true\"/></Assets></PackageManifest>"); z.close()'; \
+z.writestr("extension.vsixmanifest", "<?xml version=\"1.0\" encoding=\"utf-8\"?><PackageManifest Version=\"2.0.0\" xmlns=\"http://schemas.microsoft.com/developer/vsx-schema/2011\"><Metadata><Identity Language=\"en-US\" Id=\"dojo-achievements\" Version=\"1.0.0\" Publisher=\"topiary\"/><DisplayName>Dojo achievements</DisplayName><Description xml:space=\"preserve\">Achievement toasts</Description></Metadata><Installation><InstallationTarget Id=\"Microsoft.VisualStudio.Code\"/></Installation><Assets><Asset Type=\"Microsoft.VisualStudio.Code.Manifest\" Path=\"extension/package.json\" Addressable=\"true\"/></Assets></PackageManifest>"); z.close()'; \
       code-server --extensions-dir /opt/code-server-extensions --install-extension /tmp/dojo-achievements.vsix --force; \
       rm -f /tmp/dojo-achievements.vsix; \
       chown -R root:root /opt/code-server-extensions; \

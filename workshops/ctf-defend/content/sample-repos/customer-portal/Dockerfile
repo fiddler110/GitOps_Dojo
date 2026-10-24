@@ -1,4 +1,4 @@
-FROM gitopsdojo/ctf-customer-portal-base:pinned
+FROM topiary/ctf-customer-portal-base:pinned
 
 COPY app.py seed.py entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh

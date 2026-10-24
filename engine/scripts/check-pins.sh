@@ -13,9 +13,9 @@
 # Usage: engine/scripts/check-pins.sh [DIR...]   (default: engine modules workshops)
 # `./dojo <workshop> --dry-run` runs it on the whole repo.
 #
-# Not external, so skipped: this project's own images (gitopsdojo/*), images
+# Not external, so skipped: this project's own images (topiary/*), images
 # chosen by a variable (${BASE}, ${WEB_TERMINAL_IMAGE}; their defaults are
-# gitopsdojo/* and dojo builds them), `scratch`, and a FROM naming an
+# topiary/* and dojo builds them), `scratch`, and a FROM naming an
 # earlier build stage.
 set -eu
 
@@ -37,7 +37,7 @@ for f in $files; do
         toupper($1) == "FROM" {
           img = ""; for (i = 2; i <= NF; i++) if ($i !~ /^--/) { img = $i; break }
           for (i = 2; i < NF; i++) if (toupper($i) == "AS") stage[$(i + 1)] = 1
-          if (img == "" || img == "scratch" || img ~ /^\$/ || img ~ /^gitopsdojo\// || (img in stage)) next
+          if (img == "" || img == "scratch" || img ~ /^\$/ || img ~ /^topiary\// || (img in stage)) next
           if (img !~ /@sha256:[0-9a-f]{64}$/) { print FILENAME ":" FNR ": " img; next }
           at = index(img, "@")
           print substr(img, 1, at - 1) "\t" substr(img, at + 1) "\t" FILENAME >> "'"$records"'"
@@ -46,7 +46,7 @@ for f in $files; do
       out="$(awk '
         $1 == "image:" {
           img = $2; gsub(/["'\'']/, "", img)
-          if (img ~ /^\$/ || img ~ /^gitopsdojo\//) next
+          if (img ~ /^\$/ || img ~ /^topiary\//) next
           if (img !~ /@sha256:[0-9a-f]{64}$/) { print FILENAME ":" FNR ": " img; next }
           at = index(img, "@")
           print substr(img, 1, at - 1) "\t" substr(img, at + 1) "\t" FILENAME >> "'"$records"'"

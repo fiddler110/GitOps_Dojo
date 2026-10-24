@@ -8,7 +8,7 @@
 # has just built, so jobs run the very binaries the students have, pinned and
 # checked once, in the terminal's Dockerfiles. They must be static binaries:
 # this image is Alpine (musl), the terminal is not.
-ARG TOOLS_IMAGE=gitopsdojo/web-terminal:base
+ARG TOOLS_IMAGE=topiary/web-terminal:base
 FROM ${TOOLS_IMAGE} AS tools
 
 FROM data.forgejo.org/forgejo/runner:13.2.0@sha256:ca3d5eea46004789a175d1369eec6829d3ea9bfbe2011a06625b4bdaa55f7552

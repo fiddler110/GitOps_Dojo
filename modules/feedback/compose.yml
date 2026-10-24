@@ -2,7 +2,7 @@
 # not this folder. Answers live in the named volume feedback_data, so `./dojo stop` removes them.
 services:
   feedback:
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_feedback
     entrypoint: ["python3", "-B", "/opt/feedback/server.py"]
     environment:
