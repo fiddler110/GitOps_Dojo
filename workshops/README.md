@@ -67,7 +67,7 @@ workshops use them.
    workshop's) into `engine/.generated/`. A bad manifest stops the start
    here, before anything runs.
 4. Builds the images that changed since the last run. The terminal is a chain:
-   `gitopsdojo/web-terminal:base` → one link per module with a `terminal/`
+   `topiary/web-terminal:base` → one link per module with a `terminal/`
    folder (`:<workshop>.<module>`) → the workshop's own `compose/terminal/`
    (`:<workshop>`). The last link is the image the stack runs.
 5. Runs `compose -f docker-compose.yml [-f modules/<m>/compose.yml ...] [-f <overlay>] up -d`
@@ -159,7 +159,7 @@ optional ones, each with TODOs.
      picks the terminal image (`WEB_TERMINAL_IMAGE`). Give each locally built
      service a stable image family:
      ```yaml
-     image: gitopsdojo/<name>:${WORKSHOP_SLUG:-local}
+     image: topiary/<name>:${WORKSHOP_SLUG:-local}
      ```
     When run through `dojo`, a generated override labels the stable image tag
     with a fingerprint of the resolved build context and options. Packs with
@@ -169,7 +169,7 @@ optional ones, each with TODOs.
    - **Extra terminal tools:** `compose/terminal/Dockerfile`, found by
      convention (no setting). Start it with
      ```dockerfile
-     ARG BASE=gitopsdojo/web-terminal:base
+     ARG BASE=topiary/web-terminal:base
      FROM ${BASE}
      ```
      so it stacks on top of any module's tools. Pin every tool's version and
@@ -337,13 +337,13 @@ Rules for `compose.yml`:
 - Name every volume, including paths an image declares as `VOLUME`, so
   `./dojo stop` removes them.
 - Give each service you `build:` a stable image family, e.g.
-  `image: gitopsdojo/<name>:${WORKSHOP_SLUG:-local}`. `dojo` labels it with the
+  `image: topiary/<name>:${WORKSHOP_SLUG:-local}`. `dojo` labels it with the
   resolved context and build options, reusing matching images across packs while
   `runner-pool` tool/terminal variants and `ctf-host` target variants stay distinct.
   Changed inputs replace the stable tag, and the old image is reaped after startup.
   An overlay normally need not re-tag a module service. An engine image a module only *reuses*
-  (`gitopsdojo/allocator:local` for a
-  sidecar, `gitopsdojo/gateway:local` for a shim) stays `:local`: `engine/`
+  (`topiary/allocator:local` for a
+  sidecar, `topiary/gateway:local` for a shim) stays `:local`: `engine/`
   builds those from workshop-independent sources.
 - A workshop can swap a module service's image from its overlay by overriding
   `build.context` or its `build.args` (later file wins); see "A workshop using it"

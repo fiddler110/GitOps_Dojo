@@ -209,9 +209,9 @@ class StaleContainers(unittest.TestCase):
         rows = [Container("web-terminal", "t", "Up 1 minute (healthy)", "aa" * 6),
                 Container("gateway", "g", "Up 1 minute (healthy)", "bb" * 6),
                 Container("bootstrap", "b", "Exited (0) 1 minute ago", "cc" * 6)]
-        inspect = ["aa" * 32 + "|old1|localhost/gitopsdojo/web-terminal:x",
-                   "bb" * 32 + "|same|localhost/gitopsdojo/gateway:local"]
-        tags = {"localhost/gitopsdojo/web-terminal:x": "new1", "localhost/gitopsdojo/gateway:local": "same"}
+        inspect = ["aa" * 32 + "|old1|localhost/topiary/web-terminal:x",
+                   "bb" * 32 + "|same|localhost/topiary/gateway:local"]
+        tags = {"localhost/topiary/web-terminal:x": "new1", "localhost/topiary/gateway:local": "same"}
         rt = self.runtime("podman", rows, inspect, tags)
         self.assertEqual(rt.stale_services(rows), ["web-terminal"])
         self.assertNotIn("cc" * 6, self.calls[0])                 # an exited one-shot isn't asked about
@@ -220,8 +220,8 @@ class StaleContainers(unittest.TestCase):
     def test_docker_ids_compare_without_prefix_and_missing_tag_is_not_stale(self):
         rows = [Container("allocator", "a", "Up 2 minutes", "dd" * 6),
                 Container("sensei", "s", "Up 2 minutes", "ee" * 6)]
-        inspect = ["dd" * 32 + "|sha256:abc|gitopsdojo/allocator:local", "ee" * 32 + "|sha256:def|gone:tag"]
-        rt = self.runtime("docker", rows, inspect, {"gitopsdojo/allocator:local": "sha256:abc"})
+        inspect = ["dd" * 32 + "|sha256:abc|topiary/allocator:local", "ee" * 32 + "|sha256:def|gone:tag"]
+        rt = self.runtime("docker", rows, inspect, {"topiary/allocator:local": "sha256:abc"})
         self.assertEqual(rt.stale_services(rows), [])
         self.assertIn("{{.Config.Image}}", self.calls[0][2])
 

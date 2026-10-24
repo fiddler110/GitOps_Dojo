@@ -6,7 +6,7 @@
 # (TOOLS_IMAGE, set by the overlay), so each has one pin, in the terminal's
 # Dockerfiles: bao (the Agent) and the Python packages (hvac, pg8000). Both
 # images are Debian bookworm, so the Python packages fit as they are.
-ARG TOOLS_IMAGE=gitopsdojo/web-terminal:base
+ARG TOOLS_IMAGE=topiary/web-terminal:base
 FROM ${TOOLS_IMAGE} AS tools
 
 FROM docker.io/library/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587

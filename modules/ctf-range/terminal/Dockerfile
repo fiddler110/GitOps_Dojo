@@ -8,7 +8,7 @@
 #
 # Deliberately NOT here: metasploit, which the plan explicitly keeps out of
 # the terminal image as too large.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

@@ -15,7 +15,7 @@ services:
   dns-api:
     build:
       context: ../modules/dns-gate/gate
-    image: gitopsdojo/dns-api:${WORKSHOP_SLUG:-local}
+    image: topiary/dns-api:${WORKSHOP_SLUG:-local}
     container_name: workshop_dns_api
     init: true
     # `:-` not `:?`: ./dojo stop reads this file with .env only.

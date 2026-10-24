@@ -1,6 +1,6 @@
 # customer-portal — CTF target 14. A minimal Flask + plaintext SQLite app,
 # built from original source in this repo (§6). BASE defaults to this
-# project's own locally-built image (gitopsdojo/ prefix, no digest — it is
+# project's own locally-built image (topiary/ prefix, no digest — it is
 # never pulled from a registry, so check-pins.sh skips it as "this project's
 # own image"), baked by ctf-host's `portal-deps` stage and imported into the
 # inner dockerd at start. It already has Flask installed, so this file never
@@ -25,7 +25,7 @@
 # path now lives entirely in `Dockerfile.dev`, built only on the OUTER host
 # engine by modules/ctf-range/compose.yml's standalone `customer-portal`
 # service; this file never contains a network-reaching stage at all.
-FROM gitopsdojo/ctf-customer-portal-base:pinned
+FROM topiary/ctf-customer-portal-base:pinned
 
 COPY app.py seed.py entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh

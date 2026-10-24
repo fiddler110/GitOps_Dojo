@@ -1,4 +1,4 @@
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 COPY start.d/96-runner-escape.sh /etc/dojo/start.d/96-runner-escape.sh

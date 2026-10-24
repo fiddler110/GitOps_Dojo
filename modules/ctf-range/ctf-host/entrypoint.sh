@@ -216,9 +216,9 @@ import_target
 import_portal_deps_base() {
   # CTF-D26: same guard as import_target above.
   [ -d /opt/portal-deps-rootfs ] || return 0
-  docker image inspect gitopsdojo/ctf-customer-portal-base:pinned >/dev/null 2>&1 && return 0
-  tar -C /opt/portal-deps-rootfs -c . | docker import - gitopsdojo/ctf-customer-portal-base:pinned >/dev/null
-  echo "ctf-host: imported gitopsdojo/ctf-customer-portal-base:pinned"
+  docker image inspect topiary/ctf-customer-portal-base:pinned >/dev/null 2>&1 && return 0
+  tar -C /opt/portal-deps-rootfs -c . | docker import - topiary/ctf-customer-portal-base:pinned >/dev/null
+  echo "ctf-host: imported topiary/ctf-customer-portal-base:pinned"
 }
 import_portal_deps_base
 

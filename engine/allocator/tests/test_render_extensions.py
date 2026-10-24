@@ -1,7 +1,7 @@
 """Tests for render_extensions.py. Run in the allocator image (no host Python needed):
 
   podman run --rm --network none -v ./engine/allocator:/src:ro -w /src \
-    gitopsdojo/allocator:local python3 -B -m unittest discover -s tests -v
+    topiary/allocator:local python3 -B -m unittest discover -s tests -v
 """
 
 import json

@@ -2,7 +2,7 @@
 # below this one). Installs the shared skeleton the workshops' own `lab-prep`
 # scripts source; each workshop still ships its own steps in compose/terminal/.
 # ENTRYPOINT is inherited unchanged.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 COPY lab-prep-lib.sh /usr/local/lib/dojo/lab-prep-lib.sh

@@ -4,7 +4,7 @@ engine/git-server/dojo-secret.sh must all give the same answers. Run in the
 allocator image with the whole engine/ mounted, so the other two are found:
 
   podman run --rm --network none -v ./engine:/src:ro -w /src/allocator \
-    gitopsdojo/allocator:local python3 -B -m unittest discover -s tests -v
+    topiary/allocator:local python3 -B -m unittest discover -s tests -v
 """
 
 import os

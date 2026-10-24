@@ -1,4 +1,4 @@
-ARG BASE=gitopsdojo/ctf-customer-portal-base:pinned
+ARG BASE=topiary/ctf-customer-portal-base:pinned
 FROM ${BASE}
 
 COPY requirements.txt /app/requirements.txt

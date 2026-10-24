@@ -90,7 +90,7 @@ otherwise use the per-workshop override below instead, per
 
 ## Adding something for one workshop only
 
-The base image is built and tagged `gitopsdojo/web-terminal:base` before
+The base image is built and tagged `topiary/web-terminal:base` before
 any workshop overlay builds (see `dojo` and the comment on the
 `web-terminal` service in `engine/docker-compose.yml`) specifically so a
 workshop can extend it without touching this Dockerfile or affecting any
@@ -108,7 +108,7 @@ one where it isn't bundled:
 
 `workshops/mermaid-as-code/compose/terminal/Dockerfile`:
 ```dockerfile
-FROM gitopsdojo/web-terminal:base
+FROM topiary/web-terminal:base
 
 # Re-adds Mermaid rendering to the built-in markdown preview for this
 # workshop only -- deliberately not in the shared base image (see

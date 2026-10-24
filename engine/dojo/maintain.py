@@ -14,7 +14,7 @@ from .runtime import Runtime
 
 # --- prune ---------------------------------------------------------------------------
 def dangling_dojo_images(rt: Runtime) -> List[Dict[str, Any]]:
-    """Dangling (untagged) images that used to be a gitopsdojo/ tag, with no container using
+    """Dangling (untagged) images that used to be a topiary/ tag, with no container using
     them. Dangling images of other projects are not ours to touch."""
     try:
         rows = json.loads(rt.out("images", "--filter", "dangling=true", "--format", "json") or "[]")
@@ -23,8 +23,8 @@ def dangling_dojo_images(rt: Runtime) -> List[Dict[str, Any]]:
     mine = []
     for r in rows or []:
         history = [str(h) for h in (r.get("History") or []) + (r.get("Names") or [])]
-        if r.get("Containers", 0) == 0 and any("gitopsdojo/" in h for h in history):
-            mine.append({"id": r["Id"][:12], "was": next(h for h in history if "gitopsdojo/" in h), "size": r.get("Size", 0)})
+        if r.get("Containers", 0) == 0 and any("topiary/" in h for h in history):
+            mine.append({"id": r["Id"][:12], "was": next(h for h in history if "topiary/" in h), "size": r.get("Size", 0)})
     return mine
 
 
@@ -45,7 +45,7 @@ def prune(rt: Runtime, dry_run: bool) -> Dict[str, Any]:
 
 # --- doctor --fix ---------------------------------------------------------------------
 def _lock_dir() -> Path:
-    return Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
+    return Path(f"/tmp/topiary-{os.getuid()}.lock")
 
 
 def fix_stale_lock() -> str:

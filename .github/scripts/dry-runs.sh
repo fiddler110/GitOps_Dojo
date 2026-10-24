@@ -14,9 +14,9 @@ cd "$root" || exit 1
 [ -f .env ] || ./dojo setup --default >/dev/null || { echo "setup failed" >&2; exit 1; }
 
 if command -v podman >/dev/null && command -v podman-compose >/dev/null; then cli=podman; else cli=docker; fi
-if ! "$cli" image inspect gitopsdojo/allocator:local >/dev/null 2>&1; then
-  echo "==> building gitopsdojo/allocator:local for the manifest checks"
-  "$cli" build -q -t gitopsdojo/allocator:local engine/allocator >/dev/null || exit 1
+if ! "$cli" image inspect topiary/allocator:local >/dev/null 2>&1; then
+  echo "==> building topiary/allocator:local for the manifest checks"
+  "$cli" build -q -t topiary/allocator:local engine/allocator >/dev/null || exit 1
 fi
 
 log="$(mktemp)"

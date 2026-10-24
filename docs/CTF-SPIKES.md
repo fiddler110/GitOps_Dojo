@@ -287,7 +287,7 @@ resolve offline at rebuild time. Two shapes considered:
   points at that baked tag instead of installing Flask itself.
 
 **Run D (2026-10-05, live, built and verified end to end).** Built as scoped above, with one real naming wrinkle not
-in the design: the tag needed a `gitopsdojo/` prefix (`gitopsdojo/ctf-customer-portal-base:pinned`) so
+in the design: the tag needed a `topiary/` prefix (`topiary/ctf-customer-portal-base:pinned`) so
 `engine/scripts/check-pins.sh` (which exempts this project's own images) doesn't flag it as an unpinned external
 image. **DESIGN CHANGE FROM BRIEF, found live:** `modules/ctf-range/compose.yml` also has a standalone dev-convenience
 `customer-portal` service that builds the same Dockerfile directly on the *outer* host engine (real network, no
@@ -325,7 +325,7 @@ future target wants students adding dependencies as their fix.
 **Run E (2026-10-05, live, both follow-ups from Run D closed).**
 
 - *Start-order race, fixed inline (no live-stack re-run needed — compose-only change).* `ctf-host`'s healthcheck
-  now checks for both baked images (`ctf-customer-portal:base` AND `gitopsdojo/ctf-customer-portal-base:pinned`,
+  now checks for both baked images (`ctf-customer-portal:base` AND `topiary/ctf-customer-portal-base:pinned`,
   Run D's), and `ctf-controller`/`ctf-builder` now `depends_on: ctf-host: condition: service_healthy` instead of
   `service_started`. Closes the window where a build request could reach `ctf-builder` before `ctf-host` finished
   importing either image.
@@ -846,7 +846,7 @@ storage (the rootful stack was untouched). Note the machine's Podman is 5.8.1 fo
   moving target, so DB currency is a non-goal.
 
 - **CTF-D23 (user, 2026-10-04):** The students' terminal becomes a selectable **Zellij flavor**: `TERMINAL_FLAVOR=zellij`
-  in `engine/.env` or a workshop's `workshop.env` (the latter wins) builds `gitopsdojo/zellij-terminal:base` on top of
+  in `engine/.env` or a workshop's `workshop.env` (the latter wins) builds `topiary/zellij-terminal:base` on top of
   `web-terminal:base` and runs a Zellij session (a read-only listing of the shell's directory, the shell, editor `micro`) instead of VS Code and tmux,
   with `zellij watch` for the facilitator tile. One shared `workspace-control.py` with a flavor flag; labs reworded
   flavor-neutrally. This is the engine change CTF-D15 called for; it ships first for `git-fundamentals` (branch

@@ -2,7 +2,7 @@
 # Everything else (account provisioning, code-server/ttyd, shell helpers) is
 # inherited unchanged from the base image's entrypoint.
 # dojo sets BASE to the image below this one in the chain (docs/archive/MODULES-PLAN.md §4.2).
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

@@ -17,7 +17,7 @@
 # (Alpine's musl libc isn't supported -- the musl-compatible fork is
 # explicitly work-in-progress), which is why `web-terminal:core` itself
 # stays Debian-based rather than Alpine, to keep this leaf on the same libc.
-ARG BASE=gitopsdojo/web-terminal:core
+ARG BASE=topiary/web-terminal:core
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

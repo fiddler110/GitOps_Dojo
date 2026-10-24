@@ -1,7 +1,7 @@
 # dns-gate module: each account's own PowerDNS API key (start.d/50-dns-key.sh)
 # in $DNS_API_KEY for every shell. Demo bots start before the hook runs, so
 # their steps.sh reads the file itself.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 
 COPY start.d/50-dns-key.sh /etc/dojo/start.d/50-dns-key.sh

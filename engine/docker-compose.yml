@@ -127,7 +127,7 @@ services:
     # allocator and gateway below.
     build:
       context: ./presentation
-    image: gitopsdojo/presentation:local
+    image: topiary/presentation:local
     container_name: workshop_presentation
     logging: *logging
     # PID 1 here is python/node with no SIGTERM handler, and the kernel ignores
@@ -169,7 +169,7 @@ services:
     # terminal/ Dockerfiles as a chain on top of it (each `FROM ${BASE}`,
     # see docs/archive/MODULES-PLAN.md §4.2), and sets WEB_TERMINAL_IMAGE to the
     # last link. Overlays no longer set image: here themselves.
-    image: ${WEB_TERMINAL_IMAGE:-gitopsdojo/web-terminal:base}
+    image: ${WEB_TERMINAL_IMAGE:-topiary/web-terminal:base}
     container_name: workshop_terminal
     logging: *logging
     init: true  # PID 1 is python; see presentation's note
@@ -303,7 +303,7 @@ services:
     # dojo check "has ./allocator changed since the last build?" against
     # a fixed name instead of guessing whatever tag Compose would have
     # auto-generated.
-    image: gitopsdojo/allocator:local
+    image: topiary/allocator:local
     container_name: workshop_allocator
     logging: *logging
     init: true  # PID 1 is python; see presentation's note
@@ -403,7 +403,7 @@ services:
     build:
       context: ./gateway
     # Stable local tag -- see the same note on allocator above.
-    image: gitopsdojo/gateway:local
+    image: topiary/gateway:local
     container_name: workshop_gateway
     logging: *logging
     environment:

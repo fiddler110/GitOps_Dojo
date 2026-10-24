@@ -48,7 +48,7 @@ def run_stop(dry_run: bool, archive: bool = True) -> int:
     rt = Runtime()
     cur = state.read_current()
     env = {**os.environ, **operator_env(cur.env_name if cur else None)}
-    # The overlay's and modules' image tags are gitopsdojo/x:${WORKSHOP_SLUG};
+    # The overlay's and modules' image tags are topiary/x:${WORKSHOP_SLUG};
     # no workshop.env is sourced here, so supply the slug from what the last
     # start recorded. `down` works off the project's labels either way -- this
     # only keeps `stop --dry-run`'s `compose config` printing the real tags.

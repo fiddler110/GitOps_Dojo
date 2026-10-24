@@ -33,14 +33,14 @@ services:
     build:
       context: ../modules/ctf-range/targets/customer-portal
       # This builds on the OUTER host engine, which has real network but no
-      # local copy of gitopsdojo/ctf-customer-portal-base:pinned (that tag
+      # local copy of topiary/ctf-customer-portal-base:pinned (that tag
       # only ever exists inside ctf-host's INNER dockerd, imported offline at
       # container start). Dockerfile.dev installs Flask the normal way
       # instead (CTF-D27: the real Dockerfile must never contain a stage
       # that needs a network -- ctf-host's inner builder builds every stage
       # in file order, not just the ones the final FROM resolves to).
       dockerfile: Dockerfile.dev
-    image: gitopsdojo/ctf-customer-portal:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-customer-portal:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_customer_portal
     environment:
       # Which student this slot's data references, and the flag it yields when
@@ -129,7 +129,7 @@ services:
       context: ../modules/ctf-range
       dockerfile: ctf-host/Dockerfile
       target: ${CTF_HOST_BUILD_TARGET:-ctf-host}
-    image: ${CTF_HOST_IMAGE:-gitopsdojo/ctf-host:local}
+    image: ${CTF_HOST_IMAGE:-topiary/ctf-host:local}
     container_name: workshop_ctf_host
     privileged: true
     environment:
@@ -180,7 +180,7 @@ services:
       # CTF_HOST_BUILD_TARGET above are overridden too (CTF-D26). ctf-builder
       # and ctf-controller key their own `depends_on: service_healthy` off
       # this.
-      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base gitopsdojo/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base ctf-policy-bypass:base ctf-dns-resolver-cve:base} >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "docker image inspect ${CTF_HOST_EXPECTED_IMAGES:-ctf-customer-portal:base topiary/ctf-customer-portal-base:pinned ctf-sqli-login:base ctf-idor-pcap:base ctf-weak-auth-portal:base ctf-cert-trust-bypass:base ctf-ping-tool:base ctf-ssrf-fetcher:base ctf-api-mass-assignment:base ctf-api-bfla:base ctf-leaky-config:base ctf-git-secrets:base ctf-policy-bypass:base ctf-dns-resolver-cve:base} >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       # 60 retries (10 min) — the full-catalog stage now imports 12 images
@@ -214,7 +214,7 @@ services:
   ctf-controller:
     build:
       context: ../modules/ctf-range/ctf-controller
-    image: gitopsdojo/ctf-controller:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-controller:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_controller
     depends_on:
       ctf-host:
@@ -307,7 +307,7 @@ services:
   # only to reach the slot IPs and on workshop_lab to be reached by the
   # gateway, which stays the sole way in (it checks X-Gateway-Token itself).
   ctf-view:
-    image: gitopsdojo/ctf-controller:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-controller:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_view
     entrypoint: ["python3", "/app/view.py"]
     depends_on:
@@ -367,7 +367,7 @@ services:
   ctf-builder:
     build:
       context: ../modules/ctf-range/ctf-builder
-    image: gitopsdojo/ctf-builder:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-builder:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_builder
     depends_on:
       ctf-host:
@@ -421,7 +421,7 @@ services:
   ctf-notes:
     build:
       context: ../modules/ctf-range/ctf-notes
-    image: gitopsdojo/ctf-notes:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-notes:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_notes
     environment:
       - GATEWAY_TOKEN=${GATEWAY_TOKEN_CTF_NOTES:-}
@@ -458,7 +458,7 @@ services:
   ctf-flags:
     build:
       context: ../modules/ctf-range/ctf-flags
-    image: gitopsdojo/ctf-flags:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-flags:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_flags
     environment:
       - STUDENT_PASSWORD_SEED=${STUDENT_PASSWORD_SEED:-}
@@ -491,7 +491,7 @@ services:
       # Module root so the build can COPY targets/ and ctf-controller/flags.py.
       context: ../modules/ctf-range
       dockerfile: ctf-checker/Dockerfile
-    image: gitopsdojo/ctf-checker:${WORKSHOP_SLUG:-local}
+    image: topiary/ctf-checker:${WORKSHOP_SLUG:-local}
     container_name: workshop_ctf_checker
     environment:
       - STUDENT_COUNT=${STUDENT_COUNT:-30}
@@ -550,7 +550,7 @@ services:
   # own lab reader does -- replacing the earlier raw-markdown `file_server
   # browse` listing (users saw plain text downloads).
   ctf-lab-info:
-    image: gitopsdojo/gateway:local
+    image: topiary/gateway:local
     container_name: workshop_ctf_lab_info
     entrypoint: ["caddy"]
     command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

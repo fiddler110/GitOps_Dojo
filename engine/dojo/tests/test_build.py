@@ -61,7 +61,7 @@ class FakeRuntime:
                 self.images[old_id] = None
             self.ids[target] = new_id
             if new_id:
-                self.images[new_id] = "gitopsdojo/sensei"
+                self.images[new_id] = "topiary/sensei"
             return subprocess.CompletedProcess(args, 0)
         assert args[0] == "rmi", args
         i = args[1]
@@ -149,8 +149,8 @@ class BuildInputHash(unittest.TestCase):
 
 
 class TerminalChain(Quiet):
-    LINKS = [("gitopsdojo/web-terminal:w.mod-a", "../modules/mod-a/terminal"),
-             ("gitopsdojo/web-terminal:w", "../workshops/w/compose/terminal")]
+    LINKS = [("topiary/web-terminal:w.mod-a", "../modules/mod-a/terminal"),
+             ("topiary/web-terminal:w", "../workshops/w/compose/terminal")]
 
     def setUp(self):
         super().setUp()
@@ -167,24 +167,24 @@ class TerminalChain(Quiet):
 
     def test_builds_base_then_each_link_on_the_one_before(self):
         rt = FakeRuntime(cli="docker")
-        rt.ids = {"gitopsdojo/web-terminal:core": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
+        rt.ids = {"topiary/web-terminal:core": "id-base", "topiary/web-terminal:w.mod-a": "id-mod"}
         with mock.patch.object(build.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.builder(rt).terminal_chain(self.LINKS)
         cmds = [c[0][0] for c in run.call_args_list]
         self.assertEqual([c[c.index("-t") + 1] for c in cmds],
-                         ["gitopsdojo/web-terminal:core", "gitopsdojo/web-terminal:w.mod-a", "gitopsdojo/web-terminal:w"])
+                         ["topiary/web-terminal:core", "topiary/web-terminal:w.mod-a", "topiary/web-terminal:w"])
         self.assertNotIn("--build-arg", cmds[0])
-        self.assertIn("BASE=gitopsdojo/web-terminal:core", cmds[1])
-        self.assertIn("BASE=gitopsdojo/web-terminal:w.mod-a", cmds[2])
+        self.assertIn("BASE=topiary/web-terminal:core", cmds[1])
+        self.assertIn("BASE=topiary/web-terminal:w.mod-a", cmds[2])
         # a child's hash includes its parent's image ID, so a rebuilt parent rebuilds it
         self.assertIn("dojo.src-hash=h-mod|id-base", cmds[1])
         self.assertIn("dojo.src-hash=h-ws|id-mod", cmds[2])
 
     def test_unchanged_chain_builds_nothing(self):
         rt = FakeRuntime(cli="docker")
-        rt.ids = {"gitopsdojo/web-terminal:core": "id-base", "gitopsdojo/web-terminal:w.mod-a": "id-mod"}
-        rt.labels = {"gitopsdojo/web-terminal:core": "h-base|", "gitopsdojo/web-terminal:w.mod-a": "h-mod|id-base",
-                     "gitopsdojo/web-terminal:w": "h-ws|id-mod"}
+        rt.ids = {"topiary/web-terminal:core": "id-base", "topiary/web-terminal:w.mod-a": "id-mod"}
+        rt.labels = {"topiary/web-terminal:core": "h-base|", "topiary/web-terminal:w.mod-a": "h-mod|id-base",
+                     "topiary/web-terminal:w": "h-ws|id-mod"}
         with mock.patch.object(build.subprocess, "run") as run:
             self.builder(rt).terminal_chain(self.LINKS)
         run.assert_not_called()
@@ -198,19 +198,19 @@ class TerminalChain(Quiet):
                         mock.patch.object(builder, "image_with_label", return_value="shared-id"), \
                         mock.patch.object(rt, "run", return_value=subprocess.CompletedProcess([], 0)) as tag, \
                         mock.patch.object(build.subprocess, "run") as build_run:
-                    builder.build_if_changed("gitopsdojo/web-terminal:git-fundamentals", "../workshops/git-fundamentals/compose/terminal")
-                tag.assert_called_once_with("tag", "shared-id", "gitopsdojo/web-terminal:git-fundamentals")
+                    builder.build_if_changed("topiary/web-terminal:git-fundamentals", "../workshops/git-fundamentals/compose/terminal")
+                tag.assert_called_once_with("tag", "shared-id", "topiary/web-terminal:git-fundamentals")
                 build_run.assert_not_called()
 
     def test_dry_run_marks_children_of_a_changed_parent(self):
         rt = FakeRuntime(cli="docker")
-        rt.labels = {"gitopsdojo/web-terminal:core": "h-base|"}       # base unchanged
-        rt.ids = {"gitopsdojo/web-terminal:core": "id-base"}
+        rt.labels = {"topiary/web-terminal:core": "h-base|"}       # base unchanged
+        rt.ids = {"topiary/web-terminal:core": "id-base"}
         b = self.builder(rt, dry_run=True)
         with mock.patch.object(build.subprocess, "run") as run:
             b.terminal_chain(self.LINKS)                               # mod-a changed -> w follows
         run.assert_not_called()
-        self.assertEqual(b.would_build, {"gitopsdojo/web-terminal:w.mod-a", "gitopsdojo/web-terminal:w"})
+        self.assertEqual(b.would_build, {"topiary/web-terminal:w.mod-a", "topiary/web-terminal:w"})
 
     def test_podman_salts_the_hash_and_builds_docker_format(self):
         rt = FakeRuntime(cli="podman")
@@ -261,15 +261,15 @@ class ConcurrentImages(Quiet):
         self.assertEqual(len(by_image), 3 + len(build.ENGINE_IMAGES))
         for image, _ in build.ENGINE_IMAGES:
             self.assertIsNotNone(by_image[image]["stdout"])
-        self.assertIsNone(by_image["gitopsdojo/web-terminal:core"]["stdout"])
+        self.assertIsNone(by_image["topiary/web-terminal:core"]["stdout"])
         self.assertEqual(list(Path(build.tempfile.gettempdir()).glob("dojo-build.*")), [])  # logs of good builds go
 
     def test_a_failure_waits_for_the_others_and_keeps_its_log(self):
         with self.assertRaisesRegex(build.BuildError, "gateway:local failed.*dojo-build.gateway-local"):
-            self.run_images(fail={"gitopsdojo/gateway:local"})
+            self.run_images(fail={"topiary/gateway:local"})
         logs = list(Path(build.tempfile.gettempdir()).glob("dojo-build.*"))
         self.assertEqual(len(logs), 1)
-        self.assertIn("step 1 of gitopsdojo/gateway:local", logs[0].read_text())
+        self.assertIn("step 1 of topiary/gateway:local", logs[0].read_text())
 
     def test_dry_run_reports_in_order(self):
         rt = FakeRuntime(cli="docker")
@@ -298,16 +298,16 @@ class Superseded(Quiet):
     def test_tracking_records_what_the_build_left_untagged(self):
         """Ours that lost a tag, and anything newly untagged (build stages, a re-pulled base);
         never what was untagged before, nor what kept its tag."""
-        rt = FakeRuntime(images={"old": "gitopsdojo/allocator", "theirs": "docker.io/library/python",
-                                 "stray": None, "ovl": "localhost/engine_step-ca", "kept": "gitopsdojo/gateway"})
+        rt = FakeRuntime(images={"old": "topiary/allocator", "theirs": "docker.io/library/python",
+                                 "stray": None, "ovl": "localhost/engine_step-ca", "kept": "topiary/gateway"})
         b = Builder(rt)
         with b.tracking():
             rt.images.update({"old": None, "theirs": None, "ovl": None, "stage": None,
-                              "new": "gitopsdojo/allocator"})
+                              "new": "topiary/allocator"})
         self.assertEqual(sorted(self.recorded()), ["old", "ovl", "stage", "theirs"])   # not "stray"
 
     def test_interrupted_build_still_records(self):
-        rt = FakeRuntime(images={"old": "gitopsdojo/gateway"})
+        rt = FakeRuntime(images={"old": "topiary/gateway"})
         with self.assertRaises(KeyboardInterrupt):
             with Builder(rt).tracking():
                 rt.images["old"] = None
@@ -316,7 +316,7 @@ class Superseded(Quiet):
 
     def test_reap_removes_untagged_retries_parents_and_skips_retagged(self):
         build.SUPERSEDED.write_text("parent\nchild\nretagged\nparent\n")
-        rt = FakeRuntime(images={"parent": None, "child": None, "retagged": "gitopsdojo/x"})
+        rt = FakeRuntime(images={"parent": None, "child": None, "retagged": "topiary/x"})
         order = []
 
         def rmi(*args):
@@ -340,15 +340,15 @@ class Superseded(Quiet):
         self.assertEqual(rt.removed, ["gone"])
 
     def test_replacing_a_stable_alias_reaps_its_old_image(self):
-        rt = FakeRuntime(images={"old-id": "gitopsdojo/sensei", "shared-id": "gitopsdojo/sensei"},
+        rt = FakeRuntime(images={"old-id": "topiary/sensei", "shared-id": "topiary/sensei"},
                          labels={"shared-source": "new-inputs"})
-        rt.ids.update({"gitopsdojo/sensei:git-fundamentals": "old-id", "shared-source": "shared-id"})
+        rt.ids.update({"topiary/sensei:git-fundamentals": "old-id", "shared-source": "shared-id"})
         builder = Builder(rt)
-        builder.tag_image("shared-source", "gitopsdojo/sensei:git-fundamentals")
+        builder.tag_image("shared-source", "topiary/sensei:git-fundamentals")
         self.assertEqual(self.recorded(), ["old-id"])
         builder.reap()
         self.assertNotIn("old-id", rt.images)
-        self.assertEqual(rt.ids["gitopsdojo/sensei:git-fundamentals"], "shared-id")
+        self.assertEqual(rt.ids["topiary/sensei:git-fundamentals"], "shared-id")
 
 
 class OverlayHash(unittest.TestCase):
@@ -384,33 +384,33 @@ class OverlayHash(unittest.TestCase):
             b.overlay_if_changed(["./ovl"], state or self.state, ["compose"], {}, ["sensei"], images, hashes)
 
     def test_matching_inputs_reuse_an_image_under_a_different_stable_alias(self):
-        self.run_overlay({"sensei": "gitopsdojo/sensei:git-fundamentals"})
+        self.run_overlay({"sensei": "topiary/sensei:git-fundamentals"})
         self.assertEqual(len(self.built), 1)
-        self.run_overlay({"sensei": "gitopsdojo/sensei:git-fundamentals"})
+        self.run_overlay({"sensei": "topiary/sensei:git-fundamentals"})
         self.assertEqual(len(self.built), 1)
-        self.run_overlay({"sensei": "gitopsdojo/sensei:tofu-basics"}, state=self.root / "other-state")
+        self.run_overlay({"sensei": "topiary/sensei:tofu-basics"}, state=self.root / "other-state")
         self.assertEqual(len(self.built), 1)
-        self.assertEqual(self.runtime.ids["gitopsdojo/sensei:tofu-basics"],
-                         self.runtime.ids["gitopsdojo/sensei:git-fundamentals"])
+        self.assertEqual(self.runtime.ids["topiary/sensei:tofu-basics"],
+                         self.runtime.ids["topiary/sensei:git-fundamentals"])
 
     def test_context_change_still_rebuilds(self):
-        image = "gitopsdojo/sensei:git-fundamentals"
+        image = "topiary/sensei:git-fundamentals"
         self.run_overlay({"sensei": image}, hashes={"sensei": "old-inputs"})
         (self.root / "ovl" / "Dockerfile").write_text("FROM alpine\n")
         self.run_overlay({"sensei": image}, hashes={"sensei": "new-inputs"})
         self.assertEqual(len(self.built), 2)
 
     def test_dry_run_leaves_the_state_file_alone(self):
-        self.run_overlay({"sensei": "gitopsdojo/sensei:w"}, dry_run=True)
+        self.run_overlay({"sensei": "topiary/sensei:w"}, dry_run=True)
         self.assertEqual(self.built, [])
         self.assertFalse(self.state.exists())
 
     def test_another_workshops_existing_content_tag_is_reused(self):
-        image = "gitopsdojo/sensei:git-fundamentals"
+        image = "topiary/sensei:git-fundamentals"
         self.runtime.ids[image] = "already-built"
         self.runtime.labels[image] = "same-inputs"
         other_workshop_state = self.root / "other-overlay-hash"
-        self.run_overlay({"sensei": "gitopsdojo/sensei:tofu-basics"}, state=other_workshop_state)
+        self.run_overlay({"sensei": "topiary/sensei:tofu-basics"}, state=other_workshop_state)
         self.assertEqual(self.built, [])
         self.assertTrue(other_workshop_state.is_file())
 

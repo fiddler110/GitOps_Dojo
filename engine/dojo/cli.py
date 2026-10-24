@@ -664,7 +664,7 @@ def restore(path: str, yes: bool) -> None:
 @cli.command(context_settings=SETTINGS)
 @click.option("--dry-run", is_flag=True, help="List what would be removed; remove nothing.")
 def prune(dry_run: bool) -> None:
-    """Remove dangling gitopsdojo images left by rebuilds. Never touches volumes or containers."""
+    """Remove dangling topiary images left by rebuilds. Never touches volumes or containers."""
     from . import maintain
     res = maintain.prune(Runtime(), dry_run)
     if not res["supported"]:
@@ -815,7 +815,7 @@ def capacity(args):
         try:
             res = resolve(workshop, None)
             env = dict(res.env)
-            env.setdefault("WEB_TERMINAL_IMAGE", "gitopsdojo/web-terminal:base")
+            env.setdefault("WEB_TERMINAL_IMAGE", "topiary/web-terminal:base")
             limits, oneshot = stack.mem_limits(Runtime(), stack.extra_files(res), env)
         except (EnvError, RuntimeError, OSError) as exc:
             fail(f"Could not read {workshop}'s services: {exc}")

@@ -70,7 +70,7 @@ but not `presentation:8080` (slides are browser-only).
 
 ```mermaid
 graph TD
-    core["gitopsdojo/web-terminal:core<br/>shell, tmux, ttyd, provisioning, entrypoint"]
+    core["topiary/web-terminal:core<br/>shell, tmux, ttyd, provisioning, entrypoint"]
     vs["web-terminal:base<br/>+ code-server, curated extensions"]
     zl["zellij-terminal:base<br/>+ Zellij, micro, sidebar"]
     m["module links<br/>:workshop.module"]
@@ -155,12 +155,12 @@ Key points:
 - **Image identity follows inputs, not workshop names**: for example, `runner-pool` reuses only when its terminal
   image and tool list match; CTF host images differ by target. Engine images (`allocator`, `gateway`, `presentation`)
   keep their established shared tags.
-- **Image housekeeping**: images a rebuild displaced are removed after the new containers run. Only `gitopsdojo/*`
+- **Image housekeeping**: images a rebuild displaced are removed after the new containers run. Only `topiary/*`
   and Compose's own `engine_*` images are ever candidates. On podman, builds use Docker image format so the
   `HEALTHCHECK` is kept.
 - **Manifest rendering happens before anything starts.** A bad manifest stops the run (see
   [Authoring](authoring.md#4-the-extensionsjson-manifest)).
-- **Mutual exclusion**: a run lock (`/tmp/gitops-dojo-<uid>.lock`) means one build or start at a time, worktrees included.
+- **Mutual exclusion**: a run lock (`/tmp/topiary-<uid>.lock`) means one build or start at a time, worktrees included.
 - **Pins are enforced**: every external image must be pinned by digest and every tool by version and sha256;
   `--dry-run` fails otherwise (`engine/scripts/check-pins.sh`, `check-tool-pins.sh`,
   `check-dep-pins.sh` for `<pkg>==<version>` in requirements files and `pip install` lines).

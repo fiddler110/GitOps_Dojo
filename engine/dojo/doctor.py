@@ -161,7 +161,7 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
                   f"{host_mb} MB here; terminals {term_mb} MB + engine services ~3072 + reserve 1024 = {need} MB"
                   " (name a workshop to count its modules too)",
                   "" if need <= host_mb else f"Run '{paths.PROG} capacity WORKSHOP --students N' to size the limits for this machine."))
-    lock = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
+    lock = Path(f"/tmp/topiary-{os.getuid()}.lock")
     if lock.is_dir():
         pid = read_state(lock / "pid")
         alive = pid.isdigit() and os.path.exists(f"/proc/{pid}")
@@ -172,8 +172,8 @@ def run_checks(rt: Runtime, workshop: Optional[str], env_name: Optional[str]) ->
         cur = state.read_current()
         recorded = cur.workshop if cur and cur.workshop else "an unrecorded workshop"
         add(Check(INFO, "Running now", f"{recorded}: {len(containers)} container(s) ('{paths.PROG} status' for detail)"))
-    images = [i for i in ("gitopsdojo/web-terminal:core", "gitopsdojo/allocator:local",
-                          "gitopsdojo/gateway:local", "gitopsdojo/presentation:local")
+    images = [i for i in ("topiary/web-terminal:core", "topiary/allocator:local",
+                          "topiary/gateway:local", "topiary/presentation:local")
               if not rt.out("image", "inspect", "--format", "{{.Id}}", i)]
     add(Check(OK if not images else INFO, "Engine images",
               "all built" if not images else f"not built yet: {', '.join(images)} (the first start builds them, ~10 min)"))

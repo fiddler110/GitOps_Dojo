@@ -75,9 +75,9 @@ class WorkshopSlug(unittest.TestCase):
         (self.root / "workshops" / "w").mkdir(parents=True)
         (self.root / "modules" / "m").mkdir(parents=True)
         (self.root / "workshops" / "w" / "workshop.env").write_text(
-            'MODULES="m"\nMY_IMAGE="gitopsdojo/x:${WORKSHOP_SLUG}"\n')
+            'MODULES="m"\nMY_IMAGE="topiary/x:${WORKSHOP_SLUG}"\n')
         (self.root / "modules" / "m" / "module.env").write_text(
-            'MOD_IMAGE="gitopsdojo/y:${WORKSHOP_SLUG}"\nWORKSHOP_SLUG=hijacked\n')
+            'MOD_IMAGE="topiary/y:${WORKSHOP_SLUG}"\nWORKSHOP_SLUG=hijacked\n')
         (self.root / ".env").write_text("WORKSHOP_SLUG=from-dot-env\n")
         self.saved = (paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG)
         paths.WORKSHOPS, paths.MODULES, paths.ENV_FILE, paths.CONFIG, paths.LOCAL_CONFIG = (
@@ -92,8 +92,8 @@ class WorkshopSlug(unittest.TestCase):
     def test_tags_derive_from_it_and_no_layer_can_change_it(self):
         env = envfiles.resolve("w", base={"PATH": os.environ["PATH"], "WORKSHOP_SLUG": "from-the-shell"}).env
         self.assertEqual(env["WORKSHOP_SLUG"], "w")
-        self.assertEqual(env["MY_IMAGE"], "gitopsdojo/x:w")
-        self.assertEqual(env["MOD_IMAGE"], "gitopsdojo/y:w")
+        self.assertEqual(env["MY_IMAGE"], "topiary/x:w")
+        self.assertEqual(env["MOD_IMAGE"], "topiary/y:w")
 
 
 class SharedFacts(unittest.TestCase):

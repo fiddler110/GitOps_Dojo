@@ -3,7 +3,7 @@
 # and points it at the class server. Student terminals have no internet, so
 # the CLI is baked in, version-pinned and sha256-verified per architecture.
 # The entrypoint is inherited unchanged.
-ARG BASE=gitopsdojo/web-terminal:base
+ARG BASE=topiary/web-terminal:base
 FROM ${BASE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

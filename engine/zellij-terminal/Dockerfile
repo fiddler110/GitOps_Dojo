@@ -8,7 +8,7 @@
 # module and workshop terminal/ link on top of it, exactly as it does for
 # the web flavor. workspace-control.py does the rest at runtime: it sees
 # TERMINAL_FLAVOR and runs Zellij instead of tmux.
-ARG BASE=gitopsdojo/web-terminal:core
+ARG BASE=topiary/web-terminal:core
 FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends file less micro \

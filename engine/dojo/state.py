@@ -135,7 +135,7 @@ class RunLock:
     (kill -9, a closed WSL window) is reclaimed."""
 
     def __init__(self, what: str) -> None:
-        self.dir = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
+        self.dir = Path(f"/tmp/topiary-{os.getuid()}.lock")
         self.what = what
         self.held = False
 
@@ -144,7 +144,7 @@ class RunLock:
         """Current lock holder, if any. Returns {pid, what, started_at} when
         a run is in flight, None otherwise. `dojo status` reads this so a
         start-in-progress shows up alongside the running containers."""
-        d = Path(f"/tmp/gitops-dojo-{os.getuid()}.lock")
+        d = Path(f"/tmp/topiary-{os.getuid()}.lock")
         if not d.is_dir():
             return None
         pid = (d / "pid").read_text().strip() if (d / "pid").is_file() else ""
